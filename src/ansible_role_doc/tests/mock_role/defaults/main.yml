@@ -1,0 +1,5 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for mock_role
+variable1: "{{ default('Default value 1', omit) }}"
+variable2: "Default value 2"

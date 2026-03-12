@@ -1,0 +1,13 @@
+README.md
+pyproject.toml
+setup.cfg
+src/ansible_role_doc/cli.py
+src/ansible_role_doc/init.py
+src/ansible_role_doc/scanner.py
+src/ansible_role_doc.egg-info/PKG-INFO
+src/ansible_role_doc.egg-info/SOURCES.txt
+src/ansible_role_doc.egg-info/dependency_links.txt
+src/ansible_role_doc.egg-info/entry_points.txt
+src/ansible_role_doc.egg-info/requires.txt
+src/ansible_role_doc.egg-info/top_level.txt
+src/ansible_role_doc/tests/test_scan.py

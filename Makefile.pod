@@ -1,0 +1,15 @@
+.PHONY: venv install dev test clean
+
+venv:
+	python3 -m venv .venv
+
+install: venv
+	. .venv/bin/activate && pip install --upgrade pip && pip install -e .[dev]
+
+dev: install
+
+test:
+	. .venv/bin/activate && pytest -q
+
+clean:
+	rm -rf .venv build dist *.egg-info

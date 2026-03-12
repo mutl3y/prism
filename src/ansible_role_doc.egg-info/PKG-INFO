@@ -1,0 +1,19 @@
+Metadata-Version: 2.4
+Name: ansible-role-doc
+Version: 0.1.0
+Summary: Scan an Ansible role for Jinja2 default() usages and generate README documentation.
+Author-email: Your Name <you@example.com>
+License: BSD-3-Clause
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: PyYAML>=5.4
+Requires-Dist: Jinja2>=2.11
+
+ansible-role-doc
+=================
+
+Scan an Ansible role for Jinja2 `default()` usages and generate README documentation.
+
+Usage:
+- Install: pip install -e .
+- Run: ansible-role-doc path/to/role -o output.md

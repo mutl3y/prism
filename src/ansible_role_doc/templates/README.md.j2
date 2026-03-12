@@ -1,0 +1,42 @@
+{{ role_name }}
+=========
+
+{{ description }}
+
+Requirements
+------------
+
+{% if requirements %}
+{% for r in requirements %}
+- {{ r.get('src', r) }}{% if r.get('version') %} (version: {{ r.version }}){% endif %}
+{% endfor %}
+{% else %}
+No additional requirements.
+{% endif %}
+
+Role Variables
+--------------
+
+{% if variables %}
+The following variables are available:
+{% for variable, value in variables.items() %}
+- `{{ variable }}`: {{ value }}
+{% endfor %}
+{% else %}
+No variables found.
+{% endif %}
+
+Detected usages of the default() filter
+---------------------------------------
+
+{% if default_filters %}
+The scanner found the following occurrences of `default()` in the role files:
+
+{% for occ in default_filters %}
+- {{ occ.file }}:{{ occ.line_no }} — `{{ occ.match | replace("`","'") }}`  
+  args: `{{ occ.args | replace("`","'") }}`
+{% endfor %}
+
+{% else %}
+No uses of `default()` were detected.
+{% endif %}

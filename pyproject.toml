@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ansible-role-doc"
+version = "0.1.0"
+description = "Scan an Ansible role for Jinja2 default() usages and generate README documentation."
+authors = [
+  { name="Your Name", email="you@example.com" }
+]
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "BSD-3-Clause" }
+dependencies = [
+  "PyYAML>=5.4",
+  "Jinja2>=2.11"
+]
+[project.scripts]
+ansible-role-doc = "ansible_role_doc.cli:main"
