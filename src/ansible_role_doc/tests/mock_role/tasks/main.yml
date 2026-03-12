@@ -1,0 +1,6 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for mock_role
+- name: Task 1
+  debug:
+    msg: "{{ lookup('env','HOME') | default('/home/unknown') }}"
