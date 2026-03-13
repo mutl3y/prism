@@ -4,9 +4,15 @@ venv:
 	python3 -m venv .venv
 
 install: venv
-	. .venv/bin/activate && pip install --upgrade pip && pip install -e .[dev]
+	# Ensure the venv's bin directory is first in PATH for these commands
+	PATH=.venv/bin:$$PATH .venv/bin/pip install --upgrade pip
+	PATH=.venv/bin:$$PATH .venv/bin/pip install -e .[dev]
 
 dev: install
+	# Dev target finishes by reminding how to activate the venv.
+	@echo "Development environment installed."
+	@echo "To use the virtualenv in your shell, run: . .venv/bin/activate"
+	@echo "Or prepend it to PATH for one-off commands: export PATH=.venv/bin:$$PATH"
 
 test:
 	. .venv/bin/activate && pytest -q

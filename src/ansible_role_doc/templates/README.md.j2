@@ -3,6 +3,21 @@
 
 {{ description }}
 
+Galaxy Info
+-----------
+
+{% set g = metadata.meta.galaxy_info if metadata.meta and metadata.meta.galaxy_info else {} %}
+
+{% if g %}
+- **Role name**: {{ g.get('role_name', role_name) }}
+- **Description**: {{ g.get('description', description) }}
+- **License**: {{ g.get('license', 'N/A') }}
+- **Min Ansible Version**: {{ g.get('min_ansible_version', 'N/A') }}
+{% if g.get('galaxy_tags') %}- **Tags**: {{ g.get('galaxy_tags')|join(', ') }}{% endif %}
+{% else %}
+No Galaxy metadata found.
+{% endif %}
+
 Requirements
 ------------
 
@@ -25,6 +40,41 @@ The following variables are available:
 {% else %}
 No variables found.
 {% endif %}
+
+Role contents summary
+---------------------
+
+The scanner collected these role subdirectories (counts):
+
+{% for key, items in metadata.items() %}
+- **{{ key }}**: {{ items|length }} files
+{% endfor %}
+
+{% for key, items in metadata.items() %}
+{% if items %}
+### {{ key|capitalize }}
+
+{% if items is sequence %}
+{% for it in items %}
+{% if loop.index0 < 20 %}
+- {{ it }}
+{% endif %}
+{% endfor %}
+
+{% if items|length > 20 %}
+... and {{ items|length - 20 }} more
+{% endif %}
+
+{% elif items is mapping %}
+{% for k, v in items.items() %}
+- {{ k }}: {{ v }}
+{% endfor %}
+
+{% else %}
+- {{ items }}
+{% endif %}
+{% endif %}
+{% endfor %}
 
 Detected usages of the default() filter
 ---------------------------------------
