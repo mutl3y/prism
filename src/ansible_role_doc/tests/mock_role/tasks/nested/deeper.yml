@@ -1,0 +1,10 @@
+#SPDX-License-Identifier: MIT-0
+---
+- name: Deep nested task default
+  debug:
+    msg: "{{ deep_var | default('Deep default value') }}"
+
+- name: Render deep template
+  ansible.builtin.template:
+    src: app.conf.j2
+    dest: /tmp/mock_app_deep.conf

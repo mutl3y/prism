@@ -3,3 +3,7 @@ env/
 venv/
 *.pyc
 __pycache__/
+.coverage
+htmlcov/
+
+debug_readmes/

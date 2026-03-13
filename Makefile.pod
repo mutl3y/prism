@@ -1,4 +1,4 @@
-.PHONY: venv install dev test clean
+.PHONY: venv install dev test lint clean clean-demo-readmes
 
 venv:
 	python3 -m venv .venv
@@ -20,5 +20,11 @@ test:
 lint:
 	. .venv/bin/activate && tox -e lint,pylint
 
+clean-demo-readmes:
+	rm -f REVIEW_README.md
+	if [ -d debug_readmes ]; then find debug_readmes -mindepth 1 -delete; fi
+	mkdir -p debug_readmes
+
 clean:
+	rm -rf debug_readmes
 	rm -rf .venv build dist *.egg-info

@@ -1,3 +1,4 @@
+LICENSE
 README.md
 pyproject.toml
 setup.cfg
@@ -10,6 +11,8 @@ src/ansible_role_doc.egg-info/dependency_links.txt
 src/ansible_role_doc.egg-info/entry_points.txt
 src/ansible_role_doc.egg-info/requires.txt
 src/ansible_role_doc.egg-info/top_level.txt
+src/ansible_role_doc/templates/README.md.j2
+src/ansible_role_doc/tests/test_cli_repo.py
 src/ansible_role_doc/tests/test_output_formats.py
 src/ansible_role_doc/tests/test_render_readme.py
 src/ansible_role_doc/tests/test_scan.py
