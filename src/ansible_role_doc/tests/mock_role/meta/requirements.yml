@@ -1,0 +1,4 @@
+---
+- src: geerlingguy.nginx
+  version: 3.1.0
+- src: community.general

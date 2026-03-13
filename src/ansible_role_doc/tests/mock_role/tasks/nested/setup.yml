@@ -1,0 +1,12 @@
+#SPDX-License-Identifier: MIT-0
+---
+- name: Nested task default
+  debug:
+    msg: "{{ nested_var | default('Nested default value') }}"
+
+- name: Mark nested state
+  ansible.builtin.set_fact:
+    nested_enabled: "{{ nested_enabled | default(true) }}"
+
+- name: Include deeper task file
+  import_tasks: deeper.yml

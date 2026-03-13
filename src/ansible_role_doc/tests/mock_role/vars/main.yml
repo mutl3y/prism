@@ -3,3 +3,4 @@
 # vars file for mock_role
 variable3: "{{ some_other_var | default('Default value 3') }}"
 variable4: "Default value 4"
+nested_enabled: true

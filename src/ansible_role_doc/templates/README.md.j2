@@ -29,6 +29,59 @@ Requirements
 No additional requirements.
 {% endif %}
 
+Role purpose and capabilities
+-----------------------------
+
+{% if metadata.doc_insights %}
+{{ metadata.doc_insights.purpose_summary }}
+
+{% if metadata.doc_insights.capabilities %}
+Capabilities:
+{% for capability in metadata.doc_insights.capabilities %}
+- {{ capability }}
+{% endfor %}
+{% endif %}
+{% else %}
+No inferred role summary available.
+{% endif %}
+
+Inputs / variables summary
+--------------------------
+
+{% if metadata.variable_insights %}
+| Name | Type | Default | Source |
+| --- | --- | --- | --- |
+{% for row in metadata.variable_insights %}
+| `{{ row.name }}` | {{ row.type }} | `{{ row.default | replace("`","'") }}` | {{ row.source }} |
+{% endfor %}
+{% else %}
+No variable insights available.
+{% endif %}
+
+Task/module usage summary
+-------------------------
+
+{% if metadata.doc_insights and metadata.doc_insights.task_summary %}
+- **Task files scanned**: {{ metadata.doc_insights.task_summary.task_files_scanned }}
+- **Tasks scanned**: {{ metadata.doc_insights.task_summary.tasks_scanned }}
+- **Recursive includes**: {{ metadata.doc_insights.task_summary.recursive_task_includes }}
+- **Unique modules**: {{ metadata.doc_insights.task_summary.module_count }}
+- **Handlers referenced**: {{ metadata.doc_insights.task_summary.handler_count }}
+{% else %}
+No task summary available.
+{% endif %}
+
+Inferred example usage
+----------------------
+
+{% if metadata.doc_insights and metadata.doc_insights.example_playbook %}
+```yaml
+{{ metadata.doc_insights.example_playbook }}
+```
+{% else %}
+No inferred example available.
+{% endif %}
+
 Role Variables
 --------------
 
@@ -46,11 +99,11 @@ Role contents summary
 
 The scanner collected these role subdirectories (counts):
 
-{% for key, items in metadata.items() %}
+{% for key, items in metadata.items() if key not in ('meta', 'features', 'comparison', 'variable_insights', 'doc_insights') and items is sequence and (items is not string) %}
 - **{{ key }}**: {{ items|length }} files
 {% endfor %}
 
-{% for key, items in metadata.items() %}
+{% for key, items in metadata.items() if key not in ('meta', 'features', 'comparison', 'variable_insights', 'doc_insights') %}
 {% if items %}
 ### {{ key|capitalize }}
 
@@ -75,6 +128,33 @@ The scanner collected these role subdirectories (counts):
 {% endif %}
 {% endif %}
 {% endfor %}
+
+Auto-detected role features
+---------------------------
+
+{% if metadata.features %}
+{% for k, v in metadata.features.items() %}
+- **{{ k }}**: {{ v }}
+{% endfor %}
+{% else %}
+No role features detected.
+{% endif %}
+
+Comparison against local baseline role
+-------------------------------------
+
+{% if metadata.comparison %}
+- **Baseline path**: {{ metadata.comparison.baseline_path }}
+- **Target score**: {{ metadata.comparison.target_score }}/100
+- **Baseline score**: {{ metadata.comparison.baseline_score }}/100
+- **Score delta**: {{ metadata.comparison.score_delta }}
+
+{% for metric, values in metadata.comparison.metrics.items() %}
+- **{{ metric }}**: target={{ values.target }}, baseline={{ values.baseline }}, delta={{ values.delta }}
+{% endfor %}
+{% else %}
+No comparison baseline provided.
+{% endif %}
 
 Detected usages of the default() filter
 ---------------------------------------
