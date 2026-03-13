@@ -65,14 +65,28 @@ jobs:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Emit SARIF (supported by reviewdog) and post via reviewdog
+          python -m ruff --version || true
+          python -m ruff check --help > ruff.help 2>&1 || true
+          echo "---- ruff.check --help ----"
+          sed -n '1,120p' ruff.help || true
+          echo "---- try: python -m ruff check --format=sarif . ----"
           python -m ruff check --format=sarif . > ruff.sarif 2> ruff.err || true
+          if [ ! -s ruff.sarif ]; then
+            echo "no SARIF produced by direct --format invocation; trying alternate form"
+            python -m ruff check -- --format=sarif . > ruff.sarif 2> ruff.err || true
+          fi
           echo "---- ruff.sarif (start) ----"
           cat ruff.sarif || true
           echo "---- ruff.sarif (end) ----"
           echo "---- ruff.err (start) ----"
           cat ruff.err || true
           echo "---- ruff.err (end) ----"
-          cat ruff.sarif | reviewdog -f=sarif -name="ruff" -reporter=github-pr-review -level=error
+          if [ -s ruff.sarif ]; then
+            cat ruff.sarif | reviewdog -f=sarif -name="ruff" -reporter=github-pr-review -level=error
+          else
+            echo "No SARIF output from ruff; skipping reviewdog (see ruff.err)"
+            exit 1
+          fi
 
       - name: Run tests
         run: pytest -q
