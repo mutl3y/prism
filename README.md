@@ -1,6 +1,12 @@
 ansible-role-doc
 =================
 
+[![CI](https://github.com/mutl3y/ansible_role_doc/actions/workflows/default.yml/badge.svg?branch=main)](https://github.com/mutl3y/ansible_role_doc/actions/workflows/default.yml)
+[![Branch](https://img.shields.io/github/actions/workflow/status/mutl3y/ansible_role_doc/default.yml?branch=main&label=main)](https://github.com/mutl3y/ansible_role_doc/tree/main)
+[![Coverage](https://img.shields.io/badge/coverage-86.6%25-brightgreen)](COVERAGE_WORKOFF_PLAN.md)
+[![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml)
+[![License](https://img.shields.io/github/license/mutl3y/ansible_role_doc)](LICENSE)
+
 Scan an Ansible role for Jinja2 `default()` usages and generate README documentation.
 
 Usage:
