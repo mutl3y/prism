@@ -39,6 +39,15 @@ unacceptable behavior, open a private issue or contact the maintainers.
    make test
    ```
 
+4. Run tox for full checks and a mock output preview:
+
+  ```bash
+  tox
+  ```
+
+  This also generates `debug_readmes/REVIEW_README.md` from the mock role so
+  you can quickly review rendered output. The folder is gitignored.
+
 **Linting and formatting**:
 
 - We use `ruff`, `black`, and `pylint` alongside `pre-commit` hooks.

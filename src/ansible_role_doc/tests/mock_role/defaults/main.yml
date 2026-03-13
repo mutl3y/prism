@@ -3,3 +3,6 @@
 # defaults file for mock_role
 variable1: "{{ default('Default value 1', omit) }}"
 variable2: "Default value 2"
+role_install_enabled: true
+role_package_name: nginx
+role_service_name: mock-service

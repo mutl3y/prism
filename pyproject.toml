@@ -22,8 +22,12 @@ ansible-role-doc = "ansible_role_doc.cli:main"
 [project.optional-dependencies]
 dev = [
   "pytest",
+  "pytest-cov",
   "tox",
   "ruff",
   "black",
   "markdown",
 ]
+
+[tool.setuptools.package-data]
+ansible_role_doc = ["templates/*.j2"]
