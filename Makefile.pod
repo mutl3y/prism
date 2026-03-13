@@ -22,7 +22,9 @@ lint:
 
 clean-demo-readmes:
 	rm -f REVIEW_README.md
-	find debug_readmes -type f \( -name 'REVIEW_README*.md' -o -name 'REVIEW_README*.html' -o -name 'DEMO_GENERATED.md' -o -name 'DEMO_GENERATED.html' \) -delete 2>/dev/null || true
+	if [ -d debug_readmes ]; then find debug_readmes -mindepth 1 -delete; fi
+	mkdir -p debug_readmes
 
 clean:
+	rm -rf debug_readmes
 	rm -rf .venv build dist *.egg-info
