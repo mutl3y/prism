@@ -62,7 +62,7 @@ jobs:
       - name: Run ruff and post annotations via reviewdog
         if: ${{ github.event_name == 'pull_request' }}
         run: |
-          ruff check --format=json . > ruff.json || true
+          ruff check -- --format=json . > ruff.json || true
           cat ruff.json | reviewdog -f=ruff-json -name="ruff" -reporter=github-pr-review -level=error
 
       - name: Run tests
