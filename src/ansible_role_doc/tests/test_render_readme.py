@@ -164,7 +164,10 @@ def test_render_readme_maps_extended_style_sections(tmp_path):
     assert "## Contributing" in content
     assert "## Sponsors" in content
     assert "## License and Author" in content
-    assert "Style section retained from guide; scanner does not map this section yet." not in content
+    assert (
+        "Style section retained from guide; scanner does not map this section yet."
+        not in content
+    )
 
 
 def test_render_readme_applies_nested_variable_style(tmp_path):
@@ -289,13 +292,18 @@ def test_render_readme_retains_unknown_sections_from_setext_guide(tmp_path):
     )
 
     out = tmp_path / "REVIEW_README_SETEXT_UNKNOWN.md"
-    result = scanner.run_scan(str(target), output=str(out), style_readme_path=str(style))
+    result = scanner.run_scan(
+        str(target), output=str(out), style_readme_path=str(style)
+    )
 
     assert result.endswith("REVIEW_README_SETEXT_UNKNOWN.md")
     content = out.read_text(encoding="utf-8")
     assert "mock_role\n=========" in content
     assert "Mystery Section\n---------------" in content
-    assert "Style section retained from guide; scanner does not map this section yet." in content
+    assert (
+        "Style section retained from guide; scanner does not map this section yet."
+        in content
+    )
     assert "Role Variables\n--------------" in content
 
 
@@ -313,12 +321,16 @@ def test_render_guide_section_body_handles_license_author_sponsors_and_faq():
         "variable_insights": [],
     }
 
-    assert scanner._render_guide_section_body(
-        "license", "demo", "", {}, [], [], metadata
-    ) == "BSD-3-Clause"
-    assert scanner._render_guide_section_body(
-        "author_information", "demo", "", {}, [], [], metadata
-    ) == "Example Author"
+    assert (
+        scanner._render_guide_section_body("license", "demo", "", {}, [], [], metadata)
+        == "BSD-3-Clause"
+    )
+    assert (
+        scanner._render_guide_section_body(
+            "author_information", "demo", "", {}, [], [], metadata
+        )
+        == "Example Author"
+    )
 
     license_author = scanner._render_guide_section_body(
         "license_author", "demo", "", {}, [], [], metadata
@@ -348,15 +360,22 @@ def test_render_guide_section_body_handles_license_author_sponsors_and_faq():
 def test_render_guide_section_body_handles_empty_variables_and_license_defaults():
     metadata = {"meta": {}, "features": {}, "variable_insights": []}
 
-    assert scanner._render_guide_section_body(
-        "license", "demo", "", {}, [], [], metadata
-    ) == "N/A"
-    assert scanner._render_guide_section_body(
-        "author_information", "demo", "", {}, [], [], metadata
-    ) == "N/A"
-    assert scanner._render_guide_section_body(
-        "role_variables", "demo", "", {}, [], [], metadata
-    ) == "No variables found."
+    assert (
+        scanner._render_guide_section_body("license", "demo", "", {}, [], [], metadata)
+        == "N/A"
+    )
+    assert (
+        scanner._render_guide_section_body(
+            "author_information", "demo", "", {}, [], [], metadata
+        )
+        == "N/A"
+    )
+    assert (
+        scanner._render_guide_section_body(
+            "role_variables", "demo", "", {}, [], [], metadata
+        )
+        == "No variables found."
+    )
 
 
 def test_render_role_variables_uses_simple_list_when_no_special_style():
@@ -390,7 +409,10 @@ def test_quality_metrics_and_comparison_report_detect_deltas(tmp_path):
     assert comparison["target_score"] == rich_metrics["score"]
     assert comparison["baseline_score"] == sparse_metrics["score"]
     assert comparison["score_delta"] > 0
-    assert comparison["metrics"]["task_count"]["target"] >= comparison["metrics"]["task_count"]["baseline"]
+    assert (
+        comparison["metrics"]["task_count"]["target"]
+        >= comparison["metrics"]["task_count"]["baseline"]
+    )
 
 
 def test_render_guide_section_body_covers_remaining_fallbacks():
@@ -400,21 +422,36 @@ def test_render_guide_section_body_covers_remaining_fallbacks():
         "features": {"task_files_scanned": 1, "tasks_scanned": 2},
     }
 
-    assert scanner._render_guide_section_body(
-        "requirements", "demo", "", {}, [], [], metadata
-    ) == "No additional requirements."
-    assert scanner._render_guide_section_body(
-        "task_summary", "demo", "", {}, [], [], metadata
-    ) == "No task summary available."
-    assert scanner._render_guide_section_body(
-        "example_usage", "demo", "", {}, [], [], metadata
-    ) == "No inferred example available."
-    assert scanner._render_guide_section_body(
-        "comparison", "demo", "", {}, [], [], metadata
-    ) == "No comparison baseline provided."
-    assert scanner._render_guide_section_body(
-        "default_filters", "demo", "", {}, [], [], metadata
-    ) == "No uses of `default()` were detected."
+    assert (
+        scanner._render_guide_section_body(
+            "requirements", "demo", "", {}, [], [], metadata
+        )
+        == "No additional requirements."
+    )
+    assert (
+        scanner._render_guide_section_body(
+            "task_summary", "demo", "", {}, [], [], metadata
+        )
+        == "No task summary available."
+    )
+    assert (
+        scanner._render_guide_section_body(
+            "example_usage", "demo", "", {}, [], [], metadata
+        )
+        == "No inferred example available."
+    )
+    assert (
+        scanner._render_guide_section_body(
+            "comparison", "demo", "", {}, [], [], metadata
+        )
+        == "No comparison baseline provided."
+    )
+    assert (
+        scanner._render_guide_section_body(
+            "default_filters", "demo", "", {}, [], [], metadata
+        )
+        == "No uses of `default()` were detected."
+    )
 
     role_contents = scanner._render_guide_section_body(
         "role_contents", "demo", "", {}, [], [], metadata
@@ -440,7 +477,14 @@ def test_render_guide_section_body_renders_comparison_and_default_filters():
         },
     }
     metadata = {"comparison": comparison}
-    default_filters = [{"file": "tasks/main.yml", "line_no": 5, "match": "var | default('x')", "args": "'x'"}]
+    default_filters = [
+        {
+            "file": "tasks/main.yml",
+            "line_no": 5,
+            "match": "var | default('x')",
+            "args": "'x'",
+        }
+    ]
 
     comparison_text = scanner._render_guide_section_body(
         "comparison", "demo", "", {}, [], [], metadata
@@ -459,7 +503,9 @@ def test_render_guide_section_body_renders_comparison_and_default_filters():
 def test_render_readme_direct_template_and_style_paths(tmp_path):
     output = tmp_path / "rendered.md"
     template = tmp_path / "custom.j2"
-    template.write_text("Role={{ role_name }}\nSummary={{ description }}\n", encoding="utf-8")
+    template.write_text(
+        "Role={{ role_name }}\nSummary={{ description }}\n", encoding="utf-8"
+    )
 
     rendered = scanner.render_readme(
         str(output),
@@ -488,7 +534,9 @@ def test_render_readme_direct_template_and_style_paths(tmp_path):
         write=True,
     )
     assert written.endswith("rendered.md")
-    assert output.read_text(encoding="utf-8") == "Role=demo-role\nSummary=demo description"
+    assert (
+        output.read_text(encoding="utf-8") == "Role=demo-role\nSummary=demo description"
+    )
 
     styled = scanner.render_readme(
         str(output),
@@ -497,7 +545,13 @@ def test_render_readme_direct_template_and_style_paths(tmp_path):
         {"x": 1},
         [],
         [],
-        metadata={"style_guide": {"title_style": "atx", "section_style": "atx", "sections": []}},
+        metadata={
+            "style_guide": {
+                "title_style": "atx",
+                "section_style": "atx",
+                "sections": [],
+            }
+        },
         write=False,
     )
     assert "# demo-role" in styled
@@ -530,15 +584,21 @@ def test_infer_variable_type_and_describe_variable_branches():
     assert scanner._infer_variable_type({"k": "v"}) == "dict"
     assert scanner._infer_variable_type(None) == "null"
 
-    assert scanner._describe_variable("my_path", "defaults/main.yml").startswith("Override the file or path")
-    assert scanner._describe_variable("my_user", "defaults/main.yml").startswith("Set the user or group")
+    assert scanner._describe_variable("my_path", "defaults/main.yml").startswith(
+        "Override the file or path"
+    )
+    assert scanner._describe_variable("my_user", "defaults/main.yml").startswith(
+        "Set the user or group"
+    )
 
 
 def test_build_variable_insights_marks_override_source(tmp_path):
     role = tmp_path / "role"
     (role / "defaults").mkdir(parents=True)
     (role / "vars").mkdir(parents=True)
-    (role / "defaults" / "main.yml").write_text("---\nshared_var: false\n", encoding="utf-8")
+    (role / "defaults" / "main.yml").write_text(
+        "---\nshared_var: false\n", encoding="utf-8"
+    )
     (role / "vars" / "main.yml").write_text("---\nshared_var: true\n", encoding="utf-8")
 
     rows = scanner.build_variable_insights(str(role))
@@ -582,7 +642,9 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
         "features": {"recursive_task_includes": 0},
     }
 
-    galaxy = scanner._render_guide_section_body("galaxy_info", "demo", "desc", {}, [], [], metadata)
+    galaxy = scanner._render_guide_section_body(
+        "galaxy_info", "demo", "desc", {}, [], [], metadata
+    )
     assert "**Role name**: demo-role" in galaxy
     assert "**Tags**: demo, test" in galaxy
 
@@ -605,20 +667,38 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
         {},
         [],
         [],
-        {**metadata, "variable_insights": [{"name": "v", "type": "bool", "default": "true", "source": "defaults/main.yml"}]},
+        {
+            **metadata,
+            "variable_insights": [
+                {
+                    "name": "v",
+                    "type": "bool",
+                    "default": "true",
+                    "source": "defaults/main.yml",
+                }
+            ],
+        },
     )
     assert "| `v` | bool | `true` | defaults/main.yml |" in variable_summary
 
-    task_summary = scanner._render_guide_section_body("task_summary", "demo", "", {}, [], [], metadata)
+    task_summary = scanner._render_guide_section_body(
+        "task_summary", "demo", "", {}, [], [], metadata
+    )
     assert "**Task files scanned**: 2" in task_summary
 
-    example = scanner._render_guide_section_body("example_usage", "demo", "", {}, [], [], metadata)
+    example = scanner._render_guide_section_body(
+        "example_usage", "demo", "", {}, [], [], metadata
+    )
     assert "```yaml" in example
 
-    testing = scanner._render_guide_section_body("local_testing", "demo", "", {}, [], [], metadata)
+    testing = scanner._render_guide_section_body(
+        "local_testing", "demo", "", {}, [], [], metadata
+    )
     assert "ansible-playbook -i tests/inventory tests/test.yml" in testing
 
-    contributing = scanner._render_guide_section_body("contributing", "demo", "", {}, [], [], metadata)
+    contributing = scanner._render_guide_section_body(
+        "contributing", "demo", "", {}, [], [], metadata
+    )
     assert "Contributions are welcome." in contributing
 
 

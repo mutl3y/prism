@@ -175,7 +175,10 @@ def test_cli_ssh_repo_url_is_preserved(monkeypatch, tmp_path):
 
 def test_cli_requires_single_input_source():
     assert cli.main([]) == 2
-    assert cli.main(["some/role", "--repo-url", "https://github.com/example/role.git"]) == 2
+    assert (
+        cli.main(["some/role", "--repo-url", "https://github.com/example/role.git"])
+        == 2
+    )
 
 
 def test_cli_compare_role_path_is_forwarded(monkeypatch, tmp_path):
@@ -284,12 +287,16 @@ def test_clone_repo_timeout_raises_runtime_error(monkeypatch, tmp_path):
     monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
 
     with pytest.raises(RuntimeError, match="repository clone timed out"):
-        cli._clone_repo("https://github.com/example/role.git", tmp_path / "repo", timeout=5)
+        cli._clone_repo(
+            "https://github.com/example/role.git", tmp_path / "repo", timeout=5
+        )
 
 
 def test_clone_repo_failure_raises_runtime_error(monkeypatch, tmp_path):
     def fake_clone_run(cmd, check, stdout, stderr, text, timeout, env):
-        raise subprocess.CalledProcessError(returncode=1, cmd=cmd, stderr="fatal: denied")
+        raise subprocess.CalledProcessError(
+            returncode=1, cmd=cmd, stderr="fatal: denied"
+        )
 
     monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
 
@@ -387,7 +394,9 @@ def test_save_style_comparison_artifacts_uses_parent_name_for_readme_slug(tmp_pa
     assert Path(demo_path).name == "DEMO_GENERATED.md"
 
 
-def test_save_style_comparison_artifacts_skips_copy_when_demo_output_already_target(tmp_path):
+def test_save_style_comparison_artifacts_skips_copy_when_demo_output_already_target(
+    tmp_path,
+):
     style_dir = tmp_path / "style_demo"
     style_dir.mkdir()
     source = tmp_path / "guide.md"
@@ -419,7 +428,9 @@ def test_cli_verbose_repo_scan_prints_clone_and_write(monkeypatch, tmp_path, cap
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "verbose.md"
-    rc = cli.main(["--repo-url", "https://github.com/example/role.git", "-o", str(out), "-v"])
+    rc = cli.main(
+        ["--repo-url", "https://github.com/example/role.git", "-o", str(out), "-v"]
+    )
     captured = capsys.readouterr()
 
     assert rc == 0
@@ -427,12 +438,16 @@ def test_cli_verbose_repo_scan_prints_clone_and_write(monkeypatch, tmp_path, cap
     assert "Wrote:" in captured.out
 
 
-def test_cli_verbose_local_scan_prints_style_and_demo_paths(monkeypatch, tmp_path, capsys):
+def test_cli_verbose_local_scan_prints_style_and_demo_paths(
+    monkeypatch, tmp_path, capsys
+):
     """Covers the verbose style_source_path and style_demo_path print lines (local role path flow)."""
     role_dir = tmp_path / "role"
     role_dir.mkdir()
     style_guide = tmp_path / "guide.md"
-    style_guide.write_text("# Style\n\n## Role Variables\n\nsome body\n", encoding="utf-8")
+    style_guide.write_text(
+        "# Style\n\n## Role Variables\n\nsome body\n", encoding="utf-8"
+    )
     out = tmp_path / "out.md"
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
@@ -441,7 +456,9 @@ def test_cli_verbose_local_scan_prints_style_and_demo_paths(monkeypatch, tmp_pat
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
-    rc = cli.main([str(role_dir), "--style-readme", str(style_guide), "-o", str(out), "-v"])
+    rc = cli.main(
+        [str(role_dir), "--style-readme", str(style_guide), "-o", str(out), "-v"]
+    )
     captured = capsys.readouterr()
 
     assert rc == 0
