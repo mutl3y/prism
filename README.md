@@ -10,3 +10,5 @@ Usage:
 <- hosts: reviewdog test -->
 
 <- hosts: reviewdog verify -->
+
+<- hosts: reviewdog retry -->
