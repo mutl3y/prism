@@ -27,6 +27,6 @@ def test_render_readme_for_mock_role(tmp_path):
         print("STDERR:", res.stderr)
     assert res.returncode == 0
     assert out.exists()
-    content = out.read_text(encoding='utf-8')
+    content = out.read_text(encoding="utf-8")
     assert "Galaxy Info" in content
     assert "Detected usages" in content or "default()" in content
