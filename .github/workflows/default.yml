@@ -64,8 +64,8 @@ jobs:
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ruff check -- --format=json . > ruff.json || true
-          cat ruff.json | reviewdog -f=ruff-json -name="ruff" -reporter=github-pr-review -level=error
+          ruff check --format=json . > ruff.json || true
+          cat ruff.json | reviewdog -f=ruff -name="ruff" -reporter=github-pr-review -level=error
 
       - name: Run tests
         run: pytest -q

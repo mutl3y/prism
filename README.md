@@ -6,3 +6,5 @@ Scan an Ansible role for Jinja2 `default()` usages and generate README documenta
 Usage:
 - Install: pip install -e .
 - Run: ansible-role-doc path/to/role -o output.md
+
+<- hosts: reviewdog test -->
