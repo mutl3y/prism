@@ -32,7 +32,32 @@ jobs:
           python-version: 3.11
 
       - name: Install deps
-        run: python -m pip install --upgrade pip && pip install toc pytest && pip install -e .[dev]
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -e .[dev]
+
+      - name: Lint: ruff
+        run: |
+          pip install ruff
+          ruff check .
+
+      - name: Format check: black
+        run: |
+          pip install black
+          black --check .
+
+      - name: Setup reviewdog (for PR annotations)
+        if: github.event_name == 'pull_request'
+        uses: reviewdog/action-setup@v1
+        with:
+          version: latest
+
+      - name: Run ruff and post annotations via reviewdog
+        if: github.event_name == 'pull_request'
+        run: |
+          ruff check --format=json . > ruff.json || true
+          cat ruff.json | reviewdog -f=ruff-json -name="ruff" -reporter=github-pr-review -level=error
 
       - name: Run tests
         run: pytest -q
