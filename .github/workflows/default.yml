@@ -25,6 +25,8 @@ jobs:
   build:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -73,6 +75,8 @@ jobs:
     if: ${{ github.event_name == 'pull_request' }}
     permissions:
       contents: write
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - uses: actions/checkout@v4
         with:
