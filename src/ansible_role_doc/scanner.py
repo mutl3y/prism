@@ -162,7 +162,7 @@ def _scan_file_for_default_filters(file_path: Path, role_root: Path) -> list[dic
                             "args": args,
                         }
                     )
-    except (UnicodeDecodeError, PermissionError, OSError):
+    except UnicodeDecodeError, PermissionError, OSError:
         return []
     return occurrences
 
@@ -176,7 +176,9 @@ def _collect_task_files(role_root: Path) -> list[Path]:
     entrypoints = [tasks_dir / "main.yml"] if (tasks_dir / "main.yml").exists() else []
     if not entrypoints:
         entrypoints = sorted(
-            path for path in tasks_dir.rglob("*") if path.is_file() and path.suffix in {".yml", ".yaml"}
+            path
+            for path in tasks_dir.rglob("*")
+            if path.is_file() and path.suffix in {".yml", ".yaml"}
         )
 
     discovered: list[Path] = []
@@ -236,7 +238,9 @@ def _iter_task_mappings(data: object):
                     yield from _iter_task_mappings(nested)
 
 
-def _resolve_task_include(role_root: Path, current_file: Path, include_target: str) -> Path | None:
+def _resolve_task_include(
+    role_root: Path, current_file: Path, include_target: str
+) -> Path | None:
     """Resolve an included task file relative to the current task file or tasks dir."""
     candidate = include_target.strip()
     if not candidate or "{{" in candidate or "{%" in candidate:
@@ -251,9 +255,7 @@ def _resolve_task_include(role_root: Path, current_file: Path, include_target: s
         candidates.append((role_root / "tasks" / path).resolve())
 
     if not path.suffix:
-        candidates.extend(
-            resolved.with_suffix(".yml") for resolved in list(candidates)
-        )
+        candidates.extend(resolved.with_suffix(".yml") for resolved in list(candidates))
 
     for resolved in candidates:
         if not resolved.is_file():
@@ -453,14 +455,18 @@ def extract_role_features(role_path: str) -> dict:
             if isinstance(notify, str):
                 handlers_notified.add(notify)
             elif isinstance(notify, list):
-                handlers_notified.update(item for item in notify if isinstance(item, str))
+                handlers_notified.update(
+                    item for item in notify if isinstance(item, str)
+                )
 
     return {
         "task_files_scanned": len(task_files),
         "tasks_scanned": tasks_scanned,
         "recursive_task_includes": include_count,
         "unique_modules": ", ".join(sorted(modules)) if modules else "none",
-        "handlers_notified": ", ".join(sorted(handlers_notified)) if handlers_notified else "none",
+        "handlers_notified": (
+            ", ".join(sorted(handlers_notified)) if handlers_notified else "none"
+        ),
         "privileged_tasks": privileged_tasks,
         "conditional_tasks": conditional_tasks,
         "tagged_tasks": tagged_tasks,
@@ -474,15 +480,25 @@ def _compute_quality_metrics(role_path: str) -> dict:
     variables = load_variables(role_path)
 
     present_dirs = 0
-    for section in ("tasks", "defaults", "vars", "handlers", "templates", "files", "tests"):
+    for section in (
+        "tasks",
+        "defaults",
+        "vars",
+        "handlers",
+        "templates",
+        "files",
+        "tests",
+    ):
         if contents.get(section):
             present_dirs += 1
 
     defaults_hits = len(scan_for_default_filters(role_path))
     tasks_scanned = int(features.get("tasks_scanned", 0) or 0)
     unique_modules_raw = str(features.get("unique_modules", "none"))
-    unique_modules = 0 if unique_modules_raw == "none" else len(
-        [item for item in unique_modules_raw.split(",") if item.strip()]
+    unique_modules = (
+        0
+        if unique_modules_raw == "none"
+        else len([item for item in unique_modules_raw.split(",") if item.strip()])
     )
 
     score = (
@@ -538,7 +554,8 @@ def build_comparison_report(target_role_path: str, baseline_role_path: str) -> d
             "default_filter_count": {
                 "target": target["default_filter_count"],
                 "baseline": baseline["default_filter_count"],
-                "delta": target["default_filter_count"] - baseline["default_filter_count"],
+                "delta": target["default_filter_count"]
+                - baseline["default_filter_count"],
             },
         },
     }
@@ -622,21 +639,25 @@ def build_variable_insights(role_path: str) -> list[dict]:
             if name in known_names:
                 continue
             known_names.add(name)
-            rows.append({
-                "name": name,
-                "type": _infer_variable_type(extra_data[name]),
-                "default": _format_inline_yaml(extra_data[name]),
-                "source": rel_source,
-            })
+            rows.append(
+                {
+                    "name": name,
+                    "type": _infer_variable_type(extra_data[name]),
+                    "default": _format_inline_yaml(extra_data[name]),
+                    "source": rel_source,
+                }
+            )
 
     # Discover computed variable names from set_fact tasks
     for name in sorted(_collect_set_fact_names(role_path) - known_names):
-        rows.append({
-            "name": name,
-            "type": "computed",
-            "default": "—",
-            "source": "tasks (set_fact)",
-        })
+        rows.append(
+            {
+                "name": name,
+                "type": "computed",
+                "default": "—",
+                "source": "tasks (set_fact)",
+            }
+        )
 
     return rows
 
@@ -654,11 +675,36 @@ def build_doc_insights(
     handlers = _parse_comma_values(str(features.get("handlers_notified", "none")))
 
     capability_rules = (
-        (("template", "ansible.builtin.template", "copy", "ansible.builtin.copy"), "Deploy configuration or content files"),
-        (("service", "ansible.builtin.service", "systemd", "ansible.builtin.systemd"), "Manage service lifecycle and state"),
-        (("package", "ansible.builtin.package", "apt", "yum", "dnf"), "Install and manage packages"),
-        (("user", "ansible.builtin.user", "group", "ansible.builtin.group"), "Manage users and groups"),
-        (("lineinfile", "ansible.builtin.lineinfile", "replace", "ansible.builtin.replace"), "Modify existing configuration files in-place"),
+        (
+            ("template", "ansible.builtin.template", "copy", "ansible.builtin.copy"),
+            "Deploy configuration or content files",
+        ),
+        (
+            (
+                "service",
+                "ansible.builtin.service",
+                "systemd",
+                "ansible.builtin.systemd",
+            ),
+            "Manage service lifecycle and state",
+        ),
+        (
+            ("package", "ansible.builtin.package", "apt", "yum", "dnf"),
+            "Install and manage packages",
+        ),
+        (
+            ("user", "ansible.builtin.user", "group", "ansible.builtin.group"),
+            "Manage users and groups",
+        ),
+        (
+            (
+                "lineinfile",
+                "ansible.builtin.lineinfile",
+                "replace",
+                "ansible.builtin.replace",
+            ),
+            "Modify existing configuration files in-place",
+        ),
     )
     capabilities: list[str] = []
     module_set = set(modules)
@@ -672,8 +718,12 @@ def build_doc_insights(
     if not capabilities:
         capabilities.append("Provides reusable Ansible automation tasks")
 
-    purpose_summary = description.strip() if description else (
-        f"The role `{role_name}` automates setup and configuration tasks with Ansible best-practice structure."
+    purpose_summary = (
+        description.strip()
+        if description
+        else (
+            f"The role `{role_name}` automates setup and configuration tasks with Ansible best-practice structure."
+        )
     )
 
     example_vars = variable_insights[:3]
@@ -691,7 +741,9 @@ def build_doc_insights(
         "task_summary": {
             "task_files_scanned": int(features.get("task_files_scanned", 0) or 0),
             "tasks_scanned": int(features.get("tasks_scanned", 0) or 0),
-            "recursive_task_includes": int(features.get("recursive_task_includes", 0) or 0),
+            "recursive_task_includes": int(
+                features.get("recursive_task_includes", 0) or 0
+            ),
             "module_count": len(modules),
             "handler_count": len(handlers),
         },
@@ -730,7 +782,9 @@ def parse_style_readme(style_readme_path: str) -> dict:
             elif level == 2:
                 section_style = "atx"
             if level == 2:
-                canonical = STYLE_SECTION_ALIASES.get(_normalize_style_heading(title), "unknown")
+                canonical = STYLE_SECTION_ALIASES.get(
+                    _normalize_style_heading(title), "unknown"
+                )
                 current_section = {"id": canonical, "title": title, "body": []}
                 sections.append(current_section)
             i += 1
@@ -745,7 +799,9 @@ def parse_style_readme(style_readme_path: str) -> dict:
 
         if re.match(r"^-+$", next_line):
             section_style = "setext"
-            canonical = STYLE_SECTION_ALIASES.get(_normalize_style_heading(line), "unknown")
+            canonical = STYLE_SECTION_ALIASES.get(
+                _normalize_style_heading(line), "unknown"
+            )
             current_section = {"id": canonical, "title": line.strip(), "body": []}
             sections.append(current_section)
             i += 2
@@ -759,7 +815,9 @@ def parse_style_readme(style_readme_path: str) -> dict:
     for section in sections:
         section["body"] = "\n".join(section.get("body", [])).strip()
 
-    variable_section = next((section for section in sections if section["id"] == "role_variables"), None)
+    variable_section = next(
+        (section for section in sections if section["id"] == "role_variables"), None
+    )
     variable_style = "simple_list"
     variable_intro = None
     if variable_section:
@@ -818,12 +876,19 @@ def _render_role_variables_for_style(variables: dict, metadata: dict) -> str:
             default = str(row["default"]).replace("`", "'")
             lines.append(f"* `{row['name']}`")
             lines.append(f"  * Default: {default}")
-            lines.append(f"  * Description: {_describe_variable(row['name'], row['source'])}")
+            lines.append(
+                f"  * Description: {_describe_variable(row['name'], row['source'])}"
+            )
         return "\n".join(lines)
 
     if variable_style == "yaml_block":
-        intro = style_guide.get("variable_intro") or "Available variables are listed below, along with default values (see `defaults/main.yml`):"
-        yaml_block = yaml.safe_dump(variables, sort_keys=False, default_flow_style=False).strip()
+        intro = (
+            style_guide.get("variable_intro")
+            or "Available variables are listed below, along with default values (see `defaults/main.yml`):"
+        )
+        yaml_block = yaml.safe_dump(
+            variables, sort_keys=False, default_flow_style=False
+        ).strip()
         return f"{intro}\n\n```yaml\n{yaml_block}\n```"
 
     lines = ["The following variables are available:"]
@@ -852,7 +917,9 @@ def _render_guide_section_body(
     metadata: dict,
 ) -> str:
     """Render one canonical section body for guided README output."""
-    galaxy = metadata.get("meta", {}).get("galaxy_info", {}) if metadata.get("meta") else {}
+    galaxy = (
+        metadata.get("meta", {}).get("galaxy_info", {}) if metadata.get("meta") else {}
+    )
 
     if section_id == "galaxy_info":
         if not galaxy:
@@ -903,7 +970,9 @@ def _render_guide_section_body(
     if section_id == "purpose":
         insights = metadata.get("doc_insights") or {}
         lines = [insights.get("purpose_summary", "No inferred role summary available.")]
-        lines.extend(f"- {capability}" for capability in insights.get("capabilities", []))
+        lines.extend(
+            f"- {capability}" for capability in insights.get("capabilities", [])
+        )
         return "\n".join(lines)
 
     if section_id == "variable_summary":
@@ -923,16 +992,24 @@ def _render_guide_section_body(
         if not rows:
             return "No variable guidance available because no variable defaults were discovered."
         priority = [
-            row for row in rows
-            if any(keyword in row["name"] for keyword in ("port", "idempot", "state", "enabled"))
+            row
+            for row in rows
+            if any(
+                keyword in row["name"]
+                for keyword in ("port", "idempot", "state", "enabled")
+            )
         ]
         if not priority:
             priority = rows[:5]
         lines = ["Recommended variables to tune:"]
         for row in priority[:8]:
-            lines.append(f"- `{row['name']}` (default: `{str(row['default']).replace('`', "'")}`)")
+            lines.append(
+                f"- `{row['name']}` (default: `{str(row['default']).replace('`', "'")}`)"
+            )
         lines.append("")
-        lines.append("Use these as initial overrides for environment-specific behavior.")
+        lines.append(
+            "Use these as initial overrides for environment-specific behavior."
+        )
         return "\n".join(lines)
 
     if section_id == "task_summary":
@@ -958,8 +1035,17 @@ def _render_guide_section_body(
     if section_id == "local_testing":
         role_tests = metadata.get("tests") or []
         if role_tests:
-            inventory = next((item for item in role_tests if "inventory" in item), role_tests[0])
-            playbook = next((item for item in role_tests if item.endswith(".yml") or item.endswith(".yaml")), role_tests[0])
+            inventory = next(
+                (item for item in role_tests if "inventory" in item), role_tests[0]
+            )
+            playbook = next(
+                (
+                    item
+                    for item in role_tests
+                    if item.endswith(".yml") or item.endswith(".yaml")
+                ),
+                role_tests[0],
+            )
             return (
                 "Run a quick local validation using bundled role tests:\n\n"
                 "```bash\n"
@@ -975,9 +1061,13 @@ def _render_guide_section_body(
             "- Keep task includes file-based when possible for better recursive scanning.",
         ]
         if int(features.get("recursive_task_includes", 0) or 0) > 0:
-            lines.append("- Nested include chains are detected; avoid heavily dynamic include paths when possible.")
+            lines.append(
+                "- Nested include chains are detected; avoid heavily dynamic include paths when possible."
+            )
         if default_filters:
-            lines.append("- `default()` usages are captured from source files; keep expressions readable for better docs.")
+            lines.append(
+                "- `default()` usages are captured from source files; keep expressions readable for better docs."
+            )
         return "\n".join(lines)
 
     if section_id == "contributing":
@@ -994,7 +1084,14 @@ def _render_guide_section_body(
     if section_id == "role_contents":
         lines = ["The scanner collected these role subdirectories (counts):", ""]
         for key, items in metadata.items():
-            if key in ("meta", "features", "comparison", "variable_insights", "doc_insights", "style_guide"):
+            if key in (
+                "meta",
+                "features",
+                "comparison",
+                "variable_insights",
+                "doc_insights",
+                "style_guide",
+            ):
                 continue
             if isinstance(items, list):
                 lines.append(f"- **{key}**: {len(items)} files")
@@ -1026,7 +1123,10 @@ def _render_guide_section_body(
     if section_id == "default_filters":
         if not default_filters:
             return "No uses of `default()` were detected."
-        lines = ["The scanner found the following occurrences of `default()` in the role files:", ""]
+        lines = [
+            "The scanner found the following occurrences of `default()` in the role files:",
+            "",
+        ]
         for occ in default_filters:
             match = occ["match"].replace("`", "'")
             args = occ["args"].replace("`", "'")
@@ -1079,7 +1179,11 @@ def _render_readme_with_style_guide(
             body = "Style section retained from guide; scanner does not map this section yet."
         if not body:
             continue
-        parts.append(_format_heading(section["title"], 2, style_guide.get("section_style", "setext")))
+        parts.append(
+            _format_heading(
+                section["title"], 2, style_guide.get("section_style", "setext")
+            )
+        )
         parts.append("")
         parts.append(body)
         parts.append("")
@@ -1187,7 +1291,9 @@ def run_scan(
     if compare_role_path:
         cp = Path(compare_role_path)
         if not cp.is_dir():
-            raise FileNotFoundError(f"comparison role path not found: {compare_role_path}")
+            raise FileNotFoundError(
+                f"comparison role path not found: {compare_role_path}"
+            )
         metadata["comparison"] = build_comparison_report(role_path, compare_role_path)
 
     # Render Markdown content without writing so we can convert if needed
