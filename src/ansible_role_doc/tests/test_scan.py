@@ -102,7 +102,10 @@ def test_resolve_task_include_ignores_dynamic_or_outside_paths(tmp_path):
     outside.write_text("---\n", encoding="utf-8")
 
     assert scanner._resolve_task_include(role, current, "{{ dynamic_target }}") is None
-    assert scanner._resolve_task_include(role, current, "{% if cond %}x.yml{% endif %}") is None
+    assert (
+        scanner._resolve_task_include(role, current, "{% if cond %}x.yml{% endif %}")
+        is None
+    )
     assert scanner._resolve_task_include(role, current, str(outside)) is None
 
 
@@ -118,7 +121,9 @@ def test_load_meta_and_requirements_ignore_malformed_yaml(tmp_path):
     meta_dir = role / "meta"
     meta_dir.mkdir(parents=True)
     (meta_dir / "main.yml").write_text("galaxy_info: [broken\n", encoding="utf-8")
-    (meta_dir / "requirements.yml").write_text("- src: good\n  version: [broken\n", encoding="utf-8")
+    (meta_dir / "requirements.yml").write_text(
+        "- src: good\n  version: [broken\n", encoding="utf-8"
+    )
 
     assert scanner.load_meta(str(role)) == {}
     assert scanner.load_requirements(str(role)) == []

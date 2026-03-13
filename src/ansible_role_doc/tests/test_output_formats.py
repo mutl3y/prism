@@ -115,7 +115,9 @@ def test_run_scan_rejects_missing_style_or_compare_paths(tmp_path):
 
 def test_run_scan_rejects_missing_role_path(tmp_path):
     with pytest.raises(FileNotFoundError, match="role path not found"):
-        scanner.run_scan(str(tmp_path / "missing-role"), output=str(tmp_path / "out.md"))
+        scanner.run_scan(
+            str(tmp_path / "missing-role"), output=str(tmp_path / "out.md")
+        )
 
 
 def test_run_scan_html_uses_markdown_module_when_available(tmp_path, monkeypatch):
@@ -123,7 +125,9 @@ def test_run_scan_html_uses_markdown_module_when_available(tmp_path, monkeypatch
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
-    fake_markdown = types.SimpleNamespace(markdown=lambda text, extensions: "<p>rendered by fake markdown</p>")
+    fake_markdown = types.SimpleNamespace(
+        markdown=lambda text, extensions: "<p>rendered by fake markdown</p>"
+    )
     original_import = builtins.__import__
 
     def fake_import(name, globals=None, locals=None, fromlist=(), level=0):

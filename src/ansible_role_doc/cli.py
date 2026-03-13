@@ -159,8 +159,15 @@ def _save_style_comparison_artifacts(
     if style_slug.lower() in {"readme", "source_style_guide", "style_guide_source"}:
         style_slug = source.parent.name or style_slug
     style_slug = re.sub(r"^style_", "", style_slug, flags=re.IGNORECASE)
-    style_slug = re.sub(r"\.source_style_guide$|\.style_guide_source$", "", style_slug, flags=re.IGNORECASE)
-    style_slug = re.sub(r"[^a-zA-Z0-9]+", "_", style_slug).strip("_").lower() or "style_guide"
+    style_slug = re.sub(
+        r"\.source_style_guide$|\.style_guide_source$",
+        "",
+        style_slug,
+        flags=re.IGNORECASE,
+    )
+    style_slug = (
+        re.sub(r"[^a-zA-Z0-9]+", "_", style_slug).strip("_").lower() or "style_guide"
+    )
     expected_style_dir_name = f"style_{style_slug}"
     if output_path.parent.name == expected_style_dir_name:
         style_dir = output_path.parent
@@ -191,7 +198,9 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     if args.role_path and args.repo_url:
-        print("Error: provide either role_path or --repo-url, not both", file=sys.stderr)
+        print(
+            "Error: provide either role_path or --repo-url, not both", file=sys.stderr
+        )
         return 2
     if not args.role_path and not args.repo_url:
         print("Error: provide role_path or --repo-url", file=sys.stderr)
@@ -216,7 +225,9 @@ def main(argv=None) -> int:
                     )
                 style_readme_path = args.style_readme
                 if args.repo_style_readme_path:
-                    style_readme_path = str((checkout_dir / args.repo_style_readme_path).resolve())
+                    style_readme_path = str(
+                        (checkout_dir / args.repo_style_readme_path).resolve()
+                    )
                 outpath = run_scan(
                     str(role_path),
                     output=args.output,
