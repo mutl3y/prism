@@ -3,6 +3,8 @@
 name: CI
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+permissions:
+  contents: write
 # Controls when the workflow will run
 on:
   # Triggers the workflow on push or pull request events but only for the "main" branch
@@ -48,13 +50,13 @@ jobs:
           black --check .
 
       - name: Setup reviewdog (for PR annotations)
-        if: github.event_name == 'pull_request'
+        if: ${{ github.event_name == 'pull_request' }}
         uses: reviewdog/action-setup@v1
         with:
           version: latest
 
       - name: Run ruff and post annotations via reviewdog
-        if: github.event_name == 'pull_request'
+        if: ${{ github.event_name == 'pull_request' }}
         run: |
           ruff check --format=json . > ruff.json || true
           cat ruff.json | reviewdog -f=ruff-json -name="ruff" -reporter=github-pr-review -level=error
@@ -65,11 +67,14 @@ jobs:
   format:
     name: Auto-format and enforce pre-commit
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v4
