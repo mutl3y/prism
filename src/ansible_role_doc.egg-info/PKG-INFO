@@ -6,6 +6,7 @@ Author-email: Your Name <you@example.com>
 License: BSD-3-Clause
 Requires-Python: >=3.14
 Description-Content-Type: text/markdown
+License-File: LICENSE
 Requires-Dist: PyYAML>=5.4
 Requires-Dist: Jinja2>=2.11
 Provides-Extra: dev
@@ -14,6 +15,7 @@ Requires-Dist: tox; extra == "dev"
 Requires-Dist: ruff; extra == "dev"
 Requires-Dist: black; extra == "dev"
 Requires-Dist: markdown; extra == "dev"
+Dynamic: license-file
 
 ansible-role-doc
 =================
@@ -23,3 +25,5 @@ Scan an Ansible role for Jinja2 `default()` usages and generate README documenta
 Usage:
 - Install: pip install -e .
 - Run: ansible-role-doc path/to/role -o output.md
+
+<- hosts: reviewdog test -->
