@@ -9,7 +9,10 @@ permissions:
 on:
   # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
-    branches: [ "main" ]
+    # run on pushes to any branch (including feature branches)
+    # remove the branches filter so CI runs for feature branches too
+    # (previously only triggered for "main")
+    {}
   pull_request:
     branches: [ "main" ]
 
