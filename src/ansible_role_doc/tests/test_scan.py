@@ -11,6 +11,7 @@ import sys
 
 HERE = Path(__file__).parent
 
+
 def test_scan_detects_defaults(tmp_path):
     role_src = HERE / "mock_role"
     target = tmp_path / "mock_role"
@@ -35,6 +36,6 @@ def test_scan_detects_defaults(tmp_path):
 
     assert res.returncode == 0
     assert out.exists()
-    content = out.read_text(encoding='utf-8')
+    content = out.read_text(encoding="utf-8")
     assert "Default value 1" in content
     assert ("Default value 3" in content) or ("default(" in content)

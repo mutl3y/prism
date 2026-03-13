@@ -26,7 +26,7 @@ def test_outputs_md_and_html(tmp_path):
         print("STDERR:", res.stderr)
     assert res.returncode == 0
     assert out_md.exists()
-    content = out_md.read_text(encoding='utf-8')
+    content = out_md.read_text(encoding="utf-8")
     # metadata from mock_role should be present
     assert "Galaxy Info" in content
     assert "license" in content.lower()
@@ -47,6 +47,6 @@ def test_outputs_md_and_html(tmp_path):
         print("STDERR:", res.stderr)
     assert res.returncode == 0
     assert out_html.exists()
-    html = out_html.read_text(encoding='utf-8')
+    html = out_html.read_text(encoding="utf-8")
     assert "<html" in html.lower()
     assert "mock_role" in html

@@ -2,6 +2,7 @@
 
 Provides a small CLI wrapper around :func:`ansible_role_doc.scanner.run_scan`.
 """
+
 from __future__ import annotations
 import argparse
 import sys
@@ -13,11 +14,27 @@ def build_parser() -> argparse.ArgumentParser:
 
     The parser includes options for output path, template, format and verbosity.
     """
-    p = argparse.ArgumentParser(prog="ansible-role-doc", description="Scan an Ansible role for default() usages and render README.")
+    p = argparse.ArgumentParser(
+        prog="ansible-role-doc",
+        description="Scan an Ansible role for default() usages and render README.",
+    )
     p.add_argument("role_path", help="Path to the Ansible role directory to scan")
-    p.add_argument("-o", "--output", default="README.md", help="Output README file path")
-    p.add_argument("-t", "--template", default=None, help="Template path (optional). If omitted, uses bundled template.")
-    p.add_argument("-f", "--format", default="md", choices=("md", "html"), help="Output format (md or html).")
+    p.add_argument(
+        "-o", "--output", default="README.md", help="Output README file path"
+    )
+    p.add_argument(
+        "-t",
+        "--template",
+        default=None,
+        help="Template path (optional). If omitted, uses bundled template.",
+    )
+    p.add_argument(
+        "-f",
+        "--format",
+        default="md",
+        choices=("md", "html"),
+        help="Output format (md or html).",
+    )
     p.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
     return p
 
@@ -31,7 +48,12 @@ def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
-        outpath = run_scan(args.role_path, output=args.output, template=args.template, output_format=args.format)
+        outpath = run_scan(
+            args.role_path,
+            output=args.output,
+            template=args.template,
+            output_format=args.format,
+        )
         if args.verbose:
             print("Wrote:", outpath)
         return 0

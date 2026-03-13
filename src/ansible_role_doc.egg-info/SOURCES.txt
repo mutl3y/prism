@@ -11,4 +11,5 @@ src/ansible_role_doc.egg-info/entry_points.txt
 src/ansible_role_doc.egg-info/requires.txt
 src/ansible_role_doc.egg-info/top_level.txt
 src/ansible_role_doc/tests/test_output_formats.py
+src/ansible_role_doc/tests/test_render_readme.py
 src/ansible_role_doc/tests/test_scan.py
