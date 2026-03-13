@@ -19,6 +19,8 @@ The project now supports:
   - YAML-block variable sections
   - nested-bullet variable sections with default/description bullets
 - saved style comparison artifacts in source-specific folders under `debug_readmes/`
+- CI-generated coverage badge updates on push (`.github/badges/coverage.svg`)
+- centralized debug artifact cleanup via `make clean-demo-readmes` (also used by `tox`)
 
 ## Key files changed over the session
 
@@ -28,6 +30,10 @@ The project now supports:
 - `src/ansible_role_doc/tests/test_cli_repo.py`
 - `src/ansible_role_doc/tests/test_render_readme.py`
 - `README.md`
+- `.github/workflows/default.yml`
+- `.github/badges/coverage.svg`
+- `Makefile.pod`
+- `tox.ini`
 - `TODO.md`
 - `STYLE_GUIDE_SOURCES.md`
 
@@ -83,6 +89,12 @@ Recent focused validations succeeded:
 - `pytest -q src/ansible_role_doc/tests/test_cli_repo.py src/ansible_role_doc/tests/test_render_readme.py`
 - result: 15 passing tests during the latest style-aware rendering work
 
+Most recent full-suite status:
+
+- `tox` passing with 57 tests
+- coverage report generated at `debug_readmes/coverage.xml`
+- recent reported total coverage: 86.6% (scanner-heavy remaining gaps)
+
 Earlier full `tox` runs were also passing before the latest documentation-only updates.
 
 ## Current roadmap status
@@ -117,6 +129,11 @@ Suggested focus areas:
 Alternative next step:
 
 - refine style fidelity for source-specific prose patterns in the variable and example sections
+
+Operational note for next session:
+
+- If generated review artifacts are noisy, run `make -f Makefile.pod clean-demo-readmes` first.
+- Coverage badge auto-updates in CI from `debug_readmes/coverage.xml` and commits `.github/badges/coverage.svg` on push events.
 
 ## Notes about user intent
 
