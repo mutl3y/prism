@@ -65,7 +65,7 @@ jobs:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Emit SARIF (supported by reviewdog) and post via reviewdog
-          ruff check -- --format=sarif . > ruff.sarif 2> ruff.err || true
+          ruff check --format=sarif . > ruff.sarif 2> ruff.err || true
           echo "---- ruff.sarif (start) ----"
           cat ruff.sarif || true
           echo "---- ruff.sarif (end) ----"
