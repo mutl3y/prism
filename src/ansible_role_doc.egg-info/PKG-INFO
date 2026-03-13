@@ -4,7 +4,7 @@ Version: 0.1.0
 Summary: Scan an Ansible role for Jinja2 default() usages and generate README documentation.
 Author-email: Your Name <you@example.com>
 License: BSD-3-Clause
-Requires-Python: >=3.8
+Requires-Python: >=3.14
 Description-Content-Type: text/markdown
 Requires-Dist: PyYAML>=5.4
 Requires-Dist: Jinja2>=2.11
