@@ -1,3 +1,9 @@
+"""Unit tests for the ansible_role_doc scanner CLI.
+
+These tests exercise the package CLI by importing the local package and
+invoking the entrypoint in a subprocess to simulate real usage.
+"""
+
 from pathlib import Path
 import shutil
 import subprocess
@@ -12,11 +18,13 @@ def test_scan_detects_defaults(tmp_path):
 
     out = tmp_path / "output.md"
     # Run the CLI by importing the package module to avoid path assumptions
+    # Import package via sys.path so installed package isn't required.
     python_code = (
-        "from ansible_role_doc.cli import main;"
         "import sys;"
+        "sys.path.insert(0, '{src_dir}');"
+        "from ansible_role_doc.cli import main;"
         "sys.exit(main(['{role}','-o','{out}']))"
-    ).format(role=str(target), out=str(out))
+    ).format(src_dir=str(HERE.parent.parent), role=str(target), out=str(out))
 
     cmd = [sys.executable, "-c", python_code]
     res = subprocess.run(cmd, capture_output=True, text=True)
