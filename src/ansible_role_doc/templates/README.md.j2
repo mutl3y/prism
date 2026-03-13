@@ -83,7 +83,7 @@ Detected usages of the default() filter
 The scanner found the following occurrences of `default()` in the role files:
 
 {% for occ in default_filters %}
-- {{ occ.file }}:{{ occ.line_no }} — `{{ occ.match | replace("`","'") }}`  
+- {{ occ.file }}:{{ occ.line_no }} — `{{ occ.match | replace("`","'") }}`
   args: `{{ occ.args | replace("`","'") }}`
 {% endfor %}
 
