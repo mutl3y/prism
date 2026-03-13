@@ -8,6 +8,12 @@ Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 Requires-Dist: PyYAML>=5.4
 Requires-Dist: Jinja2>=2.11
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: tox; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: markdown; extra == "dev"
 
 ansible-role-doc
 =================
