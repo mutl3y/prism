@@ -3,6 +3,7 @@
 name: CI
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
 permissions:
   contents: write
 # Controls when the workflow will run
@@ -27,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -77,6 +79,7 @@ jobs:
       contents: write
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
     steps:
       - uses: actions/checkout@v4
         with:
