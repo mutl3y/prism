@@ -8,3 +8,5 @@ Usage:
 - Run: ansible-role-doc path/to/role -o output.md
 
 <- hosts: reviewdog test -->
+
+<- hosts: reviewdog verify -->
