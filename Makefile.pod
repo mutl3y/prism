@@ -17,5 +17,8 @@ dev: install
 test:
 	. .venv/bin/activate && pytest -q
 
+lint:
+	. .venv/bin/activate && tox -e lint,pylint
+
 clean:
 	rm -rf .venv build dist *.egg-info
