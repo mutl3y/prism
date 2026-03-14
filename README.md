@@ -7,7 +7,17 @@ ansible-role-doc
 [![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml)
 [![License](https://img.shields.io/github/license/mutl3y/ansible_role_doc)](LICENSE)
 
-Scan an Ansible role for Jinja2 `default()` usages and generate README documentation.
+Generate README documentation for Ansible roles from local paths or repository sources.
+
+Summary
+-------
+
+`ansible-role-doc` scans role structure, tasks, handlers, metadata, and variables, then renders a consistent README from templates.
+
+- Supports local role paths and `--repo-url` inputs.
+- Can reuse an existing README as a style guide with section/order preservation.
+- Can generate headings-only style skeletons with `--create-style-guide`.
+- Variable sourcing defaults to `defaults-only` (or use `--variable-sources defaults+vars`).
 
 Usage:
 
@@ -17,6 +27,7 @@ Usage:
 - Reuse an existing README as a style guide: `ansible-role-doc path/to/role --style-readme path/to/README.md -o debug_readmes/REVIEW_README_STYLED.md`
 - Live repo test: `python -m ansible_role_doc.cli --repo-url https://github.com/mutl3y/ansible_port_listener -o debug_readmes/REVIEW_README_PORT_LISTENER.md -v`
 - Use a README inside a cloned repo as a guide: `python -m ansible_role_doc.cli --repo-url https://github.com/mutl3y/ansible_port_listener --repo-style-readme-path README.md -o debug_readmes/REVIEW_README_PORT_LISTENER_STYLED.md -v`
+- Generate a style-guide skeleton (section order/headings only): `ansible-role-doc path/to/role --create-style-guide -o debug_readmes/REVIEW_README_SKELETON.md`
 
 When a style guide README is used, comparison artifacts are saved beside the generated output:
 
@@ -26,14 +37,22 @@ When a style guide README is used, comparison artifacts are saved beside the gen
 Current style-guide behavior:
 
 - Guide section order and heading style are preserved where possible.
+- `--create-style-guide` generates section headings/order only (no generated section bodies) for iterative style-guide evolution.
+- Skeleton style source precedence is: explicit `--style-readme` path, then `$ANSIBLE_ROLE_DOC_STYLE_SOURCE`, then `./STYLE_GUIDE_SOURCE.md`, then `$XDG_DATA_HOME/ansible-role-doc/STYLE_GUIDE_SOURCE.md` (or `~/.local/share/ansible-role-doc/STYLE_GUIDE_SOURCE.md`), then `/var/lib/ansible-role-doc/STYLE_GUIDE_SOURCE.md`, then bundled package `templates/STYLE_GUIDE_SOURCE.md`.
 - Common guide sections such as role variables, examples, local testing, FAQ/pitfalls, contributing, sponsors, and license/author are mapped to generated content.
 - Variable sections now adapt to the source README style, including YAML-block and nested-bullet variable formats.
+- Pattern policy config merge order is: bundled package defaults, then `/var/lib/ansible-role-doc/.ansible_role_doc_patterns.yml`, then `$XDG_DATA_HOME/ansible-role-doc/.ansible_role_doc_patterns.yml` (or `~/.local/share/ansible-role-doc/.ansible_role_doc_patterns.yml`), then optional `./.ansible_role_doc_patterns.yml`, then optional `$ANSIBLE_ROLE_DOC_PATTERNS_PATH`, then explicit override path if supplied.
 
 Testing note:
 
 - Running `tox` now also runs coverage and writes `debug_readmes/coverage.xml` alongside `debug_readmes/REVIEW_README.md` for quick mock-role output review.
 - `debug_readmes/` is ignored by git.
 - Coverage gaps and the staged workoff plan are tracked in `COVERAGE_WORKOFF_PLAN.md`.
+
+CI note:
+
+- Ruff annotations are published by reviewdog only on pull request events.
+- Annotations are reported as a PR check (`github-pr-check`) with warning-level findings.
 
 Review note:
 
@@ -43,6 +62,7 @@ Review note:
 Roadmap:
 
 - See `TODO.md` for planned enhancements (richer mock role realism, local-role comparison, and GitHub source intake for README generation).
+- Current roadmap also tracks follow-up phases for mutable Linux-host data locations (for example XDG user data and system-level paths).
 - See `STYLE_GUIDE_SOURCES.md` for candidate README source repositories to use as style guides during review.
 
 <- hosts: reviewdog test -->

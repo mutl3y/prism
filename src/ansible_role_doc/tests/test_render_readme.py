@@ -40,6 +40,136 @@ def test_render_readme_for_mock_role(tmp_path):
     assert "Task/module usage summary" in content
     assert "Inferred example usage" in content
     assert "| Name | Type | Default | Source |" in content
+    assert "\n- example.role_dependency (version: 1.0.0)\n" in content
+    assert "\n- example.collection_dependency\n" in content
+
+
+def test_run_scan_concise_readme_writes_scanner_sidecar(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    out = tmp_path / "CONCISE_README.md"
+    report = tmp_path / "SCAN_REPORT.md"
+    result = scanner.run_scan(
+        str(target),
+        output=str(out),
+        concise_readme=True,
+        scanner_report_output=str(report),
+    )
+
+    assert result.endswith("CONCISE_README.md")
+    assert out.exists()
+    assert report.exists()
+
+    readme = out.read_text(encoding="utf-8")
+    report_content = report.read_text(encoding="utf-8")
+
+    assert "Scanner report" in readme
+    assert "Detailed scanner output is available in" in readme
+    assert "Task/module usage summary" not in readme
+    assert "Role contents summary" not in readme
+    assert "Auto-detected role features" not in readme
+    assert "Detected usages of the default() filter" not in readme
+    assert "Role Variables" not in readme
+    assert "scanner report" in report_content.lower()
+    assert "Auto-detected role features" in report_content
+
+
+def test_run_scan_concise_readme_can_hide_scanner_link_section(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    out = tmp_path / "CONCISE_NO_LINK.md"
+    report = tmp_path / "SCAN_REPORT_NO_LINK.md"
+    scanner.run_scan(
+        str(target),
+        output=str(out),
+        concise_readme=True,
+        scanner_report_output=str(report),
+        include_scanner_report_link=False,
+    )
+
+    readme = out.read_text(encoding="utf-8")
+
+    assert report.exists()
+    assert "Scanner report" not in readme
+    assert "Detailed scanner output is available in" not in readme
+
+
+def test_run_scan_readme_config_can_gate_sections(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    cfg = target / ".ansible_role_doc.yml"
+    cfg.write_text(
+        "readme:\n"
+        "  include_sections:\n"
+        "    - Role purpose and capabilities\n"
+        "    - inputs / variables summary\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "README_CONFIG_GATED.md"
+    scanner.run_scan(str(target), output=str(out))
+
+    content = out.read_text(encoding="utf-8")
+    assert "Role purpose and capabilities" in content
+    assert "Inputs / variables summary" in content
+    assert "Galaxy Info" not in content
+    assert "Requirements" not in content
+    assert "Task/module usage summary" not in content
+
+
+def test_run_scan_style_guide_skeleton_renders_sections_only(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    out = tmp_path / "STYLE_GUIDE_SKELETON.md"
+    scanner.run_scan(
+        str(target),
+        output=str(out),
+        style_guide_skeleton=True,
+    )
+
+    content = out.read_text(encoding="utf-8")
+    assert "Galaxy Info" in content
+    assert "Requirements" in content
+    assert "Role Variables" in content
+    assert "- **Role name**:" not in content
+    assert "The following variables are available:" not in content
+    assert "No additional requirements." not in content
+
+
+def test_run_scan_style_guide_skeleton_uses_xdg_style_source(monkeypatch, tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    xdg_home = tmp_path / "xdg-data"
+    xdg_style = xdg_home / "ansible-role-doc" / "STYLE_GUIDE_SOURCE.md"
+    xdg_style.parent.mkdir(parents=True)
+    xdg_style.write_text(
+        "# XDG Style\n\n## Requirements\n\n## Role Variables\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_DATA_HOME", str(xdg_home))
+
+    out = tmp_path / "STYLE_GUIDE_SKELETON_XDG.md"
+    scanner.run_scan(
+        str(target),
+        output=str(out),
+        style_guide_skeleton=True,
+    )
+
+    content = out.read_text(encoding="utf-8")
+    assert "## Requirements" in content
+    assert "## Role Variables" in content
 
 
 def test_render_readme_with_local_comparison(tmp_path):
@@ -450,7 +580,7 @@ def test_render_guide_section_body_covers_remaining_fallbacks():
         scanner._render_guide_section_body(
             "default_filters", "demo", "", {}, [], [], metadata
         )
-        == "No uses of `default()` were detected."
+        == "No undocumented variables using `default()` were detected."
     )
 
     role_contents = scanner._render_guide_section_body(
@@ -653,12 +783,15 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
         "demo",
         "",
         {},
-        [{"src": "geerlingguy.nginx", "version": "3.1.0"}, "community.general"],
+        [
+            {"src": "example.role_dependency", "version": "1.0.0"},
+            "example.collection_dependency",
+        ],
         [],
         metadata,
     )
-    assert "geerlingguy.nginx (version: 3.1.0)" in requirements
-    assert "community.general" in requirements
+    assert "example.role_dependency (version: 1.0.0)" in requirements
+    assert "example.collection_dependency" in requirements
 
     variable_summary = scanner._render_guide_section_body(
         "variable_summary",

@@ -1,0 +1,13 @@
+# Variable guidance priority keywords
+#
+# Variable names containing any of these substrings are surfaced first in the
+# "variable_guidance" README section as recommended tuning targets.
+#
+# The list is sorted alphabetically.
+
+variable_guidance:
+  priority_keywords:
+    - enabled
+    - idempot
+    - port
+    - state
