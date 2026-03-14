@@ -3,6 +3,6 @@
 # handlers file for mock_role
 
 - name: Restart mock service
-	ansible.builtin.service:
-		name: "{{ role_service_name | default('mock-service') }}"
-		state: restarted
+  ansible.builtin.service:
+    name: "{{ role_service_name | default('mock-service') }}"
+    state: restarted
