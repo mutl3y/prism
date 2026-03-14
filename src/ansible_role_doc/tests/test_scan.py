@@ -247,9 +247,7 @@ def test_run_scan_redacts_secret_like_default_filter_values(tmp_path):
 def test_load_pattern_config_reads_cwd_override(monkeypatch, tmp_path):
     override = tmp_path / ".ansible_role_doc_patterns.yml"
     override.write_text(
-        "sensitivity:\n"
-        "  name_tokens:\n"
-        "    - from_cwd_override\n",
+        "sensitivity:\n" "  name_tokens:\n" "    - from_cwd_override\n",
         encoding="utf-8",
     )
 
@@ -261,16 +259,10 @@ def test_load_pattern_config_reads_cwd_override(monkeypatch, tmp_path):
 
 def test_load_pattern_config_reads_xdg_user_override(monkeypatch, tmp_path):
     xdg_home = tmp_path / "xdg-home"
-    override = (
-        xdg_home
-        / "ansible-role-doc"
-        / pattern_config.CWD_OVERRIDE_FILENAME
-    )
+    override = xdg_home / "ansible-role-doc" / pattern_config.CWD_OVERRIDE_FILENAME
     override.parent.mkdir(parents=True)
     override.write_text(
-        "sensitivity:\n"
-        "  name_tokens:\n"
-        "    - from_xdg_override\n",
+        "sensitivity:\n" "  name_tokens:\n" "    - from_xdg_override\n",
         encoding="utf-8",
     )
 
@@ -284,9 +276,7 @@ def test_load_pattern_config_reads_xdg_user_override(monkeypatch, tmp_path):
 def test_load_pattern_config_reads_env_override(monkeypatch, tmp_path):
     override = tmp_path / "patterns-env.yml"
     override.write_text(
-        "sensitivity:\n"
-        "  name_tokens:\n"
-        "    - from_env_override\n",
+        "sensitivity:\n" "  name_tokens:\n" "    - from_env_override\n",
         encoding="utf-8",
     )
 
@@ -301,9 +291,7 @@ def test_load_pattern_config_reads_system_override(monkeypatch, tmp_path):
     system_override = tmp_path / "system" / pattern_config.CWD_OVERRIDE_FILENAME
     system_override.parent.mkdir(parents=True)
     system_override.write_text(
-        "sensitivity:\n"
-        "  name_tokens:\n"
-        "    - from_system_override\n",
+        "sensitivity:\n" "  name_tokens:\n" "    - from_system_override\n",
         encoding="utf-8",
     )
 
@@ -318,9 +306,7 @@ def test_load_pattern_config_precedence_later_overrides_earlier(monkeypatch, tmp
     def write_name_tokens(path: Path, token: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            "sensitivity:\n"
-            "  name_tokens:\n"
-            f"    - {token}\n",
+            "sensitivity:\n" "  name_tokens:\n" f"    - {token}\n",
             encoding="utf-8",
         )
 

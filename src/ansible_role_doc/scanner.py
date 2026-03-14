@@ -67,7 +67,9 @@ _EXTRA_SECTION_IDS = {
     "contributing",
     "scanner_report",
 }
-ALL_SECTION_IDS = {section_id for section_id, _ in DEFAULT_SECTION_SPECS} | _EXTRA_SECTION_IDS
+ALL_SECTION_IDS = {
+    section_id for section_id, _ in DEFAULT_SECTION_SPECS
+} | _EXTRA_SECTION_IDS
 
 IGNORED_DIRS = (".git", "__pycache__", "venv", ".venv", "node_modules")
 TASK_INCLUDE_KEYS = {
@@ -740,10 +742,9 @@ def _looks_secret_value(value: object) -> bool:
     """Return True when a value appears to be vaulted or sensitive."""
     if isinstance(value, str):
         lowered = value.lower()
-        return (
-            any(marker in lowered for marker in _VAULT_MARKERS)
-            or lowered.startswith("vault_")
-        )
+        return any(
+            marker in lowered for marker in _VAULT_MARKERS
+        ) or lowered.startswith("vault_")
     return False
 
 
@@ -1092,7 +1093,9 @@ def load_readme_section_visibility(
         ``None`` when no config exists or no include/exclude keys are present,
         otherwise the enabled section-id set.
     """
-    cfg_file = Path(config_path) if config_path else Path(role_path) / SECTION_CONFIG_FILENAME
+    cfg_file = (
+        Path(config_path) if config_path else Path(role_path) / SECTION_CONFIG_FILENAME
+    )
     if not cfg_file.is_file():
         return None
 
@@ -1367,10 +1370,7 @@ def _render_guide_section_body(
         priority = [
             row
             for row in rows
-            if any(
-                keyword in row["name"]
-                for keyword in _VARIABLE_GUIDANCE_KEYWORDS
-            )
+            if any(keyword in row["name"] for keyword in _VARIABLE_GUIDANCE_KEYWORDS)
         ]
         if not priority:
             priority = rows[:5]
@@ -1531,7 +1531,9 @@ def _render_readme_with_style_guide(
 
     if enabled_sections:
         ordered_sections = [
-            section for section in ordered_sections if section.get("id") in enabled_sections
+            section
+            for section in ordered_sections
+            if section.get("id") in enabled_sections
         ]
 
     if metadata.get("concise_readme"):
@@ -1792,7 +1794,9 @@ def run_scan(
     if effective_style_readme_path:
         style_path = Path(effective_style_readme_path)
         if not style_path.is_file():
-            raise FileNotFoundError(f"style README not found: {effective_style_readme_path}")
+            raise FileNotFoundError(
+                f"style README not found: {effective_style_readme_path}"
+            )
         metadata["style_guide"] = parse_style_readme(str(style_path))
     if style_guide_skeleton:
         metadata["style_guide_skeleton"] = True

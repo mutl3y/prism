@@ -29,4 +29,3 @@ Auto-detected role features
 Comparison against local baseline role
 
 Detected usages of the default() filter
-
