@@ -4,6 +4,7 @@ pyproject.toml
 setup.cfg
 src/ansible_role_doc/cli.py
 src/ansible_role_doc/init.py
+src/ansible_role_doc/output.py
 src/ansible_role_doc/pattern_config.py
 src/ansible_role_doc/scanner.py
 src/ansible_role_doc.egg-info/PKG-INFO
