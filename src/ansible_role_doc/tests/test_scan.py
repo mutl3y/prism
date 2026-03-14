@@ -143,6 +143,33 @@ def test_load_variables_and_variable_insights_handle_empty_or_malformed_files(tm
     assert scanner.build_variable_insights(str(role)) == []
 
 
+def test_load_variables_defaults_only_excludes_vars_main(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    loaded = scanner.load_variables(str(target), include_vars_main=False)
+
+    assert "variable1" in loaded
+    assert "variable2" in loaded
+    assert "variable3" not in loaded
+    assert "variable4" not in loaded
+
+
+def test_build_variable_insights_defaults_only_excludes_vars_main_rows(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    rows = scanner.build_variable_insights(str(target), include_vars_main=False)
+    names = {row["name"] for row in rows}
+
+    assert "variable1" in names
+    assert "variable2" in names
+    assert "variable3" not in names
+    assert "variable4" not in names
+
+
 def test_collect_role_contents_and_features_handle_sparse_role(tmp_path):
     role = tmp_path / "role"
     (role / "templates").mkdir(parents=True)
@@ -154,3 +181,62 @@ def test_collect_role_contents_and_features_handle_sparse_role(tmp_path):
     assert contents["templates"] == ["templates/only.j2"]
     assert contents["features"]["task_files_scanned"] == 0
     assert contents["features"]["tasks_scanned"] == 0
+
+
+def test_build_variable_insights_detects_required_undocumented_vars(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    rows = scanner.build_variable_insights(str(target))
+    by_name = {row["name"]: row for row in rows}
+
+    assert "required_input_var" in by_name
+    assert by_name["required_input_var"]["documented"] is False
+    assert by_name["required_input_var"]["required"] is True
+    assert by_name["required_input_var"]["source"] == "inferred usage"
+
+    assert "required_endpoint" in by_name
+    assert by_name["required_endpoint"]["required"] is True
+
+    assert "required_api_token" in by_name
+    assert by_name["required_api_token"]["required"] is True
+    assert by_name["required_api_token"]["secret"] is False
+    assert by_name["required_api_token"]["default"] == "<required>"
+
+
+def test_build_variable_insights_seed_vars_reduce_required_and_mark_secret(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    seed_dir = target / "tests" / "group_vars"
+    rows = scanner.build_variable_insights(str(target), seed_paths=[str(seed_dir)])
+    by_name = {row["name"]: row for row in rows}
+
+    assert by_name["required_endpoint"]["required"] is False
+    assert by_name["required_endpoint"]["source"].startswith("seed:")
+
+    assert by_name["required_api_token"]["required"] is False
+    assert by_name["required_api_token"]["secret"] is True
+    assert by_name["required_api_token"]["default"] == "<secret>"
+
+
+def test_run_scan_redacts_secret_like_default_filter_values(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: Secret fallback\n"
+        "  debug:\n"
+        "    msg: \"{{ api_secret | default('TopSecret123') }}\"\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "README.md"
+    scanner.run_scan(str(role), output=str(out))
+    content = out.read_text(encoding="utf-8")
+
+    assert "TopSecret123" not in content
+    assert "api_secret | default(<secret>)" in content
+    assert "args: `<secret>`" in content

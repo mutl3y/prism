@@ -1,0 +1,5 @@
+---
+required_endpoint: https://example.internal/api
+required_api_token: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+  616263313233
