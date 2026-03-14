@@ -50,7 +50,7 @@ jobs:
       - name: "Lint: ruff"
         run: |
           pip install ruff
-          ruff check .
+          ruff check -v .
 
       - name: "Format check: black"
         run: |
