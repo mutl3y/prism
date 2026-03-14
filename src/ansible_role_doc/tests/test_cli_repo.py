@@ -241,6 +241,146 @@ def test_cli_style_readme_is_forwarded(monkeypatch, tmp_path):
     assert demo_sidecar.read_text(encoding="utf-8") == "generated"
 
 
+def test_cli_vars_seed_is_forwarded(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    seed_file = tmp_path / "group_vars.yml"
+    role.mkdir()
+    seed_file.write_text("---\nexample: value\n", encoding="utf-8")
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["vars_seed_paths"] = kwargs.get("vars_seed_paths")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "seeded.md"
+    rc = cli.main(
+        [
+            str(role),
+            "--vars-seed",
+            str(seed_file),
+            "--vars-seed",
+            str(tmp_path),
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert calls["vars_seed_paths"] == [str(seed_file), str(tmp_path)]
+
+
+def test_cli_concise_and_scanner_report_flags_are_forwarded(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    report = tmp_path / "SCAN_REPORT.md"
+    role.mkdir()
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["concise_readme"] = kwargs.get("concise_readme")
+        calls["scanner_report_output"] = kwargs.get("scanner_report_output")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "concise.md"
+    rc = cli.main(
+        [
+            str(role),
+            "--concise-readme",
+            "--scanner-report-output",
+            str(report),
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert calls["concise_readme"] is True
+    assert calls["scanner_report_output"] == str(report)
+
+
+def test_cli_variable_sources_defaults_only_is_forwarded(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    role.mkdir()
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["include_vars_main"] = kwargs.get("include_vars_main")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "defaults-only.md"
+    rc = cli.main(
+        [
+            str(role),
+            "--variable-sources",
+            "defaults-only",
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert calls["include_vars_main"] is False
+
+
+def test_cli_variable_sources_default_includes_vars(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    role.mkdir()
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["include_vars_main"] = kwargs.get("include_vars_main")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "default-sources.md"
+    rc = cli.main([str(role), "-o", str(out)])
+
+    assert rc == 0
+    assert calls["include_vars_main"] is True
+
+
+def test_cli_scanner_report_link_flag_is_forwarded(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    role.mkdir()
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["include_scanner_report_link"] = kwargs.get("include_scanner_report_link")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "no-link.md"
+    rc = cli.main(
+        [
+            str(role),
+            "--concise-readme",
+            "--no-include-scanner-report-link",
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert calls["include_scanner_report_link"] is False
+
+
 def test_cli_repo_style_readme_path_is_resolved(monkeypatch, tmp_path):
     calls: dict = {}
 

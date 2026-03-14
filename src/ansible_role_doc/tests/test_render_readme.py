@@ -40,6 +40,62 @@ def test_render_readme_for_mock_role(tmp_path):
     assert "Task/module usage summary" in content
     assert "Inferred example usage" in content
     assert "| Name | Type | Default | Source |" in content
+    assert "\n- geerlingguy.nginx (version: 3.1.0)\n" in content
+    assert "\n- community.general\n" in content
+
+
+def test_run_scan_concise_readme_writes_scanner_sidecar(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    out = tmp_path / "CONCISE_README.md"
+    report = tmp_path / "SCAN_REPORT.md"
+    result = scanner.run_scan(
+        str(target),
+        output=str(out),
+        concise_readme=True,
+        scanner_report_output=str(report),
+    )
+
+    assert result.endswith("CONCISE_README.md")
+    assert out.exists()
+    assert report.exists()
+
+    readme = out.read_text(encoding="utf-8")
+    report_content = report.read_text(encoding="utf-8")
+
+    assert "Scanner report" in readme
+    assert "Detailed scanner output is available in" in readme
+    assert "Task/module usage summary" not in readme
+    assert "Role contents summary" not in readme
+    assert "Auto-detected role features" not in readme
+    assert "Detected usages of the default() filter" not in readme
+    assert "Role Variables" not in readme
+    assert "scanner report" in report_content.lower()
+    assert "Auto-detected role features" in report_content
+
+
+def test_run_scan_concise_readme_can_hide_scanner_link_section(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    out = tmp_path / "CONCISE_NO_LINK.md"
+    report = tmp_path / "SCAN_REPORT_NO_LINK.md"
+    scanner.run_scan(
+        str(target),
+        output=str(out),
+        concise_readme=True,
+        scanner_report_output=str(report),
+        include_scanner_report_link=False,
+    )
+
+    readme = out.read_text(encoding="utf-8")
+
+    assert report.exists()
+    assert "Scanner report" not in readme
+    assert "Detailed scanner output is available in" not in readme
 
 
 def test_render_readme_with_local_comparison(tmp_path):
@@ -450,7 +506,7 @@ def test_render_guide_section_body_covers_remaining_fallbacks():
         scanner._render_guide_section_body(
             "default_filters", "demo", "", {}, [], [], metadata
         )
-        == "No uses of `default()` were detected."
+        == "No undocumented variables using `default()` were detected."
     )
 
     role_contents = scanner._render_guide_section_body(
