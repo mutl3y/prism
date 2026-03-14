@@ -30,4 +30,4 @@ dev = [
 ]
 
 [tool.setuptools.package-data]
-ansible_role_doc = ["templates/*.j2"]
+ansible_role_doc = ["templates/*.j2", "templates/*.md", "data/*.yml"]

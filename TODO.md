@@ -64,6 +64,16 @@
 - [ ] Reduce remaining differences between source guide prose patterns and generated output structure
 - [ ] Expand style-aware rendering for additional source-specific sections when helpful
 
+## 10) Evolve local style/policy source resolution
+
+- [x] Ship a local default style guide source markdown with the package
+- [x] Add `--style-guide-skeleton` mode to generate section/order-only README scaffolds
+- [x] Resolve skeleton style source from cwd `STYLE_GUIDE_SOURCE.md` before bundled fallback
+- [x] Support cwd policy overlay via `./.ansible_role_doc_patterns.yml`
+- [x] Add phased mutable-data resolution for Linux hosts (user-level XDG path and optional system path)
+- [x] Add env var precedence options for style/policy sources
+- [ ] Add explicit CLI-path options for style/policy sources
+
 ## 9) Raise automated test coverage
 
 - [x] Add `pytest-cov` coverage reporting to `tox`

@@ -13,40 +13,25 @@ import re
 import yaml
 import jinja2
 
-STYLE_SECTION_ALIASES = {
-    "galaxy info": "galaxy_info",
-    "requirements": "requirements",
-    "dependencies": "requirements",
-    "license": "license",
-    "author information": "author_information",
-    "license and author": "license_author",
-    "sponsors": "sponsors",
-    "role purpose and capabilities": "purpose",
-    "overview": "purpose",
-    "summary": "purpose",
-    "inputs variables summary": "variable_summary",
-    "inputs / variables summary": "variable_summary",
-    "role variables": "role_variables",
-    "variables": "role_variables",
-    "task module usage summary": "task_summary",
-    "task/module usage summary": "task_summary",
-    "role contents": "role_contents",
-    "role contents summary": "role_contents",
-    "auto detected role features": "features",
-    "auto-detected role features": "features",
-    "comparison against local baseline role": "comparison",
-    "example playbook": "example_usage",
-    "use with ansible (and docker python library)": "example_usage",
-    "inferred example usage": "example_usage",
-    "usage": "example_usage",
-    "configuring settings not listed in role variables": "variable_guidance",
-    "changing the default port and idempotency": "variable_guidance",
-    "local testing": "local_testing",
-    "faq pitfalls": "faq_pitfalls",
-    "contributing": "contributing",
-    "detected usages of the default filter": "default_filters",
-    "detected usages of the default() filter": "default_filters",
-}
+from .pattern_config import load_pattern_config
+
+# Load pattern policy (built-in defaults, optionally merged with a repo override).
+# Pass override_path to load_pattern_config() if you want to merge a local file.
+_POLICY = load_pattern_config()
+
+STYLE_SECTION_ALIASES: dict[str, str] = _POLICY["section_aliases"]
+
+# Sensitivity detection tokens extracted from policy for fast tuple lookup
+_SENSITIVITY = _POLICY["sensitivity"]
+_SECRET_NAME_TOKENS: tuple[str, ...] = tuple(_SENSITIVITY["name_tokens"])
+_VAULT_MARKERS: tuple[str, ...] = tuple(_SENSITIVITY["vault_markers"])
+_CREDENTIAL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["credential_prefixes"])
+_URL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["url_prefixes"])
+
+# Variable guidance priority keywords
+_VARIABLE_GUIDANCE_KEYWORDS: tuple[str, ...] = tuple(
+    _POLICY["variable_guidance"]["priority_keywords"]
+)
 
 DEFAULT_SECTION_SPECS = [
     ("galaxy_info", "Galaxy Info"),
@@ -69,6 +54,20 @@ SCANNER_STATS_SECTION_IDS = {
     "comparison",
     "default_filters",
 }
+
+SECTION_CONFIG_FILENAME = ".ansible_role_doc.yml"
+_EXTRA_SECTION_IDS = {
+    "license",
+    "author_information",
+    "license_author",
+    "sponsors",
+    "variable_guidance",
+    "local_testing",
+    "faq_pitfalls",
+    "contributing",
+    "scanner_report",
+}
+ALL_SECTION_IDS = {section_id for section_id, _ in DEFAULT_SECTION_SPECS} | _EXTRA_SECTION_IDS
 
 IGNORED_DIRS = (".git", "__pycache__", "venv", ".venv", "node_modules")
 TASK_INCLUDE_KEYS = {
@@ -125,27 +124,63 @@ DEFAULT_RE = re.compile(
     flags=re.IGNORECASE,
 )
 
+DEFAULT_STYLE_GUIDE_SOURCE_PATH = (
+    Path(__file__).parent / "templates" / "STYLE_GUIDE_SOURCE.md"
+)
+DEFAULT_STYLE_GUIDE_SOURCE_FILENAME = "STYLE_GUIDE_SOURCE.md"
+ENV_STYLE_GUIDE_SOURCE_PATH = "ANSIBLE_ROLE_DOC_STYLE_SOURCE"
+XDG_DATA_HOME_ENV = "XDG_DATA_HOME"
+STYLE_GUIDE_DATA_DIRNAME = "ansible-role-doc"
+SYSTEM_STYLE_GUIDE_SOURCE_PATH = (
+    Path("/var/lib") / STYLE_GUIDE_DATA_DIRNAME / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME
+)
+
 DEFAULT_TARGET_RE = re.compile(r"\b(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*\|\s*default\b")
 JINJA_VAR_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)")
 JINJA_IDENTIFIER_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
 VAULT_KEY_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*!vault\b", re.MULTILINE)
 
-IGNORED_IDENTIFIERS = {
-    "true",
-    "false",
-    "none",
-    "null",
-    "omit",
-    "lookup",
-    "query",
-    "default",
-    "item",
-    "ansible_facts",
-    "hostvars",
-    "groups",
-    "inventory_hostname",
-    "vars",
-}
+IGNORED_IDENTIFIERS: set[str] = _POLICY["ignored_identifiers"]
+
+
+def _default_style_guide_user_path() -> Path:
+    """Return user-level style guide path honoring XDG conventions."""
+    xdg_data_home = os.environ.get(XDG_DATA_HOME_ENV)
+    if xdg_data_home:
+        data_home = Path(xdg_data_home).expanduser()
+    else:
+        data_home = (Path.home() / ".local" / "share").expanduser()
+    return data_home / STYLE_GUIDE_DATA_DIRNAME / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME
+
+
+def resolve_default_style_guide_source() -> str:
+    """Resolve default style guide source path using Linux-aware precedence.
+
+    Precedence (first existing path wins):
+
+    1. ``$ANSIBLE_ROLE_DOC_STYLE_SOURCE``
+    2. ``./STYLE_GUIDE_SOURCE.md``
+    3. ``$XDG_DATA_HOME/ansible-role-doc/STYLE_GUIDE_SOURCE.md``
+       (or ``~/.local/share/...`` fallback)
+    4. ``/var/lib/ansible-role-doc/STYLE_GUIDE_SOURCE.md``
+    5. bundled package template path
+    """
+    candidates: list[Path] = []
+
+    env_style_source = os.environ.get(ENV_STYLE_GUIDE_SOURCE_PATH)
+    if env_style_source:
+        candidates.append(Path(env_style_source).expanduser())
+
+    candidates.append(Path.cwd() / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME)
+    candidates.append(_default_style_guide_user_path())
+    candidates.append(SYSTEM_STYLE_GUIDE_SOURCE_PATH)
+    candidates.append(DEFAULT_STYLE_GUIDE_SOURCE_PATH)
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate.resolve())
+
+    return str(DEFAULT_STYLE_GUIDE_SOURCE_PATH.resolve())
 
 
 def scan_for_default_filters(role_path: str) -> list:
@@ -657,17 +692,7 @@ def _format_inline_yaml(value: object) -> str:
 def _looks_secret_name(name: str) -> bool:
     """Return True when a variable name suggests secret/sensitive content."""
     lowered = name.lower()
-    secret_tokens = (
-        "password",
-        "passwd",
-        "secret",
-        "token",
-        "apikey",
-        "api_key",
-        "private_key",
-        "vault",
-    )
-    return any(token in lowered for token in secret_tokens)
+    return any(token in lowered for token in _SECRET_NAME_TOKENS)
 
 
 def _resembles_password_like(value: object) -> bool:
@@ -680,11 +705,11 @@ def _resembles_password_like(value: object) -> bool:
         return False
     lowered = raw.lower()
 
-    if any(marker in lowered for marker in ("$ansible_vault", "!vault")):
+    if any(marker in lowered for marker in _VAULT_MARKERS):
         return True
-    if raw.startswith(("ghp_", "gho_", "glpat-", "AKIA", "ASIA")):
+    if raw.startswith(_CREDENTIAL_PREFIXES):
         return True
-    if raw.startswith(("http://", "https://", "ssh://")):
+    if raw.startswith(_URL_PREFIXES):
         return False
     if " " in raw or "{{" in raw or "}}" in raw:
         return False
@@ -716,8 +741,7 @@ def _looks_secret_value(value: object) -> bool:
     if isinstance(value, str):
         lowered = value.lower()
         return (
-            "$ansible_vault" in lowered
-            or "!vault" in lowered
+            any(marker in lowered for marker in _VAULT_MARKERS)
             or lowered.startswith("vault_")
         )
     return False
@@ -1028,6 +1052,88 @@ def _normalize_style_heading(heading: str) -> str:
     return re.sub(r"\s+", " ", normalized)
 
 
+def _resolve_section_selector(selector: str) -> str | None:
+    """Resolve a section selector to a canonical section id.
+
+    Selectors can be:
+    - canonical ids (e.g. ``galaxy_info``)
+    - heading text aliases (e.g. ``Role purpose and capabilities``)
+    """
+    value = selector.strip()
+    if not value:
+        return None
+    if value in ALL_SECTION_IDS:
+        return value
+    normalized = _normalize_style_heading(value)
+    if normalized in ALL_SECTION_IDS:
+        return normalized
+    return STYLE_SECTION_ALIASES.get(normalized)
+
+
+def load_readme_section_visibility(
+    role_path: str,
+    config_path: str | None = None,
+) -> set[str] | None:
+    """Load optional README section visibility rules from YAML config.
+
+    Configuration format (either explicit ``config_path`` or
+    ``<role_path>/.ansible_role_doc.yml``):
+
+    .. code-block:: yaml
+
+        readme:
+          include_sections:
+            - galaxy_info
+            - Role purpose and capabilities
+          exclude_sections:
+            - comparison
+
+    Returns:
+        ``None`` when no config exists or no include/exclude keys are present,
+        otherwise the enabled section-id set.
+    """
+    cfg_file = Path(config_path) if config_path else Path(role_path) / SECTION_CONFIG_FILENAME
+    if not cfg_file.is_file():
+        return None
+
+    try:
+        raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return None
+    if not isinstance(raw, dict):
+        return None
+
+    readme_cfg = raw.get("readme", raw)
+    if not isinstance(readme_cfg, dict):
+        return None
+
+    include_raw = readme_cfg.get("include_sections")
+    exclude_raw = readme_cfg.get("exclude_sections")
+    if include_raw is None and exclude_raw is None:
+        return None
+
+    include_items = include_raw if isinstance(include_raw, list) else None
+    exclude_items = exclude_raw if isinstance(exclude_raw, list) else []
+
+    if include_items is None:
+        enabled: set[str] = set(ALL_SECTION_IDS)
+    else:
+        enabled = set()
+        for item in include_items:
+            if isinstance(item, str):
+                resolved = _resolve_section_selector(item)
+                if resolved:
+                    enabled.add(resolved)
+
+    for item in exclude_items:
+        if isinstance(item, str):
+            resolved = _resolve_section_selector(item)
+            if resolved:
+                enabled.discard(resolved)
+
+    return enabled
+
+
 def parse_style_readme(style_readme_path: str) -> dict:
     """Parse a README style guide into section order and heading styles."""
     text = Path(style_readme_path).read_text(encoding="utf-8")
@@ -1263,7 +1369,7 @@ def _render_guide_section_body(
             for row in rows
             if any(
                 keyword in row["name"]
-                for keyword in ("port", "idempot", "state", "enabled")
+                for keyword in _VARIABLE_GUIDANCE_KEYWORDS
             )
         ]
         if not priority:
@@ -1415,11 +1521,17 @@ def _render_readme_with_style_guide(
     """Render markdown following the structure of a guide README."""
     style_guide = metadata.get("style_guide") or {}
     ordered_sections = list(style_guide.get("sections") or [])
+    enabled_sections = set(metadata.get("enabled_sections") or [])
 
     if not ordered_sections:
         ordered_sections = [
             {"id": section_id, "title": title}
             for section_id, title in DEFAULT_SECTION_SPECS
+        ]
+
+    if enabled_sections:
+        ordered_sections = [
+            section for section in ordered_sections if section.get("id") in enabled_sections
         ]
 
     if metadata.get("concise_readme"):
@@ -1436,6 +1548,8 @@ def _render_readme_with_style_guide(
                 if section.get("id") != "role_variables"
             ]
 
+    style_guide_skeleton = bool(metadata.get("style_guide_skeleton"))
+
     rendered_title = role_name
     if style_guide.get("title_text"):
         rendered_title = role_name
@@ -1447,6 +1561,16 @@ def _render_readme_with_style_guide(
         "",
     ]
     for section in ordered_sections:
+        parts.append(
+            _format_heading(
+                section["title"], 2, style_guide.get("section_style", "setext")
+            )
+        )
+        parts.append("")
+
+        if style_guide_skeleton:
+            continue
+
         body = _render_guide_section_body(
             section["id"],
             role_name,
@@ -1460,17 +1584,16 @@ def _render_readme_with_style_guide(
             body = "Style section retained from guide; scanner does not map this section yet."
         if not body:
             continue
-        parts.append(
-            _format_heading(
-                section["title"], 2, style_guide.get("section_style", "setext")
-            )
-        )
-        parts.append("")
         parts.append(body)
         parts.append("")
 
     scanner_report_relpath = metadata.get("scanner_report_relpath")
-    if scanner_report_relpath and metadata.get("include_scanner_report_link", True):
+    if (
+        not style_guide_skeleton
+        and scanner_report_relpath
+        and metadata.get("include_scanner_report_link", True)
+        and (not enabled_sections or "scanner_report" in enabled_sections)
+    ):
         parts.append(
             _format_heading(
                 "Scanner report", 2, style_guide.get("section_style", "setext")
@@ -1598,6 +1721,8 @@ def run_scan(
     scanner_report_output: str | None = None,
     include_vars_main: bool = True,
     include_scanner_report_link: bool = True,
+    readme_config_path: str | None = None,
+    style_guide_skeleton: bool = False,
 ) -> str:
     rp = Path(role_path)
     if not rp.is_dir():
@@ -1613,6 +1738,12 @@ def run_scan(
     requirements_display = normalize_requirements(requirements)
     found = scan_for_default_filters(role_path)
     metadata = collect_role_contents(role_path)
+    enabled_sections = load_readme_section_visibility(
+        role_path,
+        config_path=readme_config_path,
+    )
+    if enabled_sections is not None:
+        metadata["enabled_sections"] = sorted(enabled_sections)
     variable_insights = build_variable_insights(
         role_path,
         seed_paths=vars_seed_paths,
@@ -1654,11 +1785,17 @@ def run_scan(
         variables=variables,
         variable_insights=variable_insights,
     )
-    if style_readme_path:
-        style_path = Path(style_readme_path)
+    effective_style_readme_path = style_readme_path
+    if style_guide_skeleton and not effective_style_readme_path:
+        effective_style_readme_path = resolve_default_style_guide_source()
+
+    if effective_style_readme_path:
+        style_path = Path(effective_style_readme_path)
         if not style_path.is_file():
-            raise FileNotFoundError(f"style README not found: {style_readme_path}")
+            raise FileNotFoundError(f"style README not found: {effective_style_readme_path}")
         metadata["style_guide"] = parse_style_readme(str(style_path))
+    if style_guide_skeleton:
+        metadata["style_guide_skeleton"] = True
     if compare_role_path:
         cp = Path(compare_role_path)
         if not cp.is_dir():

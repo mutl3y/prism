@@ -241,6 +241,83 @@ def test_cli_style_readme_is_forwarded(monkeypatch, tmp_path):
     assert demo_sidecar.read_text(encoding="utf-8") == "generated"
 
 
+def test_cli_style_guide_skeleton_defaults_to_local_style_source(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    role.mkdir()
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["style_guide_skeleton"] = kwargs.get("style_guide_skeleton")
+        calls["style_readme_path"] = kwargs.get("style_readme_path")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "skeleton.md"
+    rc = cli.main([str(role), "--create-style-guide", "-o", str(out)])
+
+    assert rc == 0
+    assert calls["style_guide_skeleton"] is True
+    assert calls["style_readme_path"].endswith("STYLE_GUIDE_SOURCE.md")
+
+
+def test_cli_style_guide_skeleton_prefers_cwd_source(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    role.mkdir()
+    cwd_style = tmp_path / "STYLE_GUIDE_SOURCE.md"
+    cwd_style.write_text("# CWD guide\n", encoding="utf-8")
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["style_guide_skeleton"] = kwargs.get("style_guide_skeleton")
+        calls["style_readme_path"] = kwargs.get("style_readme_path")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+    monkeypatch.chdir(tmp_path)
+
+    out = tmp_path / "skeleton-cwd.md"
+    rc = cli.main([str(role), "--create-style-guide", "-o", str(out)])
+
+    assert rc == 0
+    assert calls["style_guide_skeleton"] is True
+    assert calls["style_readme_path"] == str(cwd_style.resolve())
+
+
+def test_cli_style_guide_skeleton_prefers_env_source(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    role.mkdir()
+
+    env_style = tmp_path / "env-style.md"
+    env_style.write_text("# ENV guide\n", encoding="utf-8")
+
+    cwd_style = tmp_path / "STYLE_GUIDE_SOURCE.md"
+    cwd_style.write_text("# CWD guide\n", encoding="utf-8")
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["style_guide_skeleton"] = kwargs.get("style_guide_skeleton")
+        calls["style_readme_path"] = kwargs.get("style_readme_path")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ANSIBLE_ROLE_DOC_STYLE_SOURCE", str(env_style))
+
+    out = tmp_path / "skeleton-env.md"
+    rc = cli.main([str(role), "--create-style-guide", "-o", str(out)])
+
+    assert rc == 0
+    assert calls["style_guide_skeleton"] is True
+    assert calls["style_readme_path"] == str(env_style.resolve())
+
+
 def test_cli_vars_seed_is_forwarded(monkeypatch, tmp_path):
     calls: dict = {}
 
@@ -333,7 +410,7 @@ def test_cli_variable_sources_defaults_only_is_forwarded(monkeypatch, tmp_path):
     assert calls["include_vars_main"] is False
 
 
-def test_cli_variable_sources_default_includes_vars(monkeypatch, tmp_path):
+def test_cli_variable_sources_default_excludes_vars(monkeypatch, tmp_path):
     calls: dict = {}
 
     role = tmp_path / "role"
@@ -350,7 +427,7 @@ def test_cli_variable_sources_default_includes_vars(monkeypatch, tmp_path):
     rc = cli.main([str(role), "-o", str(out)])
 
     assert rc == 0
-    assert calls["include_vars_main"] is True
+    assert calls["include_vars_main"] is False
 
 
 def test_cli_scanner_report_link_flag_is_forwarded(monkeypatch, tmp_path):

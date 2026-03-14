@@ -9,6 +9,8 @@ import shutil
 import subprocess
 import sys
 
+from ansible_role_doc import pattern_config
+from ansible_role_doc.pattern_config import load_pattern_config
 from ansible_role_doc import scanner
 from ansible_role_doc.scanner import scan_for_default_filters
 
@@ -240,3 +242,108 @@ def test_run_scan_redacts_secret_like_default_filter_values(tmp_path):
     assert "TopSecret123" not in content
     assert "api_secret | default(<secret>)" in content
     assert "args: `<secret>`" in content
+
+
+def test_load_pattern_config_reads_cwd_override(monkeypatch, tmp_path):
+    override = tmp_path / ".ansible_role_doc_patterns.yml"
+    override.write_text(
+        "sensitivity:\n"
+        "  name_tokens:\n"
+        "    - from_cwd_override\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    config = load_pattern_config()
+
+    assert "from_cwd_override" in config["sensitivity"]["name_tokens"]
+
+
+def test_load_pattern_config_reads_xdg_user_override(monkeypatch, tmp_path):
+    xdg_home = tmp_path / "xdg-home"
+    override = (
+        xdg_home
+        / "ansible-role-doc"
+        / pattern_config.CWD_OVERRIDE_FILENAME
+    )
+    override.parent.mkdir(parents=True)
+    override.write_text(
+        "sensitivity:\n"
+        "  name_tokens:\n"
+        "    - from_xdg_override\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(xdg_home))
+    monkeypatch.chdir(tmp_path)
+    config = load_pattern_config()
+
+    assert "from_xdg_override" in config["sensitivity"]["name_tokens"]
+
+
+def test_load_pattern_config_reads_env_override(monkeypatch, tmp_path):
+    override = tmp_path / "patterns-env.yml"
+    override.write_text(
+        "sensitivity:\n"
+        "  name_tokens:\n"
+        "    - from_env_override\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv(pattern_config.ENV_PATTERNS_OVERRIDE_PATH, str(override))
+    monkeypatch.chdir(tmp_path)
+    config = load_pattern_config()
+
+    assert "from_env_override" in config["sensitivity"]["name_tokens"]
+
+
+def test_load_pattern_config_reads_system_override(monkeypatch, tmp_path):
+    system_override = tmp_path / "system" / pattern_config.CWD_OVERRIDE_FILENAME
+    system_override.parent.mkdir(parents=True)
+    system_override.write_text(
+        "sensitivity:\n"
+        "  name_tokens:\n"
+        "    - from_system_override\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(pattern_config, "SYSTEM_PATTERN_OVERRIDE_PATH", system_override)
+    monkeypatch.chdir(tmp_path)
+    config = load_pattern_config()
+
+    assert "from_system_override" in config["sensitivity"]["name_tokens"]
+
+
+def test_load_pattern_config_precedence_later_overrides_earlier(monkeypatch, tmp_path):
+    def write_name_tokens(path: Path, token: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "sensitivity:\n"
+            "  name_tokens:\n"
+            f"    - {token}\n",
+            encoding="utf-8",
+        )
+
+    system_override = tmp_path / "system" / pattern_config.CWD_OVERRIDE_FILENAME
+    xdg_home = tmp_path / "xdg-home"
+    xdg_override = xdg_home / "ansible-role-doc" / pattern_config.CWD_OVERRIDE_FILENAME
+    cwd_override = tmp_path / pattern_config.CWD_OVERRIDE_FILENAME
+    env_override = tmp_path / "patterns-env.yml"
+    explicit_override = tmp_path / "patterns-explicit.yml"
+
+    write_name_tokens(system_override, "from_system")
+    write_name_tokens(xdg_override, "from_xdg")
+    write_name_tokens(cwd_override, "from_cwd")
+    write_name_tokens(env_override, "from_env")
+    write_name_tokens(explicit_override, "from_explicit")
+
+    monkeypatch.setattr(pattern_config, "SYSTEM_PATTERN_OVERRIDE_PATH", system_override)
+    monkeypatch.setenv(pattern_config.XDG_DATA_HOME_ENV, str(xdg_home))
+    monkeypatch.setenv(pattern_config.ENV_PATTERNS_OVERRIDE_PATH, str(env_override))
+    monkeypatch.chdir(tmp_path)
+
+    implicit = load_pattern_config()
+    explicit = load_pattern_config(override_path=explicit_override)
+
+    assert implicit["sensitivity"]["name_tokens"] == ["from_env"]
+    assert explicit["sensitivity"]["name_tokens"] == ["from_explicit"]

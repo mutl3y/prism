@@ -3,6 +3,9 @@
 
 {{ description }}
 
+{% set enabled_sections = metadata.enabled_sections if metadata.enabled_sections is defined else None %}
+
+{% if not enabled_sections or "galaxy_info" in enabled_sections %}
 Galaxy Info
 -----------
 
@@ -17,7 +20,9 @@ Galaxy Info
 {% else %}
 No Galaxy metadata found.
 {% endif %}
+{% endif %}
 
+{% if not enabled_sections or "requirements" in enabled_sections %}
 Requirements
 ------------
 
@@ -28,7 +33,9 @@ Requirements
 {% else %}
 No additional requirements.
 {% endif %}
+{% endif %}
 
+{% if not enabled_sections or "purpose" in enabled_sections %}
 Role purpose and capabilities
 -----------------------------
 
@@ -44,7 +51,9 @@ Capabilities:
 {% else %}
 No inferred role summary available.
 {% endif %}
+{% endif %}
 
+{% if not enabled_sections or "variable_summary" in enabled_sections %}
 Inputs / variables summary
 --------------------------
 
@@ -57,8 +66,9 @@ Inputs / variables summary
 {% else %}
 No variable insights available.
 {% endif %}
+{% endif %}
 
-{% if not metadata.concise_readme %}
+{% if (not metadata.concise_readme) and (not enabled_sections or "task_summary" in enabled_sections) %}
 Task/module usage summary
 -------------------------
 
@@ -73,6 +83,7 @@ No task summary available.
 {% endif %}
 {% endif %}
 
+{% if not enabled_sections or "example_usage" in enabled_sections %}
 Inferred example usage
 ----------------------
 
@@ -83,8 +94,9 @@ Inferred example usage
 {% else %}
 No inferred example available.
 {% endif %}
+{% endif %}
 
-{% if not metadata.concise_readme %}
+{% if (not metadata.concise_readme) and (not enabled_sections or "role_variables" in enabled_sections) %}
 Role Variables
 --------------
 
@@ -98,7 +110,7 @@ No variables found.
 {% endif %}
 {% endif %}
 
-{% if not metadata.concise_readme %}
+{% if (not metadata.concise_readme) and (not enabled_sections or "role_contents" in enabled_sections) %}
 Role contents summary
 ---------------------
 
@@ -135,7 +147,7 @@ The scanner collected these role subdirectories (counts):
 {% endfor %}
 {% endif %}
 
-{% if not metadata.concise_readme %}
+{% if (not metadata.concise_readme) and (not enabled_sections or "features" in enabled_sections) %}
 Auto-detected role features
 ---------------------------
 
@@ -148,7 +160,7 @@ No role features detected.
 {% endif %}
 {% endif %}
 
-{% if not metadata.concise_readme %}
+{% if (not metadata.concise_readme) and (not enabled_sections or "comparison" in enabled_sections) %}
 Comparison against local baseline role
 -------------------------------------
 
@@ -166,7 +178,7 @@ No comparison baseline provided.
 {% endif %}
 {% endif %}
 
-{% if not metadata.concise_readme %}
+{% if (not metadata.concise_readme) and (not enabled_sections or "default_filters" in enabled_sections) %}
 Detected usages of the default() filter
 ---------------------------------------
 
@@ -183,7 +195,7 @@ No undocumented variables using `default()` were detected.
 {% endif %}
 {% endif %}
 
-{% if metadata.concise_readme and metadata.include_scanner_report_link %}
+{% if metadata.concise_readme and metadata.include_scanner_report_link and (not enabled_sections or "scanner_report" in enabled_sections) %}
 Scanner report
 --------------
 
