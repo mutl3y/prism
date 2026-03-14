@@ -74,6 +74,39 @@
 - [x] Add env var precedence options for style/policy sources
 - [ ] Add explicit CLI-path options for style/policy sources
 
+## 11) Close analysis coverage gaps and failure modes
+
+- [ ] Priority 1: Make scan scope and limitations explicit in docs:
+  - [x] Add explicit scan-scope section in README
+  - [x] Document known limitations and high-risk edge cases in README
+  - [ ] Add scanner-report summary block that surfaces unresolved/ambiguous findings by category
+- [ ] Priority 2: Expand variable source coverage beyond current defaults-focused heuristics:
+  - [ ] Ensure consistent coverage for `defaults/`, `vars/`, and `meta/` variable signals
+  - [ ] Track `include_vars` usage across static and role-relative include paths
+  - [ ] Track `set_fact` definitions with confidence labels (static vs dynamic)
+  - [ ] Surface role parameter inputs and task-level defaults when statically detectable
+  - [ ] Add explicit provenance metadata per variable (source file, line, confidence)
+- [ ] Priority 3: Reduce false confidence in generated output:
+  - [ ] Add uncertainty annotations where source/provenance cannot be resolved
+  - [ ] Add README notes for precedence-sensitive or conditional defaults
+  - [ ] Add scanner-report counters for unresolved/ambiguous variables
+- [ ] Priority 4: Improve template parsing robustness:
+  - [ ] Replace/augment regex-based extraction with a Jinja2 AST-first path (`jinja2.Environment.parse`)
+  - [ ] Add fixtures for nested filters/tests/macros/custom filters and complex control flow
+  - [ ] Gracefully degrade to “unresolved expression” markers instead of omitting values
+- [ ] Priority 5: Cover known edge cases:
+  - [ ] Role dependencies and dependency-provided variables
+  - [ ] Variable precedence interactions and override chains
+  - [ ] Templated filenames and dynamic include paths
+  - [ ] Conditional includes and task-path indirection
+- [ ] Priority 6: CLI/reporting ergonomics for analysis control:
+  - [x] Verbose mode (`-v/--verbose`)
+  - [x] Markdown/HTML output formats
+  - [ ] Add dry-run mode (scan and report intent without writing output files)
+  - [ ] Add JSON output format for machine-readable scanner data
+  - [ ] Add exclusion flags for directories/files/patterns (for example templates/tests/paths)
+  - [ ] Add tests covering new dry-run, JSON, and exclusion behaviors
+
 ## 9) Raise automated test coverage
 
 - [x] Add `pytest-cov` coverage reporting to `tox`

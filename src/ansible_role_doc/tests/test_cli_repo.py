@@ -682,3 +682,51 @@ def test_cli_verbose_local_scan_prints_style_and_demo_paths(
     assert "Wrote:" in captured.out
     assert "Style guide source:" in captured.out
     assert "Generated demo copy:" in captured.out
+
+
+def test_cli_dry_run_and_json_are_forwarded(monkeypatch, tmp_path, capsys):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    role.mkdir()
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["role_path"] = role_path
+        calls["output_format"] = output_format
+        calls["dry_run"] = kwargs.get("dry_run")
+        return '{"role_name":"demo"}\n'
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "dry-run-json"
+    rc = cli.main([str(role), "-f", "json", "--dry-run", "-o", str(out), "-v"])
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert calls["role_path"] == str(role)
+    assert calls["output_format"] == "json"
+    assert calls["dry_run"] is True
+    assert not out.exists()
+    assert '{"role_name":"demo"}' in captured.out
+    assert "Dry run: no files written." in captured.out
+
+
+def test_cli_dry_run_skips_style_comparison_artifacts(monkeypatch, tmp_path):
+    role = tmp_path / "role"
+    role.mkdir()
+    style_guide = tmp_path / "guide.md"
+    style_guide.write_text("# Style\n", encoding="utf-8")
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        return "# preview\n"
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "dry-run-output.md"
+    rc = cli.main(
+        [str(role), "--style-readme", str(style_guide), "--dry-run", "-o", str(out)]
+    )
+
+    assert rc == 0
+    assert not out.exists()
+    assert not (tmp_path / "style_guide").exists()

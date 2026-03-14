@@ -13,6 +13,7 @@ import re
 import yaml
 import jinja2
 
+from .output import render_final_output, resolve_output_path, write_output
 from .pattern_config import load_pattern_config
 
 # Load pattern policy (built-in defaults, optionally merged with a repo override).
@@ -1725,6 +1726,7 @@ def run_scan(
     include_scanner_report_link: bool = True,
     readme_config_path: str | None = None,
     style_guide_skeleton: bool = False,
+    dry_run: bool = False,
 ) -> str:
     rp = Path(role_path)
     if not rp.is_dir():
@@ -1808,9 +1810,7 @@ def run_scan(
             )
         metadata["comparison"] = build_comparison_report(role_path, compare_role_path)
 
-    out_path = Path(output)
-    if output_format == "html" and out_path.suffix.lower() not in (".html", ".htm"):
-        out_path = out_path.with_suffix(".html")
+    out_path = resolve_output_path(output, output_format)
 
     scanner_report_path: Path | None = None
     if concise_readme:
@@ -1818,51 +1818,50 @@ def run_scan(
             scanner_report_path = Path(scanner_report_output)
         else:
             scanner_report_path = out_path.with_suffix(".scan-report.md")
-        scanner_report_path.parent.mkdir(parents=True, exist_ok=True)
-        scanner_report = _build_scanner_report_markdown(
-            role_name=role_name,
-            description=description,
-            variables=display_variables,
-            requirements=requirements_display,
-            default_filters=undocumented_default_filters,
-            metadata=metadata,
-        )
-        scanner_report_path.write_text(scanner_report, encoding="utf-8")
         metadata["concise_readme"] = True
         metadata["include_scanner_report_link"] = include_scanner_report_link
-        metadata["scanner_report_relpath"] = os.path.relpath(
-            scanner_report_path, out_path.parent
+        if not dry_run:
+            scanner_report_path.parent.mkdir(parents=True, exist_ok=True)
+            scanner_report = _build_scanner_report_markdown(
+                role_name=role_name,
+                description=description,
+                variables=display_variables,
+                requirements=requirements_display,
+                default_filters=undocumented_default_filters,
+                metadata=metadata,
+            )
+            scanner_report_path.write_text(scanner_report, encoding="utf-8")
+            metadata["scanner_report_relpath"] = os.path.relpath(
+                scanner_report_path, out_path.parent
+            )
+
+    rendered = ""
+    if output_format != "json":
+        rendered = render_readme(
+            str(out_path),
+            role_name,
+            description,
+            display_variables,
+            requirements_display,
+            undocumented_default_filters,
+            template,
+            metadata,
+            write=False,
         )
 
-    # Render Markdown content without writing so we can convert if needed
-    rendered = render_readme(
-        str(out_path),
+    final_content = render_final_output(
+        rendered,
+        output_format,
         role_name,
-        description,
-        display_variables,
-        requirements_display,
-        undocumented_default_filters,
-        template,
-        metadata,
-        write=False,
+        payload={
+            "role_name": role_name,
+            "description": description,
+            "variables": display_variables,
+            "requirements": requirements_display,
+            "default_filters": undocumented_default_filters,
+            "metadata": metadata,
+        },
     )
-
-    # Convert if necessary
-    final_content: str
-    if output_format == "md":
-        final_content = rendered
-    else:
-        try:
-            import markdown as _md
-
-            html_body = _md.markdown(rendered, extensions=["extra", "toc"])
-        except Exception:
-            # Fallback: escape and wrap in <pre>
-            import html as _html
-
-            html_body = f"<pre>{_html.escape(rendered)}</pre>"
-
-        final_content = f'<!doctype html>\n<html><head><meta charset="utf-8"><title>{role_name}</title></head><body>\n{html_body}\n</body></html>'
-
-    out_path.write_text(final_content, encoding="utf-8")
-    return str(out_path.resolve())
+    if dry_run:
+        return final_content
+    return write_output(out_path, final_content)

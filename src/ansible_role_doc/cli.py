@@ -132,8 +132,13 @@ def build_parser() -> argparse.ArgumentParser:
         "-f",
         "--format",
         default="md",
-        choices=("md", "html"),
-        help="Output format (md or html).",
+        choices=("md", "html", "json"),
+        help="Output format (md, html, or json).",
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Render output without writing files; prints the rendered result to stdout.",
     )
     p.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
     return p
@@ -298,12 +303,19 @@ def main(argv=None) -> int:
                     include_scanner_report_link=args.include_scanner_report_link,
                     readme_config_path=args.readme_config,
                     style_guide_skeleton=args.create_style_guide,
+                    dry_run=args.dry_run,
                 )
-                style_source_path, style_demo_path = _save_style_comparison_artifacts(
-                    style_readme_path,
-                    outpath,
-                    _repo_name_from_url(args.repo_url),
-                )
+                if args.dry_run:
+                    print(outpath, end="")
+                    style_source_path, style_demo_path = (None, None)
+                else:
+                    style_source_path, style_demo_path = (
+                        _save_style_comparison_artifacts(
+                            style_readme_path,
+                            outpath,
+                            _repo_name_from_url(args.repo_url),
+                        )
+                    )
         else:
             style_readme_path = args.style_readme
             if args.create_style_guide and not style_readme_path:
@@ -322,13 +334,21 @@ def main(argv=None) -> int:
                 include_scanner_report_link=args.include_scanner_report_link,
                 readme_config_path=args.readme_config,
                 style_guide_skeleton=args.create_style_guide,
+                dry_run=args.dry_run,
             )
-            style_source_path, style_demo_path = _save_style_comparison_artifacts(
-                args.style_readme,
-                outpath,
-            )
+            if args.dry_run:
+                print(outpath, end="")
+                style_source_path, style_demo_path = (None, None)
+            else:
+                style_source_path, style_demo_path = _save_style_comparison_artifacts(
+                    args.style_readme,
+                    outpath,
+                )
         if args.verbose:
-            print("Wrote:", outpath)
+            if args.dry_run:
+                print("\nDry run: no files written.")
+            else:
+                print("Wrote:", outpath)
             if style_source_path:
                 print("Style guide source:", style_source_path)
             if style_demo_path:

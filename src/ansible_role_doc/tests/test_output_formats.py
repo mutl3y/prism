@@ -1,5 +1,6 @@
 from pathlib import Path
 import builtins
+import json
 import shutil
 import subprocess
 import sys
@@ -142,3 +143,48 @@ def test_run_scan_html_uses_markdown_module_when_available(tmp_path, monkeypatch
 
     html = out.read_text(encoding="utf-8")
     assert "rendered by fake markdown" in html
+
+
+def test_run_scan_json_output_uses_json_suffix_and_payload(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    out = tmp_path / "scan-result"
+    result = scanner.run_scan(str(target), output=str(out), output_format="json")
+
+    json_path = tmp_path / "scan-result.json"
+    assert result.endswith(".json")
+    assert json_path.exists()
+
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["role_name"] == "mock_role"
+    assert "variables" in payload
+    assert "metadata" in payload
+
+
+def test_run_scan_dry_run_returns_content_and_skips_write(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    out = tmp_path / "dry-run.md"
+    preview = scanner.run_scan(str(target), output=str(out), dry_run=True)
+
+    assert not out.exists()
+    assert "Role Variables" in preview
+
+
+def test_run_scan_json_dry_run_returns_payload_without_write(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    out = tmp_path / "dry-run-json"
+    preview = scanner.run_scan(
+        str(target), output=str(out), output_format="json", dry_run=True
+    )
+
+    assert not (tmp_path / "dry-run-json.json").exists()
+    payload = json.loads(preview)
+    assert payload["role_name"] == "mock_role"

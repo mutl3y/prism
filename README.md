@@ -19,6 +19,32 @@ Summary
 - Can generate headings-only style skeletons with `--create-style-guide`.
 - Variable sourcing defaults to `defaults-only` (or use `--variable-sources defaults+vars`).
 
+Scan scope (current)
+--------------------
+
+Current scanning is static and file-based. The tool currently focuses on these sources/signals:
+
+- Role structure and conventional paths (`tasks/`, `handlers/`, `templates/`, `defaults/`, `vars/`, `meta/`, tests).
+- Variables from defaults-focused discovery (and optional vars discovery via `--variable-sources defaults+vars`).
+- Static task includes and selected `include_vars`/`set_fact` patterns where they can be resolved deterministically.
+- Style-guide-driven rendering when `--style-readme` or `--repo-style-readme-path` is provided.
+
+Known limitations
+-----------------
+
+- Variable discovery is intentionally conservative and can miss values defined outside scanned defaults/vars patterns (for example dynamic `include_vars`, complex `set_fact`, role parameters, or precedence-driven overrides).
+- Template analysis is regex-based today, so complex Jinja2 expressions (nested constructs, custom filters/tests, advanced control flow) may not be fully interpreted.
+- Generated docs can be incomplete when variable provenance is ambiguous or conditional defaults are difficult to resolve statically.
+- Edge cases still include role dependencies, variable precedence interactions, templated filenames, and dynamic include paths.
+
+Priority improvements planned
+-----------------------------
+
+- Move template parsing toward Jinja2 AST parsing (`jinja2.Environment.parse`) to reduce regex fragility.
+- Expand variable/source coverage for `defaults/`, `vars/`, `meta/`, and simple `set_fact`/`include_vars` detection with provenance markers.
+- Add broader integration fixtures using realistic sample roles to validate real-world coverage and avoid regressions.
+- Extend CLI ergonomics with additional discovery/report controls (remaining focus: exclusions).
+
 Usage:
 
 - Install: pip install -e .
@@ -28,6 +54,13 @@ Usage:
 - Live repo test: `python -m ansible_role_doc.cli --repo-url https://github.com/mutl3y/ansible_port_listener -o debug_readmes/REVIEW_README_PORT_LISTENER.md -v`
 - Use a README inside a cloned repo as a guide: `python -m ansible_role_doc.cli --repo-url https://github.com/mutl3y/ansible_port_listener --repo-style-readme-path README.md -o debug_readmes/REVIEW_README_PORT_LISTENER_STYLED.md -v`
 - Generate a style-guide skeleton (section order/headings only): `ansible-role-doc path/to/role --create-style-guide -o debug_readmes/REVIEW_README_SKELETON.md`
+
+CLI capabilities (today):
+
+- Verbose logging: `-v` / `--verbose`
+- Output formats: `--format md|html|json`
+- Preview without writes: `--dry-run` (prints rendered output to stdout)
+- Scanner detail output: `--concise-readme`, `--scanner-report-output`
 
 When a style guide README is used, comparison artifacts are saved beside the generated output:
 
