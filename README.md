@@ -35,6 +35,11 @@ Testing note:
 - `debug_readmes/` is ignored by git.
 - Coverage gaps and the staged workoff plan are tracked in `COVERAGE_WORKOFF_PLAN.md`.
 
+CI note:
+
+- Ruff annotations are published by reviewdog only on pull request events.
+- Annotations are reported as a PR check (`github-pr-check`) with warning-level findings.
+
 Review note:
 
 - `debug_readmes/STYLE_GUIDE_REVIEW_SUMMARY.md` indexes the current generated comparison set.

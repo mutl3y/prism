@@ -6,6 +6,8 @@ metadata and variables, and render a README using a Jinja2 template.
 """
 
 from __future__ import annotations
+
+import math
 import os
 from pathlib import Path
 import re
@@ -162,7 +164,7 @@ def _scan_file_for_default_filters(file_path: Path, role_root: Path) -> list[dic
                             "args": args,
                         }
                     )
-    except UnicodeDecodeError, PermissionError, OSError:
+    except (UnicodeDecodeError, PermissionError, OSError):
         return []
     return occurrences
 
