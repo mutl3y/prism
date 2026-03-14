@@ -90,13 +90,16 @@ def test_scan_ast_default_filter_renders_complex_target_match(tmp_path):
         "---\n"
         "- name: Complex AST default\n"
         "  debug:\n"
-        "    msg: \"{{ service_map[service_name].port | default(8080) }}\"\n",
+        '    msg: "{{ service_map[service_name].port | default(8080) }}"\n',
         encoding="utf-8",
     )
 
     found = scan_for_default_filters(str(role))
 
-    assert any(item["match"] == "service_map[service_name].port | default(8080)" for item in found)
+    assert any(
+        item["match"] == "service_map[service_name].port | default(8080)"
+        for item in found
+    )
     assert any(item["args"] == "8080" for item in found)
 
 

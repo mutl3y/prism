@@ -275,7 +275,9 @@ def _scan_text_for_default_filters_with_ast(text: str, lines: list[str]) -> list
 
         target = _stringify_jinja_node(getattr(node, "node", None)).strip()
         args = ", ".join(
-            value for value in (_stringify_jinja_node(arg).strip() for arg in node.args) if value
+            value
+            for value in (_stringify_jinja_node(arg).strip() for arg in node.args)
+            if value
         )
 
         if target:
@@ -312,7 +314,9 @@ def _stringify_jinja_node(node: object) -> str:
     if isinstance(node, jinja2.nodes.Filter):
         base = _stringify_jinja_node(node.node)
         args = ", ".join(
-            value for value in (_stringify_jinja_node(arg).strip() for arg in node.args) if value
+            value
+            for value in (_stringify_jinja_node(arg).strip() for arg in node.args)
+            if value
         )
         if args:
             return f"{base} | {node.name}({args})"
@@ -320,13 +324,17 @@ def _stringify_jinja_node(node: object) -> str:
     if isinstance(node, jinja2.nodes.Call):
         callee = _stringify_jinja_node(node.node)
         args = ", ".join(
-            value for value in (_stringify_jinja_node(arg).strip() for arg in node.args) if value
+            value
+            for value in (_stringify_jinja_node(arg).strip() for arg in node.args)
+            if value
         )
         return f"{callee}({args})" if callee else f"({args})"
     if isinstance(node, jinja2.nodes.Test):
         left = _stringify_jinja_node(node.node)
         args = ", ".join(
-            value for value in (_stringify_jinja_node(arg).strip() for arg in node.args) if value
+            value
+            for value in (_stringify_jinja_node(arg).strip() for arg in node.args)
+            if value
         )
         if args:
             return f"{left} is {node.name}({args})"
@@ -947,7 +955,9 @@ def _collect_referenced_variable_names(role_path: str) -> set[str]:
                 candidates.add(name)
             for match in JINJA_VAR_RE.findall(text):
                 lowered = match.lower()
-                if lowered not in IGNORED_IDENTIFIERS and not lowered.startswith("ansible_"):
+                if lowered not in IGNORED_IDENTIFIERS and not lowered.startswith(
+                    "ansible_"
+                ):
                     candidates.add(match)
             if file_path.suffix in {".yml", ".yaml"}:
                 for line in text.splitlines():
