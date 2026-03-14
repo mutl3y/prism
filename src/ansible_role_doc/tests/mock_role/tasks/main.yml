@@ -24,3 +24,7 @@
 
 - name: Include nested task file
   include_tasks: nested/setup.yml
+
+- name: Validate required input variable
+  debug:
+    msg: "Using required input {{ required_input_var }}"
