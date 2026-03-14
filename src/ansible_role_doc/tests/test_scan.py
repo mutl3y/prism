@@ -64,6 +64,139 @@ def test_scan_follows_nested_task_includes(tmp_path):
     assert "tasks/nested/deeper.yml" in files
 
 
+def test_scan_detects_default_filter_via_jinja_ast(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: AST default\n"
+        "  debug:\n"
+        "    msg: \"{{ primary_value | default(lookup('env', 'PRIMARY_VALUE')) | trim }}\"\n",
+        encoding="utf-8",
+    )
+
+    found = scan_for_default_filters(str(role))
+
+    assert any(item["line_no"] == 4 for item in found)
+    assert any("lookup" in item["args"] for item in found)
+
+
+def test_scan_ast_default_filter_renders_complex_target_match(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Complex AST default\n"
+        "  debug:\n"
+        "    msg: \"{{ service_map[service_name].port | default(8080) }}\"\n",
+        encoding="utf-8",
+    )
+
+    found = scan_for_default_filters(str(role))
+
+    assert any(item["match"] == "service_map[service_name].port | default(8080)" for item in found)
+    assert any(item["args"] == "8080" for item in found)
+
+
+def test_scan_default_filter_falls_back_to_regex_when_jinja_parse_fails(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Broken Jinja fallback\n"
+        "  debug:\n"
+        "    msg: \"{{ broken_value | default('fallback value') \"\n",
+        encoding="utf-8",
+    )
+
+    found = scan_for_default_filters(str(role))
+
+    assert any("fallback value" in item["args"] for item in found)
+    assert any(item["file"] == "tasks/main.yml" for item in found)
+
+
+def test_scan_default_filter_deduplicates_ast_and_regex_results(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Duplicate suppression\n"
+        "  debug:\n"
+        "    msg: \"{{ username | default('admin') }}\"\n",
+        encoding="utf-8",
+    )
+
+    found = scan_for_default_filters(str(role))
+    matches = [item for item in found if item["file"] == "tasks/main.yml"]
+
+    assert len(matches) == 1
+    assert matches[0]["args"] == "admin"
+
+
+def test_collect_referenced_variable_names_uses_jinja_ast(tmp_path):
+    role = tmp_path / "role"
+    templates = role / "templates"
+    tasks = role / "tasks"
+    templates.mkdir(parents=True)
+    tasks.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Template task\n"
+        "  template:\n"
+        "    src: app.j2\n"
+        "    dest: /tmp/app\n",
+        encoding="utf-8",
+    )
+    (templates / "app.j2").write_text(
+        "{{ lookup('env', required_api_token) }}\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    by_name = {row["name"]: row for row in rows}
+
+    assert "required_api_token" in by_name
+    assert by_name["required_api_token"]["required"] is True
+    assert by_name["required_api_token"]["documented"] is False
+
+
+def test_collect_referenced_variable_names_uses_jinja_ast_scope_rules(tmp_path):
+    role = tmp_path / "role"
+    templates = role / "templates"
+    tasks = role / "tasks"
+    templates.mkdir(parents=True)
+    tasks.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Template task\n"
+        "  template:\n"
+        "    src: app.j2\n"
+        "    dest: /tmp/app\n",
+        encoding="utf-8",
+    )
+    (templates / "app.j2").write_text(
+        "{% for item in servers %}\n"
+        "{{ item.name | default(fallback_name) }}\n"
+        "{{ ansible_host }}\n"
+        "{% endfor %}\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    names = {row["name"] for row in rows}
+
+    assert "servers" in names
+    assert "fallback_name" in names
+    assert "item" not in names
+    assert "ansible_host" not in names
+
+
 def test_collect_task_files_falls_back_without_main_yml(tmp_path):
     role = tmp_path / "role"
     tasks = role / "tasks"

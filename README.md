@@ -27,20 +27,23 @@ Current scanning is static and file-based. The tool currently focuses on these s
 - Role structure and conventional paths (`tasks/`, `handlers/`, `templates/`, `defaults/`, `vars/`, `meta/`, tests).
 - Variables from defaults-focused discovery (and optional vars discovery via `--variable-sources defaults+vars`).
 - Static task includes and selected `include_vars`/`set_fact` patterns where they can be resolved deterministically.
+- Jinja2 AST-assisted detection for `default(...)` usage and undeclared template variable references, with regex fallback for malformed or unsupported expressions.
 - Style-guide-driven rendering when `--style-readme` or `--repo-style-readme-path` is provided.
 
 Known limitations
 -----------------
 
 - Variable discovery is intentionally conservative and can miss values defined outside scanned defaults/vars patterns (for example dynamic `include_vars`, complex `set_fact`, role parameters, or precedence-driven overrides).
-- Template analysis is regex-based today, so complex Jinja2 expressions (nested constructs, custom filters/tests, advanced control flow) may not be fully interpreted.
+- Template analysis is moving toward Jinja2 AST parsing, but it still cannot fully resolve values that come from runtime includes, dynamic file loads, or variables computed only at execution time.
+- Static analysis still merges role sources such as `defaults/` and `vars/`, but some values must remain documented as unknown or runtime-derived when provenance cannot be resolved statically.
+- Complex computed defaults may not reduce cleanly to a literal value; in those cases generated docs may show the expression itself or treat it as a non-literal default.
 - Generated docs can be incomplete when variable provenance is ambiguous or conditional defaults are difficult to resolve statically.
 - Edge cases still include role dependencies, variable precedence interactions, templated filenames, and dynamic include paths.
 
 Priority improvements planned
 -----------------------------
 
-- Move template parsing toward Jinja2 AST parsing (`jinja2.Environment.parse`) to reduce regex fragility.
+- Expand Jinja2 AST coverage beyond the current default-filter and undeclared-variable paths (for example macros, custom filters/tests, and more complex control flow).
 - Expand variable/source coverage for `defaults/`, `vars/`, `meta/`, and simple `set_fact`/`include_vars` detection with provenance markers.
 - Add broader integration fixtures using realistic sample roles to validate real-world coverage and avoid regressions.
 - Extend CLI ergonomics with additional discovery/report controls (remaining focus: exclusions).

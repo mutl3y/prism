@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import yaml
 import jinja2
+from jinja2 import meta
 
 from .output import render_final_output, resolve_output_path, write_output
 from .pattern_config import load_pattern_config
@@ -142,6 +143,7 @@ DEFAULT_TARGET_RE = re.compile(r"\b(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*\|\s*defaul
 JINJA_VAR_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)")
 JINJA_IDENTIFIER_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
 VAULT_KEY_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*!vault\b", re.MULTILINE)
+_JINJA_AST_ENV = jinja2.Environment()
 
 IGNORED_IDENTIFIERS: set[str] = _POLICY["ignored_identifiers"]
 
@@ -215,25 +217,134 @@ def scan_for_default_filters(role_path: str) -> list:
 def _scan_file_for_default_filters(file_path: Path, role_root: Path) -> list[dict]:
     """Scan a single file for uses of the ``default()`` filter."""
     occurrences: list[dict] = []
+    seen: set[tuple[int, str, str]] = set()
     try:
-        with file_path.open("r", encoding="utf-8") as fh:
-            for idx, raw_line in enumerate(fh, start=1):
-                line = raw_line.rstrip("\n")
-                for match in DEFAULT_RE.finditer(line):
-                    args = (match.group("args") or "").strip()
-                    excerpt = line[max(0, match.start() - 80) : match.end() + 80]
-                    occurrences.append(
-                        {
-                            "file": os.path.relpath(file_path, role_root),
-                            "line_no": idx,
-                            "line": line,
-                            "match": excerpt.strip(),
-                            "args": args,
-                        }
-                    )
+        text = file_path.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        ast_rows = _scan_text_for_default_filters_with_ast(text, lines)
+        ast_line_numbers = {row["line_no"] for row in ast_rows}
+
+        for row in ast_rows:
+            key = (row["line_no"], row["match"], row["args"])
+            if key in seen:
+                continue
+            seen.add(key)
+            row["file"] = os.path.relpath(file_path, role_root)
+            occurrences.append(row)
+
+        for idx, line in enumerate(lines, start=1):
+            if idx in ast_line_numbers and ("{{" in line or "{%" in line):
+                continue
+            for match in DEFAULT_RE.finditer(line):
+                args = (match.group("args") or "").strip()
+                excerpt = line[max(0, match.start() - 80) : match.end() + 80].strip()
+                key = (idx, excerpt, args)
+                if key in seen:
+                    continue
+                seen.add(key)
+                occurrences.append(
+                    {
+                        "file": os.path.relpath(file_path, role_root),
+                        "line_no": idx,
+                        "line": line,
+                        "match": excerpt,
+                        "args": args,
+                    }
+                )
     except UnicodeDecodeError, PermissionError, OSError:
         return []
     return occurrences
+
+
+def _scan_text_for_default_filters_with_ast(text: str, lines: list[str]) -> list[dict]:
+    """Return occurrences discovered via Jinja AST parsing."""
+    if "{{" not in text and "{%" not in text:
+        return []
+    try:
+        parsed = _JINJA_AST_ENV.parse(text)
+    except Exception:
+        return []
+
+    occurrences: list[dict] = []
+    for node in parsed.find_all(jinja2.nodes.Filter):
+        if node.name != "default":
+            continue
+        line_no = int(getattr(node, "lineno", 1) or 1)
+        line_no = max(1, min(line_no, len(lines) if lines else 1))
+        line = lines[line_no - 1] if lines else ""
+
+        target = _stringify_jinja_node(getattr(node, "node", None)).strip()
+        args = ", ".join(
+            value for value in (_stringify_jinja_node(arg).strip() for arg in node.args) if value
+        )
+
+        if target:
+            match = f"{target} | default({args})" if args else f"{target} | default()"
+        else:
+            match = line.strip()
+
+        occurrences.append(
+            {
+                "line_no": line_no,
+                "line": line,
+                "match": match,
+                "args": args,
+            }
+        )
+    return occurrences
+
+
+def _stringify_jinja_node(node: object) -> str:
+    """Best-effort compact string rendering for Jinja AST nodes."""
+    if node is None:
+        return ""
+    if isinstance(node, jinja2.nodes.Const):
+        return str(node.value)
+    if isinstance(node, jinja2.nodes.Name):
+        return node.name
+    if isinstance(node, jinja2.nodes.Getattr):
+        base = _stringify_jinja_node(node.node)
+        return f"{base}.{node.attr}" if base else node.attr
+    if isinstance(node, jinja2.nodes.Getitem):
+        base = _stringify_jinja_node(node.node)
+        arg = _stringify_jinja_node(node.arg)
+        return f"{base}[{arg}]" if base else f"[{arg}]"
+    if isinstance(node, jinja2.nodes.Filter):
+        base = _stringify_jinja_node(node.node)
+        args = ", ".join(
+            value for value in (_stringify_jinja_node(arg).strip() for arg in node.args) if value
+        )
+        if args:
+            return f"{base} | {node.name}({args})"
+        return f"{base} | {node.name}".strip()
+    if isinstance(node, jinja2.nodes.Call):
+        callee = _stringify_jinja_node(node.node)
+        args = ", ".join(
+            value for value in (_stringify_jinja_node(arg).strip() for arg in node.args) if value
+        )
+        return f"{callee}({args})" if callee else f"({args})"
+    if isinstance(node, jinja2.nodes.Test):
+        left = _stringify_jinja_node(node.node)
+        args = ", ".join(
+            value for value in (_stringify_jinja_node(arg).strip() for arg in node.args) if value
+        )
+        if args:
+            return f"{left} is {node.name}({args})"
+        return f"{left} is {node.name}".strip()
+    if isinstance(node, jinja2.nodes.TemplateData):
+        return node.data.strip()
+    return ""
+
+
+def _collect_undeclared_jinja_variables(text: str) -> set[str]:
+    """Collect undeclared variable names from Jinja template text."""
+    if "{{" not in text and "{%" not in text:
+        return set()
+    try:
+        parsed = _JINJA_AST_ENV.parse(text)
+    except Exception:
+        return set()
+    return set(meta.find_undeclared_variables(parsed))
 
 
 def _extract_default_target_var(occurrence: dict) -> str | None:
@@ -829,8 +940,14 @@ def _collect_referenced_variable_names(role_path: str) -> set[str]:
                 text = file_path.read_text(encoding="utf-8")
             except UnicodeDecodeError, OSError:
                 continue
+            for name in _collect_undeclared_jinja_variables(text):
+                lowered = name.lower()
+                if lowered in IGNORED_IDENTIFIERS or lowered.startswith("ansible_"):
+                    continue
+                candidates.add(name)
             for match in JINJA_VAR_RE.findall(text):
-                if match.lower() not in IGNORED_IDENTIFIERS:
+                lowered = match.lower()
+                if lowered not in IGNORED_IDENTIFIERS and not lowered.startswith("ansible_"):
                     candidates.add(match)
             if file_path.suffix in {".yml", ".yaml"}:
                 for line in text.splitlines():

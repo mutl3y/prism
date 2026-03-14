@@ -91,9 +91,10 @@
   - [ ] Add README notes for precedence-sensitive or conditional defaults
   - [ ] Add scanner-report counters for unresolved/ambiguous variables
 - [ ] Priority 4: Improve template parsing robustness:
-  - [ ] Replace/augment regex-based extraction with a Jinja2 AST-first path (`jinja2.Environment.parse`)
-  - [ ] Add fixtures for nested filters/tests/macros/custom filters and complex control flow
-  - [ ] Gracefully degrade to “unresolved expression” markers instead of omitting values
+  - [x] Replace/augment regex-based extraction with a Jinja2 AST-first path (`jinja2.Environment.parse`)
+  - [x] Add focused tests for nested/default-filter AST handling, scope filtering, regex fallback, and duplicate suppression
+  - [ ] Add broader fixtures for macros/custom filters/tests and more complex control flow
+  - [ ] Gracefully degrade to “unresolved expression” or non-literal markers instead of omitting values
 - [ ] Priority 5: Cover known edge cases:
   - [ ] Role dependencies and dependency-provided variables
   - [ ] Variable precedence interactions and override chains
@@ -102,10 +103,11 @@
 - [ ] Priority 6: CLI/reporting ergonomics for analysis control:
   - [x] Verbose mode (`-v/--verbose`)
   - [x] Markdown/HTML output formats
-  - [ ] Add dry-run mode (scan and report intent without writing output files)
-  - [ ] Add JSON output format for machine-readable scanner data
+  - [x] Add dry-run mode (scan and report intent without writing output files)
+  - [x] Add JSON output format for machine-readable scanner data
   - [ ] Add exclusion flags for directories/files/patterns (for example templates/tests/paths)
-  - [ ] Add tests covering new dry-run, JSON, and exclusion behaviors
+  - [x] Add tests covering new dry-run and JSON behaviors
+  - [ ] Add tests covering exclusion behaviors
 
 ## 9) Raise automated test coverage
 
