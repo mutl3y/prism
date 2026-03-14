@@ -198,3 +198,25 @@ jobs:
           else
             echo "No formatting changes needed."
           fi
+
+  format-verify:
+    name: Verify formatting after auto-format
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    needs: format
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.14
+
+      - name: Check formatting with black
+        run: |
+          python -m pip install --upgrade pip
+          pip install black
+          black --check .
