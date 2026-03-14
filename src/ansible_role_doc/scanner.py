@@ -193,7 +193,7 @@ def _scan_file_for_default_filters(file_path: Path, role_root: Path) -> list[dic
                             "args": args,
                         }
                     )
-    except (UnicodeDecodeError, PermissionError, OSError):
+    except UnicodeDecodeError, PermissionError, OSError:
         return []
     return occurrences
 
@@ -801,7 +801,7 @@ def _collect_referenced_variable_names(role_path: str) -> set[str]:
                 continue
             try:
                 text = file_path.read_text(encoding="utf-8")
-            except (UnicodeDecodeError, OSError):
+            except UnicodeDecodeError, OSError:
                 continue
             for match in JINJA_VAR_RE.findall(text):
                 if match.lower() not in IGNORED_IDENTIFIERS:
