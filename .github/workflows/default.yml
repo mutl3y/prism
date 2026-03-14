@@ -5,6 +5,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 permissions:
   contents: write
+  pull-requests: write
 # Controls when the workflow will run
 on:
   # Triggers the workflow on push or pull request events but only for the "main" branch
@@ -57,13 +58,13 @@ jobs:
           black --check .
 
       - name: Setup reviewdog (for PR annotations)
-        # if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' }}
         uses: reviewdog/action-setup@v1
         with:
           reviewdog_version: latest
 
       - name: Run ruff and post annotations via reviewdog
-        # if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' }}
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -77,7 +78,7 @@ jobs:
           cat ruff.err || true
           echo "---- ruff.err (end) ----"
           if [ -s ruff.sarif ]; then
-            cat ruff.sarif | reviewdog -f=sarif -name="ruff" -reporter=github-pr-review -level=error
+            cat ruff.sarif | reviewdog -f=sarif -name="ruff" -reporter=github-pr-check -level=warning
           else
             echo "No SARIF output from ruff; skipping reviewdog (see ruff.err)"
             exit 1
