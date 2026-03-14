@@ -783,7 +783,10 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
         "demo",
         "",
         {},
-        [{"src": "example.role_dependency", "version": "1.0.0"}, "example.collection_dependency"],
+        [
+            {"src": "example.role_dependency", "version": "1.0.0"},
+            "example.collection_dependency",
+        ],
         [],
         metadata,
     )

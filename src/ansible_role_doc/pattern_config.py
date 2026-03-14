@@ -56,7 +56,9 @@ ENV_PATTERNS_OVERRIDE_PATH = "ANSIBLE_ROLE_DOC_PATTERNS_PATH"
 # Linux user/system mutable-data locations
 XDG_DATA_HOME_ENV = "XDG_DATA_HOME"
 APP_DATA_DIRNAME = "ansible-role-doc"
-SYSTEM_PATTERN_OVERRIDE_PATH = Path("/var/lib") / APP_DATA_DIRNAME / CWD_OVERRIDE_FILENAME
+SYSTEM_PATTERN_OVERRIDE_PATH = (
+    Path("/var/lib") / APP_DATA_DIRNAME / CWD_OVERRIDE_FILENAME
+)
 
 # Default remote source (community-curated patterns repo)
 DEFAULT_REMOTE_URL = (
@@ -227,7 +229,9 @@ def fetch_remote_policy(
             raw_bytes = resp.read()
     except urllib.error.URLError as exc:
         if cache_path is None:
-            raise RuntimeError(f"Failed to fetch remote patterns from {url}: {exc}") from exc
+            raise RuntimeError(
+                f"Failed to fetch remote patterns from {url}: {exc}"
+            ) from exc
 
     if raw_bytes is not None and cache_path is not None:
         cache_file = Path(cache_path)
@@ -248,7 +252,9 @@ def fetch_remote_policy(
     try:
         data = yaml.safe_load(raw_bytes)
     except Exception as exc:
-        raise RuntimeError(f"Failed to parse remote pattern policy YAML: {exc}") from exc
+        raise RuntimeError(
+            f"Failed to parse remote pattern policy YAML: {exc}"
+        ) from exc
 
     if not isinstance(data, dict):
         raise RuntimeError("Remote pattern policy YAML did not parse to a mapping")
