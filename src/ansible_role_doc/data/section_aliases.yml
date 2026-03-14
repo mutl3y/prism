@@ -1,0 +1,84 @@
+# Section heading thesaurus
+#
+# Maps normalised heading text -> canonical section id.
+# All keys are lower-cased, stripped, and have runs of whitespace collapsed
+# before lookup.  Add your own aliases here to extend without forking.
+#
+# Entries are sorted by canonical id, then by alias key within each group.
+# This file ships with the package as the built-in baseline.
+#
+# To override in your repo, create .ansible_role_doc_patterns.yml containing
+# only the keys you want to change (lists replace wholesale, dicts merge).
+# For community-curated updates see: https://github.com/mutl3y/ansible_role_doc_patterns
+
+section_aliases:
+
+  # ── author_information ──────────────────────────────────────────────────
+  "author information":                          author_information
+
+  # ── comparison ──────────────────────────────────────────────────────────
+  "comparison against local baseline role":      comparison
+
+  # ── contributing ────────────────────────────────────────────────────────
+  "contributing":                                contributing
+
+  # ── default_filters ─────────────────────────────────────────────────────
+  "detected usages of the default filter":       default_filters
+  "detected usages of the default() filter":     default_filters
+
+  # ── example_usage ───────────────────────────────────────────────────────
+  "example playbook":                            example_usage
+  "inferred example usage":                      example_usage
+  "usage":                                       example_usage
+  "use with ansible (and docker python library)": example_usage
+
+  # ── faq_pitfalls ────────────────────────────────────────────────────────
+  "faq pitfalls":                                faq_pitfalls
+
+  # ── features ────────────────────────────────────────────────────────────
+  "auto detected role features":                 features
+  "auto-detected role features":                 features
+
+  # ── galaxy_info ─────────────────────────────────────────────────────────
+  "galaxy info":                                 galaxy_info
+
+  # ── license ─────────────────────────────────────────────────────────────
+  "license":                                     license
+
+  # ── license_author ──────────────────────────────────────────────────────
+  "license and author":                          license_author
+
+  # ── local_testing ───────────────────────────────────────────────────────
+  "local testing":                               local_testing
+
+  # ── purpose ─────────────────────────────────────────────────────────────
+  "overview":                                    purpose
+  "role purpose and capabilities":               purpose
+  "summary":                                     purpose
+
+  # ── requirements ────────────────────────────────────────────────────────
+  "dependencies":                                requirements
+  "requirements":                                requirements
+
+  # ── role_contents ───────────────────────────────────────────────────────
+  "role contents":                               role_contents
+  "role contents summary":                       role_contents
+
+  # ── role_variables ──────────────────────────────────────────────────────
+  "role variables":                              role_variables
+  "variables":                                   role_variables
+
+  # ── sponsors ────────────────────────────────────────────────────────────
+  "sponsors":                                    sponsors
+
+  # ── task_summary ────────────────────────────────────────────────────────
+  "task module usage summary":                   task_summary
+  "task/module usage summary":                   task_summary
+
+  # ── variable_guidance ───────────────────────────────────────────────────
+  "changing the default port and idempotency":                variable_guidance
+  "configuring settings not listed in role variables":        variable_guidance
+
+  # ── variable_summary ────────────────────────────────────────────────────
+  "inputs / variables summary":                  variable_summary
+  "inputs variables summary":                    variable_summary

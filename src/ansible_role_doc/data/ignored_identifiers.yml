@@ -1,0 +1,22 @@
+# Ignored Jinja2 / Ansible built-in identifiers
+#
+# These identifiers are skipped when collecting variable references from
+# templates.  Add standard Ansible magic variables and Jinja2 globals here.
+#
+# The list is sorted alphabetically.
+
+ignored_identifiers:
+  - ansible_facts
+  - default
+  - "false"
+  - groups
+  - hostvars
+  - inventory_hostname
+  - item
+  - lookup
+  - none
+  - "null"
+  - omit
+  - query
+  - "true"
+  - vars

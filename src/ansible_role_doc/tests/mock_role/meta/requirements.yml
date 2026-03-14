@@ -1,4 +1,4 @@
 ---
-- src: geerlingguy.nginx
-  version: 3.1.0
-- src: community.general
+- src: example.role_dependency
+  version: 1.0.0
+- src: example.collection_dependency

@@ -9,6 +9,8 @@ import shutil
 import subprocess
 import sys
 
+from ansible_role_doc import pattern_config
+from ansible_role_doc.pattern_config import load_pattern_config
 from ansible_role_doc import scanner
 from ansible_role_doc.scanner import scan_for_default_filters
 
@@ -143,6 +145,33 @@ def test_load_variables_and_variable_insights_handle_empty_or_malformed_files(tm
     assert scanner.build_variable_insights(str(role)) == []
 
 
+def test_load_variables_defaults_only_excludes_vars_main(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    loaded = scanner.load_variables(str(target), include_vars_main=False)
+
+    assert "variable1" in loaded
+    assert "variable2" in loaded
+    assert "variable3" not in loaded
+    assert "variable4" not in loaded
+
+
+def test_build_variable_insights_defaults_only_excludes_vars_main_rows(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    rows = scanner.build_variable_insights(str(target), include_vars_main=False)
+    names = {row["name"] for row in rows}
+
+    assert "variable1" in names
+    assert "variable2" in names
+    assert "variable3" not in names
+    assert "variable4" not in names
+
+
 def test_collect_role_contents_and_features_handle_sparse_role(tmp_path):
     role = tmp_path / "role"
     (role / "templates").mkdir(parents=True)
@@ -154,3 +183,153 @@ def test_collect_role_contents_and_features_handle_sparse_role(tmp_path):
     assert contents["templates"] == ["templates/only.j2"]
     assert contents["features"]["task_files_scanned"] == 0
     assert contents["features"]["tasks_scanned"] == 0
+
+
+def test_build_variable_insights_detects_required_undocumented_vars(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    rows = scanner.build_variable_insights(str(target))
+    by_name = {row["name"]: row for row in rows}
+
+    assert "required_input_var" in by_name
+    assert by_name["required_input_var"]["documented"] is False
+    assert by_name["required_input_var"]["required"] is True
+    assert by_name["required_input_var"]["source"] == "inferred usage"
+
+    assert "required_endpoint" in by_name
+    assert by_name["required_endpoint"]["required"] is True
+
+    assert "required_api_token" in by_name
+    assert by_name["required_api_token"]["required"] is True
+    assert by_name["required_api_token"]["secret"] is False
+    assert by_name["required_api_token"]["default"] == "<required>"
+
+
+def test_build_variable_insights_seed_vars_reduce_required_and_mark_secret(tmp_path):
+    role_src = HERE / "mock_role"
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    seed_dir = target / "tests" / "group_vars"
+    rows = scanner.build_variable_insights(str(target), seed_paths=[str(seed_dir)])
+    by_name = {row["name"]: row for row in rows}
+
+    assert by_name["required_endpoint"]["required"] is False
+    assert by_name["required_endpoint"]["source"].startswith("seed:")
+
+    assert by_name["required_api_token"]["required"] is False
+    assert by_name["required_api_token"]["secret"] is True
+    assert by_name["required_api_token"]["default"] == "<secret>"
+
+
+def test_run_scan_redacts_secret_like_default_filter_values(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: Secret fallback\n"
+        "  debug:\n"
+        "    msg: \"{{ api_secret | default('TopSecret123') }}\"\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "README.md"
+    scanner.run_scan(str(role), output=str(out))
+    content = out.read_text(encoding="utf-8")
+
+    assert "TopSecret123" not in content
+    assert "api_secret | default(<secret>)" in content
+    assert "args: `<secret>`" in content
+
+
+def test_load_pattern_config_reads_cwd_override(monkeypatch, tmp_path):
+    override = tmp_path / ".ansible_role_doc_patterns.yml"
+    override.write_text(
+        "sensitivity:\n" "  name_tokens:\n" "    - from_cwd_override\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    config = load_pattern_config()
+
+    assert "from_cwd_override" in config["sensitivity"]["name_tokens"]
+
+
+def test_load_pattern_config_reads_xdg_user_override(monkeypatch, tmp_path):
+    xdg_home = tmp_path / "xdg-home"
+    override = xdg_home / "ansible-role-doc" / pattern_config.CWD_OVERRIDE_FILENAME
+    override.parent.mkdir(parents=True)
+    override.write_text(
+        "sensitivity:\n" "  name_tokens:\n" "    - from_xdg_override\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(xdg_home))
+    monkeypatch.chdir(tmp_path)
+    config = load_pattern_config()
+
+    assert "from_xdg_override" in config["sensitivity"]["name_tokens"]
+
+
+def test_load_pattern_config_reads_env_override(monkeypatch, tmp_path):
+    override = tmp_path / "patterns-env.yml"
+    override.write_text(
+        "sensitivity:\n" "  name_tokens:\n" "    - from_env_override\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv(pattern_config.ENV_PATTERNS_OVERRIDE_PATH, str(override))
+    monkeypatch.chdir(tmp_path)
+    config = load_pattern_config()
+
+    assert "from_env_override" in config["sensitivity"]["name_tokens"]
+
+
+def test_load_pattern_config_reads_system_override(monkeypatch, tmp_path):
+    system_override = tmp_path / "system" / pattern_config.CWD_OVERRIDE_FILENAME
+    system_override.parent.mkdir(parents=True)
+    system_override.write_text(
+        "sensitivity:\n" "  name_tokens:\n" "    - from_system_override\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(pattern_config, "SYSTEM_PATTERN_OVERRIDE_PATH", system_override)
+    monkeypatch.chdir(tmp_path)
+    config = load_pattern_config()
+
+    assert "from_system_override" in config["sensitivity"]["name_tokens"]
+
+
+def test_load_pattern_config_precedence_later_overrides_earlier(monkeypatch, tmp_path):
+    def write_name_tokens(path: Path, token: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "sensitivity:\n" "  name_tokens:\n" f"    - {token}\n",
+            encoding="utf-8",
+        )
+
+    system_override = tmp_path / "system" / pattern_config.CWD_OVERRIDE_FILENAME
+    xdg_home = tmp_path / "xdg-home"
+    xdg_override = xdg_home / "ansible-role-doc" / pattern_config.CWD_OVERRIDE_FILENAME
+    cwd_override = tmp_path / pattern_config.CWD_OVERRIDE_FILENAME
+    env_override = tmp_path / "patterns-env.yml"
+    explicit_override = tmp_path / "patterns-explicit.yml"
+
+    write_name_tokens(system_override, "from_system")
+    write_name_tokens(xdg_override, "from_xdg")
+    write_name_tokens(cwd_override, "from_cwd")
+    write_name_tokens(env_override, "from_env")
+    write_name_tokens(explicit_override, "from_explicit")
+
+    monkeypatch.setattr(pattern_config, "SYSTEM_PATTERN_OVERRIDE_PATH", system_override)
+    monkeypatch.setenv(pattern_config.XDG_DATA_HOME_ENV, str(xdg_home))
+    monkeypatch.setenv(pattern_config.ENV_PATTERNS_OVERRIDE_PATH, str(env_override))
+    monkeypatch.chdir(tmp_path)
+
+    implicit = load_pattern_config()
+    explicit = load_pattern_config(override_path=explicit_override)
+
+    assert implicit["sensitivity"]["name_tokens"] == ["from_env"]
+    assert explicit["sensitivity"]["name_tokens"] == ["from_explicit"]
