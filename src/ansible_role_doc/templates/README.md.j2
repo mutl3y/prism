@@ -3,6 +3,9 @@
 
 {{ description }}
 
+{% set enabled_sections = metadata.enabled_sections if metadata.enabled_sections is defined else None %}
+
+{% if not enabled_sections or "galaxy_info" in enabled_sections %}
 Galaxy Info
 -----------
 
@@ -17,18 +20,22 @@ Galaxy Info
 {% else %}
 No Galaxy metadata found.
 {% endif %}
+{% endif %}
 
+{% if not enabled_sections or "requirements" in enabled_sections %}
 Requirements
 ------------
 
 {% if requirements %}
 {% for r in requirements %}
-- {{ r.get('src', r) }}{% if r.get('version') %} (version: {{ r.version }}){% endif %}
+- {{ r }}
 {% endfor %}
 {% else %}
 No additional requirements.
 {% endif %}
+{% endif %}
 
+{% if not enabled_sections or "purpose" in enabled_sections %}
 Role purpose and capabilities
 -----------------------------
 
@@ -44,7 +51,9 @@ Capabilities:
 {% else %}
 No inferred role summary available.
 {% endif %}
+{% endif %}
 
+{% if not enabled_sections or "variable_summary" in enabled_sections %}
 Inputs / variables summary
 --------------------------
 
@@ -52,12 +61,14 @@ Inputs / variables summary
 | Name | Type | Default | Source |
 | --- | --- | --- | --- |
 {% for row in metadata.variable_insights %}
-| `{{ row.name }}` | {{ row.type }} | `{{ row.default | replace("`","'") }}` | {{ row.source }} |
+| `{{ row.name }}` | {{ row.type }} | `{{ row.default | replace("`","'") }}` | {{ row.source }}{% if row.secret %} (secret){% endif %} |
 {% endfor %}
 {% else %}
 No variable insights available.
 {% endif %}
+{% endif %}
 
+{% if (not metadata.concise_readme) and (not enabled_sections or "task_summary" in enabled_sections) %}
 Task/module usage summary
 -------------------------
 
@@ -70,7 +81,9 @@ Task/module usage summary
 {% else %}
 No task summary available.
 {% endif %}
+{% endif %}
 
+{% if not enabled_sections or "example_usage" in enabled_sections %}
 Inferred example usage
 ----------------------
 
@@ -81,7 +94,9 @@ Inferred example usage
 {% else %}
 No inferred example available.
 {% endif %}
+{% endif %}
 
+{% if (not metadata.concise_readme) and (not enabled_sections or "role_variables" in enabled_sections) %}
 Role Variables
 --------------
 
@@ -93,7 +108,9 @@ The following variables are available:
 {% else %}
 No variables found.
 {% endif %}
+{% endif %}
 
+{% if (not metadata.concise_readme) and (not enabled_sections or "role_contents" in enabled_sections) %}
 Role contents summary
 ---------------------
 
@@ -128,7 +145,9 @@ The scanner collected these role subdirectories (counts):
 {% endif %}
 {% endif %}
 {% endfor %}
+{% endif %}
 
+{% if (not metadata.concise_readme) and (not enabled_sections or "features" in enabled_sections) %}
 Auto-detected role features
 ---------------------------
 
@@ -139,7 +158,9 @@ Auto-detected role features
 {% else %}
 No role features detected.
 {% endif %}
+{% endif %}
 
+{% if (not metadata.concise_readme) and (not enabled_sections or "comparison" in enabled_sections) %}
 Comparison against local baseline role
 -------------------------------------
 
@@ -155,12 +176,14 @@ Comparison against local baseline role
 {% else %}
 No comparison baseline provided.
 {% endif %}
+{% endif %}
 
+{% if (not metadata.concise_readme) and (not enabled_sections or "default_filters" in enabled_sections) %}
 Detected usages of the default() filter
 ---------------------------------------
 
 {% if default_filters %}
-The scanner found the following occurrences of `default()` in the role files:
+The scanner found undocumented variables using `default()` in role files:
 
 {% for occ in default_filters %}
 - {{ occ.file }}:{{ occ.line_no }} — `{{ occ.match | replace("`","'") }}`
@@ -168,5 +191,13 @@ The scanner found the following occurrences of `default()` in the role files:
 {% endfor %}
 
 {% else %}
-No uses of `default()` were detected.
+No undocumented variables using `default()` were detected.
+{% endif %}
+{% endif %}
+
+{% if metadata.concise_readme and metadata.include_scanner_report_link and (not enabled_sections or "scanner_report" in enabled_sections) %}
+Scanner report
+--------------
+
+Detailed scanner output is available in `{{ metadata.scanner_report_relpath }}`. It contains task/module statistics, role-content inventory, baseline comparison details, and undocumented `default()` findings.
 {% endif %}

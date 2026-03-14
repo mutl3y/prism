@@ -1,0 +1,43 @@
+# Sensitivity detection tokens
+#
+# Controls how the scanner identifies variables and values that should be
+# treated as sensitive (redacted, flagged, etc.).
+#
+# sensitivity.name_tokens  – substrings in a variable *name* that suggest a secret
+# sensitivity.vault_markers – substrings found in a *value* that identify Ansible Vault content
+# sensitivity.credential_prefixes – value prefixes for known credential formats (e.g. GitHub PATs)
+# sensitivity.url_prefixes  – value prefixes that indicate a URL; these are NOT treated as secrets
+#
+# All lists are sorted alphabetically.
+
+sensitivity:
+
+  # Variable name substrings that suggest a secret value (case-insensitive match)
+  name_tokens:
+    - api_key
+    - apikey
+    - passwd
+    - password
+    - private_key
+    - secret
+    - token
+    - vault
+
+  # Vault markers found in a value string (case-insensitive)
+  vault_markers:
+    - "!vault"
+    - "$ansible_vault"
+
+  # Token prefixes that identify known credential formats
+  credential_prefixes:
+    - "AKIA"
+    - "ASIA"
+    - "ghp_"
+    - "gho_"
+    - "glpat-"
+
+  # Value prefixes that indicate a URL — these should NOT be redacted
+  url_prefixes:
+    - "http://"
+    - "https://"
+    - "ssh://"

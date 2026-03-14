@@ -13,7 +13,7 @@ import subprocess
 from urllib.parse import urlparse
 import sys
 import tempfile
-from .scanner import run_scan
+from .scanner import resolve_default_style_guide_source, run_scan
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -62,9 +62,62 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional local README path used as a style guide for section order and headings.",
     )
     p.add_argument(
+        "--create-style-guide",
+        action="store_true",
+        help=(
+            "Generate a style-guide skeleton README that keeps only section headings/order. "
+            "When used without --style-readme, style source is resolved from env/cwd/XDG/system/bundled defaults."
+        ),
+    )
+    p.add_argument(
         "--repo-style-readme-path",
         default=None,
         help="Optional README path inside a cloned repository to use as a style guide.",
+    )
+    p.add_argument(
+        "--vars-seed",
+        action="append",
+        default=None,
+        help=(
+            "Optional vars seed file or directory (can be passed multiple times), "
+            "for example group_vars/ to prime required/undocumented variable detection."
+        ),
+    )
+    p.add_argument(
+        "--concise-readme",
+        action="store_true",
+        help="Keep README concise and write scanner-heavy sections to a sidecar report.",
+    )
+    p.add_argument(
+        "--scanner-report-output",
+        default=None,
+        help="Optional output path for scanner sidecar report in concise mode.",
+    )
+    p.add_argument(
+        "--include-scanner-report-link",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Include a scanner report section/link in concise README output "
+            "(use --no-include-scanner-report-link to hide it)."
+        ),
+    )
+    p.add_argument(
+        "--variable-sources",
+        choices=("defaults+vars", "defaults-only"),
+        default="defaults-only",
+        help=(
+            "Select which role variable files are documented: "
+            "'defaults-only' (default) or 'defaults+vars'."
+        ),
+    )
+    p.add_argument(
+        "--readme-config",
+        default=None,
+        help=(
+            "Optional YAML config controlling README section visibility "
+            "(defaults to <role>/.ansible_role_doc.yml when present)."
+        ),
     )
     p.add_argument(
         "-o", "--output", default="README.md", help="Output README file path"
@@ -228,6 +281,8 @@ def main(argv=None) -> int:
                     style_readme_path = str(
                         (checkout_dir / args.repo_style_readme_path).resolve()
                     )
+                if args.create_style_guide and not style_readme_path:
+                    style_readme_path = resolve_default_style_guide_source()
                 outpath = run_scan(
                     str(role_path),
                     output=args.output,
@@ -236,6 +291,13 @@ def main(argv=None) -> int:
                     compare_role_path=args.compare_role_path,
                     style_readme_path=style_readme_path,
                     role_name_override=_repo_name_from_url(args.repo_url),
+                    vars_seed_paths=args.vars_seed,
+                    concise_readme=args.concise_readme,
+                    scanner_report_output=args.scanner_report_output,
+                    include_vars_main=args.variable_sources == "defaults+vars",
+                    include_scanner_report_link=args.include_scanner_report_link,
+                    readme_config_path=args.readme_config,
+                    style_guide_skeleton=args.create_style_guide,
                 )
                 style_source_path, style_demo_path = _save_style_comparison_artifacts(
                     style_readme_path,
@@ -243,13 +305,23 @@ def main(argv=None) -> int:
                     _repo_name_from_url(args.repo_url),
                 )
         else:
+            style_readme_path = args.style_readme
+            if args.create_style_guide and not style_readme_path:
+                style_readme_path = resolve_default_style_guide_source()
             outpath = run_scan(
                 args.role_path,
                 output=args.output,
                 template=args.template,
                 output_format=args.format,
                 compare_role_path=args.compare_role_path,
-                style_readme_path=args.style_readme,
+                style_readme_path=style_readme_path,
+                vars_seed_paths=args.vars_seed,
+                concise_readme=args.concise_readme,
+                scanner_report_output=args.scanner_report_output,
+                include_vars_main=args.variable_sources == "defaults+vars",
+                include_scanner_report_link=args.include_scanner_report_link,
+                readme_config_path=args.readme_config,
+                style_guide_skeleton=args.create_style_guide,
             )
             style_source_path, style_demo_path = _save_style_comparison_artifacts(
                 args.style_readme,
