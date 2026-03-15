@@ -5,22 +5,22 @@ mock_role_install_enabled: true
 mock_role_state: present
 mock_role_service_name: mock-role
 mock_role_packages:
-	- nginx
-	- curl
+  - nginx
+  - curl
 mock_role_config_path: /etc/mock-role/app.conf
 mock_role_validate_config: true
 mock_role_rollback_enabled: false
 mock_role_env:
-	APP_MODE: production
-	APP_LOG_LEVEL: info
+  APP_MODE: production
+  APP_LOG_LEVEL: info
 mock_role_api:
-	endpoint: "{{ required_endpoint | default('https://api.example.internal/v1') }}"
-	timeout_seconds: 30
-	retries: 2
+  endpoint: "{{ required_endpoint | default('https://api.example.internal/v1') }}"
+  timeout_seconds: 30
+  retries: 2
 mock_role_feature_flags:
-	healthcheck: true
-	metrics: true
-	legacy_mode: false
+  healthcheck: true
+  metrics: true
+  legacy_mode: false
 mock_role_template_owner: root
 mock_role_template_group: root
 mock_role_template_mode: "0644"
