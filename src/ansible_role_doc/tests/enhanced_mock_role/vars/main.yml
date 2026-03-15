@@ -8,8 +8,8 @@ nested_enabled: true
 mock_role_state: started
 mock_role_service_name: mock-role-override
 mock_role_api:
-	timeout_seconds: 15
-	retries: 4
+  timeout_seconds: 15
+  retries: 4
 mock_role_env:
-	APP_MODE: staging
-	APP_LOG_LEVEL: debug
+  APP_MODE: staging
+  APP_LOG_LEVEL: debug
