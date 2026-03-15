@@ -369,7 +369,9 @@ def _collect_undeclared_jinja_variables(text: str) -> set[str]:
         return _collect_undeclared_jinja_variables_from_ast(parsed)
 
 
-def _collect_undeclared_jinja_variables_from_ast(parsed: jinja2.nodes.Template) -> set[str]:
+def _collect_undeclared_jinja_variables_from_ast(
+    parsed: jinja2.nodes.Template,
+) -> set[str]:
     """Collect variable names from Jinja AST without meta introspection."""
     names: set[str] = set()
     for node in parsed.find_all(jinja2.nodes.Name):
@@ -1437,7 +1439,9 @@ def load_readme_section_config(
 
     include_items = include_raw if isinstance(include_raw, list) else None
     exclude_items = exclude_raw if isinstance(exclude_raw, list) else []
-    content_modes_items = content_modes_raw if isinstance(content_modes_raw, dict) else {}
+    content_modes_items = (
+        content_modes_raw if isinstance(content_modes_raw, dict) else {}
+    )
     title_overrides: dict[str, str] = {}
     section_content_modes: dict[str, str] = {}
     include_selector_map: dict[str, str] = {}
@@ -1875,7 +1879,9 @@ def _render_guide_section_body(
 
     if section_id == "handlers":
         features = metadata.get("features") or {}
-        handler_names = _parse_comma_values(str(features.get("handlers_notified", "none")))
+        handler_names = _parse_comma_values(
+            str(features.get("handlers_notified", "none"))
+        )
         handler_files = metadata.get("handlers") or []
         summary = (metadata.get("doc_insights") or {}).get("task_summary", {})
         if not handler_names and not handler_files and not summary:
@@ -2153,7 +2159,9 @@ def _render_readme_with_style_guide(
         "",
     ]
     for section in ordered_sections:
-        heading_level = int(section.get("level") or style_guide.get("section_level") or 2)
+        heading_level = int(
+            section.get("level") or style_guide.get("section_level") or 2
+        )
         parts.append(
             _format_heading(
                 section["title"],
@@ -2182,9 +2190,7 @@ def _render_readme_with_style_guide(
             if unknown_guide_body:
                 body = unknown_guide_body
             else:
-                body = (
-                    "Style section retained from guide; scanner does not map this section yet."
-                )
+                body = "Style section retained from guide; scanner does not map this section yet."
         if not body:
             continue
         parts.append(body)
@@ -2353,9 +2359,7 @@ def run_scan(
         adopt_style_headings=adopt_style_headings,
     )
     if readme_section_config is not None:
-        metadata["enabled_sections"] = sorted(
-            readme_section_config["enabled_sections"]
-        )
+        metadata["enabled_sections"] = sorted(readme_section_config["enabled_sections"])
         if readme_section_config["section_title_overrides"]:
             metadata["section_title_overrides"] = dict(
                 readme_section_config["section_title_overrides"]
