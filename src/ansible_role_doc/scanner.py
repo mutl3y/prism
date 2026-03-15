@@ -334,7 +334,7 @@ def _scan_file_for_default_filters(file_path: Path, role_root: Path) -> list[dic
                         "args": args,
                     }
                 )
-    except UnicodeDecodeError, PermissionError, OSError:
+    except (UnicodeDecodeError, PermissionError, OSError):
         return []
     return occurrences
 
