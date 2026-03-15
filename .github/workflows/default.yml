@@ -147,13 +147,40 @@ jobs:
 
       - name: Commit & push coverage badge
         if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -n "$(git status --porcelain .github/badges/coverage.svg)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add .github/badges/coverage.svg
-            git commit -m "docs: update coverage badge [skip ci]"
-            git push origin HEAD:${{ github.ref_name }}
+            REPO="${{ github.repository }}"
+            BRANCH="badges"
+            FILE=".github/badges/coverage.svg"
+
+            # Ensure the badges branch exists; create it from the current ref if not
+            if ! gh api "repos/$REPO/git/refs/heads/$BRANCH" > /dev/null 2>&1; then
+              MAIN_SHA=$(gh api "repos/$REPO/git/refs/heads/${{ github.ref_name }}" --jq '.object.sha')
+              gh api --method POST "repos/$REPO/git/refs" \
+                -f "ref=refs/heads/$BRANCH" \
+                -f "sha=$MAIN_SHA"
+              echo "Created '$BRANCH' branch."
+            fi
+
+            # Retrieve current file SHA on the badges branch (needed for updates)
+            FILE_SHA=$(gh api "repos/$REPO/contents/$FILE?ref=$BRANCH" --jq '.sha' 2>/dev/null || echo "")
+            CONTENT=$(base64 -w0 "$FILE")
+
+            if [ -n "$FILE_SHA" ]; then
+              gh api --method PUT "repos/$REPO/contents/$FILE" \
+                -f "message=docs: update coverage badge [skip ci]" \
+                -f "content=$CONTENT" \
+                -f "sha=$FILE_SHA" \
+                -f "branch=$BRANCH"
+            else
+              gh api --method PUT "repos/$REPO/contents/$FILE" \
+                -f "message=docs: update coverage badge [skip ci]" \
+                -f "content=$CONTENT" \
+                -f "branch=$BRANCH"
+            fi
+            echo "Coverage badge updated on '$BRANCH' branch."
           else
             echo "Coverage badge already up to date."
           fi
