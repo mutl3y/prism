@@ -1,0 +1,30 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for mock_role
+- name: Task 1
+  debug:
+    msg: "{{ lookup('env','HOME') | default('/home/unknown') }}"
+
+- name: Install package with privilege
+  ansible.builtin.package:
+    name: "{{ role_package_name | default('nginx') }}"
+    state: present
+  become: true
+  when: role_install_enabled | default(true)
+  tags:
+    - packages
+
+- name: Deploy application template
+  ansible.builtin.template:
+    src: app.conf.j2
+    dest: /tmp/mock_app.conf
+  notify: Restart mock service
+  tags:
+    - config
+
+- name: Include nested task file
+  include_tasks: nested/setup.yml
+
+- name: Validate required input variable
+  debug:
+    msg: "Using required input {{ required_input_var }}"

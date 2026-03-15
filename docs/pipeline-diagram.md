@@ -16,7 +16,10 @@ usage: ansible-role-doc [-h] [--repo-url REPO_URL] [--repo-ref REPO_REF]
                         [--include-scanner-report-link | --no-include-scanner-report-link]
                         [--variable-sources {defaults+vars,defaults-only}]
                         [--readme-config README_CONFIG]
-                        [-o OUTPUT] [-t TEMPLATE] [-f {md,html}] [-v]
+                        [--adopt-style-headings | --no-adopt-style-headings]
+                        [--keep-unknown-style-sections | --no-keep-unknown-style-sections]
+                        [-o OUTPUT] [-t TEMPLATE] [-f {md,html,json}] [--dry-run]
+                        [-v]
                         [role_path]
 ```
 
@@ -28,7 +31,7 @@ usage: ansible-role-doc [-h] [--repo-url REPO_URL] [--repo-ref REPO_REF]
 | `--repo-role-path` | Sub-path inside cloned repo |
 | `--repo-timeout` | Clone timeout in seconds (default 60) |
 | `--repo-style-readme-path` | README inside cloned repo to use as style guide |
-| `--compare-role-path` | Local baseline role for comparison report |
+| `--compare-role-path` | Optional local baseline role for review/testing comparison reports |
 | `--style-readme` | Local README to use as style guide (section order + headings) |
 | `--create-style-guide` | Render headings-only skeleton; auto-resolves style source |
 | `--vars-seed` | Extra vars files/dirs to prime required-variable detection |
@@ -37,7 +40,10 @@ usage: ansible-role-doc [-h] [--repo-url REPO_URL] [--repo-ref REPO_REF]
 | `--no-include-scanner-report-link` | Hide scanner-report link from concise README |
 | `--variable-sources` | `defaults-only` (default) or `defaults+vars` |
 | `--readme-config` | YAML file controlling section visibility |
+| `--adopt-style-headings` | Use README config section labels as rendered headings |
+| `--keep-unknown-style-sections` | Keep unmapped style-guide sections (retaining source body when present) |
 | `-o` | Output README path |
 | `-t` | Custom Jinja2 template path |
-| `-f` | Output format: `md` (default) or `html` |
+| `-f` | Output format: `md` (default), `html`, or `json` |
+| `--dry-run` | Print rendered output without writing files |
 | `-v` | Verbose output |

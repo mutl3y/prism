@@ -11,10 +11,12 @@ import pytest
 from ansible_role_doc import scanner
 
 HERE = Path(__file__).parent
+ROLE_FIXTURES = HERE / "roles"
+BASE_ROLE_FIXTURE = ROLE_FIXTURES / "base_mock_role"
 
 
 def test_outputs_md_and_html(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -60,7 +62,7 @@ def test_outputs_md_and_html(tmp_path):
 
 
 def test_run_scan_html_without_suffix_uses_html_extension(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -72,7 +74,7 @@ def test_run_scan_html_without_suffix_uses_html_extension(tmp_path):
 
 
 def test_run_scan_html_falls_back_when_markdown_import_fails(tmp_path, monkeypatch):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -95,7 +97,7 @@ def test_run_scan_html_falls_back_when_markdown_import_fails(tmp_path, monkeypat
 
 
 def test_run_scan_rejects_missing_style_or_compare_paths(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -122,7 +124,7 @@ def test_run_scan_rejects_missing_role_path(tmp_path):
 
 
 def test_run_scan_html_uses_markdown_module_when_available(tmp_path, monkeypatch):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -146,7 +148,7 @@ def test_run_scan_html_uses_markdown_module_when_available(tmp_path, monkeypatch
 
 
 def test_run_scan_json_output_uses_json_suffix_and_payload(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -164,7 +166,7 @@ def test_run_scan_json_output_uses_json_suffix_and_payload(tmp_path):
 
 
 def test_run_scan_dry_run_returns_content_and_skips_write(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -176,7 +178,7 @@ def test_run_scan_dry_run_returns_content_and_skips_write(tmp_path):
 
 
 def test_run_scan_json_dry_run_returns_payload_without_write(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 

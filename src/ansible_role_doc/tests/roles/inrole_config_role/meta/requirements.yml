@@ -1,5 +1,5 @@
 ---
-# Fixture dependencies intentionally simple; used by requirements rendering tests.
+# Mirror base fixture dependencies so section merge/generate tests stay deterministic.
 - src: example.role_dependency
   version: 1.0.0
 - src: example.collection_dependency
