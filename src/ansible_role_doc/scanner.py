@@ -59,10 +59,14 @@ SCANNER_STATS_SECTION_IDS = {
 
 SECTION_CONFIG_FILENAME = ".ansible_role_doc.yml"
 _EXTRA_SECTION_IDS = {
+    "basic_authorization",
+    "handlers",
+    "installation",
     "license",
     "author_information",
     "license_author",
     "sponsors",
+    "template_overrides",
     "variable_guidance",
     "local_testing",
     "faq_pitfalls",
@@ -143,6 +147,11 @@ DEFAULT_TARGET_RE = re.compile(r"\b(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*\|\s*defaul
 JINJA_VAR_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)")
 JINJA_IDENTIFIER_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
 VAULT_KEY_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*!vault\b", re.MULTILINE)
+MARKDOWN_VAR_BACKTICK_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")
+MARKDOWN_VAR_TABLE_RE = re.compile(r"^\|\s*`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\|")
+MARKDOWN_VAR_BULLET_RE = re.compile(
+    r"^\s*[-*+]\s+`?([A-Za-z_][A-Za-z0-9_]*)`?(?:\s*[:|-]|\s*$)"
+)
 _JINJA_AST_ENV = jinja2.Environment()
 
 IGNORED_IDENTIFIERS: set[str] = _POLICY["ignored_identifiers"]
@@ -352,7 +361,110 @@ def _collect_undeclared_jinja_variables(text: str) -> set[str]:
         parsed = _JINJA_AST_ENV.parse(text)
     except Exception:
         return set()
-    return set(meta.find_undeclared_variables(parsed))
+    try:
+        return set(meta.find_undeclared_variables(parsed))
+    except Exception:
+        # Some Ansible-specific filters are unknown to plain Jinja and can
+        # break introspection. Fall back to AST name scanning.
+        return _collect_undeclared_jinja_variables_from_ast(parsed)
+
+
+def _collect_undeclared_jinja_variables_from_ast(parsed: jinja2.nodes.Template) -> set[str]:
+    """Collect variable names from Jinja AST without meta introspection."""
+    names: set[str] = set()
+    for node in parsed.find_all(jinja2.nodes.Name):
+        if getattr(node, "ctx", None) != "load":
+            continue
+        if isinstance(node.name, str) and node.name:
+            names.add(node.name)
+    return names
+
+
+def _is_readme_variable_section_heading(title: str) -> bool:
+    """Return True when a heading likely describes role input variables."""
+    normalized = _normalize_style_heading(title)
+    if not normalized:
+        return False
+    canonical = STYLE_SECTION_ALIASES.get(normalized)
+    if canonical in {"role_variables", "variable_summary", "variable_guidance"}:
+        return True
+    return "variable" in normalized or "input" in normalized
+
+
+def _extract_readme_input_variables(text: str) -> set[str]:
+    """Extract likely variable names from README variable/input sections."""
+    if not text.strip():
+        return set()
+
+    names: set[str] = set()
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
+    in_variable_section = False
+    lines = text.splitlines()
+
+    for idx, raw_line in enumerate(lines):
+        line = raw_line.rstrip()
+        next_line = lines[idx + 1].rstrip() if idx + 1 < len(lines) else ""
+
+        fence_match = re.match(r"^\s*([`~]{3,})", line)
+        if fence_match:
+            marker = fence_match.group(1)
+            marker_char = marker[0]
+            marker_len = len(marker)
+            if not in_fence:
+                in_fence = True
+                fence_char = marker_char
+                fence_len = marker_len
+            elif marker_char == fence_char and marker_len >= fence_len:
+                in_fence = False
+                fence_char = ""
+                fence_len = 0
+            continue
+
+        if in_fence:
+            continue
+
+        atx_match = re.match(r"^(#{1,6})\s+(.*?)\s*$", line)
+        if atx_match:
+            level = len(atx_match.group(1))
+            if level <= 2:
+                in_variable_section = _is_readme_variable_section_heading(
+                    atx_match.group(2).strip()
+                )
+            continue
+
+        if line.strip() and re.match(r"^[-=]{3,}\s*$", next_line):
+            in_variable_section = _is_readme_variable_section_heading(line.strip())
+            continue
+
+        if not in_variable_section:
+            continue
+
+        for pattern in (
+            MARKDOWN_VAR_BACKTICK_RE,
+            MARKDOWN_VAR_TABLE_RE,
+            MARKDOWN_VAR_BULLET_RE,
+        ):
+            for match in pattern.findall(line):
+                lowered = match.lower()
+                if lowered in IGNORED_IDENTIFIERS or lowered.startswith("ansible_"):
+                    continue
+                names.add(match)
+
+    return names
+
+
+def _collect_readme_input_variables(role_path: str) -> set[str]:
+    """Extract variable names documented in ``README.md`` when present."""
+    readme_path = Path(role_path) / "README.md"
+    if not readme_path.is_file():
+        return set()
+    try:
+        text = readme_path.read_text(encoding="utf-8")
+    except OSError:
+        return set()
+    return _extract_readme_input_variables(text)
 
 
 def _extract_default_target_var(occurrence: dict) -> str | None:
@@ -1056,6 +1168,20 @@ def build_variable_insights(
             }
         )
 
+    # Discover documented inputs from README variable/input sections.
+    for name in sorted(_collect_readme_input_variables(role_path) - known_names):
+        rows.append(
+            {
+                "name": name,
+                "type": "documented",
+                "default": "<documented in README>",
+                "source": "README.md (documented input)",
+                "documented": True,
+                "required": False,
+                "secret": _looks_secret_name(name),
+            }
+        )
+
     known_names: set[str] = {row["name"] for row in rows}
     referenced_names = _collect_referenced_variable_names(role_path)
 
@@ -1181,6 +1307,52 @@ def _normalize_style_heading(heading: str) -> str:
     return re.sub(r"\s+", " ", normalized)
 
 
+def _detect_style_section_level(lines: list[str]) -> int:
+    """Detect the top-level section heading level used by a style guide."""
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
+    atx_levels: set[int] = set()
+
+    for index, raw_line in enumerate(lines):
+        line = raw_line.rstrip()
+        next_line = lines[index + 1].rstrip() if index + 1 < len(lines) else ""
+
+        fence_match = re.match(r"^\s*([`~]{3,})", line)
+        if fence_match:
+            marker = fence_match.group(1)
+            marker_char = marker[0]
+            marker_len = len(marker)
+            if not in_fence:
+                in_fence = True
+                fence_char = marker_char
+                fence_len = marker_len
+            elif marker_char == fence_char and marker_len >= fence_len:
+                in_fence = False
+                fence_char = ""
+                fence_len = 0
+            continue
+
+        if in_fence:
+            continue
+
+        if re.match(r"^-+$", next_line):
+            return 2
+
+        atx_match = re.match(r"^(#{1,6})\s+", line)
+        if not atx_match:
+            continue
+        level = len(atx_match.group(1))
+        if level >= 2:
+            atx_levels.add(level)
+
+    if 2 in atx_levels:
+        return 2
+    if atx_levels:
+        return min(atx_levels)
+    return 2
+
+
 def _resolve_section_selector(selector: str) -> str | None:
     """Resolve a section selector to a canonical section id.
 
@@ -1221,6 +1393,19 @@ def load_readme_section_visibility(
         ``None`` when no config exists or no include/exclude keys are present,
         otherwise the enabled section-id set.
     """
+    config = load_readme_section_config(role_path, config_path=config_path)
+    if config is None:
+        return None
+
+    return config["enabled_sections"]
+
+
+def load_readme_section_config(
+    role_path: str,
+    config_path: str | None = None,
+    adopt_style_headings: bool | None = None,
+) -> dict | None:
+    """Load README section visibility and section rendering options."""
     cfg_file = (
         Path(config_path) if config_path else Path(role_path) / SECTION_CONFIG_FILENAME
     )
@@ -1240,11 +1425,22 @@ def load_readme_section_visibility(
 
     include_raw = readme_cfg.get("include_sections")
     exclude_raw = readme_cfg.get("exclude_sections")
-    if include_raw is None and exclude_raw is None:
+    content_modes_raw = readme_cfg.get("section_content_modes")
+    config_adopt_style_headings = readme_cfg.get("adopt_style_headings")
+    if include_raw is None and exclude_raw is None and content_modes_raw is None:
         return None
+
+    if adopt_style_headings is None and isinstance(config_adopt_style_headings, bool):
+        adopt_style_headings = config_adopt_style_headings
+    if adopt_style_headings is None:
+        adopt_style_headings = False
 
     include_items = include_raw if isinstance(include_raw, list) else None
     exclude_items = exclude_raw if isinstance(exclude_raw, list) else []
+    content_modes_items = content_modes_raw if isinstance(content_modes_raw, dict) else {}
+    title_overrides: dict[str, str] = {}
+    section_content_modes: dict[str, str] = {}
+    include_selector_map: dict[str, str] = {}
 
     if include_items is None:
         enabled: set[str] = set(ALL_SECTION_IDS)
@@ -1255,6 +1451,11 @@ def load_readme_section_visibility(
                 resolved = _resolve_section_selector(item)
                 if resolved:
                     enabled.add(resolved)
+                    normalized_item = _normalize_style_heading(item)
+                    if normalized_item:
+                        include_selector_map[normalized_item] = resolved
+                    if adopt_style_headings:
+                        title_overrides[resolved] = item.strip()
 
     for item in exclude_items:
         if isinstance(item, str):
@@ -1262,13 +1463,33 @@ def load_readme_section_visibility(
             if resolved:
                 enabled.discard(resolved)
 
-    return enabled
+    for selector, mode in content_modes_items.items():
+        if not isinstance(selector, str) or not isinstance(mode, str):
+            continue
+        normalized_selector = _normalize_style_heading(selector)
+        resolved = include_selector_map.get(normalized_selector)
+        if not resolved:
+            resolved = _resolve_section_selector(selector)
+        if not resolved:
+            continue
+        normalized_mode = mode.strip().lower()
+        if normalized_mode not in {"generate", "replace", "merge"}:
+            continue
+        section_content_modes[resolved] = normalized_mode
+
+    return {
+        "enabled_sections": enabled,
+        "section_title_overrides": title_overrides,
+        "adopt_style_headings": adopt_style_headings,
+        "section_content_modes": section_content_modes,
+    }
 
 
 def parse_style_readme(style_readme_path: str) -> dict:
     """Parse a README style guide into section order and heading styles."""
     text = Path(style_readme_path).read_text(encoding="utf-8")
     lines = text.splitlines()
+    section_level = _detect_style_section_level(lines)
     sections: list[dict] = []
     title_text = ""
     title_style = "setext"
@@ -1276,9 +1497,36 @@ def parse_style_readme(style_readme_path: str) -> dict:
 
     i = 0
     current_section: dict | None = None
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
     while i < len(lines):
         line = lines[i].rstrip()
         next_line = lines[i + 1].rstrip() if i + 1 < len(lines) else ""
+
+        fence_match = re.match(r"^\s*([`~]{3,})", line)
+        if fence_match:
+            marker = fence_match.group(1)
+            marker_char = marker[0]
+            marker_len = len(marker)
+            if not in_fence:
+                in_fence = True
+                fence_char = marker_char
+                fence_len = marker_len
+            elif marker_char == fence_char and marker_len >= fence_len:
+                in_fence = False
+                fence_char = ""
+                fence_len = 0
+            if current_section is not None:
+                current_section["body"].append(line)
+            i += 1
+            continue
+
+        if in_fence:
+            if current_section is not None:
+                current_section["body"].append(line)
+            i += 1
+            continue
 
         atx_match = re.match(r"^(#{1,6})\s+(.*?)\s*$", line)
         if atx_match:
@@ -1287,13 +1535,18 @@ def parse_style_readme(style_readme_path: str) -> dict:
             if level == 1:
                 title_style = "atx"
                 title_text = title
-            elif level == 2:
+            elif level == section_level:
                 section_style = "atx"
-            if level == 2:
+            if level == section_level:
                 canonical = STYLE_SECTION_ALIASES.get(
                     _normalize_style_heading(title), "unknown"
                 )
-                current_section = {"id": canonical, "title": title, "body": []}
+                current_section = {
+                    "id": canonical,
+                    "title": title,
+                    "body": [],
+                    "level": level,
+                }
                 sections.append(current_section)
             i += 1
             continue
@@ -1310,7 +1563,12 @@ def parse_style_readme(style_readme_path: str) -> dict:
             canonical = STYLE_SECTION_ALIASES.get(
                 _normalize_style_heading(line), "unknown"
             )
-            current_section = {"id": canonical, "title": line.strip(), "body": []}
+            current_section = {
+                "id": canonical,
+                "title": line.strip(),
+                "body": [],
+                "level": 2,
+            }
             sections.append(current_section)
             i += 2
             continue
@@ -1335,16 +1593,38 @@ def parse_style_readme(style_readme_path: str) -> dict:
             intro_match = re.split(r"```yaml", body, maxsplit=1)
             intro = intro_match[0].strip() if intro_match else ""
             variable_intro = intro or None
+        elif re.search(r"^\s*\|.*\|\s*$", body, flags=re.MULTILINE):
+            variable_style = "table"
+            intro_lines: list[str] = []
+            for raw_line in body.splitlines():
+                stripped = raw_line.strip()
+                if stripped.startswith("|"):
+                    break
+                if stripped:
+                    intro_lines.append(stripped)
+            variable_intro = "\n".join(intro_lines) if intro_lines else None
         elif re.search(r"^\s*[*-]\s+`[^`]+`", body, flags=re.MULTILINE) and re.search(
             r"^\s*[*-]\s+Default:", body, flags=re.MULTILINE
         ):
             variable_style = "nested_bullets"
+            intro_lines: list[str] = []
+            for raw_line in body.splitlines():
+                stripped = raw_line.strip()
+                if not stripped:
+                    if intro_lines:
+                        break
+                    continue
+                if stripped.startswith(("*", "-", "|", "```", "~~~")):
+                    break
+                intro_lines.append(stripped)
+            variable_intro = "\n".join(intro_lines) if intro_lines else None
 
     return {
         "path": str(Path(style_readme_path).resolve()),
         "title_text": title_text,
         "title_style": title_style,
         "section_style": section_style,
+        "section_level": section_level,
         "sections": sections,
         "variable_style": variable_style,
         "variable_intro": variable_intro,
@@ -1376,14 +1656,37 @@ def _render_role_variables_for_style(variables: dict, metadata: dict) -> str:
 
     style_guide = metadata.get("style_guide") or {}
     variable_style = style_guide.get("variable_style", "simple_list")
+    variable_intro = style_guide.get("variable_intro")
     variable_insights = metadata.get("variable_insights") or []
+
+    if variable_style == "table":
+        lines: list[str] = []
+        if variable_intro:
+            lines.extend([variable_intro, ""])
+        lines.extend(["| Name | Default | Description |", "| --- | --- | --- |"])
+        source_by_name = {
+            row.get("name"): row for row in variable_insights if row.get("name")
+        }
+        for name, value in variables.items():
+            row = source_by_name.get(name) or {}
+            default = str(row.get("default") or _format_inline_yaml(value)).replace(
+                "`", "'"
+            )
+            description = _describe_variable(
+                name,
+                str(row.get("source") or "defaults/main.yml"),
+            )
+            lines.append(f"| `{name}` | `{default}` | {description} |")
+        return "\n".join(lines)
 
     if variable_style == "nested_bullets":
         lines: list[str] = []
+        if variable_intro:
+            lines.extend([variable_intro, ""])
         for row in variable_insights:
-            default = str(row["default"]).replace("`", "'")
+            default = _format_inline_yaml(row["default"]).replace("`", "'")
             lines.append(f"* `{row['name']}`")
-            lines.append(f"  * Default: {default}")
+            lines.append(f"  * Default: `{default}`")
             lines.append(
                 f"  * Description: {_describe_variable(row['name'], row['source'])}"
             )
@@ -1391,7 +1694,7 @@ def _render_role_variables_for_style(variables: dict, metadata: dict) -> str:
 
     if variable_style == "yaml_block":
         intro = (
-            style_guide.get("variable_intro")
+            variable_intro
             or "Available variables are listed below, along with default values (see `defaults/main.yml`):"
         )
         yaml_block = yaml.safe_dump(
@@ -1399,8 +1702,10 @@ def _render_role_variables_for_style(variables: dict, metadata: dict) -> str:
         ).strip()
         return f"{intro}\n\n```yaml\n{yaml_block}\n```"
 
-    lines = ["The following variables are available:"]
-    lines.extend(f"- `{name}`: {value}" for name, value in variables.items())
+    lines = [variable_intro or "The following variables are available:"]
+    for name, value in variables.items():
+        rendered = _format_inline_yaml(value).replace("`", "'")
+        lines.append(f"- `{name}`: `{rendered}`")
     return "\n".join(lines)
 
 
@@ -1448,6 +1753,19 @@ def _render_guide_section_body(
         if not requirement_lines:
             return "No additional requirements."
         return "\n".join(f"- {line}" for line in requirement_lines)
+
+    if section_id == "installation":
+        install_name = str(galaxy.get("role_name") or role_name)
+        return (
+            "Install the role with Ansible Galaxy:\n\n"
+            "```bash\n"
+            f"ansible-galaxy install {install_name}\n"
+            "```\n\n"
+            "Or pin it in `requirements.yml`:\n\n"
+            "```yaml\n"
+            f"- src: {install_name}\n"
+            "```"
+        )
 
     if section_id == "license":
         if galaxy and galaxy.get("license"):
@@ -1555,6 +1873,55 @@ def _render_guide_section_body(
             )
         return "Run `tox` or `pytest -q` locally to validate scanner behavior and generated output."
 
+    if section_id == "handlers":
+        features = metadata.get("features") or {}
+        handler_names = _parse_comma_values(str(features.get("handlers_notified", "none")))
+        handler_files = metadata.get("handlers") or []
+        summary = (metadata.get("doc_insights") or {}).get("task_summary", {})
+        if not handler_names and not handler_files and not summary:
+            return "No handler activity was detected."
+
+        lines = [
+            f"- **Handler files detected**: {len(handler_files)}",
+            f"- **Handlers referenced by tasks**: {summary.get('handler_count', len(handler_names))}",
+        ]
+        if handler_names:
+            lines.append("- **Named handlers**: " + ", ".join(handler_names))
+        if handler_files:
+            lines.append("")
+            lines.append("Handler definition files:")
+            lines.extend(f"- `{path}`" for path in handler_files)
+        return "\n".join(lines)
+
+    if section_id == "template_overrides":
+        template_files = metadata.get("templates") or []
+        variable_rows = metadata.get("variable_insights") or []
+        template_vars = [
+            row["name"]
+            for row in variable_rows
+            if isinstance(row.get("name"), str) and "template" in row["name"].lower()
+        ]
+        lines = [
+            "Override template-related variables or point them at playbook-local templates when the built-in layout is not sufficient."
+        ]
+        if template_vars:
+            lines.append("")
+            lines.append("Likely template override variables:")
+            lines.extend(f"- `{name}`" for name in template_vars[:8])
+        if template_files:
+            lines.append("")
+            lines.append("Templates detected in this role:")
+            lines.extend(f"- `{path}`" for path in template_files)
+        return "\n".join(lines)
+
+    if section_id == "basic_authorization":
+        return (
+            "Use custom vhost or directory directives to add HTTP Basic Authentication where needed.\n\n"
+            "- Provide credential files such as `.htpasswd` from your playbook or a companion role.\n"
+            "- Prefer explicit configuration blocks or custom templates over editing generated files in place.\n"
+            "- Keep authentication settings alongside the related virtual host configuration so the access policy remains reviewable."
+        )
+
     if section_id == "faq_pitfalls":
         features = metadata.get("features") or {}
         lines = [
@@ -1647,14 +2014,109 @@ def _render_readme_with_style_guide(
     metadata: dict,
 ) -> str:
     """Render markdown following the structure of a guide README."""
+
+    def _generated_merge_markers(section_id: str) -> tuple[str, str]:
+        start = f"<!-- ansible-role-doc:generated:start:{section_id} -->"
+        end = f"<!-- ansible-role-doc:generated:end:{section_id} -->"
+        return start, end
+
+    def _strip_prior_generated_merge_block(section: dict, guide_body: str) -> str:
+        """Remove previously generated merge payload for a section, if present."""
+        section_id = str(section.get("id") or "")
+        cleaned = guide_body
+        start_marker, end_marker = _generated_merge_markers(section_id)
+        start_idx = cleaned.find(start_marker)
+        end_idx = cleaned.find(end_marker)
+        if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
+            prefix = cleaned[:start_idx].rstrip()
+            suffix = cleaned[end_idx + len(end_marker) :].lstrip()
+            if prefix and suffix:
+                cleaned = f"{prefix}\n\n{suffix}"
+            else:
+                cleaned = prefix or suffix
+
+        # Backward compatibility for earlier merge output without markers.
+        legacy_labels = ["\n\nGenerated content:\n"]
+        if section_id == "requirements":
+            legacy_labels.append("\n\nDetected requirements from scanner:\n")
+        for label in legacy_labels:
+            if label in cleaned:
+                cleaned = cleaned.split(label, 1)[0].rstrip()
+
+        return cleaned
+
+    def _resolve_section_content_mode(section: dict, modes: dict[str, str]) -> str:
+        """Resolve content handling mode for a style section."""
+        section_id = str(section.get("id") or "")
+        configured = str(modes.get(section_id) or "").strip().lower()
+        if configured in {"generate", "replace", "merge"}:
+            return configured
+        if section_id == "requirements":
+            return "merge"
+        return "generate"
+
+    def _merge_section_body(
+        section: dict,
+        generated_body: str,
+        guide_body: str,
+    ) -> str:
+        """Merge scanner-generated and style-guide content for a section."""
+        cleaned_guide_body = _strip_prior_generated_merge_block(section, guide_body)
+        if not cleaned_guide_body:
+            return generated_body
+        if not generated_body:
+            return cleaned_guide_body
+        if generated_body in cleaned_guide_body:
+            return cleaned_guide_body
+        section_id = str(section.get("id") or "")
+        start_marker, end_marker = _generated_merge_markers(section_id)
+        if section_id == "requirements":
+            return (
+                f"{cleaned_guide_body}\n\n"
+                "Detected requirements from scanner:\n"
+                f"{start_marker}\n"
+                f"{generated_body}\n"
+                f"{end_marker}"
+            )
+        return (
+            f"{cleaned_guide_body}\n\n"
+            "Generated content:\n"
+            f"{start_marker}\n"
+            f"{generated_body}\n"
+            f"{end_marker}"
+        )
+
+    def _compose_section_body(section: dict, generated_body: str, mode: str) -> str:
+        """Compose final section body according to configured mode."""
+        guide_body = str(section.get("body") or "").strip()
+        if mode == "replace":
+            return guide_body or generated_body
+        if mode == "merge":
+            return _merge_section_body(section, generated_body, guide_body)
+        return generated_body
+
     style_guide = metadata.get("style_guide") or {}
     ordered_sections = list(style_guide.get("sections") or [])
     enabled_sections = set(metadata.get("enabled_sections") or [])
+    section_title_overrides = metadata.get("section_title_overrides") or {}
+    section_content_modes = metadata.get("section_content_modes") or {}
+    keep_unknown_style_sections = bool(metadata.get("keep_unknown_style_sections"))
 
     if not ordered_sections:
         ordered_sections = [
             {"id": section_id, "title": title}
             for section_id, title in DEFAULT_SECTION_SPECS
+        ]
+
+    ordered_sections = [dict(section) for section in ordered_sections]
+    for section in ordered_sections:
+        override_title = section_title_overrides.get(section.get("id"))
+        if override_title:
+            section["title"] = override_title
+
+    if not keep_unknown_style_sections:
+        ordered_sections = [
+            section for section in ordered_sections if section.get("id") != "unknown"
         ]
 
     if enabled_sections:
@@ -1691,9 +2153,12 @@ def _render_readme_with_style_guide(
         "",
     ]
     for section in ordered_sections:
+        heading_level = int(section.get("level") or style_guide.get("section_level") or 2)
         parts.append(
             _format_heading(
-                section["title"], 2, style_guide.get("section_style", "setext")
+                section["title"],
+                heading_level,
+                style_guide.get("section_style", "setext"),
             )
         )
         parts.append("")
@@ -1710,8 +2175,16 @@ def _render_readme_with_style_guide(
             default_filters,
             metadata,
         ).strip()
+        mode = _resolve_section_content_mode(section, section_content_modes)
+        body = _compose_section_body(section, body, mode)
         if section["id"] == "unknown":
-            body = "Style section retained from guide; scanner does not map this section yet."
+            unknown_guide_body = str(section.get("body") or "").strip()
+            if unknown_guide_body:
+                body = unknown_guide_body
+            else:
+                body = (
+                    "Style section retained from guide; scanner does not map this section yet."
+                )
         if not body:
             continue
         parts.append(body)
@@ -1726,7 +2199,9 @@ def _render_readme_with_style_guide(
     ):
         parts.append(
             _format_heading(
-                "Scanner report", 2, style_guide.get("section_style", "setext")
+                "Scanner report",
+                int(style_guide.get("section_level") or 2),
+                style_guide.get("section_style", "setext"),
             )
         )
         parts.append("")
@@ -1852,7 +2327,9 @@ def run_scan(
     include_vars_main: bool = True,
     include_scanner_report_link: bool = True,
     readme_config_path: str | None = None,
+    adopt_style_headings: bool | None = None,
     style_guide_skeleton: bool = False,
+    keep_unknown_style_sections: bool = True,
     dry_run: bool = False,
 ) -> str:
     rp = Path(role_path)
@@ -1869,12 +2346,24 @@ def run_scan(
     requirements_display = normalize_requirements(requirements)
     found = scan_for_default_filters(role_path)
     metadata = collect_role_contents(role_path)
-    enabled_sections = load_readme_section_visibility(
+    metadata["keep_unknown_style_sections"] = keep_unknown_style_sections
+    readme_section_config = load_readme_section_config(
         role_path,
         config_path=readme_config_path,
+        adopt_style_headings=adopt_style_headings,
     )
-    if enabled_sections is not None:
-        metadata["enabled_sections"] = sorted(enabled_sections)
+    if readme_section_config is not None:
+        metadata["enabled_sections"] = sorted(
+            readme_section_config["enabled_sections"]
+        )
+        if readme_section_config["section_title_overrides"]:
+            metadata["section_title_overrides"] = dict(
+                readme_section_config["section_title_overrides"]
+            )
+        if readme_section_config["section_content_modes"]:
+            metadata["section_content_modes"] = dict(
+                readme_section_config["section_content_modes"]
+            )
     variable_insights = build_variable_insights(
         role_path,
         seed_paths=vars_seed_paths,

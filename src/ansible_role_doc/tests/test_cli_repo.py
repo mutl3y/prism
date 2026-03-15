@@ -220,6 +220,10 @@ def test_cli_style_readme_is_forwarded(monkeypatch, tmp_path):
     style = tmp_path / "STYLE_README.md"
     role.mkdir()
     style.write_text("# Guide\n", encoding="utf-8")
+    (role / ".ansible_role_doc.yml").write_text(
+        "readme:\n  include_sections:\n    - Requirements\n",
+        encoding="utf-8",
+    )
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["style_readme_path"] = kwargs.get("style_readme_path")
@@ -235,10 +239,13 @@ def test_cli_style_readme_is_forwarded(monkeypatch, tmp_path):
     assert calls["style_readme_path"] == str(style)
     source_sidecar = tmp_path / "style_readme" / "SOURCE_STYLE_GUIDE.md"
     demo_sidecar = tmp_path / "style_readme" / "DEMO_GENERATED.md"
+    cfg_sidecar = tmp_path / "style_readme" / "ROLE_README_CONFIG.yml"
     assert source_sidecar.exists()
     assert source_sidecar.read_text(encoding="utf-8") == "# Guide\n"
     assert demo_sidecar.exists()
     assert demo_sidecar.read_text(encoding="utf-8") == "generated"
+    assert cfg_sidecar.exists()
+    assert "include_sections" in cfg_sidecar.read_text(encoding="utf-8")
 
 
 def test_cli_style_guide_skeleton_defaults_to_local_style_source(monkeypatch, tmp_path):
@@ -458,13 +465,62 @@ def test_cli_scanner_report_link_flag_is_forwarded(monkeypatch, tmp_path):
     assert calls["include_scanner_report_link"] is False
 
 
+def test_cli_adopt_style_headings_flag_is_forwarded(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    role.mkdir()
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["adopt_style_headings"] = kwargs.get("adopt_style_headings")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "adopt-headings.md"
+    rc = cli.main([str(role), "--adopt-style-headings", "-o", str(out)])
+
+    assert rc == 0
+    assert calls["adopt_style_headings"] is True
+
+
+def test_cli_keep_unknown_style_sections_flag_is_forwarded(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    role.mkdir()
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["keep_unknown_style_sections"] = kwargs.get(
+            "keep_unknown_style_sections"
+        )
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "keep-unknown.md"
+    rc = cli.main([str(role), "--keep-unknown-style-sections", "-o", str(out)])
+
+    assert rc == 0
+    assert calls["keep_unknown_style_sections"] is True
+
+
 def test_cli_repo_style_readme_path_is_resolved(monkeypatch, tmp_path):
     calls: dict = {}
 
     def fake_clone_run(cmd, check, stdout, stderr, text, timeout, env):
         destination = Path(cmd[-1])
         destination.mkdir(parents=True, exist_ok=True)
-        (destination / "README.md").write_text("# Guide\n", encoding="utf-8")
+        (destination / "README.md").write_text(
+            "Guide\n"
+            "=====\n\n"
+            "Unknown Custom Notes\n"
+            "--------------------\n\n"
+            "Human-authored unknown section body.\n",
+            encoding="utf-8",
+        )
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
@@ -491,10 +547,19 @@ def test_cli_repo_style_readme_path_is_resolved(monkeypatch, tmp_path):
     assert calls["style_readme_path"].endswith("README.md")
     source_sidecar = tmp_path / "style_role" / "SOURCE_STYLE_GUIDE.md"
     demo_sidecar = tmp_path / "style_role" / "DEMO_GENERATED.md"
+    keep_demo_sidecar = tmp_path / "style_role" / "DEMO_GENERATED_KEEP_UNKNOWN.md"
+    cfg_sidecar = tmp_path / "style_role" / "ROLE_README_CONFIG.yml"
     assert source_sidecar.exists()
-    assert source_sidecar.read_text(encoding="utf-8") == "# Guide\n"
+    assert "Unknown Custom Notes" in source_sidecar.read_text(encoding="utf-8")
     assert demo_sidecar.exists()
     assert demo_sidecar.read_text(encoding="utf-8") == "generated"
+    assert keep_demo_sidecar.exists()
+    assert keep_demo_sidecar.read_text(encoding="utf-8") == "generated"
+    assert cfg_sidecar.exists()
+    cfg_text = cfg_sidecar.read_text(encoding="utf-8")
+    assert "unknown_style_sections" in cfg_text
+    assert "title: Unknown Custom Notes" in cfg_text
+    assert "Human-authored unknown section body." in cfg_text
 
 
 def test_clone_repo_timeout_raises_runtime_error(monkeypatch, tmp_path):
@@ -591,6 +656,82 @@ def test_clone_repo_keeps_non_repo_github_url_as_is(monkeypatch, tmp_path):
 
     cli._clone_repo("https://github.com", tmp_path / "repo")
     assert clone_cmd["cmd"][-2] == "https://github.com"
+
+
+def test_build_sparse_clone_paths_returns_empty_for_repo_root():
+    assert cli._build_sparse_clone_paths(".", None) == []
+    assert cli._build_sparse_clone_paths("", "README.md") == []
+
+
+def test_build_sparse_clone_paths_collects_role_and_style_path():
+    assert cli._build_sparse_clone_paths("roles/demo", "README.md") == [
+        "roles/demo",
+        "README.md",
+    ]
+    assert cli._build_sparse_clone_paths("roles/demo", "roles/demo") == [
+        "roles/demo"
+    ]
+
+
+def test_clone_repo_uses_sparse_checkout_when_paths_provided(monkeypatch, tmp_path):
+    commands: list[list[str]] = []
+
+    def fake_clone_run(cmd, check, stdout, stderr, text, timeout, env):
+        commands.append(cmd)
+        if cmd[:2] == ["git", "clone"]:
+            destination = Path(cmd[-1])
+            destination.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
+
+    cli._clone_repo(
+        "https://github.com/example/role.git",
+        tmp_path / "repo",
+        sparse_paths=["roles/demo", "README.md"],
+    )
+
+    assert len(commands) == 2
+    assert "--filter=blob:none" in commands[0]
+    assert "--sparse" in commands[0]
+    assert commands[1][:5] == [
+        "git",
+        "-C",
+        str(tmp_path / "repo"),
+        "sparse-checkout",
+        "set",
+    ]
+    assert "--no-cone" in commands[1]
+    assert "roles/demo" in commands[1]
+    assert "README.md" in commands[1]
+
+
+def test_clone_repo_falls_back_when_sparse_checkout_fails(monkeypatch, tmp_path):
+    commands: list[list[str]] = []
+
+    def fake_clone_run(cmd, check, stdout, stderr, text, timeout, env):
+        commands.append(cmd)
+        if cmd[:2] == ["git", "clone"]:
+            destination = Path(cmd[-1])
+            destination.mkdir(parents=True, exist_ok=True)
+        if "sparse-checkout" in cmd:
+            raise subprocess.CalledProcessError(returncode=1, cmd=cmd, stderr="boom")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
+
+    cli._clone_repo(
+        "https://github.com/example/role.git",
+        tmp_path / "repo",
+        sparse_paths=["roles/demo"],
+    )
+
+    clone_commands = [cmd for cmd in commands if cmd[:2] == ["git", "clone"]]
+    assert len(clone_commands) == 2
+    assert "--sparse" in clone_commands[0]
+    assert "--filter=blob:none" in clone_commands[0]
+    assert "--sparse" not in clone_commands[1]
+    assert "--filter=blob:none" not in clone_commands[1]
 
 
 def test_save_style_comparison_artifacts_uses_parent_name_for_readme_slug(tmp_path):

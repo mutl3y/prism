@@ -22,6 +22,9 @@ section_aliases:
   # ── contributing ────────────────────────────────────────────────────────
   "contributing":                                contributing
 
+  # ── basic_authorization ────────────────────────────────────────────────
+  "htaccess based basic authorization":          basic_authorization
+
   # ── default_filters ─────────────────────────────────────────────────────
   "detected usages of the default filter":       default_filters
   "detected usages of the default() filter":     default_filters
@@ -48,10 +51,15 @@ section_aliases:
   # ── license_author ──────────────────────────────────────────────────────
   "license and author":                          license_author
 
+  # ── installation ───────────────────────────────────────────────────────
+  "installation":                               installation
+
   # ── local_testing ───────────────────────────────────────────────────────
   "local testing":                               local_testing
+  "testing":                                     local_testing
 
   # ── purpose ─────────────────────────────────────────────────────────────
+  "capabilities":                                purpose
   "overview":                                    purpose
   "role purpose and capabilities":               purpose
   "summary":                                     purpose
@@ -64,12 +72,18 @@ section_aliases:
   "role contents":                               role_contents
   "role contents summary":                       role_contents
 
+  # ── handlers ───────────────────────────────────────────────────────────
+  "handlers":                                    handlers
+
   # ── role_variables ──────────────────────────────────────────────────────
   "role variables":                              role_variables
   "variables":                                   role_variables
 
   # ── sponsors ────────────────────────────────────────────────────────────
   "sponsors":                                    sponsors
+
+  # ── template_overrides ─────────────────────────────────────────────────
+  "overriding configuration templates":          template_overrides
 
   # ── task_summary ────────────────────────────────────────────────────────
   "task module usage summary":                   task_summary
