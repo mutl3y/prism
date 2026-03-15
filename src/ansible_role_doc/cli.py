@@ -5,6 +5,7 @@ Provides a small CLI wrapper around :func:`ansible_role_doc.scanner.run_scan`.
 
 from __future__ import annotations
 import argparse
+from datetime import datetime, UTC
 import os
 from pathlib import Path
 import re
@@ -13,7 +14,56 @@ import subprocess
 from urllib.parse import urlparse
 import sys
 import tempfile
-from .scanner import resolve_default_style_guide_source, run_scan
+import yaml
+from .scanner import parse_style_readme, resolve_default_style_guide_source, run_scan
+
+
+class _ReadableYamlDumper(yaml.SafeDumper):
+    """YAML dumper that emits multiline strings as literal blocks."""
+
+
+def _str_presenter(dumper: yaml.SafeDumper, data: str) -> yaml.nodes.ScalarNode:
+    if "\n" in data:
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+
+_ReadableYamlDumper.add_representer(str, _str_presenter)
+
+_CAPTURE_SCHEMA_VERSION = 1
+_CAPTURE_MAX_SECTIONS = 50
+_CAPTURE_MAX_CONTENT_CHARS = 20000
+_CAPTURE_MAX_TOTAL_CHARS = 1_000_000
+_TRUNCATION_MARKER = "\n[truncated]"
+
+_REDACTION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(
+            r"(?im)\\b(password|passwd|token|secret|api[_-]?key)\\b\\s*[:=]\\s*([^\\s]+)"
+        ),
+        r"\\1: <redacted>",
+    ),
+    (
+        re.compile(r"(?i)\\b(bearer)\\s+[A-Za-z0-9._~+/-]+=*"),
+        r"\\1 <redacted>",
+    ),
+)
+
+
+def _sanitize_captured_content(text: str) -> str:
+    """Redact obvious secret-like tokens from captured markdown content."""
+    sanitized = text
+    for pattern, replacement in _REDACTION_PATTERNS:
+        sanitized = pattern.sub(replacement, sanitized)
+    return sanitized
+
+
+def _truncate_content(text: str, max_chars: int) -> tuple[str, bool]:
+    """Return content truncated to max chars with a marker when needed."""
+    if len(text) <= max_chars:
+        return text, False
+    clipped = text[:max_chars].rstrip()
+    return f"{clipped}{_TRUNCATION_MARKER}", True
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -120,6 +170,24 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--adopt-style-headings",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Adopt include_sections labels as rendered section headings when using README config "
+            "(can also be set via readme.adopt_style_headings in .ansible_role_doc.yml)."
+        ),
+    )
+    p.add_argument(
+        "--keep-unknown-style-sections",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Keep unmapped headings from style README sources as placeholder sections "
+            "(enabled by default; use --no-keep-unknown-style-sections to suppress)."
+        ),
+    )
+    p.add_argument(
         "-o", "--output", default="README.md", help="Output README file path"
     )
     p.add_argument(
@@ -149,8 +217,14 @@ def _clone_repo(
     destination: Path,
     ref: str | None = None,
     timeout: int = 60,
+    sparse_paths: list[str] | None = None,
 ) -> None:
-    """Clone a git repository into ``destination`` with shallow history."""
+    """Clone a git repository into ``destination`` with shallow history.
+
+    When ``sparse_paths`` is provided, first attempt a sparse/partial checkout to
+    reduce downloaded content. If sparse setup fails, fall back to a regular
+    shallow clone so behavior remains reliable.
+    """
     parsed = urlparse(repo_url)
     clone_url = repo_url
     if parsed.scheme in {"http", "https"} and parsed.netloc == "github.com":
@@ -160,14 +234,24 @@ def _clone_repo(
                 repo_path = f"{repo_path}.git"
             clone_url = f"git@github.com:{repo_path}"
 
-    cmd = ["git", "clone", "--depth", "1"]
+    clone_cmd = ["git", "clone", "--depth", "1"]
     if ref:
-        cmd.extend(["--branch", ref, "--single-branch"])
-    cmd.extend([clone_url, str(destination)])
+        clone_cmd.extend(["--branch", ref, "--single-branch"])
+
+    requested_sparse_paths = [
+        path.strip() for path in (sparse_paths or []) if path and path.strip()
+    ]
+    use_sparse_clone = bool(requested_sparse_paths)
+    if use_sparse_clone:
+        clone_cmd.extend(["--filter=blob:none", "--sparse"])
+
+    clone_cmd.extend([clone_url, str(destination)])
+
     env = os.environ.copy()
     env["GIT_TERMINAL_PROMPT"] = "0"
     env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
-    try:
+
+    def _run_clone(cmd: list[str]) -> None:
         subprocess.run(
             cmd,
             check=True,
@@ -177,6 +261,41 @@ def _clone_repo(
             timeout=timeout,
             env=env,
         )
+
+    def _run_sparse_checkout(paths: list[str]) -> None:
+        sparse_cmd = [
+            "git",
+            "-C",
+            str(destination),
+            "sparse-checkout",
+            "set",
+            "--no-cone",
+            *paths,
+        ]
+        subprocess.run(
+            sparse_cmd,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+            env=env,
+        )
+
+    try:
+        if use_sparse_clone:
+            try:
+                _run_clone(clone_cmd)
+                _run_sparse_checkout(requested_sparse_paths)
+                return
+            except subprocess.CalledProcessError:
+                shutil.rmtree(destination, ignore_errors=True)
+
+        fallback_cmd = ["git", "clone", "--depth", "1"]
+        if ref:
+            fallback_cmd.extend(["--branch", ref, "--single-branch"])
+        fallback_cmd.extend([clone_url, str(destination)])
+        _run_clone(fallback_cmd)
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
             f"repository clone timed out after {timeout}s: {repo_url}"
@@ -199,10 +318,37 @@ def _repo_name_from_url(repo_url: str) -> str | None:
     return None
 
 
+def _build_sparse_clone_paths(
+    repo_role_path: str,
+    repo_style_readme_path: str | None,
+) -> list[str]:
+    """Build sparse checkout targets for repo-based scans.
+
+    Returns an empty list when sparse checkout would not reduce scope.
+    """
+    role_path = (repo_role_path or ".").strip()
+    if role_path in {"", "."}:
+        return []
+
+    paths = [role_path]
+    if repo_style_readme_path and repo_style_readme_path.strip():
+        paths.append(repo_style_readme_path.strip())
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for path in paths:
+        if path not in seen:
+            deduped.append(path)
+            seen.add(path)
+    return deduped
+
+
 def _save_style_comparison_artifacts(
     style_readme_path: str | None,
     generated_output: str,
     style_source_name: str | None = None,
+    role_config_path: str | None = None,
+    keep_unknown_style_sections: bool = False,
 ) -> tuple[str | None, str | None]:
     """Save source/demo comparison artifacts beside generated output."""
     if not style_readme_path:
@@ -243,6 +389,92 @@ def _save_style_comparison_artifacts(
     if output_path.resolve() != demo_destination.resolve():
         shutil.copyfile(output_path, demo_destination)
 
+    if keep_unknown_style_sections:
+        keep_demo_destination = style_dir / f"DEMO_GENERATED_KEEP_UNKNOWN{output_suffix}"
+        if output_path.resolve() != keep_demo_destination.resolve():
+            shutil.copyfile(output_path, keep_demo_destination)
+
+    cfg_destination = style_dir / "ROLE_README_CONFIG.yml"
+
+    # Include the role-level README config beside demo artifacts when available.
+    if role_config_path:
+        cfg_source = Path(role_config_path)
+        if cfg_source.is_file():
+            if cfg_source.resolve() != cfg_destination.resolve():
+                shutil.copyfile(cfg_source, cfg_destination)
+            return str(source_destination.resolve()), str(demo_destination.resolve())
+
+    # If a role config is not present, synthesize a source-of-truth config sample
+    # showing unknown style headings captured from the style guide.
+    parsed = parse_style_readme(str(source))
+    unknown_sections: list[dict[str, str]] = []
+    seen_keys: set[str] = set()
+    total_chars = 0
+    truncated_any = False
+
+    for section in parsed.get("sections", []):
+        if section.get("id") != "unknown":
+            continue
+        if len(unknown_sections) >= _CAPTURE_MAX_SECTIONS:
+            truncated_any = True
+            break
+
+        title = str(section.get("title") or "").strip()
+        key = re.sub(r"\\s+", " ", title).lower()
+        if not key or key in seen_keys:
+            continue
+        seen_keys.add(key)
+
+        body = str(section.get("body") or "").strip()
+        body = _sanitize_captured_content(body)
+        body, truncated_one = _truncate_content(body, _CAPTURE_MAX_CONTENT_CHARS)
+        if truncated_one:
+            truncated_any = True
+
+        proposed_chars = total_chars + len(title) + len(body)
+        if proposed_chars > _CAPTURE_MAX_TOTAL_CHARS:
+            remaining = max(0, _CAPTURE_MAX_TOTAL_CHARS - total_chars - len(title))
+            body, _ = _truncate_content(body, remaining)
+            truncated_any = True
+
+        unknown_sections.append({"title": title, "content": body})
+        total_chars += len(title) + len(body)
+
+        if total_chars >= _CAPTURE_MAX_TOTAL_CHARS:
+            break
+
+    unknown_sections.sort(key=lambda row: row["title"].lower())
+
+    payload = {
+        "readme": {
+            "capture_metadata": {
+                "schema_version": _CAPTURE_SCHEMA_VERSION,
+                "captured_at_utc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "style_source_path": str(source),
+                "truncated": truncated_any,
+            },
+            "unknown_style_sections": unknown_sections,
+        }
+    }
+    cfg_lines = [
+        "# Auto-generated sample: promote this file into the role as .ansible_role_doc.yml",
+        "# to keep unknown style sections as your source-of-truth.",
+        yaml.dump(
+            payload,
+            Dumper=_ReadableYamlDumper,
+            sort_keys=False,
+            default_flow_style=False,
+            width=10000,
+        ).rstrip(),
+        "",
+    ]
+    rendered_cfg = "\n".join(cfg_lines)
+    existing_cfg = (
+        cfg_destination.read_text(encoding="utf-8") if cfg_destination.exists() else None
+    )
+    if existing_cfg != rendered_cfg:
+        cfg_destination.write_text(rendered_cfg, encoding="utf-8")
+
     return str(source_destination.resolve()), str(demo_destination.resolve())
 
 
@@ -275,6 +507,10 @@ def main(argv=None) -> int:
                     checkout_dir,
                     args.repo_ref,
                     args.repo_timeout,
+                    sparse_paths=_build_sparse_clone_paths(
+                        args.repo_role_path,
+                        args.repo_style_readme_path,
+                    ),
                 )
                 role_path = (checkout_dir / args.repo_role_path).resolve()
                 if not role_path.exists() or not role_path.is_dir():
@@ -302,18 +538,27 @@ def main(argv=None) -> int:
                     include_vars_main=args.variable_sources == "defaults+vars",
                     include_scanner_report_link=args.include_scanner_report_link,
                     readme_config_path=args.readme_config,
+                    adopt_style_headings=args.adopt_style_headings,
                     style_guide_skeleton=args.create_style_guide,
+                    keep_unknown_style_sections=args.keep_unknown_style_sections,
                     dry_run=args.dry_run,
                 )
                 if args.dry_run:
                     print(outpath, end="")
                     style_source_path, style_demo_path = (None, None)
                 else:
+                    effective_readme_config_path = args.readme_config
+                    if not effective_readme_config_path:
+                        default_cfg = role_path / ".ansible_role_doc.yml"
+                        if default_cfg.is_file():
+                            effective_readme_config_path = str(default_cfg)
                     style_source_path, style_demo_path = (
                         _save_style_comparison_artifacts(
                             style_readme_path,
                             outpath,
                             _repo_name_from_url(args.repo_url),
+                            effective_readme_config_path,
+                            args.keep_unknown_style_sections,
                         )
                     )
         else:
@@ -333,16 +578,25 @@ def main(argv=None) -> int:
                 include_vars_main=args.variable_sources == "defaults+vars",
                 include_scanner_report_link=args.include_scanner_report_link,
                 readme_config_path=args.readme_config,
+                adopt_style_headings=args.adopt_style_headings,
                 style_guide_skeleton=args.create_style_guide,
+                keep_unknown_style_sections=args.keep_unknown_style_sections,
                 dry_run=args.dry_run,
             )
             if args.dry_run:
                 print(outpath, end="")
                 style_source_path, style_demo_path = (None, None)
             else:
+                effective_readme_config_path = args.readme_config
+                if not effective_readme_config_path:
+                    default_cfg = Path(args.role_path) / ".ansible_role_doc.yml"
+                    if default_cfg.is_file():
+                        effective_readme_config_path = str(default_cfg)
                 style_source_path, style_demo_path = _save_style_comparison_artifacts(
                     args.style_readme,
                     outpath,
+                    role_config_path=effective_readme_config_path,
+                    keep_unknown_style_sections=args.keep_unknown_style_sections,
                 )
         if args.verbose:
             if args.dry_run:

@@ -26,14 +26,16 @@
   - [x] Clone to temp workspace and scan safely
   - [x] Generate `REVIEW_README.md` (or user-specified output) from cloned role
   - [x] Validate end-to-end against `https://github.com/mutl3y/ansible_port_listener` for local testing
-- [ ] Add guardrails:
+- [x] Add guardrails:
   - [x] Timeout and size limits
   - [x] Shallow clone support
+  - [x] Sparse/partial clone optimization for repo sub-path scans (with shallow fallback)
   - [x] Clear errors for private/missing repos
 - [x] Add tests for GitHub intake flow (mocked clone + fixture repos)
 
 ## 4) Prepare for iterative learning loop (later phase)
 
+- [x] Run pilot sample-repo learning pass and capture unmapped style headings report (`debug_readmes/STYLE_MISSED_SECTIONS_REPORT.md`)
 - [ ] Persist extracted feature snapshots per role scan
 - [ ] Track before/after doc quality metrics
 - [ ] Add optional feedback loop for future ranking/tuning of generated sections
@@ -51,7 +53,7 @@
 - [x] Improve variable extraction for GitHub-scanned roles where defaults/vars are sparse or indirect
 - [x] Discover variables from `include_vars` task references (static paths within the role)
 - [x] Discover computed variable names from `set_fact` tasks
-- [ ] Explore discovery from documented README inputs (variable tables in existing role READMEs)
+- [x] Explore discovery from documented README inputs (variable tables in existing role READMEs)
 
 ## 7) Style-guide demo refresh workflow
 
@@ -62,7 +64,9 @@
 ## 8) Refine style-guide fidelity
 
 - [ ] Reduce remaining differences between source guide prose patterns and generated output structure
-- [ ] Expand style-aware rendering for additional source-specific sections when helpful
+- [x] Expand style-aware rendering for additional source-specific sections when helpful
+  - [x] Preserve source variable-section intro text when rendering simple lists and nested bullets
+  - [x] Detect and render markdown-table variable sections from style guides
 
 ## 10) Evolve local style/policy source resolution
 
@@ -94,7 +98,8 @@
   - [x] Replace/augment regex-based extraction with a Jinja2 AST-first path (`jinja2.Environment.parse`)
   - [x] Add focused tests for nested/default-filter AST handling, scope filtering, regex fallback, and duplicate suppression
   - [ ] Add broader fixtures for macros/custom filters/tests and more complex control flow
-  - [ ] Gracefully degrade to “unresolved expression” or non-literal markers instead of omitting values
+  - [x] Gracefully degrade to “unresolved expression” or non-literal markers instead of omitting values
+    - [x] Fall back to AST name collection when Jinja introspection fails on unsupported filters
 - [ ] Priority 5: Cover known edge cases:
   - [ ] Role dependencies and dependency-provided variables
   - [ ] Variable precedence interactions and override chains
