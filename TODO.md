@@ -2,11 +2,11 @@
 
 ## 1) Enrich documentation realism from role content
 
-- [ ] Expand the bundled `mock_role` to resemble a production role:
-  - [ ] Add richer defaults and vars with typed patterns and overrides
-  - [ ] Add multiple task paths (setup/deploy/validate/rollback)
-  - [ ] Add handlers, templates, files, molecule/test scaffolding
-  - [ ] Add realistic metadata (`meta/main.yml`, requirements, tags, platforms)
+- [x] Expand the bundled `mock_role` to resemble a production role:
+  - [x] Add richer defaults and vars with typed patterns and overrides
+  - [x] Add multiple task paths (setup/deploy/validate/rollback)
+  - [x] Add handlers, templates, files, molecule/test scaffolding
+  - [x] Add realistic metadata (`meta/main.yml`, requirements, tags, platforms)
 - [ ] Improve generated README richness from discovered role signals:
   - [x] Role purpose summary + capability bullets
   - [x] Inputs/variables table with inferred defaults and references
@@ -36,7 +36,12 @@
 ## 4) Prepare for iterative learning loop (later phase)
 
 - [x] Run pilot sample-repo learning pass and capture unmapped style headings report (`debug_readmes/STYLE_MISSED_SECTIONS_REPORT.md`)
-- [ ] Persist extracted feature snapshots per role scan
+- [x] Expose a stable library wrapper for external learning-loop/orchestration apps
+- [x] Expose repo-url scanning through the same public library API surface
+- [x] Persist extracted feature snapshots per role scan
+- [x] Add batch-scan scaffolding with per-target success/failure capture
+- [x] Add repo URL file ingestion and freshness-aware skipping (`--repo-url-file`, `--skip-if-fresh-days`, `--force-rescan`)
+- [x] Add persisted section-title aggregation report generation (`scripts/learning_section_title_report.py`)
 - [ ] Track before/after doc quality metrics
 - [ ] Add optional feedback loop for future ranking/tuning of generated sections
 
@@ -76,14 +81,14 @@
 - [x] Support cwd policy overlay via `./.ansible_role_doc_patterns.yml`
 - [x] Add phased mutable-data resolution for Linux hosts (user-level XDG path and optional system path)
 - [x] Add env var precedence options for style/policy sources
-- [ ] Add explicit CLI-path options for style/policy sources
+- [x] Add explicit CLI-path options for style/policy sources
 
 ## 11) Close analysis coverage gaps and failure modes
 
 - [ ] Priority 1: Make scan scope and limitations explicit in docs:
   - [x] Add explicit scan-scope section in README
   - [x] Document known limitations and high-risk edge cases in README
-  - [ ] Add scanner-report summary block that surfaces unresolved/ambiguous findings by category
+  - [x] Add scanner-report summary block that surfaces unresolved/ambiguous findings by category
 - [ ] Priority 2: Expand variable source coverage beyond current defaults-focused heuristics:
   - [ ] Ensure consistent coverage for `defaults/`, `vars/`, and `meta/` variable signals
   - [ ] Track `include_vars` usage across static and role-relative include paths
@@ -110,9 +115,9 @@
   - [x] Markdown/HTML output formats
   - [x] Add dry-run mode (scan and report intent without writing output files)
   - [x] Add JSON output format for machine-readable scanner data
-  - [ ] Add exclusion flags for directories/files/patterns (for example templates/tests/paths)
+  - [x] Add exclusion flags for directories/files/patterns (for example templates/tests/paths)
   - [x] Add tests covering new dry-run and JSON behaviors
-  - [ ] Add tests covering exclusion behaviors
+  - [x] Add tests covering exclusion behaviors
 
 ## 9) Raise automated test coverage
 
@@ -146,6 +151,6 @@
   - [x] remaining `cli.py` branches in repo-name parsing and artifact copy edge cases
   - [x] remaining `scanner.py` helper branches around `_describe_variable()`, `_detect_task_module()`, and metadata/detail render combinations
 - [x] Re-run coverage after each batch and update `COVERAGE_WORKOFF_PLAN.md`
-- [ ] Optional stretch: add `--cov-fail-under` threshold to `tox` once a stable baseline is agreed
+- [x] Optional stretch: add `--cov-fail-under` threshold to `tox` once a stable baseline is agreed
 - [x] `cli.py` pushed to 100% line and branch coverage
 - [ ] Optional stretch: one additional micro-batch targeting remaining defensive exception branches in `scanner.py` to push toward 92%+ line / 88%+ branch

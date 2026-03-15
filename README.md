@@ -62,6 +62,44 @@ Usage:
 - Use a README inside a cloned repo as a guide: `python -m ansible_role_doc.cli --repo-url https://github.com/mutl3y/ansible_port_listener --repo-style-readme-path README.md -o debug_readmes/REVIEW_README_PORT_LISTENER_STYLED.md -v`
 - Generate a style-guide skeleton (section order/headings only): `ansible-role-doc path/to/role --create-style-guide -o debug_readmes/REVIEW_README_SKELETON.md`
 
+Library API:
+
+- `ansible-role-doc` can also be used as a scanner library by external orchestration code.
+- This repo should remain the scanner/render engine; high-volume learning-loop orchestration can live in a separate app that imports the public API wrapper.
+- Prefer `ansible_role_doc.api.scan_role(...)` and `ansible_role_doc.api.scan_repo(...)` instead of importing internal helpers directly.
+
+Example:
+
+```python
+from ansible_role_doc.api import scan_role
+
+payload = scan_role(
+    "/path/to/role",
+    exclude_path_patterns=["tests/**", "molecule/**"],
+)
+
+print(payload["role_name"])
+print(payload["metadata"]["scanner_counters"])
+```
+
+The wrapper returns the same machine-readable scan payload used by JSON output mode, but as a Python dictionary and without writing files.
+
+Repo example:
+
+```python
+from ansible_role_doc.api import scan_repo
+
+payload = scan_repo(
+	"https://github.com/example/role.git",
+	repo_role_path="roles/demo",
+	repo_style_readme_path="README.md",
+)
+```
+
+For a minimal orchestration-side persistence example, see [src/learning_app_scaffold/README.md](src/learning_app_scaffold/README.md).
+
+Local containerized learning-loop setup (Podman + PostgreSQL, with `pg_dump` checkpoints) is documented in [docs/podman-postgres-local.md](docs/podman-postgres-local.md).
+
 CLI capabilities (today):
 
 - Verbose logging: `-v` / `--verbose`
@@ -129,6 +167,7 @@ readme:
 Testing note:
 
 - Running `tox` (default `py` env) runs tests with coverage and writes `debug_readmes/coverage.xml`.
+- Latest local snapshot (2026-03-15): `176 passed` with total coverage `82.56%`.
 - Generate review outputs on demand with `tox -e readmes` (or `tox -e py,readmes`), which writes:
 	- `debug_readmes/REVIEW_README.md`
 	- `debug_readmes/REVIEW_README.html`
@@ -143,6 +182,13 @@ CI note:
 
 - Ruff annotations are published by reviewdog only on pull request events.
 - Annotations are reported as a PR check (`github-pr-check`) with warning-level findings.
+- Coverage badge updates are written to the dedicated `badges` branch via GitHub API calls from CI (avoids protected-branch direct pushes to `main`).
+
+Learning batch note:
+
+- Repository batch scans can be run with `scripts/learning_repo_batch.py` and persisted via the scaffold Postgres store.
+- Freshness skipping is enabled by default (`--skip-if-fresh-days 7`); use `--force-rescan` to scan all provided URLs.
+- Latest wide sample batch run label: `sample12-20260315-193723` with `12/12` successful repo scans.
 
 Review note:
 
