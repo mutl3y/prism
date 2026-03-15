@@ -1,0 +1,21 @@
+readme:
+  # Use config-provided labels as rendered heading titles.
+  adopt_style_headings: true
+  # Keep this fixture focused on heading adoption + variable summary behavior.
+  include_sections:
+    - Capabilities
+    - Inputs / variables summary
+  # Optional source-of-truth list for style headings that are currently unknown.
+  # These examples are intentionally illustrative for fixture-based testing/docs.
+  # unknown_style_sections:
+  #   - Troubleshooting
+  #   - Security notes
+  #   - Release process
+  # Per-section content behavior controls:
+  # - merge: keep source prose and inject scanner-generated payload (idempotent)
+  # - generate: use scanner-generated content only
+  # Selectors can use canonical ids or heading labels from include_sections.
+  section_content_modes:
+    requirements: merge
+    role variables: generate
+    # Capabilities: replace

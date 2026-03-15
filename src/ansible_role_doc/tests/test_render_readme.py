@@ -6,11 +6,14 @@ import sys
 from ansible_role_doc import scanner
 
 HERE = Path(__file__).parent
+ROLE_FIXTURES = HERE / "roles"
+BASE_ROLE_FIXTURE = ROLE_FIXTURES / "base_mock_role"
+INROLE_CONFIG_ROLE_FIXTURE = ROLE_FIXTURES / "inrole_config_role"
 
 
 def test_render_readme_for_mock_role(tmp_path):
     """Render the README for the bundled `mock_role` and verify output."""
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -45,7 +48,7 @@ def test_render_readme_for_mock_role(tmp_path):
 
 
 def test_run_scan_concise_readme_writes_scanner_sidecar(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -77,7 +80,7 @@ def test_run_scan_concise_readme_writes_scanner_sidecar(tmp_path):
 
 
 def test_run_scan_concise_readme_can_hide_scanner_link_section(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -99,7 +102,7 @@ def test_run_scan_concise_readme_can_hide_scanner_link_section(tmp_path):
 
 
 def test_run_scan_readme_config_can_gate_sections(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -123,8 +126,42 @@ def test_run_scan_readme_config_can_gate_sections(tmp_path):
     assert "Task/module usage summary" not in content
 
 
+def test_run_scan_uses_inrole_readme_config_fixture(tmp_path):
+    role_src = INROLE_CONFIG_ROLE_FIXTURE
+    target = tmp_path / "inrole_config_role"
+    shutil.copytree(role_src, target)
+
+    out = tmp_path / "README_CONFIG_FROM_ROLE.md"
+    scanner.run_scan(str(target), output=str(out))
+
+    content = out.read_text(encoding="utf-8")
+    assert "Capabilities" in content
+    assert "Inputs / variables summary" in content
+    assert "Galaxy Info" not in content
+    assert "Requirements" not in content
+    assert "Task/module usage summary" not in content
+
+
+def test_run_scan_inrole_config_adopt_style_headings_can_be_disabled(tmp_path):
+    role_src = INROLE_CONFIG_ROLE_FIXTURE
+    target = tmp_path / "inrole_config_role"
+    shutil.copytree(role_src, target)
+
+    out = tmp_path / "README_CONFIG_CANONICAL_HEADINGS.md"
+    scanner.run_scan(
+        str(target),
+        output=str(out),
+        adopt_style_headings=False,
+    )
+
+    content = out.read_text(encoding="utf-8")
+    assert "Capabilities\n------------" not in content
+    assert "Role purpose and capabilities\n-----------------------------" in content
+    assert "Inputs / variables summary" in content
+
+
 def test_run_scan_style_guide_skeleton_renders_sections_only(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -136,7 +173,9 @@ def test_run_scan_style_guide_skeleton_renders_sections_only(tmp_path):
     )
 
     content = out.read_text(encoding="utf-8")
-    assert "Galaxy Info" in content
+    assert "A mock Ansible role for tests" in content
+    assert "This is a description for this role" in content
+    assert "I sourced it from the meta/main.yml file in the ansible-role-doc repository." in content
     assert "Requirements" in content
     assert "Role Variables" in content
     assert "- **Role name**:" not in content
@@ -145,7 +184,7 @@ def test_run_scan_style_guide_skeleton_renders_sections_only(tmp_path):
 
 
 def test_run_scan_style_guide_skeleton_uses_xdg_style_source(monkeypatch, tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -174,7 +213,7 @@ def test_run_scan_style_guide_skeleton_uses_xdg_style_source(monkeypatch, tmp_pa
 
 def test_render_readme_with_local_comparison(tmp_path):
     """Render README with --compare-role-path baseline details."""
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     baseline = tmp_path / "baseline_role"
     shutil.copytree(role_src, target)
@@ -210,7 +249,7 @@ def test_render_readme_with_local_comparison(tmp_path):
 
 def test_render_readme_with_style_guide_ordering(tmp_path):
     """Render README using a guide README for ordering and heading style."""
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -248,9 +287,200 @@ def test_render_readme_with_style_guide_ordering(tmp_path):
     assert content.index("## Role Variables") < content.index("## Requirements")
 
 
+def test_render_readme_requirements_augments_guide_text_with_scanner_dependencies(
+    tmp_path,
+):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    style = tmp_path / "STYLE_REQUIREMENTS_AUGMENT.md"
+    style.write_text(
+        "# Guide\n\n"
+        "## Requirements\n\n"
+        "Install baseline packages before applying this role.\n\n"
+        "## Role Variables\n\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "REVIEW_README_REQUIREMENTS_AUGMENT.md"
+    scanner.run_scan(str(target), output=str(out), style_readme_path=str(style))
+
+    content = out.read_text(encoding="utf-8")
+    assert "Install baseline packages before applying this role." in content
+    assert "Detected requirements from scanner:" in content
+    assert "- example.role_dependency (version: 1.0.0)" in content
+
+
+def test_render_readme_config_can_replace_requirements_body(tmp_path):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    cfg = target / ".ansible_role_doc.yml"
+    cfg.write_text(
+        "readme:\n"
+        "  section_content_modes:\n"
+        "    requirements: replace\n",
+        encoding="utf-8",
+    )
+
+    style = tmp_path / "STYLE_REQUIREMENTS_REPLACE.md"
+    style.write_text(
+        "# Guide\n\n"
+        "## Requirements\n\n"
+        "Guide-owned requirements text.\n\n"
+        "## Role Variables\n\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "REVIEW_README_REQUIREMENTS_REPLACE.md"
+    scanner.run_scan(str(target), output=str(out), style_readme_path=str(style))
+
+    content = out.read_text(encoding="utf-8")
+    assert "Guide-owned requirements text." in content
+    assert "Detected requirements from scanner:" not in content
+    assert "example.role_dependency" not in content
+
+
+def test_render_readme_content_modes_follow_include_section_titles(tmp_path):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    cfg = target / ".ansible_role_doc.yml"
+    cfg.write_text(
+        "readme:\n"
+        "  include_sections:\n"
+        "    - Requirements\n"
+        "    - Role Variables\n"
+        "  section_content_modes:\n"
+        "    Requirements: replace\n"
+        "    Role Variables: generate\n",
+        encoding="utf-8",
+    )
+
+    style = tmp_path / "STYLE_CONTENT_MODE_TITLES.md"
+    style.write_text(
+        "# Guide\n\n"
+        "## Requirements\n\n"
+        "Guide requirements paragraph.\n\n"
+        "## Role Variables\n\n"
+        "Guide variable prose that should be replaced by generated content.\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "REVIEW_README_CONTENT_MODE_TITLES.md"
+    scanner.run_scan(str(target), output=str(out), style_readme_path=str(style))
+
+    content = out.read_text(encoding="utf-8")
+    assert "Guide requirements paragraph." in content
+    assert "example.role_dependency (version: 1.0.0)" not in content
+    assert "Guide variable prose" not in content
+    assert "The following variables are available:" in content
+
+
+def test_render_readme_content_mode_title_match_normalizes_spacing(tmp_path):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    cfg = target / ".ansible_role_doc.yml"
+    cfg.write_text(
+        "readme:\n"
+        "  include_sections:\n"
+        "    - Role Variables\n"
+        "  section_content_modes:\n"
+        "    role   variables: replace\n",
+        encoding="utf-8",
+    )
+
+    style = tmp_path / "STYLE_ROLE_VARIABLES_REPLACE.md"
+    style.write_text(
+        "# Guide\n\n"
+        "## Role Variables\n\n"
+        "Guide-owned role variable text.\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "REVIEW_README_ROLE_VARIABLES_REPLACE.md"
+    scanner.run_scan(str(target), output=str(out), style_readme_path=str(style))
+
+    content = out.read_text(encoding="utf-8")
+    assert "Guide-owned role variable text." in content
+    assert "The following variables are available:" not in content
+
+
+def test_render_readme_config_can_force_requirements_generate_only(tmp_path):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    cfg = target / ".ansible_role_doc.yml"
+    cfg.write_text(
+        "readme:\n"
+        "  section_content_modes:\n"
+        "    Requirements: generate\n",
+        encoding="utf-8",
+    )
+
+    style = tmp_path / "STYLE_REQUIREMENTS_GENERATE.md"
+    style.write_text(
+        "# Guide\n\n"
+        "## Requirements\n\n"
+        "Guide requirements prose that should not appear in generate mode.\n\n"
+        "## Role Variables\n\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "REVIEW_README_REQUIREMENTS_GENERATE.md"
+    scanner.run_scan(str(target), output=str(out), style_readme_path=str(style))
+
+    content = out.read_text(encoding="utf-8")
+    assert "Guide requirements prose" not in content
+    assert "example.role_dependency (version: 1.0.0)" in content
+
+
+def test_render_readme_merge_replaces_prior_generated_requirements_block(tmp_path):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    cfg = target / ".ansible_role_doc.yml"
+    cfg.write_text(
+        "readme:\n"
+        "  section_content_modes:\n"
+        "    requirements: merge\n",
+        encoding="utf-8",
+    )
+
+    style = tmp_path / "STYLE_REQUIREMENTS_PREMERGED.md"
+    style.write_text(
+        "# Guide\n\n"
+        "## Requirements\n\n"
+        "Base guide requirement text.\n\n"
+        "Detected requirements from scanner:\n"
+        "<!-- ansible-role-doc:generated:start:requirements -->\n"
+        "- old.dependency (version: 0.0.1)\n"
+        "<!-- ansible-role-doc:generated:end:requirements -->\n\n"
+        "## Role Variables\n\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "REVIEW_README_REQUIREMENTS_IDEMPOTENT.md"
+    scanner.run_scan(str(target), output=str(out), style_readme_path=str(style))
+
+    content = out.read_text(encoding="utf-8")
+    assert "Base guide requirement text." in content
+    assert "old.dependency" not in content
+    assert "example.role_dependency (version: 1.0.0)" in content
+    assert content.count("<!-- ansible-role-doc:generated:start:requirements -->") == 1
+    assert content.count("<!-- ansible-role-doc:generated:end:requirements -->") == 1
+
+
 def test_render_readme_maps_extended_style_sections(tmp_path):
     """Render README with extended guide headings and ensure no unknown placeholders."""
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -302,7 +532,7 @@ def test_render_readme_maps_extended_style_sections(tmp_path):
 
 def test_render_readme_applies_nested_variable_style(tmp_path):
     """Render role variables using nested-bullet style from a guide README."""
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -340,7 +570,7 @@ def test_render_readme_applies_nested_variable_style(tmp_path):
 
 def test_render_readme_applies_yaml_variable_style(tmp_path):
     """Render role variables using YAML-block style from a guide README."""
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -405,8 +635,98 @@ def test_parse_style_readme_supports_setext_and_unknown_sections(tmp_path):
     assert parsed["variable_style"] == "simple_list"
 
 
-def test_render_readme_retains_unknown_sections_from_setext_guide(tmp_path):
-    role_src = HERE / "mock_role"
+def test_parse_style_readme_ignores_fenced_code_when_detecting_sections(tmp_path):
+    style = tmp_path / "STYLE_FENCED_SETEXT.md"
+    style.write_text(
+        "Guide Title\n"
+        "===========\n\n"
+        "Role Variables\n"
+        "--------------\n\n"
+        "Variables from defaults:\n\n"
+        "```yaml\n"
+        "---\n"
+        "demo_var: demo\n"
+        "```\n\n"
+        "Requirements\n"
+        "------------\n\n"
+        "No additional requirements.\n",
+        encoding="utf-8",
+    )
+
+    parsed = scanner.parse_style_readme(str(style))
+
+    assert [section["id"] for section in parsed["sections"]] == [
+        "role_variables",
+        "requirements",
+    ]
+    assert all(section["title"] != "```yaml" for section in parsed["sections"])
+    assert parsed["variable_style"] == "yaml_block"
+
+
+def test_parse_style_readme_detects_variable_table_style(tmp_path):
+    style = tmp_path / "STYLE_TABLE.md"
+    style.write_text(
+        "# Guide\n\n"
+        "## Role Variables\n\n"
+        "Use these settings to customize behavior.\n\n"
+        "| Name | Default | Description |\n"
+        "| --- | --- | --- |\n"
+        "| `demo_var` | `value` | Demo value |\n",
+        encoding="utf-8",
+    )
+
+    parsed = scanner.parse_style_readme(str(style))
+
+    assert parsed["variable_style"] == "table"
+    assert parsed["variable_intro"] == "Use these settings to customize behavior."
+
+
+def test_parse_style_readme_maps_additional_section_aliases(tmp_path):
+    style = tmp_path / "STYLE_ALIASES.md"
+    style.write_text(
+        "# Guide\n\n"
+        "## Installation\n\n"
+        "## Handlers\n\n"
+        "## Testing\n\n"
+        "## Overriding configuration templates\n\n"
+        "## .htaccess-based Basic Authorization\n",
+        encoding="utf-8",
+    )
+
+    parsed = scanner.parse_style_readme(str(style))
+
+    assert [section["id"] for section in parsed["sections"]] == [
+        "installation",
+        "handlers",
+        "local_testing",
+        "template_overrides",
+        "basic_authorization",
+    ]
+
+
+def test_parse_style_readme_uses_h3_sections_when_no_h2_exist(tmp_path):
+    style = tmp_path / "STYLE_H3_ONLY.md"
+    style.write_text(
+        "# Guide\n\n"
+        "### Installation\n\n"
+        "### Role Variables\n\n"
+        "- demo_var\n",
+        encoding="utf-8",
+    )
+
+    parsed = scanner.parse_style_readme(str(style))
+
+    assert parsed["section_style"] == "atx"
+    assert parsed["section_level"] == 3
+    assert [section["level"] for section in parsed["sections"]] == [3, 3]
+    assert [section["id"] for section in parsed["sections"]] == [
+        "installation",
+        "role_variables",
+    ]
+
+
+def test_render_readme_keeps_unknown_sections_from_setext_guide_by_default(tmp_path):
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -430,10 +750,105 @@ def test_render_readme_retains_unknown_sections_from_setext_guide(tmp_path):
     content = out.read_text(encoding="utf-8")
     assert "mock_role\n=========" in content
     assert "Mystery Section\n---------------" in content
+    assert "Style section retained from guide" in content
+    assert "Role Variables\n--------------" in content
+
+
+def test_render_readme_can_keep_unknown_sections_when_enabled(tmp_path):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    style = tmp_path / "STYLE_UNKNOWN_SETEXT.md"
+    style.write_text(
+        "Guide Title\n"
+        "===========\n\n"
+        "Mystery Section\n"
+        "---------------\n\n"
+        "Role Variables\n"
+        "--------------\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "REVIEW_README_SETEXT_UNKNOWN_KEEP.md"
+    result = scanner.run_scan(
+        str(target),
+        output=str(out),
+        style_readme_path=str(style),
+        keep_unknown_style_sections=True,
+    )
+
+    assert result.endswith("REVIEW_README_SETEXT_UNKNOWN_KEEP.md")
+    content = out.read_text(encoding="utf-8")
+    assert "Mystery Section\n---------------" in content
     assert (
         "Style section retained from guide; scanner does not map this section yet."
         in content
     )
+
+
+def test_render_readme_preserves_unknown_section_body_when_present(tmp_path):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    style = tmp_path / "STYLE_UNKNOWN_WITH_BODY.md"
+    style.write_text(
+        "Guide Title\n"
+        "===========\n\n"
+        "Mystery Section\n"
+        "---------------\n\n"
+        "Keep this human-authored troubleshooting note.\n"
+        "Second line of human guidance.\n\n"
+        "Role Variables\n"
+        "--------------\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "REVIEW_README_SETEXT_UNKNOWN_BODY.md"
+    result = scanner.run_scan(
+        str(target),
+        output=str(out),
+        style_readme_path=str(style),
+        keep_unknown_style_sections=True,
+    )
+
+    assert result.endswith("REVIEW_README_SETEXT_UNKNOWN_BODY.md")
+    content = out.read_text(encoding="utf-8")
+    assert "Mystery Section\n---------------" in content
+    assert "Keep this human-authored troubleshooting note." in content
+    assert "Second line of human guidance." in content
+    assert "Style section retained from guide" not in content
+
+
+def test_render_readme_can_suppress_unknown_sections_when_disabled(tmp_path):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    style = tmp_path / "STYLE_UNKNOWN_SETEXT.md"
+    style.write_text(
+        "Guide Title\n"
+        "===========\n\n"
+        "Mystery Section\n"
+        "---------------\n\n"
+        "Role Variables\n"
+        "--------------\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "REVIEW_README_SETEXT_UNKNOWN_SUPPRESS.md"
+    result = scanner.run_scan(
+        str(target),
+        output=str(out),
+        style_readme_path=str(style),
+        keep_unknown_style_sections=False,
+    )
+
+    assert result.endswith("REVIEW_README_SETEXT_UNKNOWN_SUPPRESS.md")
+    content = out.read_text(encoding="utf-8")
+    assert "Mystery Section\n---------------" not in content
+    assert "Style section retained from guide" not in content
     assert "Role Variables\n--------------" in content
 
 
@@ -515,12 +930,64 @@ def test_render_role_variables_uses_simple_list_when_no_special_style():
     )
 
     assert "The following variables are available:" in rendered
-    assert "- `demo_var`: value" in rendered
-    assert "- `other_var`: 2" in rendered
+    assert "- `demo_var`: `value`" in rendered
+    assert "- `other_var`: `2`" in rendered
+
+
+def test_render_role_variables_simple_list_uses_guide_intro_when_present():
+    rendered = scanner._render_role_variables_for_style(
+        {"demo_var": "value"},
+        {
+            "style_guide": {
+                "variable_style": "simple_list",
+                "variable_intro": "Tune the inputs below for your environment.",
+            },
+            "variable_insights": [],
+        },
+    )
+
+    assert rendered.startswith("Tune the inputs below for your environment.")
+    assert "- `demo_var`: `value`" in rendered
+
+
+def test_render_role_variables_renders_markdown_table_style():
+    rendered = scanner._render_role_variables_for_style(
+        {"role_port": 8080},
+        {
+            "style_guide": {
+                "variable_style": "table",
+                "variable_intro": "Documented variables:",
+            },
+            "variable_insights": [
+                {
+                    "name": "role_port",
+                    "default": "8080",
+                    "source": "defaults/main.yml",
+                }
+            ],
+        },
+    )
+
+    assert rendered.startswith("Documented variables:")
+    assert "| Name | Default | Description |" in rendered
+    assert "| `role_port` | `8080` |" in rendered
+
+
+def test_render_role_variables_simple_list_normalizes_multiline_markdown_values():
+    rendered = scanner._render_role_variables_for_style(
+        {
+            "nginx_log_format": '$remote_addr\\n$status $body_bytes_sent "$http_referer"',
+        },
+        {"style_guide": {"variable_style": "simple_list"}, "variable_insights": []},
+    )
+
+    assert "- `nginx_log_format`: `" in rendered
+    assert "$remote_addr\\n$status" in rendered
+    assert "$status $body_bytes_sent" in rendered
 
 
 def test_quality_metrics_and_comparison_report_detect_deltas(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     rich_role = tmp_path / "rich_role"
     sparse_role = tmp_path / "sparse_role"
     shutil.copytree(role_src, rich_role)
@@ -793,6 +1260,12 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
     assert "example.role_dependency (version: 1.0.0)" in requirements
     assert "example.collection_dependency" in requirements
 
+    installation = scanner._render_guide_section_body(
+        "installation", "demo", "", {}, [], [], metadata
+    )
+    assert "ansible-galaxy install demo-role" in installation
+    assert "- src: demo-role" in installation
+
     variable_summary = scanner._render_guide_section_body(
         "variable_summary",
         "demo",
@@ -829,6 +1302,50 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
     )
     assert "ansible-playbook -i tests/inventory tests/test.yml" in testing
 
+    handlers = scanner._render_guide_section_body(
+        "handlers",
+        "demo",
+        "",
+        {},
+        [],
+        [],
+        {
+            **metadata,
+            "handlers": ["handlers/main.yml"],
+            "features": {"handlers_notified": "restart ssh"},
+        },
+    )
+    assert "**Handler files detected**: 1" in handlers
+    assert "restart ssh" in handlers
+
+    template_overrides = scanner._render_guide_section_body(
+        "template_overrides",
+        "demo",
+        "",
+        {},
+        [],
+        [],
+        {
+            **metadata,
+            "templates": ["templates/example.conf.j2"],
+            "variable_insights": [
+                {
+                    "name": "nginx_conf_template",
+                    "type": "str",
+                    "default": "nginx.conf.j2",
+                    "source": "defaults/main.yml",
+                }
+            ],
+        },
+    )
+    assert "nginx_conf_template" in template_overrides
+    assert "templates/example.conf.j2" in template_overrides
+
+    basic_auth = scanner._render_guide_section_body(
+        "basic_authorization", "demo", "", {}, [], [], metadata
+    )
+    assert ".htpasswd" in basic_auth
+
     contributing = scanner._render_guide_section_body(
         "contributing", "demo", "", {}, [], [], metadata
     )
@@ -853,6 +1370,7 @@ def test_render_readme_style_write_true_and_empty_section_body_skip(tmp_path):
             ],
         },
         "variable_insights": [],
+        "keep_unknown_style_sections": True,
     }
 
     written = scanner.render_readme(
@@ -873,3 +1391,25 @@ def test_render_readme_style_write_true_and_empty_section_body_skip(tmp_path):
     assert "Style section retained from guide" in content
     assert "## Variables" in content
     assert "No variable insights available." in content
+
+
+def test_render_readme_preserves_h3_style_sections_when_used_by_guide(tmp_path):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    style = tmp_path / "STYLE_H3_ONLY.md"
+    style.write_text(
+        "# Guide\n\n"
+        "### Installation\n\n"
+        "### Role Variables\n\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "REVIEW_README_H3.md"
+    scanner.run_scan(str(target), output=str(out), style_readme_path=str(style))
+
+    content = out.read_text(encoding="utf-8")
+    assert "### Installation" in content
+    assert "### Role Variables" in content
+    assert "\n## Installation\n" not in content

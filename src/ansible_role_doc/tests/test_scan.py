@@ -15,10 +15,12 @@ from ansible_role_doc import scanner
 from ansible_role_doc.scanner import scan_for_default_filters
 
 HERE = Path(__file__).parent
+ROLE_FIXTURES = HERE / "roles"
+BASE_ROLE_FIXTURE = ROLE_FIXTURES / "base_mock_role"
 
 
 def test_scan_detects_defaults(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -49,7 +51,7 @@ def test_scan_detects_defaults(tmp_path):
 
 
 def test_scan_follows_nested_task_includes(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -200,6 +202,66 @@ def test_collect_referenced_variable_names_uses_jinja_ast_scope_rules(tmp_path):
     assert "ansible_host" not in names
 
 
+def test_collect_referenced_variable_names_handles_unknown_jinja_filters(tmp_path):
+    role = tmp_path / "role"
+    templates = role / "templates"
+    tasks = role / "tasks"
+    templates.mkdir(parents=True)
+    tasks.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Template task\n"
+        "  template:\n"
+        "    src: app.j2\n"
+        "    dest: /tmp/app\n",
+        encoding="utf-8",
+    )
+    (templates / "app.j2").write_text(
+        "{{ enabled_state | ternary('enabled', 'disabled') }}\n"
+        "{{ config_payload | to_nice_yaml(indent=2) }}\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    by_name = {row["name"]: row for row in rows}
+
+    assert "enabled_state" in by_name
+    assert by_name["enabled_state"]["required"] is True
+    assert "config_payload" in by_name
+    assert by_name["config_payload"]["required"] is True
+
+
+def test_build_variable_insights_reads_documented_inputs_from_readme(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: Use documented variable\n"
+        "  debug:\n"
+        "    msg: \"{{ documented_api_token }}\"\n",
+        encoding="utf-8",
+    )
+    (role / "README.md").write_text(
+        "Role Name\n"
+        "=========\n\n"
+        "Role Variables\n"
+        "--------------\n\n"
+        "| Name | Description |\n"
+        "| --- | --- |\n"
+        "| `documented_api_token` | API token for remote service |\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    by_name = {row["name"]: row for row in rows}
+
+    assert "documented_api_token" in by_name
+    assert by_name["documented_api_token"]["documented"] is True
+    assert by_name["documented_api_token"]["required"] is False
+    assert by_name["documented_api_token"]["source"] == "README.md (documented input)"
+
+
 def test_collect_task_files_falls_back_without_main_yml(tmp_path):
     role = tmp_path / "role"
     tasks = role / "tasks"
@@ -282,7 +344,7 @@ def test_load_variables_and_variable_insights_handle_empty_or_malformed_files(tm
 
 
 def test_load_variables_defaults_only_excludes_vars_main(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -295,7 +357,7 @@ def test_load_variables_defaults_only_excludes_vars_main(tmp_path):
 
 
 def test_build_variable_insights_defaults_only_excludes_vars_main_rows(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -322,7 +384,7 @@ def test_collect_role_contents_and_features_handle_sparse_role(tmp_path):
 
 
 def test_build_variable_insights_detects_required_undocumented_vars(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
@@ -344,7 +406,7 @@ def test_build_variable_insights_detects_required_undocumented_vars(tmp_path):
 
 
 def test_build_variable_insights_seed_vars_reduce_required_and_mark_secret(tmp_path):
-    role_src = HERE / "mock_role"
+    role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
