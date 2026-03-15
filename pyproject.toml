@@ -26,6 +26,7 @@ dev = [
   "tox",
   "ruff",
   "black",
+  "pre-commit",
   "markdown",
 ]
 
