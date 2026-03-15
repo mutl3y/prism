@@ -41,14 +41,19 @@ unacceptable behavior, open a private issue or contact the maintainers.
    make test
    ```
 
-4. Run tox for full checks and a mock output preview:
+4. Run tox for full checks:
 
   ```bash
   tox
   ```
 
-  This also generates `debug_readmes/REVIEW_README.md` from the mock role so
-  you can quickly review rendered output. The folder is gitignored.
+5. Optionally generate demo README outputs:
+
+  ```bash
+  tox -e readmes
+  ```
+
+  This writes demo artifacts under `debug_readmes/` (gitignored).
 
 ## Linting and formatting
 
@@ -77,6 +82,20 @@ unacceptable behavior, open a private issue or contact the maintainers.
 - [ ] Run linters and formatters; fix reported issues
 - [ ] Update documentation or templates if relevant
 - [ ] Add a clear title and description explaining the why and what
+
+## Release process (changelog)
+
+- Keep release notes in `CHANGELOG.md` only.
+- Add user-visible changes under `## [Unreleased]` in one of: `Added`, `Changed`, `Fixed`, `Removed`, `Deprecated`, or `Security`.
+- For a release, move relevant `Unreleased` entries to a new version section:
+
+  ```markdown
+  ## [0.1.1] - YYYY-MM-DD
+  ```
+
+- Update link references at the bottom of `CHANGELOG.md` so:
+  - `[Unreleased]` compares from the new tag to `HEAD`
+  - `[0.1.1]` points to the new release tag URL
 
 ## Writing good issues / PR descriptions
 
