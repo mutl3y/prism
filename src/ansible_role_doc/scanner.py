@@ -1275,7 +1275,7 @@ def _collect_referenced_variable_names(
                 continue
             try:
                 text = file_path.read_text(encoding="utf-8")
-            except (UnicodeDecodeError, OSError):
+            except UnicodeDecodeError, OSError:
                 continue
             for name in _collect_undeclared_jinja_variables(text):
                 lowered = name.lower()
