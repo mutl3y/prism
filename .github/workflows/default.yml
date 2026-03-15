@@ -48,15 +48,10 @@ jobs:
           pip install -e .[dev]
 
       - name: "Lint: ruff"
-        run: |
-          pip install ruff
-          ruff check -v .
+        run: ruff check src/
 
       - name: "Format check: black"
-        if: ${{ github.event_name != 'pull_request' }}
-        run: |
-          pip install black
-          black --check .
+        run: black --check src/
 
       - name: Setup reviewdog (for PR annotations)
         if: ${{ always() && github.event_name == 'pull_request' }}
@@ -71,7 +66,7 @@ jobs:
         run: |
           # Emit SARIF (supported by reviewdog) and post via reviewdog
           python -m ruff --version || true
-          python -m ruff check --output-format=sarif --output-file=ruff.sarif . 2> ruff.err || true
+          python -m ruff check --output-format=sarif --output-file=ruff.sarif src/ 2> ruff.err || true
           echo "---- ruff.sarif (start) ----"
           cat ruff.sarif || true
           echo "---- ruff.sarif (end) ----"
