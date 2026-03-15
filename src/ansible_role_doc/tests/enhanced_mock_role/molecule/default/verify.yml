@@ -1,0 +1,14 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Confirm config exists
+      ansible.builtin.stat:
+        path: /etc/mock-role/app.conf
+      register: mock_role_config
+
+    - name: Assert config deployment
+      ansible.builtin.assert:
+        that:
+          - mock_role_config.stat.exists

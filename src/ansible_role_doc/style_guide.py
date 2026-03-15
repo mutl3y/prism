@@ -11,6 +11,46 @@ _POLICY = load_pattern_config()
 STYLE_SECTION_ALIASES: dict[str, str] = _POLICY["section_aliases"]
 
 
+def _build_section_title_stats(sections: list[dict]) -> dict:
+    """Summarize observed section titles for downstream pattern analysis."""
+    by_section_id: dict[str, dict[str, object]] = {}
+
+    for section in sections:
+        section_id = str(section.get("id") or "unknown")
+        title = str(section.get("title") or "").strip()
+        normalized_title = str(section.get("normalized_title") or "").strip()
+
+        bucket = by_section_id.setdefault(
+            section_id,
+            {
+                "count": 0,
+                "known": section_id != "unknown",
+                "titles": [],
+                "normalized_titles": [],
+            },
+        )
+        bucket["count"] = int(bucket["count"]) + 1
+
+        if title and title not in bucket["titles"]:
+            bucket["titles"].append(title)
+        if normalized_title and normalized_title not in bucket["normalized_titles"]:
+            bucket["normalized_titles"].append(normalized_title)
+
+    known_sections = sum(
+        int(stats["count"])
+        for section_id, stats in by_section_id.items()
+        if section_id != "unknown"
+    )
+    unknown_sections = int(by_section_id.get("unknown", {}).get("count", 0))
+
+    return {
+        "total_sections": len(sections),
+        "known_sections": known_sections,
+        "unknown_sections": unknown_sections,
+        "by_section_id": by_section_id,
+    }
+
+
 def normalize_style_heading(heading: str) -> str:
     """Normalize markdown heading text for style-guide matching."""
     normalized = re.sub(r"[^a-z0-9()]+", " ", heading.lower()).strip()
@@ -127,12 +167,12 @@ def parse_style_readme(style_readme_path: str) -> dict:
             elif level == section_level:
                 section_style = "atx"
             if level == section_level:
-                canonical = STYLE_SECTION_ALIASES.get(
-                    normalize_style_heading(title), "unknown"
-                )
+                normalized_title = normalize_style_heading(title)
+                canonical = STYLE_SECTION_ALIASES.get(normalized_title, "unknown")
                 current_section = {
                     "id": canonical,
                     "title": title,
+                    "normalized_title": normalized_title,
                     "body": [],
                     "level": level,
                 }
@@ -149,12 +189,12 @@ def parse_style_readme(style_readme_path: str) -> dict:
 
         if re.match(r"^-+$", next_line):
             section_style = "setext"
-            canonical = STYLE_SECTION_ALIASES.get(
-                normalize_style_heading(line), "unknown"
-            )
+            normalized_title = normalize_style_heading(line)
+            canonical = STYLE_SECTION_ALIASES.get(normalized_title, "unknown")
             current_section = {
                 "id": canonical,
                 "title": line.strip(),
+                "normalized_title": normalized_title,
                 "body": [],
                 "level": 2,
             }
@@ -215,6 +255,7 @@ def parse_style_readme(style_readme_path: str) -> dict:
         "section_style": section_style,
         "section_level": section_level,
         "sections": sections,
+        "section_title_stats": _build_section_title_stats(sections),
         "variable_style": variable_style,
         "variable_intro": variable_intro,
     }

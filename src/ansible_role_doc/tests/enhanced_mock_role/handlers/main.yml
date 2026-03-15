@@ -1,0 +1,13 @@
+#SPDX-License-Identifier: MIT-0
+---
+# handlers file for mock_role
+
+- name: Restart mock service
+  ansible.builtin.service:
+    name: "{{ mock_role_service_name | default(role_service_name | default('mock-service')) }}"
+    state: restarted
+
+- name: Reload mock service
+  ansible.builtin.service:
+    name: "{{ mock_role_service_name | default('mock-service') }}"
+    state: reloaded

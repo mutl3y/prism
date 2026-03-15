@@ -164,12 +164,37 @@ MARKDOWN_VAR_BULLET_RE = re.compile(
     r"^\s*[-*+]\s+`?([A-Za-z_][A-Za-z0-9_]*)`?(?:\s*[:|-]|\s*$)"
 )
 ROLE_NOTES_RE = re.compile(
-    r"^\s*#\s*<notes>\s*(warning|deprecated|note)\s*:?\s*(.*)$",
+    r"^\s*#\s*<notes>\s*(warning|deprecated|note|additional|additionals)?\s*:?\s*(.*)$",
     flags=re.IGNORECASE,
 )
 _JINJA_AST_ENV = jinja2.Environment()
 
 IGNORED_IDENTIFIERS: set[str] = _POLICY["ignored_identifiers"]
+
+
+def _refresh_policy(override_path: str | None = None) -> None:
+    """Reload policy-derived globals with an optional explicit override path."""
+    global _POLICY
+    global STYLE_SECTION_ALIASES
+    global _SENSITIVITY
+    global _SECRET_NAME_TOKENS
+    global _VAULT_MARKERS
+    global _CREDENTIAL_PREFIXES
+    global _URL_PREFIXES
+    global _VARIABLE_GUIDANCE_KEYWORDS
+    global IGNORED_IDENTIFIERS
+
+    _POLICY = load_pattern_config(override_path=override_path)
+    STYLE_SECTION_ALIASES = _POLICY["section_aliases"]
+    _SENSITIVITY = _POLICY["sensitivity"]
+    _SECRET_NAME_TOKENS = tuple(_SENSITIVITY["name_tokens"])
+    _VAULT_MARKERS = tuple(_SENSITIVITY["vault_markers"])
+    _CREDENTIAL_PREFIXES = tuple(_SENSITIVITY["credential_prefixes"])
+    _URL_PREFIXES = tuple(_SENSITIVITY["url_prefixes"])
+    _VARIABLE_GUIDANCE_KEYWORDS = tuple(
+        _POLICY["variable_guidance"]["priority_keywords"]
+    )
+    IGNORED_IDENTIFIERS = _POLICY["ignored_identifiers"]
 
 
 def _normalize_style_heading(heading: str) -> str:
@@ -197,7 +222,7 @@ def _default_style_guide_user_path() -> Path:
     return data_home / STYLE_GUIDE_DATA_DIRNAME / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME
 
 
-def resolve_default_style_guide_source() -> str:
+def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:
     """Resolve default style guide source path using Linux-aware precedence.
 
     Precedence (first existing path wins):
@@ -209,6 +234,12 @@ def resolve_default_style_guide_source() -> str:
     4. ``/var/lib/ansible-role-doc/STYLE_GUIDE_SOURCE.md``
     5. bundled package template path
     """
+    if explicit_path:
+        explicit_candidate = Path(explicit_path).expanduser()
+        if explicit_candidate.is_file():
+            return str(explicit_candidate.resolve())
+        raise FileNotFoundError(f"style source path not found: {explicit_path}")
+
     candidates: list[Path] = []
 
     env_style_source = os.environ.get(ENV_STYLE_GUIDE_SOURCE_PATH)
@@ -786,6 +817,7 @@ def _extract_role_notes_from_comments(
         "warnings": [],
         "deprecations": [],
         "notes": [],
+        "additionals": [],
     }
     files: list[Path] = []
     files.extend(_collect_task_files(role_root, exclude_paths=exclude_paths))
@@ -808,7 +840,7 @@ def _extract_role_notes_from_comments(
             if not match:
                 i += 1
                 continue
-            note_type = match.group(1).lower()
+            note_type = (match.group(1) or "note").lower()
             text = (match.group(2) or "").strip()
             continuation: list[str] = []
             j = i + 1
@@ -816,7 +848,7 @@ def _extract_role_notes_from_comments(
                 next_line = lines[j]
                 if ROLE_NOTES_RE.match(next_line):
                     break
-                cont_match = re.match(r"^\s*#\s{2,}(.+)$", next_line)
+                cont_match = re.match(r"^\s*#\s+(.+)$", next_line)
                 if not cont_match:
                     break
                 continuation.append(cont_match.group(1).strip())
@@ -828,6 +860,8 @@ def _extract_role_notes_from_comments(
                     categories["warnings"].append(text)
                 elif note_type == "deprecated":
                     categories["deprecations"].append(text)
+                elif note_type in {"additional", "additionals"}:
+                    categories["additionals"].append(text)
                 else:
                     categories["notes"].append(text)
             i = j if j > i + 1 else i + 1
@@ -1741,7 +1775,8 @@ def _render_role_notes_section(role_notes: dict | None) -> str:
     warnings = notes.get("warnings") or []
     deprecations = notes.get("deprecations") or []
     general = notes.get("notes") or []
-    if not warnings and not deprecations and not general:
+    additionals = notes.get("additionals") or []
+    if not warnings and not deprecations and not general and not additionals:
         return "No role notes were found in comment annotations."
 
     lines: list[str] = []
@@ -1758,6 +1793,11 @@ def _render_role_notes_section(role_notes: dict | None) -> str:
             lines.append("")
         lines.append("Notes:")
         lines.extend(f"- {item}" for item in general)
+    if additionals:
+        if lines:
+            lines.append("")
+        lines.append("Additionals:")
+        lines.extend(f"- {item}" for item in additionals)
     return "\n".join(lines)
 
 
@@ -2312,8 +2352,17 @@ def _build_scanner_report_markdown(
         f"- **Unresolved**: {counters['unresolved_variables']} | **Ambiguous**: {counters['ambiguous_variables']} | **Required**: {counters['required_variables']} | **Secrets**: {counters['secret_variables']}",
         f"- **Confidence buckets**: high={counters['high_confidence_variables']}, medium={counters['medium_confidence_variables']}, low={counters['low_confidence_variables']}",
         f"- **Default filter findings**: {counters['undocumented_default_filters']} undocumented out of {counters['total_default_filters']} discovered",
-        "",
     ]
+
+    issue_categories = counters.get("provenance_issue_categories") or {}
+    non_zero_categories = [
+        (name, value) for name, value in issue_categories.items() if value
+    ]
+    if non_zero_categories:
+        lines.append("- **Provenance issue categories**:")
+        for name, value in non_zero_categories:
+            lines.append(f"  - `{name}`: {value}")
+    lines.append("")
 
     unresolved_rows = [
         row
@@ -2366,7 +2415,7 @@ def _build_scanner_report_markdown(
 def _extract_scanner_counters(
     variable_insights: list[dict],
     default_filters: list[dict],
-) -> dict[str, int]:
+) -> dict[str, int | dict[str, int]]:
     """Summarize scanner findings by certainty and variable category."""
     counters = {
         "total_variables": len(variable_insights),
@@ -2381,6 +2430,16 @@ def _extract_scanner_counters(
         "low_confidence_variables": 0,
         "total_default_filters": len(default_filters),
         "undocumented_default_filters": len(default_filters),
+        "provenance_issue_categories": {
+            "unresolved_readme_documented_only": 0,
+            "unresolved_dynamic_include_vars": 0,
+            "unresolved_no_static_definition": 0,
+            "unresolved_other": 0,
+            "ambiguous_defaults_vars_override": 0,
+            "ambiguous_include_vars_sources": 0,
+            "ambiguous_set_fact_runtime": 0,
+            "ambiguous_other": 0,
+        },
     }
 
     for row in variable_insights:
@@ -2397,6 +2456,10 @@ def _extract_scanner_counters(
         if row.get("required"):
             counters["required_variables"] += 1
 
+        issue_category = _classify_provenance_issue(row)
+        if issue_category:
+            counters["provenance_issue_categories"][issue_category] += 1
+
         confidence = float(row.get("provenance_confidence") or 0.0)
         if confidence >= 0.90:
             counters["high_confidence_variables"] += 1
@@ -2406,6 +2469,32 @@ def _extract_scanner_counters(
             counters["low_confidence_variables"] += 1
 
     return counters
+
+
+def _classify_provenance_issue(row: dict) -> str | None:
+    """Return a stable issue category label for unresolved/ambiguous rows."""
+    reason = str(row.get("uncertainty_reason") or "").lower()
+    source = str(row.get("source") or "").lower()
+
+    if row.get("is_unresolved"):
+        if "documented in readme" in reason or "readme" in source:
+            return "unresolved_readme_documented_only"
+        if "dynamic include_vars" in reason:
+            return "unresolved_dynamic_include_vars"
+        if "no static definition" in reason:
+            return "unresolved_no_static_definition"
+        return "unresolved_other"
+
+    if row.get("is_ambiguous"):
+        if "overridden by vars/main.yml precedence" in reason:
+            return "ambiguous_defaults_vars_override"
+        if "include_vars" in reason:
+            return "ambiguous_include_vars_sources"
+        if "set_fact" in reason or "runtime" in reason:
+            return "ambiguous_set_fact_runtime"
+        return "ambiguous_other"
+
+    return None
 
 
 def _detect_task_module(task: dict) -> str | None:
@@ -2488,8 +2577,12 @@ def run_scan(
     style_guide_skeleton: bool = False,
     keep_unknown_style_sections: bool = True,
     exclude_path_patterns: list[str] | None = None,
+    style_source_path: str | None = None,
+    policy_config_path: str | None = None,
     dry_run: bool = False,
 ) -> str:
+    _refresh_policy(policy_config_path)
+
     rp = Path(role_path)
     if not rp.is_dir():
         raise FileNotFoundError(f"role path not found: {role_path}")
@@ -2576,8 +2669,12 @@ def run_scan(
         variable_insights=variable_insights,
     )
     effective_style_readme_path = style_readme_path
+    if not effective_style_readme_path and style_source_path:
+        effective_style_readme_path = style_source_path
     if style_guide_skeleton and not effective_style_readme_path:
-        effective_style_readme_path = resolve_default_style_guide_source()
+        effective_style_readme_path = resolve_default_style_guide_source(
+            explicit_path=style_source_path
+        )
 
     if effective_style_readme_path:
         style_path = Path(effective_style_readme_path)

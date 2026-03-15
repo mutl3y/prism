@@ -1,0 +1,14 @@
+#SPDX-License-Identifier: MIT-0
+---
+- name: Validate rendered configuration exists
+  ansible.builtin.stat:
+    path: "{{ mock_role_config_path }}"
+  register: config_stat
+
+- name: Assert config file was deployed
+  ansible.builtin.assert:
+    that:
+      - config_stat.stat.exists
+      - config_stat.stat.size > 0
+    fail_msg: "Config was not rendered correctly"
+    success_msg: "Config validation passed"

@@ -1,0 +1,15 @@
+#SPDX-License-Identifier: MIT-0
+---
+# vars file for mock_role
+variable3: "{{ some_other_var | default('Default value 3') }}"
+variable4: "Default value 4"
+nested_enabled: true
+
+mock_role_state: started
+mock_role_service_name: mock-role-override
+mock_role_api:
+	timeout_seconds: 15
+	retries: 4
+mock_role_env:
+	APP_MODE: staging
+	APP_LOG_LEVEL: debug

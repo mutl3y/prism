@@ -1,0 +1,21 @@
+#SPDX-License-Identifier: MIT-0
+---
+- name: Deploy application template
+  ansible.builtin.template:
+    src: app.conf.j2
+    dest: "{{ mock_role_config_path }}"
+    owner: "{{ mock_role_template_owner }}"
+    group: "{{ mock_role_template_group }}"
+    mode: "{{ mock_role_template_mode }}"
+  notify: Restart mock service
+  tags:
+    - config
+
+- name: Install environment file
+  ansible.builtin.copy:
+    src: mock-role.env
+    dest: /etc/default/mock-role
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart mock service

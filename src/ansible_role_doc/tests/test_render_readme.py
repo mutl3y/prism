@@ -8,6 +8,7 @@ from ansible_role_doc import scanner
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
 BASE_ROLE_FIXTURE = ROLE_FIXTURES / "base_mock_role"
+ENHANCED_ROLE_FIXTURE = ROLE_FIXTURES / "enhanced_mock_role"
 INROLE_CONFIG_ROLE_FIXTURE = ROLE_FIXTURES / "inrole_config_role"
 
 
@@ -45,6 +46,22 @@ def test_render_readme_for_mock_role(tmp_path):
     assert "| Name | Type | Default | Source |" in content
     assert "\n- example.role_dependency (version: 1.0.0)\n" in content
     assert "\n- example.collection_dependency\n" in content
+
+
+def test_render_readme_for_enhanced_mock_role(tmp_path):
+    role_src = ENHANCED_ROLE_FIXTURE
+    target = tmp_path / "enhanced_mock_role"
+    shutil.copytree(role_src, target)
+
+    out = tmp_path / "REVIEW_README_ENHANCED.md"
+    scanner.run_scan(str(target), output=str(out))
+
+    content = out.read_text(encoding="utf-8")
+    assert "mock_role_install_enabled" in content
+    assert "mock_role_validate_config" in content
+    assert "setup.yml" in content
+    assert "deploy.yml" in content
+    assert "validate.yml" in content
 
 
 def test_run_scan_concise_readme_writes_scanner_sidecar(tmp_path):
@@ -110,6 +127,7 @@ def test_run_scan_renders_comment_driven_role_notes(tmp_path):
         "---\n"
         "# <notes> Warning: this package is unhealthy\n"
         "# <notes> Note: test in staging first\n"
+        "# <notes> Additional: coordinate with platform team\n"
         "- name: noop\n"
         "  debug:\n"
         "    msg: ok\n",
@@ -123,6 +141,33 @@ def test_run_scan_renders_comment_driven_role_notes(tmp_path):
     assert "Role notes" in content
     assert "this package is unhealthy" in content
     assert "test in staging first" in content
+    assert "coordinate with platform team" in content
+    assert "Additionals:" in content
+
+
+def test_run_scan_scanner_report_includes_issue_categories(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: unresolved usage\n"
+        "  debug:\n"
+        '    msg: "{{ missing_required_var }}"\n',
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "CONCISE.md"
+    report = tmp_path / "SCAN_REPORT.md"
+    scanner.run_scan(
+        str(role),
+        output=str(out),
+        concise_readme=True,
+        scanner_report_output=str(report),
+    )
+
+    report_content = report.read_text(encoding="utf-8")
+    assert "Provenance issue categories" in report_content
+    assert "unresolved_no_static_definition" in report_content
 
 
 def test_run_scan_readme_config_can_gate_sections(tmp_path):
@@ -651,6 +696,20 @@ def test_parse_style_readme_supports_setext_and_unknown_sections(tmp_path):
         "unknown",
         "role_variables",
     ]
+    assert [section["normalized_title"] for section in parsed["sections"]] == [
+        "requirements",
+        "totally custom section",
+        "role variables",
+    ]
+    assert parsed["section_title_stats"]["total_sections"] == 3
+    assert parsed["section_title_stats"]["known_sections"] == 2
+    assert parsed["section_title_stats"]["unknown_sections"] == 1
+    assert parsed["section_title_stats"]["by_section_id"]["unknown"]["titles"] == [
+        "Totally Custom Section"
+    ]
+    assert parsed["section_title_stats"]["by_section_id"]["unknown"][
+        "normalized_titles"
+    ] == ["totally custom section"]
     assert parsed["variable_style"] == "simple_list"
 
 
@@ -721,6 +780,34 @@ def test_parse_style_readme_maps_additional_section_aliases(tmp_path):
         "template_overrides",
         "basic_authorization",
     ]
+
+
+def test_parse_style_readme_collects_stats_for_existing_section_titles(tmp_path):
+    style = tmp_path / "STYLE_STATS.md"
+    style.write_text(
+        "# Guide\n\n"
+        "## Role Variables\n\n"
+        "## Variables\n\n"
+        "## Example Playbook\n\n",
+        encoding="utf-8",
+    )
+
+    parsed = scanner.parse_style_readme(str(style))
+
+    stats = parsed["section_title_stats"]
+    assert stats["total_sections"] == 3
+    assert stats["known_sections"] == 3
+    assert stats["unknown_sections"] == 0
+    assert stats["by_section_id"]["role_variables"]["count"] == 2
+    assert stats["by_section_id"]["role_variables"]["titles"] == [
+        "Role Variables",
+        "Variables",
+    ]
+    assert stats["by_section_id"]["role_variables"]["normalized_titles"] == [
+        "role variables",
+        "variables",
+    ]
+    assert stats["by_section_id"]["example_usage"]["count"] == 1
 
 
 def test_parse_style_readme_uses_h3_sections_when_no_h2_exist(tmp_path):

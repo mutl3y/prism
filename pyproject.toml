@@ -28,7 +28,14 @@ dev = [
   "black==25.1.0",
   "pre-commit",
   "markdown",
+  "psycopg[binary]",
 ]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-data]
 ansible_role_doc = ["templates/*.j2", "templates/*.md", "data/*.yml"]

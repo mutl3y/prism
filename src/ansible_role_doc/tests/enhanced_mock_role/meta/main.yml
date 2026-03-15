@@ -1,0 +1,35 @@
+#SPDX-License-Identifier: MIT-0
+galaxy_info:
+  role_name: mock_role
+  namespace: fixture
+  description: |-
+    Enhanced mock Ansible role for production-like documentation tests.
+
+    This fixture includes setup/deploy/validate/rollback task paths,
+    realistic defaults and vars, and richer metadata used by scanner heuristics.
+
+  authors:
+    - name: John Doe
+      email: john.doe@example.com
+  issue_tracker_url: https://example.com/fixture/mock-role/issues
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+  galaxy_tags:
+    - mock
+    - fixture
+    - nginx
+    - validation
+
+dependencies:
+  - role: example.role_dependency
+    vars:
+      role_dependency_enabled: true
