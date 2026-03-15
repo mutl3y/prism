@@ -492,9 +492,7 @@ def test_cli_keep_unknown_style_sections_flag_is_forwarded(monkeypatch, tmp_path
     role.mkdir()
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
-        calls["keep_unknown_style_sections"] = kwargs.get(
-            "keep_unknown_style_sections"
-        )
+        calls["keep_unknown_style_sections"] = kwargs.get("keep_unknown_style_sections")
         Path(output).write_text("generated", encoding="utf-8")
         return str(Path(output).resolve())
 
@@ -668,9 +666,7 @@ def test_build_sparse_clone_paths_collects_role_and_style_path():
         "roles/demo",
         "README.md",
     ]
-    assert cli._build_sparse_clone_paths("roles/demo", "roles/demo") == [
-        "roles/demo"
-    ]
+    assert cli._build_sparse_clone_paths("roles/demo", "roles/demo") == ["roles/demo"]
 
 
 def test_clone_repo_uses_sparse_checkout_when_paths_provided(monkeypatch, tmp_path):

@@ -239,7 +239,7 @@ def test_build_variable_insights_reads_documented_inputs_from_readme(tmp_path):
         "---\n"
         "- name: Use documented variable\n"
         "  debug:\n"
-        "    msg: \"{{ documented_api_token }}\"\n",
+        '    msg: "{{ documented_api_token }}"\n',
         encoding="utf-8",
     )
     (role / "README.md").write_text(

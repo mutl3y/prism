@@ -390,7 +390,9 @@ def _save_style_comparison_artifacts(
         shutil.copyfile(output_path, demo_destination)
 
     if keep_unknown_style_sections:
-        keep_demo_destination = style_dir / f"DEMO_GENERATED_KEEP_UNKNOWN{output_suffix}"
+        keep_demo_destination = (
+            style_dir / f"DEMO_GENERATED_KEEP_UNKNOWN{output_suffix}"
+        )
         if output_path.resolve() != keep_demo_destination.resolve():
             shutil.copyfile(output_path, keep_demo_destination)
 
@@ -470,7 +472,9 @@ def _save_style_comparison_artifacts(
     ]
     rendered_cfg = "\n".join(cfg_lines)
     existing_cfg = (
-        cfg_destination.read_text(encoding="utf-8") if cfg_destination.exists() else None
+        cfg_destination.read_text(encoding="utf-8")
+        if cfg_destination.exists()
+        else None
     )
     if existing_cfg != rendered_cfg:
         cfg_destination.write_text(rendered_cfg, encoding="utf-8")

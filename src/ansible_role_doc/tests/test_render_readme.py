@@ -175,7 +175,10 @@ def test_run_scan_style_guide_skeleton_renders_sections_only(tmp_path):
     content = out.read_text(encoding="utf-8")
     assert "A mock Ansible role for tests" in content
     assert "This is a description for this role" in content
-    assert "I sourced it from the meta/main.yml file in the ansible-role-doc repository." in content
+    assert (
+        "I sourced it from the meta/main.yml file in the ansible-role-doc repository."
+        in content
+    )
     assert "Requirements" in content
     assert "Role Variables" in content
     assert "- **Role name**:" not in content
@@ -319,9 +322,7 @@ def test_render_readme_config_can_replace_requirements_body(tmp_path):
 
     cfg = target / ".ansible_role_doc.yml"
     cfg.write_text(
-        "readme:\n"
-        "  section_content_modes:\n"
-        "    requirements: replace\n",
+        "readme:\n" "  section_content_modes:\n" "    requirements: replace\n",
         encoding="utf-8",
     )
 
@@ -397,9 +398,7 @@ def test_render_readme_content_mode_title_match_normalizes_spacing(tmp_path):
 
     style = tmp_path / "STYLE_ROLE_VARIABLES_REPLACE.md"
     style.write_text(
-        "# Guide\n\n"
-        "## Role Variables\n\n"
-        "Guide-owned role variable text.\n",
+        "# Guide\n\n" "## Role Variables\n\n" "Guide-owned role variable text.\n",
         encoding="utf-8",
     )
 
@@ -418,9 +417,7 @@ def test_render_readme_config_can_force_requirements_generate_only(tmp_path):
 
     cfg = target / ".ansible_role_doc.yml"
     cfg.write_text(
-        "readme:\n"
-        "  section_content_modes:\n"
-        "    Requirements: generate\n",
+        "readme:\n" "  section_content_modes:\n" "    Requirements: generate\n",
         encoding="utf-8",
     )
 
@@ -448,9 +445,7 @@ def test_render_readme_merge_replaces_prior_generated_requirements_block(tmp_pat
 
     cfg = target / ".ansible_role_doc.yml"
     cfg.write_text(
-        "readme:\n"
-        "  section_content_modes:\n"
-        "    requirements: merge\n",
+        "readme:\n" "  section_content_modes:\n" "    requirements: merge\n",
         encoding="utf-8",
     )
 
@@ -707,10 +702,7 @@ def test_parse_style_readme_maps_additional_section_aliases(tmp_path):
 def test_parse_style_readme_uses_h3_sections_when_no_h2_exist(tmp_path):
     style = tmp_path / "STYLE_H3_ONLY.md"
     style.write_text(
-        "# Guide\n\n"
-        "### Installation\n\n"
-        "### Role Variables\n\n"
-        "- demo_var\n",
+        "# Guide\n\n" "### Installation\n\n" "### Role Variables\n\n" "- demo_var\n",
         encoding="utf-8",
     )
 
@@ -1400,9 +1392,7 @@ def test_render_readme_preserves_h3_style_sections_when_used_by_guide(tmp_path):
 
     style = tmp_path / "STYLE_H3_ONLY.md"
     style.write_text(
-        "# Guide\n\n"
-        "### Installation\n\n"
-        "### Role Variables\n\n",
+        "# Guide\n\n" "### Installation\n\n" "### Role Variables\n\n",
         encoding="utf-8",
     )
 
