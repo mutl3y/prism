@@ -7,6 +7,8 @@ metadata and variables, and render a README using a Jinja2 template.
 
 from __future__ import annotations
 
+from collections import defaultdict
+from fnmatch import fnmatch
 import os
 from pathlib import Path
 import re
@@ -14,8 +16,15 @@ import yaml
 import jinja2
 from jinja2 import meta
 
+from .doc_insights import build_doc_insights, parse_comma_values
 from .output import render_final_output, resolve_output_path, write_output
 from .pattern_config import load_pattern_config
+from .style_guide import (
+    detect_style_section_level,
+    format_heading,
+    normalize_style_heading,
+    parse_style_readme,
+)
 
 # Load pattern policy (built-in defaults, optionally merged with a repo override).
 # Pass override_path to load_pattern_config() if you want to merge a local file.
@@ -39,6 +48,7 @@ DEFAULT_SECTION_SPECS = [
     ("galaxy_info", "Galaxy Info"),
     ("requirements", "Requirements"),
     ("purpose", "Role purpose and capabilities"),
+    ("role_notes", "Role notes"),
     ("variable_summary", "Inputs / variables summary"),
     ("task_summary", "Task/module usage summary"),
     ("example_usage", "Inferred example usage"),
@@ -72,6 +82,7 @@ _EXTRA_SECTION_IDS = {
     "faq_pitfalls",
     "contributing",
     "scanner_report",
+    "role_notes",
 }
 ALL_SECTION_IDS = {
     section_id for section_id, _ in DEFAULT_SECTION_SPECS
@@ -152,9 +163,28 @@ MARKDOWN_VAR_TABLE_RE = re.compile(r"^\|\s*`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\|")
 MARKDOWN_VAR_BULLET_RE = re.compile(
     r"^\s*[-*+]\s+`?([A-Za-z_][A-Za-z0-9_]*)`?(?:\s*[:|-]|\s*$)"
 )
+ROLE_NOTES_RE = re.compile(
+    r"^\s*#\s*<notes>\s*(warning|deprecated|note)\s*:?\s*(.*)$",
+    flags=re.IGNORECASE,
+)
 _JINJA_AST_ENV = jinja2.Environment()
 
 IGNORED_IDENTIFIERS: set[str] = _POLICY["ignored_identifiers"]
+
+
+def _normalize_style_heading(heading: str) -> str:
+    """Backward-compatible alias for style heading normalization."""
+    return normalize_style_heading(heading)
+
+
+def _detect_style_section_level(lines: list[str]) -> int:
+    """Backward-compatible alias for style section-level detection."""
+    return detect_style_section_level(lines)
+
+
+def _format_heading(text: str, level: int, style: str) -> str:
+    """Backward-compatible alias for heading formatting."""
+    return format_heading(text, level, style)
 
 
 def _default_style_guide_user_path() -> Path:
@@ -197,7 +227,41 @@ def resolve_default_style_guide_source() -> str:
     return str(DEFAULT_STYLE_GUIDE_SOURCE_PATH.resolve())
 
 
-def scan_for_default_filters(role_path: str) -> list:
+def _normalize_exclude_patterns(exclude_paths: list[str] | None) -> list[str]:
+    """Return normalized glob patterns used to exclude role-relative paths."""
+    if not exclude_paths:
+        return []
+    return [
+        item.strip() for item in exclude_paths if isinstance(item, str) and item.strip()
+    ]
+
+
+def _is_relpath_excluded(relpath: str, exclude_paths: list[str] | None) -> bool:
+    """Return True when a role-relative path should be excluded."""
+    normalized = relpath.replace("\\", "/").lstrip("./")
+    for pattern in _normalize_exclude_patterns(exclude_paths):
+        if fnmatch(normalized, pattern) or fnmatch(f"{normalized}/", pattern):
+            return True
+        if "/" not in pattern and normalized.split("/", 1)[0] == pattern:
+            return True
+    return False
+
+
+def _is_path_excluded(
+    path: Path, role_root: Path, exclude_paths: list[str] | None
+) -> bool:
+    """Return True when an absolute path resolves to an excluded role-relative path."""
+    try:
+        relpath = str(path.resolve().relative_to(role_root.resolve()))
+    except ValueError:
+        return False
+    return _is_relpath_excluded(relpath, exclude_paths)
+
+
+def scan_for_default_filters(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> list:
     """Scan files under ``role_path`` for uses of the ``default()`` filter.
 
     Returns a list of occurrence dictionaries with keys: ``file``,
@@ -207,15 +271,25 @@ def scan_for_default_filters(role_path: str) -> list:
     role_root = Path(role_path).resolve()
     scanned_files: set[Path] = set()
 
-    for task_file in _collect_task_files(role_root):
+    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
         scanned_files.add(task_file.resolve())
         occurrences.extend(_scan_file_for_default_filters(task_file, role_root))
 
     role_path = str(role_root)
     for root, dirs, files in os.walk(role_path):
-        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
+        dirs[:] = [
+            d
+            for d in dirs
+            if d not in IGNORED_DIRS
+            and not _is_relpath_excluded(
+                str((Path(root) / d).resolve().relative_to(role_root)),
+                exclude_paths,
+            )
+        ]
         for fname in files:
             fpath = Path(root) / fname
+            if _is_path_excluded(fpath, role_root, exclude_paths):
+                continue
             if fpath.resolve() in scanned_files:
                 continue
             occurrences.extend(_scan_file_for_default_filters(fpath, role_root))
@@ -260,7 +334,7 @@ def _scan_file_for_default_filters(file_path: Path, role_root: Path) -> list[dic
                         "args": args,
                     }
                 )
-    except UnicodeDecodeError, PermissionError, OSError:
+    except (UnicodeDecodeError, PermissionError, OSError):
         return []
     return occurrences
 
@@ -384,7 +458,7 @@ def _collect_undeclared_jinja_variables_from_ast(
 
 def _is_readme_variable_section_heading(title: str) -> bool:
     """Return True when a heading likely describes role input variables."""
-    normalized = _normalize_style_heading(title)
+    normalized = normalize_style_heading(title)
     if not normalized:
         return False
     canonical = STYLE_SECTION_ALIASES.get(normalized)
@@ -478,7 +552,10 @@ def _extract_default_target_var(occurrence: dict) -> str | None:
     return match.group("var")
 
 
-def _collect_task_files(role_root: Path) -> list[Path]:
+def _collect_task_files(
+    role_root: Path,
+    exclude_paths: list[str] | None = None,
+) -> list[Path]:
     """Collect task files reachable from ``tasks/main.yml`` recursively."""
     tasks_dir = role_root / "tasks"
     if not tasks_dir.is_dir():
@@ -489,7 +566,9 @@ def _collect_task_files(role_root: Path) -> list[Path]:
         entrypoints = sorted(
             path
             for path in tasks_dir.rglob("*")
-            if path.is_file() and path.suffix in {".yml", ".yaml"}
+            if path.is_file()
+            and path.suffix in {".yml", ".yaml"}
+            and not _is_path_excluded(path, role_root, exclude_paths)
         )
 
     discovered: list[Path] = []
@@ -499,13 +578,19 @@ def _collect_task_files(role_root: Path) -> list[Path]:
         current = pending.pop(0).resolve()
         if current in seen or not current.is_file():
             continue
+        if _is_path_excluded(current, role_root, exclude_paths):
+            continue
         seen.add(current)
         discovered.append(current)
 
         data = _load_yaml_file(current)
         for include_target in _iter_task_include_targets(data):
             resolved = _resolve_task_include(role_root, current, include_target)
-            if resolved is not None and resolved not in seen:
+            if (
+                resolved is not None
+                and resolved not in seen
+                and not _is_path_excluded(resolved, role_root, exclude_paths)
+            ):
                 pending.append(resolved)
 
     return sorted(discovered, key=lambda path: str(path.relative_to(role_root)))
@@ -580,7 +665,10 @@ def _resolve_task_include(
     return None
 
 
-def _collect_include_vars_files(role_path: str) -> list[Path]:
+def _collect_include_vars_files(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> list[Path]:
     """Return var files referenced by static ``include_vars`` tasks within the role.
 
     Only files whose paths can be resolved to a concrete file inside the role
@@ -588,7 +676,7 @@ def _collect_include_vars_files(role_path: str) -> list[Path]:
     silently ignored.
     """
     role_root = Path(role_path).resolve()
-    task_files = _collect_task_files(role_root)
+    task_files = _collect_task_files(role_root, exclude_paths=exclude_paths)
     result: list[Path] = []
     seen: set[Path] = set()
     for task_file in task_files:
@@ -621,13 +709,16 @@ def _collect_include_vars_files(role_path: str) -> list[Path]:
     return result
 
 
-def _collect_set_fact_names(role_path: str) -> set[str]:
+def _collect_set_fact_names(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> set[str]:
     """Return variable names assigned by ``set_fact`` tasks within the role.
 
     Only names with static (non-templated) keys are returned.
     """
     role_root = Path(role_path).resolve()
-    task_files = _collect_task_files(role_root)
+    task_files = _collect_task_files(role_root, exclude_paths=exclude_paths)
     names: set[str] = set()
     for task_file in task_files:
         data = _load_yaml_file(task_file)
@@ -641,6 +732,107 @@ def _collect_set_fact_names(role_path: str) -> set[str]:
                         if isinstance(vname, str) and "{{" not in vname:
                             names.add(vname)
     return names
+
+
+def _find_variable_line_in_yaml(file_path: Path, var_name: str) -> int | None:
+    """Return 1-indexed line where ``var_name`` is defined in a YAML file."""
+    pattern = re.compile(rf"^\s*{re.escape(var_name)}\s*:")
+    try:
+        for idx, line in enumerate(file_path.read_text(encoding="utf-8").splitlines()):
+            if pattern.match(line):
+                return idx + 1
+    except OSError:
+        return None
+    return None
+
+
+def _collect_dynamic_include_vars_refs(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> list[str]:
+    """Return dynamic include_vars references that cannot be statically resolved."""
+    role_root = Path(role_path).resolve()
+    refs: list[str] = []
+    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
+        data = _load_yaml_file(task_file)
+        for task in _iter_task_mappings(data):
+            for key in INCLUDE_VARS_KEYS:
+                if key not in task:
+                    continue
+                value = task[key]
+                ref: str | None = None
+                if isinstance(value, str):
+                    ref = value
+                elif isinstance(value, dict):
+                    ref = value.get("file") or value.get("name")
+                if ref and ("{{" in ref or "{%" in ref):
+                    refs.append(ref)
+    return refs
+
+
+def _extract_role_notes_from_comments(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> dict[str, list[str]]:
+    """Extract comment-driven role notes from YAML files.
+
+    Supported syntax:
+        # <notes> Warning: text
+        # <notes> Deprecated: text
+        # <notes> Note: text
+    """
+    role_root = Path(role_path).resolve()
+    categories: dict[str, list[str]] = {
+        "warnings": [],
+        "deprecations": [],
+        "notes": [],
+    }
+    files: list[Path] = []
+    files.extend(_collect_task_files(role_root, exclude_paths=exclude_paths))
+    for rel in ("defaults/main.yml", "vars/main.yml", "handlers/main.yml"):
+        candidate = role_root / rel
+        if candidate.is_file() and not _is_path_excluded(
+            candidate, role_root, exclude_paths
+        ):
+            files.append(candidate)
+
+    for file_path in files:
+        try:
+            lines = file_path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            match = ROLE_NOTES_RE.match(line)
+            if not match:
+                i += 1
+                continue
+            note_type = match.group(1).lower()
+            text = (match.group(2) or "").strip()
+            continuation: list[str] = []
+            j = i + 1
+            while j < len(lines):
+                next_line = lines[j]
+                if ROLE_NOTES_RE.match(next_line):
+                    break
+                cont_match = re.match(r"^\s*#\s{2,}(.+)$", next_line)
+                if not cont_match:
+                    break
+                continuation.append(cont_match.group(1).strip())
+                j += 1
+            if continuation:
+                text = " ".join(part for part in [text, *continuation] if part)
+            if text:
+                if note_type == "warning":
+                    categories["warnings"].append(text)
+                elif note_type == "deprecated":
+                    categories["deprecations"].append(text)
+                else:
+                    categories["notes"].append(text)
+            i = j if j > i + 1 else i + 1
+
+    return categories
 
 
 def load_meta(role_path: str) -> dict:
@@ -657,7 +849,11 @@ def load_meta(role_path: str) -> dict:
     return {}
 
 
-def load_variables(role_path: str, include_vars_main: bool = True) -> dict:
+def load_variables(
+    role_path: str,
+    include_vars_main: bool = True,
+    exclude_paths: list[str] | None = None,
+) -> dict:
     """Load variables from ``defaults/main.yml``, ``vars/main.yml``, and any
     additional vars files referenced by static ``include_vars`` tasks.
 
@@ -679,7 +875,9 @@ def load_variables(role_path: str, include_vars_main: bool = True) -> dict:
                     vars_out.update(data)
             except Exception:
                 continue
-    for extra_path in _collect_include_vars_files(role_path):
+    for extra_path in _collect_include_vars_files(
+        role_path, exclude_paths=exclude_paths
+    ):
         try:
             data = yaml.safe_load(extra_path.read_text(encoding="utf-8")) or {}
             if isinstance(data, dict):
@@ -718,7 +916,10 @@ def normalize_requirements(requirements: list) -> list[str]:
     return [line for line in lines if line]
 
 
-def collect_role_contents(role_path: str) -> dict:
+def collect_role_contents(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> dict:
     """Collect lists of files from common role subdirectories.
 
     Returns a dict with keys like ``handlers``, ``tasks``, ``templates``,
@@ -740,6 +941,8 @@ def collect_role_contents(role_path: str) -> dict:
         if subdir.exists() and subdir.is_dir():
             for p in sorted(subdir.rglob("*")):
                 if p.is_file():
+                    if _is_path_excluded(p, rp.resolve(), exclude_paths):
+                        continue
                     entries.append(str(p.relative_to(rp)))
         result[name] = entries
     # include parsed meta file for richer template rendering
@@ -747,18 +950,21 @@ def collect_role_contents(role_path: str) -> dict:
         result["meta"] = load_meta(role_path)
     except Exception:
         result["meta"] = {}
-    result["features"] = extract_role_features(role_path)
+    result["features"] = extract_role_features(role_path, exclude_paths=exclude_paths)
     return result
 
 
-def extract_role_features(role_path: str) -> dict:
+def extract_role_features(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> dict:
     """Extract adaptive role features from tasks and role structure.
 
     These heuristics are intentionally lightweight and update automatically
     as task files change, providing richer documentation without manual edits.
     """
     role_root = Path(role_path).resolve()
-    task_files = _collect_task_files(role_root)
+    task_files = _collect_task_files(role_root, exclude_paths=exclude_paths)
 
     include_count = 0
     tasks_scanned = 0
@@ -806,11 +1012,14 @@ def extract_role_features(role_path: str) -> dict:
     }
 
 
-def _compute_quality_metrics(role_path: str) -> dict:
+def _compute_quality_metrics(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> dict:
     """Compute lightweight role quality metrics for comparison output."""
-    contents = collect_role_contents(role_path)
+    contents = collect_role_contents(role_path, exclude_paths=exclude_paths)
     features = contents.get("features", {}) if isinstance(contents, dict) else {}
-    variables = load_variables(role_path)
+    variables = load_variables(role_path, exclude_paths=exclude_paths)
 
     present_dirs = 0
     for section in (
@@ -825,7 +1034,9 @@ def _compute_quality_metrics(role_path: str) -> dict:
         if contents.get(section):
             present_dirs += 1
 
-    defaults_hits = len(scan_for_default_filters(role_path))
+    defaults_hits = len(
+        scan_for_default_filters(role_path, exclude_paths=exclude_paths)
+    )
     tasks_scanned = int(features.get("tasks_scanned", 0) or 0)
     unique_modules_raw = str(features.get("unique_modules", "none"))
     unique_modules = (
@@ -853,10 +1064,17 @@ def _compute_quality_metrics(role_path: str) -> dict:
     }
 
 
-def build_comparison_report(target_role_path: str, baseline_role_path: str) -> dict:
+def build_comparison_report(
+    target_role_path: str,
+    baseline_role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> dict:
     """Build a compact comparison between a target role and local baseline role."""
-    target = _compute_quality_metrics(target_role_path)
-    baseline = _compute_quality_metrics(baseline_role_path)
+    target = _compute_quality_metrics(target_role_path, exclude_paths=exclude_paths)
+    baseline = _compute_quality_metrics(
+        baseline_role_path,
+        exclude_paths=exclude_paths,
+    )
 
     return {
         "baseline_path": str(Path(baseline_role_path).resolve()),
@@ -892,14 +1110,6 @@ def build_comparison_report(target_role_path: str, baseline_role_path: str) -> d
             },
         },
     }
-
-
-def _parse_comma_values(raw_value: str) -> list[str]:
-    """Parse a comma-separated feature value into a list."""
-    raw = (raw_value or "").strip()
-    if not raw or raw == "none":
-        return []
-    return [item.strip() for item in raw.split(",") if item.strip()]
 
 
 def _infer_variable_type(value: object) -> str:
@@ -1046,7 +1256,10 @@ def load_seed_variables(seed_paths: list[str] | None) -> tuple[dict, set[str], d
     return values, secret_names, source_map
 
 
-def _collect_referenced_variable_names(role_path: str) -> set[str]:
+def _collect_referenced_variable_names(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> set[str]:
     """Collect likely variable references from role tasks/templates/handlers files."""
     role_root = Path(role_path).resolve()
     candidates: set[str] = set()
@@ -1058,9 +1271,11 @@ def _collect_referenced_variable_names(role_path: str) -> set[str]:
         for file_path in root.rglob("*"):
             if not file_path.is_file():
                 continue
+            if _is_path_excluded(file_path, role_root, exclude_paths):
+                continue
             try:
                 text = file_path.read_text(encoding="utf-8")
-            except UnicodeDecodeError, OSError:
+            except (UnicodeDecodeError, OSError):
                 continue
             for name in _collect_undeclared_jinja_variables(text):
                 lowered = name.lower()
@@ -1092,6 +1307,7 @@ def build_variable_insights(
     role_path: str,
     seed_paths: list[str] | None = None,
     include_vars_main: bool = True,
+    exclude_paths: list[str] | None = None,
 ) -> list[dict]:
     """Build variable rows with inferred type/default/source details."""
     defaults_file = Path(role_path) / "defaults" / "main.yml"
@@ -1109,55 +1325,117 @@ def build_variable_insights(
             vars_data = loaded
 
     seed_values, seed_secrets, seed_sources = load_seed_variables(seed_paths)
+    dynamic_include_vars_refs = _collect_dynamic_include_vars_refs(
+        role_path,
+        exclude_paths=exclude_paths,
+    )
 
     rows: list[dict] = []
+    rows_by_name: dict[str, dict] = {}
     for name in sorted(set(defaults_data) | set(vars_data)):
         has_default = name in defaults_data
         has_var = name in vars_data
         value = vars_data[name] if has_var else defaults_data.get(name)
         source = "defaults/main.yml"
+        provenance_source_file = "defaults/main.yml"
+        provenance_line = _find_variable_line_in_yaml(defaults_file, name)
+        provenance_confidence = 0.95
+        uncertainty_reason = None
+        is_ambiguous = False
         if has_var and has_default:
             source = "defaults/main.yml + vars/main.yml override"
+            provenance_source_file = "vars/main.yml"
+            provenance_line = _find_variable_line_in_yaml(vars_file, name)
+            provenance_confidence = 0.80
+            uncertainty_reason = "Overridden by vars/main.yml precedence."
+            is_ambiguous = True
         elif has_var:
             source = "vars/main.yml"
-        rows.append(
-            {
-                "name": name,
-                "type": _infer_variable_type(value),
-                "default": _format_inline_yaml(value),
-                "source": source,
-                "documented": True,
-                "required": False,
-                "secret": _is_sensitive_variable(name, value),
-            }
-        )
+            provenance_source_file = "vars/main.yml"
+            provenance_line = _find_variable_line_in_yaml(vars_file, name)
+            provenance_confidence = 0.90
+        row = {
+            "name": name,
+            "type": _infer_variable_type(value),
+            "default": _format_inline_yaml(value),
+            "source": source,
+            "documented": True,
+            "required": False,
+            "secret": _is_sensitive_variable(name, value),
+            "provenance_source_file": provenance_source_file,
+            "provenance_line": provenance_line,
+            "provenance_confidence": provenance_confidence,
+            "uncertainty_reason": uncertainty_reason,
+            "is_unresolved": False,
+            "is_ambiguous": is_ambiguous,
+        }
+        rows.append(row)
+        rows_by_name[name] = row
 
     # Discover variables from include_vars task references
     known_names: set[str] = {row["name"] for row in rows}
     role_root = Path(role_path).resolve()
-    for extra_path in _collect_include_vars_files(role_path):
+    include_var_sources: dict[str, list[dict]] = defaultdict(list)
+    for extra_path in _collect_include_vars_files(
+        role_path, exclude_paths=exclude_paths
+    ):
         extra_data = _load_yaml_file(extra_path)
         if not isinstance(extra_data, dict):
             continue
         rel_source = str(extra_path.relative_to(role_root))
         for name in sorted(extra_data):
-            if name in known_names:
-                continue
-            known_names.add(name)
-            rows.append(
+            include_var_sources[name].append(
                 {
-                    "name": name,
-                    "type": _infer_variable_type(extra_data[name]),
-                    "default": _format_inline_yaml(extra_data[name]),
                     "source": rel_source,
-                    "documented": True,
-                    "required": False,
-                    "secret": _is_sensitive_variable(name, extra_data[name]),
+                    "value": extra_data[name],
+                    "line": _find_variable_line_in_yaml(extra_path, name),
                 }
             )
 
+    for name in sorted(include_var_sources):
+        entries = include_var_sources[name]
+        selected = entries[-1]
+        if name in rows_by_name:
+            row = rows_by_name[name]
+            row["is_ambiguous"] = True
+            row["uncertainty_reason"] = (
+                "May be overridden by include_vars sources: "
+                + ", ".join(entry["source"] for entry in entries)
+            )
+            row["provenance_confidence"] = min(
+                float(row.get("provenance_confidence", 1.0)),
+                0.70,
+            )
+            continue
+        known_names.add(name)
+        ambiguous = len(entries) > 1
+        rows.append(
+            {
+                "name": name,
+                "type": _infer_variable_type(selected["value"]),
+                "default": _format_inline_yaml(selected["value"]),
+                "source": selected["source"],
+                "documented": True,
+                "required": False,
+                "secret": _is_sensitive_variable(name, selected["value"]),
+                "provenance_source_file": selected["source"],
+                "provenance_line": selected["line"],
+                "provenance_confidence": 0.60 if ambiguous else 0.85,
+                "uncertainty_reason": (
+                    "Defined in multiple include_vars files: "
+                    + ", ".join(entry["source"] for entry in entries)
+                    if ambiguous
+                    else None
+                ),
+                "is_unresolved": False,
+                "is_ambiguous": ambiguous,
+            }
+        )
+
     # Discover computed variable names from set_fact tasks
-    for name in sorted(_collect_set_fact_names(role_path) - known_names):
+    for name in sorted(
+        _collect_set_fact_names(role_path, exclude_paths=exclude_paths) - known_names
+    ):
         rows.append(
             {
                 "name": name,
@@ -1167,6 +1445,12 @@ def build_variable_insights(
                 "documented": True,
                 "required": False,
                 "secret": False,
+                "provenance_source_file": "tasks (set_fact)",
+                "provenance_line": None,
+                "provenance_confidence": 0.65,
+                "uncertainty_reason": "Computed by set_fact at runtime.",
+                "is_unresolved": False,
+                "is_ambiguous": True,
             }
         )
 
@@ -1181,11 +1465,20 @@ def build_variable_insights(
                 "documented": True,
                 "required": False,
                 "secret": _looks_secret_name(name),
+                "provenance_source_file": "README.md",
+                "provenance_line": None,
+                "provenance_confidence": 0.50,
+                "uncertainty_reason": "Documented in README; static role definition not found.",
+                "is_unresolved": True,
+                "is_ambiguous": False,
             }
         )
 
     known_names: set[str] = {row["name"] for row in rows}
-    referenced_names = _collect_referenced_variable_names(role_path)
+    referenced_names = _collect_referenced_variable_names(
+        role_path,
+        exclude_paths=exclude_paths,
+    )
 
     for name in sorted(referenced_names - known_names):
         seeded = name in seed_values
@@ -1203,6 +1496,22 @@ def build_variable_insights(
                 "documented": False,
                 "required": not seeded,
                 "secret": (name in seed_secrets or _is_sensitive_variable(name, value)),
+                "provenance_source_file": (
+                    seed_sources.get(name, "external vars") if seeded else None
+                ),
+                "provenance_line": None,
+                "provenance_confidence": 0.75 if seeded else 0.40,
+                "uncertainty_reason": (
+                    "Provided by external seed vars."
+                    if seeded
+                    else (
+                        "Referenced in role but no static definition found. Dynamic include_vars paths detected."
+                        if dynamic_include_vars_refs
+                        else "Referenced in role but no static definition found."
+                    )
+                ),
+                "is_unresolved": not seeded,
+                "is_ambiguous": False,
             }
         )
 
@@ -1212,147 +1521,6 @@ def build_variable_insights(
             row["default"] = "<secret>"
 
     return rows
-
-
-def build_doc_insights(
-    role_name: str,
-    description: str,
-    metadata: dict,
-    variables: dict,
-    variable_insights: list[dict],
-) -> dict:
-    """Build inferred purpose/capability/examples for richer README output."""
-    features = metadata.get("features", {}) if isinstance(metadata, dict) else {}
-    modules = _parse_comma_values(str(features.get("unique_modules", "none")))
-    handlers = _parse_comma_values(str(features.get("handlers_notified", "none")))
-
-    capability_rules = (
-        (
-            ("template", "ansible.builtin.template", "copy", "ansible.builtin.copy"),
-            "Deploy configuration or content files",
-        ),
-        (
-            (
-                "service",
-                "ansible.builtin.service",
-                "systemd",
-                "ansible.builtin.systemd",
-            ),
-            "Manage service lifecycle and state",
-        ),
-        (
-            ("package", "ansible.builtin.package", "apt", "yum", "dnf"),
-            "Install and manage packages",
-        ),
-        (
-            ("user", "ansible.builtin.user", "group", "ansible.builtin.group"),
-            "Manage users and groups",
-        ),
-        (
-            (
-                "lineinfile",
-                "ansible.builtin.lineinfile",
-                "replace",
-                "ansible.builtin.replace",
-            ),
-            "Modify existing configuration files in-place",
-        ),
-    )
-    capabilities: list[str] = []
-    module_set = set(modules)
-    for keys, sentence in capability_rules:
-        if any(key in module_set for key in keys):
-            capabilities.append(sentence)
-    if int(features.get("recursive_task_includes", 0) or 0) > 0:
-        capabilities.append("Uses nested task includes for modular orchestration")
-    if handlers:
-        capabilities.append("Triggers role handlers based on task changes")
-    if not capabilities:
-        capabilities.append("Provides reusable Ansible automation tasks")
-
-    purpose_summary = (
-        description.strip()
-        if description
-        else (
-            f"The role `{role_name}` automates setup and configuration tasks with Ansible best-practice structure."
-        )
-    )
-
-    example_vars = variable_insights[:3]
-    example_lines = ["- hosts: all", "  roles:", f"    - role: {role_name}"]
-    if example_vars:
-        example_lines.append("      vars:")
-        for row in example_vars:
-            example_lines.append(f"        {row['name']}: {row['default']}")
-    elif variables:
-        example_lines.append("      vars: {}")
-
-    return {
-        "purpose_summary": purpose_summary,
-        "capabilities": capabilities,
-        "task_summary": {
-            "task_files_scanned": int(features.get("task_files_scanned", 0) or 0),
-            "tasks_scanned": int(features.get("tasks_scanned", 0) or 0),
-            "recursive_task_includes": int(
-                features.get("recursive_task_includes", 0) or 0
-            ),
-            "module_count": len(modules),
-            "handler_count": len(handlers),
-        },
-        "example_playbook": "\n".join(example_lines),
-    }
-
-
-def _normalize_style_heading(heading: str) -> str:
-    """Normalize markdown heading text for style-guide matching."""
-    normalized = re.sub(r"[^a-z0-9()]+", " ", heading.lower()).strip()
-    return re.sub(r"\s+", " ", normalized)
-
-
-def _detect_style_section_level(lines: list[str]) -> int:
-    """Detect the top-level section heading level used by a style guide."""
-    in_fence = False
-    fence_char = ""
-    fence_len = 0
-    atx_levels: set[int] = set()
-
-    for index, raw_line in enumerate(lines):
-        line = raw_line.rstrip()
-        next_line = lines[index + 1].rstrip() if index + 1 < len(lines) else ""
-
-        fence_match = re.match(r"^\s*([`~]{3,})", line)
-        if fence_match:
-            marker = fence_match.group(1)
-            marker_char = marker[0]
-            marker_len = len(marker)
-            if not in_fence:
-                in_fence = True
-                fence_char = marker_char
-                fence_len = marker_len
-            elif marker_char == fence_char and marker_len >= fence_len:
-                in_fence = False
-                fence_char = ""
-                fence_len = 0
-            continue
-
-        if in_fence:
-            continue
-
-        if re.match(r"^-+$", next_line):
-            return 2
-
-        atx_match = re.match(r"^(#{1,6})\s+", line)
-        if not atx_match:
-            continue
-        level = len(atx_match.group(1))
-        if level >= 2:
-            atx_levels.add(level)
-
-    if 2 in atx_levels:
-        return 2
-    if atx_levels:
-        return min(atx_levels)
-    return 2
 
 
 def _resolve_section_selector(selector: str) -> str | None:
@@ -1367,7 +1535,7 @@ def _resolve_section_selector(selector: str) -> str | None:
         return None
     if value in ALL_SECTION_IDS:
         return value
-    normalized = _normalize_style_heading(value)
+    normalized = normalize_style_heading(value)
     if normalized in ALL_SECTION_IDS:
         return normalized
     return STYLE_SECTION_ALIASES.get(normalized)
@@ -1455,7 +1623,7 @@ def load_readme_section_config(
                 resolved = _resolve_section_selector(item)
                 if resolved:
                     enabled.add(resolved)
-                    normalized_item = _normalize_style_heading(item)
+                    normalized_item = normalize_style_heading(item)
                     if normalized_item:
                         include_selector_map[normalized_item] = resolved
                     if adopt_style_headings:
@@ -1470,7 +1638,7 @@ def load_readme_section_config(
     for selector, mode in content_modes_items.items():
         if not isinstance(selector, str) or not isinstance(mode, str):
             continue
-        normalized_selector = _normalize_style_heading(selector)
+        normalized_selector = normalize_style_heading(selector)
         resolved = include_selector_map.get(normalized_selector)
         if not resolved:
             resolved = _resolve_section_selector(selector)
@@ -1486,152 +1654,6 @@ def load_readme_section_config(
         "section_title_overrides": title_overrides,
         "adopt_style_headings": adopt_style_headings,
         "section_content_modes": section_content_modes,
-    }
-
-
-def parse_style_readme(style_readme_path: str) -> dict:
-    """Parse a README style guide into section order and heading styles."""
-    text = Path(style_readme_path).read_text(encoding="utf-8")
-    lines = text.splitlines()
-    section_level = _detect_style_section_level(lines)
-    sections: list[dict] = []
-    title_text = ""
-    title_style = "setext"
-    section_style = "setext"
-
-    i = 0
-    current_section: dict | None = None
-    in_fence = False
-    fence_char = ""
-    fence_len = 0
-    while i < len(lines):
-        line = lines[i].rstrip()
-        next_line = lines[i + 1].rstrip() if i + 1 < len(lines) else ""
-
-        fence_match = re.match(r"^\s*([`~]{3,})", line)
-        if fence_match:
-            marker = fence_match.group(1)
-            marker_char = marker[0]
-            marker_len = len(marker)
-            if not in_fence:
-                in_fence = True
-                fence_char = marker_char
-                fence_len = marker_len
-            elif marker_char == fence_char and marker_len >= fence_len:
-                in_fence = False
-                fence_char = ""
-                fence_len = 0
-            if current_section is not None:
-                current_section["body"].append(line)
-            i += 1
-            continue
-
-        if in_fence:
-            if current_section is not None:
-                current_section["body"].append(line)
-            i += 1
-            continue
-
-        atx_match = re.match(r"^(#{1,6})\s+(.*?)\s*$", line)
-        if atx_match:
-            level = len(atx_match.group(1))
-            title = atx_match.group(2).strip()
-            if level == 1:
-                title_style = "atx"
-                title_text = title
-            elif level == section_level:
-                section_style = "atx"
-            if level == section_level:
-                canonical = STYLE_SECTION_ALIASES.get(
-                    _normalize_style_heading(title), "unknown"
-                )
-                current_section = {
-                    "id": canonical,
-                    "title": title,
-                    "body": [],
-                    "level": level,
-                }
-                sections.append(current_section)
-            i += 1
-            continue
-
-        if re.match(r"^=+$", next_line):
-            title_style = "setext"
-            if not title_text:
-                title_text = line.strip()
-            i += 2
-            continue
-
-        if re.match(r"^-+$", next_line):
-            section_style = "setext"
-            canonical = STYLE_SECTION_ALIASES.get(
-                _normalize_style_heading(line), "unknown"
-            )
-            current_section = {
-                "id": canonical,
-                "title": line.strip(),
-                "body": [],
-                "level": 2,
-            }
-            sections.append(current_section)
-            i += 2
-            continue
-
-        if current_section is not None:
-            current_section["body"].append(line)
-
-        i += 1
-
-    for section in sections:
-        section["body"] = "\n".join(section.get("body", [])).strip()
-
-    variable_section = next(
-        (section for section in sections if section["id"] == "role_variables"), None
-    )
-    variable_style = "simple_list"
-    variable_intro = None
-    if variable_section:
-        body = variable_section.get("body", "")
-        if "```yaml" in body:
-            variable_style = "yaml_block"
-            intro_match = re.split(r"```yaml", body, maxsplit=1)
-            intro = intro_match[0].strip() if intro_match else ""
-            variable_intro = intro or None
-        elif re.search(r"^\s*\|.*\|\s*$", body, flags=re.MULTILINE):
-            variable_style = "table"
-            intro_lines: list[str] = []
-            for raw_line in body.splitlines():
-                stripped = raw_line.strip()
-                if stripped.startswith("|"):
-                    break
-                if stripped:
-                    intro_lines.append(stripped)
-            variable_intro = "\n".join(intro_lines) if intro_lines else None
-        elif re.search(r"^\s*[*-]\s+`[^`]+`", body, flags=re.MULTILINE) and re.search(
-            r"^\s*[*-]\s+Default:", body, flags=re.MULTILINE
-        ):
-            variable_style = "nested_bullets"
-            intro_lines: list[str] = []
-            for raw_line in body.splitlines():
-                stripped = raw_line.strip()
-                if not stripped:
-                    if intro_lines:
-                        break
-                    continue
-                if stripped.startswith(("*", "-", "|", "```", "~~~")):
-                    break
-                intro_lines.append(stripped)
-            variable_intro = "\n".join(intro_lines) if intro_lines else None
-
-    return {
-        "path": str(Path(style_readme_path).resolve()),
-        "title_text": title_text,
-        "title_style": title_style,
-        "section_style": section_style,
-        "section_level": section_level,
-        "sections": sections,
-        "variable_style": variable_style,
-        "variable_intro": variable_intro,
     }
 
 
@@ -1713,15 +1735,53 @@ def _render_role_variables_for_style(variables: dict, metadata: dict) -> str:
     return "\n".join(lines)
 
 
-def _format_heading(text: str, level: int, style: str) -> str:
-    """Format markdown headings using ATX or setext style."""
-    if style == "atx":
-        return f"{'#' * level} {text}"
-    if level == 1:
-        return f"{text}\n{'=' * len(text)}"
-    if level == 2:
-        return f"{text}\n{'-' * len(text)}"
-    return f"{'#' * level} {text}"
+def _render_role_notes_section(role_notes: dict | None) -> str:
+    """Render comment-driven role notes in a readable markdown block."""
+    notes = role_notes or {}
+    warnings = notes.get("warnings") or []
+    deprecations = notes.get("deprecations") or []
+    general = notes.get("notes") or []
+    if not warnings and not deprecations and not general:
+        return "No role notes were found in comment annotations."
+
+    lines: list[str] = []
+    if warnings:
+        lines.append("Warnings:")
+        lines.extend(f"- {item}" for item in warnings)
+    if deprecations:
+        if lines:
+            lines.append("")
+        lines.append("Deprecations:")
+        lines.extend(f"- {item}" for item in deprecations)
+    if general:
+        if lines:
+            lines.append("")
+        lines.append("Notes:")
+        lines.extend(f"- {item}" for item in general)
+    return "\n".join(lines)
+
+
+def _render_variable_uncertainty_notes(rows: list[dict]) -> str:
+    """Render unresolved/ambiguous variable provenance notes."""
+    unresolved = [row for row in rows if row.get("is_unresolved")]
+    ambiguous = [row for row in rows if row.get("is_ambiguous")]
+    if not unresolved and not ambiguous:
+        return ""
+
+    lines = ["Variable provenance and confidence notes:", ""]
+    if unresolved:
+        lines.append("Unresolved variables:")
+        for row in unresolved:
+            reason = row.get("uncertainty_reason") or "Unknown source."
+            lines.append(f"- `{row['name']}`: {reason}")
+    if ambiguous:
+        if unresolved:
+            lines.append("")
+        lines.append("Ambiguous variables:")
+        for row in ambiguous:
+            reason = row.get("uncertainty_reason") or "Multiple possible sources."
+            lines.append(f"- `{row['name']}`: {reason}")
+    return "\n".join(lines)
 
 
 def _render_guide_section_body(
@@ -1798,6 +1858,9 @@ def _render_guide_section_body(
             lines.extend(f"- {capability}" for capability in capabilities)
         return "\n".join(lines)
 
+    if section_id == "role_notes":
+        return _render_role_notes_section(metadata.get("role_notes"))
+
     if section_id == "variable_summary":
         rows = metadata.get("variable_insights") or []
         if not rows:
@@ -1811,6 +1874,9 @@ def _render_guide_section_body(
             lines.append(
                 f"| `{row['name']}` | {row['type']} | `{default}` | {source} |"
             )
+        uncertainty_notes = _render_variable_uncertainty_notes(rows)
+        if uncertainty_notes:
+            lines.extend(["", uncertainty_notes])
         return "\n".join(lines)
 
     if section_id == "variable_guidance":
@@ -1879,7 +1945,7 @@ def _render_guide_section_body(
 
     if section_id == "handlers":
         features = metadata.get("features") or {}
-        handler_names = _parse_comma_values(
+        handler_names = parse_comma_values(
             str(features.get("handlers_notified", "none"))
         )
         handler_files = metadata.get("handlers") or []
@@ -1965,6 +2031,8 @@ def _render_guide_section_body(
                 "variable_insights",
                 "doc_insights",
                 "style_guide",
+                "role_notes",
+                "scanner_counters",
             ):
                 continue
             if isinstance(items, list):
@@ -2153,7 +2221,7 @@ def _render_readme_with_style_guide(
         rendered_title = role_name
 
     parts = [
-        _format_heading(rendered_title, 1, style_guide.get("title_style", "setext")),
+        format_heading(rendered_title, 1, style_guide.get("title_style", "setext")),
         "",
         description,
         "",
@@ -2163,7 +2231,7 @@ def _render_readme_with_style_guide(
             section.get("level") or style_guide.get("section_level") or 2
         )
         parts.append(
-            _format_heading(
+            format_heading(
                 section["title"],
                 heading_level,
                 style_guide.get("section_style", "setext"),
@@ -2204,7 +2272,7 @@ def _render_readme_with_style_guide(
         and (not enabled_sections or "scanner_report" in enabled_sections)
     ):
         parts.append(
-            _format_heading(
+            format_heading(
                 "Scanner report",
                 int(style_guide.get("section_level") or 2),
                 style_guide.get("section_style", "setext"),
@@ -2227,13 +2295,51 @@ def _build_scanner_report_markdown(
     metadata: dict,
 ) -> str:
     """Render a scanner-focused markdown sidecar report."""
+    counters = metadata.get("scanner_counters") or _extract_scanner_counters(
+        metadata.get("variable_insights") or [],
+        default_filters,
+    )
     lines = [
         f"{role_name} scanner report",
         "=" * (len(role_name) + len(" scanner report")),
         "",
         description,
         "",
+        "Summary",
+        "-------",
+        "",
+        f"- **Total variables**: {counters['total_variables']} ({counters['documented_variables']} documented, {counters['undocumented_variables']} undocumented)",
+        f"- **Unresolved**: {counters['unresolved_variables']} | **Ambiguous**: {counters['ambiguous_variables']} | **Required**: {counters['required_variables']} | **Secrets**: {counters['secret_variables']}",
+        f"- **Confidence buckets**: high={counters['high_confidence_variables']}, medium={counters['medium_confidence_variables']}, low={counters['low_confidence_variables']}",
+        f"- **Default filter findings**: {counters['undocumented_default_filters']} undocumented out of {counters['total_default_filters']} discovered",
+        "",
     ]
+
+    unresolved_rows = [
+        row
+        for row in (metadata.get("variable_insights") or [])
+        if row.get("is_unresolved")
+    ]
+    ambiguous_rows = [
+        row
+        for row in (metadata.get("variable_insights") or [])
+        if row.get("is_ambiguous")
+    ]
+    if unresolved_rows or ambiguous_rows:
+        lines.extend(["Variable provenance issues", "-------------------------", ""])
+        if unresolved_rows:
+            lines.append("Unresolved variables:")
+            for row in unresolved_rows:
+                reason = row.get("uncertainty_reason") or "Unknown source."
+                lines.append(f"- `{row['name']}`: {reason}")
+            lines.append("")
+        if ambiguous_rows:
+            lines.append("Ambiguous variables:")
+            for row in ambiguous_rows:
+                reason = row.get("uncertainty_reason") or "Multiple possible sources."
+                lines.append(f"- `{row['name']}`: {reason}")
+            lines.append("")
+
     sections = [
         ("task_summary", "Task/module usage summary"),
         ("role_contents", "Role contents summary"),
@@ -2255,6 +2361,51 @@ def _build_scanner_report_markdown(
             continue
         lines.extend([title, "-" * len(title), "", body, ""])
     return "\n".join(lines).strip() + "\n"
+
+
+def _extract_scanner_counters(
+    variable_insights: list[dict],
+    default_filters: list[dict],
+) -> dict[str, int]:
+    """Summarize scanner findings by certainty and variable category."""
+    counters = {
+        "total_variables": len(variable_insights),
+        "documented_variables": 0,
+        "undocumented_variables": 0,
+        "unresolved_variables": 0,
+        "ambiguous_variables": 0,
+        "secret_variables": 0,
+        "required_variables": 0,
+        "high_confidence_variables": 0,
+        "medium_confidence_variables": 0,
+        "low_confidence_variables": 0,
+        "total_default_filters": len(default_filters),
+        "undocumented_default_filters": len(default_filters),
+    }
+
+    for row in variable_insights:
+        if row.get("documented"):
+            counters["documented_variables"] += 1
+        else:
+            counters["undocumented_variables"] += 1
+        if row.get("is_unresolved"):
+            counters["unresolved_variables"] += 1
+        if row.get("is_ambiguous"):
+            counters["ambiguous_variables"] += 1
+        if row.get("secret"):
+            counters["secret_variables"] += 1
+        if row.get("required"):
+            counters["required_variables"] += 1
+
+        confidence = float(row.get("provenance_confidence") or 0.0)
+        if confidence >= 0.90:
+            counters["high_confidence_variables"] += 1
+        elif confidence >= 0.70:
+            counters["medium_confidence_variables"] += 1
+        else:
+            counters["low_confidence_variables"] += 1
+
+    return counters
 
 
 def _detect_task_module(task: dict) -> str | None:
@@ -2336,6 +2487,7 @@ def run_scan(
     adopt_style_headings: bool | None = None,
     style_guide_skeleton: bool = False,
     keep_unknown_style_sections: bool = True,
+    exclude_path_patterns: list[str] | None = None,
     dry_run: bool = False,
 ) -> str:
     rp = Path(role_path)
@@ -2347,11 +2499,15 @@ def run_scan(
     if role_name_override and (not galaxy.get("role_name") or role_name == "repo"):
         role_name = role_name_override
     description = galaxy.get("description", "")
-    variables = load_variables(role_path, include_vars_main=include_vars_main)
+    variables = load_variables(
+        role_path,
+        include_vars_main=include_vars_main,
+        exclude_paths=exclude_path_patterns,
+    )
     requirements = load_requirements(role_path)
     requirements_display = normalize_requirements(requirements)
-    found = scan_for_default_filters(role_path)
-    metadata = collect_role_contents(role_path)
+    found = scan_for_default_filters(role_path, exclude_paths=exclude_path_patterns)
+    metadata = collect_role_contents(role_path, exclude_paths=exclude_path_patterns)
     metadata["keep_unknown_style_sections"] = keep_unknown_style_sections
     readme_section_config = load_readme_section_config(
         role_path,
@@ -2372,8 +2528,13 @@ def run_scan(
         role_path,
         seed_paths=vars_seed_paths,
         include_vars_main=include_vars_main,
+        exclude_paths=exclude_path_patterns,
     )
     metadata["variable_insights"] = variable_insights
+    metadata["role_notes"] = _extract_role_notes_from_comments(
+        role_path,
+        exclude_paths=exclude_path_patterns,
+    )
     inventory_names = {row["name"]: row for row in variable_insights}
     undocumented_default_filters: list[dict] = []
     for occurrence in found:
@@ -2391,6 +2552,11 @@ def run_scan(
                 enriched["args"] = "<secret>"
                 enriched["match"] = f"{target_var} | default(<secret>)"
             undocumented_default_filters.append(enriched)
+
+    metadata["scanner_counters"] = _extract_scanner_counters(
+        variable_insights,
+        undocumented_default_filters,
+    )
 
     # Replace secret values in simple role-variable rendering.
     secret_names = {
@@ -2428,7 +2594,11 @@ def run_scan(
             raise FileNotFoundError(
                 f"comparison role path not found: {compare_role_path}"
             )
-        metadata["comparison"] = build_comparison_report(role_path, compare_role_path)
+        metadata["comparison"] = build_comparison_report(
+            role_path,
+            compare_role_path,
+            exclude_paths=exclude_path_patterns,
+        )
 
     out_path = resolve_output_path(output, output_format)
 

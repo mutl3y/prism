@@ -213,6 +213,36 @@ def test_cli_compare_role_path_is_forwarded(monkeypatch, tmp_path):
     assert calls["compare_role_path"] == str(baseline)
 
 
+def test_cli_exclude_path_is_forwarded(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    role.mkdir()
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["exclude_path_patterns"] = kwargs.get("exclude_path_patterns")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "exclude.md"
+    rc = cli.main(
+        [
+            str(role),
+            "--exclude-path",
+            "templates/*",
+            "--exclude-path",
+            "tests/**",
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert calls["exclude_path_patterns"] == ["templates/*", "tests/**"]
+
+
 def test_cli_style_readme_is_forwarded(monkeypatch, tmp_path):
     calls: dict = {}
 
