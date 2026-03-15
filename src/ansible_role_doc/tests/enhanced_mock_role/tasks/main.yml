@@ -1,0 +1,35 @@
+#SPDX-License-Identifier: MIT-0
+---
+# <notes> Warning: this package is unhealthy
+# <notes> Additional: ensure rollback playbooks are reviewed before production use
+
+- name: Gather runtime context
+  debug:
+    msg: "{{ lookup('env','HOME') | default('/home/unknown') }}"
+
+- name: Install package with privilege
+  ansible.builtin.package:
+    name: "{{ mock_role_packages }}"
+    state: "{{ mock_role_state }}"
+  become: true
+  when: mock_role_install_enabled | default(true)
+  tags:
+    - packages
+
+- name: Include setup phase
+  ansible.builtin.import_tasks: nested/setup.yml
+
+- name: Include deploy phase
+  ansible.builtin.include_tasks: deploy.yml
+
+- name: Include validate phase
+  ansible.builtin.include_tasks: validate.yml
+  when: mock_role_validate_config | default(true)
+
+- name: Include rollback phase
+  ansible.builtin.include_tasks: rollback.yml
+  when: mock_role_rollback_enabled | default(false)
+
+- name: Validate required input variable
+  debug:
+    msg: "Using required input {{ required_input_var }}"

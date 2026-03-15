@@ -596,7 +596,9 @@ def test_extract_role_notes_from_comments(tmp_path):
         "---\n"
         "# <notes> Warning: This package is unhealthy\n"
         "# <notes> Deprecated: old parameter is deprecated\n"
-        "# <notes> Note: run with --check first\n",
+        "# <notes> Note: run with --check first\n"
+        "# <notes> Additional: keep inventory in sync\n"
+        "# <notes> this is also a free-form note\n",
         encoding="utf-8",
     )
 
@@ -604,7 +606,8 @@ def test_extract_role_notes_from_comments(tmp_path):
 
     assert notes["warnings"] == ["This package is unhealthy"]
     assert notes["deprecations"] == ["old parameter is deprecated"]
-    assert notes["notes"] == ["run with --check first"]
+    assert notes["notes"] == ["run with --check first", "this is also a free-form note"]
+    assert notes["additionals"] == ["keep inventory in sync"]
 
 
 def test_extract_scanner_counters_groups_by_confidence_and_status():
@@ -640,6 +643,61 @@ def test_extract_scanner_counters_groups_by_confidence_and_status():
     assert counters["high_confidence_variables"] == 1
     assert counters["low_confidence_variables"] == 1
     assert counters["undocumented_default_filters"] == 1
+    assert counters["provenance_issue_categories"]["ambiguous_set_fact_runtime"] == 0
+    assert (
+        counters["provenance_issue_categories"]["unresolved_no_static_definition"] == 0
+    )
+
+
+def test_extract_scanner_counters_categorizes_provenance_issues():
+    counters = scanner._extract_scanner_counters(
+        [
+            {
+                "documented": True,
+                "is_unresolved": False,
+                "is_ambiguous": True,
+                "secret": False,
+                "required": False,
+                "provenance_confidence": 0.8,
+                "uncertainty_reason": "Overridden by vars/main.yml precedence.",
+            },
+            {
+                "documented": True,
+                "is_unresolved": False,
+                "is_ambiguous": True,
+                "secret": False,
+                "required": False,
+                "provenance_confidence": 0.65,
+                "uncertainty_reason": "Computed by set_fact at runtime.",
+            },
+            {
+                "documented": False,
+                "is_unresolved": True,
+                "is_ambiguous": False,
+                "secret": False,
+                "required": True,
+                "provenance_confidence": 0.4,
+                "uncertainty_reason": "Referenced in role but no static definition found.",
+            },
+            {
+                "documented": True,
+                "is_unresolved": True,
+                "is_ambiguous": False,
+                "secret": False,
+                "required": False,
+                "provenance_confidence": 0.5,
+                "source": "README.md (documented input)",
+                "uncertainty_reason": "Documented in README; static role definition not found.",
+            },
+        ],
+        [],
+    )
+
+    categories = counters["provenance_issue_categories"]
+    assert categories["ambiguous_defaults_vars_override"] == 1
+    assert categories["ambiguous_set_fact_runtime"] == 1
+    assert categories["unresolved_no_static_definition"] == 1
+    assert categories["unresolved_readme_documented_only"] == 1
 
 
 def test_scan_for_default_filters_respects_exclude_paths(tmp_path):

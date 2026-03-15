@@ -1,0 +1,11 @@
+#SPDX-License-Identifier: MIT-0
+---
+- name: Rollback to previous package state
+  ansible.builtin.package:
+    name: "{{ mock_role_packages }}"
+    state: absent
+
+- name: Remove rendered configuration
+  ansible.builtin.file:
+    path: "{{ mock_role_config_path }}"
+    state: absent

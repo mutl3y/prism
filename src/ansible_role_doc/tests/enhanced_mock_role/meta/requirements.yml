@@ -1,0 +1,10 @@
+---
+# Enhanced fixture dependencies to mimic realistic role requirements.
+- src: example.role_dependency
+  version: 1.0.0
+  name: example.role_dependency
+- src: example.collection_dependency
+  scm: git
+  version: main
+- name: community.general
+  type: collection

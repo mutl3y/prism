@@ -4,14 +4,18 @@ Provides a small CLI wrapper around :func:`ansible_role_doc.scanner.run_scan`.
 """
 
 from __future__ import annotations
+import base64
 import argparse
 from datetime import datetime, UTC
+import json
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
-from urllib.parse import urlparse
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlparse
+from urllib.request import Request, urlopen
 import sys
 import tempfile
 import yaml
@@ -48,6 +52,11 @@ _REDACTION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
         r"\\1 <redacted>",
     ),
 )
+
+_ROLE_MARKER_DIRS = frozenset(
+    {"defaults", "files", "handlers", "meta", "tasks", "templates", "tests", "vars"}
+)
+_MIN_ROLE_MARKER_DIRS = 3
 
 
 def _sanitize_captured_content(text: str) -> str:
@@ -112,6 +121,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional local README path used as a style guide for section order and headings.",
     )
     p.add_argument(
+        "--style-source",
+        default=None,
+        help=(
+            "Explicit style source markdown path used when resolving style-guide skeletons "
+            "or as fallback style input when --style-readme is not provided."
+        ),
+    )
+    p.add_argument(
         "--create-style-guide",
         action="store_true",
         help=(
@@ -167,6 +184,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Optional YAML config controlling README section visibility "
             "(defaults to <role>/.ansible_role_doc.yml when present)."
+        ),
+    )
+    p.add_argument(
+        "--policy-config",
+        default=None,
+        help=(
+            "Optional pattern-policy override YAML path used during scanning "
+            "(highest precedence over env/cwd/XDG/system policy sources)."
         ),
     )
     p.add_argument(
@@ -325,6 +350,153 @@ def _repo_name_from_url(repo_url: str) -> str | None:
         name = Path(path).name
         return name.removesuffix(".git") or None
     return None
+
+
+def _github_repo_from_url(repo_url: str) -> tuple[str, str] | None:
+    """Return ``(owner, repo)`` for GitHub repo URLs when parseable."""
+    parsed = urlparse(repo_url)
+    repo_path = ""
+    if parsed.scheme in {"http", "https", "ssh"} and parsed.netloc == "github.com":
+        repo_path = parsed.path.strip("/")
+    elif repo_url.startswith("git@github.com:"):
+        repo_path = repo_url.split(":", 1)[1].strip("/")
+
+    parts = [segment for segment in repo_path.split("/") if segment]
+    if len(parts) < 2:
+        return None
+
+    owner = parts[0]
+    repo = parts[1].removesuffix(".git")
+    if not owner or not repo:
+        return None
+    return owner, repo
+
+
+def _normalize_repo_path(repo_path: str | None) -> str:
+    """Normalize repository-relative paths used for remote GitHub probes."""
+    normalized_repo_path = (repo_path or "").strip().strip("/")
+    if normalized_repo_path in {"", "."}:
+        return ""
+    return normalized_repo_path
+
+
+def _fetch_repo_contents_payload(
+    repo_url: str,
+    repo_path: str | None = None,
+    ref: str | None = None,
+    timeout: int = 60,
+) -> dict | list | None:
+    """Fetch GitHub contents API payload for a repo path when possible."""
+    repo_coords = _github_repo_from_url(repo_url)
+    if repo_coords is None:
+        return None
+
+    normalized_repo_path = _normalize_repo_path(repo_path)
+    owner, repo = repo_coords
+    api_url = f"https://api.github.com/repos/{owner}/{repo}/contents"
+    if normalized_repo_path:
+        api_url = f"{api_url}/{quote(normalized_repo_path, safe='/')}"
+    if ref:
+        api_url = f"{api_url}?ref={quote(ref, safe='')}"
+
+    request = Request(
+        api_url,
+        headers={
+            "Accept": "application/vnd.github.object",
+            "User-Agent": "ansible-role-doc",
+        },
+    )
+
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except (
+        HTTPError,
+        URLError,
+        OSError,
+        TimeoutError,
+        ValueError,
+        json.JSONDecodeError,
+    ):
+        return None
+
+
+def _fetch_repo_directory_names(
+    repo_url: str,
+    repo_path: str | None = None,
+    ref: str | None = None,
+    timeout: int = 60,
+) -> set[str] | None:
+    """Fetch directory names for a GitHub repo path when possible."""
+    payload = _fetch_repo_contents_payload(
+        repo_url,
+        repo_path=repo_path,
+        ref=ref,
+        timeout=timeout,
+    )
+    if not isinstance(payload, list):
+        return None
+
+    dir_names: set[str] = set()
+    for entry in payload:
+        if not isinstance(entry, dict) or entry.get("type") != "dir":
+            continue
+        name = entry.get("name")
+        if isinstance(name, str) and name:
+            dir_names.add(name)
+    return dir_names
+
+
+def _repo_path_looks_like_role(dir_names: set[str] | None) -> bool:
+    """Return True when a directory listing looks like a useful role source."""
+    if not dir_names:
+        return False
+
+    role_markers = _ROLE_MARKER_DIRS & dir_names
+    return "tasks" in role_markers and len(role_markers) >= _MIN_ROLE_MARKER_DIRS
+
+
+def _fetch_repo_file(
+    repo_url: str,
+    repo_path: str | None,
+    destination: Path,
+    ref: str | None = None,
+    timeout: int = 60,
+) -> Path | None:
+    """Fetch a single file from GitHub into ``destination`` when possible.
+
+    Returns ``None`` for unsupported hosts or when the remote fetch fails so
+    callers can fall back to clone-based resolution.
+    """
+    normalized_repo_path = _normalize_repo_path(repo_path)
+    if not normalized_repo_path:
+        return None
+
+    payload = _fetch_repo_contents_payload(
+        repo_url,
+        repo_path=normalized_repo_path,
+        ref=ref,
+        timeout=timeout,
+    )
+    if not isinstance(payload, dict):
+        return None
+
+    if payload.get("type") != "file":
+        return None
+
+    content = payload.get("content")
+    encoding = payload.get("encoding")
+    if not isinstance(content, str) or encoding != "base64":
+        return None
+
+    try:
+        decoded = base64.b64decode(content)
+    except ValueError:
+        return None
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(decoded)
+    return destination
 
 
 def _build_sparse_clone_paths(
@@ -513,6 +685,30 @@ def main(argv=None) -> int:
         if args.repo_url:
             with tempfile.TemporaryDirectory(prefix="ansible-role-doc-") as tmp_dir:
                 checkout_dir = Path(tmp_dir) / "repo"
+                repo_dir_names = _fetch_repo_directory_names(
+                    args.repo_url,
+                    repo_path=args.repo_role_path,
+                    ref=args.repo_ref,
+                    timeout=args.repo_timeout,
+                )
+                if repo_dir_names is not None and not _repo_path_looks_like_role(
+                    repo_dir_names
+                ):
+                    raise FileNotFoundError(
+                        "repository path does not look like an Ansible role: "
+                        f"{args.repo_role_path}"
+                    )
+                fetched_repo_style_readme_path = None
+                if args.repo_style_readme_path:
+                    fetched_repo_style_readme_path = _fetch_repo_file(
+                        args.repo_url,
+                        args.repo_style_readme_path,
+                        Path(tmp_dir)
+                        / "repo-style-readme"
+                        / Path(args.repo_style_readme_path).name,
+                        ref=args.repo_ref,
+                        timeout=args.repo_timeout,
+                    )
                 if args.verbose:
                     print(f"Cloning: {args.repo_url}")
                 _clone_repo(
@@ -522,7 +718,11 @@ def main(argv=None) -> int:
                     args.repo_timeout,
                     sparse_paths=_build_sparse_clone_paths(
                         args.repo_role_path,
-                        args.repo_style_readme_path,
+                        (
+                            None
+                            if fetched_repo_style_readme_path is not None
+                            else args.repo_style_readme_path
+                        ),
                     ),
                 )
                 role_path = (checkout_dir / args.repo_role_path).resolve()
@@ -531,12 +731,16 @@ def main(argv=None) -> int:
                         f"role path not found in cloned repository: {args.repo_role_path}"
                     )
                 style_readme_path = args.style_readme
-                if args.repo_style_readme_path:
+                if fetched_repo_style_readme_path is not None:
+                    style_readme_path = str(fetched_repo_style_readme_path.resolve())
+                elif args.repo_style_readme_path:
                     style_readme_path = str(
                         (checkout_dir / args.repo_style_readme_path).resolve()
                     )
                 if args.create_style_guide and not style_readme_path:
-                    style_readme_path = resolve_default_style_guide_source()
+                    style_readme_path = (
+                        args.style_source or resolve_default_style_guide_source()
+                    )
                 outpath = run_scan(
                     str(role_path),
                     output=args.output,
@@ -555,6 +759,8 @@ def main(argv=None) -> int:
                     style_guide_skeleton=args.create_style_guide,
                     keep_unknown_style_sections=args.keep_unknown_style_sections,
                     exclude_path_patterns=args.exclude_path,
+                    style_source_path=args.style_source,
+                    policy_config_path=args.policy_config,
                     dry_run=args.dry_run,
                 )
                 if args.dry_run:
@@ -578,7 +784,9 @@ def main(argv=None) -> int:
         else:
             style_readme_path = args.style_readme
             if args.create_style_guide and not style_readme_path:
-                style_readme_path = resolve_default_style_guide_source()
+                style_readme_path = (
+                    args.style_source or resolve_default_style_guide_source()
+                )
             outpath = run_scan(
                 args.role_path,
                 output=args.output,
@@ -596,6 +804,8 @@ def main(argv=None) -> int:
                 style_guide_skeleton=args.create_style_guide,
                 keep_unknown_style_sections=args.keep_unknown_style_sections,
                 exclude_path_patterns=args.exclude_path,
+                style_source_path=args.style_source,
+                policy_config_path=args.policy_config,
                 dry_run=args.dry_run,
             )
             if args.dry_run:

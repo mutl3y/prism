@@ -61,7 +61,8 @@ Role notes
 {% set warnings = role_notes.warnings if role_notes and role_notes.warnings else [] %}
 {% set deprecations = role_notes.deprecations if role_notes and role_notes.deprecations else [] %}
 {% set notes = role_notes.notes if role_notes and role_notes.notes else [] %}
-{% if warnings or deprecations or notes %}
+{% set additionals = role_notes.additionals if role_notes and role_notes.additionals else [] %}
+{% if warnings or deprecations or notes or additionals %}
 {% if warnings %}
 Warnings:
 {% for item in warnings %}
@@ -79,6 +80,13 @@ Deprecations:
 
 Notes:
 {% for item in notes %}
+- {{ item }}
+{% endfor %}
+{% endif %}
+{% if additionals %}
+
+Additionals:
+{% for item in additionals %}
 - {{ item }}
 {% endfor %}
 {% endif %}

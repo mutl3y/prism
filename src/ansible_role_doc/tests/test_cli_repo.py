@@ -1,10 +1,23 @@
 from pathlib import Path
+import base64
+import json
 import subprocess
 from types import SimpleNamespace
 
 import pytest
 
 from ansible_role_doc import cli
+
+_REAL_FETCH_REPO_FILE = cli._fetch_repo_file
+_REAL_FETCH_REPO_DIRECTORY_NAMES = cli._fetch_repo_directory_names
+
+
+@pytest.fixture(autouse=True)
+def _disable_remote_github_api(monkeypatch):
+    monkeypatch.setattr(
+        cli, "_fetch_repo_directory_names", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(cli, "_fetch_repo_file", lambda *args, **kwargs: None)
 
 
 def test_cli_scans_from_repo_url(monkeypatch, tmp_path):
@@ -171,6 +184,101 @@ def test_cli_ssh_repo_url_is_preserved(monkeypatch, tmp_path):
 
     assert rc == 0
     assert clone_cmd["cmd"][-2] == "git@github.com:example/role.git"
+
+
+def test_fetch_repo_file_uses_github_contents_api(monkeypatch, tmp_path):
+    seen: dict = {}
+    destination = tmp_path / "fetched" / "README.md"
+    encoded = base64.b64encode(b"# Guide\n").decode("ascii")
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps(
+                {"type": "file", "encoding": "base64", "content": encoded}
+            ).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        seen["url"] = request.full_url
+        seen["timeout"] = timeout
+        return _Response()
+
+    monkeypatch.setattr(cli, "urlopen", fake_urlopen)
+
+    result = _REAL_FETCH_REPO_FILE(
+        "https://github.com/example/demo-role.git",
+        "docs/README.md",
+        destination,
+        ref="main",
+        timeout=5,
+    )
+
+    assert result == destination
+    assert destination.read_text(encoding="utf-8") == "# Guide\n"
+    assert seen["timeout"] == 5
+    assert seen["url"].endswith("/contents/docs/README.md?ref=main")
+
+
+def test_fetch_repo_directory_names_uses_github_contents_api(monkeypatch):
+    seen: dict = {}
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps(
+                [
+                    {"type": "dir", "name": "tasks"},
+                    {"type": "dir", "name": "defaults"},
+                    {"type": "file", "name": "README.md"},
+                ]
+            ).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        seen["url"] = request.full_url
+        seen["timeout"] = timeout
+        return _Response()
+
+    monkeypatch.setattr(cli, "urlopen", fake_urlopen)
+
+    result = _REAL_FETCH_REPO_DIRECTORY_NAMES(
+        "https://github.com/example/demo-role.git",
+        repo_path=".",
+        ref="main",
+        timeout=7,
+    )
+
+    assert result == {"defaults", "tasks"}
+    assert seen["timeout"] == 7
+    assert seen["url"].endswith("/contents?ref=main")
+
+
+def test_repo_path_looks_like_role_uses_standard_role_dirs():
+    assert cli._repo_path_looks_like_role({"tasks", "defaults", "meta"}) is True
+    assert cli._repo_path_looks_like_role({"tasks", "defaults"}) is False
+    assert cli._repo_path_looks_like_role({"docs", "github"}) is False
+
+
+def test_fetch_repo_file_returns_none_for_non_github_repo(tmp_path):
+    destination = tmp_path / "README.md"
+
+    result = cli._fetch_repo_file(
+        "https://gitlab.com/example/demo-role.git",
+        "README.md",
+        destination,
+    )
+
+    assert result is None
+    assert not destination.exists()
 
 
 def test_cli_requires_single_input_source():
@@ -535,6 +643,50 @@ def test_cli_keep_unknown_style_sections_flag_is_forwarded(monkeypatch, tmp_path
     assert calls["keep_unknown_style_sections"] is True
 
 
+def test_cli_style_source_is_forwarded(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    style_source = tmp_path / "STYLE_GUIDE_SOURCE.md"
+    role.mkdir()
+    style_source.write_text("# Guide\n", encoding="utf-8")
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["style_source_path"] = kwargs.get("style_source_path")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "style-source.md"
+    rc = cli.main([str(role), "--style-source", str(style_source), "-o", str(out)])
+
+    assert rc == 0
+    assert calls["style_source_path"] == str(style_source)
+
+
+def test_cli_policy_config_is_forwarded(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    policy_cfg = tmp_path / "policy.yml"
+    role.mkdir()
+    policy_cfg.write_text("ignored_identifiers: []\n", encoding="utf-8")
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["policy_config_path"] = kwargs.get("policy_config_path")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "policy.md"
+    rc = cli.main([str(role), "--policy-config", str(policy_cfg), "-o", str(out)])
+
+    assert rc == 0
+    assert calls["policy_config_path"] == str(policy_cfg)
+
+
 def test_cli_repo_style_readme_path_is_resolved(monkeypatch, tmp_path):
     calls: dict = {}
 
@@ -558,6 +710,7 @@ def test_cli_repo_style_readme_path_is_resolved(monkeypatch, tmp_path):
 
     monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+    monkeypatch.setattr(cli, "_fetch_repo_file", lambda *args, **kwargs: None)
 
     out = tmp_path / "repo-style.md"
     rc = cli.main(
@@ -588,6 +741,81 @@ def test_cli_repo_style_readme_path_is_resolved(monkeypatch, tmp_path):
     assert "unknown_style_sections" in cfg_text
     assert "title: Unknown Custom Notes" in cfg_text
     assert "Human-authored unknown section body." in cfg_text
+
+
+def test_cli_repo_style_readme_fetch_skips_sparse_style_path(monkeypatch, tmp_path):
+    calls: dict = {}
+    fetched_style = tmp_path / "remote-style.md"
+    fetched_style.write_text("# Remote Guide\n", encoding="utf-8")
+
+    def fake_fetch_repo_file(repo_url, repo_path, destination, ref=None, timeout=60):
+        calls["fetched_repo_path"] = repo_path
+        calls["fetch_destination"] = destination
+        return fetched_style
+
+    def fake_clone_repo(repo_url, destination, ref=None, timeout=60, sparse_paths=None):
+        calls["clone_sparse_paths"] = sparse_paths
+        role_dir = destination / "roles" / "demo"
+        role_dir.mkdir(parents=True, exist_ok=True)
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["style_readme_path"] = kwargs.get("style_readme_path")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(
+        cli,
+        "_fetch_repo_directory_names",
+        lambda *args, **kwargs: {"tasks", "defaults", "meta"},
+    )
+    monkeypatch.setattr(cli, "_fetch_repo_file", fake_fetch_repo_file)
+    monkeypatch.setattr(cli, "_clone_repo", fake_clone_repo)
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "repo-style-fetched.md"
+    rc = cli.main(
+        [
+            "--repo-url",
+            "https://github.com/example/demo-role.git",
+            "--repo-role-path",
+            "roles/demo",
+            "--repo-style-readme-path",
+            "README.md",
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert calls["fetched_repo_path"] == "README.md"
+    assert calls["clone_sparse_paths"] == ["roles/demo"]
+    assert calls["style_readme_path"] == str(fetched_style.resolve())
+
+
+def test_cli_repo_rejects_non_role_directory_listing(monkeypatch, tmp_path, capsys):
+    def fail_clone(*args, **kwargs):
+        raise AssertionError("clone should not run for non-role repos")
+
+    monkeypatch.setattr(
+        cli,
+        "_fetch_repo_directory_names",
+        lambda *args, **kwargs: {"docs", ".github"},
+    )
+    monkeypatch.setattr(cli, "_clone_repo", fail_clone)
+
+    out = tmp_path / "non-role.md"
+    rc = cli.main(
+        [
+            "--repo-url",
+            "https://github.com/example/not-a-role.git",
+            "-o",
+            str(out),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "repository path does not look like an Ansible role" in captured.err
 
 
 def test_clone_repo_timeout_raises_runtime_error(monkeypatch, tmp_path):

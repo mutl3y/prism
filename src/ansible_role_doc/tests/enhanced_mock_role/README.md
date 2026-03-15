@@ -1,8 +1,6 @@
 Role Name
 =========
 
-Note: Fixture usage guidance is documented in `src/ansible_role_doc/tests/roles/README.md`.
-
 A brief description of the role goes here.
 
 Requirements

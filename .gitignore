@@ -7,3 +7,7 @@ __pycache__/
 htmlcov/
 
 debug_readmes/
+
+# Local Podman/Postgres runtime state
+.env.podman
+.local/
