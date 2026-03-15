@@ -3,7 +3,7 @@ ansible-role-doc
 
 [![CI](https://github.com/mutl3y/ansible_role_doc/actions/workflows/default.yml/badge.svg?branch=main)](https://github.com/mutl3y/ansible_role_doc/actions/workflows/default.yml)
 [![Branch](https://img.shields.io/github/actions/workflow/status/mutl3y/ansible_role_doc/default.yml?branch=main&label=main)](https://github.com/mutl3y/ansible_role_doc/tree/main)
-[![Coverage](.github/badges/coverage.svg)](COVERAGE_WORKOFF_PLAN.md)
+[![Coverage](https://raw.githubusercontent.com/mutl3y/ansible_role_doc/badges/.github/badges/coverage.svg)](COVERAGE_WORKOFF_PLAN.md)
 [![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml)
 [![License](https://img.shields.io/github/license/mutl3y/ansible_role_doc)](LICENSE)
 
