@@ -1,4 +1,4 @@
-.PHONY: venv install dev test lint clean clean-demo-readmes
+.PHONY: venv install dev test lint clean clean-demo-readmes demo-readmes
 
 venv:
 	python3 -m venv .venv
@@ -24,6 +24,17 @@ clean-demo-readmes:
 	rm -f REVIEW_README.md
 	if [ -d debug_readmes ]; then find debug_readmes -mindepth 1 -delete; fi
 	mkdir -p debug_readmes
+
+demo-readmes:
+	set -e; \
+	BASE_ROLE="src/ansible_role_doc/tests/roles/base_mock_role"; \
+	INROLE_CFG_ROLE="src/ansible_role_doc/tests/roles/inrole_config_role"; \
+	python -m ansible_role_doc.cli "$$BASE_ROLE" -o debug_readmes/REVIEW_README.md -v; \
+	python -m ansible_role_doc.cli "$$BASE_ROLE" -o debug_readmes/REVIEW_README.html -f html -v; \
+	python -m ansible_role_doc.cli "$$BASE_ROLE" -o debug_readmes/REVIEW_README.json -f json -v; \
+	python -m ansible_role_doc.cli "$$BASE_ROLE" -o debug_readmes/REVIEW_README_CONCISE.md --concise-readme --scanner-report-output debug_readmes/SCAN_REPORT.md -v; \
+	python -m ansible_role_doc.cli "$$BASE_ROLE" -o debug_readmes/REVIEW_README_STYLE_GUIDE_SKELETON.md --create-style-guide -v; \
+	python -m ansible_role_doc.cli "$$INROLE_CFG_ROLE" -o debug_readmes/REVIEW_README_INROLE_CONFIG.md -v
 
 clean:
 	rm -rf debug_readmes
