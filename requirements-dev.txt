@@ -4,6 +4,6 @@ tox
 pytest
 pytest-cov
 ruff
-black
+black==25.1.0
 markdown
 pylint
