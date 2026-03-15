@@ -53,6 +53,40 @@ No inferred role summary available.
 {% endif %}
 {% endif %}
 
+{% if not enabled_sections or "role_notes" in enabled_sections %}
+Role notes
+----------
+
+{% set role_notes = metadata.role_notes if metadata.role_notes is defined else {} %}
+{% set warnings = role_notes.warnings if role_notes and role_notes.warnings else [] %}
+{% set deprecations = role_notes.deprecations if role_notes and role_notes.deprecations else [] %}
+{% set notes = role_notes.notes if role_notes and role_notes.notes else [] %}
+{% if warnings or deprecations or notes %}
+{% if warnings %}
+Warnings:
+{% for item in warnings %}
+- {{ item }}
+{% endfor %}
+{% endif %}
+{% if deprecations %}
+
+Deprecations:
+{% for item in deprecations %}
+- {{ item }}
+{% endfor %}
+{% endif %}
+{% if notes %}
+
+Notes:
+{% for item in notes %}
+- {{ item }}
+{% endfor %}
+{% endif %}
+{% else %}
+No role notes were found in comment annotations.
+{% endif %}
+{% endif %}
+
 {% if not enabled_sections or "variable_summary" in enabled_sections %}
 Inputs / variables summary
 --------------------------
@@ -63,6 +97,27 @@ Inputs / variables summary
 {% for row in metadata.variable_insights %}
 | `{{ row.name }}` | {{ row.type }} | `{{ row.default | replace("`","'") }}` | {{ row.source }}{% if row.secret %} (secret){% endif %} |
 {% endfor %}
+
+{% set unresolved = metadata.variable_insights | selectattr('is_unresolved', 'equalto', true) | list %}
+{% set ambiguous = metadata.variable_insights | selectattr('is_ambiguous', 'equalto', true) | list %}
+{% if unresolved or ambiguous %}
+
+Variable provenance and confidence notes:
+
+{% if unresolved %}
+Unresolved variables:
+{% for row in unresolved %}
+- `{{ row.name }}`: {{ row.uncertainty_reason if row.uncertainty_reason else "Unknown source." }}
+{% endfor %}
+{% endif %}
+
+{% if ambiguous %}
+Ambiguous variables:
+{% for row in ambiguous %}
+- `{{ row.name }}`: {{ row.uncertainty_reason if row.uncertainty_reason else "Multiple possible sources." }}
+{% endfor %}
+{% endif %}
+{% endif %}
 {% else %}
 No variable insights available.
 {% endif %}
@@ -116,11 +171,11 @@ Role contents summary
 
 The scanner collected these role subdirectories (counts):
 
-{% for key, items in metadata.items() if key not in ('meta', 'features', 'comparison', 'variable_insights', 'doc_insights') and items is sequence and (items is not string) %}
+{% for key, items in metadata.items() if key not in ('meta', 'features', 'comparison', 'variable_insights', 'doc_insights', 'role_notes', 'scanner_counters') and items is sequence and (items is not string) %}
 - **{{ key }}**: {{ items|length }} files
 {% endfor %}
 
-{% for key, items in metadata.items() if key not in ('meta', 'features', 'comparison', 'variable_insights', 'doc_insights') %}
+{% for key, items in metadata.items() if key not in ('meta', 'features', 'comparison', 'variable_insights', 'doc_insights', 'role_notes', 'scanner_counters') %}
 {% if items %}
 ### {{ key|capitalize }}
 

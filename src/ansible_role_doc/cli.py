@@ -188,6 +188,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--exclude-path",
+        action="append",
+        default=None,
+        help=(
+            "Exclude role-relative paths or glob patterns from analysis "
+            "(can be passed multiple times; examples: templates/*, tests/**, vars/main.yml)."
+        ),
+    )
+    p.add_argument(
         "-o", "--output", default="README.md", help="Output README file path"
     )
     p.add_argument(
@@ -545,6 +554,7 @@ def main(argv=None) -> int:
                     adopt_style_headings=args.adopt_style_headings,
                     style_guide_skeleton=args.create_style_guide,
                     keep_unknown_style_sections=args.keep_unknown_style_sections,
+                    exclude_path_patterns=args.exclude_path,
                     dry_run=args.dry_run,
                 )
                 if args.dry_run:
@@ -585,6 +595,7 @@ def main(argv=None) -> int:
                 adopt_style_headings=args.adopt_style_headings,
                 style_guide_skeleton=args.create_style_guide,
                 keep_unknown_style_sections=args.keep_unknown_style_sections,
+                exclude_path_patterns=args.exclude_path,
                 dry_run=args.dry_run,
             )
             if args.dry_run:

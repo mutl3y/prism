@@ -72,6 +72,10 @@ section_aliases:
   "role contents":                               role_contents
   "role contents summary":                       role_contents
 
+  # ── role_notes ──────────────────────────────────────────────────────────
+  "notes":                                      role_notes
+  "role notes":                                 role_notes
+
   # ── handlers ───────────────────────────────────────────────────────────
   "handlers":                                    handlers
 

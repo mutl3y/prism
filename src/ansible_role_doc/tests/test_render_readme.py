@@ -77,6 +77,8 @@ def test_run_scan_concise_readme_writes_scanner_sidecar(tmp_path):
     assert "Role Variables" not in readme
     assert "scanner report" in report_content.lower()
     assert "Auto-detected role features" in report_content
+    assert "Summary" in report_content
+    assert "Total variables" in report_content
 
 
 def test_run_scan_concise_readme_can_hide_scanner_link_section(tmp_path):
@@ -99,6 +101,28 @@ def test_run_scan_concise_readme_can_hide_scanner_link_section(tmp_path):
     assert report.exists()
     assert "Scanner report" not in readme
     assert "Detailed scanner output is available in" not in readme
+
+
+def test_run_scan_renders_comment_driven_role_notes(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "# <notes> Warning: this package is unhealthy\n"
+        "# <notes> Note: test in staging first\n"
+        "- name: noop\n"
+        "  debug:\n"
+        "    msg: ok\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "README_NOTES.md"
+    scanner.run_scan(str(role), output=str(out))
+
+    content = out.read_text(encoding="utf-8")
+    assert "Role notes" in content
+    assert "this package is unhealthy" in content
+    assert "test in staging first" in content
 
 
 def test_run_scan_readme_config_can_gate_sections(tmp_path):

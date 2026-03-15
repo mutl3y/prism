@@ -531,3 +531,249 @@ def test_load_pattern_config_precedence_later_overrides_earlier(monkeypatch, tmp
 
     assert implicit["sensitivity"]["name_tokens"] == ["from_env"]
     assert explicit["sensitivity"]["name_tokens"] == ["from_explicit"]
+
+
+def test_build_variable_insights_include_provenance_fields(tmp_path):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    rows = scanner.build_variable_insights(str(target))
+    row = next(item for item in rows if item["name"] == "variable1")
+
+    assert row["provenance_source_file"] == "defaults/main.yml"
+    assert isinstance(row["provenance_line"], int)
+    assert row["provenance_confidence"] >= 0.9
+    assert row["is_unresolved"] is False
+
+
+def test_build_variable_insights_marks_override_as_ambiguous(tmp_path):
+    role = tmp_path / "role"
+    (role / "defaults").mkdir(parents=True)
+    (role / "vars").mkdir(parents=True)
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+    (role / "defaults" / "main.yml").write_text("shared_value: 1\n", encoding="utf-8")
+    (role / "vars" / "main.yml").write_text("shared_value: 2\n", encoding="utf-8")
+
+    rows = scanner.build_variable_insights(str(role))
+    row = next(item for item in rows if item["name"] == "shared_value")
+
+    assert row["is_ambiguous"] is True
+    assert row["provenance_source_file"] == "vars/main.yml"
+    assert 0.7 <= row["provenance_confidence"] < 0.9
+
+
+def test_build_variable_insights_mentions_dynamic_include_vars_uncertainty(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    templates = role / "templates"
+    tasks.mkdir(parents=True)
+    templates.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: dynamic include\n"
+        '  include_vars: "{{ var_file }}"\n'
+        "- name: use unresolved\n"
+        "  debug:\n"
+        '    msg: "{{ unresolved_name }}"\n',
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    unresolved = next(item for item in rows if item["name"] == "unresolved_name")
+
+    assert unresolved["is_unresolved"] is True
+    assert "Dynamic include_vars" in unresolved["uncertainty_reason"]
+
+
+def test_extract_role_notes_from_comments(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "# <notes> Warning: This package is unhealthy\n"
+        "# <notes> Deprecated: old parameter is deprecated\n"
+        "# <notes> Note: run with --check first\n",
+        encoding="utf-8",
+    )
+
+    notes = scanner._extract_role_notes_from_comments(str(role))
+
+    assert notes["warnings"] == ["This package is unhealthy"]
+    assert notes["deprecations"] == ["old parameter is deprecated"]
+    assert notes["notes"] == ["run with --check first"]
+
+
+def test_extract_scanner_counters_groups_by_confidence_and_status():
+    counters = scanner._extract_scanner_counters(
+        [
+            {
+                "documented": True,
+                "is_unresolved": False,
+                "is_ambiguous": False,
+                "secret": False,
+                "required": False,
+                "provenance_confidence": 0.95,
+            },
+            {
+                "documented": False,
+                "is_unresolved": True,
+                "is_ambiguous": True,
+                "secret": True,
+                "required": True,
+                "provenance_confidence": 0.65,
+            },
+        ],
+        [{"file": "tasks/main.yml", "line_no": 3, "match": "x", "args": "y"}],
+    )
+
+    assert counters["total_variables"] == 2
+    assert counters["documented_variables"] == 1
+    assert counters["undocumented_variables"] == 1
+    assert counters["unresolved_variables"] == 1
+    assert counters["ambiguous_variables"] == 1
+    assert counters["secret_variables"] == 1
+    assert counters["required_variables"] == 1
+    assert counters["high_confidence_variables"] == 1
+    assert counters["low_confidence_variables"] == 1
+    assert counters["undocumented_default_filters"] == 1
+
+
+def test_scan_for_default_filters_respects_exclude_paths(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Included\n"
+        "  debug:\n"
+        "    msg: \"{{ keep_me | default('ok') }}\"\n",
+        encoding="utf-8",
+    )
+
+    found_all = scanner.scan_for_default_filters(str(role))
+    found_excluded = scanner.scan_for_default_filters(
+        str(role),
+        exclude_paths=["tasks/**"],
+    )
+
+    assert len(found_all) == 1
+    assert found_excluded == []
+
+
+def test_build_variable_insights_respects_exclude_paths(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    templates = role / "templates"
+    tasks.mkdir(parents=True)
+    templates.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n- name: Render\n  template:\n    src: app.j2\n    dest: /tmp/app\n",
+        encoding="utf-8",
+    )
+    (templates / "app.j2").write_text("{{ template_only_var }}\n", encoding="utf-8")
+
+    rows_all = scanner.build_variable_insights(str(role), include_vars_main=False)
+    rows_excluded = scanner.build_variable_insights(
+        str(role),
+        include_vars_main=False,
+        exclude_paths=["templates/**"],
+    )
+
+    names_all = {row["name"] for row in rows_all}
+    names_excluded = {row["name"] for row in rows_excluded}
+    assert "template_only_var" in names_all
+    assert "template_only_var" not in names_excluded
+
+
+def test_collect_referenced_variable_names_handles_macros_and_control_flow(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    templates = role / "templates"
+    tasks.mkdir(parents=True)
+    templates.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Render config\n"
+        "  template:\n"
+        "    src: app.j2\n"
+        "    dest: /tmp/app.conf\n",
+        encoding="utf-8",
+    )
+    (templates / "app.j2").write_text(
+        "{% macro render_item(item) -%}\n"
+        "{{ item.name | default(fallback_name) }}\n"
+        "{%- endmacro %}\n"
+        "{% for host in target_hosts %}\n"
+        "{{ render_item(host) }}\n"
+        "{% endfor %}\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    names = {row["name"] for row in rows}
+
+    assert "target_hosts" in names
+    assert "fallback_name" in names
+    assert "item" not in names
+    assert "host" not in names
+
+
+def test_collect_referenced_variable_names_handles_custom_jinja_tests_and_filters(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    templates = role / "templates"
+    tasks.mkdir(parents=True)
+    templates.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Render config\n"
+        "  template:\n"
+        "    src: app.j2\n"
+        "    dest: /tmp/app.conf\n",
+        encoding="utf-8",
+    )
+    (templates / "app.j2").write_text(
+        "{% if feature_flags is custom_flag %}\n"
+        "{{ payload | to_nice_yaml(indent=2) }}\n"
+        "{% endif %}\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    names = {row["name"] for row in rows}
+
+    assert "feature_flags" in names
+    assert "payload" in names
+
+
+def test_collect_task_files_ignores_dynamic_include_targets(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Dynamic include\n"
+        '  include_tasks: "{{ include_target }}"\n'
+        "- name: Static include\n"
+        "  include_tasks: static.yml\n",
+        encoding="utf-8",
+    )
+    (tasks / "static.yml").write_text(
+        "---\n" "- name: Use var\n" "  debug:\n" '    msg: "{{ static_var }}"\n',
+        encoding="utf-8",
+    )
+
+    discovered = scanner._collect_task_files(role)
+    rel_paths = [str(path.relative_to(role)) for path in discovered]
+
+    assert "tasks/main.yml" in rel_paths
+    assert "tasks/static.yml" in rel_paths
