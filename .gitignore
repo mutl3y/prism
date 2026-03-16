@@ -6,8 +6,16 @@ __pycache__/
 .coverage
 htmlcov/
 
+# Build / packaging artefacts
+*.egg-info/
+dist/
+build/
+
 debug_readmes/
 
 # Local Podman/Postgres runtime state
 .env.podman
 .local/
+
+# Stray files
+et *

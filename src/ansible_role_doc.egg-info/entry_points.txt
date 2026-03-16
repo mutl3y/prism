@@ -1,2 +1,0 @@
-[console_scripts]
-ansible-role-doc = ansible_role_doc.cli:main
