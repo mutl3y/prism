@@ -54,7 +54,8 @@ Priority improvements planned
 
 Usage:
 
-- Install: pip install -e .
+- Install core scanner only: pip install -e .
+- Install dev tooling and learning-batch dependencies: pip install -e .[dev]
 - Run: ansible-role-doc path/to/role -o output.md
 - Compare against local baseline (optional review/testing mode, not default generation): ansible-role-doc path/to/role --compare-role-path path/to/baseline -o debug_readmes/REVIEW_README_COMPARE.md
 - Reuse an existing README as a style guide: `ansible-role-doc path/to/role --style-readme path/to/README.md -o debug_readmes/REVIEW_README_STYLED.md`
@@ -187,6 +188,7 @@ CI note:
 Learning batch note:
 
 - Repository batch scans can be run with `scripts/learning_repo_batch.py` and persisted via the scaffold Postgres store.
+- Running `scripts/learning_repo_batch.py` directly requires a dev environment with `psycopg[binary]` installed, for example via `pip install -e .[dev]` or `pip install -r requirements-dev.txt`.
 - Freshness skipping is enabled by default (`--skip-if-fresh-days 7`); use `--force-rescan` to scan all provided URLs.
 - Latest wide sample batch run label: `sample12-20260315-193723` with `12/12` successful repo scans.
 

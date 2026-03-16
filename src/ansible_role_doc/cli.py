@@ -6,6 +6,7 @@ Provides a small CLI wrapper around :func:`ansible_role_doc.scanner.run_scan`.
 from __future__ import annotations
 import base64
 import argparse
+from contextlib import contextmanager
 from datetime import datetime, UTC
 import json
 import os
@@ -57,6 +58,25 @@ _ROLE_MARKER_DIRS = frozenset(
     {"defaults", "files", "handlers", "meta", "tasks", "templates", "tests", "vars"}
 )
 _MIN_ROLE_MARKER_DIRS = 3
+_REQUIRED_ROLE_DIRS = frozenset({"defaults", "tasks", "meta"})
+_SHARED_TMP_ROOT_NAME = "ansible-role-doc"
+
+
+@contextmanager
+def _repo_scan_workspace():
+    """Yield a repo-scan workspace under a shared temp root and clean it up."""
+    shared_root = Path(tempfile.gettempdir()) / _SHARED_TMP_ROOT_NAME
+    shared_root.mkdir(parents=True, exist_ok=True)
+    workspace = Path(tempfile.mkdtemp(prefix="scan-", dir=shared_root))
+    try:
+        yield workspace
+    finally:
+        shutil.rmtree(workspace, ignore_errors=True)
+        try:
+            if shared_root.exists() and not any(shared_root.iterdir()):
+                shared_root.rmdir()
+        except OSError:
+            pass
 
 
 def _sanitize_captured_content(text: str) -> str:
@@ -252,12 +272,13 @@ def _clone_repo(
     ref: str | None = None,
     timeout: int = 60,
     sparse_paths: list[str] | None = None,
+    allow_sparse_fallback_to_full: bool = True,
 ) -> None:
     """Clone a git repository into ``destination`` with shallow history.
 
     When ``sparse_paths`` is provided, first attempt a sparse/partial checkout to
-    reduce downloaded content. If sparse setup fails, fall back to a regular
-    shallow clone so behavior remains reliable.
+    reduce downloaded content. If sparse setup fails, behavior depends on
+    ``allow_sparse_fallback_to_full``.
     """
     parsed = urlparse(repo_url)
     clone_url = repo_url
@@ -322,8 +343,14 @@ def _clone_repo(
                 _run_clone(clone_cmd)
                 _run_sparse_checkout(requested_sparse_paths)
                 return
-            except subprocess.CalledProcessError:
+            except subprocess.CalledProcessError as sparse_exc:
                 shutil.rmtree(destination, ignore_errors=True)
+                if not allow_sparse_fallback_to_full:
+                    sparse_stderr = (sparse_exc.stderr or "").strip()
+                    raise RuntimeError(
+                        "repository sparse checkout failed"
+                        + (f": {sparse_stderr}" if sparse_stderr else "")
+                    ) from sparse_exc
 
         fallback_cmd = ["git", "clone", "--depth", "1"]
         if ref:
@@ -453,7 +480,33 @@ def _repo_path_looks_like_role(dir_names: set[str] | None) -> bool:
         return False
 
     role_markers = _ROLE_MARKER_DIRS & dir_names
-    return "tasks" in role_markers and len(role_markers) >= _MIN_ROLE_MARKER_DIRS
+    if _REQUIRED_ROLE_DIRS <= role_markers:
+        return True
+    return False
+
+
+def _build_repo_style_readme_candidates(
+    repo_style_readme_path: str | None,
+) -> list[str]:
+    """Build deterministic README path candidates for case-variant fallback."""
+    normalized = _normalize_repo_path(repo_style_readme_path)
+    if not normalized:
+        return []
+
+    candidates: list[str] = [normalized]
+    path_obj = Path(normalized)
+    file_name = path_obj.name
+    parent = path_obj.parent.as_posix()
+    if parent == ".":
+        parent = ""
+
+    if file_name.lower() == "readme.md":
+        for variant in ("README.md", "Readme.md", "readme.md"):
+            candidate = f"{parent}/{variant}" if parent else variant
+            if candidate not in candidates:
+                candidates.append(candidate)
+
+    return candidates
 
 
 def _fetch_repo_file(
@@ -501,7 +554,7 @@ def _fetch_repo_file(
 
 def _build_sparse_clone_paths(
     repo_role_path: str,
-    repo_style_readme_path: str | None,
+    repo_style_readme_path: str | list[str] | None,
 ) -> list[str]:
     """Build sparse checkout targets for repo-based scans.
 
@@ -512,7 +565,11 @@ def _build_sparse_clone_paths(
         return []
 
     paths = [role_path]
-    if repo_style_readme_path and repo_style_readme_path.strip():
+    if isinstance(repo_style_readme_path, list):
+        paths.extend(
+            path.strip() for path in repo_style_readme_path if path and path.strip()
+        )
+    elif repo_style_readme_path and repo_style_readme_path.strip():
         paths.append(repo_style_readme_path.strip())
 
     deduped: list[str] = []
@@ -683,8 +740,8 @@ def main(argv=None) -> int:
 
     try:
         if args.repo_url:
-            with tempfile.TemporaryDirectory(prefix="ansible-role-doc-") as tmp_dir:
-                checkout_dir = Path(tmp_dir) / "repo"
+            with _repo_scan_workspace() as workspace:
+                checkout_dir = workspace / "repo"
                 repo_dir_names = _fetch_repo_directory_names(
                     args.repo_url,
                     repo_path=args.repo_role_path,
@@ -698,17 +755,20 @@ def main(argv=None) -> int:
                         "repository path does not look like an Ansible role: "
                         f"{args.repo_role_path}"
                     )
+                style_candidates = _build_repo_style_readme_candidates(
+                    args.repo_style_readme_path
+                )
                 fetched_repo_style_readme_path = None
-                if args.repo_style_readme_path:
+                for style_candidate in style_candidates:
                     fetched_repo_style_readme_path = _fetch_repo_file(
                         args.repo_url,
-                        args.repo_style_readme_path,
-                        Path(tmp_dir)
-                        / "repo-style-readme"
-                        / Path(args.repo_style_readme_path).name,
+                        style_candidate,
+                        workspace / "repo-style-readme" / Path(style_candidate).name,
                         ref=args.repo_ref,
                         timeout=args.repo_timeout,
                     )
+                    if fetched_repo_style_readme_path is not None:
+                        break
                 if args.verbose:
                     print(f"Cloning: {args.repo_url}")
                 _clone_repo(
@@ -721,7 +781,7 @@ def main(argv=None) -> int:
                         (
                             None
                             if fetched_repo_style_readme_path is not None
-                            else args.repo_style_readme_path
+                            else style_candidates
                         ),
                     ),
                 )
@@ -733,10 +793,12 @@ def main(argv=None) -> int:
                 style_readme_path = args.style_readme
                 if fetched_repo_style_readme_path is not None:
                     style_readme_path = str(fetched_repo_style_readme_path.resolve())
-                elif args.repo_style_readme_path:
-                    style_readme_path = str(
-                        (checkout_dir / args.repo_style_readme_path).resolve()
-                    )
+                elif style_candidates:
+                    for style_candidate in style_candidates:
+                        candidate_path = (checkout_dir / style_candidate).resolve()
+                        if candidate_path.is_file():
+                            style_readme_path = str(candidate_path)
+                            break
                 if args.create_style_guide and not style_readme_path:
                     style_readme_path = (
                         args.style_source or resolve_default_style_guide_source()

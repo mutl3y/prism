@@ -4,7 +4,7 @@ import shutil
 
 import pytest
 
-from ansible_role_doc import api
+from ansible_role_doc import api, cli
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -118,10 +118,15 @@ def test_scan_repo_forwards_repo_options(monkeypatch):
     assert clone_calls["repo_url"] == "https://github.com/example/demo-role.git"
     assert clone_calls["ref"] == "main"
     assert clone_calls["timeout"] == 5
-    assert clone_calls["sparse_paths"] == ["roles/demo", "README.md"]
+    assert clone_calls["sparse_paths"] == [
+        "roles/demo",
+        "README.md",
+        "Readme.md",
+        "readme.md",
+    ]
     assert scan_calls["role_path"].endswith("roles/demo")
     assert scan_calls["role_name_override"] == "demo-role"
-    assert scan_calls["style_readme_path"].endswith("README.md")
+    assert scan_calls["style_readme_path"] is None
     assert scan_calls["exclude_path_patterns"] == ["tests/**"]
     assert scan_calls["style_source_path"] == "/tmp/style.md"
     assert scan_calls["policy_config_path"] == "/tmp/policy.yml"
@@ -203,3 +208,190 @@ def test_scan_repo_raises_for_missing_repo_role_path(monkeypatch):
             "https://github.com/example/demo-role.git",
             repo_role_path="roles/missing",
         )
+
+
+def test_scan_repo_lightweight_readme_only_skips_clone(monkeypatch, tmp_path):
+    fetched_style = tmp_path / "fetched-style.md"
+    fetched_style.write_text("# Guide\n", encoding="utf-8")
+    scan_calls: dict = {}
+
+    monkeypatch.setattr(
+        api,
+        "_fetch_repo_directory_names",
+        lambda *args, **kwargs: {"tasks", "defaults", "meta"},
+    )
+    monkeypatch.setattr(api, "_fetch_repo_file", lambda *args, **kwargs: fetched_style)
+    monkeypatch.setattr(
+        api,
+        "_clone_repo",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("clone should not run in lightweight mode")
+        ),
+    )
+
+    def fake_scan_role(role_path, **kwargs):
+        scan_calls["role_path"] = role_path
+        scan_calls.update(kwargs)
+        return {"role_name": "demo-role", "metadata": {}}
+
+    monkeypatch.setattr(api, "scan_role", fake_scan_role)
+
+    payload = api.scan_repo(
+        "https://github.com/example/demo-role.git",
+        repo_role_path="roles/demo",
+        repo_style_readme_path="README.md",
+        lightweight_readme_only=True,
+    )
+
+    assert payload["role_name"] == "demo-role"
+    assert Path(scan_calls["role_path"]).name == "role-stub"
+    assert scan_calls["style_readme_path"] == str(fetched_style.resolve())
+    assert scan_calls["role_name_override"] == "demo-role"
+
+
+def test_scan_repo_uses_shared_temp_root_and_normalizes_style_path(
+    monkeypatch, tmp_path
+):
+    clone_calls: dict = {}
+
+    monkeypatch.setattr(cli.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(
+        api,
+        "_fetch_repo_directory_names",
+        lambda *args, **kwargs: {"tasks", "defaults", "meta"},
+    )
+
+    def fake_fetch_repo_file(repo_url, repo_path, destination, ref=None, timeout=60):
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text("# Guide\n", encoding="utf-8")
+        return destination
+
+    def fake_clone_repo(repo_url, destination, ref=None, timeout=60, sparse_paths=None):
+        clone_calls["destination"] = destination
+        role_dir = destination / "roles" / "demo"
+        role_dir.mkdir(parents=True)
+
+    def fake_scan_role(role_path, **kwargs):
+        return {
+            "role_name": "demo-role",
+            "metadata": {
+                "style_guide": {
+                    "path": kwargs["style_readme_path"],
+                }
+            },
+        }
+
+    monkeypatch.setattr(api, "_fetch_repo_file", fake_fetch_repo_file)
+    monkeypatch.setattr(api, "_clone_repo", fake_clone_repo)
+    monkeypatch.setattr(api, "scan_role", fake_scan_role)
+
+    payload = api.scan_repo(
+        "https://github.com/example/demo-role.git",
+        repo_role_path="roles/demo",
+        repo_style_readme_path="README.md",
+    )
+
+    assert clone_calls["destination"].parent.parent == tmp_path / "ansible-role-doc"
+    assert payload["metadata"]["style_guide"]["path"] == "README.md"
+    assert not (tmp_path / "ansible-role-doc").exists()
+
+
+def test_scan_repo_resolves_case_variant_repo_style_readme(monkeypatch, tmp_path):
+    calls: dict = {"requested_paths": []}
+
+    def fake_fetch_repo_file(repo_url, repo_path, destination, ref=None, timeout=60):
+        calls["requested_paths"].append(repo_path)
+        if repo_path != "readme.md":
+            return None
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text("# Guide\n", encoding="utf-8")
+        return destination
+
+    def fake_clone_repo(repo_url, destination, ref=None, timeout=60, sparse_paths=None):
+        calls["sparse_paths"] = sparse_paths
+        role_dir = destination / "roles" / "demo"
+        role_dir.mkdir(parents=True)
+
+    def fake_scan_role(role_path, **kwargs):
+        calls["style_readme_path"] = kwargs["style_readme_path"]
+        return {
+            "role_name": "demo-role",
+            "metadata": {"style_guide": {"path": kwargs["style_readme_path"]}},
+        }
+
+    monkeypatch.setattr(
+        api,
+        "_fetch_repo_directory_names",
+        lambda *args, **kwargs: {"tasks", "defaults", "meta"},
+    )
+    monkeypatch.setattr(api, "_fetch_repo_file", fake_fetch_repo_file)
+    monkeypatch.setattr(api, "_clone_repo", fake_clone_repo)
+    monkeypatch.setattr(api, "scan_role", fake_scan_role)
+
+    payload = api.scan_repo(
+        "https://github.com/example/demo-role.git",
+        repo_role_path="roles/demo",
+        repo_style_readme_path="README.md",
+    )
+
+    assert calls["requested_paths"] == ["README.md", "Readme.md", "readme.md"]
+    assert calls["sparse_paths"] == ["roles/demo"]
+    assert payload["metadata"]["style_guide"]["path"] == "readme.md"
+
+
+def test_scan_repo_lightweight_requires_readme_when_missing(monkeypatch):
+    monkeypatch.setattr(
+        api,
+        "_fetch_repo_directory_names",
+        lambda *args, **kwargs: {"tasks", "defaults", "meta"},
+    )
+    monkeypatch.setattr(api, "_fetch_repo_file", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        api,
+        "_clone_repo",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("clone should not run when API preflight is available")
+        ),
+    )
+
+    with pytest.raises(FileNotFoundError, match="style README not found in repository"):
+        api.scan_repo(
+            "https://github.com/example/demo-role.git",
+            repo_role_path="roles/demo",
+            repo_style_readme_path="README.md",
+            lightweight_readme_only=True,
+        )
+
+
+def test_scan_repo_lightweight_sparse_failure_does_not_fallback_full_clone(monkeypatch):
+    clone_calls: dict = {"count": 0}
+
+    monkeypatch.setattr(
+        api, "_fetch_repo_directory_names", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(api, "_fetch_repo_file", lambda *args, **kwargs: None)
+
+    def fake_clone_repo(
+        repo_url,
+        destination,
+        ref=None,
+        timeout=60,
+        sparse_paths=None,
+        allow_sparse_fallback_to_full=True,
+    ):
+        clone_calls["count"] += 1
+        clone_calls["allow_sparse_fallback_to_full"] = allow_sparse_fallback_to_full
+        raise RuntimeError("repository sparse checkout failed: boom")
+
+    monkeypatch.setattr(api, "_clone_repo", fake_clone_repo)
+
+    with pytest.raises(RuntimeError, match="repository sparse checkout failed"):
+        api.scan_repo(
+            "https://github.com/example/demo-role.git",
+            repo_role_path="roles/demo",
+            repo_style_readme_path="README.md",
+            lightweight_readme_only=True,
+        )
+
+    assert clone_calls["count"] == 1
+    assert clone_calls["allow_sparse_fallback_to_full"] is False

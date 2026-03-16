@@ -126,6 +126,31 @@ def test_cli_repo_timeout_is_forwarded(monkeypatch, tmp_path):
     assert clone_timeout["value"] == 5
 
 
+def test_cli_repo_scan_uses_shared_temp_root(monkeypatch, tmp_path):
+    clone_calls: dict = {}
+
+    def fake_clone_run(cmd, check, stdout, stderr, text, timeout, env):
+        destination = Path(cmd[-1])
+        clone_calls["destination"] = destination
+        destination.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "repo-shared-tmp.md"
+    rc = cli.main(["--repo-url", "https://github.com/example/role.git", "-o", str(out)])
+
+    assert rc == 0
+    assert clone_calls["destination"].parent.parent == tmp_path / "ansible-role-doc"
+    assert not (tmp_path / "ansible-role-doc").exists()
+
+
 def test_cli_github_https_url_is_converted_to_ssh(monkeypatch, tmp_path):
     clone_cmd: dict = {}
 
@@ -264,8 +289,23 @@ def test_fetch_repo_directory_names_uses_github_contents_api(monkeypatch):
 
 def test_repo_path_looks_like_role_uses_standard_role_dirs():
     assert cli._repo_path_looks_like_role({"tasks", "defaults", "meta"}) is True
+    assert cli._repo_path_looks_like_role({"tasks", "meta", "handlers"}) is False
     assert cli._repo_path_looks_like_role({"tasks", "defaults"}) is False
     assert cli._repo_path_looks_like_role({"docs", "github"}) is False
+
+
+def test_build_repo_style_readme_candidates_handles_case_variants():
+    assert cli._build_repo_style_readme_candidates("README.md") == [
+        "README.md",
+        "Readme.md",
+        "readme.md",
+    ]
+    assert cli._build_repo_style_readme_candidates("docs/readme.md") == [
+        "docs/readme.md",
+        "docs/README.md",
+        "docs/Readme.md",
+    ]
+    assert cli._build_repo_style_readme_candidates("docs/STYLE.md") == ["docs/STYLE.md"]
 
 
 def test_fetch_repo_file_returns_none_for_non_github_repo(tmp_path):
@@ -986,6 +1026,34 @@ def test_clone_repo_falls_back_when_sparse_checkout_fails(monkeypatch, tmp_path)
     assert "--filter=blob:none" in clone_commands[0]
     assert "--sparse" not in clone_commands[1]
     assert "--filter=blob:none" not in clone_commands[1]
+
+
+def test_clone_repo_does_not_fallback_when_sparse_fallback_disabled(
+    monkeypatch, tmp_path
+):
+    commands: list[list[str]] = []
+
+    def fake_clone_run(cmd, check, stdout, stderr, text, timeout, env):
+        commands.append(cmd)
+        if cmd[:2] == ["git", "clone"]:
+            destination = Path(cmd[-1])
+            destination.mkdir(parents=True, exist_ok=True)
+        if "sparse-checkout" in cmd:
+            raise subprocess.CalledProcessError(returncode=1, cmd=cmd, stderr="boom")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
+
+    with pytest.raises(RuntimeError, match="repository sparse checkout failed"):
+        cli._clone_repo(
+            "https://github.com/example/role.git",
+            tmp_path / "repo",
+            sparse_paths=["roles/demo"],
+            allow_sparse_fallback_to_full=False,
+        )
+
+    clone_commands = [cmd for cmd in commands if cmd[:2] == ["git", "clone"]]
+    assert len(clone_commands) == 1
 
 
 def test_save_style_comparison_artifacts_uses_parent_name_for_readme_slug(tmp_path):

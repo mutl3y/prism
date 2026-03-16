@@ -445,7 +445,7 @@ def test_run_scan_redacts_secret_like_default_filter_values(tmp_path):
 def test_load_pattern_config_reads_cwd_override(monkeypatch, tmp_path):
     override = tmp_path / ".ansible_role_doc_patterns.yml"
     override.write_text(
-        "sensitivity:\n" "  name_tokens:\n" "    - from_cwd_override\n",
+        "sensitivity:\n  name_tokens:\n    - from_cwd_override\n",
         encoding="utf-8",
     )
 
@@ -460,7 +460,7 @@ def test_load_pattern_config_reads_xdg_user_override(monkeypatch, tmp_path):
     override = xdg_home / "ansible-role-doc" / pattern_config.CWD_OVERRIDE_FILENAME
     override.parent.mkdir(parents=True)
     override.write_text(
-        "sensitivity:\n" "  name_tokens:\n" "    - from_xdg_override\n",
+        "sensitivity:\n  name_tokens:\n    - from_xdg_override\n",
         encoding="utf-8",
     )
 
@@ -474,7 +474,7 @@ def test_load_pattern_config_reads_xdg_user_override(monkeypatch, tmp_path):
 def test_load_pattern_config_reads_env_override(monkeypatch, tmp_path):
     override = tmp_path / "patterns-env.yml"
     override.write_text(
-        "sensitivity:\n" "  name_tokens:\n" "    - from_env_override\n",
+        "sensitivity:\n  name_tokens:\n    - from_env_override\n",
         encoding="utf-8",
     )
 
@@ -489,7 +489,7 @@ def test_load_pattern_config_reads_system_override(monkeypatch, tmp_path):
     system_override = tmp_path / "system" / pattern_config.CWD_OVERRIDE_FILENAME
     system_override.parent.mkdir(parents=True)
     system_override.write_text(
-        "sensitivity:\n" "  name_tokens:\n" "    - from_system_override\n",
+        "sensitivity:\n  name_tokens:\n    - from_system_override\n",
         encoding="utf-8",
     )
 
@@ -504,7 +504,7 @@ def test_load_pattern_config_precedence_later_overrides_earlier(monkeypatch, tmp
     def write_name_tokens(path: Path, token: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            "sensitivity:\n" "  name_tokens:\n" f"    - {token}\n",
+            f"sensitivity:\n  name_tokens:\n    - {token}\n",
             encoding="utf-8",
         )
 
@@ -705,10 +705,7 @@ def test_scan_for_default_filters_respects_exclude_paths(tmp_path):
     tasks = role / "tasks"
     tasks.mkdir(parents=True)
     (tasks / "main.yml").write_text(
-        "---\n"
-        "- name: Included\n"
-        "  debug:\n"
-        "    msg: \"{{ keep_me | default('ok') }}\"\n",
+        "---\n- name: Included\n  debug:\n    msg: \"{{ keep_me | default('ok') }}\"\n",
         encoding="utf-8",
     )
 
@@ -826,7 +823,7 @@ def test_collect_task_files_ignores_dynamic_include_targets(tmp_path):
         encoding="utf-8",
     )
     (tasks / "static.yml").write_text(
-        "---\n" "- name: Use var\n" "  debug:\n" '    msg: "{{ static_var }}"\n',
+        '---\n- name: Use var\n  debug:\n    msg: "{{ static_var }}"\n',
         encoding="utf-8",
     )
 
