@@ -684,6 +684,29 @@ def test_render_readme_merge_replaces_prior_generated_requirements_block(tmp_pat
     assert content.count("<!-- ansible-role-doc:generated:end:requirements -->") == 1
 
 
+def test_render_readme_defaults_to_merge_for_narrative_section_prose(tmp_path):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    style = tmp_path / "STYLE_TASK_SUMMARY_MERGE.md"
+    style.write_text(
+        "# Guide\n\n"
+        "## Task/module usage summary\n\n"
+        "Guide task summary prose that should be preserved.\n\n"
+        "## Role Variables\n\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "REVIEW_README_TASK_SUMMARY_MERGE.md"
+    scanner.run_scan(str(target), output=str(out), style_readme_path=str(style))
+
+    content = out.read_text(encoding="utf-8")
+    assert "Guide task summary prose that should be preserved." in content
+    assert "Generated content:" in content
+    assert "**Task files scanned**:" in content
+
+
 def test_render_readme_maps_extended_style_sections(tmp_path):
     """Render README with extended guide headings and ensure no unknown placeholders."""
     role_src = BASE_ROLE_FIXTURE

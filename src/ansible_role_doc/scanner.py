@@ -2599,10 +2599,23 @@ def _render_readme_with_style_guide(
     def _resolve_section_content_mode(section: dict, modes: dict[str, str]) -> str:
         """Resolve content handling mode for a style section."""
         section_id = str(section.get("id") or "")
+        guide_body = str(section.get("body") or "").strip()
         configured = str(modes.get(section_id) or "").strip().lower()
         if configured in {"generate", "replace", "merge"}:
             return configured
         if section_id == "requirements":
+            return "merge"
+        # Preserve source prose patterns for narrative sections while still
+        # appending scanner-derived structured content.
+        if guide_body and section_id in {
+            "purpose",
+            "task_summary",
+            "local_testing",
+            "handlers",
+            "template_overrides",
+            "faq_pitfalls",
+            "contributing",
+        }:
             return "merge"
         return "generate"
 

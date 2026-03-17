@@ -82,7 +82,7 @@
 
 ## 8) Refine style-guide fidelity
 
-- [ ] Reduce remaining differences between source guide prose patterns and generated output structure
+- [x] Reduce remaining differences between source guide prose patterns and generated output structure
 - [x] Expand style-aware rendering for additional source-specific sections when helpful
   - [x] Preserve source variable-section intro text when rendering simple lists and nested bullets
   - [x] Detect and render markdown-table variable sections from style guides
@@ -168,7 +168,7 @@
 - [x] Re-run coverage after each batch and update `COVERAGE_WORKOFF_PLAN.md`
 - [x] Optional stretch: add `--cov-fail-under` threshold to `tox` once a stable baseline is agreed
 - [x] `cli.py` pushed to 100% line and branch coverage
-- [ ] Optional stretch: one additional micro-batch targeting remaining defensive exception branches in `scanner.py` to push toward 92%+ line / 88%+ branch
+- [x] Optional stretch: one additional micro-batch targeting remaining defensive exception branches in `scanner.py` to push toward 92%+ line / 88%+ branch
 
 ## 12) Next-phase feature expansion (assessed additions)
 

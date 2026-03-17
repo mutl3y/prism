@@ -778,6 +778,83 @@ def test_collect_referenced_variable_names_handles_macros_and_control_flow(tmp_p
     assert "host" not in names
 
 
+def test_scan_file_for_default_filters_returns_empty_on_oserror(tmp_path, monkeypatch):
+    role = tmp_path / "role"
+    role.mkdir(parents=True)
+    target_file = role / "tasks.yml"
+    target_file.write_text("---\n", encoding="utf-8")
+
+    original_read_text = Path.read_text
+
+    def fake_read_text(self, encoding="utf-8"):
+        if self == target_file:
+            raise OSError("read failure")
+        return original_read_text(self, encoding=encoding)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+    rows = scanner._scan_file_for_default_filters(target_file, role)
+    assert rows == []
+
+
+def test_collect_molecule_scenarios_ignores_malformed_and_excluded_files(tmp_path):
+    role = tmp_path / "role"
+    valid = role / "molecule" / "default"
+    broken = role / "molecule" / "broken"
+    hidden = role / "molecule" / "skipme"
+    valid.mkdir(parents=True)
+    broken.mkdir(parents=True)
+    hidden.mkdir(parents=True)
+
+    (valid / "molecule.yml").write_text(
+        "---\n"
+        "driver:\n"
+        "  name: podman\n"
+        "verifier:\n"
+        "  name: ansible\n"
+        "platforms:\n"
+        "  - name: fedora\n"
+        "    image: quay.io/fedora:latest\n",
+        encoding="utf-8",
+    )
+    (broken / "molecule.yml").write_text("driver: [broken\n", encoding="utf-8")
+    (hidden / "molecule.yml").write_text(
+        "---\ndriver:\n  name: docker\n",
+        encoding="utf-8",
+    )
+
+    scenarios = scanner._collect_molecule_scenarios(
+        str(role),
+        exclude_paths=["molecule/skipme/**"],
+    )
+
+    assert scenarios == [
+        {
+            "name": "default",
+            "driver": "podman",
+            "verifier": "ansible",
+            "platforms": ["fedora (quay.io/fedora:latest)"],
+            "path": "molecule/default/molecule.yml",
+        }
+    ]
+
+
+def test_collect_task_handler_catalog_handles_empty_or_non_task_docs(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "handlers").mkdir(parents=True)
+
+    # Dict-shaped YAML should be ignored by task iterator and not raise.
+    (role / "tasks" / "main.yml").write_text("a: b\n", encoding="utf-8")
+    # Non-list handler file should also be ignored.
+    (role / "handlers" / "main.yml").write_text("handler: true\n", encoding="utf-8")
+
+    task_catalog, handler_catalog = scanner._collect_task_handler_catalog(str(role))
+
+    assert task_catalog == []
+    assert handler_catalog == []
+
+
 def test_collect_referenced_variable_names_handles_custom_jinja_tests_and_filters(
     tmp_path,
 ):
