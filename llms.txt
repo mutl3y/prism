@@ -1,0 +1,54 @@
+# ansible-role-doc
+
+> `ansible-role-doc` is a Python CLI/library that statically scans Ansible roles (and local collection roots) and generates README documentation in Markdown, HTML, JSON, or PDF, with style-guide reuse, policy/config overrides, and learning-loop support.
+
+Use this file as the entry point for understanding project intent, primary interfaces, operational workflows, and key configuration.
+
+The scanner is intentionally static/file-based; runtime-only Ansible behavior can remain unresolved and is surfaced as unknown/ambiguous metadata in generated outputs.
+
+## Documentation
+
+- [Main README](README.md): Project overview, features, CLI usage, API examples, and current capabilities/limitations.
+- [Contributing Guide](CONTRIBUTING.md): Development workflow and contribution expectations.
+- [Changelog](CHANGELOG.md): Release history and feature/fix timeline.
+- [Code of Conduct](CODE_OF_CONDUCT.md): Community participation standards.
+- [Coverage Workoff Plan](COVERAGE_WORKOFF_PLAN.md): Coverage snapshots, gaps, and improvement focus.
+- [Roadmap TODO](TODO.md): Planned and recently completed implementation milestones.
+
+## Guides and Workflows
+
+- [Scripts Guide](scripts/SCRIPTS.md): Operational scripts for repo batching, reports, alias learning, and reduced-table materialization.
+- [Learning App Scaffold README](src/learning_app_scaffold/README.md): Minimal orchestration-side persistence/service layer using public API wrappers.
+- [Podman + Postgres Local Guide](docs/podman-postgres-local.md): Local containerized learning-loop setup and runbook.
+- [CI Starter Workflows](docs/ci-starter-workflows.md): Starter CI templates for docs generation and checks.
+- [Pipeline Diagram](docs/pipeline-diagram.md): High-level flow of scan/generation pipeline.
+
+## Core Interfaces
+
+- [CLI Entrypoint](src/ansible_role_doc/cli.py): Argument parsing and command orchestration (`ansible-role-doc`).
+- [Public API](src/ansible_role_doc/api.py): Stable programmatic entry points (`scan_role`, `scan_repo`, `scan_collection`).
+- [Scanner Engine](src/ansible_role_doc/scanner.py): Static role/collection analysis and metadata extraction.
+- [Style Guide Parser](src/ansible_role_doc/style_guide.py): README style parsing, heading normalization, and section style handling.
+- [Pattern Policy Loader](src/ansible_role_doc/pattern_config.py): Built-in + override policy merge and remote/cache policy helpers.
+- [Output Rendering](src/ansible_role_doc/output.py): Final output formatting/writing behavior.
+
+## Configuration and Environment
+
+- [Project Configuration](pyproject.toml): Packaging metadata, dependencies, and console script registration.
+- [Tox Configuration](tox.ini): Default test/coverage command definitions and environments.
+- [Tooling Configuration](setup.cfg): Pytest/coverage and related tool configuration.
+- [Development Requirements](requirements-dev.txt): Additional development dependencies.
+- [Podman Compose Stack](podman-compose.yml): Local service composition for persistence workflows.
+- [Podman Makefile](Makefile.pod): Helper targets for containerized local operations.
+
+## Examples and Test Fixtures
+
+- [Fixture Index](src/ansible_role_doc/tests/roles/README.md): Organized fixture roles used by scanner/render tests.
+- [Enhanced Mock Role README](src/ansible_role_doc/tests/enhanced_mock_role/README.md): Realistic fixture role content for documentation heuristics/tests.
+- [Base Mock Role README](src/ansible_role_doc/tests/mock_role/README.md): Minimal fixture role for baseline scanner behavior.
+
+## Optional
+
+- [Style Guide Source Catalog](STYLE_GUIDE_SOURCES.md): Candidate external README sources for style-guide comparisons.
+- [Provenance Tracking Notes](PROVENANCE_TRACKING.md): Supplementary tracking notes not required for basic scanner usage.
+- [Template Style Guide Source](src/ansible_role_doc/templates/STYLE_GUIDE_SOURCE.md): Bundled fallback style-guide source template.
