@@ -395,3 +395,137 @@ def test_scan_repo_lightweight_sparse_failure_does_not_fallback_full_clone(monke
 
     assert clone_calls["count"] == 1
     assert clone_calls["allow_sparse_fallback_to_full"] is False
+
+
+def test_scan_collection_returns_aggregated_payload(monkeypatch, tmp_path):
+    collection_root = tmp_path / "demo_collection"
+    (collection_root / "roles" / "role_a").mkdir(parents=True)
+    (collection_root / "roles" / "role_b").mkdir(parents=True)
+    (collection_root / "collections").mkdir(parents=True)
+
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\nversion: 1.0.0\n",
+        encoding="utf-8",
+    )
+    (collection_root / "collections" / "requirements.yml").write_text(
+        "---\ncollections:\n  - name: community.general\n    version: 8.0.0\n",
+        encoding="utf-8",
+    )
+    (collection_root / "roles" / "requirements.yml").write_text(
+        "---\nroles:\n  - name: geerlingguy.mysql\n    version: 3.3.0\n",
+        encoding="utf-8",
+    )
+
+    def fake_scan_role(role_path, **kwargs):
+        return {
+            "role_name": Path(role_path).name,
+            "metadata": {"scanner_counters": {}},
+        }
+
+    monkeypatch.setattr(api, "scan_role", fake_scan_role)
+
+    payload = api.scan_collection(str(collection_root))
+
+    assert payload["collection"]["metadata"]["namespace"] == "demo"
+    assert payload["summary"] == {
+        "total_roles": 2,
+        "scanned_roles": 2,
+        "failed_roles": 0,
+    }
+    assert {entry["role"] for entry in payload["roles"]} == {"role_a", "role_b"}
+    assert payload["dependencies"]["collections"] == [
+        {
+            "key": "community.general",
+            "type": "collection",
+            "name": "community.general",
+            "src": None,
+            "version": "8.0.0",
+            "versions": ["8.0.0"],
+            "sources": ["collections/requirements.yml"],
+        }
+    ]
+    assert payload["dependencies"]["roles"] == [
+        {
+            "key": "geerlingguy.mysql",
+            "type": "role",
+            "name": "geerlingguy.mysql",
+            "src": None,
+            "version": "3.3.0",
+            "versions": ["3.3.0"],
+            "sources": ["roles/requirements.yml"],
+        }
+    ]
+
+
+def test_scan_collection_tracks_dependency_conflicts(monkeypatch, tmp_path):
+    collection_root = tmp_path / "demo_collection"
+    (collection_root / "roles" / "role_a").mkdir(parents=True)
+    (collection_root / "roles" / "role_b").mkdir(parents=True)
+    (collection_root / "collections").mkdir(parents=True)
+
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+    (collection_root / "collections" / "requirements.yml").write_text(
+        "---\ncollections:\n  - name: community.general\n    version: 8.0.0\n",
+        encoding="utf-8",
+    )
+    (collection_root / "roles" / "role_a" / "meta").mkdir(parents=True)
+    (collection_root / "roles" / "role_a" / "meta" / "requirements.yml").write_text(
+        "---\n- name: community.general\n  type: collection\n  version: 7.5.0\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        api,
+        "scan_role",
+        lambda role_path, **kwargs: {"role_name": Path(role_path).name, "metadata": {}},
+    )
+
+    payload = api.scan_collection(str(collection_root))
+
+    assert payload["dependencies"]["conflicts"] == [
+        {
+            "conflict": "version_conflict",
+            "key": "community.general",
+            "versions": ["7.5.0", "8.0.0"],
+            "sources": [
+                "collections/requirements.yml",
+                "roles/role_a/meta/requirements.yml",
+            ],
+        }
+    ]
+
+
+def test_scan_collection_records_role_failures(monkeypatch, tmp_path):
+    collection_root = tmp_path / "demo_collection"
+    (collection_root / "roles" / "role_a").mkdir(parents=True)
+    (collection_root / "roles" / "role_b").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+
+    def fake_scan_role(role_path, **kwargs):
+        if Path(role_path).name == "role_b":
+            raise RuntimeError("boom")
+        return {"role_name": "role_a", "metadata": {}}
+
+    monkeypatch.setattr(api, "scan_role", fake_scan_role)
+
+    payload = api.scan_collection(str(collection_root))
+
+    assert payload["summary"] == {
+        "total_roles": 2,
+        "scanned_roles": 1,
+        "failed_roles": 1,
+    }
+    assert payload["failures"] == [
+        {
+            "role": "role_b",
+            "path": str((collection_root / "roles" / "role_b").resolve()),
+            "error_type": "RuntimeError",
+            "error": "boom",
+        }
+    ]
