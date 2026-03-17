@@ -329,6 +329,49 @@ def test_cli_requires_single_input_source():
     )
 
 
+def test_cli_collection_root_json_mode_calls_scan_collection(monkeypatch, tmp_path):
+    collection_root = tmp_path / "collection"
+    (collection_root / "roles").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text("---\nname: demo\n", encoding="utf-8")
+
+    def fake_scan_collection(collection_path, **kwargs):
+        return {
+            "collection": {"path": collection_path},
+            "summary": {"total_roles": 0, "scanned_roles": 0, "failed_roles": 0},
+        }
+
+    import ansible_role_doc.api as api_module
+
+    monkeypatch.setattr(api_module, "scan_collection", fake_scan_collection)
+
+    out = tmp_path / "collection-output"
+    rc = cli.main(
+        [
+            str(collection_root),
+            "--collection-root",
+            "-f",
+            "json",
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    expected_out = out.with_suffix(".json")
+    assert expected_out.exists()
+    payload = json.loads(expected_out.read_text(encoding="utf-8"))
+    assert payload["summary"]["total_roles"] == 0
+
+
+def test_cli_collection_root_rejects_non_json_format(tmp_path):
+    collection_root = tmp_path / "collection"
+    (collection_root / "roles").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text("---\nname: demo\n", encoding="utf-8")
+
+    rc = cli.main([str(collection_root), "--collection-root", "-f", "md"])
+    assert rc == 2
+
+
 def test_cli_compare_role_path_is_forwarded(monkeypatch, tmp_path):
     calls: dict = {}
 

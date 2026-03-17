@@ -115,6 +115,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="GitHub/Git repository URL to clone and scan instead of a local role path.",
     )
     p.add_argument(
+        "--collection-root",
+        action="store_true",
+        help=(
+            "Treat local role_path as an Ansible collection root (requires galaxy.yml and roles/). "
+            "Collection mode currently supports --format json."
+        ),
+    )
+    p.add_argument(
         "--repo-ref",
         default=None,
         help="Optional branch, tag, or ref to clone from the repository.",
@@ -739,6 +747,11 @@ def main(argv=None) -> int:
     if not args.role_path and not args.repo_url:
         print("Error: provide role_path or --repo-url", file=sys.stderr)
         return 2
+    if args.collection_root and args.repo_url:
+        print(
+            "Error: --collection-root cannot be used with --repo-url", file=sys.stderr
+        )
+        return 2
 
     try:
         if args.repo_url:
@@ -846,47 +859,92 @@ def main(argv=None) -> int:
                         )
                     )
         else:
-            style_readme_path = args.style_readme
-            if args.create_style_guide and not style_readme_path:
-                style_readme_path = (
-                    args.style_source or resolve_default_style_guide_source()
-                )
-            outpath = run_scan(
-                args.role_path,
-                output=args.output,
-                template=args.template,
-                output_format=args.format,
-                compare_role_path=args.compare_role_path,
-                style_readme_path=style_readme_path,
-                vars_seed_paths=args.vars_seed,
-                concise_readme=args.concise_readme,
-                scanner_report_output=args.scanner_report_output,
-                include_vars_main=args.variable_sources == "defaults+vars",
-                include_scanner_report_link=args.include_scanner_report_link,
-                readme_config_path=args.readme_config,
-                adopt_heading_mode=args.adopt_heading_mode,
-                style_guide_skeleton=args.create_style_guide,
-                keep_unknown_style_sections=args.keep_unknown_style_sections,
-                exclude_path_patterns=args.exclude_path,
-                style_source_path=args.style_source,
-                policy_config_path=args.policy_config,
-                dry_run=args.dry_run,
+            role_path_obj = Path(args.role_path)
+            is_collection_root = args.collection_root or (
+                role_path_obj.is_dir()
+                and (role_path_obj / "galaxy.yml").is_file()
+                and (role_path_obj / "roles").is_dir()
             )
-            if args.dry_run:
-                print(outpath, end="")
+            if is_collection_root:
+                if args.format != "json":
+                    raise ValueError(
+                        "collection-root mode currently supports --format json"
+                    )
+                from .api import scan_collection
+
+                payload = scan_collection(
+                    args.role_path,
+                    compare_role_path=args.compare_role_path,
+                    style_readme_path=args.style_readme,
+                    vars_seed_paths=args.vars_seed,
+                    concise_readme=args.concise_readme,
+                    scanner_report_output=args.scanner_report_output,
+                    include_vars_main=args.variable_sources == "defaults+vars",
+                    include_scanner_report_link=args.include_scanner_report_link,
+                    readme_config_path=args.readme_config,
+                    adopt_heading_mode=args.adopt_heading_mode,
+                    style_guide_skeleton=args.create_style_guide,
+                    keep_unknown_style_sections=args.keep_unknown_style_sections,
+                    exclude_path_patterns=args.exclude_path,
+                    style_source_path=args.style_source,
+                    policy_config_path=args.policy_config,
+                )
+                rendered = json.dumps(payload, indent=2)
+                if args.dry_run:
+                    outpath = rendered
+                    print(outpath, end="")
+                else:
+                    output_path = Path(args.output)
+                    if output_path.suffix.lower() != ".json":
+                        output_path = output_path.with_suffix(".json")
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    output_path.write_text(rendered, encoding="utf-8")
+                    outpath = str(output_path.resolve())
                 style_source_path, style_demo_path = (None, None)
             else:
-                effective_readme_config_path = args.readme_config
-                if not effective_readme_config_path:
-                    default_cfg = Path(args.role_path) / ".ansible_role_doc.yml"
-                    if default_cfg.is_file():
-                        effective_readme_config_path = str(default_cfg)
-                style_source_path, style_demo_path = _save_style_comparison_artifacts(
-                    args.style_readme,
-                    outpath,
-                    role_config_path=effective_readme_config_path,
+                style_readme_path = args.style_readme
+                if args.create_style_guide and not style_readme_path:
+                    style_readme_path = (
+                        args.style_source or resolve_default_style_guide_source()
+                    )
+                outpath = run_scan(
+                    args.role_path,
+                    output=args.output,
+                    template=args.template,
+                    output_format=args.format,
+                    compare_role_path=args.compare_role_path,
+                    style_readme_path=style_readme_path,
+                    vars_seed_paths=args.vars_seed,
+                    concise_readme=args.concise_readme,
+                    scanner_report_output=args.scanner_report_output,
+                    include_vars_main=args.variable_sources == "defaults+vars",
+                    include_scanner_report_link=args.include_scanner_report_link,
+                    readme_config_path=args.readme_config,
+                    adopt_heading_mode=args.adopt_heading_mode,
+                    style_guide_skeleton=args.create_style_guide,
                     keep_unknown_style_sections=args.keep_unknown_style_sections,
+                    exclude_path_patterns=args.exclude_path,
+                    style_source_path=args.style_source,
+                    policy_config_path=args.policy_config,
+                    dry_run=args.dry_run,
                 )
+                if args.dry_run:
+                    print(outpath, end="")
+                    style_source_path, style_demo_path = (None, None)
+                else:
+                    effective_readme_config_path = args.readme_config
+                    if not effective_readme_config_path:
+                        default_cfg = Path(args.role_path) / ".ansible_role_doc.yml"
+                        if default_cfg.is_file():
+                            effective_readme_config_path = str(default_cfg)
+                    style_source_path, style_demo_path = (
+                        _save_style_comparison_artifacts(
+                            args.style_readme,
+                            outpath,
+                            role_config_path=effective_readme_config_path,
+                            keep_unknown_style_sections=args.keep_unknown_style_sections,
+                        )
+                    )
         if args.verbose:
             if args.dry_run:
                 print("\nDry run: no files written.")
