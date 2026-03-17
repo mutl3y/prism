@@ -1,0 +1,141 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "tests: full",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["-m", "pytest", "-q"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: all local",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["scripts/cli_demo_matrix.py"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: role default",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["scripts/cli_demo_matrix.py", "--scenario", "role-default"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: role concise",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["scripts/cli_demo_matrix.py", "--scenario", "role-concise"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: role detailed catalog",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["scripts/cli_demo_matrix.py", "--scenario", "role-detailed-catalog"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: role styled",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["scripts/cli_demo_matrix.py", "--scenario", "role-styled"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: collection markdown",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["scripts/cli_demo_matrix.py", "--scenario", "collection-md"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: collection json",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["scripts/cli_demo_matrix.py", "--scenario", "collection-json"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "demo: all podman",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["scripts/cli_demo_matrix.py", "--runtime", "podman", "--start-stack"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -121,6 +121,32 @@ No additional folder mapping is required for repo URLs themselves. Only the URL
 list file must exist in the mapped workspace path (for local runs this repo
 root is already available).
 
+## 3.3) Run the CLI demo matrix in Podman
+
+For side-by-side output comparisons, use the small scenario runner instead of a
+large chained shell block. It prepares demo fixtures under `debug_readmes/option_demos/`
+and runs one CLI scenario per invocation.
+
+Start the stack if needed:
+
+```bash
+podman-compose -f podman-compose.yml --env-file .env.podman up -d postgres learning-base
+```
+
+Then run one or more scenarios in the `learning-base` container:
+
+```bash
+.venv/bin/python scripts/cli_demo_matrix.py --runtime podman --start-stack
+.venv/bin/python scripts/cli_demo_matrix.py --runtime podman --scenario role-default
+.venv/bin/python scripts/cli_demo_matrix.py --runtime podman --scenario collection-md
+```
+
+Notes:
+
+- The runner uses `podman-compose exec -T learning-base` and the mounted workspace at `/workspace`.
+- PDF demos are skipped automatically when `weasyprint` is unavailable in the container runtime.
+- The same scenarios can be run locally with `--runtime local`.
+
 ## 4) Create a checkpoint with `pg_dump`
 
 Create a logical backup file in an ignored local folder:
