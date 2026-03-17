@@ -170,6 +170,148 @@ def test_run_scan_scanner_report_includes_issue_categories(tmp_path):
     assert "unresolved_no_static_definition" in report_content
 
 
+def test_run_scan_reports_missing_non_ansible_collection_declarations(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "meta").mkdir(parents=True)
+
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: Manage ini file\n"
+        "  community.general.ini_file:\n"
+        "    path: /tmp/app.ini\n"
+        "    section: demo\n"
+        "    option: enabled\n"
+        '    value: "true"\n',
+        encoding="utf-8",
+    )
+    (role / "meta" / "main.yml").write_text(
+        "---\n" "galaxy_info:\n" "  role_name: demo\n" "  description: demo role\n",
+        encoding="utf-8",
+    )
+    (role / "meta" / "requirements.yml").write_text("---\n[]\n", encoding="utf-8")
+
+    out = tmp_path / "README_COLLECTION_CHECK.md"
+    scanner.run_scan(str(role), output=str(out))
+    content = out.read_text(encoding="utf-8")
+
+    assert (
+        "[Collection check] Detected non-ansible collections from task usage: community.general."
+        in content
+    )
+    assert (
+        "[Collection check] Missing from meta/main.yml galaxy_info.collections: community.general."
+        in content
+    )
+    assert (
+        "[Collection check] Missing from meta/requirements.yml: community.general."
+        in content
+    )
+
+
+def test_run_scan_does_not_report_missing_collection_when_declared(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "meta").mkdir(parents=True)
+
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: Manage ini file\n"
+        "  community.general.ini_file:\n"
+        "    path: /tmp/app.ini\n"
+        "    section: demo\n"
+        "    option: enabled\n"
+        '    value: "true"\n',
+        encoding="utf-8",
+    )
+    (role / "meta" / "main.yml").write_text(
+        "---\n"
+        "galaxy_info:\n"
+        "  role_name: demo\n"
+        "  description: demo role\n"
+        "  collections:\n"
+        "    - community.general\n",
+        encoding="utf-8",
+    )
+    (role / "meta" / "requirements.yml").write_text(
+        "---\n- src: community.general\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "README_COLLECTION_DECLARED.md"
+    scanner.run_scan(str(role), output=str(out))
+    content = out.read_text(encoding="utf-8")
+
+    assert (
+        "[Collection check] Detected non-ansible collections from task usage: community.general."
+        in content
+    )
+    assert "Missing from meta/main.yml" not in content
+    assert "Missing from meta/requirements.yml" not in content
+
+
+def test_run_scan_includes_meta_role_dependencies_in_requirements(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "meta").mkdir(parents=True)
+
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+    (role / "meta" / "main.yml").write_text(
+        "---\n"
+        "galaxy_info:\n"
+        "  role_name: demo\n"
+        "  description: demo role\n"
+        "dependencies:\n"
+        "  - src: custom.role_dep\n"
+        "    version: 2.0.0\n"
+        "  - custom.other_dep\n",
+        encoding="utf-8",
+    )
+    (role / "meta" / "requirements.yml").write_text("---\n[]\n", encoding="utf-8")
+
+    out = tmp_path / "README_ROLE_DEPS.md"
+    scanner.run_scan(str(role), output=str(out))
+    content = out.read_text(encoding="utf-8")
+
+    assert "custom.role_dep (version: 2.0.0)" in content
+    assert "custom.other_dep" in content
+
+
+def test_run_scan_readme_includes_uncertainty_notes_for_precedence_and_unresolved(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    (role / "defaults").mkdir(parents=True)
+    (role / "vars").mkdir(parents=True)
+    (role / "tasks").mkdir(parents=True)
+
+    (role / "defaults" / "main.yml").write_text(
+        "---\n" "app_port: 8080\n",
+        encoding="utf-8",
+    )
+    (role / "vars" / "main.yml").write_text(
+        "---\n" "app_port: 9090\n",
+        encoding="utf-8",
+    )
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: unresolved usage\n"
+        "  debug:\n"
+        '    msg: "{{ missing_runtime_value }}"\n',
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "README_WITH_UNCERTAINTY.md"
+    scanner.run_scan(str(role), output=str(out))
+
+    content = out.read_text(encoding="utf-8")
+    assert "Variable provenance and confidence notes:" in content
+    assert "Ambiguous variables:" in content
+    assert "`app_port`: Overridden by vars/main.yml precedence." in content
+    assert "Unresolved variables:" in content
+    assert "`missing_runtime_value`:" in content
+
+
 def test_run_scan_readme_config_can_gate_sections(tmp_path):
     role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
@@ -211,7 +353,7 @@ def test_run_scan_uses_inrole_readme_config_fixture(tmp_path):
     assert "Task/module usage summary" not in content
 
 
-def test_run_scan_inrole_config_adopt_style_headings_can_be_disabled(tmp_path):
+def test_run_scan_inrole_config_heading_mode_can_be_set_to_canonical(tmp_path):
     role_src = INROLE_CONFIG_ROLE_FIXTURE
     target = tmp_path / "inrole_config_role"
     shutil.copytree(role_src, target)
@@ -220,7 +362,7 @@ def test_run_scan_inrole_config_adopt_style_headings_can_be_disabled(tmp_path):
     scanner.run_scan(
         str(target),
         output=str(out),
-        adopt_style_headings=False,
+        adopt_heading_mode="canonical",
     )
 
     content = out.read_text(encoding="utf-8")

@@ -643,24 +643,24 @@ def test_cli_scanner_report_link_flag_is_forwarded(monkeypatch, tmp_path):
     assert calls["include_scanner_report_link"] is False
 
 
-def test_cli_adopt_style_headings_flag_is_forwarded(monkeypatch, tmp_path):
+def test_cli_adopt_heading_mode_flag_is_forwarded(monkeypatch, tmp_path):
     calls: dict = {}
 
     role = tmp_path / "role"
     role.mkdir()
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
-        calls["adopt_style_headings"] = kwargs.get("adopt_style_headings")
+        calls["adopt_heading_mode"] = kwargs.get("adopt_heading_mode")
         Path(output).write_text("generated", encoding="utf-8")
         return str(Path(output).resolve())
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "adopt-headings.md"
-    rc = cli.main([str(role), "--adopt-style-headings", "-o", str(out)])
+    rc = cli.main([str(role), "--adopt-heading-mode", "style", "-o", str(out)])
 
     assert rc == 0
-    assert calls["adopt_style_headings"] is True
+    assert calls["adopt_heading_mode"] == "style"
 
 
 def test_cli_keep_unknown_style_sections_flag_is_forwarded(monkeypatch, tmp_path):

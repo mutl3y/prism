@@ -12,6 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - README config support for per-section content handling via `readme.section_content_modes` (`generate`, `replace`, `merge`).
 - Auto-generated style sidecar `ROLE_README_CONFIG.yml` for style demo outputs when a role config is not present.
 - Capture metadata for synthesized sidecars under `readme.capture_metadata` (`schema_version`, `captured_at_utc`, `style_source_path`, `truncated`).
+- Learning workflow helper script `scripts/learning_alias_helper.py` with subcommands for section-title alias management:
+  - `review`: Trigger LLM-based section title classification via `learning_resolve_unknowns.py`.
+  - `apply`: Apply approved alias candidates to PostgreSQL with dual thresholds (`--min-count`, `--min-section-total`).
+  - `export-aliases`: Export learned DB aliases to YAML for review/merge.
+  - `merge-aliases`: Intelligently merge learned aliases into canonical `section_aliases.yml`.
+  - `rename-section`, `suggest-canonical`, `apply-renames`, `apply-display-titles`: Supporting utilities.
+- Optional bundled data file `section_display_titles.yml` containing human-friendly display labels for all known section IDs (used by "popular" heading render mode).
 
 ### Changed
 - Unknown style-guide sections are now kept by default during style-guided rendering.
@@ -29,8 +36,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [0.1.0] - 2026-03-15
 
 ### Added
-- Optional heading adoption controls for README config selectors via CLI flag `--adopt-style-headings` / `--no-adopt-style-headings`.
-- Optional heading adoption controls for README config selectors via config key `readme.adopt_style_headings`.
+- Heading rendering mode controls for README config selectors via CLI flag `--adopt-heading-mode {canonical,style,popular}`.
+- Heading rendering mode controls for README config selectors via config key `readme.adopt_heading_mode`.
 - Optional tox environment `readmes` to generate demo artifacts on demand.
 - Demo generation for all built-in output variants, including in-role config fixture output.
 - Sparse/partial clone optimization for repo sub-path scans using `git clone --filter=blob:none --sparse` with sparse checkout targets.
@@ -40,7 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Default tox workflow is now focused on tests and coverage; README/demo generation moved to `tox -e readmes`.
 - Test fixtures reorganized under `src/ansible_role_doc/tests/roles/` with a symlinked base role fixture.
 - Test path usage centralized via fixture constants for easier maintenance.
-- Pipeline/docs references updated to include current CLI options (`json`, `--dry-run`, `--adopt-style-headings`).
+- Pipeline/docs references updated to include current CLI options (`json`, `--dry-run`, `--adopt-heading-mode`).
 
 ### Fixed
 - Tests aligned with updated mock role metadata description output.

@@ -19,3 +19,23 @@
     group: root
     mode: "0644"
   notify: Restart mock service
+
+- name: Configure application ini settings with community.general
+  community.general.ini_file:
+    path: "{{ mock_role_config_path }}"
+    section: settings
+    option: "debug_enabled"
+    value: "{{ mock_role_debug | default('false') }}"
+    mode: "0644"
+  tags:
+    - config
+  when: mock_role_configure_ini | default(false)
+
+- name: Example undeclared external collection usage
+  ansible.posix.synchronize:
+    src: /tmp/source/
+    dest: /tmp/dest/
+    mode: push
+  when: mock_role_use_undeclared_collection | default(false)
+  tags:
+    - sync

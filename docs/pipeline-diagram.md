@@ -16,7 +16,7 @@ usage: ansible-role-doc [-h] [--repo-url REPO_URL] [--repo-ref REPO_REF]
                         [--include-scanner-report-link | --no-include-scanner-report-link]
                         [--variable-sources {defaults+vars,defaults-only}]
                         [--readme-config README_CONFIG]
-                        [--adopt-style-headings | --no-adopt-style-headings]
+                        [--adopt-heading-mode {canonical,style,popular}]
                         [--keep-unknown-style-sections | --no-keep-unknown-style-sections]
                         [-o OUTPUT] [-t TEMPLATE] [-f {md,html,json}] [--dry-run]
                         [-v]
@@ -40,7 +40,7 @@ usage: ansible-role-doc [-h] [--repo-url REPO_URL] [--repo-ref REPO_REF]
 | `--no-include-scanner-report-link` | Hide scanner-report link from concise README |
 | `--variable-sources` | `defaults-only` (default) or `defaults+vars` |
 | `--readme-config` | YAML file controlling section visibility |
-| `--adopt-style-headings` | Use README config section labels as rendered headings |
+| `--adopt-heading-mode` | Heading mode for README config selectors: canonical, style, or popular |
 | `--keep-unknown-style-sections` | Keep unmapped style-guide sections (retaining source body when present) |
 | `-o` | Output README path |
 | `-t` | Custom Jinja2 template path |

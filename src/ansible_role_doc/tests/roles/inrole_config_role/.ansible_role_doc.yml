@@ -1,6 +1,6 @@
 readme:
-  # Use config-provided labels as rendered heading titles.
-  adopt_style_headings: true
+  # Heading render mode: canonical | style | popular.
+  adopt_heading_mode: style
   # Keep this fixture focused on heading adoption + variable summary behavior.
   include_sections:
     - Capabilities
