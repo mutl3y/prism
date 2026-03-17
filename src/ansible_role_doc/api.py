@@ -217,6 +217,8 @@ def scan_collection(
     exclude_path_patterns: list[str] | None = None,
     style_source_path: str | None = None,
     policy_config_path: str | None = None,
+    include_rendered_readme: bool = False,
+    detailed_catalog: bool = False,
 ) -> dict[str, Any]:
     """Scan an Ansible collection root and return per-role payloads + metadata."""
     root = Path(collection_path).resolve()
@@ -254,12 +256,38 @@ def scan_collection(
                 exclude_path_patterns=exclude_path_patterns,
                 style_source_path=style_source_path,
                 policy_config_path=policy_config_path,
+                detailed_catalog=detailed_catalog,
             )
+            rendered_readme = None
+            if include_rendered_readme:
+                rendered_readme = run_scan(
+                    str(role_dir),
+                    output="README.md",
+                    output_format="md",
+                    compare_role_path=compare_role_path,
+                    style_readme_path=style_readme_path,
+                    role_name_override=role_dir.name,
+                    vars_seed_paths=vars_seed_paths,
+                    concise_readme=concise_readme,
+                    scanner_report_output=scanner_report_output,
+                    include_vars_main=include_vars_main,
+                    include_scanner_report_link=include_scanner_report_link,
+                    readme_config_path=readme_config_path,
+                    adopt_heading_mode=adopt_heading_mode,
+                    style_guide_skeleton=style_guide_skeleton,
+                    keep_unknown_style_sections=keep_unknown_style_sections,
+                    exclude_path_patterns=exclude_path_patterns,
+                    style_source_path=style_source_path,
+                    policy_config_path=policy_config_path,
+                    detailed_catalog=detailed_catalog,
+                    dry_run=True,
+                )
             role_entries.append(
                 {
                     "role": role_dir.name,
                     "path": str(role_dir),
                     "payload": payload,
+                    "rendered_readme": rendered_readme,
                 }
             )
         except Exception as exc:
@@ -333,6 +361,7 @@ def scan_role(
     exclude_path_patterns: list[str] | None = None,
     style_source_path: str | None = None,
     policy_config_path: str | None = None,
+    detailed_catalog: bool = False,
 ) -> dict[str, Any]:
     """Return the scanner payload as a Python dictionary.
 
@@ -361,6 +390,7 @@ def scan_role(
         exclude_path_patterns=exclude_path_patterns,
         style_source_path=style_source_path,
         policy_config_path=policy_config_path,
+        detailed_catalog=detailed_catalog,
         dry_run=True,
     )
     return json.loads(payload)

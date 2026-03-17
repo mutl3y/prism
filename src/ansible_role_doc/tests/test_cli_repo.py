@@ -363,12 +363,58 @@ def test_cli_collection_root_json_mode_calls_scan_collection(monkeypatch, tmp_pa
     assert payload["summary"]["total_roles"] == 0
 
 
-def test_cli_collection_root_rejects_non_json_format(tmp_path):
+def test_cli_collection_root_md_mode_writes_collection_and_role_docs(
+    monkeypatch, tmp_path
+):
+    collection_root = tmp_path / "collection"
+    (collection_root / "roles").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+
+    def fake_scan_collection(collection_path, **kwargs):
+        assert kwargs["include_rendered_readme"] is True
+        return {
+            "collection": {
+                "path": collection_path,
+                "metadata": {"namespace": "demo", "name": "toolkit"},
+            },
+            "summary": {"total_roles": 1, "scanned_roles": 1, "failed_roles": 0},
+            "roles": [
+                {
+                    "role": "web",
+                    "rendered_readme": "# web role\n",
+                }
+            ],
+        }
+
+    import ansible_role_doc.api as api_module
+
+    monkeypatch.setattr(api_module, "scan_collection", fake_scan_collection)
+
+    out = tmp_path / "docs" / "collection-doc"
+    rc = cli.main(
+        [str(collection_root), "--collection-root", "-f", "md", "-o", str(out)]
+    )
+
+    assert rc == 0
+    collection_readme = out.with_suffix(".md")
+    assert collection_readme.exists()
+    assert "demo.toolkit Collection Documentation" in collection_readme.read_text(
+        encoding="utf-8"
+    )
+    role_doc = out.parent / "roles" / "web.md"
+    assert role_doc.exists()
+    assert role_doc.read_text(encoding="utf-8") == "# web role\n"
+
+
+def test_cli_collection_root_rejects_non_json_or_md_format(tmp_path):
     collection_root = tmp_path / "collection"
     (collection_root / "roles").mkdir(parents=True)
     (collection_root / "galaxy.yml").write_text("---\nname: demo\n", encoding="utf-8")
 
-    rc = cli.main([str(collection_root), "--collection-root", "-f", "md"])
+    rc = cli.main([str(collection_root), "--collection-root", "-f", "html"])
     assert rc == 2
 
 
@@ -432,6 +478,25 @@ def test_cli_exclude_path_is_forwarded(monkeypatch, tmp_path):
 
     assert rc == 0
     assert calls["exclude_path_patterns"] == ["templates/*", "tests/**"]
+
+
+def test_cli_detailed_catalog_is_forwarded(monkeypatch, tmp_path):
+    calls: dict = {}
+    role = tmp_path / "role"
+    role.mkdir()
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["detailed_catalog"] = kwargs.get("detailed_catalog")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "catalog.md"
+    rc = cli.main([str(role), "--detailed-catalog", "-o", str(out)])
+
+    assert rc == 0
+    assert calls["detailed_catalog"] is True
 
 
 def test_cli_style_readme_is_forwarded(monkeypatch, tmp_path):

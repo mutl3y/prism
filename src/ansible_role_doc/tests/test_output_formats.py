@@ -190,3 +190,56 @@ def test_run_scan_json_dry_run_returns_payload_without_write(tmp_path):
     assert not (tmp_path / "dry-run-json.json").exists()
     payload = json.loads(preview)
     assert payload["role_name"] == "mock_role"
+
+
+def test_run_scan_pdf_output_uses_pdf_suffix_and_writes_bytes(tmp_path, monkeypatch):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    class _FakeHtml:
+        def __init__(self, string):
+            self.string = string
+
+        def write_pdf(self):
+            return b"%PDF-1.7\nfake\n"
+
+    fake_weasyprint = types.SimpleNamespace(HTML=_FakeHtml)
+    original_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "weasyprint":
+            return fake_weasyprint
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    out = tmp_path / "scan-pdf"
+    result = scanner.run_scan(str(target), output=str(out), output_format="pdf")
+
+    pdf_path = tmp_path / "scan-pdf.pdf"
+    assert result.endswith(".pdf")
+    assert pdf_path.exists()
+    assert pdf_path.read_bytes().startswith(b"%PDF")
+
+
+def test_run_scan_pdf_raises_when_weasyprint_missing(tmp_path, monkeypatch):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    original_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "weasyprint":
+            raise ImportError("missing")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    with pytest.raises(RuntimeError, match="weasyprint"):
+        scanner.run_scan(
+            str(target),
+            output=str(tmp_path / "missing.pdf"),
+            output_format="pdf",
+        )

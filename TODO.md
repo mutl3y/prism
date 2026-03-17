@@ -172,8 +172,8 @@
 
 ## 12) Next-phase feature expansion (assessed additions)
 
-- [ ] Add collection-root scanning mode (parse `galaxy.yml`, enumerate `roles/`, generate collection-level README plus per-role docs)
-- [ ] Parse and render Molecule scenario details (`driver`, `platforms`, `verifier`) in README testing sections
-- [ ] Add optional detailed task/handler catalog mode (task name/module/when and handler action tables)
-- [ ] Add PDF output path (`--format pdf`) via Markdown -> HTML -> PDF conversion fallback strategy
-- [ ] Add CI docs-generation starter workflow templates and docs (GitHub Actions / GitLab examples)
+- [x] Add collection-root scanning mode (parse `galaxy.yml`, enumerate `roles/`, generate collection-level README plus per-role docs)
+- [x] Parse and render Molecule scenario details (`driver`, `platforms`, `verifier`) in README testing sections
+- [x] Add optional detailed task/handler catalog mode (task name/module/when and handler action tables)
+- [x] Add PDF output path (`--format pdf`) via Markdown -> HTML -> PDF conversion fallback strategy
+- [x] Add CI docs-generation starter workflow templates and docs (GitHub Actions / GitLab examples)

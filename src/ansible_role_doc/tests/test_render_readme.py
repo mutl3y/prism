@@ -1530,9 +1530,29 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
     assert "| `v` | bool | `true` | defaults/main.yml |" in variable_summary
 
     task_summary = scanner._render_guide_section_body(
-        "task_summary", "demo", "", {}, [], [], metadata
+        "task_summary",
+        "demo",
+        "",
+        {},
+        [],
+        [],
+        {
+            **metadata,
+            "detailed_catalog": True,
+            "task_catalog": [
+                {
+                    "file": "tasks/main.yml",
+                    "name": "Configure service",
+                    "module": "ansible.builtin.template",
+                }
+            ],
+        },
     )
     assert "**Task files scanned**: 2" in task_summary
+    assert (
+        "| `tasks/main.yml` | Configure service | `ansible.builtin.template` |"
+        in task_summary
+    )
 
     example = scanner._render_guide_section_body(
         "example_usage", "demo", "", {}, [], [], metadata
@@ -1540,9 +1560,27 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
     assert "```yaml" in example
 
     testing = scanner._render_guide_section_body(
-        "local_testing", "demo", "", {}, [], [], metadata
+        "local_testing",
+        "demo",
+        "",
+        {},
+        [],
+        [],
+        {
+            **metadata,
+            "molecule_scenarios": [
+                {
+                    "name": "default",
+                    "driver": "podman",
+                    "verifier": "ansible",
+                    "platforms": ["fedora (quay.io/fedora:latest)"],
+                }
+            ],
+        },
     )
     assert "ansible-playbook -i tests/inventory tests/test.yml" in testing
+    assert "Molecule scenarios detected" in testing
+    assert "driver: `podman`" in testing
 
     handlers = scanner._render_guide_section_body(
         "handlers",
@@ -1555,10 +1593,21 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
             **metadata,
             "handlers": ["handlers/main.yml"],
             "features": {"handlers_notified": "restart ssh"},
+            "detailed_catalog": True,
+            "handler_catalog": [
+                {
+                    "file": "handlers/main.yml",
+                    "name": "restart ssh",
+                    "module": "ansible.builtin.service",
+                }
+            ],
         },
     )
     assert "**Handler files detected**: 1" in handlers
     assert "restart ssh" in handlers
+    assert (
+        "| `handlers/main.yml` | restart ssh | `ansible.builtin.service` |" in handlers
+    )
 
     template_overrides = scanner._render_guide_section_body(
         "template_overrides",

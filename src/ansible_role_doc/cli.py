@@ -95,6 +95,76 @@ def _truncate_content(text: str, max_chars: int) -> tuple[str, bool]:
     return f"{clipped}{_TRUNCATION_MARKER}", True
 
 
+def _render_collection_markdown(payload: dict) -> str:
+    collection = payload.get("collection", {}) if isinstance(payload, dict) else {}
+    metadata = collection.get("metadata", {}) if isinstance(collection, dict) else {}
+    namespace = str(metadata.get("namespace") or "unknown")
+    name = str(metadata.get("name") or "collection")
+    fqcn = f"{namespace}.{name}"
+
+    summary = payload.get("summary", {}) if isinstance(payload, dict) else {}
+    total_roles = int(summary.get("total_roles") or 0)
+    scanned_roles = int(summary.get("scanned_roles") or 0)
+    failed_roles = int(summary.get("failed_roles") or 0)
+
+    lines: list[str] = [
+        f"# {fqcn} Collection Documentation",
+        "",
+        "## Summary",
+        "",
+        f"- Total roles: {total_roles}",
+        f"- Scanned roles: {scanned_roles}",
+        f"- Failed roles: {failed_roles}",
+    ]
+
+    dependencies = payload.get("dependencies", {}) if isinstance(payload, dict) else {}
+    collections = (
+        dependencies.get("collections", []) if isinstance(dependencies, dict) else []
+    )
+    if collections:
+        lines.extend(["", "## Collection Dependencies", ""])
+        for item in collections:
+            if not isinstance(item, dict):
+                continue
+            key = str(item.get("key") or item.get("name") or "unknown")
+            version = str(item.get("version") or "latest")
+            lines.append(f"- `{key}` ({version})")
+
+    conflicts = (
+        dependencies.get("conflicts", []) if isinstance(dependencies, dict) else []
+    )
+    if conflicts:
+        lines.extend(["", "## Dependency Conflicts", ""])
+        for conflict in conflicts:
+            if not isinstance(conflict, dict):
+                continue
+            key = str(conflict.get("key") or "unknown")
+            versions = ", ".join(str(v) for v in conflict.get("versions", []))
+            lines.append(f"- `{key}`: {versions}")
+
+    roles = payload.get("roles", []) if isinstance(payload, dict) else []
+    if roles:
+        lines.extend(["", "## Roles", ""])
+        for entry in roles:
+            if not isinstance(entry, dict):
+                continue
+            role_name = str(entry.get("role") or "unknown")
+            lines.append(f"- [{role_name}](roles/{role_name}.md)")
+
+    failures = payload.get("failures", []) if isinstance(payload, dict) else []
+    if failures:
+        lines.extend(["", "## Scan Failures", ""])
+        for failure in failures:
+            if not isinstance(failure, dict):
+                continue
+            role_name = str(failure.get("role") or "unknown")
+            error = str(failure.get("error") or "unknown error")
+            lines.append(f"- `{role_name}`: {error}")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build and return the CLI argument parser.
 
@@ -119,7 +189,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Treat local role_path as an Ansible collection root (requires galaxy.yml and roles/). "
-            "Collection mode currently supports --format json."
+            "Collection mode supports --format json and --format md."
         ),
     )
     p.add_argument(
@@ -252,6 +322,11 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--detailed-catalog",
+        action="store_true",
+        help=("Include detailed task and handler tables in generated README sections."),
+    )
+    p.add_argument(
         "-o", "--output", default="README.md", help="Output README file path"
     )
     p.add_argument(
@@ -264,8 +339,8 @@ def build_parser() -> argparse.ArgumentParser:
         "-f",
         "--format",
         default="md",
-        choices=("md", "html", "json"),
-        help="Output format (md, html, or json).",
+        choices=("md", "html", "json", "pdf"),
+        help="Output format (md, html, json, or pdf).",
     )
     p.add_argument(
         "--dry-run",
@@ -838,6 +913,7 @@ def main(argv=None) -> int:
                     exclude_path_patterns=args.exclude_path,
                     style_source_path=args.style_source,
                     policy_config_path=args.policy_config,
+                    detailed_catalog=args.detailed_catalog,
                     dry_run=args.dry_run,
                 )
                 if args.dry_run:
@@ -866,9 +942,9 @@ def main(argv=None) -> int:
                 and (role_path_obj / "roles").is_dir()
             )
             if is_collection_root:
-                if args.format != "json":
+                if args.format not in {"json", "md"}:
                     raise ValueError(
-                        "collection-root mode currently supports --format json"
+                        "collection-root mode currently supports --format json and --format md"
                     )
                 from .api import scan_collection
 
@@ -888,17 +964,41 @@ def main(argv=None) -> int:
                     exclude_path_patterns=args.exclude_path,
                     style_source_path=args.style_source,
                     policy_config_path=args.policy_config,
+                    detailed_catalog=args.detailed_catalog,
+                    include_rendered_readme=args.format == "md",
                 )
-                rendered = json.dumps(payload, indent=2)
+                rendered = (
+                    json.dumps(payload, indent=2)
+                    if args.format == "json"
+                    else _render_collection_markdown(payload)
+                )
                 if args.dry_run:
                     outpath = rendered
                     print(outpath, end="")
                 else:
                     output_path = Path(args.output)
-                    if output_path.suffix.lower() != ".json":
+                    if args.format == "json" and output_path.suffix.lower() != ".json":
                         output_path = output_path.with_suffix(".json")
+                    if args.format == "md" and output_path.suffix.lower() != ".md":
+                        output_path = output_path.with_suffix(".md")
                     output_path.parent.mkdir(parents=True, exist_ok=True)
                     output_path.write_text(rendered, encoding="utf-8")
+                    if args.format == "md":
+                        roles_dir = output_path.parent / "roles"
+                        roles_dir.mkdir(parents=True, exist_ok=True)
+                        for role_entry in payload.get("roles", []):
+                            if not isinstance(role_entry, dict):
+                                continue
+                            role_name = str(role_entry.get("role") or "")
+                            if not role_name:
+                                continue
+                            role_doc = role_entry.get("rendered_readme")
+                            if not isinstance(role_doc, str) or not role_doc.strip():
+                                continue
+                            (roles_dir / f"{role_name}.md").write_text(
+                                role_doc,
+                                encoding="utf-8",
+                            )
                     outpath = str(output_path.resolve())
                 style_source_path, style_demo_path = (None, None)
             else:
@@ -926,6 +1026,7 @@ def main(argv=None) -> int:
                     exclude_path_patterns=args.exclude_path,
                     style_source_path=args.style_source,
                     policy_config_path=args.policy_config,
+                    detailed_catalog=args.detailed_catalog,
                     dry_run=args.dry_run,
                 )
                 if args.dry_run:

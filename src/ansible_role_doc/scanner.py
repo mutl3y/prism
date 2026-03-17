@@ -1260,6 +1260,101 @@ def extract_role_features(
     }
 
 
+def _collect_molecule_scenarios(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> list[dict[str, object]]:
+    """Collect Molecule scenario metadata from ``molecule/*/molecule.yml``."""
+    role_root = Path(role_path).resolve()
+    molecule_root = role_root / "molecule"
+    if not molecule_root.is_dir():
+        return []
+
+    scenarios: list[dict[str, object]] = []
+    for scenario_dir in sorted(
+        path for path in molecule_root.iterdir() if path.is_dir()
+    ):
+        molecule_file = scenario_dir / "molecule.yml"
+        if not molecule_file.is_file() or _is_path_excluded(
+            molecule_file, role_root, exclude_paths
+        ):
+            continue
+        doc = _load_yaml_file(molecule_file)
+        if not isinstance(doc, dict):
+            continue
+
+        driver = doc.get("driver") if isinstance(doc.get("driver"), dict) else {}
+        verifier = doc.get("verifier") if isinstance(doc.get("verifier"), dict) else {}
+        platforms_raw = (
+            doc.get("platforms") if isinstance(doc.get("platforms"), list) else []
+        )
+        platforms: list[str] = []
+        for platform in platforms_raw:
+            if not isinstance(platform, dict):
+                continue
+            platform_name = str(platform.get("name") or "").strip()
+            platform_image = str(platform.get("image") or "").strip()
+            if platform_name and platform_image:
+                platforms.append(f"{platform_name} ({platform_image})")
+            elif platform_name:
+                platforms.append(platform_name)
+
+        scenarios.append(
+            {
+                "name": scenario_dir.name,
+                "driver": str(driver.get("name") or "unknown"),
+                "verifier": str(verifier.get("name") or "unknown"),
+                "platforms": platforms,
+                "path": str(molecule_file.relative_to(role_root)),
+            }
+        )
+    return scenarios
+
+
+def _collect_task_handler_catalog(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """Build optional detailed task and handler catalogs for README rendering."""
+    role_root = Path(role_path).resolve()
+    task_entries: list[dict[str, str]] = []
+    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
+        data = _load_yaml_file(task_file)
+        relpath = str(task_file.relative_to(role_root))
+        for task in _iter_task_mappings(data):
+            module_name = _detect_task_module(task) or "unknown"
+            task_name = str(task.get("name") or "(unnamed task)")
+            task_entries.append(
+                {
+                    "file": relpath,
+                    "name": task_name,
+                    "module": module_name,
+                }
+            )
+
+    handler_entries: list[dict[str, str]] = []
+    handlers_dir = role_root / "handlers"
+    if handlers_dir.is_dir():
+        for handler_file in sorted(
+            path for path in handlers_dir.rglob("*.yml") if path.is_file()
+        ):
+            if _is_path_excluded(handler_file, role_root, exclude_paths):
+                continue
+            data = _load_yaml_file(handler_file)
+            relpath = str(handler_file.relative_to(role_root))
+            for task in _iter_task_mappings(data):
+                module_name = _detect_task_module(task) or "unknown"
+                task_name = str(task.get("name") or "(unnamed handler)")
+                handler_entries.append(
+                    {
+                        "file": relpath,
+                        "name": task_name,
+                        "module": module_name,
+                    }
+                )
+    return task_entries, handler_entries
+
+
 def _compute_quality_metrics(
     role_path: str,
     exclude_paths: list[str] | None = None,
@@ -2229,15 +2324,31 @@ def _render_guide_section_body(
         summary = (metadata.get("doc_insights") or {}).get("task_summary", {})
         if not summary:
             return "No task summary available."
-        return "\n".join(
-            [
-                f"- **Task files scanned**: {summary.get('task_files_scanned', 0)}",
-                f"- **Tasks scanned**: {summary.get('tasks_scanned', 0)}",
-                f"- **Recursive includes**: {summary.get('recursive_task_includes', 0)}",
-                f"- **Unique modules**: {summary.get('module_count', 0)}",
-                f"- **Handlers referenced**: {summary.get('handler_count', 0)}",
-            ]
-        )
+        lines = [
+            f"- **Task files scanned**: {summary.get('task_files_scanned', 0)}",
+            f"- **Tasks scanned**: {summary.get('tasks_scanned', 0)}",
+            f"- **Recursive includes**: {summary.get('recursive_task_includes', 0)}",
+            f"- **Unique modules**: {summary.get('module_count', 0)}",
+            f"- **Handlers referenced**: {summary.get('handler_count', 0)}",
+        ]
+        task_catalog = metadata.get("task_catalog") or []
+        if metadata.get("detailed_catalog") and task_catalog:
+            lines.extend(
+                [
+                    "",
+                    "Detailed task catalog:",
+                    "",
+                    "| File | Task | Module |",
+                    "| --- | --- | --- |",
+                ]
+            )
+            for entry in task_catalog:
+                if not isinstance(entry, dict):
+                    continue
+                lines.append(
+                    f"| `{entry.get('file', '')}` | {entry.get('name', '')} | `{entry.get('module', '')}` |"
+                )
+        return "\n".join(lines)
 
     if section_id == "example_usage":
         example = (metadata.get("doc_insights") or {}).get("example_playbook")
@@ -2247,6 +2358,25 @@ def _render_guide_section_body(
 
     if section_id == "local_testing":
         role_tests = metadata.get("tests") or []
+        molecule_scenarios = metadata.get("molecule_scenarios") or []
+        scenario_lines: list[str] = []
+        if molecule_scenarios:
+            scenario_lines.extend(["", "Molecule scenarios detected:"])
+            for scenario in molecule_scenarios:
+                if not isinstance(scenario, dict):
+                    continue
+                name = str(scenario.get("name") or "default")
+                driver = str(scenario.get("driver") or "unknown")
+                verifier = str(scenario.get("verifier") or "unknown")
+                platforms = scenario.get("platforms") or []
+                platform_summary = ", ".join(
+                    str(item) for item in platforms if isinstance(item, str)
+                )
+                if not platform_summary:
+                    platform_summary = "unspecified"
+                scenario_lines.append(
+                    f"- `{name}` (driver: `{driver}`, verifier: `{verifier}`, platforms: {platform_summary})"
+                )
         if role_tests:
             inventory = next(
                 (item for item in role_tests if "inventory" in item), role_tests[0]
@@ -2259,13 +2389,19 @@ def _render_guide_section_body(
                 ),
                 role_tests[0],
             )
-            return (
+            guidance = (
                 "Run a quick local validation using bundled role tests:\n\n"
                 "```bash\n"
                 f"ansible-playbook -i {inventory} {playbook}\n"
                 "```"
             )
-        return "Run `tox` or `pytest -q` locally to validate scanner behavior and generated output."
+            if scenario_lines:
+                guidance += "\n" + "\n".join(scenario_lines)
+            return guidance
+        fallback = "Run `tox` or `pytest -q` locally to validate scanner behavior and generated output."
+        if scenario_lines:
+            fallback += "\n" + "\n".join(scenario_lines)
+        return fallback
 
     if section_id == "handlers":
         features = metadata.get("features") or {}
@@ -2287,6 +2423,23 @@ def _render_guide_section_body(
             lines.append("")
             lines.append("Handler definition files:")
             lines.extend(f"- `{path}`" for path in handler_files)
+        handler_catalog = metadata.get("handler_catalog") or []
+        if metadata.get("detailed_catalog") and handler_catalog:
+            lines.extend(
+                [
+                    "",
+                    "Detailed handler catalog:",
+                    "",
+                    "| File | Handler | Module |",
+                    "| --- | --- | --- |",
+                ]
+            )
+            for entry in handler_catalog:
+                if not isinstance(entry, dict):
+                    continue
+                lines.append(
+                    f"| `{entry.get('file', '')}` | {entry.get('name', '')} | `{entry.get('module', '')}` |"
+                )
         return "\n".join(lines)
 
     if section_id == "template_overrides":
@@ -2931,6 +3084,7 @@ def run_scan(
     exclude_path_patterns: list[str] | None = None,
     style_source_path: str | None = None,
     policy_config_path: str | None = None,
+    detailed_catalog: bool = False,
     dry_run: bool = False,
 ) -> str:
     _refresh_policy(policy_config_path)
@@ -2952,6 +3106,18 @@ def run_scan(
     requirements = load_requirements(role_path)
     found = scan_for_default_filters(role_path, exclude_paths=exclude_path_patterns)
     metadata = collect_role_contents(role_path, exclude_paths=exclude_path_patterns)
+    metadata["molecule_scenarios"] = _collect_molecule_scenarios(
+        role_path,
+        exclude_paths=exclude_path_patterns,
+    )
+    metadata["detailed_catalog"] = bool(detailed_catalog)
+    if detailed_catalog:
+        task_catalog, handler_catalog = _collect_task_handler_catalog(
+            role_path,
+            exclude_paths=exclude_path_patterns,
+        )
+        metadata["task_catalog"] = task_catalog
+        metadata["handler_catalog"] = handler_catalog
     requirements_display, collection_compliance_notes = _build_requirements_display(
         requirements=requirements,
         meta=meta,

@@ -529,3 +529,43 @@ def test_scan_collection_records_role_failures(monkeypatch, tmp_path):
             "error": "boom",
         }
     ]
+
+
+def test_scan_collection_can_include_rendered_readme(monkeypatch, tmp_path):
+    collection_root = tmp_path / "demo_collection"
+    (collection_root / "roles" / "role_a").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        api,
+        "scan_role",
+        lambda role_path, **kwargs: {"role_name": Path(role_path).name, "metadata": {}},
+    )
+
+    def fake_run_scan(role_path, output, output_format, **kwargs):
+        assert output == "README.md"
+        assert output_format == "md"
+        assert kwargs["dry_run"] is True
+        return f"# {Path(role_path).name}\n"
+
+    monkeypatch.setattr(api, "run_scan", fake_run_scan)
+
+    payload = api.scan_collection(str(collection_root), include_rendered_readme=True)
+
+    assert payload["roles"][0]["rendered_readme"] == "# role_a\n"
+
+
+def test_scan_role_forwards_detailed_catalog(monkeypatch, tmp_path):
+    role_path = tmp_path / "role"
+    role_path.mkdir()
+
+    def fake_run_scan(role_path_arg, output, output_format, **kwargs):
+        assert kwargs["detailed_catalog"] is True
+        return "{}"
+
+    monkeypatch.setattr(api, "run_scan", fake_run_scan)
+    payload = api.scan_role(str(role_path), detailed_catalog=True)
+    assert payload == {}
