@@ -5,12 +5,21 @@ invoking the entrypoint in a subprocess to simulate real usage.
 """
 
 from pathlib import Path
+import json
+import pytest
 import shutil
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 
 from ansible_role_doc import pattern_config
-from ansible_role_doc.pattern_config import load_pattern_config
+from ansible_role_doc.pattern_config import (
+    _load_yaml,
+    fetch_remote_policy,
+    load_pattern_config,
+    write_unknown_headings_log,
+)
 from ansible_role_doc import scanner
 from ansible_role_doc.scanner import scan_for_default_filters
 
@@ -1402,3 +1411,146 @@ def test_build_variable_insights_readme_with_special_characters(tmp_path):
     for var_name in ["my_var_name", "myVarName", "MY_VAR_CONSTANT"]:
         assert var_name in by_name
         assert by_name[var_name]["source"] == "README.md (documented input)"
+
+
+# ── pattern_config: uncovered branch coverage ──────────────────────────────
+
+
+class _FakeHTTPResponse:
+    """Minimal stub for urllib.request.urlopen context-manager response."""
+
+    def __init__(self, content: bytes) -> None:
+        self._content = content
+
+    def read(self) -> bytes:
+        return self._content
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        pass
+
+
+def test_load_yaml_returns_empty_dict_on_io_error(tmp_path, monkeypatch):
+    """_load_yaml catches IOError and returns {} without propagating."""
+    target = tmp_path / "bad.yml"
+    target.write_text("key: value", encoding="utf-8")
+
+    def raise_oserror(*a, **kw):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(Path, "open", raise_oserror)
+    assert _load_yaml(target) == {}
+
+
+def test_load_pattern_config_ignores_nonexistent_override_path(tmp_path):
+    """load_pattern_config silently skips a non-existent explicit override_path."""
+    config = load_pattern_config(override_path=str(tmp_path / "missing.yml"))
+    assert isinstance(config, dict)
+    assert "section_aliases" in config
+
+
+def test_load_pattern_config_ignores_blank_override_file(tmp_path):
+    """load_pattern_config skips an override whose YAML yields no mapping."""
+    blank = tmp_path / "empty.yml"
+    blank.write_text("", encoding="utf-8")
+    config = load_pattern_config(override_path=str(blank))
+    assert isinstance(config, dict)
+    assert "section_aliases" in config
+
+
+def test_fetch_remote_policy_success(monkeypatch):
+    """fetch_remote_policy returns a normalised policy on a successful fetch."""
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *a, **kw: _FakeHTTPResponse(b"section_aliases:\n  foo: bar\n"),
+    )
+    result = fetch_remote_policy("http://example.test/policy.yml")
+    assert isinstance(result, dict)
+    assert "section_aliases" in result
+
+
+def test_fetch_remote_policy_writes_cache_bytes(monkeypatch, tmp_path):
+    """A successful fetch writes the raw YAML bytes to cache_path."""
+    content = b"section_aliases: {}\n"
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *a, **kw: _FakeHTTPResponse(content),
+    )
+    cache = tmp_path / "sub" / "policy.yml"
+    fetch_remote_policy("http://example.test/policy.yml", cache_path=cache)
+    assert cache.read_bytes() == content
+
+
+def test_fetch_remote_policy_falls_back_to_existing_cache(monkeypatch, tmp_path):
+    """fetch_remote_policy reads the cache file when the URL fetch fails."""
+    cache = tmp_path / "policy.yml"
+    cache.write_bytes(b"section_aliases: {}\n")
+
+    def fake_open(*a, **kw):
+        raise urllib.error.URLError("no network")
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_open)
+    result = fetch_remote_policy("http://example.test/policy.yml", cache_path=cache)
+    assert isinstance(result, dict)
+
+
+def test_fetch_remote_policy_raises_on_failure_without_cache(monkeypatch):
+    """fetch_remote_policy raises RuntimeError when fetch fails and no cache_path."""
+
+    def fake_open(*a, **kw):
+        raise urllib.error.URLError("no network")
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_open)
+    with pytest.raises(RuntimeError, match="Failed to fetch remote patterns"):
+        fetch_remote_policy("http://example.test/policy.yml")
+
+
+def test_fetch_remote_policy_raises_when_cache_file_missing(monkeypatch, tmp_path):
+    """fetch_remote_policy raises RuntimeError when fetch fails and cache absent."""
+
+    def fake_open(*a, **kw):
+        raise urllib.error.URLError("no network")
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_open)
+    with pytest.raises(RuntimeError, match="no cache found"):
+        fetch_remote_policy(
+            "http://example.test/policy.yml",
+            cache_path=str(tmp_path / "missing.yml"),
+        )
+
+
+def test_fetch_remote_policy_raises_on_invalid_yaml(monkeypatch):
+    """fetch_remote_policy raises RuntimeError when response is not parseable YAML."""
+    # *undefined_alias triggers a yaml.composer.ComposerError
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *a, **kw: _FakeHTTPResponse(b"*undefined_alias"),
+    )
+    with pytest.raises(
+        RuntimeError, match="Failed to parse remote pattern policy YAML"
+    ):
+        fetch_remote_policy("http://example.test/policy.yml")
+
+
+def test_fetch_remote_policy_raises_on_non_mapping_yaml(monkeypatch):
+    """fetch_remote_policy raises RuntimeError when YAML parses to a non-dict."""
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *a, **kw: _FakeHTTPResponse(b"- item1\n- item2\n"),
+    )
+    with pytest.raises(RuntimeError, match="did not parse to a mapping"):
+        fetch_remote_policy("http://example.test/policy.yml")
+
+
+def test_write_unknown_headings_log_creates_valid_json(tmp_path):
+    """write_unknown_headings_log writes a JSON file with unknown_headings key."""
+    out = tmp_path / "sub" / "report.json"
+    write_unknown_headings_log({"some heading": 5, "other": 2}, out)
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data == {"unknown_headings": {"some heading": 5, "other": 2}}
