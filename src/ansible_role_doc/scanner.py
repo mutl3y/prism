@@ -2843,6 +2843,74 @@ def render_readme(
     return rendered
 
 
+def _build_requirements_display(
+    *,
+    requirements: list,
+    meta: dict,
+    features: dict,
+) -> tuple[list[str], list[str]]:
+    """Build rendered requirements lines and collection compliance notes."""
+    collection_compliance_notes = _build_collection_compliance_notes(
+        features=features,
+        meta=meta,
+        requirements=requirements,
+    )
+    requirements_display = normalize_requirements(requirements)
+    meta_dependencies_display = _normalize_meta_role_dependencies(meta)
+    for dep in meta_dependencies_display:
+        if dep not in requirements_display:
+            requirements_display.append(dep)
+    requirements_display.extend(
+        f"[Collection check] {note}" for note in collection_compliance_notes
+    )
+    return requirements_display, collection_compliance_notes
+
+
+def _write_concise_scanner_report_if_enabled(
+    *,
+    concise_readme: bool,
+    scanner_report_output: str | None,
+    out_path: Path,
+    include_scanner_report_link: bool,
+    role_name: str,
+    description: str,
+    display_variables: dict,
+    requirements_display: list,
+    undocumented_default_filters: list,
+    metadata: dict,
+    dry_run: bool,
+) -> Path | None:
+    """Write scanner sidecar report when concise mode is enabled."""
+    if not concise_readme:
+        return None
+
+    scanner_report_path = (
+        Path(scanner_report_output)
+        if scanner_report_output
+        else out_path.with_suffix(".scan-report.md")
+    )
+    metadata["concise_readme"] = True
+    metadata["include_scanner_report_link"] = include_scanner_report_link
+
+    if dry_run:
+        return scanner_report_path
+
+    scanner_report_path.parent.mkdir(parents=True, exist_ok=True)
+    scanner_report = _build_scanner_report_markdown(
+        role_name=role_name,
+        description=description,
+        variables=display_variables,
+        requirements=requirements_display,
+        default_filters=undocumented_default_filters,
+        metadata=metadata,
+    )
+    scanner_report_path.write_text(scanner_report, encoding="utf-8")
+    metadata["scanner_report_relpath"] = os.path.relpath(
+        scanner_report_path, out_path.parent
+    )
+    return scanner_report_path
+
+
 def run_scan(
     role_path: str,
     output: str = "README.md",
@@ -2884,20 +2952,12 @@ def run_scan(
     requirements = load_requirements(role_path)
     found = scan_for_default_filters(role_path, exclude_paths=exclude_path_patterns)
     metadata = collect_role_contents(role_path, exclude_paths=exclude_path_patterns)
-    collection_compliance_notes = _build_collection_compliance_notes(
-        features=metadata.get("features") or {},
-        meta=meta,
+    requirements_display, collection_compliance_notes = _build_requirements_display(
         requirements=requirements,
+        meta=meta,
+        features=metadata.get("features") or {},
     )
     metadata["collection_compliance_notes"] = collection_compliance_notes
-    requirements_display = normalize_requirements(requirements)
-    meta_dependencies_display = _normalize_meta_role_dependencies(meta)
-    for dep in meta_dependencies_display:
-        if dep not in requirements_display:
-            requirements_display.append(dep)
-    requirements_display.extend(
-        f"[Collection check] {note}" for note in collection_compliance_notes
-    )
     metadata["keep_unknown_style_sections"] = keep_unknown_style_sections
     readme_section_config = load_readme_section_config(
         role_path,
@@ -2995,29 +3055,19 @@ def run_scan(
         )
 
     out_path = resolve_output_path(output, output_format)
-
-    scanner_report_path: Path | None = None
-    if concise_readme:
-        if scanner_report_output:
-            scanner_report_path = Path(scanner_report_output)
-        else:
-            scanner_report_path = out_path.with_suffix(".scan-report.md")
-        metadata["concise_readme"] = True
-        metadata["include_scanner_report_link"] = include_scanner_report_link
-        if not dry_run:
-            scanner_report_path.parent.mkdir(parents=True, exist_ok=True)
-            scanner_report = _build_scanner_report_markdown(
-                role_name=role_name,
-                description=description,
-                variables=display_variables,
-                requirements=requirements_display,
-                default_filters=undocumented_default_filters,
-                metadata=metadata,
-            )
-            scanner_report_path.write_text(scanner_report, encoding="utf-8")
-            metadata["scanner_report_relpath"] = os.path.relpath(
-                scanner_report_path, out_path.parent
-            )
+    _write_concise_scanner_report_if_enabled(
+        concise_readme=concise_readme,
+        scanner_report_output=scanner_report_output,
+        out_path=out_path,
+        include_scanner_report_link=include_scanner_report_link,
+        role_name=role_name,
+        description=description,
+        display_variables=display_variables,
+        requirements_display=requirements_display,
+        undocumented_default_filters=undocumented_default_filters,
+        metadata=metadata,
+        dry_run=dry_run,
+    )
 
     rendered = ""
     if output_format != "json":
