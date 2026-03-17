@@ -7,7 +7,7 @@
   - [x] Add multiple task paths (setup/deploy/validate/rollback)
   - [x] Add handlers, templates, files, molecule/test scaffolding
   - [x] Add realistic metadata (`meta/main.yml`, requirements, tags, platforms)
-- [ ] Improve generated README richness from discovered role signals:
+- [x] Improve generated README richness from discovered role signals:
   - [x] Role purpose summary + capability bullets
   - [x] Inputs/variables table with inferred defaults and references
   - [x] Task/handler/module usage summaries
@@ -50,11 +50,11 @@
   - [x] `export-aliases` for DB → YAML dump
   - [x] `merge-aliases` for canonical alias integration
   - [x] Supporting utilities: `rename-section`, `suggest-canonical`, `apply-renames`, `apply-display-titles`
-- [ ] Track before/after doc quality metrics
+- [x] Track before/after doc quality metrics
   - Schema: per-snapshot docs (target, timestamp, variable_count, resolved_count, confidence_avg, ambiguity_count)
   - Persist quality snapshots alongside section snapshots
   - Compare consecutive snapshots for quality deltas
-- [ ] Add optional feedback loop for future ranking/tuning of generated sections
+- [x] Add optional feedback loop for future ranking/tuning of generated sections
   - Track user feedback signals: section quality ratings, title helpfulness, content accuracy
   - Design ranking model: combine coverage %, confidence, feedback score, and frequency
   - Optional: integrate with learning_section_title_report.py for title-ranking feedback
@@ -169,3 +169,11 @@
 - [x] Optional stretch: add `--cov-fail-under` threshold to `tox` once a stable baseline is agreed
 - [x] `cli.py` pushed to 100% line and branch coverage
 - [ ] Optional stretch: one additional micro-batch targeting remaining defensive exception branches in `scanner.py` to push toward 92%+ line / 88%+ branch
+
+## 12) Next-phase feature expansion (assessed additions)
+
+- [ ] Add collection-root scanning mode (parse `galaxy.yml`, enumerate `roles/`, generate collection-level README plus per-role docs)
+- [ ] Parse and render Molecule scenario details (`driver`, `platforms`, `verifier`) in README testing sections
+- [ ] Add optional detailed task/handler catalog mode (task name/module/when and handler action tables)
+- [ ] Add PDF output path (`--format pdf`) via Markdown -> HTML -> PDF conversion fallback strategy
+- [ ] Add CI docs-generation starter workflow templates and docs (GitHub Actions / GitLab examples)
