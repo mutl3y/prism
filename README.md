@@ -24,6 +24,9 @@ Summary
 - Can append detailed task and handler tables with `--detailed-catalog`.
 - Can render PDF output with `--format pdf` when the optional `weasyprint` dependency is installed.
 - Variable sourcing defaults to `defaults-only` (or use `--variable-sources defaults+vars`).
+- Parses and documents Molecule scenarios found in `molecule/*/molecule.yml`.
+- Supports per-role config files (`.ansible_role_doc.yml`) and explicit `--readme-config` / `--policy-config` flags for repeatable configuration.
+- Supports custom Jinja2 output templates via `--template` to adapt rendered output without forking the project.
 
 Scan scope (current)
 --------------------
@@ -36,6 +39,8 @@ Current scanning is static and file-based. The tool currently focuses on these s
 - Jinja2 AST-assisted detection for `default(...)` usage and undeclared template variable references, with regex fallback for malformed or unsupported expressions.
 - README-input discovery for documented variables in role README variable/input sections (including markdown tables and list formats).
 - Style-guide-driven rendering when `--style-readme` or `--repo-style-readme-path` is provided.
+- Molecule scenario discovery from `molecule/*/molecule.yml` (driver, verifier, platforms).
+- Collection root scanning: iterates `roles/` inside a collection directory, renders per-role docs, and produces a collection-level summary via `--collection-root`.
 
 Known limitations
 -----------------
@@ -54,6 +59,7 @@ Priority improvements planned
 - Expand variable/source coverage for `defaults/`, `vars/`, `meta/`, and simple `set_fact`/`include_vars` detection with provenance markers.
 - Add broader integration fixtures using realistic sample roles to validate real-world coverage and avoid regressions.
 - Extend CLI ergonomics with additional discovery/report controls (remaining focus: exclusions).
+- Expand task/handler parsing to recognise `include_role` and `import_role` directives and trace cross-role dependencies (currently only `include_tasks`/`import_tasks` file paths are followed).
 
 Usage:
 
@@ -69,6 +75,9 @@ Usage:
 - Live repo test: `python -m ansible_role_doc.cli --repo-url https://github.com/mutl3y/ansible_port_listener -o debug_readmes/REVIEW_README_PORT_LISTENER.md -v`
 - Use a README inside a cloned repo as a guide: `python -m ansible_role_doc.cli --repo-url https://github.com/mutl3y/ansible_port_listener --repo-style-readme-path README.md -o debug_readmes/REVIEW_README_PORT_LISTENER_STYLED.md -v`
 - Generate a style-guide skeleton (section order/headings only): `ansible-role-doc path/to/role --create-style-guide -o debug_readmes/REVIEW_README_SKELETON.md`
+- Use a per-role config file: place `.ansible_role_doc.yml` in the role root (auto-discovered) or pass `--readme-config path/to/config.yml`
+- Use a custom output template: `ansible-role-doc path/to/role --template path/to/README.md.j2 -o output.md`
+- Apply a custom pattern policy: `ansible-role-doc path/to/role --policy-config path/to/patterns.yml -o output.md`
 
 Library API:
 
@@ -151,6 +160,10 @@ CLI capabilities (today):
 - Local baseline comparison is opt-in only via `--compare-role-path`.
 - Unmapped style-guide sections are kept by default; use `--no-keep-unknown-style-sections` to suppress them.
 - PDF output requires the optional `weasyprint` dependency.
+- Per-role configuration: auto-discovers `.ansible_role_doc.yml` in the role root; override with `--readme-config`
+- Pattern policy overrides: `--policy-config` for custom token/alias/sensitivity rules
+- Custom Jinja2 output template: `--template` (falls back to bundled `templates/README.md.j2`)
+- Molecule scenario documentation: detected automatically from `molecule/*/molecule.yml`
 
 When a style guide README is used, comparison artifacts are saved beside the generated output:
 
@@ -213,7 +226,7 @@ readme:
 Testing note:
 
 - Running `tox` (default `py` env) runs tests with coverage and writes `debug_readmes/coverage.xml`.
-- Latest local snapshot (2026-03-15): `176 passed` with total coverage `82.56%`.
+- Latest local snapshot (2026-03-17): `244 passed` with total coverage `85.0%`.
 - Generate review outputs on demand with `tox -e readmes` (or `tox -e py,readmes`), which writes:
 	- `debug_readmes/REVIEW_README.md`
 	- `debug_readmes/REVIEW_README.html`
