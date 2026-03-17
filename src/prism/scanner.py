@@ -113,7 +113,12 @@ SCANNER_STATS_SECTION_IDS = {
     "default_filters",
 }
 
-SECTION_CONFIG_FILENAME = ".ansible_role_doc.yml"
+SECTION_CONFIG_FILENAME = ".prism.yml"
+LEGACY_SECTION_CONFIG_FILENAME = ".ansible_role_doc.yml"
+SECTION_CONFIG_FILENAMES = (
+    SECTION_CONFIG_FILENAME,
+    LEGACY_SECTION_CONFIG_FILENAME,
+)
 _EXTRA_SECTION_IDS = {
     "basic_authorization",
     "handlers",
@@ -193,11 +198,18 @@ DEFAULT_STYLE_GUIDE_SOURCE_PATH = (
     Path(__file__).parent / "templates" / "STYLE_GUIDE_SOURCE.md"
 )
 DEFAULT_STYLE_GUIDE_SOURCE_FILENAME = "STYLE_GUIDE_SOURCE.md"
-ENV_STYLE_GUIDE_SOURCE_PATH = "ANSIBLE_ROLE_DOC_STYLE_SOURCE"
+ENV_STYLE_GUIDE_SOURCE_PATH = "PRISM_STYLE_SOURCE"
+LEGACY_ENV_STYLE_GUIDE_SOURCE_PATH = "ANSIBLE_ROLE_DOC_STYLE_SOURCE"
 XDG_DATA_HOME_ENV = "XDG_DATA_HOME"
-STYLE_GUIDE_DATA_DIRNAME = "ansible-role-doc"
+STYLE_GUIDE_DATA_DIRNAME = "prism"
+LEGACY_STYLE_GUIDE_DATA_DIRNAME = "ansible_role_doc"
 SYSTEM_STYLE_GUIDE_SOURCE_PATH = (
     Path("/var/lib") / STYLE_GUIDE_DATA_DIRNAME / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME
+)
+LEGACY_SYSTEM_STYLE_GUIDE_SOURCE_PATH = (
+    Path("/var/lib")
+    / LEGACY_STYLE_GUIDE_DATA_DIRNAME
+    / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME
 )
 DEFAULT_SECTION_DISPLAY_TITLES_PATH = (
     Path(__file__).parent / "data" / "section_display_titles.yml"
@@ -261,14 +273,19 @@ def _format_heading(text: str, level: int, style: str) -> str:
     return format_heading(text, level, style)
 
 
-def _default_style_guide_user_path() -> Path:
-    """Return user-level style guide path honoring XDG conventions."""
+def _default_style_guide_user_paths() -> list[Path]:
+    """Return user-level style guide paths honoring XDG conventions."""
     xdg_data_home = os.environ.get(XDG_DATA_HOME_ENV)
     if xdg_data_home:
         data_home = Path(xdg_data_home).expanduser()
     else:
         data_home = (Path.home() / ".local" / "share").expanduser()
-    return data_home / STYLE_GUIDE_DATA_DIRNAME / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME
+    return [
+        data_home / STYLE_GUIDE_DATA_DIRNAME / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME,
+        data_home
+        / LEGACY_STYLE_GUIDE_DATA_DIRNAME
+        / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME,
+    ]
 
 
 def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:
@@ -276,12 +293,15 @@ def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:
 
     Precedence (first existing path wins):
 
-    1. ``$ANSIBLE_ROLE_DOC_STYLE_SOURCE``
-    2. ``./STYLE_GUIDE_SOURCE.md``
-    3. ``$XDG_DATA_HOME/ansible-role-doc/STYLE_GUIDE_SOURCE.md``
+     1. ``$PRISM_STYLE_SOURCE``
+     2. ``$ANSIBLE_ROLE_DOC_STYLE_SOURCE`` (legacy compatibility)
+     3. ``./STYLE_GUIDE_SOURCE.md``
+     4. ``$XDG_DATA_HOME/prism/STYLE_GUIDE_SOURCE.md``
        (or ``~/.local/share/...`` fallback)
-    4. ``/var/lib/ansible-role-doc/STYLE_GUIDE_SOURCE.md``
-    5. bundled package template path
+     5. ``$XDG_DATA_HOME/ansible_role_doc/STYLE_GUIDE_SOURCE.md`` (legacy)
+     6. ``/var/lib/prism/STYLE_GUIDE_SOURCE.md``
+     7. ``/var/lib/ansible_role_doc/STYLE_GUIDE_SOURCE.md`` (legacy)
+     8. bundled package template path
     """
     if explicit_path:
         explicit_candidate = Path(explicit_path).expanduser()
@@ -295,9 +315,14 @@ def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:
     if env_style_source:
         candidates.append(Path(env_style_source).expanduser())
 
+    legacy_env_style_source = os.environ.get(LEGACY_ENV_STYLE_GUIDE_SOURCE_PATH)
+    if legacy_env_style_source:
+        candidates.append(Path(legacy_env_style_source).expanduser())
+
     candidates.append(Path.cwd() / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME)
-    candidates.append(_default_style_guide_user_path())
+    candidates.extend(_default_style_guide_user_paths())
     candidates.append(SYSTEM_STYLE_GUIDE_SOURCE_PATH)
+    candidates.append(LEGACY_SYSTEM_STYLE_GUIDE_SOURCE_PATH)
     candidates.append(DEFAULT_STYLE_GUIDE_SOURCE_PATH)
 
     for candidate in candidates:
@@ -1925,8 +1950,8 @@ def load_readme_section_visibility(
 ) -> set[str] | None:
     """Load optional README section visibility rules from YAML config.
 
-    Configuration format (either explicit ``config_path`` or
-    ``<role_path>/.ansible_role_doc.yml``):
+    Configuration format (either explicit ``config_path`` or auto-discovered
+    ``<role_path>/.prism.yml`` / legacy ``<role_path>/.ansible_role_doc.yml``):
 
     .. code-block:: yaml
 
@@ -1954,9 +1979,19 @@ def load_readme_section_config(
     adopt_heading_mode: str | None = None,
 ) -> dict | None:
     """Load README section visibility and section rendering options."""
-    cfg_file = (
-        Path(config_path) if config_path else Path(role_path) / SECTION_CONFIG_FILENAME
-    )
+    if config_path:
+        cfg_file = Path(config_path)
+    else:
+        cfg_file = None
+        role_root = Path(role_path)
+        for filename in SECTION_CONFIG_FILENAMES:
+            candidate = role_root / filename
+            if candidate.is_file():
+                cfg_file = candidate
+                break
+        if cfg_file is None:
+            cfg_file = role_root / SECTION_CONFIG_FILENAME
+
     if not cfg_file.is_file():
         return None
 
@@ -2566,25 +2601,32 @@ def _render_readme_with_style_guide(
 ) -> str:
     """Render markdown following the structure of a guide README."""
 
-    def _generated_merge_markers(section_id: str) -> tuple[str, str]:
-        start = f"<!-- ansible-role-doc:generated:start:{section_id} -->"
-        end = f"<!-- ansible-role-doc:generated:end:{section_id} -->"
-        return start, end
+    def _generated_merge_markers(section_id: str) -> list[tuple[str, str]]:
+        return [
+            (
+                f"<!-- prism:generated:start:{section_id} -->",
+                f"<!-- prism:generated:end:{section_id} -->",
+            ),
+            (
+                f"<!-- ansible-role-doc:generated:start:{section_id} -->",
+                f"<!-- ansible-role-doc:generated:end:{section_id} -->",
+            ),
+        ]
 
     def _strip_prior_generated_merge_block(section: dict, guide_body: str) -> str:
         """Remove previously generated merge payload for a section, if present."""
         section_id = str(section.get("id") or "")
         cleaned = guide_body
-        start_marker, end_marker = _generated_merge_markers(section_id)
-        start_idx = cleaned.find(start_marker)
-        end_idx = cleaned.find(end_marker)
-        if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
-            prefix = cleaned[:start_idx].rstrip()
-            suffix = cleaned[end_idx + len(end_marker) :].lstrip()
-            if prefix and suffix:
-                cleaned = f"{prefix}\n\n{suffix}"
-            else:
-                cleaned = prefix or suffix
+        for start_marker, end_marker in _generated_merge_markers(section_id):
+            start_idx = cleaned.find(start_marker)
+            end_idx = cleaned.find(end_marker)
+            if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
+                prefix = cleaned[:start_idx].rstrip()
+                suffix = cleaned[end_idx + len(end_marker) :].lstrip()
+                if prefix and suffix:
+                    cleaned = f"{prefix}\n\n{suffix}"
+                else:
+                    cleaned = prefix or suffix
 
         # Backward compatibility for earlier merge output without markers.
         legacy_labels = ["\n\nGenerated content:\n"]
@@ -2633,7 +2675,7 @@ def _render_readme_with_style_guide(
         if generated_body in cleaned_guide_body:
             return cleaned_guide_body
         section_id = str(section.get("id") or "")
-        start_marker, end_marker = _generated_merge_markers(section_id)
+        start_marker, end_marker = _generated_merge_markers(section_id)[0]
         if section_id == "requirements":
             return (
                 f"{cleaned_guide_body}\n\n"

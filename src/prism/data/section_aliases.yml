@@ -7,9 +7,9 @@
 # Entries are sorted by canonical id, then by alias key within each group.
 # This file ships with the package as the built-in baseline.
 #
-# To override in your repo, create .ansible_role_doc_patterns.yml containing
+# To override in your repo, create .prism_patterns.yml containing
 # only the keys you want to change (lists replace wholesale, dicts merge).
-# For community-curated updates see: https://github.com/mutl3y/ansible_role_doc_patterns
+# For community-curated updates see: https://github.com/mutl3y/prism_patterns
 
 section_aliases:
 

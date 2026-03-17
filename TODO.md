@@ -92,7 +92,7 @@
 - [x] Ship a local default style guide source markdown with the package
 - [x] Add `--style-guide-skeleton` mode to generate section/order-only README scaffolds
 - [x] Resolve skeleton style source from cwd `STYLE_GUIDE_SOURCE.md` before bundled fallback
-- [x] Support cwd policy overlay via `./.ansible_role_doc_patterns.yml`
+- [x] Support cwd policy overlay via `./.prism_patterns.yml`
 - [x] Add phased mutable-data resolution for Linux hosts (user-level XDG path and optional system path)
 - [x] Add env var precedence options for style/policy sources
 - [x] Add explicit CLI-path options for style/policy sources

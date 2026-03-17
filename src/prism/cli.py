@@ -1,6 +1,6 @@
-"""CLI entry point for ansible-role-doc.
+"""CLI entry point for prism.
 
-Provides a small CLI wrapper around :func:`ansible_role_doc.scanner.run_scan`.
+Provides a small CLI wrapper around :func:`prism.scanner.run_scan`.
 """
 
 from __future__ import annotations
@@ -20,7 +20,12 @@ from urllib.request import Request, urlopen
 import sys
 import tempfile
 import yaml
-from .scanner import parse_style_readme, resolve_default_style_guide_source, run_scan
+from .scanner import (
+    SECTION_CONFIG_FILENAMES,
+    parse_style_readme,
+    resolve_default_style_guide_source,
+    run_scan,
+)
 
 
 class _ReadableYamlDumper(yaml.SafeDumper):
@@ -59,7 +64,7 @@ _ROLE_MARKER_DIRS = frozenset(
 )
 _MIN_ROLE_MARKER_DIRS = 3
 _REQUIRED_ROLE_DIRS = frozenset({"defaults", "tasks", "meta"})
-_SHARED_TMP_ROOT_NAME = "ansible-role-doc"
+_SHARED_TMP_ROOT_NAME = "prism"
 
 
 @contextmanager
@@ -171,7 +176,7 @@ def build_parser() -> argparse.ArgumentParser:
     The parser includes options for output path, template, format and verbosity.
     """
     p = argparse.ArgumentParser(
-        prog="ansible-role-doc",
+        prog="prism",
         description="Scan an Ansible role for default() usages and render README.",
     )
     p.add_argument(
@@ -281,7 +286,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Optional YAML config controlling README section visibility "
-            "(defaults to <role>/.ansible_role_doc.yml when present)."
+            "(defaults to <role>/.prism.yml when present)."
         ),
     )
     p.add_argument(
@@ -300,7 +305,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Section heading mode when using README config include_sections: "
             "canonical (default), style (use include_sections labels), or popular "
             "(use bundled display titles). Can also be set via "
-            "readme.adopt_heading_mode in .ansible_role_doc.yml."
+            "readme.adopt_heading_mode in .prism.yml."
         ),
     )
     p.add_argument(
@@ -515,7 +520,7 @@ def _fetch_repo_contents_payload(
         api_url,
         headers={
             "Accept": "application/vnd.github.object",
-            "User-Agent": "ansible-role-doc",
+            "User-Agent": "prism",
         },
     )
 
@@ -782,7 +787,7 @@ def _save_style_comparison_artifacts(
         }
     }
     cfg_lines = [
-        "# Auto-generated sample: promote this file into the role as .ansible_role_doc.yml",
+        "# Auto-generated sample: promote this file into the role as .prism.yml",
         "# to keep unknown style sections as your source-of-truth.",
         yaml.dump(
             payload,
@@ -922,9 +927,11 @@ def main(argv=None) -> int:
                 else:
                     effective_readme_config_path = args.readme_config
                     if not effective_readme_config_path:
-                        default_cfg = role_path / ".ansible_role_doc.yml"
-                        if default_cfg.is_file():
-                            effective_readme_config_path = str(default_cfg)
+                        for cfg_name in SECTION_CONFIG_FILENAMES:
+                            default_cfg = role_path / cfg_name
+                            if default_cfg.is_file():
+                                effective_readme_config_path = str(default_cfg)
+                                break
                     style_source_path, style_demo_path = (
                         _save_style_comparison_artifacts(
                             style_readme_path,
@@ -1035,9 +1042,11 @@ def main(argv=None) -> int:
                 else:
                     effective_readme_config_path = args.readme_config
                     if not effective_readme_config_path:
-                        default_cfg = Path(args.role_path) / ".ansible_role_doc.yml"
-                        if default_cfg.is_file():
-                            effective_readme_config_path = str(default_cfg)
+                        for cfg_name in SECTION_CONFIG_FILENAMES:
+                            default_cfg = Path(args.role_path) / cfg_name
+                            if default_cfg.is_file():
+                                effective_readme_config_path = str(default_cfg)
+                                break
                     style_source_path, style_demo_path = (
                         _save_style_comparison_artifacts(
                             args.style_readme,

@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import sys
 
-from ansible_role_doc import scanner
+from prism import scanner
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -22,7 +22,7 @@ def test_render_readme_for_mock_role(tmp_path):
     python_code = (
         "import sys;"
         "sys.path.insert(0, '{src_dir}');"
-        "from ansible_role_doc.scanner import run_scan;"
+        "from prism.scanner import run_scan;"
         "run_scan('{role}', output='{out}')"
     ).format(src_dir=str(HERE.parent.parent), role=str(target), out=str(out))
 
@@ -317,7 +317,7 @@ def test_run_scan_readme_config_can_gate_sections(tmp_path):
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
-    cfg = target / ".ansible_role_doc.yml"
+    cfg = target / ".prism.yml"
     cfg.write_text(
         "readme:\n"
         "  include_sections:\n"
@@ -351,6 +351,24 @@ def test_run_scan_uses_inrole_readme_config_fixture(tmp_path):
     assert "Galaxy Info" not in content
     assert "Requirements" not in content
     assert "Task/module usage summary" not in content
+
+
+def test_run_scan_uses_legacy_inrole_readme_config_filename(tmp_path):
+    role_src = INROLE_CONFIG_ROLE_FIXTURE
+    target = tmp_path / "inrole_config_role"
+    shutil.copytree(role_src, target)
+
+    legacy_cfg = target / ".ansible_role_doc.yml"
+    modern_cfg = target / ".prism.yml"
+    modern_cfg.write_text(legacy_cfg.read_text(encoding="utf-8"), encoding="utf-8")
+    legacy_cfg.unlink()
+
+    out = tmp_path / "README_CONFIG_FROM_LEGACY_ROLE.md"
+    scanner.run_scan(str(target), output=str(out))
+
+    content = out.read_text(encoding="utf-8")
+    assert "Capabilities" in content
+    assert "Galaxy Info" not in content
 
 
 def test_run_scan_inrole_config_heading_mode_can_be_set_to_canonical(tmp_path):
@@ -387,7 +405,7 @@ def test_run_scan_style_guide_skeleton_renders_sections_only(tmp_path):
     assert "A mock Ansible role for tests" in content
     assert "This is a description for this role" in content
     assert (
-        "I sourced it from the meta/main.yml file in the ansible-role-doc repository."
+        "I sourced it from the meta/main.yml file in the prism repository."
         in content
     )
     assert "Requirements" in content
@@ -403,7 +421,7 @@ def test_run_scan_style_guide_skeleton_uses_xdg_style_source(monkeypatch, tmp_pa
     shutil.copytree(role_src, target)
 
     xdg_home = tmp_path / "xdg-data"
-    xdg_style = xdg_home / "ansible-role-doc" / "STYLE_GUIDE_SOURCE.md"
+    xdg_style = xdg_home / "prism" / "STYLE_GUIDE_SOURCE.md"
     xdg_style.parent.mkdir(parents=True)
     xdg_style.write_text(
         "# XDG Style\n\n## Requirements\n\n## Role Variables\n",
@@ -414,6 +432,34 @@ def test_run_scan_style_guide_skeleton_uses_xdg_style_source(monkeypatch, tmp_pa
     monkeypatch.setenv("XDG_DATA_HOME", str(xdg_home))
 
     out = tmp_path / "STYLE_GUIDE_SKELETON_XDG.md"
+    scanner.run_scan(
+        str(target),
+        output=str(out),
+        style_guide_skeleton=True,
+    )
+
+    content = out.read_text(encoding="utf-8")
+    assert "## Requirements" in content
+    assert "## Role Variables" in content
+
+
+def test_run_scan_style_guide_skeleton_uses_legacy_env_style_source(
+    monkeypatch, tmp_path
+):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    legacy_style = tmp_path / "legacy-style.md"
+    legacy_style.write_text(
+        "# Legacy Style\n\n## Requirements\n\n## Role Variables\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ANSIBLE_ROLE_DOC_STYLE_SOURCE", str(legacy_style))
+
+    out = tmp_path / "STYLE_GUIDE_SKELETON_LEGACY_ENV.md"
     scanner.run_scan(
         str(target),
         output=str(out),
@@ -437,7 +483,7 @@ def test_render_readme_with_local_comparison(tmp_path):
     python_code = (
         "import sys;"
         "sys.path.insert(0, '{src_dir}');"
-        "from ansible_role_doc.scanner import run_scan;"
+        "from prism.scanner import run_scan;"
         "run_scan('{role}', output='{out}', compare_role_path='{baseline}')"
     ).format(
         src_dir=str(HERE.parent.parent),
@@ -477,7 +523,7 @@ def test_render_readme_with_style_guide_ordering(tmp_path):
     python_code = (
         "import sys;"
         "sys.path.insert(0, '{src_dir}');"
-        "from ansible_role_doc.scanner import run_scan;"
+        "from prism.scanner import run_scan;"
         "run_scan('{role}', output='{out}', style_readme_path='{style}')"
     ).format(
         src_dir=str(HERE.parent.parent),
@@ -531,7 +577,7 @@ def test_render_readme_config_can_replace_requirements_body(tmp_path):
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
-    cfg = target / ".ansible_role_doc.yml"
+    cfg = target / ".prism.yml"
     cfg.write_text(
         "readme:\n  section_content_modes:\n    requirements: replace\n",
         encoding="utf-8",
@@ -560,7 +606,7 @@ def test_render_readme_content_modes_follow_include_section_titles(tmp_path):
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
-    cfg = target / ".ansible_role_doc.yml"
+    cfg = target / ".prism.yml"
     cfg.write_text(
         "readme:\n"
         "  include_sections:\n"
@@ -597,7 +643,7 @@ def test_render_readme_content_mode_title_match_normalizes_spacing(tmp_path):
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
-    cfg = target / ".ansible_role_doc.yml"
+    cfg = target / ".prism.yml"
     cfg.write_text(
         "readme:\n"
         "  include_sections:\n"
@@ -626,7 +672,7 @@ def test_render_readme_config_can_force_requirements_generate_only(tmp_path):
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
-    cfg = target / ".ansible_role_doc.yml"
+    cfg = target / ".prism.yml"
     cfg.write_text(
         "readme:\n  section_content_modes:\n    Requirements: generate\n",
         encoding="utf-8",
@@ -654,7 +700,7 @@ def test_render_readme_merge_replaces_prior_generated_requirements_block(tmp_pat
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
-    cfg = target / ".ansible_role_doc.yml"
+    cfg = target / ".prism.yml"
     cfg.write_text(
         "readme:\n  section_content_modes:\n    requirements: merge\n",
         encoding="utf-8",
@@ -666,9 +712,9 @@ def test_render_readme_merge_replaces_prior_generated_requirements_block(tmp_pat
         "## Requirements\n\n"
         "Base guide requirement text.\n\n"
         "Detected requirements from scanner:\n"
-        "<!-- ansible-role-doc:generated:start:requirements -->\n"
+        "<!-- prism:generated:start:requirements -->\n"
         "- old.dependency (version: 0.0.1)\n"
-        "<!-- ansible-role-doc:generated:end:requirements -->\n\n"
+        "<!-- prism:generated:end:requirements -->\n\n"
         "## Role Variables\n\n",
         encoding="utf-8",
     )
@@ -680,8 +726,8 @@ def test_render_readme_merge_replaces_prior_generated_requirements_block(tmp_pat
     assert "Base guide requirement text." in content
     assert "old.dependency" not in content
     assert "example.role_dependency (version: 1.0.0)" in content
-    assert content.count("<!-- ansible-role-doc:generated:start:requirements -->") == 1
-    assert content.count("<!-- ansible-role-doc:generated:end:requirements -->") == 1
+    assert content.count("<!-- prism:generated:start:requirements -->") == 1
+    assert content.count("<!-- prism:generated:end:requirements -->") == 1
 
 
 def test_render_readme_defaults_to_merge_for_narrative_section_prose(tmp_path):
@@ -730,7 +776,7 @@ def test_render_readme_maps_extended_style_sections(tmp_path):
     python_code = (
         "import sys;"
         "sys.path.insert(0, '{src_dir}');"
-        "from ansible_role_doc.scanner import run_scan;"
+        "from prism.scanner import run_scan;"
         "run_scan('{role}', output='{out}', style_readme_path='{style}')"
     ).format(
         src_dir=str(HERE.parent.parent),
@@ -779,7 +825,7 @@ def test_render_readme_applies_nested_variable_style(tmp_path):
     python_code = (
         "import sys;"
         "sys.path.insert(0, '{src_dir}');"
-        "from ansible_role_doc.scanner import run_scan;"
+        "from prism.scanner import run_scan;"
         "run_scan('{role}', output='{out}', style_readme_path='{style}')"
     ).format(
         src_dir=str(HERE.parent.parent),
@@ -818,7 +864,7 @@ def test_render_readme_applies_yaml_variable_style(tmp_path):
     python_code = (
         "import sys;"
         "sys.path.insert(0, '{src_dir}');"
-        "from ansible_role_doc.scanner import run_scan;"
+        "from prism.scanner import run_scan;"
         "run_scan('{role}', output='{out}', style_readme_path='{style}')"
     ).format(
         src_dir=str(HERE.parent.parent),

@@ -11,10 +11,10 @@ Current snapshot updated on 2026-03-15 from local `tox`.
 
 Per-file snapshot from the latest run:
 
-- `src/ansible_role_doc/cli.py`: 88.0%
-- `src/ansible_role_doc/pattern_config.py`: 68.8%
-- `src/ansible_role_doc/scanner.py`: 81.4%
-- `src/ansible_role_doc/style_guide.py`: 81.7%
+- `src/prism/cli.py`: 88.0%
+- `src/prism/pattern_config.py`: 68.8%
+- `src/prism/scanner.py`: 81.4%
+- `src/prism/style_guide.py`: 81.7%
 
 ## Status summary
 

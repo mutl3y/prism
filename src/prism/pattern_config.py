@@ -1,4 +1,4 @@
-"""Pattern policy loader for ansible_role_doc.
+"""Pattern policy loader for prism.
 
 Loads the built-in token lists and alias mappings from the YAML files in
 ``data/``.  Each file contributes its top-level keys to the policy dict
@@ -15,7 +15,7 @@ Typical usage in scanner.py::
     _POLICY = load_pattern_config()
     STYLE_SECTION_ALIASES = _POLICY["section_aliases"]
 
-Override file (e.g. ``.ansible_role_doc_patterns.yml`` in the role repo)
+Override file (e.g. ``.prism_patterns.yml`` in the role repo)
 should be a YAML file with the same top-level keys as the above files.
 Only the keys you include are replaced; omitted keys keep the built-in value.
 Dicts are merged recursively; lists replace wholesale (no partial merge).
@@ -24,9 +24,9 @@ Remote patterns repo
 --------------------
 When internet access is available the ``fetch_remote_policy`` helper can
 pull a merged ``pattern_policy.yml`` from a remote URL (e.g. the raw
-GitHub URL of ``ansible_role_doc_patterns``) and cache it locally.  This
+GitHub URL of ``prism_patterns``) and cache it locally.  This
 is intentionally *not* called automatically at scan time; invoke it
-explicitly via ``ansible-role-doc update-patterns``.
+explicitly via ``prism update-patterns``.
 """
 
 from __future__ import annotations
@@ -45,24 +45,31 @@ import yaml
 _BUILTIN_DATA_DIR = Path(__file__).parent / "data"
 
 # Default name for a repo-level override sitting next to the role being scanned
-REPO_OVERRIDE_FILENAME = ".ansible_role_doc_patterns.yml"
+REPO_OVERRIDE_FILENAME = ".prism_patterns.yml"
+LEGACY_REPO_OVERRIDE_FILENAME = ".ansible_role_doc_patterns.yml"
 
 # Optional current-working-directory override name
-CWD_OVERRIDE_FILENAME = ".ansible_role_doc_patterns.yml"
+CWD_OVERRIDE_FILENAME = ".prism_patterns.yml"
+LEGACY_CWD_OVERRIDE_FILENAME = ".ansible_role_doc_patterns.yml"
 
 # Optional environment-variable override file path
-ENV_PATTERNS_OVERRIDE_PATH = "ANSIBLE_ROLE_DOC_PATTERNS_PATH"
+ENV_PATTERNS_OVERRIDE_PATH = "PRISM_PATTERNS_PATH"
+LEGACY_ENV_PATTERNS_OVERRIDE_PATH = "ANSIBLE_ROLE_DOC_PATTERNS_PATH"
 
 # Linux user/system mutable-data locations
 XDG_DATA_HOME_ENV = "XDG_DATA_HOME"
-APP_DATA_DIRNAME = "ansible-role-doc"
+APP_DATA_DIRNAME = "prism"
+LEGACY_APP_DATA_DIRNAME = "ansible_role_doc"
 SYSTEM_PATTERN_OVERRIDE_PATH = (
     Path("/var/lib") / APP_DATA_DIRNAME / CWD_OVERRIDE_FILENAME
+)
+LEGACY_SYSTEM_PATTERN_OVERRIDE_PATH = (
+    Path("/var/lib") / LEGACY_APP_DATA_DIRNAME / LEGACY_CWD_OVERRIDE_FILENAME
 )
 
 # Default remote source (community-curated patterns repo)
 DEFAULT_REMOTE_URL = (
-    "https://raw.githubusercontent.com/mutl3y/ansible_role_doc_patterns"
+    "https://raw.githubusercontent.com/mutl3y/prism_patterns"
     "/main/pattern_policy.yml"
 )
 
@@ -146,18 +153,29 @@ def _iter_default_override_paths() -> list[Path]:
 
     # system-level mutable defaults
     candidates.append(SYSTEM_PATTERN_OVERRIDE_PATH)
+    candidates.append(LEGACY_SYSTEM_PATTERN_OVERRIDE_PATH)
 
     # user-level mutable defaults (XDG)
-    user_override = _default_user_data_home() / APP_DATA_DIRNAME / CWD_OVERRIDE_FILENAME
-    candidates.append(user_override)
+    user_data_home = _default_user_data_home()
+    candidates.append(user_data_home / APP_DATA_DIRNAME / CWD_OVERRIDE_FILENAME)
+    candidates.append(
+        user_data_home
+        / LEGACY_APP_DATA_DIRNAME
+        / LEGACY_CWD_OVERRIDE_FILENAME
+    )
 
     # repo-local/cwd override
     candidates.append(Path.cwd() / CWD_OVERRIDE_FILENAME)
+    candidates.append(Path.cwd() / LEGACY_CWD_OVERRIDE_FILENAME)
 
     # optional env var override (highest among implicit defaults)
     env_override_raw = os.environ.get(ENV_PATTERNS_OVERRIDE_PATH)
     if env_override_raw:
         candidates.append(Path(env_override_raw).expanduser())
+
+    legacy_env_override_raw = os.environ.get(LEGACY_ENV_PATTERNS_OVERRIDE_PATH)
+    if legacy_env_override_raw:
+        candidates.append(Path(legacy_env_override_raw).expanduser())
 
     return candidates
 
@@ -170,12 +188,16 @@ def load_pattern_config(
     Load order (later wins):
 
     1. Built-in per-topic YAML files from ``data/`` (always present, ship with package)
-     2. ``/var/lib/ansible-role-doc/.ansible_role_doc_patterns.yml`` (system mutable data)
-     3. ``$XDG_DATA_HOME/ansible-role-doc/.ansible_role_doc_patterns.yml``
-         or ``~/.local/share/ansible-role-doc/.ansible_role_doc_patterns.yml``
-     4. ``./.ansible_role_doc_patterns.yml`` in current working directory
-     5. ``$ANSIBLE_ROLE_DOC_PATTERNS_PATH`` if set
-     6. *override_path* if supplied (explicit highest precedence)
+     2. ``/var/lib/prism/.prism_patterns.yml`` (system mutable data)
+     3. ``/var/lib/ansible_role_doc/.ansible_role_doc_patterns.yml`` (legacy)
+     4. ``$XDG_DATA_HOME/prism/.prism_patterns.yml``
+         or ``~/.local/share/prism/.prism_patterns.yml``
+     5. ``$XDG_DATA_HOME/ansible_role_doc/.ansible_role_doc_patterns.yml`` (legacy)
+     6. ``./.prism_patterns.yml`` in current working directory
+     7. ``./.ansible_role_doc_patterns.yml`` (legacy)
+     8. ``$PRISM_PATTERNS_PATH`` if set
+     9. ``$ANSIBLE_ROLE_DOC_PATTERNS_PATH`` if set (legacy)
+    10. *override_path* if supplied (explicit highest precedence)
 
     Parameters
     ----------

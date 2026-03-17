@@ -1,7 +1,7 @@
 Role Name
 =========
 
-Note: Fixture usage guidance is documented in `src/ansible_role_doc/tests/roles/README.md`.
+Note: Fixture usage guidance is documented in `src/prism/tests/roles/README.md`.
 
 A brief description of the role goes here.
 

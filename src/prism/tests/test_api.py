@@ -4,7 +4,7 @@ import shutil
 
 import pytest
 
-from ansible_role_doc import api, cli
+from prism import api, cli
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -291,9 +291,9 @@ def test_scan_repo_uses_shared_temp_root_and_normalizes_style_path(
         repo_style_readme_path="README.md",
     )
 
-    assert clone_calls["destination"].parent.parent == tmp_path / "ansible-role-doc"
+    assert clone_calls["destination"].parent.parent == tmp_path / "prism"
     assert payload["metadata"]["style_guide"]["path"] == "README.md"
-    assert not (tmp_path / "ansible-role-doc").exists()
+    assert not (tmp_path / "prism").exists()
 
 
 def test_scan_repo_resolves_case_variant_repo_style_readme(monkeypatch, tmp_path):

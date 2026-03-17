@@ -1,4 +1,4 @@
-"""Unit tests for the ansible_role_doc scanner CLI.
+"""Unit tests for the prism scanner CLI.
 
 These tests exercise the package CLI by importing the local package and
 invoking the entrypoint in a subprocess to simulate real usage.
@@ -13,15 +13,15 @@ import sys
 import urllib.error
 import urllib.request
 
-from ansible_role_doc import pattern_config
-from ansible_role_doc.pattern_config import (
+from prism import pattern_config
+from prism.pattern_config import (
     _load_yaml,
     fetch_remote_policy,
     load_pattern_config,
     write_unknown_headings_log,
 )
-from ansible_role_doc import scanner
-from ansible_role_doc.scanner import scan_for_default_filters
+from prism import scanner
+from prism.scanner import scan_for_default_filters
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -39,7 +39,7 @@ def test_scan_detects_defaults(tmp_path):
     python_code = (
         "import sys;"
         "sys.path.insert(0, '{src_dir}');"
-        "from ansible_role_doc.cli import main;"
+        "from prism.cli import main;"
         "sys.exit(main(['{role}','-o','{out}']))"
     ).format(src_dir=str(HERE.parent.parent), role=str(target), out=str(out))
 
@@ -452,7 +452,7 @@ def test_run_scan_redacts_secret_like_default_filter_values(tmp_path):
 
 
 def test_load_pattern_config_reads_cwd_override(monkeypatch, tmp_path):
-    override = tmp_path / ".ansible_role_doc_patterns.yml"
+    override = tmp_path / ".prism_patterns.yml"
     override.write_text(
         "sensitivity:\n  name_tokens:\n    - from_cwd_override\n",
         encoding="utf-8",
@@ -464,9 +464,22 @@ def test_load_pattern_config_reads_cwd_override(monkeypatch, tmp_path):
     assert "from_cwd_override" in config["sensitivity"]["name_tokens"]
 
 
+def test_load_pattern_config_reads_legacy_cwd_override(monkeypatch, tmp_path):
+    override = tmp_path / ".ansible_role_doc_patterns.yml"
+    override.write_text(
+        "sensitivity:\n  name_tokens:\n    - from_legacy_cwd_override\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    config = load_pattern_config()
+
+    assert "from_legacy_cwd_override" in config["sensitivity"]["name_tokens"]
+
+
 def test_load_pattern_config_reads_xdg_user_override(monkeypatch, tmp_path):
     xdg_home = tmp_path / "xdg-home"
-    override = xdg_home / "ansible-role-doc" / pattern_config.CWD_OVERRIDE_FILENAME
+    override = xdg_home / "prism" / pattern_config.CWD_OVERRIDE_FILENAME
     override.parent.mkdir(parents=True)
     override.write_text(
         "sensitivity:\n  name_tokens:\n    - from_xdg_override\n",
@@ -494,6 +507,20 @@ def test_load_pattern_config_reads_env_override(monkeypatch, tmp_path):
     assert "from_env_override" in config["sensitivity"]["name_tokens"]
 
 
+def test_load_pattern_config_reads_legacy_env_override(monkeypatch, tmp_path):
+    override = tmp_path / "patterns-legacy-env.yml"
+    override.write_text(
+        "sensitivity:\n  name_tokens:\n    - from_legacy_env_override\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv(pattern_config.LEGACY_ENV_PATTERNS_OVERRIDE_PATH, str(override))
+    monkeypatch.chdir(tmp_path)
+    config = load_pattern_config()
+
+    assert "from_legacy_env_override" in config["sensitivity"]["name_tokens"]
+
+
 def test_load_pattern_config_reads_system_override(monkeypatch, tmp_path):
     system_override = tmp_path / "system" / pattern_config.CWD_OVERRIDE_FILENAME
     system_override.parent.mkdir(parents=True)
@@ -519,7 +546,7 @@ def test_load_pattern_config_precedence_later_overrides_earlier(monkeypatch, tmp
 
     system_override = tmp_path / "system" / pattern_config.CWD_OVERRIDE_FILENAME
     xdg_home = tmp_path / "xdg-home"
-    xdg_override = xdg_home / "ansible-role-doc" / pattern_config.CWD_OVERRIDE_FILENAME
+    xdg_override = xdg_home / "prism" / pattern_config.CWD_OVERRIDE_FILENAME
     cwd_override = tmp_path / pattern_config.CWD_OVERRIDE_FILENAME
     env_override = tmp_path / "patterns-env.yml"
     explicit_override = tmp_path / "patterns-explicit.yml"
