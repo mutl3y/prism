@@ -17,9 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = ROOT / "debug_readmes" / "option_demos"
-ENHANCED_ROLE_SOURCE = (
-    ROOT / "src" / "prism" / "tests" / "enhanced_mock_role"
-)
+ENHANCED_ROLE_SOURCE = ROOT / "src" / "prism" / "tests" / "enhanced_mock_role"
 BASE_ROLE_SOURCE = ROOT / "src" / "prism" / "tests" / "mock_role"
 DEFAULT_LOCAL_PYTHON = ROOT / ".venv" / "bin" / "python"
 DEFAULT_CONTAINER_PYTHON = "/workspace/.venv/bin/python"

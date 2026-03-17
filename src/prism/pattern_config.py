@@ -69,8 +69,7 @@ LEGACY_SYSTEM_PATTERN_OVERRIDE_PATH = (
 
 # Default remote source (community-curated patterns repo)
 DEFAULT_REMOTE_URL = (
-    "https://raw.githubusercontent.com/mutl3y/prism_patterns"
-    "/main/pattern_policy.yml"
+    "https://raw.githubusercontent.com/mutl3y/prism_patterns" "/main/pattern_policy.yml"
 )
 
 
@@ -159,9 +158,7 @@ def _iter_default_override_paths() -> list[Path]:
     user_data_home = _default_user_data_home()
     candidates.append(user_data_home / APP_DATA_DIRNAME / CWD_OVERRIDE_FILENAME)
     candidates.append(
-        user_data_home
-        / LEGACY_APP_DATA_DIRNAME
-        / LEGACY_CWD_OVERRIDE_FILENAME
+        user_data_home / LEGACY_APP_DATA_DIRNAME / LEGACY_CWD_OVERRIDE_FILENAME
     )
 
     # repo-local/cwd override

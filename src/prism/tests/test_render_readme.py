@@ -405,8 +405,7 @@ def test_run_scan_style_guide_skeleton_renders_sections_only(tmp_path):
     assert "A mock Ansible role for tests" in content
     assert "This is a description for this role" in content
     assert (
-        "I sourced it from the meta/main.yml file in the prism repository."
-        in content
+        "I sourced it from the meta/main.yml file in the prism repository." in content
     )
     assert "Requirements" in content
     assert "Role Variables" in content
