@@ -1,11 +1,11 @@
-# ansible-role-doc Pipeline Diagram
+# prism Pipeline Diagram
 
 CLI usage and flags reference.
 
-## Quick reference — `ansible-role-doc --help`
+## Quick reference — `prism --help`
 
 ```
-usage: ansible-role-doc [-h] [--repo-url REPO_URL] [--repo-ref REPO_REF]
+usage: prism [-h] [--repo-url REPO_URL] [--repo-ref REPO_REF]
                         [--repo-role-path REPO_ROLE_PATH]
                         [--repo-timeout REPO_TIMEOUT]
                         [--compare-role-path COMPARE_ROLE_PATH]

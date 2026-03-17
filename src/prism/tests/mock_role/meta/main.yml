@@ -5,7 +5,7 @@ galaxy_info:
     A mock Ansible role for tests
 
     This is a description for this role
-    I sourced it from the meta/main.yml file in the ansible-role-doc repository.
+    I sourced it from the meta/main.yml file in the prism repository.
     It is a mock role for testing purposes.
 
   authors:

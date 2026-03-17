@@ -1,11 +1,11 @@
-ansible-role-doc
+Prism
 =================
 
-[![CI](https://github.com/mutl3y/ansible_role_doc/actions/workflows/default.yml/badge.svg?branch=main)](https://github.com/mutl3y/ansible_role_doc/actions/workflows/default.yml)
-[![Branch](https://img.shields.io/github/actions/workflow/status/mutl3y/ansible_role_doc/default.yml?branch=main&label=main)](https://github.com/mutl3y/ansible_role_doc/tree/main)
-[![Coverage](https://raw.githubusercontent.com/mutl3y/ansible_role_doc/badges/.github/badges/coverage.svg)](COVERAGE_WORKOFF_PLAN.md)
+[![CI](https://github.com/mutl3y/prism/actions/workflows/prism.yml/badge.svg?branch=main)](https://github.com/mutl3y/prism/actions/workflows/prism.yml)
+[![Branch](https://img.shields.io/github/actions/workflow/status/mutl3y/prism/prism.yml?branch=main&label=main)](https://github.com/mutl3y/prism/tree/main)
+[![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](COVERAGE_WORKOFF_PLAN.md)
 [![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml)
-[![License](https://img.shields.io/github/license/mutl3y/ansible_role_doc)](LICENSE)
+[![License](https://img.shields.io/github/license/mutl3y/prism)](LICENSE)
 
 Generate README documentation for Ansible roles from local paths or repository sources.
 
@@ -14,7 +14,7 @@ Release history is tracked in `CHANGELOG.md`.
 Summary
 -------
 
-`ansible-role-doc` scans role structure, tasks, handlers, metadata, and variables, then renders a consistent README from templates.
+`Prism` scans role structure, tasks, handlers, metadata, and variables, then renders a consistent README from templates.
 
 - Supports local role paths and `--repo-url` inputs.
 - Supports local collection roots via `--collection-root` with collection-level markdown or JSON output.
@@ -25,7 +25,7 @@ Summary
 - Can render PDF output with `--format pdf` when the optional `weasyprint` dependency is installed.
 - Variable sourcing defaults to `defaults-only` (or use `--variable-sources defaults+vars`).
 - Parses and documents Molecule scenarios found in `molecule/*/molecule.yml`.
-- Supports per-role config files (`.ansible_role_doc.yml`) and explicit `--readme-config` / `--policy-config` flags for repeatable configuration.
+- Supports per-role config files (`.prism.yml`) and explicit `--readme-config` / `--policy-config` flags for repeatable configuration.
 - Supports custom Jinja2 output templates via `--template` to adapt rendered output without forking the project.
 
 Scan scope (current)
@@ -65,30 +65,30 @@ Usage:
 
 - Install core scanner only: pip install -e .
 - Install dev tooling and learning-batch dependencies: pip install -e .[dev]
-- Run: ansible-role-doc path/to/role -o output.md
-- Scan a local collection root into collection markdown plus per-role docs: `ansible-role-doc path/to/collection --collection-root --format md -o COLLECTION_README.md`
-- Emit a machine-readable collection payload: `ansible-role-doc path/to/collection --collection-root --format json -o collection.json`
-- Compare against local baseline (optional review/testing mode, not default generation): ansible-role-doc path/to/role --compare-role-path path/to/baseline -o debug_readmes/REVIEW_README_COMPARE.md
-- Reuse an existing README as a style guide: `ansible-role-doc path/to/role --style-readme path/to/README.md -o debug_readmes/REVIEW_README_STYLED.md`
-- Include detailed task and handler tables: `ansible-role-doc path/to/role --detailed-catalog -o debug_readmes/REVIEW_README_CATALOG.md`
-- Generate PDF output (requires `weasyprint`): `ansible-role-doc path/to/role --format pdf -o debug_readmes/REVIEW_README.pdf`
-- Live repo test: `python -m ansible_role_doc.cli --repo-url https://github.com/mutl3y/ansible_port_listener -o debug_readmes/REVIEW_README_PORT_LISTENER.md -v`
-- Use a README inside a cloned repo as a guide: `python -m ansible_role_doc.cli --repo-url https://github.com/mutl3y/ansible_port_listener --repo-style-readme-path README.md -o debug_readmes/REVIEW_README_PORT_LISTENER_STYLED.md -v`
-- Generate a style-guide skeleton (section order/headings only): `ansible-role-doc path/to/role --create-style-guide -o debug_readmes/REVIEW_README_SKELETON.md`
-- Use a per-role config file: place `.ansible_role_doc.yml` in the role root (auto-discovered) or pass `--readme-config path/to/config.yml`
-- Use a custom output template: `ansible-role-doc path/to/role --template path/to/README.md.j2 -o output.md`
-- Apply a custom pattern policy: `ansible-role-doc path/to/role --policy-config path/to/patterns.yml -o output.md`
+- Run: prism path/to/role -o output.md
+- Scan a local collection root into collection markdown plus per-role docs: `prism path/to/collection --collection-root --format md -o COLLECTION_README.md`
+- Emit a machine-readable collection payload: `prism path/to/collection --collection-root --format json -o collection.json`
+- Compare against local baseline (optional review/testing mode, not default generation): prism path/to/role --compare-role-path path/to/baseline -o debug_readmes/REVIEW_README_COMPARE.md
+- Reuse an existing README as a style guide: `prism path/to/role --style-readme path/to/README.md -o debug_readmes/REVIEW_README_STYLED.md`
+- Include detailed task and handler tables: `prism path/to/role --detailed-catalog -o debug_readmes/REVIEW_README_CATALOG.md`
+- Generate PDF output (requires `weasyprint`): `prism path/to/role --format pdf -o debug_readmes/REVIEW_README.pdf`
+- Live repo test: `python -m prism.cli --repo-url https://github.com/mutl3y/ansible_port_listener -o debug_readmes/REVIEW_README_PORT_LISTENER.md -v`
+- Use a README inside a cloned repo as a guide: `python -m prism.cli --repo-url https://github.com/mutl3y/ansible_port_listener --repo-style-readme-path README.md -o debug_readmes/REVIEW_README_PORT_LISTENER_STYLED.md -v`
+- Generate a style-guide skeleton (section order/headings only): `prism path/to/role --create-style-guide -o debug_readmes/REVIEW_README_SKELETON.md`
+- Use a per-role config file: place `.prism.yml` in the role root (auto-discovered) or pass `--readme-config path/to/config.yml`
+- Use a custom output template: `prism path/to/role --template path/to/README.md.j2 -o output.md`
+- Apply a custom pattern policy: `prism path/to/role --policy-config path/to/patterns.yml -o output.md`
 
 Library API:
 
-- `ansible-role-doc` can also be used as a scanner library by external orchestration code.
+- `prism` can also be used as a scanner library by external orchestration code.
 - This repo should remain the scanner/render engine; high-volume learning-loop orchestration can live in a separate app that imports the public API wrapper.
-- Prefer `ansible_role_doc.api.scan_role(...)`, `ansible_role_doc.api.scan_repo(...)`, and `ansible_role_doc.api.scan_collection(...)` instead of importing internal helpers directly.
+- Prefer `prism.api.scan_role(...)`, `prism.api.scan_repo(...)`, and `prism.api.scan_collection(...)` instead of importing internal helpers directly.
 
 Example:
 
 ```python
-from ansible_role_doc.api import scan_role
+from prism.api import scan_role
 
 payload = scan_role(
     "/path/to/role",
@@ -104,7 +104,7 @@ The wrapper returns the same machine-readable scan payload used by JSON output m
 Repo example:
 
 ```python
-from ansible_role_doc.api import scan_repo
+from prism.api import scan_repo
 
 payload = scan_repo(
 	"https://github.com/example/role.git",
@@ -116,7 +116,7 @@ payload = scan_repo(
 Collection example:
 
 ```python
-from ansible_role_doc.api import scan_collection
+from prism.api import scan_collection
 
 payload = scan_collection(
 	"/path/to/collection",
@@ -138,7 +138,7 @@ As the tool scans many roles, it learns variant section headings and can build a
 
 - **LLM-based review**: `scripts/learning_alias_helper.py review` triggers OpenAI/GitHub Models to classify unknown section titles.
 - **Alias application**: `scripts/learning_alias_helper.py apply --yaml candidates.yml --min-section-total N` applies approved aliases with section-level thresholds (bulk-include entire section groups if total candidate count ≥ N).
-- **Export and merge**: `export-aliases` dumps learned aliases from PostgreSQL; `merge-aliases` intelligently merges them into the canonical `src/ansible_role_doc/data/section_aliases.yml` (deterministic grouping by section ID, deduplication, sorting).
+- **Export and merge**: `export-aliases` dumps learned aliases from PostgreSQL; `merge-aliases` intelligently merges them into the canonical `src/prism/data/section_aliases.yml` (deterministic grouping by section ID, deduplication, sorting).
 - **Supporting utilities**: `rename-section`, `suggest-canonical`, `apply-renames`, `apply-display-titles` for managing and validating learned data.
 
 Scale notes (learning loop):
@@ -160,7 +160,7 @@ CLI capabilities (today):
 - Local baseline comparison is opt-in only via `--compare-role-path`.
 - Unmapped style-guide sections are kept by default; use `--no-keep-unknown-style-sections` to suppress them.
 - PDF output requires the optional `weasyprint` dependency.
-- Per-role configuration: auto-discovers `.ansible_role_doc.yml` in the role root; override with `--readme-config`
+- Per-role configuration: auto-discovers `.prism.yml` in the role root; override with `--readme-config`
 - Pattern policy overrides: `--policy-config` for custom token/alias/sensitivity rules
 - Custom Jinja2 output template: `--template` (falls back to bundled `templates/README.md.j2`)
 - Molecule scenario documentation: detected automatically from `molecule/*/molecule.yml`
@@ -174,7 +174,7 @@ When a style guide README is used, comparison artifacts are saved beside the gen
 
 `ROLE_README_CONFIG.yml` behavior:
 
-- If the role already has `.ansible_role_doc.yml`, that config is copied beside demo artifacts.
+- If the role already has `.prism.yml`, that config is copied beside demo artifacts.
 - If no role config exists, the sidecar is synthesized from unknown style headings in the source guide.
 - Captured content includes `readme.capture_metadata` fields:
 	- `schema_version`
@@ -202,12 +202,12 @@ Current style-guide behavior:
 - `readme.section_content_modes` keys are resolved first against section labels used in `readme.include_sections`, then against aliases/canonical section ids.
 - Merge mode is idempotent for repeated ingest/re-render passes: generated merge payloads are replaced in-place using hidden markers instead of appended repeatedly.
 - Unknown style sections preserve source body text when present, with a fallback placeholder only when the source section body is empty.
-- Skeleton style source precedence is: explicit `--style-readme` path, then `$ANSIBLE_ROLE_DOC_STYLE_SOURCE`, then `./STYLE_GUIDE_SOURCE.md`, then `$XDG_DATA_HOME/ansible-role-doc/STYLE_GUIDE_SOURCE.md` (or `~/.local/share/ansible-role-doc/STYLE_GUIDE_SOURCE.md`), then `/var/lib/ansible-role-doc/STYLE_GUIDE_SOURCE.md`, then bundled package `templates/STYLE_GUIDE_SOURCE.md`.
+- Skeleton style source precedence is: explicit `--style-readme` path, then `$PRISM_STYLE_SOURCE`, then `./STYLE_GUIDE_SOURCE.md`, then `$XDG_DATA_HOME/prism/STYLE_GUIDE_SOURCE.md` (or `~/.local/share/prism/STYLE_GUIDE_SOURCE.md`), then `/var/lib/prism/STYLE_GUIDE_SOURCE.md`, then bundled package `templates/STYLE_GUIDE_SOURCE.md`.
 - Common guide sections such as role variables, examples, local testing, FAQ/pitfalls, contributing, sponsors, and license/author are mapped to generated content.
 - License and author values are always taken from scanned role metadata (`meta/main.yml`) when available, even when style-guide body text differs.
 - Variable sections now adapt to the source README style, including YAML-block and nested-bullet variable formats.
 - Variable sections now adapt to source README styles including YAML blocks, nested bullets, and markdown tables.
-- Pattern policy config merge order is: bundled package defaults, then `/var/lib/ansible-role-doc/.ansible_role_doc_patterns.yml`, then `$XDG_DATA_HOME/ansible-role-doc/.ansible_role_doc_patterns.yml` (or `~/.local/share/ansible-role-doc/.ansible_role_doc_patterns.yml`), then optional `./.ansible_role_doc_patterns.yml`, then optional `$ANSIBLE_ROLE_DOC_PATTERNS_PATH`, then explicit override path if supplied.
+- Pattern policy config merge order is: bundled package defaults, then `/var/lib/prism/.prism_patterns.yml`, then `$XDG_DATA_HOME/prism/.prism_patterns.yml` (or `~/.local/share/prism/.prism_patterns.yml`), then optional `./.prism_patterns.yml`, then optional `$PRISM_PATTERNS_PATH`, then explicit override path if supplied.
 
 README config example:
 
@@ -242,7 +242,7 @@ CI note:
 - Ruff annotations are published by reviewdog only on pull request events.
 - Annotations are reported as a PR check (`github-pr-check`) with warning-level findings.
 - Coverage badge updates are written to the dedicated `badges` branch via GitHub API calls from CI (avoids protected-branch direct pushes to `main`).
-- Starter docs-generation templates are included in `docs/ci-starter-workflows.md` and `.github/workflows/ansible-role-doc.yml`.
+- Starter docs-generation templates are included in `docs/ci-starter-workflows.md` and `.github/workflows/prism.yml`.
 
 Learning batch note:
 

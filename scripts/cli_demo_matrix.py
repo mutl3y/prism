@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate ansible-role-doc demo outputs in small observable steps.
+"""Generate prism demo outputs in small observable steps.
 
 This helper prepares stable role/collection fixtures under debug_readmes/ and then
 runs one or more CLI scenarios either locally or inside the learning-base Podman
@@ -17,10 +17,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = ROOT / "debug_readmes" / "option_demos"
-ENHANCED_ROLE_SOURCE = (
-    ROOT / "src" / "ansible_role_doc" / "tests" / "enhanced_mock_role"
-)
-BASE_ROLE_SOURCE = ROOT / "src" / "ansible_role_doc" / "tests" / "mock_role"
+ENHANCED_ROLE_SOURCE = ROOT / "src" / "prism" / "tests" / "enhanced_mock_role"
+BASE_ROLE_SOURCE = ROOT / "src" / "prism" / "tests" / "mock_role"
 DEFAULT_LOCAL_PYTHON = ROOT / ".venv" / "bin" / "python"
 DEFAULT_CONTAINER_PYTHON = "/workspace/.venv/bin/python"
 DEFAULT_SERVICE = "learning-base"
@@ -122,7 +120,7 @@ DEFAULT_SCENARIOS = [
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Generate comparable ansible-role-doc demo outputs.",
+        description="Generate comparable prism demo outputs.",
     )
     parser.add_argument(
         "--scenario",
@@ -299,7 +297,7 @@ def run_local_scenarios(
                 [
                     python_command,
                     "-m",
-                    "ansible_role_doc.cli",
+                    "prism.cli",
                     *scenario.build_args(output_dir),
                 ],
                 cwd=ROOT,
@@ -352,7 +350,7 @@ def run_podman_scenarios(
                     service,
                     python_command,
                     "-m",
-                    "ansible_role_doc.cli",
+                    "prism.cli",
                     *container_args,
                 ],
                 cwd=ROOT,

@@ -11,8 +11,8 @@ This folder provides stable role fixture entry points used by tests.
 
 Source directories:
 
-- Baseline fixture content: `src/ansible_role_doc/tests/mock_role/`
-- Enhanced fixture content: `src/ansible_role_doc/tests/enhanced_mock_role/`
+- Baseline fixture content: `src/prism/tests/mock_role/`
+- Enhanced fixture content: `src/prism/tests/enhanced_mock_role/`
 
 Guidance:
 

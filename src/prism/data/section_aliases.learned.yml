@@ -1,6 +1,6 @@
 # Learned aliases exported from learning.section_title_aliases
-# Review and merge into src/ansible_role_doc/data/section_aliases.yml
-# Exported by learning_alias_helper.py on /raid5/source/test/ansible_role_doc/src/ansible_role_doc/data/section_aliases.learned.yml
+# Review and merge into src/prism/data/section_aliases.yml
+# Exported by learning_alias_helper.py on /raid5/source/test/prism/src/prism/data/section_aliases.learned.yml
 
 section_aliases:
   "13 author": author_information

@@ -1,4 +1,4 @@
-name: ansible-role-doc
+name: prism
 
 on:
   push:
@@ -14,9 +14,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: "3.14"
 
       - name: Install dependencies
         run: |
@@ -25,7 +25,7 @@ jobs:
 
       - name: Generate role docs
         run: |
-          ansible-role-doc src/ansible_role_doc/tests/roles/enhanced_mock_role -o README.generated.md
+          prism src/prism/tests/roles/enhanced_mock_role -o README.generated.md
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

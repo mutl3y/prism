@@ -8,7 +8,7 @@ import types
 
 import pytest
 
-from ansible_role_doc import scanner
+from prism import scanner
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -24,7 +24,7 @@ def test_outputs_md_and_html(tmp_path):
     python_code = (
         "import sys;"
         "sys.path.insert(0, '{src_dir}');"
-        "from ansible_role_doc.cli import main;"
+        "from prism.cli import main;"
         "sys.exit(main(['{role}','-o','{out}','-v']))"
     ).format(src_dir=str(HERE.parent.parent), role=str(target), out=str(out_md))
 
@@ -45,7 +45,7 @@ def test_outputs_md_and_html(tmp_path):
     python_code = (
         "import sys;"
         "sys.path.insert(0, '{src_dir}');"
-        "from ansible_role_doc.cli import main;"
+        "from prism.cli import main;"
         "sys.exit(main(['{role}','-o','{out}','-f','html']))"
     ).format(src_dir=str(HERE.parent.parent), role=str(target), out=str(out_html))
 

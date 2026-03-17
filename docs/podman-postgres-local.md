@@ -66,7 +66,7 @@ Optional custom targets:
 
 ```bash
 .venv/bin/python scripts/learning_batch_smoke.py \
-  --role-path src/ansible_role_doc/tests/roles/base_mock_role \
+  --role-path src/prism/tests/roles/base_mock_role \
   --role-path missing-role-does-not-exist \
   --run-label custom-smoke
 ```

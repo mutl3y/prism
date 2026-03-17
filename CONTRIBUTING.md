@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for considering contributing to ansible_role_doc!
+Thank you for considering contributing to prism!
 
 This file contains short, practical guidelines to make contributions smooth and
 helpful for everyone. If you're unsure about anything, open an issue or a draft
@@ -64,7 +64,7 @@ unacceptable behavior, open a private issue or contact the maintainers.
   ```bash
   ruff check .
   black .
-  pylint src/ansible_role_doc tests || true
+  pylint src/prism tests || true
   pre-commit run --all-files || true
   ```
 

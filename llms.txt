@@ -1,6 +1,6 @@
-# ansible-role-doc
+# Prism
 
-> `ansible-role-doc` is a Python CLI/library that statically scans Ansible roles (and local collection roots) and generates README documentation in Markdown, HTML, JSON, or PDF, with style-guide reuse, policy/config overrides, and learning-loop support.
+> `prism` is a Python CLI/library that statically scans Ansible roles (and local collection roots) and generates README documentation in Markdown, HTML, JSON, or PDF, with style-guide reuse, policy/config overrides, and learning-loop support.
 
 Use this file as the entry point for understanding project intent, primary interfaces, operational workflows, and key configuration.
 
@@ -25,12 +25,12 @@ The scanner is intentionally static/file-based; runtime-only Ansible behavior ca
 
 ## Core Interfaces
 
-- [CLI Entrypoint](src/ansible_role_doc/cli.py): Argument parsing and command orchestration (`ansible-role-doc`).
-- [Public API](src/ansible_role_doc/api.py): Stable programmatic entry points (`scan_role`, `scan_repo`, `scan_collection`).
-- [Scanner Engine](src/ansible_role_doc/scanner.py): Static role/collection analysis and metadata extraction.
-- [Style Guide Parser](src/ansible_role_doc/style_guide.py): README style parsing, heading normalization, and section style handling.
-- [Pattern Policy Loader](src/ansible_role_doc/pattern_config.py): Built-in + override policy merge and remote/cache policy helpers.
-- [Output Rendering](src/ansible_role_doc/output.py): Final output formatting/writing behavior.
+- [CLI Entrypoint](src/prism/cli.py): Argument parsing and command orchestration (`prism`).
+- [Public API](src/prism/api.py): Stable programmatic entry points (`scan_role`, `scan_repo`, `scan_collection`).
+- [Scanner Engine](src/prism/scanner.py): Static role/collection analysis and metadata extraction.
+- [Style Guide Parser](src/prism/style_guide.py): README style parsing, heading normalization, and section style handling.
+- [Pattern Policy Loader](src/prism/pattern_config.py): Built-in + override policy merge and remote/cache policy helpers.
+- [Output Rendering](src/prism/output.py): Final output formatting/writing behavior.
 
 ## Configuration and Environment
 
@@ -43,12 +43,12 @@ The scanner is intentionally static/file-based; runtime-only Ansible behavior ca
 
 ## Examples and Test Fixtures
 
-- [Fixture Index](src/ansible_role_doc/tests/roles/README.md): Organized fixture roles used by scanner/render tests.
-- [Enhanced Mock Role README](src/ansible_role_doc/tests/enhanced_mock_role/README.md): Realistic fixture role content for documentation heuristics/tests.
-- [Base Mock Role README](src/ansible_role_doc/tests/mock_role/README.md): Minimal fixture role for baseline scanner behavior.
+- [Fixture Index](src/prism/tests/roles/README.md): Organized fixture roles used by scanner/render tests.
+- [Enhanced Mock Role README](src/prism/tests/enhanced_mock_role/README.md): Realistic fixture role content for documentation heuristics/tests.
+- [Base Mock Role README](src/prism/tests/mock_role/README.md): Minimal fixture role for baseline scanner behavior.
 
 ## Optional
 
 - [Style Guide Source Catalog](STYLE_GUIDE_SOURCES.md): Candidate external README sources for style-guide comparisons.
 - [Provenance Tracking Notes](PROVENANCE_TRACKING.md): Supplementary tracking notes not required for basic scanner usage.
-- [Template Style Guide Source](src/ansible_role_doc/templates/STYLE_GUIDE_SOURCE.md): Bundled fallback style-guide source template.
+- [Template Style Guide Source](src/prism/templates/STYLE_GUIDE_SOURCE.md): Bundled fallback style-guide source template.

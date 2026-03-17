@@ -45,7 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 - Default tox workflow is now focused on tests and coverage; README/demo generation moved to `tox -e readmes`.
-- Test fixtures reorganized under `src/ansible_role_doc/tests/roles/` with a symlinked base role fixture.
+- Test fixtures reorganized under `src/prism/tests/roles/` with a symlinked base role fixture.
 - Test path usage centralized via fixture constants for easier maintenance.
 - Pipeline/docs references updated to include current CLI options (`json`, `--dry-run`, `--adopt-heading-mode`).
 
@@ -54,5 +54,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Style heading behavior clarified so section selection and heading renaming can be controlled independently.
 - Demo-readmes make target generation flow corrected and validated.
 
-[Unreleased]: https://github.com/mutl3y/ansible_role_doc/compare/0.1.0...HEAD
-[0.1.0]: https://github.com/mutl3y/ansible_role_doc/releases/tag/0.1.0
+[Unreleased]: https://github.com/mutl3y/prism/compare/0.1.0...HEAD
+[0.1.0]: https://github.com/mutl3y/prism/releases/tag/0.1.0

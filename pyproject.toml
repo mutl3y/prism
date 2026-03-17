@@ -3,7 +3,7 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ansible-role-doc"
+name = "prism-ansible"
 version = "0.1.0"
 description = "Scan an Ansible role for Jinja2 default() usages and generate README documentation."
 authors = [
@@ -17,7 +17,7 @@ dependencies = [
   "Jinja2>=2.11"
 ]
 [project.scripts]
-ansible-role-doc = "ansible_role_doc.cli:main"
+prism = "prism.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -38,4 +38,4 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-ansible_role_doc = ["templates/*.j2", "templates/*.md", "data/*.yml"]
+prism = ["templates/*.j2", "templates/*.md", "data/*.yml"]

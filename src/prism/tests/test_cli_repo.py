@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from ansible_role_doc import cli
+from prism import cli
 
 _REAL_FETCH_REPO_FILE = cli._fetch_repo_file
 _REAL_FETCH_REPO_DIRECTORY_NAMES = cli._fetch_repo_directory_names
@@ -147,8 +147,8 @@ def test_cli_repo_scan_uses_shared_temp_root(monkeypatch, tmp_path):
     rc = cli.main(["--repo-url", "https://github.com/example/role.git", "-o", str(out)])
 
     assert rc == 0
-    assert clone_calls["destination"].parent.parent == tmp_path / "ansible-role-doc"
-    assert not (tmp_path / "ansible-role-doc").exists()
+    assert clone_calls["destination"].parent.parent == tmp_path / "prism"
+    assert not (tmp_path / "prism").exists()
 
 
 def test_cli_github_https_url_is_converted_to_ssh(monkeypatch, tmp_path):
@@ -340,7 +340,7 @@ def test_cli_collection_root_json_mode_calls_scan_collection(monkeypatch, tmp_pa
             "summary": {"total_roles": 0, "scanned_roles": 0, "failed_roles": 0},
         }
 
-    import ansible_role_doc.api as api_module
+    import prism.api as api_module
 
     monkeypatch.setattr(api_module, "scan_collection", fake_scan_collection)
 
@@ -389,7 +389,7 @@ def test_cli_collection_root_md_mode_writes_collection_and_role_docs(
             ],
         }
 
-    import ansible_role_doc.api as api_module
+    import prism.api as api_module
 
     monkeypatch.setattr(api_module, "scan_collection", fake_scan_collection)
 
@@ -506,7 +506,7 @@ def test_cli_style_readme_is_forwarded(monkeypatch, tmp_path):
     style = tmp_path / "STYLE_README.md"
     role.mkdir()
     style.write_text("# Guide\n", encoding="utf-8")
-    (role / ".ansible_role_doc.yml").write_text(
+    (role / ".prism.yml").write_text(
         "readme:\n  include_sections:\n    - Requirements\n",
         encoding="utf-8",
     )
@@ -601,7 +601,7 @@ def test_cli_style_guide_skeleton_prefers_env_source(monkeypatch, tmp_path):
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("ANSIBLE_ROLE_DOC_STYLE_SOURCE", str(env_style))
+    monkeypatch.setenv("PRISM_STYLE_SOURCE", str(env_style))
 
     out = tmp_path / "skeleton-env.md"
     rc = cli.main([str(role), "--create-style-guide", "-o", str(out)])
