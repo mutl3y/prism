@@ -42,8 +42,22 @@
 - [x] Add batch-scan scaffolding with per-target success/failure capture
 - [x] Add repo URL file ingestion and freshness-aware skipping (`--repo-url-file`, `--skip-if-fresh-days`, `--force-rescan`)
 - [x] Add persisted section-title aggregation report generation (`scripts/learning_section_title_report.py`)
+  - [x] Add backtick-wrapped title variant checks in section-title report output
+- [x] Add LLM-based section title classification (`scripts/learning_resolve_unknowns.py`)
+- [x] Add automated alias-learning workflow with subcommand-based helper (`scripts/learning_alias_helper.py`)
+  - [x] `review` subcommand for triggering LLM classification
+  - [x] `apply` subcommand with section-level thresholds (`--min-section-total`)
+  - [x] `export-aliases` for DB → YAML dump
+  - [x] `merge-aliases` for canonical alias integration
+  - [x] Supporting utilities: `rename-section`, `suggest-canonical`, `apply-renames`, `apply-display-titles`
 - [ ] Track before/after doc quality metrics
+  - Schema: per-snapshot docs (target, timestamp, variable_count, resolved_count, confidence_avg, ambiguity_count)
+  - Persist quality snapshots alongside section snapshots
+  - Compare consecutive snapshots for quality deltas
 - [ ] Add optional feedback loop for future ranking/tuning of generated sections
+  - Track user feedback signals: section quality ratings, title helpfulness, content accuracy
+  - Design ranking model: combine coverage %, confidence, feedback score, and frequency
+  - Optional: integrate with learning_section_title_report.py for title-ranking feedback
 
 ## 5) Add README style-guide support
 
@@ -85,32 +99,33 @@
 
 ## 11) Close analysis coverage gaps and failure modes
 
-- [ ] Priority 1: Make scan scope and limitations explicit in docs:
+- [x] Priority 1: Make scan scope and limitations explicit in docs:
   - [x] Add explicit scan-scope section in README
   - [x] Document known limitations and high-risk edge cases in README
   - [x] Add scanner-report summary block that surfaces unresolved/ambiguous findings by category
-- [ ] Priority 2: Expand variable source coverage beyond current defaults-focused heuristics:
-  - [ ] Ensure consistent coverage for `defaults/`, `vars/`, and `meta/` variable signals
-  - [ ] Track `include_vars` usage across static and role-relative include paths
-  - [ ] Track `set_fact` definitions with confidence labels (static vs dynamic)
-  - [ ] Surface role parameter inputs and task-level defaults when statically detectable
-  - [ ] Add explicit provenance metadata per variable (source file, line, confidence)
-- [ ] Priority 3: Reduce false confidence in generated output:
-  - [ ] Add uncertainty annotations where source/provenance cannot be resolved
-  - [ ] Add README notes for precedence-sensitive or conditional defaults
-  - [ ] Add scanner-report counters for unresolved/ambiguous variables
-- [ ] Priority 4: Improve template parsing robustness:
+- [x] Priority 2: Expand variable source coverage beyond current defaults-focused heuristics:
+  - [x] Ensure consistent coverage for `defaults/`, `vars/`, and `meta/` variable signals
+  - [x] Track `include_vars` usage across static and role-relative include paths
+  - [x] Track `set_fact` definitions with confidence labels (static vs dynamic)
+  - [x] Surface role parameter inputs and task-level defaults when statically detectable
+  - [x] Add explicit provenance metadata per variable (source file, line, confidence)
+- [x] Priority 3: Reduce false confidence in generated output:
+  - [x] Add uncertainty annotations where source/provenance cannot be resolved
+  - [x] Add README notes for precedence-sensitive or conditional defaults
+  - [x] Add scanner-report counters for unresolved/ambiguous variables
+- [x] Priority 4: Improve template parsing robustness:
   - [x] Replace/augment regex-based extraction with a Jinja2 AST-first path (`jinja2.Environment.parse`)
   - [x] Add focused tests for nested/default-filter AST handling, scope filtering, regex fallback, and duplicate suppression
-  - [ ] Add broader fixtures for macros/custom filters/tests and more complex control flow
+  - [x] Add broader fixtures for macros/custom filters/tests and more complex control flow
   - [x] Gracefully degrade to “unresolved expression” or non-literal markers instead of omitting values
     - [x] Fall back to AST name collection when Jinja introspection fails on unsupported filters
-- [ ] Priority 5: Cover known edge cases:
-  - [ ] Role dependencies and dependency-provided variables
-  - [ ] Variable precedence interactions and override chains
-  - [ ] Templated filenames and dynamic include paths
-  - [ ] Conditional includes and task-path indirection
-- [ ] Priority 6: CLI/reporting ergonomics for analysis control:
+- [x] Priority 5: Cover known edge cases:
+  - [x] Role dependencies and dependency-provided variables
+  - [x] Variable precedence interactions and override chains
+  - [x] Templated filenames and dynamic include paths
+  - [x] Conditional includes and task-path indirection
+  - [x] Detect non-`ansible.*` collection usage and flag missing declarations in README/meta metadata
+- [x] Priority 6: CLI/reporting ergonomics for analysis control:
   - [x] Verbose mode (`-v/--verbose`)
   - [x] Markdown/HTML output formats
   - [x] Add dry-run mode (scan and report intent without writing output files)

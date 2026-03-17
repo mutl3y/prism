@@ -809,6 +809,90 @@ def test_collect_referenced_variable_names_handles_custom_jinja_tests_and_filter
     assert "payload" in names
 
 
+def test_scan_for_default_filters_handles_complex_template_control_flow(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    templates = role / "templates"
+    tasks.mkdir(parents=True)
+    templates.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Render config\n"
+        "  template:\n"
+        "    src: app.j2\n"
+        "    dest: /tmp/app.conf\n",
+        encoding="utf-8",
+    )
+    (templates / "app.j2").write_text(
+        "{% macro render_host(host) -%}\n"
+        "{{ host.name | default(default_host_name) }}\n"
+        "{%- endmacro %}\n"
+        "{% for host in app_hosts if host.enabled is custom_enabled %}\n"
+        "{{ render_host(host) }}\n"
+        "{% endfor %}\n"
+        "{{ settings.port | default(lookup('env', 'APP_PORT')) }}\n"
+        "{{ user_id | default('unknown') if feature_flags is custom_flag else fallback_user | default('n/a') }}\n",
+        encoding="utf-8",
+    )
+
+    found = scan_for_default_filters(str(role))
+    matches = [item for item in found if item["file"] == "templates/app.j2"]
+    args = {item["args"] for item in matches}
+
+    assert "default_host_name" in args
+    assert any("lookup" in arg for arg in args)
+    assert "unknown" in args
+    assert "n/a" in args
+
+
+def test_collect_referenced_variable_names_handles_broader_macro_scope_fixture(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    templates = role / "templates"
+    tasks.mkdir(parents=True)
+    templates.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Render advanced config\n"
+        "  template:\n"
+        "    src: advanced.j2\n"
+        "    dest: /tmp/advanced.conf\n",
+        encoding="utf-8",
+    )
+    (templates / "advanced.j2").write_text(
+        "{% macro render_rule(rule) -%}\n"
+        "{% if rule.enabled | default(global_enabled) %}\n"
+        "{{ rule.name | default(fallback_rule_name) }}\n"
+        "{% endif %}\n"
+        "{%- endmacro %}\n"
+        "{% for rule in rules %}\n"
+        "{{ render_rule(rule) }}\n"
+        "{% endfor %}\n"
+        "{% set computed = local_value | default(global_value) %}\n"
+        "{{ computed }}\n"
+        "{{ payload | to_nice_yaml(indent=2) }}\n"
+        "{% if feature_flags is custom_flag %}enabled{% endif %}\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    names = {row["name"] for row in rows}
+
+    assert "rules" in names
+    assert "global_enabled" in names
+    assert "fallback_rule_name" in names
+    assert "global_value" in names
+    assert "local_value" in names
+    assert "payload" in names
+    assert "feature_flags" in names
+    assert "rule" not in names
+    assert "computed" not in names
+
+
 def test_collect_task_files_ignores_dynamic_include_targets(tmp_path):
     role = tmp_path / "role"
     tasks = role / "tasks"
@@ -832,3 +916,412 @@ def test_collect_task_files_ignores_dynamic_include_targets(tmp_path):
 
     assert "tasks/main.yml" in rel_paths
     assert "tasks/static.yml" in rel_paths
+
+
+def test_collect_task_files_follows_static_conditional_includes(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Conditionally include static task file\n"
+        "  include_tasks: conditional.yml\n"
+        "  when: feature_enabled | bool\n",
+        encoding="utf-8",
+    )
+    (tasks / "conditional.yml").write_text(
+        '---\n- name: Use conditional var\n  debug:\n    msg: "{{ conditional_var }}"\n',
+        encoding="utf-8",
+    )
+
+    discovered = scanner._collect_task_files(role)
+    rel_paths = [str(path.relative_to(role)) for path in discovered]
+
+    assert "tasks/main.yml" in rel_paths
+    assert "tasks/conditional.yml" in rel_paths
+
+
+def test_collect_task_files_resolves_parent_relative_indirection(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    nested = tasks / "nested"
+    shared = tasks / "shared"
+    nested.mkdir(parents=True)
+    shared.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n" "- name: Include nested entry\n" "  include_tasks: nested/entry.yml\n",
+        encoding="utf-8",
+    )
+    (nested / "entry.yml").write_text(
+        "---\n"
+        "- name: Include parent-relative task file\n"
+        "  import_tasks: ../shared/common.yml\n",
+        encoding="utf-8",
+    )
+    (shared / "common.yml").write_text(
+        '---\n- name: Shared var usage\n  debug:\n    msg: "{{ shared_var }}"\n',
+        encoding="utf-8",
+    )
+
+    discovered = scanner._collect_task_files(role)
+    rel_paths = [str(path.relative_to(role)) for path in discovered]
+
+    assert "tasks/main.yml" in rel_paths
+    assert "tasks/nested/entry.yml" in rel_paths
+    assert "tasks/shared/common.yml" in rel_paths
+
+
+def test_build_variable_insights_precedence_chain_with_include_vars(tmp_path):
+    role = tmp_path / "role"
+    (role / "defaults").mkdir(parents=True)
+    (role / "vars").mkdir(parents=True)
+    (role / "tasks").mkdir(parents=True)
+    (role / "vars" / "extra").mkdir(parents=True)
+
+    (role / "defaults" / "main.yml").write_text(
+        "---\napp_mode: default\n", encoding="utf-8"
+    )
+    (role / "vars" / "main.yml").write_text("---\napp_mode: vars\n", encoding="utf-8")
+    (role / "vars" / "extra" / "runtime.yml").write_text(
+        "---\napp_mode: include\n",
+        encoding="utf-8",
+    )
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: Include runtime vars\n"
+        "  include_vars: ../vars/extra/runtime.yml\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=True)
+    row = next(item for item in rows if item["name"] == "app_mode")
+
+    assert row["source"] == "defaults/main.yml + vars/main.yml override"
+    assert row["is_ambiguous"] is True
+    assert "include_vars" in (row.get("uncertainty_reason") or "")
+    assert float(row["provenance_confidence"]) <= 0.70
+
+
+def test_build_variable_insights_mentions_dynamic_include_task_uncertainty(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: Dynamic include task path\n"
+        '  include_tasks: "{{ include_target }}"\n'
+        "- name: Use include target token\n"
+        "  debug:\n"
+        '    msg: "{{ include_target }}"\n',
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    row = next(item for item in rows if item["name"] == "include_target")
+
+    assert row["is_unresolved"] is True
+    assert "Dynamic include_tasks/import_tasks paths detected." in (
+        row.get("uncertainty_reason") or ""
+    )
+
+
+# Batch 5: README & Role Parameters Tests
+
+
+def test_build_variable_insights_readme_backtick_variables(tmp_path):
+    """Test that variables in backticks within README are extracted."""
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+
+    (role / "README.md").write_text(
+        "# Role Variables\n"
+        "\n"
+        "The following variables can be overridden:\n"
+        "\n"
+        "- `app_name` — The application name\n"
+        "- `app_port` — The port number\n"
+        "- `app_debug` — Debug mode flag\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    by_name = {row["name"]: row for row in rows}
+
+    # Variables from README should be discovered
+    for var_name in ["app_name", "app_port", "app_debug"]:
+        assert var_name in by_name
+        var_row = by_name[var_name]
+        assert var_row["source"] == "README.md (documented input)"
+        assert var_row["provenance_source_file"] == "README.md"
+        assert var_row["provenance_confidence"] == 0.50
+        assert var_row["is_unresolved"] is True
+        assert var_row["documented"] is True
+
+
+def test_build_variable_insights_readme_role_variables_section(tmp_path):
+    """Test that Role Variables section headings are recognized."""
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+
+    (role / "README.md").write_text(
+        "# Role Name\n"
+        "\n"
+        "## Role Variables\n"
+        "\n"
+        "The following variables are available:\n"
+        "\n"
+        "- `database_host` — Database hostname\n"
+        "- `database_port` — Database port\n"
+        "\n"
+        "## Other Section\n"
+        "\n"
+        "Some configuration that mentions `ignored_var` should not be extracted.\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    by_name = {row["name"]: row for row in rows}
+
+    # Only variables in role variables section
+    assert "database_host" in by_name
+    assert "database_port" in by_name
+    # Variables outside section should not be extracted
+    assert "ignored_var" not in by_name
+
+
+def test_build_variable_insights_readme_table_format(tmp_path):
+    """Test that variables in README markdown tables are extracted."""
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+
+    (role / "README.md").write_text(
+        "# Variables\n"
+        "\n"
+        "| Name | Default | Description |\n"
+        "|---|---|---|\n"
+        "| `web_server_port` | 8080 | Server port |\n"
+        "| `max_connections` | 100 | Max connections |\n"
+        "| `enable_ssl` | true | SSL enabled |\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    by_name = {row["name"]: row for row in rows}
+
+    # Variables from table should be discovered
+    for var_name in ["web_server_port", "max_connections", "enable_ssl"]:
+        assert var_name in by_name
+        var_row = by_name[var_name]
+        assert var_row["source"] == "README.md (documented input)"
+
+
+def test_build_variable_insights_readme_in_code_block_ignored(tmp_path):
+    """Test that variables in code blocks are not extracted."""
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+
+    (role / "README.md").write_text(
+        "# Role Variables\n"
+        "\n"
+        "Config example:\n"
+        "\n"
+        "```yaml\n"
+        "config_var: value  # Should not be extracted\n"
+        "another_var: 123   # Should not be extracted\n"
+        "```\n"
+        "\n"
+        "But `documented_var` is documented.\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    by_name = {row["name"]: row for row in rows}
+
+    # Code block variables should not be extracted
+    assert "config_var" not in by_name
+    assert "another_var" not in by_name
+    # Documented outside code block should be extracted
+    assert "documented_var" in by_name
+
+
+def test_build_variable_insights_readme_variables_consistency(tmp_path):
+    """Test that README variables have consistent provenance fields."""
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+
+    (role / "README.md").write_text(
+        "# Variables\n\n- `var1` description\n- `var2` description\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    readme_rows = [
+        row for row in rows if row.get("source") == "README.md (documented input)"
+    ]
+
+    # All README rows should have consistent provenance
+    for row in readme_rows:
+        assert row["provenance_source_file"] == "README.md"
+        assert row["provenance_confidence"] == 0.50
+        assert row["is_unresolved"] is True
+        assert row["documented"] is True
+        assert "static role definition not found" in (
+            row.get("uncertainty_reason") or ""
+        )
+
+
+def test_build_variable_insights_meta_galaxy_info_available(tmp_path):
+    """Test that meta/main.yml galaxy_info is accessible (if needed)."""
+    role = tmp_path / "role"
+    (role / "meta").mkdir(parents=True)
+    (role / "tasks").mkdir(parents=True)
+
+    (role / "meta" / "main.yml").write_text(
+        "---\n"
+        "galaxy_info:\n"
+        "  author: Test Author\n"
+        "  min_ansible_version: 2.10\n"
+        "dependencies: []\n",
+        encoding="utf-8",
+    )
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+
+    # Meta data is loaded but not surfaced as variables by default
+    # This test validates the role structure is properly handled
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    # No variables should be extracted from galaxy_info
+    assert not any(row["name"] == "galaxy_info" for row in rows)
+
+
+def test_build_variable_insights_readme_and_defaults_consolidation(tmp_path):
+    """Test that README and defaults/main.yml variables consolidate properly."""
+    role = tmp_path / "role"
+    (role / "defaults").mkdir(parents=True)
+    (role / "tasks").mkdir(parents=True)
+
+    # defaults/main.yml with explicit variables
+    (role / "defaults" / "main.yml").write_text(
+        "---\n" "app_port: 8080\n" "app_timeout: 30\n",
+        encoding="utf-8",
+    )
+
+    # README documents same variables plus additional ones
+    (role / "README.md").write_text(
+        "# Variables\n"
+        "\n"
+        "Configure via:\n"
+        "\n"
+        "- `app_port` — Server port\n"
+        "- `app_timeout` — Timeout seconds\n"
+        "- `app_ssl` — Enable SSL\n",
+        encoding="utf-8",
+    )
+
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    by_name = {row["name"]: row for row in rows}
+
+    # Explicit variables should take precedence with high confidence
+    assert "app_port" in by_name
+    defaults_row = by_name["app_port"]
+    assert defaults_row["provenance_source_file"] == "defaults/main.yml"
+    assert defaults_row["provenance_confidence"] >= 0.85
+
+    assert "app_timeout" in by_name
+    assert by_name["app_timeout"]["provenance_source_file"] == "defaults/main.yml"
+
+    # README-only documented should be unresolved
+    assert "app_ssl" in by_name
+    readme_row = by_name["app_ssl"]
+    assert readme_row["provenance_source_file"] == "README.md"
+    assert readme_row["provenance_confidence"] == 0.50
+
+
+def test_build_variable_insights_readme_multiple_sections(tmp_path):
+    """Test README parsing with multiple variable sections."""
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+
+    # Multiple variable-like sections
+    (role / "README.md").write_text(
+        "# Overview\n\n"
+        "## Configuration Variables\n"
+        "- `config_opt1` — First option\n"
+        "- `config_opt2` — Second option\n\n"
+        "## Input Variables\n"
+        "- `input_var1` — First input\n"
+        "- `input_var2` — Second input\n\n"
+        "## Other Section\n"
+        "Not a variable section, so `internal_var` is ignored.\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    by_name = {row["name"]: row for row in rows}
+
+    # Variables from named sections should be extracted
+    for var_name in ["config_opt1", "config_opt2", "input_var1", "input_var2"]:
+        assert var_name in by_name
+        assert by_name[var_name]["source"] == "README.md (documented input)"
+
+    # Non-variable section variables should not be extracted
+    assert "internal_var" not in by_name
+
+
+def test_extract_readme_input_variables_direct(tmp_path):
+    """Test direct README variable extraction function."""
+    readme_text = (
+        "# Variables\n\n"
+        "Configure with these:\n\n"
+        "| Variable | Default |\n"
+        "|---|---|\n"
+        "| `db_host` | localhost |\n"
+        "| `db_port` | 5432 |\n\n"
+        "Or use `db_user` and `db_password`.\n"
+    )
+
+    names = scanner._extract_readme_input_variables(readme_text)
+
+    # All documented variables should be found
+    assert "db_host" in names
+    assert "db_port" in names
+    assert "db_user" in names
+    assert "db_password" in names
+
+
+def test_build_variable_insights_readme_with_special_characters(tmp_path):
+    """Test that README variables with special naming work."""
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+
+    (role / "README.md").write_text(
+        "# Variables\n\n"
+        "- `my_var_name` — Underscore style\n"
+        "- `myVarName` — Camel case style\n"
+        "- `MY_VAR_CONSTANT` — Constant style\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    by_name = {row["name"]: row for row in rows}
+
+    for var_name in ["my_var_name", "myVarName", "MY_VAR_CONSTANT"]:
+        assert var_name in by_name
+        assert by_name[var_name]["source"] == "README.md (documented input)"

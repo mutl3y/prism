@@ -1,0 +1,31 @@
+# Human-friendly display titles for canonical section IDs.
+# Used by --adopt-heading-mode popular.
+
+display_titles:
+  author_information: Author Information
+  basic_authorization: Basic Authorization
+  changelog: Changelog
+  comparison: Comparison
+  compatibility: Compatibility
+  contributing: Contributing
+  default_filters: Default Filters
+  example_usage: Example Playbook
+  faq_pitfalls: Troubleshooting
+  features: Features
+  galaxy_info: Galaxy Info
+  handlers: Handlers
+  installation: Installation
+  license: License
+  license_author: License and Author
+  local_testing: Testing
+  purpose: Overview
+  requirements: Requirements
+  role_contents: Role Contents
+  role_notes: Notes
+  role_variables: Role Variables
+  scanner_report: Scanner Report
+  sponsors: Sponsors
+  task_summary: Tasks
+  template_overrides: Template Overrides
+  variable_guidance: Variable Guidance
+  variable_summary: Inputs / Variables Summary

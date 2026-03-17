@@ -215,12 +215,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
-        "--adopt-style-headings",
-        action=argparse.BooleanOptionalAction,
+        "--adopt-heading-mode",
+        choices=("canonical", "style", "popular"),
         default=None,
         help=(
-            "Adopt include_sections labels as rendered section headings when using README config "
-            "(can also be set via readme.adopt_style_headings in .ansible_role_doc.yml)."
+            "Section heading mode when using README config include_sections: "
+            "canonical (default), style (use include_sections labels), or popular "
+            "(use bundled display titles). Can also be set via "
+            "readme.adopt_heading_mode in .ansible_role_doc.yml."
         ),
     )
     p.add_argument(
@@ -817,7 +819,7 @@ def main(argv=None) -> int:
                     include_vars_main=args.variable_sources == "defaults+vars",
                     include_scanner_report_link=args.include_scanner_report_link,
                     readme_config_path=args.readme_config,
-                    adopt_style_headings=args.adopt_style_headings,
+                    adopt_heading_mode=args.adopt_heading_mode,
                     style_guide_skeleton=args.create_style_guide,
                     keep_unknown_style_sections=args.keep_unknown_style_sections,
                     exclude_path_patterns=args.exclude_path,
@@ -862,7 +864,7 @@ def main(argv=None) -> int:
                 include_vars_main=args.variable_sources == "defaults+vars",
                 include_scanner_report_link=args.include_scanner_report_link,
                 readme_config_path=args.readme_config,
-                adopt_style_headings=args.adopt_style_headings,
+                adopt_heading_mode=args.adopt_heading_mode,
                 style_guide_skeleton=args.create_style_guide,
                 keep_unknown_style_sections=args.keep_unknown_style_sections,
                 exclude_path_patterns=args.exclude_path,

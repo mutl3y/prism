@@ -101,6 +101,24 @@ For a minimal orchestration-side persistence example, see [src/learning_app_scaf
 
 Local containerized learning-loop setup (Podman + PostgreSQL, with `pg_dump` checkpoints) is documented in [docs/podman-postgres-local.md](docs/podman-postgres-local.md).
 
+Section-title alias learning workflow
+-------------------------------------
+
+As the tool scans many roles, it learns variant section headings and can build an automated alias map. The workflow supports:
+
+- **LLM-based review**: `scripts/learning_alias_helper.py review` triggers OpenAI/GitHub Models to classify unknown section titles.
+- **Alias application**: `scripts/learning_alias_helper.py apply --yaml candidates.yml --min-section-total N` applies approved aliases with section-level thresholds (bulk-include entire section groups if total candidate count ≥ N).
+- **Export and merge**: `export-aliases` dumps learned aliases from PostgreSQL; `merge-aliases` intelligently merges them into the canonical `src/ansible_role_doc/data/section_aliases.yml` (deterministic grouping by section ID, deduplication, sorting).
+- **Supporting utilities**: `rename-section`, `suggest-canonical`, `apply-renames`, `apply-display-titles` for managing and validating learned data.
+
+Scale notes (learning loop):
+
+- The title-learning pipeline has been exercised at large scale (about 39k roles scanned across learning runs), with unknown heading normalization reviewed through AI-assisted classification (GitHub Models / OpenAI-compatible APIs).
+- A recent reduced-table snapshot run reported `26,815` latest-per-target rows and `144,320` aggregated section observations (`113,160` known, `31,160` unknown) before threshold filtering.
+- Counts vary by source mode (`raw` vs `reduced`), snapshot selection (`latest` vs `all`), and filters (`--min-section-count`, `--min-unknown-count`).
+
+Full workflow documentation is in [scripts/SCRIPTS.md](scripts/SCRIPTS.md).
+
 CLI capabilities (today):
 
 - Verbose logging: `-v` / `--verbose`
@@ -136,7 +154,10 @@ Current style-guide behavior:
 
 - Guide section order and heading style are preserved where possible.
 - `--create-style-guide` generates section headings/order only (no generated section bodies) for iterative style-guide evolution.
-- README config section selection is independent from heading renaming. Use `--adopt-style-headings` or `readme.adopt_style_headings: true` to render config-provided section labels such as `Capabilities` instead of canonical headings such as `Role purpose and capabilities`.
+- README config section selection is independent from heading rendering mode. Use `--adopt-heading-mode {canonical,style,popular}` or `readme.adopt_heading_mode`.
+  - `canonical`: render canonical section titles (default)
+  - `style`: render include_sections labels such as `Capabilities`
+  - `popular`: render bundled popular display titles from `data/section_display_titles.yml`
 - README config can control how each section body is handled via `readme.section_content_modes` with per-section modes:
 	- `generate`: use scanner-generated section content only
 	- `replace`: use style-guide/source section body text only
@@ -155,7 +176,7 @@ README config example:
 
 ```yaml
 readme:
-	adopt_style_headings: true
+	adopt_heading_mode: style
 	include_sections:
 		- Capabilities
 		- Inputs / variables summary

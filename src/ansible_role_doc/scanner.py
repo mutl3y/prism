@@ -12,6 +12,7 @@ from fnmatch import fnmatch
 import os
 from pathlib import Path
 import re
+from typing import TypedDict
 import yaml
 import jinja2
 from jinja2 import meta
@@ -25,6 +26,51 @@ from .style_guide import (
     normalize_style_heading,
     parse_style_readme,
 )
+
+
+class VariableProvenance(TypedDict, total=False):
+    """Metadata tracking the source and confidence of a variable."""
+
+    source_file: str
+    """Relative path to source file (e.g. 'defaults/main.yml')."""
+    line: int | None
+    """Line number in source file, if determinable."""
+    confidence: float
+    """Confidence level (0.0-1.0): explicit=0.95, inferred=0.5-0.7, dynamic_unknown=0.4."""
+    source_type: str
+    """Source type: defaults, vars, meta, include_vars, set_fact, readme."""
+
+
+class VariableRow(TypedDict, total=False):
+    """A variable discovered during role scanning with provenance metadata."""
+
+    name: str
+    """Variable name."""
+    type: str
+    """Inferred type: string, list, dict, int, bool, computed, documented, required."""
+    default: str
+    """Formatted default value or placeholder."""
+    source: str
+    """Human-readable source description."""
+    documented: bool
+    """True if variable is explicitly documented somewhere."""
+    required: bool
+    """True if variable appears required (no default found)."""
+    secret: bool
+    """True if variable looks like a credential or sensitive value."""
+    provenance_source_file: str
+    """Relative path to source file (e.g. 'defaults/main.yml')."""
+    provenance_line: int | None
+    """Line number in source file, if determinable."""
+    provenance_confidence: float
+    """Confidence level (0.0-1.0) for this variable's accuracy."""
+    uncertainty_reason: str | None
+    """Explanation if confidence is below 1.0 or variable is ambiguous."""
+    is_unresolved: bool
+    """True if variable cannot be resolved to a static definition."""
+    is_ambiguous: bool
+    """True if variable has multiple possible sources or values."""
+
 
 # Load pattern policy (built-in defaults, optionally merged with a repo override).
 # Pass override_path to load_pattern_config() if you want to merge a local file.
@@ -152,6 +198,9 @@ XDG_DATA_HOME_ENV = "XDG_DATA_HOME"
 STYLE_GUIDE_DATA_DIRNAME = "ansible-role-doc"
 SYSTEM_STYLE_GUIDE_SOURCE_PATH = (
     Path("/var/lib") / STYLE_GUIDE_DATA_DIRNAME / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME
+)
+DEFAULT_SECTION_DISPLAY_TITLES_PATH = (
+    Path(__file__).parent / "data" / "section_display_titles.yml"
 )
 
 DEFAULT_TARGET_RE = re.compile(r"\b(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*\|\s*default\b")
@@ -477,13 +526,72 @@ def _collect_undeclared_jinja_variables(text: str) -> set[str]:
 def _collect_undeclared_jinja_variables_from_ast(
     parsed: jinja2.nodes.Template,
 ) -> set[str]:
-    """Collect variable names from Jinja AST without meta introspection."""
+    """Collect variable names from Jinja AST without meta introspection.
+
+    Excludes names locally bound by Jinja control flow constructs so loop
+    variables, macro parameters, and ``set`` targets are not treated as
+    external inputs.
+    """
+    local_bound = _collect_jinja_local_bindings(parsed)
     names: set[str] = set()
     for node in parsed.find_all(jinja2.nodes.Name):
         if getattr(node, "ctx", None) != "load":
             continue
         if isinstance(node.name, str) and node.name:
+            if node.name in local_bound:
+                continue
             names.add(node.name)
+    return names
+
+
+def _collect_jinja_local_bindings_from_text(text: str) -> set[str]:
+    """Collect locally bound Jinja variable names from raw template text."""
+    if "{{" not in text and "{%" not in text:
+        return set()
+    try:
+        parsed = _JINJA_AST_ENV.parse(text)
+    except Exception:
+        return set()
+    return _collect_jinja_local_bindings(parsed)
+
+
+def _collect_jinja_local_bindings(parsed: jinja2.nodes.Template) -> set[str]:
+    """Collect names introduced by local Jinja scopes in a template."""
+    local_names: set[str] = set()
+
+    for for_node in parsed.find_all(jinja2.nodes.For):
+        local_names.update(
+            _extract_jinja_name_targets(getattr(for_node, "target", None))
+        )
+
+    for macro_node in parsed.find_all(jinja2.nodes.Macro):
+        for arg in getattr(macro_node, "args", []) or []:
+            if isinstance(arg, jinja2.nodes.Name) and isinstance(arg.name, str):
+                local_names.add(arg.name)
+
+    for assign_node in parsed.find_all(jinja2.nodes.Assign):
+        local_names.update(
+            _extract_jinja_name_targets(getattr(assign_node, "target", None))
+        )
+
+    for assign_block in parsed.find_all(jinja2.nodes.AssignBlock):
+        local_names.update(
+            _extract_jinja_name_targets(getattr(assign_block, "target", None))
+        )
+
+    return local_names
+
+
+def _extract_jinja_name_targets(node: object) -> set[str]:
+    """Extract identifier names from Jinja assignment/loop target nodes."""
+    if node is None:
+        return set()
+    if isinstance(node, jinja2.nodes.Name) and isinstance(node.name, str):
+        return {node.name}
+
+    names: set[str] = set()
+    for child in getattr(node, "items", []) or []:
+        names.update(_extract_jinja_name_targets(child))
     return names
 
 
@@ -950,6 +1058,105 @@ def normalize_requirements(requirements: list) -> list[str]:
     return [line for line in lines if line]
 
 
+def _normalize_meta_role_dependencies(meta: dict) -> list[str]:
+    """Normalize role dependencies from ``meta/main.yml`` for README output."""
+    dependencies = meta.get("dependencies") if isinstance(meta, dict) else None
+    if not isinstance(dependencies, list):
+        return []
+    lines = [_format_requirement_line(item).strip() for item in dependencies]
+    return [line for line in lines if line]
+
+
+def _extract_collection_from_module_name(module_name: str) -> str | None:
+    """Return collection prefix from a fully-qualified module name."""
+    parts = module_name.split(".")
+    if len(parts) < 3:
+        return None
+    collection = ".".join(parts[:2]).strip()
+    if not collection or collection.startswith("ansible."):
+        return None
+    return collection
+
+
+def _extract_declared_collections_from_meta(meta: dict) -> set[str]:
+    """Extract declared non-ansible collections from ``meta/main.yml`` content."""
+    declared: set[str] = set()
+    galaxy = meta.get("galaxy_info") if isinstance(meta, dict) else None
+    if not isinstance(galaxy, dict):
+        return declared
+    collections_raw = galaxy.get("collections")
+    if not isinstance(collections_raw, list):
+        return declared
+    for item in collections_raw:
+        if not isinstance(item, str):
+            continue
+        candidate = item.strip()
+        if not candidate or candidate.startswith("ansible."):
+            continue
+        if re.match(r"^[A-Za-z0-9_]+\.[A-Za-z0-9_]+$", candidate):
+            declared.add(candidate)
+    return declared
+
+
+def _extract_declared_collections_from_requirements(requirements: list) -> set[str]:
+    """Extract declared non-ansible collections from ``meta/requirements.yml``."""
+    declared: set[str] = set()
+    for item in requirements:
+        raw: object = item
+        if isinstance(item, dict):
+            raw = item.get("src") or item.get("name") or ""
+        if not isinstance(raw, str):
+            continue
+        candidate = raw.strip().split()[0]
+        if not candidate or candidate.startswith("ansible."):
+            continue
+        if re.match(r"^[A-Za-z0-9_]+\.[A-Za-z0-9_]+$", candidate):
+            declared.add(candidate)
+    return declared
+
+
+def _build_collection_compliance_notes(
+    *,
+    features: dict,
+    meta: dict,
+    requirements: list,
+) -> list[str]:
+    """Build human-readable notes about collection declaration coverage."""
+    raw_collections = str(features.get("external_collections", "none")).strip()
+    if not raw_collections or raw_collections == "none":
+        return []
+
+    detected = {item.strip() for item in raw_collections.split(",") if item.strip()}
+    if not detected:
+        return []
+
+    declared_meta = _extract_declared_collections_from_meta(meta)
+    declared_requirements = _extract_declared_collections_from_requirements(
+        requirements
+    )
+    missing_meta = sorted(detected - declared_meta)
+    missing_requirements = sorted(detected - declared_requirements)
+
+    notes = [
+        "Detected non-ansible collections from task usage: "
+        + ", ".join(sorted(detected))
+        + "."
+    ]
+    if missing_meta:
+        notes.append(
+            "Missing from meta/main.yml galaxy_info.collections: "
+            + ", ".join(missing_meta)
+            + "."
+        )
+    if missing_requirements:
+        notes.append(
+            "Missing from meta/requirements.yml: "
+            + ", ".join(missing_requirements)
+            + "."
+        )
+    return notes
+
+
 def collect_role_contents(
     role_path: str,
     exclude_paths: list[str] | None = None,
@@ -1006,6 +1213,7 @@ def extract_role_features(
     conditional_tasks = 0
     tagged_tasks = 0
     modules: set[str] = set()
+    external_collections: set[str] = set()
     handlers_notified: set[str] = set()
 
     for task_file in task_files:
@@ -1016,6 +1224,9 @@ def extract_role_features(
             module_name = _detect_task_module(task)
             if module_name:
                 modules.add(module_name)
+                collection = _extract_collection_from_module_name(module_name)
+                if collection:
+                    external_collections.add(collection)
 
             if bool(task.get("become")):
                 privileged_tasks += 1
@@ -1037,6 +1248,9 @@ def extract_role_features(
         "tasks_scanned": tasks_scanned,
         "recursive_task_includes": include_count,
         "unique_modules": ", ".join(sorted(modules)) if modules else "none",
+        "external_collections": (
+            ", ".join(sorted(external_collections)) if external_collections else "none"
+        ),
         "handlers_notified": (
             ", ".join(sorted(handlers_notified)) if handlers_notified else "none"
         ),
@@ -1311,6 +1525,7 @@ def _collect_referenced_variable_names(
                 text = file_path.read_text(encoding="utf-8")
             except UnicodeDecodeError, OSError:
                 continue
+            local_bindings = _collect_jinja_local_bindings_from_text(text)
             for name in _collect_undeclared_jinja_variables(text):
                 lowered = name.lower()
                 if lowered in IGNORED_IDENTIFIERS or lowered.startswith("ansible_"):
@@ -1318,8 +1533,10 @@ def _collect_referenced_variable_names(
                 candidates.add(name)
             for match in JINJA_VAR_RE.findall(text):
                 lowered = match.lower()
-                if lowered not in IGNORED_IDENTIFIERS and not lowered.startswith(
-                    "ansible_"
+                if (
+                    lowered not in IGNORED_IDENTIFIERS
+                    and not lowered.startswith("ansible_")
+                    and match not in local_bindings
                 ):
                     candidates.add(match)
             if file_path.suffix in {".yml", ".yaml"}:
@@ -1335,6 +1552,21 @@ def _collect_referenced_variable_names(
                             continue
                         candidates.add(token)
     return candidates
+
+
+def _collect_dynamic_task_include_refs(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> list[str]:
+    """Return templated include/import task references from task files."""
+    role_root = Path(role_path).resolve()
+    refs: list[str] = []
+    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
+        data = _load_yaml_file(task_file)
+        for ref in _iter_task_include_targets(data):
+            if "{{" in ref or "{%" in ref:
+                refs.append(ref)
+    return refs
 
 
 def build_variable_insights(
@@ -1363,6 +1595,18 @@ def build_variable_insights(
         role_path,
         exclude_paths=exclude_paths,
     )
+    dynamic_task_include_refs = _collect_dynamic_task_include_refs(
+        role_path,
+        exclude_paths=exclude_paths,
+    )
+    dynamic_task_include_tokens: set[str] = set()
+    for ref in dynamic_task_include_refs:
+        dynamic_task_include_tokens.update(
+            token
+            for token in JINJA_IDENTIFIER_RE.findall(ref)
+            if token.lower() not in IGNORED_IDENTIFIERS
+            and not token.lower().startswith("ansible_")
+        )
 
     rows: list[dict] = []
     rows_by_name: dict[str, dict] = {}
@@ -1543,6 +1787,11 @@ def build_variable_insights(
                         if dynamic_include_vars_refs
                         else "Referenced in role but no static definition found."
                     )
+                    + (
+                        " Dynamic include_tasks/import_tasks paths detected."
+                        if (not seeded and name in dynamic_task_include_tokens)
+                        else ""
+                    )
                 ),
                 "is_unresolved": not seeded,
                 "is_ambiguous": False,
@@ -1607,7 +1856,7 @@ def load_readme_section_visibility(
 def load_readme_section_config(
     role_path: str,
     config_path: str | None = None,
-    adopt_style_headings: bool | None = None,
+    adopt_heading_mode: str | None = None,
 ) -> dict | None:
     """Load README section visibility and section rendering options."""
     cfg_file = (
@@ -1630,14 +1879,16 @@ def load_readme_section_config(
     include_raw = readme_cfg.get("include_sections")
     exclude_raw = readme_cfg.get("exclude_sections")
     content_modes_raw = readme_cfg.get("section_content_modes")
-    config_adopt_style_headings = readme_cfg.get("adopt_style_headings")
+    config_adopt_heading_mode = readme_cfg.get("adopt_heading_mode")
     if include_raw is None and exclude_raw is None and content_modes_raw is None:
         return None
 
-    if adopt_style_headings is None and isinstance(config_adopt_style_headings, bool):
-        adopt_style_headings = config_adopt_style_headings
-    if adopt_style_headings is None:
-        adopt_style_headings = False
+    if adopt_heading_mode is None and isinstance(config_adopt_heading_mode, str):
+        adopt_heading_mode = config_adopt_heading_mode.strip().lower()
+    if adopt_heading_mode is None:
+        adopt_heading_mode = "canonical"
+    if adopt_heading_mode not in {"canonical", "style", "popular"}:
+        adopt_heading_mode = "canonical"
 
     include_items = include_raw if isinstance(include_raw, list) else None
     exclude_items = exclude_raw if isinstance(exclude_raw, list) else []
@@ -1645,6 +1896,7 @@ def load_readme_section_config(
         content_modes_raw if isinstance(content_modes_raw, dict) else {}
     )
     title_overrides: dict[str, str] = {}
+    display_titles = _load_section_display_titles()
     section_content_modes: dict[str, str] = {}
     include_selector_map: dict[str, str] = {}
 
@@ -1660,7 +1912,7 @@ def load_readme_section_config(
                     normalized_item = normalize_style_heading(item)
                     if normalized_item:
                         include_selector_map[normalized_item] = resolved
-                    if adopt_style_headings:
+                    if adopt_heading_mode == "style":
                         title_overrides[resolved] = item.strip()
 
     for item in exclude_items:
@@ -1668,6 +1920,12 @@ def load_readme_section_config(
             resolved = _resolve_section_selector(item)
             if resolved:
                 enabled.discard(resolved)
+
+    if adopt_heading_mode == "popular":
+        for section_id in enabled:
+            display_title = display_titles.get(section_id)
+            if display_title:
+                title_overrides[section_id] = display_title
 
     for selector, mode in content_modes_items.items():
         if not isinstance(selector, str) or not isinstance(mode, str):
@@ -1686,9 +1944,35 @@ def load_readme_section_config(
     return {
         "enabled_sections": enabled,
         "section_title_overrides": title_overrides,
-        "adopt_style_headings": adopt_style_headings,
+        "adopt_heading_mode": adopt_heading_mode,
         "section_content_modes": section_content_modes,
     }
+
+
+def _load_section_display_titles() -> dict[str, str]:
+    """Load optional section display-title overrides from bundled data YAML."""
+    path = DEFAULT_SECTION_DISPLAY_TITLES_PATH
+    if not path.is_file():
+        return {}
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    payload = raw.get("display_titles")
+    if not isinstance(payload, dict):
+        return {}
+
+    parsed: dict[str, str] = {}
+    for section_id, display_title in payload.items():
+        if not isinstance(section_id, str) or not isinstance(display_title, str):
+            continue
+        sid = section_id.strip()
+        label = display_title.strip()
+        if sid and label:
+            parsed[sid] = label
+    return parsed
 
 
 def _describe_variable(name: str, source: str) -> str:
@@ -2573,7 +2857,7 @@ def run_scan(
     include_vars_main: bool = True,
     include_scanner_report_link: bool = True,
     readme_config_path: str | None = None,
-    adopt_style_headings: bool | None = None,
+    adopt_heading_mode: str | None = None,
     style_guide_skeleton: bool = False,
     keep_unknown_style_sections: bool = True,
     exclude_path_patterns: list[str] | None = None,
@@ -2598,14 +2882,27 @@ def run_scan(
         exclude_paths=exclude_path_patterns,
     )
     requirements = load_requirements(role_path)
-    requirements_display = normalize_requirements(requirements)
     found = scan_for_default_filters(role_path, exclude_paths=exclude_path_patterns)
     metadata = collect_role_contents(role_path, exclude_paths=exclude_path_patterns)
+    collection_compliance_notes = _build_collection_compliance_notes(
+        features=metadata.get("features") or {},
+        meta=meta,
+        requirements=requirements,
+    )
+    metadata["collection_compliance_notes"] = collection_compliance_notes
+    requirements_display = normalize_requirements(requirements)
+    meta_dependencies_display = _normalize_meta_role_dependencies(meta)
+    for dep in meta_dependencies_display:
+        if dep not in requirements_display:
+            requirements_display.append(dep)
+    requirements_display.extend(
+        f"[Collection check] {note}" for note in collection_compliance_notes
+    )
     metadata["keep_unknown_style_sections"] = keep_unknown_style_sections
     readme_section_config = load_readme_section_config(
         role_path,
         config_path=readme_config_path,
-        adopt_style_headings=adopt_style_headings,
+        adopt_heading_mode=adopt_heading_mode,
     )
     if readme_section_config is not None:
         metadata["enabled_sections"] = sorted(readme_section_config["enabled_sections"])
