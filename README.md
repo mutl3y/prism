@@ -17,9 +17,12 @@ Summary
 `ansible-role-doc` scans role structure, tasks, handlers, metadata, and variables, then renders a consistent README from templates.
 
 - Supports local role paths and `--repo-url` inputs.
+- Supports local collection roots via `--collection-root` with collection-level markdown or JSON output.
 - Repo scans now opportunistically use sparse/partial clone for sub-path targets and fall back to shallow clone when sparse checkout is unavailable.
 - Can reuse an existing README as a style guide with section/order preservation.
 - Can generate headings-only style skeletons with `--create-style-guide`.
+- Can append detailed task and handler tables with `--detailed-catalog`.
+- Can render PDF output with `--format pdf` when the optional `weasyprint` dependency is installed.
 - Variable sourcing defaults to `defaults-only` (or use `--variable-sources defaults+vars`).
 
 Scan scope (current)
@@ -57,8 +60,12 @@ Usage:
 - Install core scanner only: pip install -e .
 - Install dev tooling and learning-batch dependencies: pip install -e .[dev]
 - Run: ansible-role-doc path/to/role -o output.md
+- Scan a local collection root into collection markdown plus per-role docs: `ansible-role-doc path/to/collection --collection-root --format md -o COLLECTION_README.md`
+- Emit a machine-readable collection payload: `ansible-role-doc path/to/collection --collection-root --format json -o collection.json`
 - Compare against local baseline (optional review/testing mode, not default generation): ansible-role-doc path/to/role --compare-role-path path/to/baseline -o debug_readmes/REVIEW_README_COMPARE.md
 - Reuse an existing README as a style guide: `ansible-role-doc path/to/role --style-readme path/to/README.md -o debug_readmes/REVIEW_README_STYLED.md`
+- Include detailed task and handler tables: `ansible-role-doc path/to/role --detailed-catalog -o debug_readmes/REVIEW_README_CATALOG.md`
+- Generate PDF output (requires `weasyprint`): `ansible-role-doc path/to/role --format pdf -o debug_readmes/REVIEW_README.pdf`
 - Live repo test: `python -m ansible_role_doc.cli --repo-url https://github.com/mutl3y/ansible_port_listener -o debug_readmes/REVIEW_README_PORT_LISTENER.md -v`
 - Use a README inside a cloned repo as a guide: `python -m ansible_role_doc.cli --repo-url https://github.com/mutl3y/ansible_port_listener --repo-style-readme-path README.md -o debug_readmes/REVIEW_README_PORT_LISTENER_STYLED.md -v`
 - Generate a style-guide skeleton (section order/headings only): `ansible-role-doc path/to/role --create-style-guide -o debug_readmes/REVIEW_README_SKELETON.md`
@@ -67,7 +74,7 @@ Library API:
 
 - `ansible-role-doc` can also be used as a scanner library by external orchestration code.
 - This repo should remain the scanner/render engine; high-volume learning-loop orchestration can live in a separate app that imports the public API wrapper.
-- Prefer `ansible_role_doc.api.scan_role(...)` and `ansible_role_doc.api.scan_repo(...)` instead of importing internal helpers directly.
+- Prefer `ansible_role_doc.api.scan_role(...)`, `ansible_role_doc.api.scan_repo(...)`, and `ansible_role_doc.api.scan_collection(...)` instead of importing internal helpers directly.
 
 Example:
 
@@ -97,6 +104,20 @@ payload = scan_repo(
 )
 ```
 
+Collection example:
+
+```python
+from ansible_role_doc.api import scan_collection
+
+payload = scan_collection(
+	"/path/to/collection",
+	include_rendered_readme=True,
+)
+
+print(payload["summary"])
+print(payload["roles"][0]["role"])
+```
+
 For a minimal orchestration-side persistence example, see [src/learning_app_scaffold/README.md](src/learning_app_scaffold/README.md).
 
 Local containerized learning-loop setup (Podman + PostgreSQL, with `pg_dump` checkpoints) is documented in [docs/podman-postgres-local.md](docs/podman-postgres-local.md).
@@ -122,11 +143,14 @@ Full workflow documentation is in [scripts/SCRIPTS.md](scripts/SCRIPTS.md).
 CLI capabilities (today):
 
 - Verbose logging: `-v` / `--verbose`
-- Output formats: `--format md|html|json`
+- Output formats: `--format md|html|json|pdf`
 - Preview without writes: `--dry-run` (prints rendered output to stdout)
 - Scanner detail output: `--concise-readme`, `--scanner-report-output`
+- Collection-root scanning: `--collection-root` for local collection markdown or JSON output
+- Detailed task/handler tables: `--detailed-catalog`
 - Local baseline comparison is opt-in only via `--compare-role-path`.
 - Unmapped style-guide sections are kept by default; use `--no-keep-unknown-style-sections` to suppress them.
+- PDF output requires the optional `weasyprint` dependency.
 
 When a style guide README is used, comparison artifacts are saved beside the generated output:
 
@@ -205,6 +229,7 @@ CI note:
 - Ruff annotations are published by reviewdog only on pull request events.
 - Annotations are reported as a PR check (`github-pr-check`) with warning-level findings.
 - Coverage badge updates are written to the dedicated `badges` branch via GitHub API calls from CI (avoids protected-branch direct pushes to `main`).
+- Starter docs-generation templates are included in `docs/ci-starter-workflows.md` and `.github/workflows/ansible-role-doc.yml`.
 
 Learning batch note:
 
