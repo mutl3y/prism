@@ -6,8 +6,9 @@ Prism
 [![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](docs/COVERAGE_WORKOFF_PLAN.md)
 [![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml)
 [![License](https://img.shields.io/github/license/mutl3y/prism)](LICENSE)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/mutl3y/prism)
 
-Generate README documentation for Ansible roles from local paths or repository sources.
+Generate README documentation for Ansible collections and roles from local paths or repository sources.
 
 Release history is tracked in `docs/CHANGELOG.md`.
 
