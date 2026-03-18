@@ -2,6 +2,17 @@
 
 CLI usage and flags reference.
 
+## Repository split (current)
+
+- `prism` (this repository): scanner and README rendering engine, CLI, style-guide handling, output formats.
+- `prism-learn` (optional add-on): learning-loop orchestration, metrics/persistence storage, Postgres + container workflows.
+
+Companion repository:
+
+- https://github.com/mutl3y/prism-learn
+
+If you need long-running batch scans and scan-history analytics, use `prism-learn` on top of `prism-ansible`.
+
 ## Quick reference — `prism --help`
 
 ```
