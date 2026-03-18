@@ -12,15 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - README config support for per-section content handling via `readme.section_content_modes` (`generate`, `replace`, `merge`).
 - Auto-generated style sidecar `ROLE_README_CONFIG.yml` for style demo outputs when a role config is not present.
 - Capture metadata for synthesized sidecars under `readme.capture_metadata` (`schema_version`, `captured_at_utc`, `style_source_path`, `truncated`).
-- Learning workflow helper script `scripts/learning_alias_helper.py` with subcommands for section-title alias management:
-  - `review`: Trigger LLM-based section title classification via `learning_resolve_unknowns.py`.
-  - `apply`: Apply approved alias candidates to PostgreSQL with dual thresholds (`--min-count`, `--min-section-total`).
-  - `export-aliases`: Export learned DB aliases to YAML for review/merge.
-  - `merge-aliases`: Intelligently merge learned aliases into canonical `section_aliases.yml`.
-  - `rename-section`, `suggest-canonical`, `apply-renames`, `apply-display-titles`: Supporting utilities.
 - Optional bundled data file `section_display_titles.yml` containing human-friendly display labels for all known section IDs (used by "popular" heading render mode).
 
 ### Changed
+- Learning-loop orchestration, Postgres persistence, and related helper scripts moved to the companion add-on repository: `prism-learn`.
 - Unknown style-guide sections are now kept by default during style-guided rendering.
 - Style-guided variable rendering now preserves variable-section intro prose and can mirror markdown-table variable layouts.
 - `readme.section_content_modes` selectors now resolve by configured `include_sections` title labels first, then aliases/canonical ids.

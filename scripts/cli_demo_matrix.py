@@ -2,9 +2,12 @@
 """Generate prism demo outputs in small observable steps.
 
 This helper prepares stable role/collection fixtures under debug_readmes/ and then
-runs one or more CLI scenarios either locally or inside the learning-base Podman
-container. It is designed so each scenario can be invoked independently from a
-terminal or VS Code task, which avoids large hard-to-observe shell scripts.
+runs one or more CLI scenarios locally. It is designed so each scenario can be
+invoked independently from a terminal or VS Code task, which avoids large
+hard-to-observe shell scripts.
+
+Containerized Podman workflows moved to the companion project:
+https://github.com/mutl3y/prism-learn
 """
 
 from __future__ import annotations
@@ -389,16 +392,11 @@ def main(argv: list[str] | None = None) -> int:
             args.continue_on_error,
         )
     else:
-        failures = run_podman_scenarios(
-            output_dir,
-            scenarios,
-            Path(args.compose_file).resolve(),
-            Path(args.env_file).resolve(),
-            args.service,
-            _podman_python_command(args.python_command),
-            args.start_stack,
-            args.continue_on_error,
+        print(
+            "Podman runtime moved to prism-learn. Use local runtime here, or run the containerized workflow from https://github.com/mutl3y/prism-learn.",
+            flush=True,
         )
+        return 2
 
     print("Artifacts:", flush=True)
     for scenario in scenarios:

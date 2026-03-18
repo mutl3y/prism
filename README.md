@@ -64,7 +64,7 @@ Priority improvements planned
 Usage:
 
 - Install core scanner only: pip install -e .
-- Install dev tooling and learning-batch dependencies: pip install -e .[dev]
+- Install dev tooling: pip install -e .[dev]
 - Run: prism path/to/role -o output.md
 - Scan a local collection root into collection markdown plus per-role docs: `prism path/to/collection --collection-root --format md -o COLLECTION_README.md`
 - Emit a machine-readable collection payload: `prism path/to/collection --collection-root --format json -o collection.json`
@@ -127,27 +127,19 @@ print(payload["summary"])
 print(payload["roles"][0]["role"])
 ```
 
-For a minimal orchestration-side persistence example, see [src/learning_app_scaffold/README.md](src/learning_app_scaffold/README.md).
+Prism-learn add-on
+------------------
 
-Local containerized learning-loop setup (Podman + PostgreSQL, with `pg_dump` checkpoints) is documented in [docs/podman-postgres-local.md](docs/podman-postgres-local.md).
+Learning-loop orchestration, metrics storage, and Postgres-backed batch workflows now live in the optional companion project: [prism-learn](https://github.com/mutl3y/prism-learn).
 
-Section-title alias learning workflow
--------------------------------------
+Use `prism` for core role scanning and README generation.
+Use `prism-learn` when you need:
 
-As the tool scans many roles, it learns variant section headings and can build an automated alias map. The workflow supports:
+- long-running learning/batch scans
+- persistence and reporting over scan history
+- local containerized Postgres + worker workflows
 
-- **LLM-based review**: `scripts/learning_alias_helper.py review` triggers OpenAI/GitHub Models to classify unknown section titles.
-- **Alias application**: `scripts/learning_alias_helper.py apply --yaml candidates.yml --min-section-total N` applies approved aliases with section-level thresholds (bulk-include entire section groups if total candidate count ≥ N).
-- **Export and merge**: `export-aliases` dumps learned aliases from PostgreSQL; `merge-aliases` intelligently merges them into the canonical `src/prism/data/section_aliases.yml` (deterministic grouping by section ID, deduplication, sorting).
-- **Supporting utilities**: `rename-section`, `suggest-canonical`, `apply-renames`, `apply-display-titles` for managing and validating learned data.
-
-Scale notes (learning loop):
-
-- The title-learning pipeline has been exercised at large scale (about 39k roles scanned across learning runs), with unknown heading normalization reviewed through AI-assisted classification (GitHub Models / OpenAI-compatible APIs).
-- A recent reduced-table snapshot run reported `26,815` latest-per-target rows and `144,320` aggregated section observations (`113,160` known, `31,160` unknown) before threshold filtering.
-- Counts vary by source mode (`raw` vs `reduced`), snapshot selection (`latest` vs `all`), and filters (`--min-section-count`, `--min-unknown-count`).
-
-Full workflow documentation is in [scripts/SCRIPTS.md](scripts/SCRIPTS.md).
+`prism-learn` depends on `prism-ansible`, so `prism` remains the scanner/render engine and library API.
 
 CLI capabilities (today):
 
@@ -244,13 +236,6 @@ CI note:
 - Coverage badge updates are written to the dedicated `badges` branch via GitHub API calls from CI (avoids protected-branch direct pushes to `main`).
 - Starter docs-generation templates are included in `docs/ci-starter-workflows.md` and `.github/workflows/prism.yml`.
 
-Learning batch note:
-
-- Repository batch scans can be run with `scripts/learning_repo_batch.py` and persisted via the scaffold Postgres store.
-- Running `scripts/learning_repo_batch.py` directly requires a dev environment with `psycopg[binary]` installed, for example via `pip install -e .[dev]` or `pip install -r requirements-dev.txt`.
-- Freshness skipping is enabled by default (`--skip-if-fresh-days 7`); use `--force-rescan` to scan all provided URLs.
-- Latest wide sample batch run label: `sample12-20260315-193723` with `12/12` successful repo scans.
-
 Review note:
 
 - `debug_readmes/STYLE_GUIDE_REVIEW_SUMMARY.md` indexes the current generated comparison set.
@@ -259,7 +244,7 @@ Review note:
 
 Roadmap:
 
-- See `TODO.md` for planned enhancements and remaining gaps (richer mock role realism, iterative learning-loop persistence/metrics, and further style-fidelity reductions).
+- See `TODO.md` for planned enhancements and remaining gaps (richer mock role realism and further style-fidelity reductions).
 - Current roadmap also tracks follow-up phases for mutable Linux-host data locations (for example XDG user data and system-level paths).
 - See `STYLE_GUIDE_SOURCES.md` for candidate README source repositories to use as style guides during review.
 
