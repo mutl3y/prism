@@ -6,7 +6,9 @@ Prism
 [![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](docs/COVERAGE_WORKOFF_PLAN.md)
 [![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml)
 [![License](https://img.shields.io/github/license/mutl3y/prism)](LICENSE)
+<!-- Codespaces badge disabled for now.
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/mutl3y/prism)
+-->
 
 Generate README documentation for Ansible collections and roles from local paths or repository sources.
 
@@ -80,7 +82,8 @@ Usage:
 - Use a custom output template: `prism path/to/role --template path/to/README.md.j2 -o output.md`
 - Apply a custom pattern policy: `prism path/to/role --policy-config path/to/patterns.yml -o output.md`
 
-Codespaces live demo:
+<!--
+Codespaces live demo (disabled for now):
 
 - This repository includes a `.devcontainer/devcontainer.json` configuration for GitHub Codespaces.
 - On first create, Codespaces installs dev dependencies with `pip install -e .[dev]`.
@@ -89,6 +92,7 @@ Codespaces live demo:
 - Optional local preview server:
 	- `bash scripts/codespaces_live_demo.sh --serve --port 8000`
 	- Then open forwarded port `8000` in Codespaces.
+-->
 
 Library API:
 
