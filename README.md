@@ -79,6 +79,16 @@ Usage:
 - Use a custom output template: `prism path/to/role --template path/to/README.md.j2 -o output.md`
 - Apply a custom pattern policy: `prism path/to/role --policy-config path/to/patterns.yml -o output.md`
 
+Codespaces live demo:
+
+- This repository includes a `.devcontainer/devcontainer.json` configuration for GitHub Codespaces.
+- On first create, Codespaces installs dev dependencies with `pip install -e .[dev]`.
+- On start, Codespaces runs `bash scripts/codespaces_live_demo.sh --quick` to generate demo artifacts in `debug_readmes/codespaces_demo/`.
+- Main demo output: `debug_readmes/codespaces_demo/README.md`
+- Optional local preview server:
+	- `bash scripts/codespaces_live_demo.sh --serve --port 8000`
+	- Then open forwarded port `8000` in Codespaces.
+
 Library API:
 
 - `prism` can also be used as a scanner library by external orchestration code.

@@ -1,0 +1,26 @@
+{
+  "name": "Prism Codespace",
+  "image": "python:3.14-bookworm",
+  "postCreateCommand": "python3 -m pip install --upgrade pip && pip install -e .[dev]",
+  "postStartCommand": "bash scripts/codespaces_live_demo.sh --quick",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    },
+    "codespaces": {
+      "openFiles": [
+        "README.md",
+        "debug_readmes/codespaces_demo/README.md"
+      ]
+    }
+  },
+  "portsAttributes": {
+    "8000": {
+      "label": "Prism demo preview",
+      "onAutoForward": "notify"
+    }
+  }
+}
