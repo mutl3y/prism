@@ -28,7 +28,6 @@ dev = [
   "black==25.1.0",
   "pre-commit",
   "markdown",
-  "psycopg[binary]",
 ]
 
 [tool.setuptools]
