@@ -3,13 +3,13 @@ Prism
 
 [![CI](https://github.com/mutl3y/prism/actions/workflows/prism.yml/badge.svg?branch=main)](https://github.com/mutl3y/prism/actions/workflows/prism.yml)
 [![Branch](https://img.shields.io/github/actions/workflow/status/mutl3y/prism/prism.yml?branch=main&label=main)](https://github.com/mutl3y/prism/tree/main)
-[![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](COVERAGE_WORKOFF_PLAN.md)
+[![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](docs/COVERAGE_WORKOFF_PLAN.md)
 [![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml)
 [![License](https://img.shields.io/github/license/mutl3y/prism)](LICENSE)
 
 Generate README documentation for Ansible roles from local paths or repository sources.
 
-Release history is tracked in `CHANGELOG.md`.
+Release history is tracked in `docs/CHANGELOG.md`.
 
 Summary
 -------
@@ -227,7 +227,7 @@ Testing note:
 	- `debug_readmes/REVIEW_README_STYLE_GUIDE_SKELETON.md`
 	- `debug_readmes/REVIEW_README_INROLE_CONFIG.md`
 - `debug_readmes/` is ignored by git.
-- Coverage gaps and the staged workoff plan are tracked in `COVERAGE_WORKOFF_PLAN.md`.
+- Coverage gaps and the staged workoff plan are tracked in `docs/COVERAGE_WORKOFF_PLAN.md`.
 
 CI note:
 
@@ -244,9 +244,9 @@ Review note:
 
 Roadmap:
 
-- See `TODO.md` for planned enhancements and remaining gaps (richer mock role realism and further style-fidelity reductions).
+- See `docs/TODO.md` for planned enhancements and remaining gaps (richer mock role realism and further style-fidelity reductions).
 - Current roadmap also tracks follow-up phases for mutable Linux-host data locations (for example XDG user data and system-level paths).
-- See `STYLE_GUIDE_SOURCES.md` for candidate README source repositories to use as style guides during review.
+- See `docs/STYLE_GUIDE_SOURCES.md` for candidate README source repositories to use as style guides during review.
 
 <- hosts: reviewdog test -->
 

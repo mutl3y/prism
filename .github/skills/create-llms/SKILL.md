@@ -173,8 +173,8 @@ Exclude files that:
 ## Documentation
 
 - [Main README](README.md): Primary project documentation and getting started guide
-- [Contributing Guide](CONTRIBUTING.md): Guidelines for contributing to the project
-- [Code of Conduct](CODE_OF_CONDUCT.md): Community guidelines and expectations
+- [Contributing Guide](docs/CONTRIBUTING.md): Guidelines for contributing to the project
+- [Code of Conduct](docs/CODE_OF_CONDUCT.md): Community guidelines and expectations
 
 ## Specifications
 
