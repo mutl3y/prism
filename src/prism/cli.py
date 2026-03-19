@@ -27,7 +27,6 @@ from .scanner import (
     run_scan,
 )
 from .feedback import load_feedback, apply_feedback_recommendations
-from urllib.error import HTTPError, URLError
 
 
 class _ReadableYamlDumper(yaml.SafeDumper):
@@ -431,6 +430,24 @@ def _add_shared_scan_arguments(parser: argparse.ArgumentParser) -> None:
         help="Include detailed task and handler tables in generated README sections.",
     )
     parser.add_argument(
+        "--task-parameters",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Include compact task parameter values in detailed task summary tables.",
+    )
+    parser.add_argument(
+        "--task-runbooks",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Render task runbook/comment details when task annotations are present.",
+    )
+    parser.add_argument(
+        "--inline-task-runbooks",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Inline short runbook snippets in the task summary table.",
+    )
+    parser.add_argument(
         "--include-collection-checks",
         action="store_true",
         help="Include collection compliance audit notes in requirements sections (off by default).",
@@ -798,6 +815,9 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
             policy_config_path=args.policy_config,
             detailed_catalog=args.detailed_catalog,
             include_collection_checks=include_collection_checks,
+            include_task_parameters=args.task_parameters,
+            include_task_runbooks=args.task_runbooks,
+            inline_task_runbooks=args.inline_task_runbooks,
             dry_run=args.dry_run,
         )
         if args.dry_run:
@@ -855,6 +875,9 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
         policy_config_path=args.policy_config,
         detailed_catalog=args.detailed_catalog,
         include_collection_checks=include_collection_checks,
+        include_task_parameters=args.task_parameters,
+        include_task_runbooks=args.task_runbooks,
+        inline_task_runbooks=args.inline_task_runbooks,
         include_rendered_readme=args.format == "md",
     )
     rendered = (
@@ -933,6 +956,9 @@ def _handle_role_command(args: argparse.Namespace) -> int:
         policy_config_path=args.policy_config,
         detailed_catalog=args.detailed_catalog,
         include_collection_checks=include_collection_checks,
+        include_task_parameters=args.task_parameters,
+        include_task_runbooks=args.task_runbooks,
+        inline_task_runbooks=args.inline_task_runbooks,
         dry_run=args.dry_run,
     )
     if args.dry_run:

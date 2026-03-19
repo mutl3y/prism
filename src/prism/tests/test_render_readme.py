@@ -145,6 +145,30 @@ def test_run_scan_renders_comment_driven_role_notes(tmp_path):
     assert "Additionals:" in content
 
 
+def test_run_scan_renders_task_catalog_with_links_and_details(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "#t# Runbook: manually copy /tmp/demo if template fails\n"
+        "- name: noop\n"
+        "  debug:\n"
+        "    msg: ok\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "README_TASK_CATALOG.md"
+    scanner.run_scan(str(role), output=str(out), detailed_catalog=True)
+
+    content = out.read_text(encoding="utf-8")
+    assert "| File | Task | Module | Parameters | Runbook |" in content
+    assert "| `main.yml` | [noop](#task-main-yml-noop-1) | debug |" in content
+    assert "#### Task details and runbooks" in content
+    assert '<a id="task-main-yml-noop-1"></a>' in content
+    assert "<details>" in content
+    assert "manually copy /tmp/demo if template fails" in content
+
+
 def test_run_scan_scanner_report_includes_issue_categories(tmp_path):
     role = tmp_path / "role"
     (role / "tasks").mkdir(parents=True)
