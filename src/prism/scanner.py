@@ -3105,8 +3105,17 @@ def _classify_provenance_issue(row: dict) -> str | None:
 
 def _detect_task_module(task: dict) -> str | None:
     """Detect the task module key from an Ansible task mapping."""
+    # Check for explicit include/import tasks first
+    for include_key in TASK_INCLUDE_KEYS:
+        if include_key in task:
+            # Normalize to short form for readability
+            if "import_tasks" in include_key:
+                return "import_tasks"
+            return "include_tasks"
+    
+    # Then look for regular modules
     for key in task:
-        if key in TASK_META_KEYS or key in TASK_INCLUDE_KEYS or key in TASK_BLOCK_KEYS:
+        if key in TASK_META_KEYS or key in TASK_BLOCK_KEYS:
             continue
         if key.startswith("with_"):
             continue
