@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `readme.section_content_modes` selectors now resolve by configured `include_sections` title labels first, then aliases/canonical ids.
 - Merge mode for style sections is now idempotent across repeated ingest/regenerate passes (previous generated merge payload is replaced, not repeatedly appended).
 - Unknown style sections now preserve source body content when available, with fallback placeholder text only when section body is empty.
+- README overview language now explicitly keeps the refracted-documentation vision as the product end goal while clarifying current static-analysis delivery boundaries.
 
 ### Fixed
 - Style-guide parsing now ignores fenced code blocks when detecting headings, preventing false unknown sections such as ````yaml`.

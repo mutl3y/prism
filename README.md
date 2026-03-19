@@ -19,13 +19,17 @@ An Ansible role is not a single file. It is a system of defaults, variables, tas
 
 `Prism` treats your automation like a beam of light. It scans your role or collection, refracts the monolith into its core parts, and generates a maintainable README that stays aligned with source.
 
+This remains the product end goal: documentation that is both structurally clear and source-faithful even as role complexity grows.
+
+Current release status: Prism delivers this outcome for static, file-resolved role and collection structures, with runtime/dynamic inference still evolving.
+
 The Spectrum of Documentation
 -----------------------------
 
-- **Clear variable surfaces:** documents role variables from role-local sources with type, defaults, provenance, and uncertainty notes.
-- **Readable task flow:** renders task and handler activity into a clear, reviewable sequence.
-- **Visible metadata boundaries:** surfaces Galaxy metadata, platform support, and dependency signals.
-- **Collection-aware output:** supports collection roots and collection-level summaries alongside per-role docs.
+- **Clear variable surfaces (today):** documents role variables from role-local sources with type, defaults, provenance, and uncertainty notes.
+- **Readable task flow (today):** renders task and handler activity into a clear, reviewable sequence.
+- **Visible metadata boundaries (today):** surfaces Galaxy metadata, platform support, and dependency signals.
+- **Collection-aware output (today):** supports collection roots and collection-level summaries alongside per-role docs.
 
 Generate README documentation for Ansible collections and roles from local paths or repository sources.
 
