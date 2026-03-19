@@ -183,6 +183,15 @@ def test_render_runbook_standalone_returns_role_name_and_sections(tmp_path):
                     {"kind": "runbook", "text": "copy /tmp/app to /opt/app then restart"},
                     {"kind": "warning", "text": "requires sudo"},
                 ],
+            },
+            {
+                "file": "tasks/main.yml",
+                "name": "Validate app",
+                "module": "ansible.builtin.command",
+                "parameters": "cmd=/usr/local/bin/validate",
+                "anchor": "task-main-yml-validate-app-2",
+                "runbook": "",
+                "annotations": [],
             }
         ],
         "role_notes": {
@@ -197,11 +206,13 @@ def test_render_runbook_standalone_returns_role_name_and_sections(tmp_path):
     assert "## Role Notes" in content
     assert "standard deploy role" in content
     assert "## Task Runbooks" in content
-    assert "### Deploy app" in content
+    assert "#### `tasks/main.yml` - Deploy app" in content
     assert '<a id="task-main-yml-deploy-app-1"></a>' in content
-    assert "#### Steps" in content
+    assert "| Field | Value |" not in content
     assert "copy /tmp/app to /opt/app then restart" in content
-    assert "**Warning:** requires sudo" in content
+    assert "Warning: requires sudo" in content
+    assert "#### `tasks/main.yml` - Validate app" in content
+    assert "- No comments." not in content
 
 
 def test_run_scan_writes_runbook_output_file(tmp_path):
@@ -213,7 +224,10 @@ def test_run_scan_writes_runbook_output_file(tmp_path):
         "- name: restart nginx\n"
         "  ansible.builtin.service:\n"
         "    name: nginx\n"
-        "    state: restarted\n",
+        "    state: restarted\n"
+        "- name: validate nginx\n"
+        "  ansible.builtin.command:\n"
+        "    cmd: /usr/sbin/nginx -t\n",
         encoding="utf-8",
     )
 
@@ -227,6 +241,44 @@ def test_run_scan_writes_runbook_output_file(tmp_path):
     assert "## Task Runbooks" in content
     assert "restart nginx" in content
     assert "manually restart nginx if deploy fails" in content
+    assert "validate nginx" in content
+    assert "- No comments." not in content
+
+
+def test_run_scan_writes_runbook_csv_output_file(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "#t# Runbook: manually restart nginx if deploy fails\n"
+        "#t(restart nginx)# Warning: confirm service user exists before restart\n"
+        "- name: restart nginx\n"
+        "  ansible.builtin.service:\n"
+        "    name: nginx\n"
+        "    state: restarted\n"
+        "- name: validate nginx\n"
+        "  ansible.builtin.command:\n"
+        "    cmd: /usr/sbin/nginx -t\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "README.md"
+    rb_csv_out = tmp_path / "RUNBOOK.csv"
+    scanner.run_scan(
+        str(role),
+        output=str(out),
+        runbook_csv_output=str(rb_csv_out),
+    )
+
+    assert rb_csv_out.is_file(), "runbook csv file should be written"
+    content = rb_csv_out.read_text(encoding="utf-8")
+    assert "file,task_name,step" in content
+    assert "main.yml,restart nginx,manually restart nginx if deploy fails" in content
+    assert (
+        "main.yml,restart nginx,Warning: confirm service user exists before restart"
+        in content
+    )
+    assert "validate nginx," not in content
 
 
 def test_run_scan_scanner_report_includes_issue_categories(tmp_path):

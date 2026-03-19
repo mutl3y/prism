@@ -22,7 +22,7 @@ from .cli import (
     _repo_name_from_url,
 )
 from .collection_plugins import scan_collection_plugins
-from .scanner import run_scan, render_runbook
+from .scanner import render_runbook, render_runbook_csv, run_scan
 
 _REQUIRED_ROLE_DIRS = ("defaults", "tasks", "meta")
 
@@ -225,10 +225,11 @@ def scan_collection(
     include_task_runbooks: bool = True,
     inline_task_runbooks: bool = True,
     runbook_output_dir: str | None = None,
+    runbook_csv_output_dir: str | None = None,
 ) -> dict[str, Any]:
     """Scan an Ansible collection root and return per-role payloads + metadata."""
     # Auto-enable task catalog collection when runbook output is requested.
-    if runbook_output_dir and not detailed_catalog:
+    if (runbook_output_dir or runbook_csv_output_dir) and not detailed_catalog:
         detailed_catalog = True
     root = Path(collection_path).resolve()
     if not root.is_dir():
@@ -313,7 +314,19 @@ def scan_collection(
                 rb_metadata = payload.get("metadata") or {}
                 rb_role_name = payload.get("role_name") or role_dir.name
                 rb_content = render_runbook(rb_role_name, rb_metadata)
-                (rb_dir / f"{role_dir.name}.runbook.md").write_text(rb_content, encoding="utf-8")
+                (rb_dir / f"{role_dir.name}.runbook.md").write_text(
+                    rb_content,
+                    encoding="utf-8",
+                )
+            if runbook_csv_output_dir:
+                rb_csv_dir = Path(runbook_csv_output_dir)
+                rb_csv_dir.mkdir(parents=True, exist_ok=True)
+                rb_metadata = payload.get("metadata") or {}
+                rb_csv_content = render_runbook_csv(rb_metadata)
+                (rb_csv_dir / f"{role_dir.name}.runbook.csv").write_text(
+                    rb_csv_content,
+                    encoding="utf-8",
+                )
         except Exception as exc:
             failures.append(
                 {

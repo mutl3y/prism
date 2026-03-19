@@ -7,8 +7,10 @@ metadata and variables, and render a README using a Jinja2 template.
 
 from __future__ import annotations
 
+import csv
 from collections import defaultdict
 from fnmatch import fnmatch
+import io
 import os
 from pathlib import Path
 import re
@@ -3326,6 +3328,42 @@ def render_runbook(
     return template_obj.render(role_name=role_name, metadata=metadata)
 
 
+def _build_runbook_rows(metadata: dict | None) -> list[tuple[str, str, str]]:
+    """Build normalized runbook rows: (file, task_name, step)."""
+    metadata = metadata or {}
+    task_catalog = metadata.get("task_catalog") or []
+    rows: list[tuple[str, str, str]] = []
+    for task in task_catalog:
+        if not isinstance(task, dict):
+            continue
+        file_name = str(task.get("file") or "")
+        task_name = str(task.get("name") or "")
+        annotations = task.get("annotations") or []
+        if not isinstance(annotations, list):
+            annotations = []
+
+        for note in annotations:
+            if not isinstance(note, dict):
+                continue
+            text = str(note.get("text") or "").strip()
+            if not text:
+                continue
+            kind = str(note.get("kind") or "note").strip().lower()
+            step = text if kind == "runbook" else f"{kind.capitalize()}: {text}"
+            rows.append((file_name, task_name, step))
+    return rows
+
+
+def render_runbook_csv(metadata: dict | None = None) -> str:
+    """Render runbook rows to CSV with columns: file, task_name, step."""
+    output = io.StringIO()
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(["file", "task_name", "step"])
+    for file_name, task_name, step in _build_runbook_rows(metadata):
+        writer.writerow([file_name, task_name, step])
+    return output.getvalue()
+
+
 def _build_requirements_display(
     *,
     requirements: list,
@@ -3425,11 +3463,12 @@ def run_scan(
     include_task_runbooks: bool = True,
     inline_task_runbooks: bool = True,
     runbook_output: str | None = None,
+    runbook_csv_output: str | None = None,
 ) -> str:
     _refresh_policy(policy_config_path)
 
     # Auto-enable task catalog collection when a standalone runbook is requested.
-    if runbook_output and not detailed_catalog:
+    if (runbook_output or runbook_csv_output) and not detailed_catalog:
         detailed_catalog = True
 
     rp = Path(role_path)
@@ -3623,4 +3662,9 @@ def run_scan(
         rb_path.parent.mkdir(parents=True, exist_ok=True)
         rb_content = render_runbook(role_name, metadata)
         rb_path.write_text(rb_content, encoding="utf-8")
+    if runbook_csv_output:
+        rb_csv_path = Path(runbook_csv_output)
+        rb_csv_path.parent.mkdir(parents=True, exist_ok=True)
+        rb_csv_content = render_runbook_csv(metadata)
+        rb_csv_path.write_text(rb_csv_content, encoding="utf-8")
     return result

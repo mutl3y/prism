@@ -457,6 +457,16 @@ def _add_shared_scan_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--runbook-csv-output",
+        default=None,
+        help=(
+            "Generate runbook CSV output (columns: file, task_name, step). "
+            "For the 'role' command, provide a file path (e.g. RUNBOOK.csv). "
+            "For 'collection' and 'repo' commands, provide a directory path; "
+            "per-role CSV files will be written there."
+        ),
+    )
+    parser.add_argument(
         "--include-collection-checks",
         action="store_true",
         help="Include collection compliance audit notes in requirements sections (off by default).",
@@ -828,6 +838,7 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
             include_task_runbooks=args.task_runbooks,
             inline_task_runbooks=args.inline_task_runbooks,
             runbook_output=args.runbook_output,
+            runbook_csv_output=args.runbook_csv_output,
             dry_run=args.dry_run,
         )
         if args.dry_run:
@@ -890,6 +901,7 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
         inline_task_runbooks=args.inline_task_runbooks,
         include_rendered_readme=args.format == "md",
         runbook_output_dir=args.runbook_output,
+        runbook_csv_output_dir=args.runbook_csv_output,
     )
     rendered = (
         json.dumps(payload, indent=2)
@@ -971,6 +983,7 @@ def _handle_role_command(args: argparse.Namespace) -> int:
         include_task_runbooks=args.task_runbooks,
         inline_task_runbooks=args.inline_task_runbooks,
         runbook_output=args.runbook_output,
+        runbook_csv_output=args.runbook_csv_output,
         dry_run=args.dry_run,
     )
     if args.dry_run:

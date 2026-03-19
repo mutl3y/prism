@@ -6,7 +6,7 @@
 ---
 
 {% set task_catalog = metadata.task_catalog if metadata.task_catalog is defined else [] %}
-{% set annotated_tasks = task_catalog | selectattr('annotations') | list %}
+{% set all_tasks = task_catalog %}
 {% set role_notes = metadata.role_notes if metadata.role_notes is defined else {} %}
 {% set has_role_notes = role_notes and (
     (role_notes.warnings is defined and role_notes.warnings) or
@@ -20,12 +20,12 @@
 {% if has_role_notes %}
 - [Role Notes](#role-notes)
 {% endif %}
-{% if annotated_tasks %}
-{% for task in annotated_tasks %}
+{% if all_tasks %}
+{% for task in all_tasks %}
 - [{{ task.name }}](#{{ task.anchor }})
 {% endfor %}
 {% else %}
-_No task runbook annotations found._
+_No tasks found._
 {% endif %}
 
 {% if has_role_notes %}
@@ -48,41 +48,27 @@ _No task runbook annotations found._
 {% endfor %}
 
 {% endif %}
-{% if annotated_tasks %}
+{% if all_tasks %}
 
 ---
 
 ## Task Runbooks
 
-{% for task in annotated_tasks %}
+{% for task in all_tasks %}
 <a id="{{ task.anchor }}"></a>
 
-### {{ task.name }}
+#### `{{ task.file }}` - {{ task.name }}
 
-| Field | Value |
-| --- | --- |
-| File | `{{ task.file }}` |
-| Module | `{{ task.module }}` |
-{% if task.parameters %}
-| Parameters | `{{ task.parameters }}` |
+{% if task.annotations %}
+{% for note in task.annotations %}
+{% if note.kind == 'runbook' %}
+- {{ note.text }}
+{% else %}
+- {{ note.kind | capitalize }}: {{ note.text }}
 {% endif %}
-
-{% set has_runbook = task.annotations | selectattr('kind', 'equalto', 'runbook') | list %}
-{% set other_notes = task.annotations | rejectattr('kind', 'equalto', 'runbook') | list %}
-{% if has_runbook %}
-#### Steps
-
-{% for note in has_runbook %}
-{{ note.text }}
-
 {% endfor %}
 {% endif %}
-{% if other_notes %}
-{% for note in other_notes %}
-> **{{ note.kind | capitalize }}:** {{ note.text }}
 
-{% endfor %}
-{% endif %}
 ---
 
 {% endfor %}
@@ -90,7 +76,9 @@ _No task runbook annotations found._
 
 ---
 
-_No task runbook annotations were found in this role. To add runbooks, annotate your tasks with `#t#` or `# <task>` comments:_
+_No tasks were found in this role._
+
+To add runbook comments, annotate tasks with `#t#` or `# <task>` comments:
 
 ```yaml
 # #t# Runbook: restart service, verify with systemctl status
