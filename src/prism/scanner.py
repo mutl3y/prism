@@ -1340,13 +1340,30 @@ def _collect_task_handler_catalog(
     role_path: str,
     exclude_paths: list[str] | None = None,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-    """Build optional detailed task and handler catalogs for README rendering."""
+    """Build optional detailed task and handler catalogs for README rendering.
+    
+    Tasks are collected in execution order (depth-first), following includes
+    as they would be encountered during Ansible playbook execution.
+    """
     role_root = Path(role_path).resolve()
-    task_entries: list[dict[str, str]] = []
-    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
+    
+    def _collect_tasks_recursive(
+        task_file: Path,
+        task_entries: list[dict[str, str]],
+        seen_files: set[Path],
+    ) -> None:
+        """Recursively collect tasks in execution order, following includes."""
+        if task_file in seen_files or not task_file.is_file():
+            return
+        if _is_path_excluded(task_file, role_root, exclude_paths):
+            return
+        
+        seen_files.add(task_file)
         data = _load_yaml_file(task_file)
         relpath = str(task_file.relative_to(role_root))
+        
         for task in _iter_task_mappings(data):
+            # Add this task to the catalog
             module_name = _detect_task_module(task) or "unknown"
             task_name = str(task.get("name") or "(unnamed task)")
             task_entries.append(
@@ -1357,7 +1374,35 @@ def _collect_task_handler_catalog(
                     "parameters": _compact_task_parameters(task, module_name),
                 }
             )
-
+            
+            # If this task includes/imports another file, process it inline
+            for include_key in TASK_INCLUDE_KEYS:
+                if include_key in task:
+                    include_target = task[include_key]
+                    if isinstance(include_target, str) and not ("{{" in include_target or "{%" in include_target):
+                        included_file = _resolve_task_include(role_root, task_file, include_target)
+                        if included_file:
+                            _collect_tasks_recursive(included_file, task_entries, seen_files)
+    
+    # Start with main.yml if it exists, otherwise with any available task file
+    tasks_dir = role_root / "tasks"
+    task_entries: list[dict[str, str]] = []
+    seen_files: set[Path] = set()
+    
+    if tasks_dir.is_dir():
+        main_file = tasks_dir / "main.yml"
+        if main_file.exists():
+            _collect_tasks_recursive(main_file, task_entries, seen_files)
+        else:
+            # Fallback: process any discovered task files in order
+            for task_file in sorted(
+                path
+                for path in tasks_dir.rglob("*")
+                if path.is_file() and path.suffix in {".yml", ".yaml"}
+            ):
+                _collect_tasks_recursive(task_file, task_entries, seen_files)
+    
+    # Handlers are typically not nested, so collect them normally
     handler_entries: list[dict[str, str]] = []
     handlers_dir = role_root / "handlers"
     if handlers_dir.is_dir():
