@@ -100,12 +100,28 @@ def _truncate_content(text: str, max_chars: int) -> tuple[str, bool]:
     return f"{clipped}{_TRUNCATION_MARKER}", True
 
 
+def _as_dict(value: object) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
+def _bounded_list(items: list[dict], limit: int) -> tuple[list[dict], int]:
+    if len(items) <= limit:
+        return items, 0
+    return items[:limit], len(items) - limit
+
+
 def _render_collection_markdown(payload: dict) -> str:
+    max_plugin_rows = 40
+    max_filter_rows = 25
+    max_role_rows = 60
+    max_failure_rows = 30
+
     collection = payload.get("collection", {}) if isinstance(payload, dict) else {}
-    metadata = collection.get("metadata", {}) if isinstance(collection, dict) else {}
+    metadata = _as_dict(collection.get("metadata", {}))
     namespace = str(metadata.get("namespace") or "unknown")
     name = str(metadata.get("name") or "collection")
     fqcn = f"{namespace}.{name}"
+    version = str(metadata.get("version") or "unknown")
 
     summary = payload.get("summary", {}) if isinstance(payload, dict) else {}
     total_roles = int(summary.get("total_roles") or 0)
@@ -114,6 +130,11 @@ def _render_collection_markdown(payload: dict) -> str:
 
     lines: list[str] = [
         f"# {fqcn} Collection Documentation",
+        "",
+        "## Collection",
+        "",
+        f"- FQCN: `{fqcn}`",
+        f"- Version: {version}",
         "",
         "## Summary",
         "",
@@ -126,9 +147,20 @@ def _render_collection_markdown(payload: dict) -> str:
     collections = (
         dependencies.get("collections", []) if isinstance(dependencies, dict) else []
     )
+    role_dependencies = (
+        dependencies.get("roles", []) if isinstance(dependencies, dict) else []
+    )
     if collections:
         lines.extend(["", "## Collection Dependencies", ""])
         for item in collections:
+            if not isinstance(item, dict):
+                continue
+            key = str(item.get("key") or item.get("name") or "unknown")
+            version = str(item.get("version") or "latest")
+            lines.append(f"- `{key}` ({version})")
+    if role_dependencies:
+        lines.extend(["", "## Role Dependencies", ""])
+        for item in role_dependencies:
             if not isinstance(item, dict):
                 continue
             key = str(item.get("key") or item.get("name") or "unknown")
@@ -150,80 +182,139 @@ def _render_collection_markdown(payload: dict) -> str:
     roles = payload.get("roles", []) if isinstance(payload, dict) else []
     if roles:
         lines.extend(["", "## Roles", ""])
-        for entry in roles:
+        sorted_roles = sorted(
+            (entry for entry in roles if isinstance(entry, dict)),
+            key=lambda entry: str(entry.get("role") or ""),
+        )
+        bounded_roles, role_overflow = _bounded_list(sorted_roles, max_role_rows)
+        for entry in bounded_roles:
             if not isinstance(entry, dict):
                 continue
             role_name = str(entry.get("role") or "unknown")
-            lines.append(f"- [{role_name}](roles/{role_name}.md)")
+            role_payload = _as_dict(entry.get("payload", {}))
+            scanner_counters = _as_dict(
+                _as_dict(role_payload.get("metadata", {})).get("scanner_counters", {})
+            )
+            tasks = int(scanner_counters.get("task_files") or 0)
+            templates = int(scanner_counters.get("templates") or 0)
+            lines.append(
+                f"- [{role_name}](roles/{role_name}.md): task_files={tasks}, templates={templates}"
+            )
+        if role_overflow:
+            lines.append(f"- ... and {role_overflow} more roles")
+
+    plugin_catalog = (
+        payload.get("plugin_catalog", {}) if isinstance(payload, dict) else {}
+    )
+    plugin_summary = _as_dict(plugin_catalog.get("summary", {}))
+    plugins_by_type = _as_dict(plugin_catalog.get("by_type", {}))
+    plugin_failures = plugin_catalog.get("failures", [])
+    if plugin_summary or plugins_by_type:
+        lines.extend(["", "## Plugin Catalog", ""])
+        lines.append(
+            f"- Total plugins: {int(plugin_summary.get('total_plugins') or 0)}"
+        )
+        lines.append(
+            f"- Files scanned: {int(plugin_summary.get('files_scanned') or 0)}"
+        )
+        lines.append(f"- Files failed: {int(plugin_summary.get('files_failed') or 0)}")
+
+        non_empty_types = [
+            plugin_type
+            for plugin_type, records in plugins_by_type.items()
+            if isinstance(records, list) and records
+        ]
+        if non_empty_types:
+            lines.append(f"- Types present: {', '.join(non_empty_types)}")
+
+        type_rows: list[dict] = []
+        for plugin_type, records in plugins_by_type.items():
+            if not isinstance(records, list):
+                continue
+            type_rows.append({"type": str(plugin_type), "count": len(records)})
+        type_rows.sort(key=lambda item: item["type"])
+        bounded_rows, overflow = _bounded_list(type_rows, max_plugin_rows)
+        if bounded_rows:
+            lines.extend(["", "### Plugin Types", ""])
+            for row in bounded_rows:
+                lines.append(f"- `{row['type']}`: {row['count']}")
+        if overflow:
+            lines.append(f"- ... and {overflow} more plugin types")
+
+        filters = plugins_by_type.get("filter", [])
+        if isinstance(filters, list) and filters:
+            lines.extend(["", "### Filter Capabilities", ""])
+            sorted_filters = sorted(
+                (record for record in filters if isinstance(record, dict)),
+                key=lambda record: str(record.get("name") or ""),
+            )
+            bounded_filters, filter_overflow = _bounded_list(
+                sorted_filters,
+                max_filter_rows,
+            )
+            for record in bounded_filters:
+                plugin_name = str(record.get("name") or "unknown")
+                symbols = record.get("symbols", [])
+                if isinstance(symbols, list) and symbols:
+                    symbol_text = ", ".join(str(symbol) for symbol in symbols[:6])
+                    if len(symbols) > 6:
+                        symbol_text += ", ..."
+                else:
+                    symbol_text = "(none discovered)"
+                confidence = str(record.get("confidence") or "unknown")
+                lines.append(
+                    f"- `{plugin_name}` [{confidence}]: {symbol_text}"
+                )
+            if filter_overflow:
+                lines.append(f"- ... and {filter_overflow} more filter plugins")
+
+        if isinstance(plugin_failures, list) and plugin_failures:
+            lines.extend(["", "### Plugin Scan Failures", ""])
+            for failure in plugin_failures:
+                if not isinstance(failure, dict):
+                    continue
+                relpath = str(failure.get("relative_path") or "unknown")
+                stage = str(failure.get("stage") or "unknown")
+                error = str(failure.get("error") or "unknown error")
+                lines.append(f"- `{relpath}` ({stage}): {error}")
 
     failures = payload.get("failures", []) if isinstance(payload, dict) else []
     if failures:
-        lines.extend(["", "## Scan Failures", ""])
-        for failure in failures:
+        lines.extend(["", "## Role Scan Failures", ""])
+        sorted_failures = sorted(
+            (failure for failure in failures if isinstance(failure, dict)),
+            key=lambda failure: str(failure.get("role") or ""),
+        )
+        bounded_failures, failure_overflow = _bounded_list(
+            sorted_failures,
+            max_failure_rows,
+        )
+        for failure in bounded_failures:
             if not isinstance(failure, dict):
                 continue
             role_name = str(failure.get("role") or "unknown")
             error = str(failure.get("error") or "unknown error")
             lines.append(f"- `{role_name}`: {error}")
+        if failure_overflow:
+            lines.append(f"- ... and {failure_overflow} more role failures")
 
     lines.append("")
     return "\n".join(lines)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Build and return the CLI argument parser.
-
-    The parser includes options for output path, template, format and verbosity.
-    """
-    p = argparse.ArgumentParser(
-        prog="prism",
-        description="Scan an Ansible role for default() usages and render README.",
-    )
-    p.add_argument(
-        "role_path",
-        nargs="?",
-        help="Path to the Ansible role directory to scan",
-    )
-    p.add_argument(
-        "--repo-url",
-        default=None,
-        help="GitHub/Git repository URL to clone and scan instead of a local role path.",
-    )
-    p.add_argument(
-        "--collection-root",
-        action="store_true",
-        help=(
-            "Treat local role_path as an Ansible collection root (requires galaxy.yml and roles/). "
-            "Collection mode supports --format json and --format md."
-        ),
-    )
-    p.add_argument(
-        "--repo-ref",
-        default=None,
-        help="Optional branch, tag, or ref to clone from the repository.",
-    )
-    p.add_argument(
-        "--repo-role-path",
-        default=".",
-        help="Role path inside the cloned repository (default: repository root).",
-    )
-    p.add_argument(
-        "--repo-timeout",
-        type=int,
-        default=60,
-        help="Timeout in seconds for repository clone operations (default: 60).",
-    )
-    p.add_argument(
+def _add_shared_scan_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add scan-related options shared by role, collection, and repo modes."""
+    parser.add_argument(
         "--compare-role-path",
         default=None,
         help="Optional local role path used as a baseline comparison in the generated review.",
     )
-    p.add_argument(
+    parser.add_argument(
         "--style-readme",
         default=None,
         help="Optional local README path used as a style guide for section order and headings.",
     )
-    p.add_argument(
+    parser.add_argument(
         "--style-source",
         default=None,
         help=(
@@ -231,7 +322,7 @@ def build_parser() -> argparse.ArgumentParser:
             "or as fallback style input when --style-readme is not provided."
         ),
     )
-    p.add_argument(
+    parser.add_argument(
         "--create-style-guide",
         action="store_true",
         help=(
@@ -239,31 +330,37 @@ def build_parser() -> argparse.ArgumentParser:
             "When used without --style-readme, style source is resolved from env/cwd/XDG/system/bundled defaults."
         ),
     )
-    p.add_argument(
-        "--repo-style-readme-path",
+    parser.add_argument(
+        "--vars-context-path",
+        action="append",
         default=None,
-        help="Optional README path inside a cloned repository to use as a style guide.",
+        help=(
+            "Optional external variable context file or directory (can be passed multiple times), "
+            "for example group_vars/ to improve required/undocumented variable detection. "
+            "Context paths are treated as non-authoritative hints."
+        ),
     )
-    p.add_argument(
+    parser.add_argument(
         "--vars-seed",
         action="append",
         default=None,
         help=(
-            "Optional vars seed file or directory (can be passed multiple times), "
-            "for example group_vars/ to prime required/undocumented variable detection."
+            "Deprecated alias for --vars-context-path. Optional vars seed file or directory "
+            "(can be passed multiple times), for example group_vars/ to prime "
+            "required/undocumented variable detection."
         ),
     )
-    p.add_argument(
+    parser.add_argument(
         "--concise-readme",
         action="store_true",
         help="Keep README concise and write scanner-heavy sections to a sidecar report.",
     )
-    p.add_argument(
+    parser.add_argument(
         "--scanner-report-output",
         default=None,
         help="Optional output path for scanner sidecar report in concise mode.",
     )
-    p.add_argument(
+    parser.add_argument(
         "--include-scanner-report-link",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -272,7 +369,7 @@ def build_parser() -> argparse.ArgumentParser:
             "(use --no-include-scanner-report-link to hide it)."
         ),
     )
-    p.add_argument(
+    parser.add_argument(
         "--variable-sources",
         choices=("defaults+vars", "defaults-only"),
         default="defaults-only",
@@ -281,7 +378,7 @@ def build_parser() -> argparse.ArgumentParser:
             "'defaults-only' (default) or 'defaults+vars'."
         ),
     )
-    p.add_argument(
+    parser.add_argument(
         "--readme-config",
         default=None,
         help=(
@@ -289,7 +386,7 @@ def build_parser() -> argparse.ArgumentParser:
             "(defaults to <role>/.prism.yml when present)."
         ),
     )
-    p.add_argument(
+    parser.add_argument(
         "--policy-config",
         default=None,
         help=(
@@ -297,7 +394,7 @@ def build_parser() -> argparse.ArgumentParser:
             "(highest precedence over env/cwd/XDG/system policy sources)."
         ),
     )
-    p.add_argument(
+    parser.add_argument(
         "--adopt-heading-mode",
         choices=("canonical", "style", "popular"),
         default=None,
@@ -308,7 +405,7 @@ def build_parser() -> argparse.ArgumentParser:
             "readme.adopt_heading_mode in .prism.yml."
         ),
     )
-    p.add_argument(
+    parser.add_argument(
         "--keep-unknown-style-sections",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -317,7 +414,7 @@ def build_parser() -> argparse.ArgumentParser:
             "(enabled by default; use --no-keep-unknown-style-sections to suppress)."
         ),
     )
-    p.add_argument(
+    parser.add_argument(
         "--exclude-path",
         action="append",
         default=None,
@@ -326,34 +423,486 @@ def build_parser() -> argparse.ArgumentParser:
             "(can be passed multiple times; examples: templates/*, tests/**, vars/main.yml)."
         ),
     )
-    p.add_argument(
+    parser.add_argument(
         "--detailed-catalog",
         action="store_true",
-        help=("Include detailed task and handler tables in generated README sections."),
+        help="Include detailed task and handler tables in generated README sections.",
     )
-    p.add_argument(
+
+
+def _add_common_output_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    include_template: bool,
+    format_choices: tuple[str, ...],
+) -> None:
+    """Add shared output/rendering options to a parser."""
+    parser.add_argument(
         "-o", "--output", default="README.md", help="Output README file path"
     )
-    p.add_argument(
-        "-t",
-        "--template",
-        default=None,
-        help="Template path (optional). If omitted, uses bundled template.",
-    )
-    p.add_argument(
+    if include_template:
+        parser.add_argument(
+            "-t",
+            "--template",
+            default=None,
+            help="Template path (optional). If omitted, uses bundled template.",
+        )
+    parser.add_argument(
         "-f",
         "--format",
-        default="md",
-        choices=("md", "html", "json", "pdf"),
-        help="Output format (md, html, json, or pdf).",
+        default=format_choices[0],
+        choices=format_choices,
+        help=f"Output format ({', '.join(format_choices)}).",
     )
-    p.add_argument(
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Render output without writing files; prints the rendered result to stdout.",
     )
-    p.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
+
+
+def _add_repo_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add repository-scan specific arguments."""
+    parser.add_argument(
+        "--repo-url",
+        required=True,
+        help="GitHub/Git repository URL to clone and scan.",
+    )
+    parser.add_argument(
+        "--repo-ref",
+        default=None,
+        help="Optional branch, tag, or ref to clone from the repository.",
+    )
+    parser.add_argument(
+        "--repo-role-path",
+        default=".",
+        help="Role path inside the cloned repository (default: repository root).",
+    )
+    parser.add_argument(
+        "--repo-timeout",
+        type=int,
+        default=60,
+        help="Timeout in seconds for repository clone operations (default: 60).",
+    )
+    parser.add_argument(
+        "--repo-style-readme-path",
+        default=None,
+        help="Optional README path inside a cloned repository to use as a style guide.",
+    )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build and return the CLI argument parser.
+
+    The parser is organized around distinct role, collection, repo, and
+    completion workflows.
+    """
+    p = argparse.ArgumentParser(
+        prog="prism",
+        description="Generate documentation for Ansible roles and collections.",
+    )
+    subparsers = p.add_subparsers(dest="command")
+    subparsers.required = True
+
+    role_parser = subparsers.add_parser("role", help="Document a local role")
+    role_parser.add_argument("role_path", help="Path to the Ansible role directory to scan")
+    _add_shared_scan_arguments(role_parser)
+    _add_common_output_arguments(
+        role_parser,
+        include_template=True,
+        format_choices=("md", "html", "json", "pdf"),
+    )
+
+    collection_parser = subparsers.add_parser(
+        "collection", help="Document a local Ansible collection root"
+    )
+    collection_parser.add_argument(
+        "collection_path",
+        help="Path to the Ansible collection root (requires galaxy.yml and roles/)",
+    )
+    _add_shared_scan_arguments(collection_parser)
+    _add_common_output_arguments(
+        collection_parser,
+        include_template=False,
+        format_choices=("md", "json"),
+    )
+
+    repo_parser = subparsers.add_parser("repo", help="Document a role from a repository source")
+    _add_repo_arguments(repo_parser)
+    _add_shared_scan_arguments(repo_parser)
+    _add_common_output_arguments(
+        repo_parser,
+        include_template=True,
+        format_choices=("md", "html", "json", "pdf"),
+    )
+
+    completion_parser = subparsers.add_parser(
+        "completion", help="Generate shell completion output"
+    )
+    completion_parser.add_argument("shell", choices=("bash",), help="Shell to generate completion for")
     return p
+
+
+def _collect_option_strings(parser: argparse.ArgumentParser) -> list[str]:
+    """Collect sorted unique option strings for a parser."""
+    options: set[str] = set()
+    for action in parser._actions:
+        for option in getattr(action, "option_strings", []):
+            if option in {"-h", "--help"}:
+                continue
+            options.add(option)
+    return sorted(options)
+
+
+def _build_bash_completion_script() -> str:
+    """Generate a bash completion script from the live parser structure."""
+    parser = build_parser()
+    subparsers_action = next(
+        (
+            action
+            for action in parser._actions
+            if isinstance(action, argparse._SubParsersAction)
+        ),
+        None,
+    )
+    if subparsers_action is None:
+        raise RuntimeError("subcommand parser is not configured")
+
+    commands = sorted(subparsers_action.choices)
+    command_words = " ".join(commands)
+
+    command_options: dict[str, str] = {}
+    for command in commands:
+        subparser = subparsers_action.choices[command]
+        words: list[str] = []
+        words.extend(_collect_option_strings(subparser))
+        for action in subparser._actions:
+            if action.option_strings:
+                continue
+            if action.dest == "help":
+                continue
+            if isinstance(action.choices, (list, tuple)):
+                words.extend(str(choice) for choice in action.choices)
+        command_options[command] = " ".join(sorted(set(words)))
+
+    case_lines: list[str] = []
+    for command in commands:
+        options = command_options.get(command, "")
+        case_lines.extend(
+            [
+                f"        {command})",
+                f'            opts="{options}"',
+                "            ;;",
+            ]
+        )
+
+    script = [
+        "# prism bash completion (generated)",
+        "_prism_completion() {",
+        "    local cur prev cmd opts",
+        '    COMPREPLY=()',
+        '    cur="${COMP_WORDS[COMP_CWORD]}"',
+        '    prev="${COMP_WORDS[COMP_CWORD-1]}"',
+        '    cmd="${COMP_WORDS[1]}"',
+        "",
+        "    if [[ ${COMP_CWORD} -eq 1 ]]; then",
+        f'        COMPREPLY=( $(compgen -W "{command_words}" -- "$cur") )',
+        "        return 0",
+        "    fi",
+        "",
+        "    case \"$cmd\" in",
+        *case_lines,
+        "        *)",
+        '            opts=""',
+        "            ;;",
+        "    esac",
+        "",
+        "    if [[ \"$cur\" == -* ]]; then",
+        '        COMPREPLY=( $(compgen -W "$opts" -- "$cur") )',
+        "        return 0",
+        "    fi",
+        "",
+        "    if [[ \"$cmd\" == \"completion\" && ${COMP_CWORD} -eq 2 ]]; then",
+        '        COMPREPLY=( $(compgen -W "bash" -- "$cur") )',
+        "        return 0",
+        "    fi",
+        "",
+        "    COMPREPLY=( $(compgen -f -- \"$cur\") )",
+        "}",
+        "complete -F _prism_completion prism",
+        "",
+    ]
+    return "\n".join(script)
+
+
+def _resolve_effective_readme_config(
+    role_path: Path,
+    explicit_config_path: str | None,
+) -> str | None:
+    """Return the configured or auto-discovered README config path."""
+    if explicit_config_path:
+        return explicit_config_path
+    for cfg_name in SECTION_CONFIG_FILENAMES:
+        default_cfg = role_path / cfg_name
+        if default_cfg.is_file():
+            return str(default_cfg)
+    return None
+
+
+def _emit_success(
+    args: argparse.Namespace,
+    outpath: str,
+    style_source_path: str | None = None,
+    style_demo_path: str | None = None,
+) -> int:
+    """Emit verbose success details and return a successful exit code."""
+    if args.verbose:
+        if args.dry_run:
+            print("\nDry run: no files written.")
+        else:
+            print("Wrote:", outpath)
+        if style_source_path:
+            print("Style guide source:", style_source_path)
+        if style_demo_path:
+            print("Generated demo copy:", style_demo_path)
+    return 0
+
+
+def _resolve_vars_context_paths(args: argparse.Namespace) -> list[str] | None:
+    """Resolve context paths from new and legacy flags with deprecation warning."""
+    context_paths = list(args.vars_context_path or [])
+    legacy_paths = list(args.vars_seed or [])
+    if legacy_paths:
+        print(
+            "Warning: --vars-seed is deprecated and will be removed in a future release; "
+            "use --vars-context-path instead.",
+            file=sys.stderr,
+        )
+        context_paths.extend(legacy_paths)
+    return context_paths or None
+
+
+def _handle_repo_command(args: argparse.Namespace) -> int:
+    """Handle repository-backed role documentation."""
+    vars_context_paths = _resolve_vars_context_paths(args)
+
+    with _repo_scan_workspace() as workspace:
+        checkout_dir = workspace / "repo"
+        repo_dir_names = _fetch_repo_directory_names(
+            args.repo_url,
+            repo_path=args.repo_role_path,
+            ref=args.repo_ref,
+            timeout=args.repo_timeout,
+        )
+        if repo_dir_names is not None and not _repo_path_looks_like_role(repo_dir_names):
+            raise FileNotFoundError(
+                "repository path does not look like an Ansible role: "
+                f"{args.repo_role_path}"
+            )
+        style_candidates = _build_repo_style_readme_candidates(
+            args.repo_style_readme_path
+        )
+        fetched_repo_style_readme_path = None
+        for style_candidate in style_candidates:
+            fetched_repo_style_readme_path = _fetch_repo_file(
+                args.repo_url,
+                style_candidate,
+                workspace / "repo-style-readme" / Path(style_candidate).name,
+                ref=args.repo_ref,
+                timeout=args.repo_timeout,
+            )
+            if fetched_repo_style_readme_path is not None:
+                break
+        if args.verbose:
+            print(f"Cloning: {args.repo_url}")
+        _clone_repo(
+            args.repo_url,
+            checkout_dir,
+            args.repo_ref,
+            args.repo_timeout,
+            sparse_paths=_build_sparse_clone_paths(
+                args.repo_role_path,
+                (
+                    None
+                    if fetched_repo_style_readme_path is not None
+                    else style_candidates
+                ),
+            ),
+        )
+        role_path = (checkout_dir / args.repo_role_path).resolve()
+        if not role_path.exists() or not role_path.is_dir():
+            raise FileNotFoundError(
+                f"role path not found in cloned repository: {args.repo_role_path}"
+            )
+        style_readme_path = args.style_readme
+        if fetched_repo_style_readme_path is not None:
+            style_readme_path = str(fetched_repo_style_readme_path.resolve())
+        elif style_candidates:
+            for style_candidate in style_candidates:
+                candidate_path = (checkout_dir / style_candidate).resolve()
+                if candidate_path.is_file():
+                    style_readme_path = str(candidate_path)
+                    break
+        if args.create_style_guide and not style_readme_path:
+            style_readme_path = args.style_source or resolve_default_style_guide_source()
+        outpath = run_scan(
+            str(role_path),
+            output=args.output,
+            template=args.template,
+            output_format=args.format,
+            compare_role_path=args.compare_role_path,
+            style_readme_path=style_readme_path,
+            role_name_override=_repo_name_from_url(args.repo_url),
+            vars_seed_paths=vars_context_paths,
+            concise_readme=args.concise_readme,
+            scanner_report_output=args.scanner_report_output,
+            include_vars_main=args.variable_sources == "defaults+vars",
+            include_scanner_report_link=args.include_scanner_report_link,
+            readme_config_path=args.readme_config,
+            adopt_heading_mode=args.adopt_heading_mode,
+            style_guide_skeleton=args.create_style_guide,
+            keep_unknown_style_sections=args.keep_unknown_style_sections,
+            exclude_path_patterns=args.exclude_path,
+            style_source_path=args.style_source,
+            policy_config_path=args.policy_config,
+            detailed_catalog=args.detailed_catalog,
+            dry_run=args.dry_run,
+        )
+        if args.dry_run:
+            print(outpath, end="")
+            return _emit_success(args, outpath)
+
+        effective_readme_config_path = _resolve_effective_readme_config(
+            role_path,
+            args.readme_config,
+        )
+        style_source_path, style_demo_path = _save_style_comparison_artifacts(
+            style_readme_path,
+            outpath,
+            _repo_name_from_url(args.repo_url),
+            effective_readme_config_path,
+            args.keep_unknown_style_sections,
+        )
+        return _emit_success(args, outpath, style_source_path, style_demo_path)
+
+
+def _handle_collection_command(args: argparse.Namespace) -> int:
+    """Handle local collection-root documentation."""
+    from .api import scan_collection
+
+    vars_context_paths = _resolve_vars_context_paths(args)
+
+    payload = scan_collection(
+        args.collection_path,
+        compare_role_path=args.compare_role_path,
+        style_readme_path=args.style_readme,
+        vars_seed_paths=vars_context_paths,
+        concise_readme=args.concise_readme,
+        scanner_report_output=args.scanner_report_output,
+        include_vars_main=args.variable_sources == "defaults+vars",
+        include_scanner_report_link=args.include_scanner_report_link,
+        readme_config_path=args.readme_config,
+        adopt_heading_mode=args.adopt_heading_mode,
+        style_guide_skeleton=args.create_style_guide,
+        keep_unknown_style_sections=args.keep_unknown_style_sections,
+        exclude_path_patterns=args.exclude_path,
+        style_source_path=args.style_source,
+        policy_config_path=args.policy_config,
+        detailed_catalog=args.detailed_catalog,
+        include_rendered_readme=args.format == "md",
+    )
+    rendered = (
+        json.dumps(payload, indent=2)
+        if args.format == "json"
+        else _render_collection_markdown(payload)
+    )
+    if args.dry_run:
+        print(rendered, end="")
+        return _emit_success(args, rendered)
+
+    output_path = Path(args.output)
+    if args.format == "json" and output_path.suffix.lower() != ".json":
+        output_path = output_path.with_suffix(".json")
+    if args.format == "md" and output_path.suffix.lower() != ".md":
+        output_path = output_path.with_suffix(".md")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(rendered, encoding="utf-8")
+    if args.format == "md":
+        roles_dir = output_path.parent / "roles"
+        roles_dir.mkdir(parents=True, exist_ok=True)
+        for role_entry in payload.get("roles", []):
+            if not isinstance(role_entry, dict):
+                continue
+            role_name = str(role_entry.get("role") or "")
+            if not role_name:
+                continue
+            role_doc = role_entry.get("rendered_readme")
+            if not isinstance(role_doc, str) or not role_doc.strip():
+                continue
+            (roles_dir / f"{role_name}.md").write_text(
+                role_doc,
+                encoding="utf-8",
+            )
+    return _emit_success(args, str(output_path.resolve()))
+
+
+def _handle_role_command(args: argparse.Namespace) -> int:
+    """Handle local role documentation."""
+    vars_context_paths = _resolve_vars_context_paths(args)
+
+    style_readme_path = args.style_readme
+    if args.create_style_guide and not style_readme_path:
+        style_readme_path = args.style_source or resolve_default_style_guide_source()
+    outpath = run_scan(
+        args.role_path,
+        output=args.output,
+        template=args.template,
+        output_format=args.format,
+        compare_role_path=args.compare_role_path,
+        style_readme_path=style_readme_path,
+        vars_seed_paths=vars_context_paths,
+        concise_readme=args.concise_readme,
+        scanner_report_output=args.scanner_report_output,
+        include_vars_main=args.variable_sources == "defaults+vars",
+        include_scanner_report_link=args.include_scanner_report_link,
+        readme_config_path=args.readme_config,
+        adopt_heading_mode=args.adopt_heading_mode,
+        style_guide_skeleton=args.create_style_guide,
+        keep_unknown_style_sections=args.keep_unknown_style_sections,
+        exclude_path_patterns=args.exclude_path,
+        style_source_path=args.style_source,
+        policy_config_path=args.policy_config,
+        detailed_catalog=args.detailed_catalog,
+        dry_run=args.dry_run,
+    )
+    if args.dry_run:
+        print(outpath, end="")
+        return _emit_success(args, outpath)
+
+    effective_readme_config_path = _resolve_effective_readme_config(
+        Path(args.role_path),
+        args.readme_config,
+    )
+    style_source_path, style_demo_path = _save_style_comparison_artifacts(
+        args.style_readme,
+        outpath,
+        role_config_path=effective_readme_config_path,
+        keep_unknown_style_sections=args.keep_unknown_style_sections,
+    )
+    return _emit_success(args, outpath, style_source_path, style_demo_path)
+
+
+def _handle_completion_command(args: argparse.Namespace) -> int:
+    """Handle shell completion generation requests."""
+    if args.shell != "bash":
+        print(
+            f"Error: unsupported completion shell: {args.shell}",
+            file=sys.stderr,
+        )
+        return 2
+    print(_build_bash_completion_script(), end="")
+    return 0
 
 
 def _clone_repo(
@@ -817,254 +1366,21 @@ def main(argv=None) -> int:
     """
     argv = argv if argv is not None else sys.argv[1:]
     parser = build_parser()
-    args = parser.parse_args(argv)
-
-    if args.role_path and args.repo_url:
-        print(
-            "Error: provide either role_path or --repo-url, not both", file=sys.stderr
-        )
-        return 2
-    if not args.role_path and not args.repo_url:
-        print("Error: provide role_path or --repo-url", file=sys.stderr)
-        return 2
-    if args.collection_root and args.repo_url:
-        print(
-            "Error: --collection-root cannot be used with --repo-url", file=sys.stderr
-        )
-        return 2
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return int(exc.code)
 
     try:
-        if args.repo_url:
-            with _repo_scan_workspace() as workspace:
-                checkout_dir = workspace / "repo"
-                repo_dir_names = _fetch_repo_directory_names(
-                    args.repo_url,
-                    repo_path=args.repo_role_path,
-                    ref=args.repo_ref,
-                    timeout=args.repo_timeout,
-                )
-                if repo_dir_names is not None and not _repo_path_looks_like_role(
-                    repo_dir_names
-                ):
-                    raise FileNotFoundError(
-                        "repository path does not look like an Ansible role: "
-                        f"{args.repo_role_path}"
-                    )
-                style_candidates = _build_repo_style_readme_candidates(
-                    args.repo_style_readme_path
-                )
-                fetched_repo_style_readme_path = None
-                for style_candidate in style_candidates:
-                    fetched_repo_style_readme_path = _fetch_repo_file(
-                        args.repo_url,
-                        style_candidate,
-                        workspace / "repo-style-readme" / Path(style_candidate).name,
-                        ref=args.repo_ref,
-                        timeout=args.repo_timeout,
-                    )
-                    if fetched_repo_style_readme_path is not None:
-                        break
-                if args.verbose:
-                    print(f"Cloning: {args.repo_url}")
-                _clone_repo(
-                    args.repo_url,
-                    checkout_dir,
-                    args.repo_ref,
-                    args.repo_timeout,
-                    sparse_paths=_build_sparse_clone_paths(
-                        args.repo_role_path,
-                        (
-                            None
-                            if fetched_repo_style_readme_path is not None
-                            else style_candidates
-                        ),
-                    ),
-                )
-                role_path = (checkout_dir / args.repo_role_path).resolve()
-                if not role_path.exists() or not role_path.is_dir():
-                    raise FileNotFoundError(
-                        f"role path not found in cloned repository: {args.repo_role_path}"
-                    )
-                style_readme_path = args.style_readme
-                if fetched_repo_style_readme_path is not None:
-                    style_readme_path = str(fetched_repo_style_readme_path.resolve())
-                elif style_candidates:
-                    for style_candidate in style_candidates:
-                        candidate_path = (checkout_dir / style_candidate).resolve()
-                        if candidate_path.is_file():
-                            style_readme_path = str(candidate_path)
-                            break
-                if args.create_style_guide and not style_readme_path:
-                    style_readme_path = (
-                        args.style_source or resolve_default_style_guide_source()
-                    )
-                outpath = run_scan(
-                    str(role_path),
-                    output=args.output,
-                    template=args.template,
-                    output_format=args.format,
-                    compare_role_path=args.compare_role_path,
-                    style_readme_path=style_readme_path,
-                    role_name_override=_repo_name_from_url(args.repo_url),
-                    vars_seed_paths=args.vars_seed,
-                    concise_readme=args.concise_readme,
-                    scanner_report_output=args.scanner_report_output,
-                    include_vars_main=args.variable_sources == "defaults+vars",
-                    include_scanner_report_link=args.include_scanner_report_link,
-                    readme_config_path=args.readme_config,
-                    adopt_heading_mode=args.adopt_heading_mode,
-                    style_guide_skeleton=args.create_style_guide,
-                    keep_unknown_style_sections=args.keep_unknown_style_sections,
-                    exclude_path_patterns=args.exclude_path,
-                    style_source_path=args.style_source,
-                    policy_config_path=args.policy_config,
-                    detailed_catalog=args.detailed_catalog,
-                    dry_run=args.dry_run,
-                )
-                if args.dry_run:
-                    print(outpath, end="")
-                    style_source_path, style_demo_path = (None, None)
-                else:
-                    effective_readme_config_path = args.readme_config
-                    if not effective_readme_config_path:
-                        for cfg_name in SECTION_CONFIG_FILENAMES:
-                            default_cfg = role_path / cfg_name
-                            if default_cfg.is_file():
-                                effective_readme_config_path = str(default_cfg)
-                                break
-                    style_source_path, style_demo_path = (
-                        _save_style_comparison_artifacts(
-                            style_readme_path,
-                            outpath,
-                            _repo_name_from_url(args.repo_url),
-                            effective_readme_config_path,
-                            args.keep_unknown_style_sections,
-                        )
-                    )
-        else:
-            role_path_obj = Path(args.role_path)
-            is_collection_root = args.collection_root or (
-                role_path_obj.is_dir()
-                and (role_path_obj / "galaxy.yml").is_file()
-                and (role_path_obj / "roles").is_dir()
-            )
-            if is_collection_root:
-                if args.format not in {"json", "md"}:
-                    raise ValueError(
-                        "collection-root mode currently supports --format json and --format md"
-                    )
-                from .api import scan_collection
-
-                payload = scan_collection(
-                    args.role_path,
-                    compare_role_path=args.compare_role_path,
-                    style_readme_path=args.style_readme,
-                    vars_seed_paths=args.vars_seed,
-                    concise_readme=args.concise_readme,
-                    scanner_report_output=args.scanner_report_output,
-                    include_vars_main=args.variable_sources == "defaults+vars",
-                    include_scanner_report_link=args.include_scanner_report_link,
-                    readme_config_path=args.readme_config,
-                    adopt_heading_mode=args.adopt_heading_mode,
-                    style_guide_skeleton=args.create_style_guide,
-                    keep_unknown_style_sections=args.keep_unknown_style_sections,
-                    exclude_path_patterns=args.exclude_path,
-                    style_source_path=args.style_source,
-                    policy_config_path=args.policy_config,
-                    detailed_catalog=args.detailed_catalog,
-                    include_rendered_readme=args.format == "md",
-                )
-                rendered = (
-                    json.dumps(payload, indent=2)
-                    if args.format == "json"
-                    else _render_collection_markdown(payload)
-                )
-                if args.dry_run:
-                    outpath = rendered
-                    print(outpath, end="")
-                else:
-                    output_path = Path(args.output)
-                    if args.format == "json" and output_path.suffix.lower() != ".json":
-                        output_path = output_path.with_suffix(".json")
-                    if args.format == "md" and output_path.suffix.lower() != ".md":
-                        output_path = output_path.with_suffix(".md")
-                    output_path.parent.mkdir(parents=True, exist_ok=True)
-                    output_path.write_text(rendered, encoding="utf-8")
-                    if args.format == "md":
-                        roles_dir = output_path.parent / "roles"
-                        roles_dir.mkdir(parents=True, exist_ok=True)
-                        for role_entry in payload.get("roles", []):
-                            if not isinstance(role_entry, dict):
-                                continue
-                            role_name = str(role_entry.get("role") or "")
-                            if not role_name:
-                                continue
-                            role_doc = role_entry.get("rendered_readme")
-                            if not isinstance(role_doc, str) or not role_doc.strip():
-                                continue
-                            (roles_dir / f"{role_name}.md").write_text(
-                                role_doc,
-                                encoding="utf-8",
-                            )
-                    outpath = str(output_path.resolve())
-                style_source_path, style_demo_path = (None, None)
-            else:
-                style_readme_path = args.style_readme
-                if args.create_style_guide and not style_readme_path:
-                    style_readme_path = (
-                        args.style_source or resolve_default_style_guide_source()
-                    )
-                outpath = run_scan(
-                    args.role_path,
-                    output=args.output,
-                    template=args.template,
-                    output_format=args.format,
-                    compare_role_path=args.compare_role_path,
-                    style_readme_path=style_readme_path,
-                    vars_seed_paths=args.vars_seed,
-                    concise_readme=args.concise_readme,
-                    scanner_report_output=args.scanner_report_output,
-                    include_vars_main=args.variable_sources == "defaults+vars",
-                    include_scanner_report_link=args.include_scanner_report_link,
-                    readme_config_path=args.readme_config,
-                    adopt_heading_mode=args.adopt_heading_mode,
-                    style_guide_skeleton=args.create_style_guide,
-                    keep_unknown_style_sections=args.keep_unknown_style_sections,
-                    exclude_path_patterns=args.exclude_path,
-                    style_source_path=args.style_source,
-                    policy_config_path=args.policy_config,
-                    detailed_catalog=args.detailed_catalog,
-                    dry_run=args.dry_run,
-                )
-                if args.dry_run:
-                    print(outpath, end="")
-                    style_source_path, style_demo_path = (None, None)
-                else:
-                    effective_readme_config_path = args.readme_config
-                    if not effective_readme_config_path:
-                        for cfg_name in SECTION_CONFIG_FILENAMES:
-                            default_cfg = Path(args.role_path) / cfg_name
-                            if default_cfg.is_file():
-                                effective_readme_config_path = str(default_cfg)
-                                break
-                    style_source_path, style_demo_path = (
-                        _save_style_comparison_artifacts(
-                            args.style_readme,
-                            outpath,
-                            role_config_path=effective_readme_config_path,
-                            keep_unknown_style_sections=args.keep_unknown_style_sections,
-                        )
-                    )
-        if args.verbose:
-            if args.dry_run:
-                print("\nDry run: no files written.")
-            else:
-                print("Wrote:", outpath)
-            if style_source_path:
-                print("Style guide source:", style_source_path)
-            if style_demo_path:
-                print("Generated demo copy:", style_demo_path)
-        return 0
+        if args.command == "repo":
+            return _handle_repo_command(args)
+        if args.command == "collection":
+            return _handle_collection_command(args)
+        if args.command == "role":
+            return _handle_role_command(args)
+        if args.command == "completion":
+            return _handle_completion_command(args)
+        raise ValueError(f"unsupported command: {args.command}")
     except Exception as e:
         print("Error:", e, file=sys.stderr)
         return 2

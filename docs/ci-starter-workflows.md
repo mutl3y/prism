@@ -24,7 +24,7 @@ prism:
   script:
     - python -m pip install --upgrade pip
     - pip install -e .
-    - prism src/prism/tests/roles/enhanced_mock_role -o README.generated.md
+    - prism role src/prism/tests/roles/enhanced_mock_role -o README.generated.md
   artifacts:
     paths:
       - README.generated.md
@@ -32,5 +32,5 @@ prism:
 
 ## Notes
 
-- Use `--collection-root -f md` to generate collection-level docs with per-role markdown files.
+- Use `prism collection <path> -f md` to generate collection-level docs with per-role markdown files.
 - Use `-f pdf` only when the `weasyprint` dependency is installed in your CI environment.

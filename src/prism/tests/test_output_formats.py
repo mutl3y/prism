@@ -25,7 +25,7 @@ def test_outputs_md_and_html(tmp_path):
         "import sys;"
         "sys.path.insert(0, '{src_dir}');"
         "from prism.cli import main;"
-        "sys.exit(main(['{role}','-o','{out}','-v']))"
+        "sys.exit(main(['role','{role}','-o','{out}','-v']))"
     ).format(src_dir=str(HERE.parent.parent), role=str(target), out=str(out_md))
 
     cmd = [sys.executable, "-c", python_code]
@@ -46,7 +46,7 @@ def test_outputs_md_and_html(tmp_path):
         "import sys;"
         "sys.path.insert(0, '{src_dir}');"
         "from prism.cli import main;"
-        "sys.exit(main(['{role}','-o','{out}','-f','html']))"
+        "sys.exit(main(['role','{role}','-o','{out}','-f','html']))"
     ).format(src_dir=str(HERE.parent.parent), role=str(target), out=str(out_html))
 
     cmd = [sys.executable, "-c", python_code]
@@ -163,6 +163,30 @@ def test_run_scan_json_output_uses_json_suffix_and_payload(tmp_path):
     assert payload["role_name"] == "mock_role"
     assert "variables" in payload
     assert "metadata" in payload
+
+
+def test_run_scan_json_marks_external_vars_context_as_non_authoritative(tmp_path):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    context_dir = tmp_path / "group_vars"
+    context_dir.mkdir()
+    (context_dir / "all.yml").write_text("---\nexample: value\n", encoding="utf-8")
+
+    out = tmp_path / "scan-result"
+    scanner.run_scan(
+        str(target),
+        output=str(out),
+        output_format="json",
+        vars_seed_paths=[str(context_dir)],
+    )
+
+    payload = json.loads((tmp_path / "scan-result.json").read_text(encoding="utf-8"))
+    external_context = payload["metadata"]["external_vars_context"]
+    assert external_context["paths"] == [str(context_dir)]
+    assert external_context["authoritative"] is False
+    assert external_context["purpose"] == "required_variable_detection_hints"
 
 
 def test_run_scan_dry_run_returns_content_and_skips_write(tmp_path):

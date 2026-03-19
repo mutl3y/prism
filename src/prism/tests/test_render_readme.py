@@ -1585,17 +1585,31 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
         [],
         {
             **metadata,
+            "external_vars_context": {
+                "paths": ["/tmp/group_vars/all.yml"],
+                "authoritative": False,
+            },
             "variable_insights": [
                 {
                     "name": "v",
                     "type": "bool",
                     "default": "true",
                     "source": "defaults/main.yml",
+                    "provenance_source_file": "defaults/main.yml",
+                },
+                {
+                    "name": "seed_only",
+                    "type": "str",
+                    "default": "x",
+                    "source": "seed: /tmp/group_vars/all.yml",
+                    "provenance_source_file": "/tmp/group_vars/all.yml",
                 }
             ],
         },
     )
     assert "| `v` | bool | `true` | defaults/main.yml |" in variable_summary
+    assert "seed_only" not in variable_summary
+    assert "non-authoritative hints" in variable_summary
 
     task_summary = scanner._render_guide_section_body(
         "task_summary",
@@ -1612,15 +1626,14 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
                     "file": "tasks/main.yml",
                     "name": "Configure service",
                     "module": "ansible.builtin.template",
+                    "parameters": "mode=0644, owner=root",
                 }
             ],
         },
     )
     assert "**Task files scanned**: 2" in task_summary
-    assert (
-        "| `tasks/main.yml` | Configure service | `ansible.builtin.template` |"
-        in task_summary
-    )
+    assert "| File | Task | Module | Parameters |" in task_summary
+    assert "| `tasks/main.yml` | Configure service | `ansible.builtin.template` | mode=0644, owner=root |" in task_summary
 
     example = scanner._render_guide_section_body(
         "example_usage", "demo", "", {}, [], [], metadata
@@ -1667,15 +1680,15 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
                     "file": "handlers/main.yml",
                     "name": "restart ssh",
                     "module": "ansible.builtin.service",
+                    "parameters": "state=restarted",
                 }
             ],
         },
     )
     assert "**Handler files detected**: 1" in handlers
     assert "restart ssh" in handlers
-    assert (
-        "| `handlers/main.yml` | restart ssh | `ansible.builtin.service` |" in handlers
-    )
+    assert "| File | Handler | Module | Parameters |" in handlers
+    assert "| `handlers/main.yml` | restart ssh | `ansible.builtin.service` | state=restarted |" in handlers
 
     template_overrides = scanner._render_guide_section_body(
         "template_overrides",

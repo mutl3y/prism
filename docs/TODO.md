@@ -177,3 +177,71 @@
 - [x] Add optional detailed task/handler catalog mode (task name/module/when and handler action tables)
 - [x] Add PDF output path (`--format pdf`) via Markdown -> HTML -> PDF conversion fallback strategy
 - [x] Add CI docs-generation starter workflow templates and docs (GitHub Actions / GitLab examples)
+
+## 13) Design-goal expansion: role/collection docs + plugin coverage
+
+Execution gates (recommended order):
+
+- [x] Gate 1: Ship additive `plugin_catalog` payload scaffold with empty categories and summary counters
+- [x] Gate 2: Ship filter-plugin AST extraction with confidence + failure reporting
+- [x] Gate 3: Ship full plugin-directory inventory coverage for all required plugin types
+- [x] Gate 4: Ship collection README redesign using payload-only rendering
+- [x] Gate 5: Ship CLI UX redesign (`role`, `collection`, `repo`, `completion`) without compatibility shims
+- [x] Gate 6: Ship context-flag naming migration + generated Bash completion + docs/demo refresh
+
+- [x] Redesign CLI UX around subcommands
+  - [x] Introduce `prism role` for local role documentation workflows
+  - [x] Introduce `prism collection` for collection-root documentation workflows
+  - [x] Introduce `prism repo` for repository intake and remote scan workflows
+  - [x] Introduce `prism completion bash` for generated shell completion output
+  - [x] Do not keep top-level legacy invocation paths; require subcommand mode (`role`, `collection`, `repo`, `completion`)
+  - [x] Route subcommands through shared helpers to avoid duplicating option wiring and scan logic
+  - [x] Re-scope help output so role/collection/repo users only see relevant options
+- [x] Reframe variable context UX and naming
+  - [x] Add `--group-vars-context` (or generalized `--vars-context-path`) as primary context flag
+  - [x] Keep `--vars-seed` as backward-compatible alias with deprecation messaging
+  - [x] Ensure external context is labeled as non-authoritative in output metadata/docs
+- [x] Add CLI shell completion support
+  - [x] Decide delivery model: generated-on-demand subcommand (not a checked-in static script)
+  - [x] Add generated-on-demand Bash completion via `prism completion bash`
+  - [x] Generate completion from the live parser/subparser structure so it stays aligned with parser changes and aliases
+  - [x] Decide whether completion should depend on `argcomplete` or use a project-local generator
+  - [x] Document installation/usage for local shells and CI/devcontainer environments
+- [x] Expand collection scan payload beyond role roster/dependencies
+  - [x] Add collection plugin inventory model with typed records (type/path/symbols/summary/confidence)
+  - [x] Add stable `plugin_catalog` payload contract with `schema_version`, `summary`, `by_type`, and `failures`
+  - [x] Keep `by_type` keys present even when plugin categories are empty
+  - [x] Add typed schema definitions in code (`PluginRecord`, `PluginCatalog`, `PluginScanFailure`)
+  - [x] Capture plugin coverage for `plugins/filter`, `plugins/modules`, `plugins/lookup`, `plugins/inventory`, `plugins/callback`, `plugins/connection`, `plugins/strategy`, `plugins/test`, `plugins/doc_fragments`, `plugins/module_utils`
+  - [x] Keep output deterministic and bounded for stable README diffs
+- [x] Implement filter plugin extraction depth
+  - [x] Parse common `FilterModule.filters()` patterns via AST-first extraction
+  - [x] Extract filter names from dict literals and simple named-dict indirection in `filters()`
+  - [x] Capture filter function docstrings for short descriptions when available
+  - [x] Add fallback heuristics and confidence labels for partial extraction
+  - [x] Render concise filter capability summaries in collection output
+- [x] Implement broader Python AST extraction for collection plugins
+  - [x] Extract module plugin `DOCUMENTATION`/`EXAMPLES`/`RETURN` blocks when statically assigned
+  - [x] Extract class/method capability hints for lookup/inventory/callback/strategy plugins
+  - [x] Record extraction method and confidence in plugin records (`ast`, `fallback`, `mixed`)
+- [x] Redesign collection README generation
+  - [x] Replace current index-like markdown with structured sections (metadata, dependencies, roles, plugins, filters, failures/limitations)
+  - [x] Add per-role quick stats links in collection README
+  - [x] Add bounded rendering limits and overflow notes for large plugin catalogs
+  - [x] Ensure generated collection docs remain readable for large collections
+- [x] Align role README behavior to role-source truth
+  - [x] Keep role variable sections tied to role-local/static sources
+  - [x] Avoid treating inventory-owned `group_vars` as discovered role source of truth
+  - [x] Improve detailed task/handler catalog with compact parameter details
+- [x] Add test and fixture coverage for new collection/plugin paths
+  - [x] Add collection fixtures with representative plugin trees and sample filter plugins
+  - [x] Add fixture cases for syntax-failing plugin files and dynamic/indirect filter maps
+  - [x] Add scanner/API/CLI/render tests for plugin inventory and filter extraction
+  - [x] Add payload contract tests for `plugin_catalog` shape and deterministic ordering
+  - [x] Add compatibility tests for context-flag alias and deprecation path
+- [x] Update docs, demos, and migration notes
+  - [x] Update README/docs examples to subcommand form (`prism role`, `prism collection`, `prism repo`, `prism completion bash`)
+  - [x] Update README examples to new context-flag naming
+  - [x] Add README/docs section for `prism completion bash` generation and installation
+  - [x] Update CLI help text and limitations language
+  - [x] Refresh demo scenarios to include collection plugin/filter documentation output

@@ -455,6 +455,26 @@ def test_scan_collection_returns_aggregated_payload(monkeypatch, tmp_path):
             "sources": ["roles/requirements.yml"],
         }
     ]
+    assert payload["plugin_catalog"]["schema_version"] == 1
+    assert payload["plugin_catalog"]["summary"] == {
+        "total_plugins": 0,
+        "types_present": [],
+        "files_scanned": 0,
+        "files_failed": 0,
+    }
+    assert payload["plugin_catalog"]["failures"] == []
+    assert payload["plugin_catalog"]["by_type"] == {
+        "filter": [],
+        "modules": [],
+        "lookup": [],
+        "inventory": [],
+        "callback": [],
+        "connection": [],
+        "strategy": [],
+        "test": [],
+        "doc_fragments": [],
+        "module_utils": [],
+    }
 
 
 def test_scan_collection_tracks_dependency_conflicts(monkeypatch, tmp_path):
@@ -529,6 +549,18 @@ def test_scan_collection_records_role_failures(monkeypatch, tmp_path):
             "error": "boom",
         }
     ]
+    assert sorted(payload["plugin_catalog"]["by_type"].keys()) == [
+        "callback",
+        "connection",
+        "doc_fragments",
+        "filter",
+        "inventory",
+        "lookup",
+        "module_utils",
+        "modules",
+        "strategy",
+        "test",
+    ]
 
 
 def test_scan_collection_can_include_rendered_readme(monkeypatch, tmp_path):
@@ -569,3 +601,231 @@ def test_scan_role_forwards_detailed_catalog(monkeypatch, tmp_path):
     monkeypatch.setattr(api, "run_scan", fake_run_scan)
     payload = api.scan_role(str(role_path), detailed_catalog=True)
     assert payload == {}
+
+
+def test_scan_collection_extracts_filter_plugins_into_catalog(monkeypatch, tmp_path):
+    collection_root = tmp_path / "demo_collection"
+    (collection_root / "roles" / "role_a").mkdir(parents=True)
+    (collection_root / "plugins" / "filter").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+    (collection_root / "plugins" / "filter" / "network.py").write_text(
+        '"""Network filter helpers."""\n\n'
+        "class FilterModule:\n"
+        "    def filters(self):\n"
+        "        return {\n"
+        '            "cidr_contains": cidr_contains,\n'
+        '            "ip_version": ip_version,\n'
+        "        }\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        api,
+        "scan_role",
+        lambda role_path, **kwargs: {"role_name": Path(role_path).name, "metadata": {}},
+    )
+
+    payload = api.scan_collection(str(collection_root))
+    catalog = payload["plugin_catalog"]
+
+    assert catalog["summary"]["files_scanned"] == 1
+    assert catalog["summary"]["files_failed"] == 0
+    assert catalog["summary"]["total_plugins"] == 1
+    assert catalog["summary"]["types_present"] == ["filter"]
+    assert len(catalog["by_type"]["filter"]) == 1
+
+    record = catalog["by_type"]["filter"][0]
+    assert record["name"] == "network"
+    assert record["relative_path"] == "plugins/filter/network.py"
+    assert record["symbols"] == ["cidr_contains", "ip_version"]
+    assert record["doc_source"] == "module_docstring"
+    assert record["confidence"] == "high"
+    assert record["extraction"]["method"] == "ast"
+    assert catalog["failures"] == []
+
+
+def test_scan_collection_filter_summary_prefers_function_docstring(monkeypatch, tmp_path):
+    collection_root = tmp_path / "demo_collection"
+    (collection_root / "roles" / "role_a").mkdir(parents=True)
+    (collection_root / "plugins" / "filter").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+    (collection_root / "plugins" / "filter" / "network.py").write_text(
+        '"""Fallback module docstring."""\n\n'
+        "def cidr_contains(value):\n"
+        '    """Check whether an IP belongs to the supplied CIDR block."""\n'
+        "    return value\n\n"
+        "class FilterModule:\n"
+        "    def filters(self):\n"
+        "        return {\n"
+        '            "cidr_contains": cidr_contains,\n'
+        "        }\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        api,
+        "scan_role",
+        lambda role_path, **kwargs: {"role_name": Path(role_path).name, "metadata": {}},
+    )
+
+    payload = api.scan_collection(str(collection_root))
+    record = payload["plugin_catalog"]["by_type"]["filter"][0]
+
+    assert record["summary"] == "Check whether an IP belongs to the supplied CIDR block."
+    assert record["doc_source"] == "filter_function_docstring"
+
+
+def test_scan_collection_filter_plugin_syntax_error_is_reported(monkeypatch, tmp_path):
+    collection_root = tmp_path / "demo_collection"
+    (collection_root / "roles" / "role_a").mkdir(parents=True)
+    (collection_root / "plugins" / "filter").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+    (collection_root / "plugins" / "filter" / "broken.py").write_text(
+        "def broken(:\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        api,
+        "scan_role",
+        lambda role_path, **kwargs: {"role_name": Path(role_path).name, "metadata": {}},
+    )
+
+    payload = api.scan_collection(str(collection_root))
+    catalog = payload["plugin_catalog"]
+
+    assert catalog["summary"]["files_scanned"] == 1
+    assert catalog["summary"]["files_failed"] == 1
+    assert catalog["summary"]["total_plugins"] == 0
+    assert catalog["by_type"]["filter"] == []
+    assert len(catalog["failures"]) == 1
+    assert catalog["failures"][0]["relative_path"] == "plugins/filter/broken.py"
+    assert catalog["failures"][0]["stage"] == "ast_parse"
+
+
+def test_scan_collection_inventories_non_filter_plugin_types(monkeypatch, tmp_path):
+    collection_root = tmp_path / "demo_collection"
+    (collection_root / "roles" / "role_a").mkdir(parents=True)
+    (collection_root / "plugins" / "lookup").mkdir(parents=True)
+    (collection_root / "plugins" / "modules").mkdir(parents=True)
+    (collection_root / "plugins" / "module_utils").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+    (collection_root / "plugins" / "lookup" / "service.py").write_text(
+        "DOCUMENTATION = ''\n",
+        encoding="utf-8",
+    )
+    (collection_root / "plugins" / "modules" / "deploy").write_text(
+        "#!/usr/bin/python\n",
+        encoding="utf-8",
+    )
+    (collection_root / "plugins" / "module_utils" / "net.py").write_text(
+        "def helper():\n    return 'ok'\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        api,
+        "scan_role",
+        lambda role_path, **kwargs: {"role_name": Path(role_path).name, "metadata": {}},
+    )
+
+    payload = api.scan_collection(str(collection_root))
+    catalog = payload["plugin_catalog"]
+
+    assert catalog["summary"]["files_scanned"] == 3
+    assert catalog["summary"]["files_failed"] == 0
+    assert catalog["summary"]["total_plugins"] == 3
+    assert catalog["summary"]["types_present"] == ["modules", "lookup", "module_utils"]
+
+    modules_record = catalog["by_type"]["modules"][0]
+    assert modules_record["name"] == "deploy"
+    assert modules_record["language"] == "unknown"
+    assert modules_record["extraction"]["method"] == "path_inventory"
+
+    lookup_record = catalog["by_type"]["lookup"][0]
+    assert lookup_record["name"] == "service"
+    assert lookup_record["language"] == "python"
+
+    module_utils_record = catalog["by_type"]["module_utils"][0]
+    assert module_utils_record["name"] == "net"
+    assert module_utils_record["language"] == "python"
+
+
+def test_scan_collection_extracts_short_description_from_plugin_documentation(
+    monkeypatch, tmp_path
+):
+    collection_root = tmp_path / "demo_collection"
+    (collection_root / "roles" / "role_a").mkdir(parents=True)
+    (collection_root / "plugins" / "modules").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+    (collection_root / "plugins" / "modules" / "deploy.py").write_text(
+        "DOCUMENTATION = '''\n"
+        "---\n"
+        "short_description: Deploy application resources\n"
+        "'''\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        api,
+        "scan_role",
+        lambda role_path, **kwargs: {"role_name": Path(role_path).name, "metadata": {}},
+    )
+
+    payload = api.scan_collection(str(collection_root))
+    record = payload["plugin_catalog"]["by_type"]["modules"][0]
+
+    assert record["summary"] == "Deploy application resources"
+    assert record["doc_source"] == "documentation_short_description"
+    assert record["extraction"]["method"] == "ast"
+    assert "short_description:" in record["documentation_blocks"]["DOCUMENTATION"]
+
+
+def test_scan_collection_extracts_lookup_class_method_capability_hints(
+    monkeypatch, tmp_path
+):
+    collection_root = tmp_path / "demo_collection"
+    (collection_root / "roles" / "role_a").mkdir(parents=True)
+    (collection_root / "plugins" / "lookup").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+    (collection_root / "plugins" / "lookup" / "service.py").write_text(
+        "class LookupModule:\n"
+        "    def run(self, terms, variables=None, **kwargs):\n"
+        "        return terms\n\n"
+        "    def helper(self):\n"
+        "        return []\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        api,
+        "scan_role",
+        lambda role_path, **kwargs: {"role_name": Path(role_path).name, "metadata": {}},
+    )
+
+    payload = api.scan_collection(str(collection_root))
+    record = payload["plugin_catalog"]["by_type"]["lookup"][0]
+
+    assert record["doc_source"] == "class_method_hints"
+    assert record["extraction"]["method"] == "ast"
+    assert record["capability_hints"] == ["LookupModule.helper", "LookupModule.run"]
+    assert "LookupModule" in record["symbols"]
+    assert "run" in record["symbols"]

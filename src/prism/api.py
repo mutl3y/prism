@@ -21,6 +21,7 @@ from .cli import (
     _repo_path_looks_like_role,
     _repo_name_from_url,
 )
+from .collection_plugins import scan_collection_plugins
 from .scanner import run_scan
 
 _REQUIRED_ROLE_DIRS = ("defaults", "tasks", "meta")
@@ -301,12 +302,14 @@ def scan_collection(
             )
 
     dependencies = _aggregate_collection_dependencies(root)
+    plugin_catalog = scan_collection_plugins(root)
     return {
         "collection": {
             "path": str(root),
             "metadata": galaxy_metadata,
         },
         "dependencies": dependencies,
+        "plugin_catalog": plugin_catalog,
         "roles": role_entries,
         "failures": failures,
         "summary": {

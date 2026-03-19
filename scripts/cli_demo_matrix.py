@@ -13,6 +13,7 @@ https://github.com/mutl3y/prism-learn
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -42,40 +43,43 @@ class Scenario:
         role_readme = role_demo / "README.md"
         output_path = output_dir / self.output_path
         mapping: dict[str, list[str]] = {
-            "role-default": [str(role_demo), "-o", str(output_path)],
+            "role-default": ["role", str(role_demo), "-o", str(output_path)],
             "role-concise": [
+                "role",
                 str(role_demo),
                 "--concise-readme",
                 "-o",
                 str(output_path),
             ],
             "role-detailed-catalog": [
+                "role",
                 str(role_demo),
                 "--detailed-catalog",
                 "-o",
                 str(output_path),
             ],
             "role-styled": [
+                "role",
                 str(role_demo),
                 "--style-readme",
                 str(role_readme),
                 "-o",
                 str(output_path),
             ],
-            "role-html": [str(role_demo), "-f", "html", "-o", str(output_path)],
-            "role-json": [str(role_demo), "-f", "json", "-o", str(output_path)],
-            "role-pdf": [str(role_demo), "-f", "pdf", "-o", str(output_path)],
+            "role-html": ["role", str(role_demo), "-f", "html", "-o", str(output_path)],
+            "role-json": ["role", str(role_demo), "-f", "json", "-o", str(output_path)],
+            "role-pdf": ["role", str(role_demo), "-f", "pdf", "-o", str(output_path)],
             "collection-md": [
+                "collection",
                 str(collection_demo),
-                "--collection-root",
                 "-f",
                 "md",
                 "-o",
                 str(output_path),
             ],
             "collection-json": [
+                "collection",
                 str(collection_demo),
-                "--collection-root",
                 "-f",
                 "json",
                 "-o",
@@ -193,7 +197,13 @@ def build_parser() -> argparse.ArgumentParser:
 def _run(cmd: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
     printable = " ".join(cmd)
     print(f"$ {printable}", flush=True)
-    return subprocess.run(cmd, cwd=str(cwd), check=True, text=True)
+    env = dict(os.environ)
+    src_path = str(ROOT / "src")
+    existing_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        f"{src_path}:{existing_pythonpath}" if existing_pythonpath else src_path
+    )
+    return subprocess.run(cmd, cwd=str(cwd), check=True, text=True, env=env)
 
 
 def prepare_output_tree(output_dir: Path, *, keep_existing: bool) -> None:
@@ -216,6 +226,28 @@ def prepare_output_tree(output_dir: Path, *, keep_existing: bool) -> None:
         shutil.copytree(BASE_ROLE_SOURCE, base_target)
     if not enhanced_target.exists():
         shutil.copytree(ENHANCED_ROLE_SOURCE, enhanced_target)
+
+    filter_dir = collection_demo / "plugins" / "filter"
+    lookup_dir = collection_demo / "plugins" / "lookup"
+    filter_dir.mkdir(parents=True, exist_ok=True)
+    lookup_dir.mkdir(parents=True, exist_ok=True)
+    (filter_dir / "network.py").write_text(
+        '"""Network filter helpers for demo output."""\n\n'
+        "class FilterModule:\n"
+        "    def filters(self):\n"
+        "        return {\n"
+        '            "cidr_contains": cidr_contains,\n'
+        '            "ip_version": ip_version,\n'
+        "        }\n",
+        encoding="utf-8",
+    )
+    (lookup_dir / "vault_lookup.py").write_text(
+        "DOCUMENTATION = '''\\n"
+        "---\\n"
+        "short_description: demo lookup plugin\\n"
+        "'''\\n",
+        encoding="utf-8",
+    )
 
     galaxy_yml = collection_demo / "galaxy.yml"
     galaxy_yml.write_text(

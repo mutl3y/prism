@@ -40,7 +40,7 @@ def test_scan_detects_defaults(tmp_path):
         "import sys;"
         "sys.path.insert(0, '{src_dir}');"
         "from prism.cli import main;"
-        "sys.exit(main(['{role}','-o','{out}']))"
+        "sys.exit(main(['role','{role}','-o','{out}']))"
     ).format(src_dir=str(HERE.parent.parent), role=str(target), out=str(out))
 
     cmd = [sys.executable, "-c", python_code]
@@ -889,6 +889,24 @@ def test_collect_task_handler_catalog_handles_empty_or_non_task_docs(tmp_path):
 
     assert task_catalog == []
     assert handler_catalog == []
+
+
+def test_compact_task_parameters_formats_dict_values():
+    task = {
+        "ansible.builtin.service": {
+            "name": "demo",
+            "state": "started",
+            "enabled": True,
+            "daemon_reload": False,
+            "masked": False,
+        }
+    }
+
+    rendered = scanner._compact_task_parameters(task, "ansible.builtin.service")
+
+    assert "state=started" in rendered
+    assert "enabled=true" in rendered
+    assert rendered.endswith("...")
 
 
 def test_collect_referenced_variable_names_handles_custom_jinja_tests_and_filters(

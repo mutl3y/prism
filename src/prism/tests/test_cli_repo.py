@@ -45,7 +45,7 @@ def test_cli_scans_from_repo_url(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "repo-out.md"
-    rc = cli.main(["--repo-url", "https://github.com/example/role.git", "-o", str(out)])
+    rc = cli.main(["repo", "--repo-url", "https://github.com/example/role.git", "-o", str(out)])
 
     assert rc == 0
     assert out.exists()
@@ -75,6 +75,7 @@ def test_cli_repo_ref_is_used_for_clone(monkeypatch, tmp_path):
     out = tmp_path / "repo-ref.md"
     rc = cli.main(
         [
+            "repo",
             "--repo-url",
             "https://github.com/example/role.git",
             "--repo-ref",
@@ -113,6 +114,7 @@ def test_cli_repo_timeout_is_forwarded(monkeypatch, tmp_path):
     out = tmp_path / "repo-timeout.md"
     rc = cli.main(
         [
+            "repo",
             "--repo-url",
             "https://github.com/example/role.git",
             "--repo-timeout",
@@ -144,7 +146,7 @@ def test_cli_repo_scan_uses_shared_temp_root(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "repo-shared-tmp.md"
-    rc = cli.main(["--repo-url", "https://github.com/example/role.git", "-o", str(out)])
+    rc = cli.main(["repo", "--repo-url", "https://github.com/example/role.git", "-o", str(out)])
 
     assert rc == 0
     assert clone_calls["destination"].parent.parent == tmp_path / "prism"
@@ -170,6 +172,7 @@ def test_cli_github_https_url_is_converted_to_ssh(monkeypatch, tmp_path):
     out = tmp_path / "repo-ssh-url.md"
     rc = cli.main(
         [
+            "repo",
             "--repo-url",
             "https://github.com/example/role",
             "-o",
@@ -200,6 +203,7 @@ def test_cli_ssh_repo_url_is_preserved(monkeypatch, tmp_path):
     out = tmp_path / "repo-ssh-preserved.md"
     rc = cli.main(
         [
+            "repo",
             "--repo-url",
             "git@github.com:example/role.git",
             "-o",
@@ -321,12 +325,8 @@ def test_fetch_repo_file_returns_none_for_non_github_repo(tmp_path):
     assert not destination.exists()
 
 
-def test_cli_requires_single_input_source():
+def test_cli_requires_subcommand():
     assert cli.main([]) == 2
-    assert (
-        cli.main(["some/role", "--repo-url", "https://github.com/example/role.git"])
-        == 2
-    )
 
 
 def test_cli_collection_root_json_mode_calls_scan_collection(monkeypatch, tmp_path):
@@ -347,8 +347,8 @@ def test_cli_collection_root_json_mode_calls_scan_collection(monkeypatch, tmp_pa
     out = tmp_path / "collection-output"
     rc = cli.main(
         [
+            "collection",
             str(collection_root),
-            "--collection-root",
             "-f",
             "json",
             "-o",
@@ -394,9 +394,7 @@ def test_cli_collection_root_md_mode_writes_collection_and_role_docs(
     monkeypatch.setattr(api_module, "scan_collection", fake_scan_collection)
 
     out = tmp_path / "docs" / "collection-doc"
-    rc = cli.main(
-        [str(collection_root), "--collection-root", "-f", "md", "-o", str(out)]
-    )
+    rc = cli.main(["collection", str(collection_root), "-f", "md", "-o", str(out)])
 
     assert rc == 0
     collection_readme = out.with_suffix(".md")
@@ -409,12 +407,160 @@ def test_cli_collection_root_md_mode_writes_collection_and_role_docs(
     assert role_doc.read_text(encoding="utf-8") == "# web role\n"
 
 
+def test_cli_collection_markdown_includes_plugin_catalog_sections(monkeypatch, tmp_path):
+    collection_root = tmp_path / "collection"
+    (collection_root / "roles").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\nversion: 2.1.0\n",
+        encoding="utf-8",
+    )
+
+    def fake_scan_collection(collection_path, **kwargs):
+        assert kwargs["include_rendered_readme"] is True
+        return {
+            "collection": {
+                "path": collection_path,
+                "metadata": {
+                    "namespace": "demo",
+                    "name": "toolkit",
+                    "version": "2.1.0",
+                },
+            },
+            "summary": {"total_roles": 1, "scanned_roles": 1, "failed_roles": 0},
+            "dependencies": {
+                "collections": [{"key": "community.general", "version": "9.0.0"}],
+                "roles": [{"key": "acme.base", "version": "1.2.3"}],
+                "conflicts": [],
+            },
+            "plugin_catalog": {
+                "summary": {
+                    "total_plugins": 2,
+                    "types_present": ["filter", "lookup"],
+                    "files_scanned": 2,
+                    "files_failed": 1,
+                },
+                "by_type": {
+                    "filter": [
+                        {
+                            "name": "network",
+                            "symbols": ["cidr_contains", "ip_version"],
+                            "confidence": "high",
+                        }
+                    ],
+                    "lookup": [{"name": "vault_lookup"}],
+                },
+                "failures": [
+                    {
+                        "relative_path": "plugins/filter/broken.py",
+                        "stage": "ast_parse",
+                        "error": "invalid syntax",
+                    }
+                ],
+            },
+            "roles": [
+                {
+                    "role": "web",
+                    "rendered_readme": "# web role\n",
+                    "payload": {
+                        "metadata": {
+                            "scanner_counters": {"task_files": 3, "templates": 5}
+                        }
+                    },
+                }
+            ],
+            "failures": [],
+        }
+
+    import prism.api as api_module
+
+    monkeypatch.setattr(api_module, "scan_collection", fake_scan_collection)
+
+    out = tmp_path / "docs" / "collection-doc"
+    rc = cli.main(["collection", str(collection_root), "-f", "md", "-o", str(out)])
+
+    assert rc == 0
+    readme = out.with_suffix(".md").read_text(encoding="utf-8")
+    assert "## Plugin Catalog" in readme
+    assert "### Filter Capabilities" in readme
+    assert "`network` [high]: cidr_contains, ip_version" in readme
+    assert "### Plugin Scan Failures" in readme
+    assert "`plugins/filter/broken.py` (ast_parse): invalid syntax" in readme
+    assert "## Role Dependencies" in readme
+    assert "`acme.base` (1.2.3)" in readme
+
+
+def test_cli_collection_markdown_bounds_large_role_lists(monkeypatch, tmp_path):
+    collection_root = tmp_path / "collection"
+    (collection_root / "roles").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+
+    roles = [
+        {
+            "role": f"role_{index:03d}",
+            "rendered_readme": f"# role_{index:03d}\n",
+            "payload": {
+                "metadata": {
+                    "scanner_counters": {"task_files": index, "templates": index}
+                }
+            },
+        }
+        for index in range(70)
+    ]
+
+    def fake_scan_collection(collection_path, **kwargs):
+        return {
+            "collection": {
+                "path": collection_path,
+                "metadata": {"namespace": "demo", "name": "toolkit"},
+            },
+            "summary": {"total_roles": 70, "scanned_roles": 70, "failed_roles": 0},
+            "dependencies": {"collections": [], "roles": [], "conflicts": []},
+            "plugin_catalog": {
+                "summary": {
+                    "total_plugins": 0,
+                    "types_present": [],
+                    "files_scanned": 0,
+                    "files_failed": 0,
+                },
+                "by_type": {
+                    "filter": [],
+                    "modules": [],
+                    "lookup": [],
+                    "inventory": [],
+                    "callback": [],
+                    "connection": [],
+                    "strategy": [],
+                    "test": [],
+                    "doc_fragments": [],
+                    "module_utils": [],
+                },
+                "failures": [],
+            },
+            "roles": roles,
+            "failures": [],
+        }
+
+    import prism.api as api_module
+
+    monkeypatch.setattr(api_module, "scan_collection", fake_scan_collection)
+
+    out = tmp_path / "docs" / "collection-doc"
+    rc = cli.main(["collection", str(collection_root), "-f", "md", "-o", str(out)])
+
+    assert rc == 0
+    readme = out.with_suffix(".md").read_text(encoding="utf-8")
+    assert "... and 10 more roles" in readme
+
+
 def test_cli_collection_root_rejects_non_json_or_md_format(tmp_path):
     collection_root = tmp_path / "collection"
     (collection_root / "roles").mkdir(parents=True)
     (collection_root / "galaxy.yml").write_text("---\nname: demo\n", encoding="utf-8")
 
-    rc = cli.main([str(collection_root), "--collection-root", "-f", "html"])
+    rc = cli.main(["collection", str(collection_root), "-f", "html"])
     assert rc == 2
 
 
@@ -437,6 +583,7 @@ def test_cli_compare_role_path_is_forwarded(monkeypatch, tmp_path):
     out = tmp_path / "compare.md"
     rc = cli.main(
         [
+            "role",
             str(role),
             "--compare-role-path",
             str(baseline),
@@ -466,6 +613,7 @@ def test_cli_exclude_path_is_forwarded(monkeypatch, tmp_path):
     out = tmp_path / "exclude.md"
     rc = cli.main(
         [
+            "role",
             str(role),
             "--exclude-path",
             "templates/*",
@@ -493,7 +641,7 @@ def test_cli_detailed_catalog_is_forwarded(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "catalog.md"
-    rc = cli.main([str(role), "--detailed-catalog", "-o", str(out)])
+    rc = cli.main(["role", str(role), "--detailed-catalog", "-o", str(out)])
 
     assert rc == 0
     assert calls["detailed_catalog"] is True
@@ -519,7 +667,7 @@ def test_cli_style_readme_is_forwarded(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "styled.md"
-    rc = cli.main([str(role), "--style-readme", str(style), "-o", str(out)])
+    rc = cli.main(["role", str(role), "--style-readme", str(style), "-o", str(out)])
 
     assert rc == 0
     assert calls["style_readme_path"] == str(style)
@@ -549,7 +697,7 @@ def test_cli_style_guide_skeleton_defaults_to_local_style_source(monkeypatch, tm
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "skeleton.md"
-    rc = cli.main([str(role), "--create-style-guide", "-o", str(out)])
+    rc = cli.main(["role", str(role), "--create-style-guide", "-o", str(out)])
 
     assert rc == 0
     assert calls["style_guide_skeleton"] is True
@@ -574,7 +722,7 @@ def test_cli_style_guide_skeleton_prefers_cwd_source(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
 
     out = tmp_path / "skeleton-cwd.md"
-    rc = cli.main([str(role), "--create-style-guide", "-o", str(out)])
+    rc = cli.main(["role", str(role), "--create-style-guide", "-o", str(out)])
 
     assert rc == 0
     assert calls["style_guide_skeleton"] is True
@@ -604,7 +752,7 @@ def test_cli_style_guide_skeleton_prefers_env_source(monkeypatch, tmp_path):
     monkeypatch.setenv("PRISM_STYLE_SOURCE", str(env_style))
 
     out = tmp_path / "skeleton-env.md"
-    rc = cli.main([str(role), "--create-style-guide", "-o", str(out)])
+    rc = cli.main(["role", str(role), "--create-style-guide", "-o", str(out)])
 
     assert rc == 0
     assert calls["style_guide_skeleton"] is True
@@ -629,6 +777,7 @@ def test_cli_vars_seed_is_forwarded(monkeypatch, tmp_path):
     out = tmp_path / "seeded.md"
     rc = cli.main(
         [
+            "role",
             str(role),
             "--vars-seed",
             str(seed_file),
@@ -641,6 +790,165 @@ def test_cli_vars_seed_is_forwarded(monkeypatch, tmp_path):
 
     assert rc == 0
     assert calls["vars_seed_paths"] == [str(seed_file), str(tmp_path)]
+
+
+def test_cli_vars_context_path_is_forwarded(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    context_dir = tmp_path / "group_vars"
+    role.mkdir()
+    context_dir.mkdir()
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["vars_seed_paths"] = kwargs.get("vars_seed_paths")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "context.md"
+    rc = cli.main(
+        [
+            "role",
+            str(role),
+            "--vars-context-path",
+            str(context_dir),
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert calls["vars_seed_paths"] == [str(context_dir)]
+
+
+def test_cli_vars_seed_emits_deprecation_warning(monkeypatch, tmp_path, capsys):
+    role = tmp_path / "role"
+    seed_file = tmp_path / "group_vars.yml"
+    role.mkdir()
+    seed_file.write_text("---\nexample: value\n", encoding="utf-8")
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "seeded-warning.md"
+    rc = cli.main(["role", str(role), "--vars-seed", str(seed_file), "-o", str(out)])
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert "--vars-seed is deprecated" in captured.err
+
+
+def test_cli_vars_context_and_seed_are_merged_in_order(monkeypatch, tmp_path, capsys):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    context_dir = tmp_path / "group_vars"
+    seed_file = tmp_path / "seed.yml"
+    role.mkdir()
+    context_dir.mkdir()
+    seed_file.write_text("---\nexample: value\n", encoding="utf-8")
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["vars_seed_paths"] = kwargs.get("vars_seed_paths")
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "merged-context.md"
+    rc = cli.main(
+        [
+            "role",
+            str(role),
+            "--vars-context-path",
+            str(context_dir),
+            "--vars-seed",
+            str(seed_file),
+            "-o",
+            str(out),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert calls["vars_seed_paths"] == [str(context_dir), str(seed_file)]
+    assert "--vars-seed is deprecated" in captured.err
+
+
+def test_cli_collection_vars_context_alias_is_forwarded(monkeypatch, tmp_path, capsys):
+    calls: dict = {}
+    collection_root = tmp_path / "collection"
+    (collection_root / "roles").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+    context_dir = tmp_path / "group_vars"
+    context_dir.mkdir()
+
+    def fake_scan_collection(collection_path, **kwargs):
+        calls["vars_seed_paths"] = kwargs.get("vars_seed_paths")
+        return {
+            "collection": {
+                "path": collection_path,
+                "metadata": {"namespace": "demo", "name": "toolkit"},
+            },
+            "summary": {"total_roles": 0, "scanned_roles": 0, "failed_roles": 0},
+            "dependencies": {"collections": [], "roles": [], "conflicts": []},
+            "plugin_catalog": {
+                "summary": {
+                    "total_plugins": 0,
+                    "types_present": [],
+                    "files_scanned": 0,
+                    "files_failed": 0,
+                },
+                "by_type": {
+                    "filter": [],
+                    "modules": [],
+                    "lookup": [],
+                    "inventory": [],
+                    "callback": [],
+                    "connection": [],
+                    "strategy": [],
+                    "test": [],
+                    "doc_fragments": [],
+                    "module_utils": [],
+                },
+                "failures": [],
+            },
+            "roles": [],
+            "failures": [],
+        }
+
+    import prism.api as api_module
+
+    monkeypatch.setattr(api_module, "scan_collection", fake_scan_collection)
+
+    out = tmp_path / "collection-output"
+    rc = cli.main(
+        [
+            "collection",
+            str(collection_root),
+            "--vars-context-path",
+            str(context_dir),
+            "--vars-seed",
+            str(context_dir),
+            "-f",
+            "json",
+            "-o",
+            str(out),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert calls["vars_seed_paths"] == [str(context_dir), str(context_dir)]
+    assert "--vars-seed is deprecated" in captured.err
 
 
 def test_cli_concise_and_scanner_report_flags_are_forwarded(monkeypatch, tmp_path):
@@ -661,6 +969,7 @@ def test_cli_concise_and_scanner_report_flags_are_forwarded(monkeypatch, tmp_pat
     out = tmp_path / "concise.md"
     rc = cli.main(
         [
+            "role",
             str(role),
             "--concise-readme",
             "--scanner-report-output",
@@ -691,6 +1000,7 @@ def test_cli_variable_sources_defaults_only_is_forwarded(monkeypatch, tmp_path):
     out = tmp_path / "defaults-only.md"
     rc = cli.main(
         [
+            "role",
             str(role),
             "--variable-sources",
             "defaults-only",
@@ -717,7 +1027,7 @@ def test_cli_variable_sources_default_excludes_vars(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "default-sources.md"
-    rc = cli.main([str(role), "-o", str(out)])
+    rc = cli.main(["role", str(role), "-o", str(out)])
 
     assert rc == 0
     assert calls["include_vars_main"] is False
@@ -739,6 +1049,7 @@ def test_cli_scanner_report_link_flag_is_forwarded(monkeypatch, tmp_path):
     out = tmp_path / "no-link.md"
     rc = cli.main(
         [
+            "role",
             str(role),
             "--concise-readme",
             "--no-include-scanner-report-link",
@@ -765,7 +1076,7 @@ def test_cli_adopt_heading_mode_flag_is_forwarded(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "adopt-headings.md"
-    rc = cli.main([str(role), "--adopt-heading-mode", "style", "-o", str(out)])
+    rc = cli.main(["role", str(role), "--adopt-heading-mode", "style", "-o", str(out)])
 
     assert rc == 0
     assert calls["adopt_heading_mode"] == "style"
@@ -785,7 +1096,7 @@ def test_cli_keep_unknown_style_sections_flag_is_forwarded(monkeypatch, tmp_path
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "keep-unknown.md"
-    rc = cli.main([str(role), "--keep-unknown-style-sections", "-o", str(out)])
+    rc = cli.main(["role", str(role), "--keep-unknown-style-sections", "-o", str(out)])
 
     assert rc == 0
     assert calls["keep_unknown_style_sections"] is True
@@ -807,7 +1118,7 @@ def test_cli_style_source_is_forwarded(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "style-source.md"
-    rc = cli.main([str(role), "--style-source", str(style_source), "-o", str(out)])
+    rc = cli.main(["role", str(role), "--style-source", str(style_source), "-o", str(out)])
 
     assert rc == 0
     assert calls["style_source_path"] == str(style_source)
@@ -829,7 +1140,7 @@ def test_cli_policy_config_is_forwarded(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "policy.md"
-    rc = cli.main([str(role), "--policy-config", str(policy_cfg), "-o", str(out)])
+    rc = cli.main(["role", str(role), "--policy-config", str(policy_cfg), "-o", str(out)])
 
     assert rc == 0
     assert calls["policy_config_path"] == str(policy_cfg)
@@ -863,6 +1174,7 @@ def test_cli_repo_style_readme_path_is_resolved(monkeypatch, tmp_path):
     out = tmp_path / "repo-style.md"
     rc = cli.main(
         [
+            "repo",
             "--repo-url",
             "https://github.com/example/role.git",
             "--repo-style-readme-path",
@@ -923,6 +1235,7 @@ def test_cli_repo_style_readme_fetch_skips_sparse_style_path(monkeypatch, tmp_pa
     out = tmp_path / "repo-style-fetched.md"
     rc = cli.main(
         [
+            "repo",
             "--repo-url",
             "https://github.com/example/demo-role.git",
             "--repo-role-path",
@@ -954,6 +1267,7 @@ def test_cli_repo_rejects_non_role_directory_listing(monkeypatch, tmp_path, caps
     out = tmp_path / "non-role.md"
     rc = cli.main(
         [
+            "repo",
             "--repo-url",
             "https://github.com/example/not-a-role.git",
             "-o",
@@ -1028,6 +1342,7 @@ def test_cli_repo_role_path_must_exist(monkeypatch, tmp_path, capsys):
     out = tmp_path / "missing-subpath.md"
     rc = cli.main(
         [
+            "repo",
             "--repo-url",
             "https://github.com/example/role.git",
             "--repo-role-path",
@@ -1217,7 +1532,7 @@ def test_cli_verbose_repo_scan_prints_clone_and_write(monkeypatch, tmp_path, cap
 
     out = tmp_path / "verbose.md"
     rc = cli.main(
-        ["--repo-url", "https://github.com/example/role.git", "-o", str(out), "-v"]
+        ["repo", "--repo-url", "https://github.com/example/role.git", "-o", str(out), "-v"]
     )
     captured = capsys.readouterr()
 
@@ -1245,7 +1560,7 @@ def test_cli_verbose_local_scan_prints_style_and_demo_paths(
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     rc = cli.main(
-        [str(role_dir), "--style-readme", str(style_guide), "-o", str(out), "-v"]
+        ["role", str(role_dir), "--style-readme", str(style_guide), "-o", str(out), "-v"]
     )
     captured = capsys.readouterr()
 
@@ -1270,7 +1585,7 @@ def test_cli_dry_run_and_json_are_forwarded(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "dry-run-json"
-    rc = cli.main([str(role), "-f", "json", "--dry-run", "-o", str(out), "-v"])
+    rc = cli.main(["role", str(role), "-f", "json", "--dry-run", "-o", str(out), "-v"])
     captured = capsys.readouterr()
 
     assert rc == 0
@@ -1295,9 +1610,26 @@ def test_cli_dry_run_skips_style_comparison_artifacts(monkeypatch, tmp_path):
 
     out = tmp_path / "dry-run-output.md"
     rc = cli.main(
-        [str(role), "--style-readme", str(style_guide), "--dry-run", "-o", str(out)]
+        ["role", str(role), "--style-readme", str(style_guide), "--dry-run", "-o", str(out)]
     )
 
     assert rc == 0
     assert not out.exists()
     assert not (tmp_path / "style_guide").exists()
+
+
+def test_cli_completion_bash_outputs_generated_script(capsys):
+    rc = cli.main(["completion", "bash"])
+    captured = capsys.readouterr()
+
+    assert rc == 0
+    assert "_prism_completion()" in captured.out
+    assert "complete -F _prism_completion prism" in captured.out
+    for command in ("role", "collection", "repo", "completion"):
+        assert command in captured.out
+    assert "--repo-url" in captured.out
+    assert "--detailed-catalog" in captured.out
+
+
+def test_cli_completion_requires_shell_choice():
+    assert cli.main(["completion"]) == 2

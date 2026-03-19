@@ -1354,6 +1354,7 @@ def _collect_task_handler_catalog(
                     "file": relpath,
                     "name": task_name,
                     "module": module_name,
+                    "parameters": _compact_task_parameters(task, module_name),
                 }
             )
 
@@ -1375,9 +1376,30 @@ def _collect_task_handler_catalog(
                         "file": relpath,
                         "name": task_name,
                         "module": module_name,
+                        "parameters": _compact_task_parameters(task, module_name),
                     }
                 )
     return task_entries, handler_entries
+
+
+def _compact_task_parameters(task: dict, module_name: str) -> str:
+    """Render a compact and bounded summary of key task parameters."""
+    value = task.get(module_name)
+    if isinstance(value, dict):
+        pairs = [
+            f"{key}={_format_inline_yaml(val)}"
+            for key, val in value.items()
+            if key not in {"src", "dest", "name"}
+        ]
+        if pairs:
+            rendered = ", ".join(pairs[:3])
+            if len(pairs) > 3:
+                rendered += ", ..."
+            return rendered
+    if isinstance(value, str):
+        compact = value.strip().replace("\n", " ")
+        return compact[:80] + ("..." if len(compact) > 80 else "")
+    return ""
 
 
 def _compute_quality_metrics(
@@ -2123,6 +2145,22 @@ def _describe_variable(name: str, source: str) -> str:
     return f"Configured from `{source}` and can be overridden for environment-specific behavior."
 
 
+def _is_role_local_variable_row(row: dict) -> bool:
+    """Return whether a variable insight row is role-local/static source truth."""
+    source = str(row.get("source") or "")
+    provenance_source = row.get("provenance_source_file")
+    if source.startswith("seed:"):
+        return False
+    if source.startswith("README.md"):
+        return False
+    if provenance_source is None:
+        return False
+    provenance_value = str(provenance_source)
+    if provenance_value.startswith("/"):
+        return False
+    return True
+
+
 def _render_role_variables_for_style(variables: dict, metadata: dict) -> str:
     """Render role variables following the style guide's preferred format."""
     if not variables:
@@ -2132,14 +2170,24 @@ def _render_role_variables_for_style(variables: dict, metadata: dict) -> str:
     variable_style = style_guide.get("variable_style", "simple_list")
     variable_intro = style_guide.get("variable_intro")
     variable_insights = metadata.get("variable_insights") or []
+    local_rows = [row for row in variable_insights if _is_role_local_variable_row(row)]
+    external_context = metadata.get("external_vars_context") or {}
+    has_external_context = bool(external_context.get("paths"))
 
     if variable_style == "table":
         lines: list[str] = []
         if variable_intro:
             lines.extend([variable_intro, ""])
+        if has_external_context:
+            lines.extend(
+                [
+                    "External variable context paths were provided as non-authoritative hints and are excluded from this role-source table.",
+                    "",
+                ]
+            )
         lines.extend(["| Name | Default | Description |", "| --- | --- | --- |"])
         source_by_name = {
-            row.get("name"): row for row in variable_insights if row.get("name")
+            row.get("name"): row for row in local_rows if row.get("name")
         }
         for name, value in variables.items():
             row = source_by_name.get(name) or {}
@@ -2157,7 +2205,13 @@ def _render_role_variables_for_style(variables: dict, metadata: dict) -> str:
         lines: list[str] = []
         if variable_intro:
             lines.extend([variable_intro, ""])
-        for row in variable_insights:
+        if has_external_context:
+            lines.append(
+                "External variable context paths were provided as non-authoritative hints and are excluded from this role-source list."
+            )
+            lines.append("")
+        rows_for_display = local_rows or variable_insights
+        for row in rows_for_display:
             default = _format_inline_yaml(row["default"]).replace("`", "'")
             lines.append(f"* `{row['name']}`")
             lines.append(f"  * Default: `{default}`")
@@ -2317,10 +2371,11 @@ def _render_guide_section_body(
 
     if section_id == "variable_summary":
         rows = metadata.get("variable_insights") or []
-        if not rows:
+        local_rows = [row for row in rows if _is_role_local_variable_row(row)]
+        if not local_rows:
             return "No variable insights available."
         lines = ["| Name | Type | Default | Source |", "| --- | --- | --- | --- |"]
-        for row in rows:
+        for row in local_rows:
             default = str(row["default"]).replace("`", "'")
             source = row["source"]
             if row.get("secret"):
@@ -2328,7 +2383,15 @@ def _render_guide_section_body(
             lines.append(
                 f"| `{row['name']}` | {row['type']} | `{default}` | {source} |"
             )
-        uncertainty_notes = _render_variable_uncertainty_notes(rows)
+        external_context = metadata.get("external_vars_context") or {}
+        if external_context.get("paths"):
+            lines.extend(
+                [
+                    "",
+                    "External variable context paths were used as non-authoritative hints and are not listed in the table above.",
+                ]
+            )
+        uncertainty_notes = _render_variable_uncertainty_notes(local_rows)
         if uncertainty_notes:
             lines.extend(["", uncertainty_notes])
         return "\n".join(lines)
@@ -2373,15 +2436,15 @@ def _render_guide_section_body(
                     "",
                     "Detailed task catalog:",
                     "",
-                    "| File | Task | Module |",
-                    "| --- | --- | --- |",
+                    "| File | Task | Module | Parameters |",
+                    "| --- | --- | --- | --- |",
                 ]
             )
             for entry in task_catalog:
                 if not isinstance(entry, dict):
                     continue
                 lines.append(
-                    f"| `{entry.get('file', '')}` | {entry.get('name', '')} | `{entry.get('module', '')}` |"
+                    f"| `{entry.get('file', '')}` | {entry.get('name', '')} | `{entry.get('module', '')}` | {entry.get('parameters', '')} |"
                 )
         return "\n".join(lines)
 
@@ -2465,15 +2528,15 @@ def _render_guide_section_body(
                     "",
                     "Detailed handler catalog:",
                     "",
-                    "| File | Handler | Module |",
-                    "| --- | --- | --- |",
+                    "| File | Handler | Module | Parameters |",
+                    "| --- | --- | --- | --- |",
                 ]
             )
             for entry in handler_catalog:
                 if not isinstance(entry, dict):
                     continue
                 lines.append(
-                    f"| `{entry.get('file', '')}` | {entry.get('name', '')} | `{entry.get('module', '')}` |"
+                    f"| `{entry.get('file', '')}` | {entry.get('name', '')} | `{entry.get('module', '')}` | {entry.get('parameters', '')} |"
                 )
         return "\n".join(lines)
 
@@ -3201,6 +3264,12 @@ def run_scan(
         include_vars_main=include_vars_main,
         exclude_paths=exclude_path_patterns,
     )
+    if vars_seed_paths:
+        metadata["external_vars_context"] = {
+            "paths": [str(path) for path in vars_seed_paths],
+            "authoritative": False,
+            "purpose": "required_variable_detection_hints",
+        }
     metadata["variable_insights"] = variable_insights
     metadata["role_notes"] = _extract_role_notes_from_comments(
         role_path,
