@@ -1361,6 +1361,9 @@ def _collect_task_handler_catalog(
         seen_files.add(task_file)
         data = _load_yaml_file(task_file)
         relpath = str(task_file.relative_to(role_root))
+        # Strip "tasks/" prefix since this is a task catalog
+        if relpath.startswith("tasks/"):
+            relpath = relpath[6:]
         
         for task in _iter_task_mappings(data):
             # Add this task to the catalog
@@ -1413,6 +1416,9 @@ def _collect_task_handler_catalog(
                 continue
             data = _load_yaml_file(handler_file)
             relpath = str(handler_file.relative_to(role_root))
+            # Strip "handlers/" prefix since this is a handler catalog
+            if relpath.startswith("handlers/"):
+                relpath = relpath[9:]
             for task in _iter_task_mappings(data):
                 module_name = _detect_task_module(task) or "unknown"
                 task_name = str(task.get("name") or "(unnamed handler)")
