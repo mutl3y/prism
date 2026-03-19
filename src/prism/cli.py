@@ -26,6 +26,8 @@ from .scanner import (
     resolve_default_style_guide_source,
     run_scan,
 )
+from .feedback import load_feedback, apply_feedback_recommendations
+from urllib.error import HTTPError, URLError
 
 
 class _ReadableYamlDumper(yaml.SafeDumper):
@@ -433,6 +435,15 @@ def _add_shared_scan_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Include collection compliance audit notes in requirements sections (off by default).",
     )
+    parser.add_argument(
+        "--feedback-from-learn",
+        default=None,
+        help=(
+            "Optional feedback source for guided audit recommendations from prism-learn. "
+            "Can be a local file path (feedback.json) or HTTPS API endpoint URL. "
+            "Feedback can override CLI flags based on aggregate role analysis."
+        ),
+    )
 
 
 def _add_common_output_arguments(
@@ -751,6 +762,20 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
                     break
         if args.create_style_guide and not style_readme_path:
             style_readme_path = args.style_source or resolve_default_style_guide_source()
+
+        # Load optional feedback from prism-learn to guide scanner behavior
+        try:
+            feedback = load_feedback(args.feedback_from_learn)
+        except (FileNotFoundError, HTTPError, URLError, json.JSONDecodeError, ValueError) as exc:
+            print(f"Error loading feedback: {exc}", file=sys.stderr)
+            return 1
+
+        # Apply feedback recommendations to override CLI flags if recommended
+        applied = apply_feedback_recommendations(
+            feedback, args.include_collection_checks
+        )
+        include_collection_checks = applied["include_collection_checks"]
+
         outpath = run_scan(
             str(role_path),
             output=args.output,
@@ -772,7 +797,7 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
             style_source_path=args.style_source,
             policy_config_path=args.policy_config,
             detailed_catalog=args.detailed_catalog,
-            include_collection_checks=args.include_collection_checks,
+            include_collection_checks=include_collection_checks,
             dry_run=args.dry_run,
         )
         if args.dry_run:
@@ -799,6 +824,19 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
 
     vars_context_paths = _resolve_vars_context_paths(args)
 
+    # Load optional feedback from prism-learn to guide scanner behavior
+    try:
+        feedback = load_feedback(args.feedback_from_learn)
+    except (FileNotFoundError, HTTPError, URLError, json.JSONDecodeError, ValueError) as exc:
+        print(f"Error loading feedback: {exc}", file=sys.stderr)
+        return 1
+
+    # Apply feedback recommendations to override CLI flags if recommended
+    applied = apply_feedback_recommendations(
+        feedback, args.include_collection_checks
+    )
+    include_collection_checks = applied["include_collection_checks"]
+
     payload = scan_collection(
         args.collection_path,
         compare_role_path=args.compare_role_path,
@@ -816,7 +854,7 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
         style_source_path=args.style_source,
         policy_config_path=args.policy_config,
         detailed_catalog=args.detailed_catalog,
-        include_collection_checks=args.include_collection_checks,
+        include_collection_checks=include_collection_checks,
         include_rendered_readme=args.format == "md",
     )
     rendered = (
@@ -858,6 +896,19 @@ def _handle_role_command(args: argparse.Namespace) -> int:
     """Handle local role documentation."""
     vars_context_paths = _resolve_vars_context_paths(args)
 
+    # Load optional feedback from prism-learn to guide scanner behavior
+    try:
+        feedback = load_feedback(args.feedback_from_learn)
+    except (FileNotFoundError, HTTPError, URLError, json.JSONDecodeError, ValueError) as exc:
+        print(f"Error loading feedback: {exc}", file=sys.stderr)
+        return 1
+
+    # Apply feedback recommendations to override CLI flags if recommended
+    applied = apply_feedback_recommendations(
+        feedback, args.include_collection_checks
+    )
+    include_collection_checks = applied["include_collection_checks"]
+
     style_readme_path = args.style_readme
     if args.create_style_guide and not style_readme_path:
         style_readme_path = args.style_source or resolve_default_style_guide_source()
@@ -881,7 +932,7 @@ def _handle_role_command(args: argparse.Namespace) -> int:
         style_source_path=args.style_source,
         policy_config_path=args.policy_config,
         detailed_catalog=args.detailed_catalog,
-        include_collection_checks=args.include_collection_checks,
+        include_collection_checks=include_collection_checks,
         dry_run=args.dry_run,
     )
     if args.dry_run:
