@@ -428,6 +428,11 @@ def _add_shared_scan_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Include detailed task and handler tables in generated README sections.",
     )
+    parser.add_argument(
+        "--include-collection-checks",
+        action="store_true",
+        help="Include collection compliance audit notes in requirements sections (off by default).",
+    )
 
 
 def _add_common_output_arguments(
@@ -767,6 +772,7 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
             style_source_path=args.style_source,
             policy_config_path=args.policy_config,
             detailed_catalog=args.detailed_catalog,
+            include_collection_checks=args.include_collection_checks,
             dry_run=args.dry_run,
         )
         if args.dry_run:
@@ -810,6 +816,7 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
         style_source_path=args.style_source,
         policy_config_path=args.policy_config,
         detailed_catalog=args.detailed_catalog,
+        include_collection_checks=args.include_collection_checks,
         include_rendered_readme=args.format == "md",
     )
     rendered = (
@@ -874,6 +881,7 @@ def _handle_role_command(args: argparse.Namespace) -> int:
         style_source_path=args.style_source,
         policy_config_path=args.policy_config,
         detailed_catalog=args.detailed_catalog,
+        include_collection_checks=args.include_collection_checks,
         dry_run=args.dry_run,
     )
     if args.dry_run:

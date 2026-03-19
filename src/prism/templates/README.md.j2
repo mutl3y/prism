@@ -183,11 +183,37 @@ The scanner collected these role subdirectories (counts):
 - **{{ key }}**: {{ items|length }} files
 {% endfor %}
 
-{% for key, items in metadata.items() if key not in ('meta', 'features', 'comparison', 'variable_insights', 'doc_insights', 'role_notes', 'scanner_counters') %}
+{% for key, items in metadata.items() if key not in ('meta', 'features', 'comparison', 'variable_insights', 'doc_insights', 'role_notes', 'scanner_counters', 'collection_compliance_notes', 'keep_unknown_style_sections') %}
 {% if items %}
 ### {{ key|capitalize }}
 
-{% if items is sequence %}
+{% if key == 'task_catalog' and items is sequence and items|length > 0 and items[0] is mapping %}
+| File | Name | Module | Parameters |
+| --- | --- | --- | --- |
+{% for task in items %}
+{% if loop.index0 < 50 %}
+| `{{ task.file }}` | {{ task.name }} | {{ task.module }} | {{ task.parameters[:80] }}{% if task.parameters|length > 80 %}...{% endif %} |
+{% endif %}
+{% endfor %}
+{% if items|length > 50 %}
+
+... and {{ items|length - 50 }} more tasks
+{% endif %}
+
+{% elif key == 'handler_catalog' and items is sequence and items|length > 0 and items[0] is mapping %}
+| File | Name | Module |
+| --- | --- | --- |
+{% for handler in items %}
+{% if loop.index0 < 50 %}
+| `{{ handler.file }}` | {{ handler.name }} | {{ handler.module }} |
+{% endif %}
+{% endfor %}
+{% if items|length > 50 %}
+
+... and {{ items|length - 50 }} more handlers
+{% endif %}
+
+{% elif items is sequence %}
 {% for it in items %}
 {% if loop.index0 < 20 %}
 - {{ it }}

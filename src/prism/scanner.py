@@ -3119,21 +3119,25 @@ def _build_requirements_display(
     requirements: list,
     meta: dict,
     features: dict,
+    include_collection_checks: bool = True,
 ) -> tuple[list[str], list[str]]:
     """Build rendered requirements lines and collection compliance notes."""
-    collection_compliance_notes = _build_collection_compliance_notes(
-        features=features,
-        meta=meta,
-        requirements=requirements,
-    )
+    collection_compliance_notes = []
+    if include_collection_checks:
+        collection_compliance_notes = _build_collection_compliance_notes(
+            features=features,
+            meta=meta,
+            requirements=requirements,
+        )
     requirements_display = normalize_requirements(requirements)
     meta_dependencies_display = _normalize_meta_role_dependencies(meta)
     for dep in meta_dependencies_display:
         if dep not in requirements_display:
             requirements_display.append(dep)
-    requirements_display.extend(
-        f"[Collection check] {note}" for note in collection_compliance_notes
-    )
+    if include_collection_checks:
+        requirements_display.extend(
+            f"[Collection check] {note}" for note in collection_compliance_notes
+        )
     return requirements_display, collection_compliance_notes
 
 
@@ -3204,6 +3208,7 @@ def run_scan(
     policy_config_path: str | None = None,
     detailed_catalog: bool = False,
     dry_run: bool = False,
+    include_collection_checks: bool = True,
 ) -> str:
     _refresh_policy(policy_config_path)
 
@@ -3240,6 +3245,7 @@ def run_scan(
         requirements=requirements,
         meta=meta,
         features=metadata.get("features") or {},
+        include_collection_checks=include_collection_checks,
     )
     metadata["collection_compliance_notes"] = collection_compliance_notes
     metadata["keep_unknown_style_sections"] = keep_unknown_style_sections
