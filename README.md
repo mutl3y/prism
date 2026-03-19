@@ -194,6 +194,7 @@ CLI capabilities (today):
 - Preview without writes: `--dry-run` (prints rendered output to stdout)
 - Scanner detail output: `--concise-readme`, `--scanner-report-output`
 - Subcommand workflows: `prism role`, `prism collection`, `prism repo`, `prism completion bash`
+- Top-level invocation without a subcommand is unsupported.
 - External context hints: `--vars-context-path` (preferred) with backward-compatible `--vars-seed` alias
 - Detailed task/handler tables: `--detailed-catalog`
 - Local baseline comparison is opt-in only via `--compare-role-path`.

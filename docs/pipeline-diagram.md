@@ -46,3 +46,5 @@ usage: prism [-h] {role,collection,repo,completion} ...
 | `-f` | Output format (`role`/`repo`: `md|html|json|pdf`, `collection`: `md|json`) |
 | `--dry-run` | Print rendered output without writing files |
 | `-v` | Verbose output |
+
+Note: top-level invocation without a subcommand is no longer supported; use `role`, `collection`, `repo`, or `completion`.
