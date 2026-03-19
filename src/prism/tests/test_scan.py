@@ -646,6 +646,84 @@ def test_extract_role_notes_from_comments(tmp_path):
     assert notes["additionals"] == ["keep inventory in sync"]
 
 
+def test_extract_role_notes_from_short_aliases(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "#w# package is unhealthy\n"
+        "#d# old parameter is deprecated\n"
+        "#n# run with --check first\n"
+        "#a# keep inventory in sync\n",
+        encoding="utf-8",
+    )
+
+    notes = scanner._extract_role_notes_from_comments(str(role))
+
+    assert notes["warnings"] == ["package is unhealthy"]
+    assert notes["deprecations"] == ["old parameter is deprecated"]
+    assert notes["notes"] == ["run with --check first"]
+    assert notes["additionals"] == ["keep inventory in sync"]
+
+
+def test_extract_task_annotations_for_file_supports_short_and_explicit():
+    lines = [
+        "---",
+        "#t# Runbook: verify template syntax",
+        "- name: Deploy app",
+        "  ansible.builtin.template:",
+        "    src: app.conf.j2",
+        "#t(Deploy app)# Warning: verify permissions manually",
+        "#t# note: check service health",
+    ]
+
+    implicit, explicit = scanner._extract_task_annotations_for_file(lines)
+
+    assert implicit == [
+        {"kind": "runbook", "text": "verify template syntax"},
+        {"kind": "note", "text": "check service health"},
+    ]
+    assert explicit["Deploy app"] == [
+        {"kind": "warning", "text": "verify permissions manually"}
+    ]
+
+
+def test_collect_task_handler_catalog_attaches_annotation_metadata(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    handlers = role / "handlers"
+    tasks.mkdir(parents=True)
+    handlers.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "#t# Runbook: fallback to manual copy if automation fails\n"
+        "- name: Deploy app\n"
+        "  ansible.builtin.template:\n"
+        "    src: app.conf.j2\n"
+        "    dest: /etc/app.conf\n",
+        encoding="utf-8",
+    )
+    (handlers / "main.yml").write_text(
+        "---\n"
+        "- name: Restart app\n"
+        "  ansible.builtin.service:\n"
+        "    name: app\n"
+        "    state: restarted\n",
+        encoding="utf-8",
+    )
+
+    task_catalog, handler_catalog = scanner._collect_task_handler_catalog(str(role))
+
+    assert task_catalog[0]["runbook"] == "fallback to manual copy if automation fails"
+    assert task_catalog[0]["annotations"] == [
+        {"kind": "runbook", "text": "fallback to manual copy if automation fails"}
+    ]
+    assert task_catalog[0]["anchor"].startswith("task-main-yml-deploy-app")
+    assert handler_catalog[0]["anchor"].startswith("task-main-yml-restart-app")
+
+
 def test_extract_scanner_counters_groups_by_confidence_and_status():
     counters = scanner._extract_scanner_counters(
         [

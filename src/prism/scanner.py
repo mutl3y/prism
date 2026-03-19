@@ -228,6 +228,19 @@ ROLE_NOTES_RE = re.compile(
     r"^\s*#\s*<notes>\s*(warning|deprecated|note|additional|additionals)?\s*:?\s*(.*)$",
     flags=re.IGNORECASE,
 )
+ROLE_NOTES_SHORT_RE = re.compile(
+    r"^\s*#\s*(w|d|n|a)#\s*(.*)$",
+    flags=re.IGNORECASE,
+)
+TASK_NOTES_LONG_RE = re.compile(
+    r"^\s*#\s*<task(?:\s*:\s*([^>]+))?>\s*(.*)$",
+    flags=re.IGNORECASE,
+)
+TASK_NOTES_SHORT_RE = re.compile(
+    r"^\s*#\s*t(?:\(([^)]+)\))?#\s*(.*)$",
+    flags=re.IGNORECASE,
+)
+COMMENT_CONTINUATION_RE = re.compile(r"^\s*#\s?(.*)$")
 _JINJA_AST_ENV = jinja2.Environment()
 
 IGNORED_IDENTIFIERS: set[str] = _POLICY["ignored_identifiers"]
@@ -970,21 +983,34 @@ def _extract_role_notes_from_comments(
         while i < len(lines):
             line = lines[i]
             match = ROLE_NOTES_RE.match(line)
-            if not match:
+            short_match = ROLE_NOTES_SHORT_RE.match(line)
+            if not match and not short_match:
                 i += 1
                 continue
-            note_type = (match.group(1) or "note").lower()
-            text = (match.group(2) or "").strip()
+            note_type = "note"
+            text = ""
+            if match:
+                note_type = (match.group(1) or "note").lower()
+                text = (match.group(2) or "").strip()
+            elif short_match:
+                alias = (short_match.group(1) or "n").lower()
+                text = (short_match.group(2) or "").strip()
+                if alias == "w":
+                    note_type = "warning"
+                elif alias == "d":
+                    note_type = "deprecated"
+                elif alias == "a":
+                    note_type = "additional"
             continuation: list[str] = []
             j = i + 1
             while j < len(lines):
                 next_line = lines[j]
-                if ROLE_NOTES_RE.match(next_line):
+                if ROLE_NOTES_RE.match(next_line) or ROLE_NOTES_SHORT_RE.match(next_line):
                     break
-                cont_match = re.match(r"^\s*#\s+(.+)$", next_line)
+                cont_match = COMMENT_CONTINUATION_RE.match(next_line)
                 if not cont_match:
                     break
-                continuation.append(cont_match.group(1).strip())
+                continuation.append((cont_match.group(1) or "").strip())
                 j += 1
             if continuation:
                 text = " ".join(part for part in [text, *continuation] if part)
@@ -1000,6 +1026,82 @@ def _extract_role_notes_from_comments(
             i = j if j > i + 1 else i + 1
 
     return categories
+
+
+def _split_task_annotation_label(text: str) -> tuple[str, str]:
+    """Return normalized annotation kind and body from a comment payload."""
+    raw = text.strip()
+    if not raw:
+        return "note", ""
+    if ":" not in raw:
+        return "note", raw
+
+    prefix, remainder = raw.split(":", 1)
+    label = prefix.strip().lower()
+    body = remainder.strip()
+    if label in {"runbook", "warning", "deprecated", "note", "additional"}:
+        return label, body
+    return "note", raw
+
+
+def _extract_task_annotations_for_file(
+    lines: list[str],
+) -> tuple[list[dict[str, str]], dict[str, list[dict[str, str]]]]:
+    """Extract implicit and explicit task annotations from file comment lines."""
+    implicit: list[dict[str, str]] = []
+    explicit: dict[str, list[dict[str, str]]] = defaultdict(list)
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        long_match = TASK_NOTES_LONG_RE.match(line)
+        short_match = TASK_NOTES_SHORT_RE.match(line)
+        if not long_match and not short_match:
+            i += 1
+            continue
+
+        target_name = ""
+        text = ""
+        if long_match:
+            target_name = (long_match.group(1) or "").strip()
+            text = (long_match.group(2) or "").strip()
+        elif short_match:
+            target_name = (short_match.group(1) or "").strip()
+            text = (short_match.group(2) or "").strip()
+
+        continuation: list[str] = []
+        j = i + 1
+        while j < len(lines):
+            next_line = lines[j]
+            if TASK_NOTES_LONG_RE.match(next_line) or TASK_NOTES_SHORT_RE.match(next_line):
+                break
+            cont_match = COMMENT_CONTINUATION_RE.match(next_line)
+            if not cont_match:
+                break
+            continuation.append((cont_match.group(1) or "").strip())
+            j += 1
+
+        if continuation:
+            text = "\n".join(part for part in [text, *continuation] if part)
+
+        kind, body = _split_task_annotation_label(text)
+        if body:
+            item = {"kind": kind, "text": body}
+            if target_name:
+                explicit[target_name].append(item)
+            else:
+                implicit.append(item)
+
+        i = j if j > i + 1 else i + 1
+
+    return implicit, explicit
+
+
+def _task_anchor(file_path: str, task_name: str, index: int) -> str:
+    """Build a stable markdown anchor id for task detail links."""
+    raw = f"task-{file_path}-{task_name}-{index}"
+    slug = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-")
+    return slug or f"task-{index}"
 
 
 def load_meta(role_path: str) -> dict:
@@ -1339,7 +1441,7 @@ def _collect_molecule_scenarios(
 def _collect_task_handler_catalog(
     role_path: str,
     exclude_paths: list[str] | None = None,
-) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     """Build optional detailed task and handler catalogs for README rendering.
     
     Tasks are collected in execution order (depth-first), following includes
@@ -1349,7 +1451,7 @@ def _collect_task_handler_catalog(
     
     def _collect_tasks_recursive(
         task_file: Path,
-        task_entries: list[dict[str, str]],
+        task_entries: list[dict[str, object]],
         seen_files: set[Path],
     ) -> None:
         """Recursively collect tasks in execution order, following includes."""
@@ -1360,6 +1462,14 @@ def _collect_task_handler_catalog(
         
         seen_files.add(task_file)
         data = _load_yaml_file(task_file)
+        try:
+            raw_lines = task_file.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            raw_lines = []
+        implicit_annotations, explicit_annotations = _extract_task_annotations_for_file(
+            raw_lines
+        )
+        implicit_index = 0
         relpath = str(task_file.relative_to(role_root))
         # Strip "tasks/" prefix since this is a task catalog
         if relpath.startswith("tasks/"):
@@ -1369,12 +1479,28 @@ def _collect_task_handler_catalog(
             # Add this task to the catalog
             module_name = _detect_task_module(task) or "unknown"
             task_name = str(task.get("name") or "(unnamed task)")
+            annotations: list[dict[str, str]] = []
+            if implicit_index < len(implicit_annotations):
+                annotations.append(implicit_annotations[implicit_index])
+                implicit_index += 1
+            annotations.extend(explicit_annotations.get(task_name, []))
+
+            runbook_items = [
+                note.get("text", "")
+                for note in annotations
+                if note.get("kind") == "runbook" and note.get("text")
+            ]
+            runbook = runbook_items[0] if runbook_items else ""
+            anchor = _task_anchor(relpath, task_name, len(task_entries) + 1)
             task_entries.append(
                 {
                     "file": relpath,
                     "name": task_name,
                     "module": module_name,
                     "parameters": _compact_task_parameters(task, module_name),
+                    "anchor": anchor,
+                    "runbook": runbook,
+                    "annotations": annotations,
                 }
             )
             
@@ -1389,7 +1515,7 @@ def _collect_task_handler_catalog(
     
     # Start with main.yml if it exists, otherwise with any available task file
     tasks_dir = role_root / "tasks"
-    task_entries: list[dict[str, str]] = []
+    task_entries: list[dict[str, object]] = []
     seen_files: set[Path] = set()
     
     if tasks_dir.is_dir():
@@ -1406,7 +1532,7 @@ def _collect_task_handler_catalog(
                 _collect_tasks_recursive(task_file, task_entries, seen_files)
     
     # Handlers are typically not nested, so collect them normally
-    handler_entries: list[dict[str, str]] = []
+    handler_entries: list[dict[str, object]] = []
     handlers_dir = role_root / "handlers"
     if handlers_dir.is_dir():
         for handler_file in sorted(
@@ -1428,6 +1554,7 @@ def _collect_task_handler_catalog(
                         "name": task_name,
                         "module": module_name,
                         "parameters": _compact_task_parameters(task, module_name),
+                        "anchor": _task_anchor(relpath, task_name, len(handler_entries) + 1),
                     }
                 )
     return task_entries, handler_entries
@@ -3269,6 +3396,9 @@ def run_scan(
     detailed_catalog: bool = False,
     dry_run: bool = False,
     include_collection_checks: bool = True,
+    include_task_parameters: bool = True,
+    include_task_runbooks: bool = True,
+    inline_task_runbooks: bool = True,
 ) -> str:
     _refresh_policy(policy_config_path)
 
@@ -3294,6 +3424,9 @@ def run_scan(
         exclude_paths=exclude_path_patterns,
     )
     metadata["detailed_catalog"] = bool(detailed_catalog)
+    metadata["include_task_parameters"] = bool(include_task_parameters)
+    metadata["include_task_runbooks"] = bool(include_task_runbooks)
+    metadata["inline_task_runbooks"] = bool(inline_task_runbooks)
     if detailed_catalog:
         task_catalog, handler_catalog = _collect_task_handler_catalog(
             role_path,

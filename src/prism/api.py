@@ -221,6 +221,9 @@ def scan_collection(
     include_rendered_readme: bool = False,
     detailed_catalog: bool = False,
     include_collection_checks: bool = False,
+    include_task_parameters: bool = True,
+    include_task_runbooks: bool = True,
+    inline_task_runbooks: bool = True,
 ) -> dict[str, Any]:
     """Scan an Ansible collection root and return per-role payloads + metadata."""
     root = Path(collection_path).resolve()
@@ -260,6 +263,9 @@ def scan_collection(
                 policy_config_path=policy_config_path,
                 detailed_catalog=detailed_catalog,
                 include_collection_checks=include_collection_checks,
+                include_task_parameters=include_task_parameters,
+                include_task_runbooks=include_task_runbooks,
+                inline_task_runbooks=inline_task_runbooks,
             )
             rendered_readme = None
             if include_rendered_readme:
@@ -284,6 +290,9 @@ def scan_collection(
                     policy_config_path=policy_config_path,
                     detailed_catalog=detailed_catalog,
                     include_collection_checks=include_collection_checks,
+                    include_task_parameters=include_task_parameters,
+                    include_task_runbooks=include_task_runbooks,
+                    inline_task_runbooks=inline_task_runbooks,
                     dry_run=True,
                 )
             role_entries.append(
@@ -369,6 +378,9 @@ def scan_role(
     policy_config_path: str | None = None,
     detailed_catalog: bool = False,
     include_collection_checks: bool = False,
+    include_task_parameters: bool = True,
+    include_task_runbooks: bool = True,
+    inline_task_runbooks: bool = True,
 ) -> dict[str, Any]:
     """Return the scanner payload as a Python dictionary.
 
@@ -399,6 +411,9 @@ def scan_role(
         policy_config_path=policy_config_path,
         detailed_catalog=detailed_catalog,
         include_collection_checks=include_collection_checks,
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
         dry_run=True,
     )
     return json.loads(payload)
@@ -427,6 +442,9 @@ def scan_repo(
     policy_config_path: str | None = None,
     lightweight_readme_only: bool = False,
     include_collection_checks: bool = False,
+    include_task_parameters: bool = True,
+    include_task_runbooks: bool = True,
+    inline_task_runbooks: bool = True,
 ) -> dict[str, Any]:
     """Clone a repository source, scan the requested role path, and return a dict.
 
@@ -547,6 +565,9 @@ def scan_repo(
                 style_source_path=style_source_path,
                 policy_config_path=policy_config_path,
                 include_collection_checks=include_collection_checks,
+                include_task_parameters=include_task_parameters,
+                include_task_runbooks=include_task_runbooks,
+                inline_task_runbooks=inline_task_runbooks,
             )
             return _normalize_repo_style_guide_path(
                 payload,
@@ -603,6 +624,9 @@ def scan_repo(
             style_source_path=style_source_path,
             policy_config_path=policy_config_path,
             include_collection_checks=include_collection_checks,
+            include_task_parameters=include_task_parameters,
+            include_task_runbooks=include_task_runbooks,
+            inline_task_runbooks=inline_task_runbooks,
         )
         return _normalize_repo_style_guide_path(
             payload,
