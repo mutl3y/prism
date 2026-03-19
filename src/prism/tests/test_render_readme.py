@@ -169,6 +169,66 @@ def test_run_scan_renders_task_catalog_with_links_and_details(tmp_path):
     assert "manually copy /tmp/demo if template fails" in content
 
 
+def test_render_runbook_standalone_returns_role_name_and_sections(tmp_path):
+    metadata = {
+        "task_catalog": [
+            {
+                "file": "tasks/main.yml",
+                "name": "Deploy app",
+                "module": "ansible.builtin.copy",
+                "parameters": "src=/tmp/app dest=/opt/app",
+                "anchor": "task-main-yml-deploy-app-1",
+                "runbook": "copy /tmp/app to /opt/app then restart",
+                "annotations": [
+                    {"kind": "runbook", "text": "copy /tmp/app to /opt/app then restart"},
+                    {"kind": "warning", "text": "requires sudo"},
+                ],
+            }
+        ],
+        "role_notes": {
+            "warnings": [],
+            "deprecations": [],
+            "notes": ["standard deploy role"],
+            "additionals": [],
+        },
+    }
+    content = scanner.render_runbook("my_role", metadata)
+    assert "# RUNBOOK: my_role" in content
+    assert "## Role Notes" in content
+    assert "standard deploy role" in content
+    assert "## Task Runbooks" in content
+    assert "### Deploy app" in content
+    assert '<a id="task-main-yml-deploy-app-1"></a>' in content
+    assert "#### Steps" in content
+    assert "copy /tmp/app to /opt/app then restart" in content
+    assert "**Warning:** requires sudo" in content
+
+
+def test_run_scan_writes_runbook_output_file(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "#t# Runbook: manually restart nginx if deploy fails\n"
+        "- name: restart nginx\n"
+        "  ansible.builtin.service:\n"
+        "    name: nginx\n"
+        "    state: restarted\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "README.md"
+    rb_out = tmp_path / "RUNBOOK.md"
+    scanner.run_scan(str(role), output=str(out), runbook_output=str(rb_out))
+
+    assert rb_out.is_file(), "runbook file should be written"
+    content = rb_out.read_text(encoding="utf-8")
+    assert "# RUNBOOK:" in content
+    assert "## Task Runbooks" in content
+    assert "restart nginx" in content
+    assert "manually restart nginx if deploy fails" in content
+
+
 def test_run_scan_scanner_report_includes_issue_categories(tmp_path):
     role = tmp_path / "role"
     (role / "tasks").mkdir(parents=True)

@@ -22,7 +22,7 @@ from .cli import (
     _repo_name_from_url,
 )
 from .collection_plugins import scan_collection_plugins
-from .scanner import run_scan
+from .scanner import run_scan, render_runbook
 
 _REQUIRED_ROLE_DIRS = ("defaults", "tasks", "meta")
 
@@ -224,8 +224,12 @@ def scan_collection(
     include_task_parameters: bool = True,
     include_task_runbooks: bool = True,
     inline_task_runbooks: bool = True,
+    runbook_output_dir: str | None = None,
 ) -> dict[str, Any]:
     """Scan an Ansible collection root and return per-role payloads + metadata."""
+    # Auto-enable task catalog collection when runbook output is requested.
+    if runbook_output_dir and not detailed_catalog:
+        detailed_catalog = True
     root = Path(collection_path).resolve()
     if not root.is_dir():
         raise FileNotFoundError(f"collection path not found: {collection_path}")
@@ -303,6 +307,13 @@ def scan_collection(
                     "rendered_readme": rendered_readme,
                 }
             )
+            if runbook_output_dir:
+                rb_dir = Path(runbook_output_dir)
+                rb_dir.mkdir(parents=True, exist_ok=True)
+                rb_metadata = payload.get("metadata") or {}
+                rb_role_name = payload.get("role_name") or role_dir.name
+                rb_content = render_runbook(rb_role_name, rb_metadata)
+                (rb_dir / f"{role_dir.name}.runbook.md").write_text(rb_content, encoding="utf-8")
         except Exception as exc:
             failures.append(
                 {

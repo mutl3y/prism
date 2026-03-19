@@ -3301,6 +3301,31 @@ def render_readme(
     return rendered
 
 
+def render_runbook(
+    role_name: str,
+    metadata: dict | None = None,
+    template: str | None = None,
+) -> str:
+    """Render a standalone runbook markdown document for a role.
+
+    The output focuses on task annotations and role notes, making it suitable
+    as an operational reference independent of the generated README.
+    """
+    metadata = metadata or {}
+    if template:
+        tpl_file = Path(template)
+    else:
+        tpl_file = Path(__file__).parent / "templates" / "RUNBOOK.md.j2"
+
+    env = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(str(tpl_file.parent)),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    template_obj = env.get_template(tpl_file.name)
+    return template_obj.render(role_name=role_name, metadata=metadata)
+
+
 def _build_requirements_display(
     *,
     requirements: list,
@@ -3399,8 +3424,13 @@ def run_scan(
     include_task_parameters: bool = True,
     include_task_runbooks: bool = True,
     inline_task_runbooks: bool = True,
+    runbook_output: str | None = None,
 ) -> str:
     _refresh_policy(policy_config_path)
+
+    # Auto-enable task catalog collection when a standalone runbook is requested.
+    if runbook_output and not detailed_catalog:
+        detailed_catalog = True
 
     rp = Path(role_path)
     if not rp.is_dir():
@@ -3587,4 +3617,10 @@ def run_scan(
     )
     if dry_run:
         return final_content
-    return write_output(out_path, final_content)
+    result = write_output(out_path, final_content)
+    if runbook_output:
+        rb_path = Path(runbook_output)
+        rb_path.parent.mkdir(parents=True, exist_ok=True)
+        rb_content = render_runbook(role_name, metadata)
+        rb_path.write_text(rb_content, encoding="utf-8")
+    return result

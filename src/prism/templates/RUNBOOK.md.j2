@@ -1,0 +1,103 @@
+# RUNBOOK: {{ role_name }}
+{% if description %}
+> {{ description }}
+
+{% endif %}
+---
+
+{% set task_catalog = metadata.task_catalog if metadata.task_catalog is defined else [] %}
+{% set annotated_tasks = task_catalog | selectattr('annotations') | list %}
+{% set role_notes = metadata.role_notes if metadata.role_notes is defined else {} %}
+{% set has_role_notes = role_notes and (
+    (role_notes.warnings is defined and role_notes.warnings) or
+    (role_notes.deprecations is defined and role_notes.deprecations) or
+    (role_notes.notes is defined and role_notes.notes) or
+    (role_notes.additionals is defined and role_notes.additionals)
+) %}
+
+## Contents
+
+{% if has_role_notes %}
+- [Role Notes](#role-notes)
+{% endif %}
+{% if annotated_tasks %}
+{% for task in annotated_tasks %}
+- [{{ task.name }}](#{{ task.anchor }})
+{% endfor %}
+{% else %}
+_No task runbook annotations found._
+{% endif %}
+
+{% if has_role_notes %}
+---
+
+## Role Notes
+<a id="role-notes"></a>
+
+{% for warning in role_notes.warnings %}
+- **Warning:** {{ warning }}
+{% endfor %}
+{% for dep in role_notes.deprecations %}
+- **Deprecated:** {{ dep }}
+{% endfor %}
+{% for note in role_notes.notes %}
+- **Note:** {{ note }}
+{% endfor %}
+{% for extra in role_notes.additionals %}
+- **Additional:** {{ extra }}
+{% endfor %}
+
+{% endif %}
+{% if annotated_tasks %}
+
+---
+
+## Task Runbooks
+
+{% for task in annotated_tasks %}
+<a id="{{ task.anchor }}"></a>
+
+### {{ task.name }}
+
+| Field | Value |
+| --- | --- |
+| File | `{{ task.file }}` |
+| Module | `{{ task.module }}` |
+{% if task.parameters %}
+| Parameters | `{{ task.parameters }}` |
+{% endif %}
+
+{% set has_runbook = task.annotations | selectattr('kind', 'equalto', 'runbook') | list %}
+{% set other_notes = task.annotations | rejectattr('kind', 'equalto', 'runbook') | list %}
+{% if has_runbook %}
+#### Steps
+
+{% for note in has_runbook %}
+{{ note.text }}
+
+{% endfor %}
+{% endif %}
+{% if other_notes %}
+{% for note in other_notes %}
+> **{{ note.kind | capitalize }}:** {{ note.text }}
+
+{% endfor %}
+{% endif %}
+---
+
+{% endfor %}
+{% else %}
+
+---
+
+_No task runbook annotations were found in this role. To add runbooks, annotate your tasks with `#t#` or `# <task>` comments:_
+
+```yaml
+# #t# Runbook: restart service, verify with systemctl status
+- name: Restart nginx
+  ansible.builtin.service:
+    name: nginx
+    state: restarted
+```
+
+{% endif %}
