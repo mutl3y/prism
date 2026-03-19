@@ -9,18 +9,18 @@ CLI usage and flags reference.
 
 Companion repository:
 
-- https://github.com/mutl3y/prism-learn
+- <https://github.com/mutl3y/prism-learn>
 
 If you need long-running batch scans and scan-history analytics, use `prism-learn` on top of `prism-ansible`.
 
 ## Quick reference — `prism --help`
 
-```
+```text
 usage: prism [-h] {role,collection,repo,completion} ...
 ```
 
 | Command / Flag | Purpose |
-|------|---------|
+| --- | --- |
 | `role <role_path>` | Scan a local role and render docs |
 | `collection <collection_path>` | Scan a local collection root and render collection docs/payload |
 | `repo --repo-url <url>` | Clone + scan a repository role source |
@@ -43,7 +43,7 @@ usage: prism [-h] {role,collection,repo,completion} ...
 | `--repo-style-readme-path` | Repo command: README inside cloned repo to use as style guide |
 | `-o` | Output path |
 | `-t` | Custom Jinja2 template path (role/repo) |
-| `-f` | Output format (`role`/`repo`: `md|html|json|pdf`, `collection`: `md|json`) |
+| `-f` | Output format for role/repo: `md`, `html`, `json`, `pdf`; for collection: `md`, `json` |
 | `--dry-run` | Print rendered output without writing files |
 | `-v` | Verbose output |
 
