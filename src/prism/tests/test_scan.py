@@ -414,6 +414,8 @@ def test_extract_role_features_tracks_included_roles(tmp_path):
 
     assert features["included_role_calls"] == 2
     assert features["included_roles"] == "acme.common, acme.web"
+    assert features["dynamic_included_role_calls"] == 1
+    assert features["dynamic_included_roles"] == "{{ dynamic_role_name }}"
 
 
 def test_build_variable_insights_detects_required_undocumented_vars(tmp_path):
