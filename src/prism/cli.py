@@ -741,6 +741,27 @@ def _resolve_vars_context_paths(args: argparse.Namespace) -> list[str] | None:
     return context_paths or None
 
 
+def _resolve_include_collection_checks(
+    feedback_source: str | None,
+    include_collection_checks: bool,
+) -> bool | None:
+    """Load feedback and resolve the effective collection-checks flag."""
+    try:
+        feedback = load_feedback(feedback_source)
+    except (
+        FileNotFoundError,
+        HTTPError,
+        URLError,
+        json.JSONDecodeError,
+        ValueError,
+    ) as exc:
+        print(f"Error loading feedback: {exc}", file=sys.stderr)
+        return None
+
+    applied = apply_feedback_recommendations(feedback, include_collection_checks)
+    return bool(applied["include_collection_checks"])
+
+
 def _handle_repo_command(args: argparse.Namespace) -> int:
     """Handle repository-backed role documentation."""
     vars_context_paths = _resolve_vars_context_paths(args)
@@ -809,24 +830,12 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
                 args.style_source or resolve_default_style_guide_source()
             )
 
-        # Load optional feedback from prism-learn to guide scanner behavior
-        try:
-            feedback = load_feedback(args.feedback_from_learn)
-        except (
-            FileNotFoundError,
-            HTTPError,
-            URLError,
-            json.JSONDecodeError,
-            ValueError,
-        ) as exc:
-            print(f"Error loading feedback: {exc}", file=sys.stderr)
-            return 1
-
-        # Apply feedback recommendations to override CLI flags if recommended
-        applied = apply_feedback_recommendations(
-            feedback, args.include_collection_checks
+        include_collection_checks = _resolve_include_collection_checks(
+            args.feedback_from_learn,
+            args.include_collection_checks,
         )
-        include_collection_checks = applied["include_collection_checks"]
+        if include_collection_checks is None:
+            return 1
 
         outpath = run_scan(
             str(role_path),
@@ -881,22 +890,12 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
 
     vars_context_paths = _resolve_vars_context_paths(args)
 
-    # Load optional feedback from prism-learn to guide scanner behavior
-    try:
-        feedback = load_feedback(args.feedback_from_learn)
-    except (
-        FileNotFoundError,
-        HTTPError,
-        URLError,
-        json.JSONDecodeError,
-        ValueError,
-    ) as exc:
-        print(f"Error loading feedback: {exc}", file=sys.stderr)
+    include_collection_checks = _resolve_include_collection_checks(
+        args.feedback_from_learn,
+        args.include_collection_checks,
+    )
+    if include_collection_checks is None:
         return 1
-
-    # Apply feedback recommendations to override CLI flags if recommended
-    applied = apply_feedback_recommendations(feedback, args.include_collection_checks)
-    include_collection_checks = applied["include_collection_checks"]
 
     payload = scan_collection(
         args.collection_path,
@@ -962,22 +961,12 @@ def _handle_role_command(args: argparse.Namespace) -> int:
     """Handle local role documentation."""
     vars_context_paths = _resolve_vars_context_paths(args)
 
-    # Load optional feedback from prism-learn to guide scanner behavior
-    try:
-        feedback = load_feedback(args.feedback_from_learn)
-    except (
-        FileNotFoundError,
-        HTTPError,
-        URLError,
-        json.JSONDecodeError,
-        ValueError,
-    ) as exc:
-        print(f"Error loading feedback: {exc}", file=sys.stderr)
+    include_collection_checks = _resolve_include_collection_checks(
+        args.feedback_from_learn,
+        args.include_collection_checks,
+    )
+    if include_collection_checks is None:
         return 1
-
-    # Apply feedback recommendations to override CLI flags if recommended
-    applied = apply_feedback_recommendations(feedback, args.include_collection_checks)
-    include_collection_checks = applied["include_collection_checks"]
 
     style_readme_path = args.style_readme
     if args.create_style_guide and not style_readme_path:
