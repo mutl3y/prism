@@ -83,7 +83,9 @@ def test_extract_role_notes_from_comments_short_aliases_cover_branches(tmp_path)
     (role_root / "vars").mkdir()
     (role_root / "handlers").mkdir()
     (role_root / "defaults" / "main.yml").write_text(
-        "# d# old setting\n" "# a# extra details\n" "# n# regular note\n",
+        "# prism~deprecated: old setting\n"
+        "# prism~additional: extra details\n"
+        "# prism~notes: regular note\n",
         encoding="utf-8",
     )
 
@@ -96,7 +98,7 @@ def test_extract_role_notes_from_comments_short_aliases_cover_branches(tmp_path)
 
 def test_extract_task_annotations_for_file_long_syntax_with_continuation():
     lines = [
-        "# <task: Install package> runbook: run apt update",
+        "# prism~task: Install package | runbook: run apt update",
         "# then install packages",
         "- name: Install package",
     ]

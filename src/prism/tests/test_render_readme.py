@@ -125,9 +125,9 @@ def test_run_scan_renders_comment_driven_role_notes(tmp_path):
     (role / "tasks").mkdir(parents=True)
     (role / "tasks" / "main.yml").write_text(
         "---\n"
-        "# <notes> Warning: this package is unhealthy\n"
-        "# <notes> Note: test in staging first\n"
-        "# <notes> Additional: coordinate with platform team\n"
+        "# prism~warning: this package is unhealthy\n"
+        "# prism~note: test in staging first\n"
+        "# prism~additional: coordinate with platform team\n"
         "- name: noop\n"
         "  debug:\n"
         "    msg: ok\n",
@@ -150,7 +150,7 @@ def test_run_scan_renders_task_catalog_with_links_and_details(tmp_path):
     (role / "tasks").mkdir(parents=True)
     (role / "tasks" / "main.yml").write_text(
         "---\n"
-        "#t# Runbook: manually copy /tmp/demo if template fails\n"
+        "# prism~runbook: manually copy /tmp/demo if template fails\n"
         "- name: noop\n"
         "  debug:\n"
         "    msg: ok\n",
@@ -247,7 +247,7 @@ def test_run_scan_writes_runbook_output_file(tmp_path):
     (role / "tasks").mkdir(parents=True)
     (role / "tasks" / "main.yml").write_text(
         "---\n"
-        "#t# Runbook: manually restart nginx if deploy fails\n"
+        "# prism~runbook: manually restart nginx if deploy fails\n"
         "- name: restart nginx\n"
         "  ansible.builtin.service:\n"
         "    name: nginx\n"
@@ -277,8 +277,8 @@ def test_run_scan_writes_runbook_csv_output_file(tmp_path):
     (role / "tasks").mkdir(parents=True)
     (role / "tasks" / "main.yml").write_text(
         "---\n"
-        "#t# Runbook: manually restart nginx if deploy fails\n"
-        "#t(restart nginx)# Warning: confirm service user exists before restart\n"
+        "# prism~runbook: manually restart nginx if deploy fails\n"
+        "# prism~task: restart nginx | warning: confirm service user exists before restart\n"
         "- name: restart nginx\n"
         "  ansible.builtin.service:\n"
         "    name: nginx\n"

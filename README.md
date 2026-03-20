@@ -242,6 +242,7 @@ Current style-guide behavior:
   - `generate`: use scanner-generated section content only
   - `replace`: use style-guide/source section body text only
   - `merge`: combine source section text and generated output
+- Comment-driven role/task annotations now use `# <prefix>~<kind>: ...` markers (default prefix: `prism`). Configure the prefix with `markers.prefix` in `.prism.yml`.
 - `readme.section_content_modes` keys are resolved first against section labels used in `readme.include_sections`, then against aliases/canonical section ids.
 - Merge mode is idempotent for repeated ingest/re-render passes: generated merge payloads are replaced in-place using hidden markers instead of appended repeatedly.
 - Unknown style sections preserve source body text when present, with a fallback placeholder only when the source section body is empty.
@@ -264,6 +265,8 @@ readme:
  section_content_modes:
   Requirements: merge
   Inputs / variables summary: generate
+markers:
+ prefix: prism
 ```
 
 Testing note:

@@ -78,10 +78,10 @@ _No tasks found._
 
 _No tasks were found in this role._
 
-To add runbook comments, annotate tasks with `#t#` or `# <task>` comments:
+To add runbook comments, annotate tasks with `# prism~...` comments:
 
 ```yaml
-# #t# Runbook: restart service, verify with systemctl status
+# prism~runbook: restart service, verify with systemctl status
 - name: Restart nginx
   ansible.builtin.service:
     name: nginx

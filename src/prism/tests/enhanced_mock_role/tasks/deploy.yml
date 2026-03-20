@@ -1,7 +1,7 @@
 #SPDX-License-Identifier: MIT-0
 ---
-#t# Runbook: if template render fails, manually copy /etc/app.conf.example to {{ mock_role_config_path }} and adjust owner/group
-#t(Deploy application template)# Warning: notifies Restart mock service — ensure handler is present
+# prism~runbook: if template render fails, manually copy /etc/app.conf.example to {{ mock_role_config_path }} and adjust owner/group
+# prism~task: Deploy application template | warning: notifies Restart mock service — ensure handler is present
 - name: Deploy application template
   ansible.builtin.template:
     src: app.conf.j2

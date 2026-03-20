@@ -145,15 +145,14 @@
 
         <p>Prism bridges this gap with a unique feature: <strong>Runbook Generation</strong>.</p>
 
-        <p>By adding a simple, unobtrusive comment (<code>#t# Runbook</code>) to a task, developers can provide
+        <p>By adding a simple, unobtrusive comment (<code># prism~runbook</code>) to a task, developers can provide
             human-centric procedural guidance. Prism then extracts these comments and assembles them into a clean,
             ordered runbook.</p>
 
         <h3>Code (<code>tasks/main.yml</code>):</h3>
         <pre><code>- name: Stop the primary application service
-  #t# Runbook
-  #t# Before proceeding, ensure no active transactions are in the message queue.
-  #t# Use `mq-status --check` to verify.
+            # prism~runbook: Before proceeding, ensure no active transactions are in the message queue.
+            # Use `mq-status --check` to verify.
   ansible.builtin.service:
     name: my-app
     state: stopped</code></pre>
