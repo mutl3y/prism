@@ -1,8 +1,10 @@
 title: Prism Documentation
 description: Project documentation and long-form article for GitHub Pages.
-baseurl: ""
-url: ""
+url: "https://mutl3y.github.io"
+baseurl: "/prism"
 theme: minima
+header_pages:
+  - index.md
 markdown: kramdown
 kramdown:
   input: GFM
