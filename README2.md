@@ -43,10 +43,10 @@ Prism goes beyond simple variable lists. It's an ecosystem designed to capture a
 > **Prism's Solution:** Add a simple `#t# Runbook` comment to your tasks to provide human-centric guidance. Prism extracts these directives and generates a clean, ordered operational runbook—a lifeline that translates declarative code into an imperative procedure for when it matters most.
 >
 > ```yaml
-> - name: Stop the primary application service
 >   #t# Runbook
 >   #t# Before proceeding, ensure no active transactions are in the message queue.
 >   #t# Use `mq-status --check` to verify.
+> - name: Stop the primary application service
 >   ansible.builtin.service:
 >     name: my-app
 >     state: stopped
