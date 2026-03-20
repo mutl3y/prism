@@ -833,3 +833,78 @@ def test_scan_collection_extracts_lookup_class_method_capability_hints(
     assert record["capability_hints"] == ["LookupModule.helper", "LookupModule.run"]
     assert "LookupModule" in record["symbols"]
     assert "run" in record["symbols"]
+
+
+def test_load_yaml_document_returns_none_for_scalar_or_invalid(tmp_path):
+    scalar_path = tmp_path / "scalar.yml"
+    scalar_path.write_text("---\n42\n", encoding="utf-8")
+    invalid_path = tmp_path / "invalid.yml"
+    invalid_path.write_text("{broken", encoding="utf-8")
+
+    assert api._load_yaml_document(tmp_path / "missing.yml") is None
+    assert api._load_yaml_document(scalar_path) is None
+    assert api._load_yaml_document(invalid_path) is None
+
+
+def test_requirements_entries_and_dependency_key_helpers_cover_edge_cases():
+    list_entries = api._requirements_entries_from_document(
+        [
+            {"name": "community.general"},
+            "ignore-me",
+        ]
+    )
+    dict_entries = api._requirements_entries_from_document(
+        {
+            "collections": [{"name": "community.crypto"}],
+            "roles": [{"name": "geerlingguy.mysql"}],
+        }
+    )
+
+    assert list_entries == [{"name": "community.general"}]
+    assert dict_entries == [
+        {"name": "community.crypto"},
+        {"name": "geerlingguy.mysql"},
+    ]
+    assert api._requirements_entries_from_document("not-a-doc") == []
+
+    assert (
+        api._collection_dependency_key({"src": "community.general"}, 0)
+        == "community.general"
+    )
+    assert api._collection_dependency_key({"src": "git+ssh://example/repo"}, 0) is None
+    assert api._role_dependency_key({"name": ""}, 7) == "unknown:7"
+
+
+def test_scan_collection_writes_runbook_markdown_and_csv(monkeypatch, tmp_path):
+    collection_root = tmp_path / "demo_collection"
+    role_dir = collection_root / "roles" / "role_a"
+    role_dir.mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        api,
+        "scan_role",
+        lambda role_path, **kwargs: {
+            "role_name": Path(role_path).name,
+            "metadata": {"task_catalog": [{"name": "task"}]},
+        },
+    )
+    monkeypatch.setattr(api, "render_runbook", lambda role_name, metadata: "# RB\n")
+    monkeypatch.setattr(api, "render_runbook_csv", lambda metadata: "task,file\n")
+
+    runbook_dir = tmp_path / "runbooks"
+    runbook_csv_dir = tmp_path / "runbooks_csv"
+    payload = api.scan_collection(
+        str(collection_root),
+        runbook_output_dir=str(runbook_dir),
+        runbook_csv_output_dir=str(runbook_csv_dir),
+    )
+
+    assert payload["summary"]["scanned_roles"] == 1
+    assert (runbook_dir / "role_a.runbook.md").read_text(encoding="utf-8") == "# RB\n"
+    assert (runbook_csv_dir / "role_a.runbook.csv").read_text(
+        encoding="utf-8"
+    ) == "task,file\n"
