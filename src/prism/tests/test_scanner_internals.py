@@ -147,6 +147,30 @@ class TestStringifyJinjaNode:
         assert scanner._stringify_jinja_node(pair_only_value) == "v"
         assert scanner._stringify_jinja_node(keyword_value_only) == "home"
 
+    def test_template_data_and_unknown_node_fallbacks(self):
+        import jinja2
+
+        template_data = jinja2.nodes.TemplateData("  hello  ")
+        unknown = jinja2.nodes.Template([])
+
+        assert scanner._stringify_jinja_node(template_data) == "hello"
+        assert scanner._stringify_jinja_node(unknown) == ""
+
+    def test_condexpr_and_binary_unary_partial_fallback_paths(self):
+        import jinja2
+
+        # expr1 exists, expr2 missing -> fallback to available branch
+        cond_partial = jinja2.nodes.CondExpr(
+            jinja2.nodes.Name("is_primary", "load"),
+            jinja2.nodes.Const("A"),
+            None,
+        )
+        # left missing -> fallback to right
+        add_partial = jinja2.nodes.Add(None, jinja2.nodes.Const("r"))
+
+        assert scanner._stringify_jinja_node(cond_partial) == "A"
+        assert scanner._stringify_jinja_node(add_partial) == "r"
+
 
 class TestScanTextForDefaultFiltersWithAst:
     """_scan_text_for_default_filters_with_ast: extract | default(...) via AST."""
