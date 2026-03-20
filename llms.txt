@@ -1,51 +1,55 @@
 # Prism
 
-> `prism` is a Python CLI/library that statically scans Ansible roles (and local collection roots) and generates README documentation in Markdown, HTML, JSON, or PDF, with style-guide reuse and policy/config overrides.
+> Prism is a Python CLI and library that statically scans Ansible roles, collections, and repositories to generate README-style documentation in Markdown, HTML, JSON, and PDF.
 
-Use this file as the entry point for understanding project intent, primary interfaces, operational workflows, and key configuration.
+Use this file as the entry point for LLM context loading. Start with the main README and API/CLI sources, then use docs and fixtures for behavior details.
 
-The scanner is intentionally static/file-based; runtime-only Ansible behavior can remain unresolved and is surfaced as unknown/ambiguous metadata in generated outputs.
+Prism uses static file analysis, so runtime-only Ansible behavior may remain unresolved and is intentionally reported as uncertain metadata.
 
 ## Documentation
 
-- [Main README](README.md): Project overview, features, CLI usage, API examples, and current capabilities/limitations.
-- [Contributing Guide](docs/CONTRIBUTING.md): Development workflow and contribution expectations.
-- [Changelog](docs/CHANGELOG.md): Release history and feature/fix timeline.
-- [Code of Conduct](docs/CODE_OF_CONDUCT.md): Community participation standards.
-- [Coverage Workoff Plan](docs/COVERAGE_WORKOFF_PLAN.md): Coverage snapshots, gaps, and improvement focus.
-- [Roadmap TODO](docs/TODO.md): Planned and recently completed implementation milestones.
+- [Main README](README.md): Primary overview, current capabilities, CLI usage, library usage, and limitations.
+- [Changelog](docs/CHANGELOG.md): Chronological record of implemented features and fixes.
+- [Contributing Guide](docs/CONTRIBUTING.md): Contributor workflow and repository expectations.
+- [Code of Conduct](docs/CODE_OF_CONDUCT.md): Community and participation standards.
+- [Roadmap TODO](docs/TODO.md): Planned work and remaining implementation gaps.
+- [Coverage Workoff Plan](docs/COVERAGE_WORKOFF_PLAN.md): Coverage status and test expansion priorities.
 
-## Guides and Workflows
+## Specifications and Operational Notes
 
-- [CI Starter Workflows](docs/ci-starter-workflows.md): Starter CI templates for docs generation and checks.
-- [Pipeline Diagram](docs/pipeline-diagram.md): High-level flow of scan/generation pipeline.
-- [Prism-learn Repository](https://github.com/mutl3y/prism-learn): Companion project for learning-loop orchestration, persistence, and containerized workflows.
+- [Pipeline Diagram](docs/pipeline-diagram.md): End-to-end flow of scanning and README generation.
+- [CI Starter Workflows](docs/ci-starter-workflows.md): Reusable GitHub Actions templates for docs generation and validation.
+- [Provenance Tracking](docs/PROVENANCE_TRACKING.md): Notes about variable provenance and uncertainty handling.
+- [Feedback Integration](docs/FEEDBACK_INTEGRATION.md): How learn-system feedback is incorporated into scanner output.
 
 ## Core Interfaces
 
-- [CLI Entrypoint](src/prism/cli.py): Argument parsing and command orchestration (`prism`).
+- [CLI Entrypoint](src/prism/cli.py): Command interface (`prism role`, `prism collection`, `prism repo`, `prism completion`).
 - [Public API](src/prism/api.py): Stable programmatic entry points (`scan_role`, `scan_repo`, `scan_collection`).
-- [Scanner Engine](src/prism/scanner.py): Static role/collection analysis and metadata extraction.
-- [Style Guide Parser](src/prism/style_guide.py): README style parsing, heading normalization, and section style handling.
-- [Pattern Policy Loader](src/prism/pattern_config.py): Built-in + override policy merge and remote/cache policy helpers.
-- [Output Rendering](src/prism/output.py): Final output formatting/writing behavior.
+- [Scanner Engine](src/prism/scanner.py): Core static analysis for tasks, variables, metadata, and runbook/catalog outputs.
+- [Style Guide Engine](src/prism/style_guide.py): Style README parsing, heading mapping, and section preservation rules.
+- [Policy Loader](src/prism/pattern_config.py): Pattern/policy config layering and remote-cache loading behavior.
+- [Output Layer](src/prism/output.py): Output format selection and write behavior.
 
-## Configuration and Environment
+## Configuration and Tooling
 
-- [Project Configuration](pyproject.toml): Packaging metadata, dependencies, and console script registration.
-- [Tox Configuration](tox.ini): Default test/coverage command definitions and environments.
-- [Tooling Configuration](setup.cfg): Pytest/coverage and related tool configuration.
-- [Development Requirements](requirements-dev.txt): Additional development dependencies.
-- [Podman Makefile](Makefile.pod): Helper targets for containerized local operations.
+- [Project Metadata](pyproject.toml): Package metadata, dependencies, and console script registration.
+- [Tox Configuration](tox.ini): Test and coverage execution environments.
+- [Tool Configuration](setup.cfg): Pytest/coverage and lint-related settings.
+- [Development Requirements](requirements-dev.txt): Additional dependencies for local development.
+- [Workflow: Prism Docs](.github/workflows/prism.yml): CI job that generates docs using the subcommand CLI.
+- [Workflow: Main CI](.github/workflows/default.yml): Main CI checks for tests and quality gates.
 
-## Examples and Test Fixtures
+## Examples and Fixtures
 
-- [Fixture Index](src/prism/tests/roles/README.md): Organized fixture roles used by scanner/render tests.
-- [Enhanced Mock Role README](src/prism/tests/enhanced_mock_role/README.md): Realistic fixture role content for documentation heuristics/tests.
-- [Base Mock Role README](src/prism/tests/mock_role/README.md): Minimal fixture role for baseline scanner behavior.
+- [Fixture Index](src/prism/tests/roles/README.md): Catalog of role fixtures used by scanner and rendering tests.
+- [Enhanced Mock Role](src/prism/tests/roles/enhanced_mock_role/README.md): Rich fixture role used for realistic scanner behavior.
+- [Base Mock Role](src/prism/tests/roles/base_mock_role/README.md): Minimal fixture for baseline scan behavior.
+- [In-Role Config Fixture](src/prism/tests/roles/inrole_config_role/README.md): Fixture that validates `.prism.yml`-driven rendering behavior.
 
 ## Optional
 
-- [Style Guide Source Catalog](docs/STYLE_GUIDE_SOURCES.md): Candidate external README sources for style-guide comparisons.
-- [Provenance Tracking Notes](docs/PROVENANCE_TRACKING.md): Supplementary tracking notes not required for basic scanner usage.
-- [Template Style Guide Source](src/prism/templates/STYLE_GUIDE_SOURCE.md): Bundled fallback style-guide source template.
+- [Style Guide Source Catalog](docs/STYLE_GUIDE_SOURCES.md): Candidate upstream README sources for style-fidelity testing.
+- [Template: README](src/prism/templates/README.md.j2): Default Jinja template used for generated markdown output.
+- [Template: Style Guide Source](src/prism/templates/STYLE_GUIDE_SOURCE.md): Bundled fallback style-guide source template.
+- [Companion Project](https://github.com/mutl3y/prism-learn): Optional learning-loop orchestration and persistence layer.
