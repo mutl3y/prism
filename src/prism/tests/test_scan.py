@@ -1139,6 +1139,57 @@ def test_scan_file_for_default_filters_returns_empty_on_oserror(tmp_path, monkey
     assert rows == []
 
 
+def test_scanner_style_heading_alias_helpers_delegate(monkeypatch):
+    monkeypatch.setattr(scanner, "normalize_style_heading", lambda value: f"n:{value}")
+    monkeypatch.setattr(
+        scanner,
+        "detect_style_section_level",
+        lambda lines: 3 if lines else 2,
+    )
+    monkeypatch.setattr(
+        scanner,
+        "format_heading",
+        lambda text, level, style: f"{style}:{level}:{text}",
+    )
+
+    assert scanner._normalize_style_heading("Role Variables") == "n:Role Variables"
+    assert scanner._detect_style_section_level(["## Title"]) == 3
+    assert scanner._format_heading("Role Variables", 2, "atx") == "atx:2:Role Variables"
+
+
+def test_default_style_guide_user_paths_respects_xdg(monkeypatch):
+    monkeypatch.setenv(scanner.XDG_DATA_HOME_ENV, "/tmp/xdg-data")
+
+    paths = scanner._default_style_guide_user_paths()
+
+    assert str(paths[0]).endswith("/tmp/xdg-data/prism/STYLE_GUIDE_SOURCE.md")
+    assert str(paths[1]).endswith(
+        "/tmp/xdg-data/ansible_role_doc/STYLE_GUIDE_SOURCE.md"
+    )
+
+
+def test_default_style_guide_user_paths_falls_back_to_local_share(monkeypatch):
+    monkeypatch.delenv(scanner.XDG_DATA_HOME_ENV, raising=False)
+
+    paths = scanner._default_style_guide_user_paths()
+
+    assert str(paths[0]).endswith("/.local/share/prism/STYLE_GUIDE_SOURCE.md")
+    assert str(paths[1]).endswith(
+        "/.local/share/ansible_role_doc/STYLE_GUIDE_SOURCE.md"
+    )
+
+
+def test_resolve_default_style_guide_source_explicit_path_branches(tmp_path):
+    existing = tmp_path / "STYLE_GUIDE_SOURCE.md"
+    existing.write_text("# Style\n", encoding="utf-8")
+
+    resolved = scanner.resolve_default_style_guide_source(str(existing))
+    assert resolved == str(existing.resolve())
+
+    with pytest.raises(FileNotFoundError):
+        scanner.resolve_default_style_guide_source(str(tmp_path / "missing.md"))
+
+
 def test_collect_molecule_scenarios_ignores_malformed_and_excluded_files(tmp_path):
     role = tmp_path / "role"
     valid = role / "molecule" / "default"
