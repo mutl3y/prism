@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import csv
 from collections import defaultdict
-from fnmatch import fnmatch
 import io
 import os
 from pathlib import Path
@@ -17,7 +16,6 @@ import re
 from typing import TypedDict
 import yaml
 import jinja2
-from jinja2 import meta
 
 from .doc_insights import build_doc_insights, parse_comma_values
 from .output import render_final_output, resolve_output_path, write_output
@@ -27,6 +25,73 @@ from .style_guide import (
     format_heading,
     normalize_style_heading,
     parse_style_readme,
+)
+from ._jinja_analyzer import (
+    _JINJA_AST_ENV as _JINJA_AST_ENV,
+    _stringify_jinja_node as _stringify_jinja_node,
+    _scan_text_for_default_filters_with_ast as _scan_text_for_default_filters_with_ast,
+    _collect_undeclared_jinja_variables as _collect_undeclared_jinja_variables,
+    _collect_undeclared_jinja_variables_from_ast as _collect_undeclared_jinja_variables_from_ast,
+    _collect_jinja_local_bindings_from_text as _collect_jinja_local_bindings_from_text,
+    _collect_jinja_local_bindings as _collect_jinja_local_bindings,
+    _extract_jinja_name_targets as _extract_jinja_name_targets,
+)
+from ._task_parser import (
+    TASK_INCLUDE_KEYS as TASK_INCLUDE_KEYS,
+    INCLUDE_VARS_KEYS as INCLUDE_VARS_KEYS,
+    SET_FACT_KEYS as SET_FACT_KEYS,
+    TASK_BLOCK_KEYS as TASK_BLOCK_KEYS,
+    TASK_META_KEYS as TASK_META_KEYS,
+    ROLE_NOTES_RE as ROLE_NOTES_RE,
+    ROLE_NOTES_SHORT_RE as ROLE_NOTES_SHORT_RE,
+    TASK_NOTES_LONG_RE as TASK_NOTES_LONG_RE,
+    TASK_NOTES_SHORT_RE as TASK_NOTES_SHORT_RE,
+    COMMENT_CONTINUATION_RE as COMMENT_CONTINUATION_RE,
+    _normalize_exclude_patterns as _normalize_exclude_patterns,
+    _is_relpath_excluded as _is_relpath_excluded,
+    _is_path_excluded as _is_path_excluded,
+    _format_inline_yaml as _format_inline_yaml,
+    _load_yaml_file as _load_yaml_file,
+    _iter_task_include_targets as _iter_task_include_targets,
+    _iter_task_mappings as _iter_task_mappings,
+    _resolve_task_include as _resolve_task_include,
+    _collect_task_files as _collect_task_files,
+    _extract_role_notes_from_comments as _extract_role_notes_from_comments,
+    _split_task_annotation_label as _split_task_annotation_label,
+    _extract_task_annotations_for_file as _extract_task_annotations_for_file,
+    _task_anchor as _task_anchor,
+    _detect_task_module as _detect_task_module,
+    _extract_collection_from_module_name as _extract_collection_from_module_name,
+    _compact_task_parameters as _compact_task_parameters,
+    _collect_task_handler_catalog as _collect_task_handler_catalog,
+    _collect_molecule_scenarios as _collect_molecule_scenarios,
+    extract_role_features as extract_role_features,
+)
+from ._variable_extractor import (
+    DEFAULT_TARGET_RE as DEFAULT_TARGET_RE,
+    JINJA_VAR_RE as JINJA_VAR_RE,
+    JINJA_IDENTIFIER_RE as JINJA_IDENTIFIER_RE,
+    VAULT_KEY_RE as VAULT_KEY_RE,
+    IGNORED_IDENTIFIERS as IGNORED_IDENTIFIERS,
+    _SECRET_NAME_TOKENS as _SECRET_NAME_TOKENS,
+    _VAULT_MARKERS as _VAULT_MARKERS,
+    _CREDENTIAL_PREFIXES as _CREDENTIAL_PREFIXES,
+    _URL_PREFIXES as _URL_PREFIXES,
+    _extract_default_target_var as _extract_default_target_var,
+    _collect_include_vars_files as _collect_include_vars_files,
+    _collect_set_fact_names as _collect_set_fact_names,
+    _find_variable_line_in_yaml as _find_variable_line_in_yaml,
+    _collect_dynamic_include_vars_refs as _collect_dynamic_include_vars_refs,
+    _collect_dynamic_task_include_refs as _collect_dynamic_task_include_refs,
+    _collect_referenced_variable_names as _collect_referenced_variable_names,
+    _looks_secret_name as _looks_secret_name,
+    _resembles_password_like as _resembles_password_like,
+    _is_sensitive_variable as _is_sensitive_variable,
+    _looks_secret_value as _looks_secret_value,
+    _infer_variable_type as _infer_variable_type,
+    _read_seed_yaml as _read_seed_yaml,
+    _resolve_seed_var_files as _resolve_seed_var_files,
+    load_seed_variables as load_seed_variables,
 )
 
 
@@ -82,10 +147,6 @@ STYLE_SECTION_ALIASES: dict[str, str] = _POLICY["section_aliases"]
 
 # Sensitivity detection tokens extracted from policy for fast tuple lookup
 _SENSITIVITY = _POLICY["sensitivity"]
-_SECRET_NAME_TOKENS: tuple[str, ...] = tuple(_SENSITIVITY["name_tokens"])
-_VAULT_MARKERS: tuple[str, ...] = tuple(_SENSITIVITY["vault_markers"])
-_CREDENTIAL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["credential_prefixes"])
-_URL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["url_prefixes"])
 
 # Variable guidance priority keywords
 _VARIABLE_GUIDANCE_KEYWORDS: tuple[str, ...] = tuple(
@@ -142,55 +203,6 @@ ALL_SECTION_IDS = {
 } | _EXTRA_SECTION_IDS
 
 IGNORED_DIRS = (".git", "__pycache__", "venv", ".venv", "node_modules")
-TASK_INCLUDE_KEYS = {
-    "include_tasks",
-    "import_tasks",
-    "ansible.builtin.include_tasks",
-    "ansible.builtin.import_tasks",
-}
-INCLUDE_VARS_KEYS = {
-    "include_vars",
-    "ansible.builtin.include_vars",
-}
-SET_FACT_KEYS = {
-    "set_fact",
-    "ansible.builtin.set_fact",
-}
-TASK_BLOCK_KEYS = ("block", "rescue", "always")
-TASK_META_KEYS = {
-    "name",
-    "when",
-    "tags",
-    "register",
-    "notify",
-    "vars",
-    "become",
-    "become_user",
-    "become_method",
-    "check_mode",
-    "changed_when",
-    "failed_when",
-    "ignore_errors",
-    "ignore_unreachable",
-    "delegate_to",
-    "run_once",
-    "loop",
-    "loop_control",
-    "with_items",
-    "with_dict",
-    "with_fileglob",
-    "with_first_found",
-    "with_nested",
-    "with_sequence",
-    "environment",
-    "args",
-    "retries",
-    "delay",
-    "until",
-    "throttle",
-    "no_log",
-}
-
 DEFAULT_RE = re.compile(
     r"""(?P<context>.{0,40}?)(\|\s*default\b|\bdefault\s*\()\s*(?P<args>[^)\n]{0,200})""",
     flags=re.IGNORECASE,
@@ -217,35 +229,11 @@ DEFAULT_SECTION_DISPLAY_TITLES_PATH = (
     Path(__file__).parent / "data" / "section_display_titles.yml"
 )
 
-DEFAULT_TARGET_RE = re.compile(r"\b(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*\|\s*default\b")
-JINJA_VAR_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)")
-JINJA_IDENTIFIER_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
-VAULT_KEY_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*!vault\b", re.MULTILINE)
 MARKDOWN_VAR_BACKTICK_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")
 MARKDOWN_VAR_TABLE_RE = re.compile(r"^\|\s*`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\|")
 MARKDOWN_VAR_BULLET_RE = re.compile(
     r"^\s*[-*+]\s+`?([A-Za-z_][A-Za-z0-9_]*)`?(?:\s*[:|-]|\s*$)"
 )
-ROLE_NOTES_RE = re.compile(
-    r"^\s*#\s*<notes>\s*(warning|deprecated|note|additional|additionals)?\s*:?\s*(.*)$",
-    flags=re.IGNORECASE,
-)
-ROLE_NOTES_SHORT_RE = re.compile(
-    r"^\s*#\s*(w|d|n|a)#\s*(.*)$",
-    flags=re.IGNORECASE,
-)
-TASK_NOTES_LONG_RE = re.compile(
-    r"^\s*#\s*<task(?:\s*:\s*([^>]+))?>\s*(.*)$",
-    flags=re.IGNORECASE,
-)
-TASK_NOTES_SHORT_RE = re.compile(
-    r"^\s*#\s*t(?:\(([^)]+)\))?#\s*(.*)$",
-    flags=re.IGNORECASE,
-)
-COMMENT_CONTINUATION_RE = re.compile(r"^\s*#\s?(.*)$")
-_JINJA_AST_ENV = jinja2.Environment()
-
-IGNORED_IDENTIFIERS: set[str] = _POLICY["ignored_identifiers"]
 
 
 def _refresh_policy(override_path: str | None = None) -> None:
@@ -271,6 +259,14 @@ def _refresh_policy(override_path: str | None = None) -> None:
         _POLICY["variable_guidance"]["priority_keywords"]
     )
     IGNORED_IDENTIFIERS = _POLICY["ignored_identifiers"]
+
+    from . import _variable_extractor as _ve
+
+    _ve._SECRET_NAME_TOKENS = _SECRET_NAME_TOKENS
+    _ve._VAULT_MARKERS = _VAULT_MARKERS
+    _ve._CREDENTIAL_PREFIXES = _CREDENTIAL_PREFIXES
+    _ve._URL_PREFIXES = _URL_PREFIXES
+    _ve.IGNORED_IDENTIFIERS = IGNORED_IDENTIFIERS
 
 
 def _normalize_style_heading(heading: str) -> str:
@@ -345,37 +341,6 @@ def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:
             return str(candidate.resolve())
 
     return str(DEFAULT_STYLE_GUIDE_SOURCE_PATH.resolve())
-
-
-def _normalize_exclude_patterns(exclude_paths: list[str] | None) -> list[str]:
-    """Return normalized glob patterns used to exclude role-relative paths."""
-    if not exclude_paths:
-        return []
-    return [
-        item.strip() for item in exclude_paths if isinstance(item, str) and item.strip()
-    ]
-
-
-def _is_relpath_excluded(relpath: str, exclude_paths: list[str] | None) -> bool:
-    """Return True when a role-relative path should be excluded."""
-    normalized = relpath.replace("\\", "/").lstrip("./")
-    for pattern in _normalize_exclude_patterns(exclude_paths):
-        if fnmatch(normalized, pattern) or fnmatch(f"{normalized}/", pattern):
-            return True
-        if "/" not in pattern and normalized.split("/", 1)[0] == pattern:
-            return True
-    return False
-
-
-def _is_path_excluded(
-    path: Path, role_root: Path, exclude_paths: list[str] | None
-) -> bool:
-    """Return True when an absolute path resolves to an excluded role-relative path."""
-    try:
-        relpath = str(path.resolve().relative_to(role_root.resolve()))
-    except ValueError:
-        return False
-    return _is_relpath_excluded(relpath, exclude_paths)
 
 
 def scan_for_default_filters(
@@ -457,182 +422,6 @@ def _scan_file_for_default_filters(file_path: Path, role_root: Path) -> list[dic
     except (UnicodeDecodeError, PermissionError, OSError):
         return []
     return occurrences
-
-
-def _scan_text_for_default_filters_with_ast(text: str, lines: list[str]) -> list[dict]:
-    """Return occurrences discovered via Jinja AST parsing."""
-    if "{{" not in text and "{%" not in text:
-        return []
-    try:
-        parsed = _JINJA_AST_ENV.parse(text)
-    except Exception:
-        return []
-
-    occurrences: list[dict] = []
-    for node in parsed.find_all(jinja2.nodes.Filter):
-        if node.name != "default":
-            continue
-        line_no = int(getattr(node, "lineno", 1) or 1)
-        line_no = max(1, min(line_no, len(lines) if lines else 1))
-        line = lines[line_no - 1] if lines else ""
-
-        target = _stringify_jinja_node(getattr(node, "node", None)).strip()
-        args = ", ".join(
-            value
-            for value in (_stringify_jinja_node(arg).strip() for arg in node.args)
-            if value
-        )
-
-        if target:
-            match = f"{target} | default({args})" if args else f"{target} | default()"
-        else:
-            match = line.strip()
-
-        occurrences.append(
-            {
-                "line_no": line_no,
-                "line": line,
-                "match": match,
-                "args": args,
-            }
-        )
-    return occurrences
-
-
-def _stringify_jinja_node(node: object) -> str:
-    """Best-effort compact string rendering for Jinja AST nodes."""
-    if node is None:
-        return ""
-    if isinstance(node, jinja2.nodes.Const):
-        return str(node.value)
-    if isinstance(node, jinja2.nodes.Name):
-        return node.name
-    if isinstance(node, jinja2.nodes.Getattr):
-        base = _stringify_jinja_node(node.node)
-        return f"{base}.{node.attr}" if base else node.attr
-    if isinstance(node, jinja2.nodes.Getitem):
-        base = _stringify_jinja_node(node.node)
-        arg = _stringify_jinja_node(node.arg)
-        return f"{base}[{arg}]" if base else f"[{arg}]"
-    if isinstance(node, jinja2.nodes.Filter):
-        base = _stringify_jinja_node(node.node)
-        args = ", ".join(
-            value
-            for value in (_stringify_jinja_node(arg).strip() for arg in node.args)
-            if value
-        )
-        if args:
-            return f"{base} | {node.name}({args})"
-        return f"{base} | {node.name}".strip()
-    if isinstance(node, jinja2.nodes.Call):
-        callee = _stringify_jinja_node(node.node)
-        args = ", ".join(
-            value
-            for value in (_stringify_jinja_node(arg).strip() for arg in node.args)
-            if value
-        )
-        return f"{callee}({args})" if callee else f"({args})"
-    if isinstance(node, jinja2.nodes.Test):
-        left = _stringify_jinja_node(node.node)
-        args = ", ".join(
-            value
-            for value in (_stringify_jinja_node(arg).strip() for arg in node.args)
-            if value
-        )
-        if args:
-            return f"{left} is {node.name}({args})"
-        return f"{left} is {node.name}".strip()
-    if isinstance(node, jinja2.nodes.TemplateData):
-        return node.data.strip()
-    return ""
-
-
-def _collect_undeclared_jinja_variables(text: str) -> set[str]:
-    """Collect undeclared variable names from Jinja template text."""
-    if "{{" not in text and "{%" not in text:
-        return set()
-    try:
-        parsed = _JINJA_AST_ENV.parse(text)
-    except Exception:
-        return set()
-    try:
-        return set(meta.find_undeclared_variables(parsed))
-    except Exception:
-        # Some Ansible-specific filters are unknown to plain Jinja and can
-        # break introspection. Fall back to AST name scanning.
-        return _collect_undeclared_jinja_variables_from_ast(parsed)
-
-
-def _collect_undeclared_jinja_variables_from_ast(
-    parsed: jinja2.nodes.Template,
-) -> set[str]:
-    """Collect variable names from Jinja AST without meta introspection.
-
-    Excludes names locally bound by Jinja control flow constructs so loop
-    variables, macro parameters, and ``set`` targets are not treated as
-    external inputs.
-    """
-    local_bound = _collect_jinja_local_bindings(parsed)
-    names: set[str] = set()
-    for node in parsed.find_all(jinja2.nodes.Name):
-        if getattr(node, "ctx", None) != "load":
-            continue
-        if isinstance(node.name, str) and node.name:
-            if node.name in local_bound:
-                continue
-            names.add(node.name)
-    return names
-
-
-def _collect_jinja_local_bindings_from_text(text: str) -> set[str]:
-    """Collect locally bound Jinja variable names from raw template text."""
-    if "{{" not in text and "{%" not in text:
-        return set()
-    try:
-        parsed = _JINJA_AST_ENV.parse(text)
-    except Exception:
-        return set()
-    return _collect_jinja_local_bindings(parsed)
-
-
-def _collect_jinja_local_bindings(parsed: jinja2.nodes.Template) -> set[str]:
-    """Collect names introduced by local Jinja scopes in a template."""
-    local_names: set[str] = set()
-
-    for for_node in parsed.find_all(jinja2.nodes.For):
-        local_names.update(
-            _extract_jinja_name_targets(getattr(for_node, "target", None))
-        )
-
-    for macro_node in parsed.find_all(jinja2.nodes.Macro):
-        for arg in getattr(macro_node, "args", []) or []:
-            if isinstance(arg, jinja2.nodes.Name) and isinstance(arg.name, str):
-                local_names.add(arg.name)
-
-    for assign_node in parsed.find_all(jinja2.nodes.Assign):
-        local_names.update(
-            _extract_jinja_name_targets(getattr(assign_node, "target", None))
-        )
-
-    for assign_block in parsed.find_all(jinja2.nodes.AssignBlock):
-        local_names.update(
-            _extract_jinja_name_targets(getattr(assign_block, "target", None))
-        )
-
-    return local_names
-
-
-def _extract_jinja_name_targets(node: object) -> set[str]:
-    """Extract identifier names from Jinja assignment/loop target nodes."""
-    if node is None:
-        return set()
-    if isinstance(node, jinja2.nodes.Name) and isinstance(node.name, str):
-        return {node.name}
-
-    names: set[str] = set()
-    for child in getattr(node, "items", []) or []:
-        names.update(_extract_jinja_name_targets(child))
-    return names
 
 
 def _is_readme_variable_section_heading(title: str) -> bool:
@@ -720,394 +509,6 @@ def _collect_readme_input_variables(role_path: str) -> set[str]:
     except OSError:
         return set()
     return _extract_readme_input_variables(text)
-
-
-def _extract_default_target_var(occurrence: dict) -> str | None:
-    """Extract the variable name used with ``| default(...)`` when available."""
-    line = str(occurrence.get("line") or occurrence.get("match") or "")
-    match = DEFAULT_TARGET_RE.search(line)
-    if not match:
-        return None
-    return match.group("var")
-
-
-def _collect_task_files(
-    role_root: Path,
-    exclude_paths: list[str] | None = None,
-) -> list[Path]:
-    """Collect task files reachable from ``tasks/main.yml`` recursively."""
-    tasks_dir = role_root / "tasks"
-    if not tasks_dir.is_dir():
-        return []
-
-    entrypoints = [tasks_dir / "main.yml"] if (tasks_dir / "main.yml").exists() else []
-    if not entrypoints:
-        entrypoints = sorted(
-            path
-            for path in tasks_dir.rglob("*")
-            if path.is_file()
-            and path.suffix in {".yml", ".yaml"}
-            and not _is_path_excluded(path, role_root, exclude_paths)
-        )
-
-    discovered: list[Path] = []
-    pending = list(entrypoints)
-    seen: set[Path] = set()
-    while pending:
-        current = pending.pop(0).resolve()
-        if current in seen or not current.is_file():
-            continue
-        if _is_path_excluded(current, role_root, exclude_paths):
-            continue
-        seen.add(current)
-        discovered.append(current)
-
-        data = _load_yaml_file(current)
-        for include_target in _iter_task_include_targets(data):
-            resolved = _resolve_task_include(role_root, current, include_target)
-            if (
-                resolved is not None
-                and resolved not in seen
-                and not _is_path_excluded(resolved, role_root, exclude_paths)
-            ):
-                pending.append(resolved)
-
-    return sorted(discovered, key=lambda path: str(path.relative_to(role_root)))
-
-
-def _load_yaml_file(file_path: Path) -> object | None:
-    """Load a YAML file and return its contents, or ``None`` on failure."""
-    try:
-        return yaml.safe_load(file_path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-
-
-def _iter_task_include_targets(data: object) -> list[str]:
-    """Return include/import task targets found in a task YAML structure."""
-    targets: list[str] = []
-    for task in _iter_task_mappings(data):
-        for key in TASK_INCLUDE_KEYS:
-            if key not in task:
-                continue
-            value = task[key]
-            if isinstance(value, str):
-                targets.append(value)
-            elif isinstance(value, dict):
-                file_value = value.get("file") or value.get("_raw_params")
-                if isinstance(file_value, str):
-                    targets.append(file_value)
-    return targets
-
-
-def _iter_task_mappings(data: object):
-    """Yield task dictionaries from a YAML task document recursively."""
-    if isinstance(data, list):
-        for item in data:
-            if not isinstance(item, dict):
-                continue
-            yield item
-            for key in TASK_BLOCK_KEYS:
-                nested = item.get(key)
-                if nested is not None:
-                    yield from _iter_task_mappings(nested)
-
-
-def _resolve_task_include(
-    role_root: Path, current_file: Path, include_target: str
-) -> Path | None:
-    """Resolve an included task file relative to the current task file or tasks dir."""
-    candidate = include_target.strip()
-    if not candidate or "{{" in candidate or "{%" in candidate:
-        return None
-
-    path = Path(candidate)
-    candidates: list[Path] = []
-    if path.is_absolute():
-        candidates.append(path)
-    else:
-        candidates.append((current_file.parent / path).resolve())
-        candidates.append((role_root / "tasks" / path).resolve())
-
-    if not path.suffix:
-        candidates.extend(resolved.with_suffix(".yml") for resolved in list(candidates))
-
-    for resolved in candidates:
-        if not resolved.is_file():
-            continue
-        try:
-            resolved.relative_to(role_root)
-        except ValueError:
-            continue
-        return resolved
-
-    return None
-
-
-def _collect_include_vars_files(
-    role_path: str,
-    exclude_paths: list[str] | None = None,
-) -> list[Path]:
-    """Return var files referenced by static ``include_vars`` tasks within the role.
-
-    Only files whose paths can be resolved to a concrete file inside the role
-    directory are returned.  Dynamic paths containing Jinja2 expressions are
-    silently ignored.
-    """
-    role_root = Path(role_path).resolve()
-    task_files = _collect_task_files(role_root, exclude_paths=exclude_paths)
-    result: list[Path] = []
-    seen: set[Path] = set()
-    for task_file in task_files:
-        data = _load_yaml_file(task_file)
-        for task in _iter_task_mappings(data):
-            for key in INCLUDE_VARS_KEYS:
-                if key not in task:
-                    continue
-                value = task[key]
-                ref: str | None = None
-                if isinstance(value, str):
-                    ref = value
-                elif isinstance(value, dict):
-                    ref = value.get("file") or value.get("name")
-                if not ref or "{{" in ref or "{%" in ref:
-                    continue
-                for candidate in (
-                    (task_file.parent / ref).resolve(),
-                    (role_root / "vars" / ref).resolve(),
-                    (role_root / ref).resolve(),
-                ):
-                    if candidate.is_file() and candidate not in seen:
-                        try:
-                            candidate.relative_to(role_root)
-                        except ValueError:
-                            continue
-                        seen.add(candidate)
-                        result.append(candidate)
-                        break
-    return result
-
-
-def _collect_set_fact_names(
-    role_path: str,
-    exclude_paths: list[str] | None = None,
-) -> set[str]:
-    """Return variable names assigned by ``set_fact`` tasks within the role.
-
-    Only names with static (non-templated) keys are returned.
-    """
-    role_root = Path(role_path).resolve()
-    task_files = _collect_task_files(role_root, exclude_paths=exclude_paths)
-    names: set[str] = set()
-    for task_file in task_files:
-        data = _load_yaml_file(task_file)
-        for task in _iter_task_mappings(data):
-            for key in SET_FACT_KEYS:
-                if key not in task:
-                    continue
-                value = task[key]
-                if isinstance(value, dict):
-                    for vname in value:
-                        if isinstance(vname, str) and "{{" not in vname:
-                            names.add(vname)
-    return names
-
-
-def _find_variable_line_in_yaml(file_path: Path, var_name: str) -> int | None:
-    """Return 1-indexed line where ``var_name`` is defined in a YAML file."""
-    pattern = re.compile(rf"^\s*{re.escape(var_name)}\s*:")
-    try:
-        for idx, line in enumerate(file_path.read_text(encoding="utf-8").splitlines()):
-            if pattern.match(line):
-                return idx + 1
-    except OSError:
-        return None
-    return None
-
-
-def _collect_dynamic_include_vars_refs(
-    role_path: str,
-    exclude_paths: list[str] | None = None,
-) -> list[str]:
-    """Return dynamic include_vars references that cannot be statically resolved."""
-    role_root = Path(role_path).resolve()
-    refs: list[str] = []
-    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
-        data = _load_yaml_file(task_file)
-        for task in _iter_task_mappings(data):
-            for key in INCLUDE_VARS_KEYS:
-                if key not in task:
-                    continue
-                value = task[key]
-                ref: str | None = None
-                if isinstance(value, str):
-                    ref = value
-                elif isinstance(value, dict):
-                    ref = value.get("file") or value.get("name")
-                if ref and ("{{" in ref or "{%" in ref):
-                    refs.append(ref)
-    return refs
-
-
-def _extract_role_notes_from_comments(
-    role_path: str,
-    exclude_paths: list[str] | None = None,
-) -> dict[str, list[str]]:
-    """Extract comment-driven role notes from YAML files.
-
-    Supported syntax:
-        # <notes> Warning: text
-        # <notes> Deprecated: text
-        # <notes> Note: text
-    """
-    role_root = Path(role_path).resolve()
-    categories: dict[str, list[str]] = {
-        "warnings": [],
-        "deprecations": [],
-        "notes": [],
-        "additionals": [],
-    }
-    files: list[Path] = []
-    files.extend(_collect_task_files(role_root, exclude_paths=exclude_paths))
-    for rel in ("defaults/main.yml", "vars/main.yml", "handlers/main.yml"):
-        candidate = role_root / rel
-        if candidate.is_file() and not _is_path_excluded(
-            candidate, role_root, exclude_paths
-        ):
-            files.append(candidate)
-
-    for file_path in files:
-        try:
-            lines = file_path.read_text(encoding="utf-8").splitlines()
-        except OSError:
-            continue
-        i = 0
-        while i < len(lines):
-            line = lines[i]
-            match = ROLE_NOTES_RE.match(line)
-            short_match = ROLE_NOTES_SHORT_RE.match(line)
-            if not match and not short_match:
-                i += 1
-                continue
-            note_type = "note"
-            text = ""
-            if match:
-                note_type = (match.group(1) or "note").lower()
-                text = (match.group(2) or "").strip()
-            elif short_match:
-                alias = (short_match.group(1) or "n").lower()
-                text = (short_match.group(2) or "").strip()
-                if alias == "w":
-                    note_type = "warning"
-                elif alias == "d":
-                    note_type = "deprecated"
-                elif alias == "a":
-                    note_type = "additional"
-            continuation: list[str] = []
-            j = i + 1
-            while j < len(lines):
-                next_line = lines[j]
-                if ROLE_NOTES_RE.match(next_line) or ROLE_NOTES_SHORT_RE.match(
-                    next_line
-                ):
-                    break
-                cont_match = COMMENT_CONTINUATION_RE.match(next_line)
-                if not cont_match:
-                    break
-                continuation.append((cont_match.group(1) or "").strip())
-                j += 1
-            if continuation:
-                text = " ".join(part for part in [text, *continuation] if part)
-            if text:
-                if note_type == "warning":
-                    categories["warnings"].append(text)
-                elif note_type == "deprecated":
-                    categories["deprecations"].append(text)
-                elif note_type in {"additional", "additionals"}:
-                    categories["additionals"].append(text)
-                else:
-                    categories["notes"].append(text)
-            i = j if j > i + 1 else i + 1
-
-    return categories
-
-
-def _split_task_annotation_label(text: str) -> tuple[str, str]:
-    """Return normalized annotation kind and body from a comment payload."""
-    raw = text.strip()
-    if not raw:
-        return "note", ""
-    if ":" not in raw:
-        return "note", raw
-
-    prefix, remainder = raw.split(":", 1)
-    label = prefix.strip().lower()
-    body = remainder.strip()
-    if label in {"runbook", "warning", "deprecated", "note", "additional"}:
-        return label, body
-    return "note", raw
-
-
-def _extract_task_annotations_for_file(
-    lines: list[str],
-) -> tuple[list[dict[str, str]], dict[str, list[dict[str, str]]]]:
-    """Extract implicit and explicit task annotations from file comment lines."""
-    implicit: list[dict[str, str]] = []
-    explicit: dict[str, list[dict[str, str]]] = defaultdict(list)
-
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        long_match = TASK_NOTES_LONG_RE.match(line)
-        short_match = TASK_NOTES_SHORT_RE.match(line)
-        if not long_match and not short_match:
-            i += 1
-            continue
-
-        target_name = ""
-        text = ""
-        if long_match:
-            target_name = (long_match.group(1) or "").strip()
-            text = (long_match.group(2) or "").strip()
-        elif short_match:
-            target_name = (short_match.group(1) or "").strip()
-            text = (short_match.group(2) or "").strip()
-
-        continuation: list[str] = []
-        j = i + 1
-        while j < len(lines):
-            next_line = lines[j]
-            if TASK_NOTES_LONG_RE.match(next_line) or TASK_NOTES_SHORT_RE.match(
-                next_line
-            ):
-                break
-            cont_match = COMMENT_CONTINUATION_RE.match(next_line)
-            if not cont_match:
-                break
-            continuation.append((cont_match.group(1) or "").strip())
-            j += 1
-
-        if continuation:
-            text = "\n".join(part for part in [text, *continuation] if part)
-
-        kind, body = _split_task_annotation_label(text)
-        if body:
-            item = {"kind": kind, "text": body}
-            if target_name:
-                explicit[target_name].append(item)
-            else:
-                implicit.append(item)
-
-        i = j if j > i + 1 else i + 1
-
-    return implicit, explicit
-
-
-def _task_anchor(file_path: str, task_name: str, index: int) -> str:
-    """Build a stable markdown anchor id for task detail links."""
-    raw = f"task-{file_path}-{task_name}-{index}"
-    slug = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-")
-    return slug or f"task-{index}"
 
 
 def load_meta(role_path: str) -> dict:
@@ -1198,17 +599,6 @@ def _normalize_meta_role_dependencies(meta: dict) -> list[str]:
         return []
     lines = [_format_requirement_line(item).strip() for item in dependencies]
     return [line for line in lines if line]
-
-
-def _extract_collection_from_module_name(module_name: str) -> str | None:
-    """Return collection prefix from a fully-qualified module name."""
-    parts = module_name.split(".")
-    if len(parts) < 3:
-        return None
-    collection = ".".join(parts[:2]).strip()
-    if not collection or collection.startswith("ansible."):
-        return None
-    return collection
 
 
 def _extract_declared_collections_from_meta(meta: dict) -> set[str]:
@@ -1328,272 +718,6 @@ def collect_role_contents(
     return result
 
 
-def extract_role_features(
-    role_path: str,
-    exclude_paths: list[str] | None = None,
-) -> dict:
-    """Extract adaptive role features from tasks and role structure.
-
-    These heuristics are intentionally lightweight and update automatically
-    as task files change, providing richer documentation without manual edits.
-    """
-    role_root = Path(role_path).resolve()
-    task_files = _collect_task_files(role_root, exclude_paths=exclude_paths)
-
-    include_count = 0
-    tasks_scanned = 0
-    privileged_tasks = 0
-    conditional_tasks = 0
-    tagged_tasks = 0
-    modules: set[str] = set()
-    external_collections: set[str] = set()
-    handlers_notified: set[str] = set()
-
-    for task_file in task_files:
-        data = _load_yaml_file(task_file)
-        include_count += len(_iter_task_include_targets(data))
-        for task in _iter_task_mappings(data):
-            tasks_scanned += 1
-            module_name = _detect_task_module(task)
-            if module_name:
-                modules.add(module_name)
-                collection = _extract_collection_from_module_name(module_name)
-                if collection:
-                    external_collections.add(collection)
-
-            if bool(task.get("become")):
-                privileged_tasks += 1
-            if "when" in task:
-                conditional_tasks += 1
-            if task.get("tags"):
-                tagged_tasks += 1
-
-            notify = task.get("notify")
-            if isinstance(notify, str):
-                handlers_notified.add(notify)
-            elif isinstance(notify, list):
-                handlers_notified.update(
-                    item for item in notify if isinstance(item, str)
-                )
-
-    return {
-        "task_files_scanned": len(task_files),
-        "tasks_scanned": tasks_scanned,
-        "recursive_task_includes": include_count,
-        "unique_modules": ", ".join(sorted(modules)) if modules else "none",
-        "external_collections": (
-            ", ".join(sorted(external_collections)) if external_collections else "none"
-        ),
-        "handlers_notified": (
-            ", ".join(sorted(handlers_notified)) if handlers_notified else "none"
-        ),
-        "privileged_tasks": privileged_tasks,
-        "conditional_tasks": conditional_tasks,
-        "tagged_tasks": tagged_tasks,
-    }
-
-
-def _collect_molecule_scenarios(
-    role_path: str,
-    exclude_paths: list[str] | None = None,
-) -> list[dict[str, object]]:
-    """Collect Molecule scenario metadata from ``molecule/*/molecule.yml``."""
-    role_root = Path(role_path).resolve()
-    molecule_root = role_root / "molecule"
-    if not molecule_root.is_dir():
-        return []
-
-    scenarios: list[dict[str, object]] = []
-    for scenario_dir in sorted(
-        path for path in molecule_root.iterdir() if path.is_dir()
-    ):
-        molecule_file = scenario_dir / "molecule.yml"
-        if not molecule_file.is_file() or _is_path_excluded(
-            molecule_file, role_root, exclude_paths
-        ):
-            continue
-        doc = _load_yaml_file(molecule_file)
-        if not isinstance(doc, dict):
-            continue
-
-        driver = doc.get("driver") if isinstance(doc.get("driver"), dict) else {}
-        verifier = doc.get("verifier") if isinstance(doc.get("verifier"), dict) else {}
-        platforms_raw = (
-            doc.get("platforms") if isinstance(doc.get("platforms"), list) else []
-        )
-        platforms: list[str] = []
-        for platform in platforms_raw:
-            if not isinstance(platform, dict):
-                continue
-            platform_name = str(platform.get("name") or "").strip()
-            platform_image = str(platform.get("image") or "").strip()
-            if platform_name and platform_image:
-                platforms.append(f"{platform_name} ({platform_image})")
-            elif platform_name:
-                platforms.append(platform_name)
-
-        scenarios.append(
-            {
-                "name": scenario_dir.name,
-                "driver": str(driver.get("name") or "unknown"),
-                "verifier": str(verifier.get("name") or "unknown"),
-                "platforms": platforms,
-                "path": str(molecule_file.relative_to(role_root)),
-            }
-        )
-    return scenarios
-
-
-def _collect_task_handler_catalog(
-    role_path: str,
-    exclude_paths: list[str] | None = None,
-) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
-    """Build optional detailed task and handler catalogs for README rendering.
-
-    Tasks are collected in execution order (depth-first), following includes
-    as they would be encountered during Ansible playbook execution.
-    """
-    role_root = Path(role_path).resolve()
-
-    def _collect_tasks_recursive(
-        task_file: Path,
-        task_entries: list[dict[str, object]],
-        seen_files: set[Path],
-    ) -> None:
-        """Recursively collect tasks in execution order, following includes."""
-        if task_file in seen_files or not task_file.is_file():
-            return
-        if _is_path_excluded(task_file, role_root, exclude_paths):
-            return
-
-        seen_files.add(task_file)
-        data = _load_yaml_file(task_file)
-        try:
-            raw_lines = task_file.read_text(encoding="utf-8").splitlines()
-        except OSError:
-            raw_lines = []
-        implicit_annotations, explicit_annotations = _extract_task_annotations_for_file(
-            raw_lines
-        )
-        implicit_index = 0
-        relpath = str(task_file.relative_to(role_root))
-        # Strip "tasks/" prefix since this is a task catalog
-        if relpath.startswith("tasks/"):
-            relpath = relpath[6:]
-
-        for task in _iter_task_mappings(data):
-            # Add this task to the catalog
-            module_name = _detect_task_module(task) or "unknown"
-            task_name = str(task.get("name") or "(unnamed task)")
-            annotations: list[dict[str, str]] = []
-            if implicit_index < len(implicit_annotations):
-                annotations.append(implicit_annotations[implicit_index])
-                implicit_index += 1
-            annotations.extend(explicit_annotations.get(task_name, []))
-
-            runbook_items = [
-                note.get("text", "")
-                for note in annotations
-                if note.get("kind") == "runbook" and note.get("text")
-            ]
-            runbook = runbook_items[0] if runbook_items else ""
-            anchor = _task_anchor(relpath, task_name, len(task_entries) + 1)
-            task_entries.append(
-                {
-                    "file": relpath,
-                    "name": task_name,
-                    "module": module_name,
-                    "parameters": _compact_task_parameters(task, module_name),
-                    "anchor": anchor,
-                    "runbook": runbook,
-                    "annotations": annotations,
-                }
-            )
-
-            # If this task includes/imports another file, process it inline
-            for include_key in TASK_INCLUDE_KEYS:
-                if include_key in task:
-                    include_target = task[include_key]
-                    if isinstance(include_target, str) and not (
-                        "{{" in include_target or "{%" in include_target
-                    ):
-                        included_file = _resolve_task_include(
-                            role_root, task_file, include_target
-                        )
-                        if included_file:
-                            _collect_tasks_recursive(
-                                included_file, task_entries, seen_files
-                            )
-
-    # Start with main.yml if it exists, otherwise with any available task file
-    tasks_dir = role_root / "tasks"
-    task_entries: list[dict[str, object]] = []
-    seen_files: set[Path] = set()
-
-    if tasks_dir.is_dir():
-        main_file = tasks_dir / "main.yml"
-        if main_file.exists():
-            _collect_tasks_recursive(main_file, task_entries, seen_files)
-        else:
-            # Fallback: process any discovered task files in order
-            for task_file in sorted(
-                path
-                for path in tasks_dir.rglob("*")
-                if path.is_file() and path.suffix in {".yml", ".yaml"}
-            ):
-                _collect_tasks_recursive(task_file, task_entries, seen_files)
-
-    # Handlers are typically not nested, so collect them normally
-    handler_entries: list[dict[str, object]] = []
-    handlers_dir = role_root / "handlers"
-    if handlers_dir.is_dir():
-        for handler_file in sorted(
-            path for path in handlers_dir.rglob("*.yml") if path.is_file()
-        ):
-            if _is_path_excluded(handler_file, role_root, exclude_paths):
-                continue
-            data = _load_yaml_file(handler_file)
-            relpath = str(handler_file.relative_to(role_root))
-            # Strip "handlers/" prefix since this is a handler catalog
-            if relpath.startswith("handlers/"):
-                relpath = relpath[9:]
-            for task in _iter_task_mappings(data):
-                module_name = _detect_task_module(task) or "unknown"
-                task_name = str(task.get("name") or "(unnamed handler)")
-                handler_entries.append(
-                    {
-                        "file": relpath,
-                        "name": task_name,
-                        "module": module_name,
-                        "parameters": _compact_task_parameters(task, module_name),
-                        "anchor": _task_anchor(
-                            relpath, task_name, len(handler_entries) + 1
-                        ),
-                    }
-                )
-    return task_entries, handler_entries
-
-
-def _compact_task_parameters(task: dict, module_name: str) -> str:
-    """Render a compact and bounded summary of key task parameters."""
-    value = task.get(module_name)
-    if isinstance(value, dict):
-        pairs = [
-            f"{key}={_format_inline_yaml(val)}"
-            for key, val in value.items()
-            if key not in {"src", "dest", "name"}
-        ]
-        if pairs:
-            rendered = ", ".join(pairs[:3])
-            if len(pairs) > 3:
-                rendered += ", ..."
-            return rendered
-    if isinstance(value, str):
-        compact = value.strip().replace("\n", " ")
-        return compact[:80] + ("..." if len(compact) > 80 else "")
-    return ""
-
-
 def _compute_quality_metrics(
     role_path: str,
     exclude_paths: list[str] | None = None,
@@ -1692,215 +816,6 @@ def build_comparison_report(
             },
         },
     }
-
-
-def _infer_variable_type(value: object) -> str:
-    """Infer a lightweight type label for rendered variable summaries."""
-    if isinstance(value, bool):
-        return "bool"
-    if isinstance(value, int):
-        return "int"
-    if isinstance(value, float):
-        return "float"
-    if isinstance(value, list):
-        return "list"
-    if isinstance(value, dict):
-        return "dict"
-    if value is None:
-        return "null"
-    return "str"
-
-
-def _format_inline_yaml(value: object) -> str:
-    """Render a value as compact inline YAML for README tables."""
-    text = yaml.safe_dump(value, default_flow_style=True, sort_keys=False).strip()
-    return text.replace("\n", " ").replace("...", "").strip()
-
-
-def _looks_secret_name(name: str) -> bool:
-    """Return True when a variable name suggests secret/sensitive content."""
-    lowered = name.lower()
-    return any(token in lowered for token in _SECRET_NAME_TOKENS)
-
-
-def _resembles_password_like(value: object) -> bool:
-    """Return True when a string value looks like a credential/token."""
-    if not isinstance(value, str):
-        return False
-
-    raw = value.strip().strip("'\"")
-    if not raw:
-        return False
-    lowered = raw.lower()
-
-    if any(marker in lowered for marker in _VAULT_MARKERS):
-        return True
-    if raw.startswith(_CREDENTIAL_PREFIXES):
-        return True
-    if raw.startswith(_URL_PREFIXES):
-        return False
-    if " " in raw or "{{" in raw or "}}" in raw:
-        return False
-
-    has_lower = any(char.islower() for char in raw)
-    has_upper = any(char.isupper() for char in raw)
-    has_digit = any(char.isdigit() for char in raw)
-    has_symbol = any(not char.isalnum() for char in raw)
-    class_count = sum((has_lower, has_upper, has_digit, has_symbol))
-
-    if len(raw) >= 24 and class_count >= 2:
-        return True
-    if len(raw) >= 12 and class_count >= 3:
-        return True
-    return False
-
-
-def _is_sensitive_variable(name: str, value: object) -> bool:
-    """Return True when variable should be treated as sensitive for output."""
-    if _looks_secret_value(value):
-        return True
-    if _looks_secret_name(name) and _resembles_password_like(value):
-        return True
-    return False
-
-
-def _looks_secret_value(value: object) -> bool:
-    """Return True when a value appears to be vaulted or sensitive."""
-    if isinstance(value, str):
-        lowered = value.lower()
-        return any(
-            marker in lowered for marker in _VAULT_MARKERS
-        ) or lowered.startswith("vault_")
-    return False
-
-
-def _read_seed_yaml(path: Path) -> tuple[dict, set[str]]:
-    """Read a seed vars YAML file and return mapping plus detected secret keys."""
-    text = path.read_text(encoding="utf-8")
-    secret_keys = set(VAULT_KEY_RE.findall(text))
-    try:
-        data = yaml.safe_load(text)
-    except Exception:
-        sanitized = re.sub(
-            r":\s*!vault\b[^\n]*\n(?:[ \t]+.*\n?)*",
-            ': "<vault>"\n',
-            text,
-            flags=re.MULTILINE,
-        )
-        try:
-            data = yaml.safe_load(sanitized)
-        except Exception:
-            data = None
-    if not isinstance(data, dict):
-        return {}, secret_keys
-    parsed = {key: value for key, value in data.items() if isinstance(key, str)}
-    for key, value in parsed.items():
-        if _is_sensitive_variable(key, value):
-            secret_keys.add(key)
-    return parsed, secret_keys
-
-
-def _resolve_seed_var_files(seed_paths: list[str] | None) -> list[Path]:
-    """Resolve seed var file/dir inputs into concrete YAML files."""
-    files: list[Path] = []
-    if not seed_paths:
-        return files
-    for raw_path in seed_paths:
-        seed_path = Path(raw_path).expanduser().resolve()
-        if seed_path.is_file() and seed_path.suffix in {".yml", ".yaml"}:
-            files.append(seed_path)
-            continue
-        if seed_path.is_dir():
-            files.extend(
-                sorted(
-                    candidate
-                    for candidate in seed_path.rglob("*")
-                    if candidate.is_file() and candidate.suffix in {".yml", ".yaml"}
-                )
-            )
-    return files
-
-
-def load_seed_variables(seed_paths: list[str] | None) -> tuple[dict, set[str], dict]:
-    """Load external seed variables from files/directories.
-
-    Returns ``(values, secret_names, source_map)``.
-    """
-    values: dict = {}
-    secret_names: set[str] = set()
-    source_map: dict[str, str] = {}
-    for path in _resolve_seed_var_files(seed_paths):
-        file_values, file_secrets = _read_seed_yaml(path)
-        values.update(file_values)
-        secret_names.update(file_secrets)
-        for key in file_values:
-            source_map[key] = str(path)
-    return values, secret_names, source_map
-
-
-def _collect_referenced_variable_names(
-    role_path: str,
-    exclude_paths: list[str] | None = None,
-) -> set[str]:
-    """Collect likely variable references from role tasks/templates/handlers files."""
-    role_root = Path(role_path).resolve()
-    candidates: set[str] = set()
-    scan_dirs = ["tasks", "templates", "handlers"]
-    for dirname in scan_dirs:
-        root = role_root / dirname
-        if not root.is_dir():
-            continue
-        for file_path in root.rglob("*"):
-            if not file_path.is_file():
-                continue
-            if _is_path_excluded(file_path, role_root, exclude_paths):
-                continue
-            try:
-                text = file_path.read_text(encoding="utf-8")
-            except UnicodeDecodeError, OSError:
-                continue
-            local_bindings = _collect_jinja_local_bindings_from_text(text)
-            for name in _collect_undeclared_jinja_variables(text):
-                lowered = name.lower()
-                if lowered in IGNORED_IDENTIFIERS or lowered.startswith("ansible_"):
-                    continue
-                candidates.add(name)
-            for match in JINJA_VAR_RE.findall(text):
-                lowered = match.lower()
-                if (
-                    lowered not in IGNORED_IDENTIFIERS
-                    and not lowered.startswith("ansible_")
-                    and match not in local_bindings
-                ):
-                    candidates.add(match)
-            if file_path.suffix in {".yml", ".yaml"}:
-                for line in text.splitlines():
-                    if "when:" not in line:
-                        continue
-                    expression = line.split("when:", 1)[1]
-                    for token in JINJA_IDENTIFIER_RE.findall(expression):
-                        lowered = token.lower()
-                        if lowered in IGNORED_IDENTIFIERS:
-                            continue
-                        if lowered.startswith("ansible_"):
-                            continue
-                        candidates.add(token)
-    return candidates
-
-
-def _collect_dynamic_task_include_refs(
-    role_path: str,
-    exclude_paths: list[str] | None = None,
-) -> list[str]:
-    """Return templated include/import task references from task files."""
-    role_root = Path(role_path).resolve()
-    refs: list[str] = []
-    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
-        data = _load_yaml_file(task_file)
-        for ref in _iter_task_include_targets(data):
-            if "{{" in ref or "{%" in ref:
-                refs.append(ref)
-    return refs
 
 
 def build_variable_insights(
@@ -3239,26 +2154,6 @@ def _classify_provenance_issue(row: dict) -> str | None:
             return "ambiguous_set_fact_runtime"
         return "ambiguous_other"
 
-    return None
-
-
-def _detect_task_module(task: dict) -> str | None:
-    """Detect the task module key from an Ansible task mapping."""
-    # Check for explicit include/import tasks first
-    for include_key in TASK_INCLUDE_KEYS:
-        if include_key in task:
-            # Normalize to short form for readability
-            if "import_tasks" in include_key:
-                return "import_tasks"
-            return "include_tasks"
-
-    # Then look for regular modules
-    for key in task:
-        if key in TASK_META_KEYS or key in TASK_BLOCK_KEYS:
-            continue
-        if key.startswith("with_"):
-            continue
-        return key
     return None
 
 

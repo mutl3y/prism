@@ -1,0 +1,774 @@
+"""Behavior-lock tests for scanner.py internal functions.
+
+These tests pin the contracts of functions that will be extracted into
+separate submodules (jinja_analyzer, variable_extractor, task_parser)
+during the scanner.py refactor.  Each test describes the specific
+behavior it guards so that any regression introduced during the split
+is immediately visible.
+
+Test groups mirror the planned submodule boundaries:
+  - Jinja analysis helpers
+  - Variable extraction helpers
+  - Task parsing helpers
+"""
+
+from prism import scanner
+
+# ---------------------------------------------------------------------------
+# Jinja analysis helpers
+# ---------------------------------------------------------------------------
+
+
+class TestStringifyJinjaNode:
+    """_stringify_jinja_node: compact string rendering of Jinja AST nodes."""
+
+    def _parse_expr(self, src: str):
+        import jinja2
+
+        env = jinja2.Environment()
+        parsed = env.parse(f"{{{{ {src} }}}}")
+        # The first Output node's child contains the expression.
+        output = list(parsed.body)[0]
+        return list(output.nodes)[0]
+
+    def test_none_returns_empty_string(self):
+        assert scanner._stringify_jinja_node(None) == ""
+
+    def test_name_node_returns_name(self):
+        node = self._parse_expr("my_var")
+        assert scanner._stringify_jinja_node(node) == "my_var"
+
+    def test_const_string_returns_value(self):
+        node = self._parse_expr("'hello'")
+        assert scanner._stringify_jinja_node(node) == "hello"
+
+    def test_const_int_returns_value(self):
+        node = self._parse_expr("42")
+        assert scanner._stringify_jinja_node(node) == "42"
+
+    def test_getattr_returns_dotted_path(self):
+        node = self._parse_expr("foo.bar")
+        assert scanner._stringify_jinja_node(node) == "foo.bar"
+
+    def test_getitem_returns_bracket_notation(self):
+        node = self._parse_expr("foo['key']")
+        result = scanner._stringify_jinja_node(node)
+        assert "foo" in result
+        assert "key" in result
+
+    def test_filter_node_returns_pipe_form(self):
+        node = self._parse_expr("x | upper")
+        assert "x" in scanner._stringify_jinja_node(node)
+        assert "upper" in scanner._stringify_jinja_node(node)
+
+    def test_filter_with_args_includes_args(self):
+        node = self._parse_expr("x | default('fallback')")
+        result = scanner._stringify_jinja_node(node)
+        assert "x" in result
+        assert "default" in result
+        assert "fallback" in result
+
+
+class TestScanTextForDefaultFiltersWithAst:
+    """_scan_text_for_default_filters_with_ast: extract | default(...) via AST."""
+
+    def test_returns_empty_for_plain_text(self):
+        result = scanner._scan_text_for_default_filters_with_ast("no jinja here", [])
+        assert result == []
+
+    def test_detects_simple_default_filter(self):
+        text = "{{ my_var | default('fallback') }}"
+        lines = [text]
+        result = scanner._scan_text_for_default_filters_with_ast(text, lines)
+        assert len(result) == 1
+        assert result[0]["match"] == "my_var | default(fallback)"
+        assert result[0]["args"] == "fallback"
+
+    def test_result_includes_line_no_and_line(self):
+        text = "{{ my_var | default('x') }}"
+        lines = [text]
+        result = scanner._scan_text_for_default_filters_with_ast(text, lines)
+        assert result[0]["line_no"] == 1
+        assert result[0]["line"] == text
+
+    def test_skips_non_default_filters(self):
+        text = "{{ my_var | upper }}"
+        lines = [text]
+        result = scanner._scan_text_for_default_filters_with_ast(text, lines)
+        assert result == []
+
+    def test_handles_invalid_jinja_gracefully(self):
+        text = "{{ invalid jinja {{ }}"
+        result = scanner._scan_text_for_default_filters_with_ast(text, [text])
+        assert isinstance(result, list)
+
+    def test_detects_multiple_defaults_in_one_text(self):
+        text = "{{ a | default('x') }} {{ b | default('y') }}"
+        lines = [text]
+        result = scanner._scan_text_for_default_filters_with_ast(text, lines)
+        assert len(result) == 2
+
+    def test_default_without_args_records_empty_args(self):
+        text = "{{ my_var | default() }}"
+        lines = [text]
+        result = scanner._scan_text_for_default_filters_with_ast(text, lines)
+        assert len(result) == 1
+        assert result[0]["args"] == ""
+
+
+class TestCollectUndeclaredJinjaVariables:
+    """_collect_undeclared_jinja_variables: find externally required names."""
+
+    def test_returns_empty_for_plain_text(self):
+        result = scanner._collect_undeclared_jinja_variables("no template here")
+        assert result == set()
+
+    def test_detects_simple_variable_reference(self):
+        result = scanner._collect_undeclared_jinja_variables("{{ my_var }}")
+        assert "my_var" in result
+
+    def test_excludes_loop_variable_from_for_body(self):
+        text = "{% for item in items %}{{ item }}{% endfor %}"
+        result = scanner._collect_undeclared_jinja_variables(text)
+        assert "item" not in result
+        assert "items" in result
+
+    def test_excludes_macro_parameter(self):
+        text = "{% macro greet(name) %}Hello {{ name }}{% endmacro %}"
+        result = scanner._collect_undeclared_jinja_variables(text)
+        assert "name" not in result
+
+    def test_excludes_set_assigned_name(self):
+        text = "{% set computed = 42 %}{{ computed }}"
+        result = scanner._collect_undeclared_jinja_variables(text)
+        assert "computed" not in result
+
+    def test_multiple_variables_detected(self):
+        result = scanner._collect_undeclared_jinja_variables("{{ a }} {{ b }}")
+        assert "a" in result
+        assert "b" in result
+
+    def test_handles_parse_error_gracefully(self):
+        result = scanner._collect_undeclared_jinja_variables("{{ bad syntax !!!")
+        assert isinstance(result, set)
+
+
+class TestCollectJinjaLocalBindings:
+    """_collect_jinja_local_bindings_from_text: identify locally bound names."""
+
+    def test_empty_text_returns_empty_set(self):
+        result = scanner._collect_jinja_local_bindings_from_text("no jinja")
+        assert result == set()
+
+    def test_for_loop_variable_is_local(self):
+        text = "{% for item in items %}{% endfor %}"
+        result = scanner._collect_jinja_local_bindings_from_text(text)
+        assert "item" in result
+
+    def test_macro_parameter_is_local(self):
+        text = "{% macro render(title) %}{% endmacro %}"
+        result = scanner._collect_jinja_local_bindings_from_text(text)
+        assert "title" in result
+
+    def test_set_target_is_local(self):
+        text = "{% set result = 'x' %}"
+        result = scanner._collect_jinja_local_bindings_from_text(text)
+        assert "result" in result
+
+    def test_unpacked_for_tuple_both_names_are_local(self):
+        text = "{% for key, val in pairs %}{% endfor %}"
+        result = scanner._collect_jinja_local_bindings_from_text(text)
+        assert "key" in result
+        assert "val" in result
+
+    def test_invalid_jinja_returns_empty_set(self):
+        result = scanner._collect_jinja_local_bindings_from_text("{{ bad !!!")
+        assert result == set()
+
+
+class TestExtractJinjaNameTargets:
+    """_extract_jinja_name_targets: pull identifier names from assignment targets."""
+
+    def test_none_returns_empty_set(self):
+        result = scanner._extract_jinja_name_targets(None)
+        assert result == set()
+
+    def test_name_node_returns_single_name(self):
+        import jinja2
+
+        node = jinja2.nodes.Name("my_name", "store")
+        result = scanner._extract_jinja_name_targets(node)
+        assert result == {"my_name"}
+
+    def test_tuple_target_returns_all_names(self):
+        import jinja2
+
+        a = jinja2.nodes.Name("a", "store")
+        b = jinja2.nodes.Name("b", "store")
+        # Simulate a Tuple node (has .items attribute)
+        tuple_node = jinja2.nodes.Tuple([a, b], "store")
+        result = scanner._extract_jinja_name_targets(tuple_node)
+        assert result == {"a", "b"}
+
+
+# ---------------------------------------------------------------------------
+# Variable extraction helpers
+# ---------------------------------------------------------------------------
+
+
+class TestExtractDefaultTargetVar:
+    """_extract_default_target_var: pull the variable name from a default occurrence."""
+
+    def test_extracts_simple_var_name(self):
+        occ = {"line": "{{ my_var | default('x') }}", "match": "my_var | default(x)"}
+        result = scanner._extract_default_target_var(occ)
+        assert result == "my_var"
+
+    def test_returns_none_when_no_variable_found(self):
+        occ = {"line": "no default here", "match": "no default here"}
+        result = scanner._extract_default_target_var(occ)
+        assert result is None
+
+    def test_uses_match_when_line_is_empty(self):
+        occ = {"line": "", "match": "some_var | default(fallback)"}
+        result = scanner._extract_default_target_var(occ)
+        assert result == "some_var"
+
+    def test_empty_occurrence_returns_none(self):
+        result = scanner._extract_default_target_var({})
+        assert result is None
+
+
+class TestCollectIncludeVarsFiles:
+    """_collect_include_vars_files: resolve static include_vars references."""
+
+    def test_finds_static_include_vars_file(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "vars").mkdir()
+        extra_vars = role / "vars" / "extra.yml"
+        extra_vars.write_text("extra_var: value\n", encoding="utf-8")
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- include_vars: extra.yml\n", encoding="utf-8"
+        )
+        result = scanner._collect_include_vars_files(str(role))
+        assert extra_vars.resolve() in result
+
+    def test_ignores_dynamic_include_vars(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- include_vars: '{{ dynamic_path }}'\n", encoding="utf-8"
+        )
+        result = scanner._collect_include_vars_files(str(role))
+        assert result == []
+
+    def test_returns_empty_for_role_without_tasks(self, tmp_path):
+        role = tmp_path / "role"
+        role.mkdir()
+        result = scanner._collect_include_vars_files(str(role))
+        assert result == []
+
+    def test_does_not_include_files_outside_role(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        outside = tmp_path / "outside_vars.yml"
+        outside.write_text("x: 1\n", encoding="utf-8")
+        (role / "tasks" / "main.yml").write_text(
+            f"---\n- include_vars: {outside}\n", encoding="utf-8"
+        )
+        result = scanner._collect_include_vars_files(str(role))
+        assert outside.resolve() not in result
+
+
+class TestCollectSetFactNames:
+    """_collect_set_fact_names: find variable names assigned via set_fact."""
+
+    def test_finds_set_fact_variable(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- set_fact:\n    computed_value: hello\n", encoding="utf-8"
+        )
+        result = scanner._collect_set_fact_names(str(role))
+        assert "computed_value" in result
+
+    def test_ignores_dynamic_set_fact_keys(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- set_fact:\n    '{{ dynamic_key }}': value\n", encoding="utf-8"
+        )
+        result = scanner._collect_set_fact_names(str(role))
+        assert not any("{{" in name for name in result)
+
+    def test_returns_empty_for_role_with_no_set_fact(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- name: do something\n  debug:\n    msg: hi\n", encoding="utf-8"
+        )
+        result = scanner._collect_set_fact_names(str(role))
+        assert result == set()
+
+
+class TestFindVariableLineInYaml:
+    """_find_variable_line_in_yaml: locate the 1-indexed line where a var is defined."""
+
+    def test_finds_variable_on_first_line(self, tmp_path):
+        f = tmp_path / "vars.yml"
+        f.write_text("my_var: value\nother_var: 2\n", encoding="utf-8")
+        assert scanner._find_variable_line_in_yaml(f, "my_var") == 1
+
+    def test_finds_variable_on_later_line(self, tmp_path):
+        f = tmp_path / "vars.yml"
+        f.write_text("first: 1\nsecond: 2\nthird: 3\n", encoding="utf-8")
+        assert scanner._find_variable_line_in_yaml(f, "third") == 3
+
+    def test_returns_none_when_variable_not_present(self, tmp_path):
+        f = tmp_path / "vars.yml"
+        f.write_text("a: 1\nb: 2\n", encoding="utf-8")
+        assert scanner._find_variable_line_in_yaml(f, "missing") is None
+
+    def test_returns_none_on_io_error(self, tmp_path):
+        missing = tmp_path / "nonexistent.yml"
+        assert scanner._find_variable_line_in_yaml(missing, "any") is None
+
+
+class TestCollectDynamicIncludeVarsRefs:
+    """_collect_dynamic_include_vars_refs: collect unresolvable include_vars paths."""
+
+    def test_finds_dynamic_include_vars(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- include_vars: '{{ env_specific_file }}'\n", encoding="utf-8"
+        )
+        result = scanner._collect_dynamic_include_vars_refs(str(role))
+        assert len(result) == 1
+        assert "{{" in result[0]
+
+    def test_static_include_vars_not_in_dynamic_refs(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "vars").mkdir()
+        (role / "vars" / "extra.yml").write_text("x: 1\n", encoding="utf-8")
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- include_vars: extra.yml\n", encoding="utf-8"
+        )
+        result = scanner._collect_dynamic_include_vars_refs(str(role))
+        assert result == []
+
+    def test_empty_for_role_without_tasks(self, tmp_path):
+        role = tmp_path / "role"
+        role.mkdir()
+        result = scanner._collect_dynamic_include_vars_refs(str(role))
+        assert result == []
+
+
+class TestSecretDetectionHelpers:
+    """_looks_secret_name / _resembles_password_like / _is_sensitive_variable / _looks_secret_value."""
+
+    def test_looks_secret_name_detects_password_keyword(self):
+        assert scanner._looks_secret_name("db_password") is True
+
+    def test_looks_secret_name_detects_token_keyword(self):
+        assert scanner._looks_secret_name("api_token") is True
+
+    def test_looks_secret_name_detects_secret_keyword(self):
+        assert scanner._looks_secret_name("my_secret_key") is True
+
+    def test_looks_secret_name_ignores_normal_name(self):
+        assert scanner._looks_secret_name("role_name") is False
+
+    def test_resembles_password_like_detects_vault_encrypted(self):
+        assert scanner._resembles_password_like("!vault |encrypted_text") is True
+
+    def test_resembles_password_like_approves_long_complex_string(self):
+        # 24+ chars, mixed case + digit + symbol
+        assert scanner._resembles_password_like("Abc123!@#Xyz789LongSecret") is True
+
+    def test_resembles_password_like_ignores_plain_url(self):
+        assert scanner._resembles_password_like("https://example.com/path") is False
+
+    def test_resembles_password_like_ignores_template_value(self):
+        assert scanner._resembles_password_like("{{ my_var }}") is False
+
+    def test_resembles_password_like_ignores_non_string(self):
+        assert scanner._resembles_password_like(42) is False
+        assert scanner._resembles_password_like(None) is False
+
+    def test_looks_secret_value_detects_vault_marker(self):
+        assert scanner._looks_secret_value("$ANSIBLE_VAULT;1.1;AES256\n...") is True
+
+    def test_looks_secret_value_ignores_normal_string(self):
+        assert scanner._looks_secret_value("just a plain value") is False
+
+    def test_is_sensitive_variable_with_secret_name_and_credential_value(self):
+        assert (
+            scanner._is_sensitive_variable("db_password", "Abc123!@#Xyz789LongSecret")
+            is True
+        )
+
+    def test_is_sensitive_variable_with_vault_value(self):
+        assert scanner._is_sensitive_variable("any_name", "$ANSIBLE_VAULT;1.1") is True
+
+    def test_is_sensitive_variable_plain_non_secret(self):
+        assert scanner._is_sensitive_variable("role_owner", "root") is False
+
+
+class TestInferVariableType:
+    """_infer_variable_type: return lightweight type label from a Python value."""
+
+    def test_bool_true(self):
+        assert scanner._infer_variable_type(True) == "bool"
+
+    def test_bool_false(self):
+        assert scanner._infer_variable_type(False) == "bool"
+
+    def test_int(self):
+        assert scanner._infer_variable_type(42) == "int"
+
+    def test_float(self):
+        assert scanner._infer_variable_type(3.14) == "float"
+
+    def test_list(self):
+        assert scanner._infer_variable_type([1, 2]) == "list"
+
+    def test_dict(self):
+        assert scanner._infer_variable_type({"a": 1}) == "dict"
+
+    def test_none(self):
+        assert scanner._infer_variable_type(None) == "null"
+
+    def test_string(self):
+        assert scanner._infer_variable_type("hello") == "str"
+
+    def test_empty_string(self):
+        assert scanner._infer_variable_type("") == "str"
+
+    def test_bool_is_not_int(self):
+        # bool must be checked before int since bool is a subclass of int
+        assert scanner._infer_variable_type(True) == "bool"
+        assert scanner._infer_variable_type(False) == "bool"
+
+
+class TestReadSeedYaml:
+    """_read_seed_yaml: parse seed YAML file and detect secret keys."""
+
+    def test_reads_normal_variables(self, tmp_path):
+        f = tmp_path / "seed.yml"
+        f.write_text("user: admin\nport: 8080\n", encoding="utf-8")
+        data, secrets = scanner._read_seed_yaml(f)
+        assert data["user"] == "admin"
+        assert data["port"] == 8080
+
+    def test_detects_vault_encrypted_key(self, tmp_path):
+        f = tmp_path / "seed.yml"
+        f.write_text(
+            "db_password: !vault |\n  $ANSIBLE_VAULT;1.1;AES256\n  abcdef\n",
+            encoding="utf-8",
+        )
+        data, secrets = scanner._read_seed_yaml(f)
+        assert "db_password" in secrets
+
+    def test_returns_empty_for_empty_file(self, tmp_path):
+        f = tmp_path / "seed.yml"
+        f.write_text("", encoding="utf-8")
+        data, secrets = scanner._read_seed_yaml(f)
+        assert data == {}
+
+    def test_returns_empty_for_non_mapping(self, tmp_path):
+        f = tmp_path / "seed.yml"
+        f.write_text("- item1\n- item2\n", encoding="utf-8")
+        data, secrets = scanner._read_seed_yaml(f)
+        assert data == {}
+
+    def test_handles_plain_malformed_yaml(self, tmp_path):
+        f = tmp_path / "seed.yml"
+        f.write_text("key: !unknown_tag value\n", encoding="utf-8")
+        data, secrets = scanner._read_seed_yaml(f)
+        assert isinstance(data, dict)
+
+
+class TestResolveSeedVarFiles:
+    """_resolve_seed_var_files: expand seed paths to concrete YAML file lists."""
+
+    def test_resolves_single_yaml_file(self, tmp_path):
+        f = tmp_path / "vars.yml"
+        f.write_text("x: 1\n", encoding="utf-8")
+        result = scanner._resolve_seed_var_files([str(f)])
+        assert f.resolve() in result
+
+    def test_resolves_directory_to_yaml_files(self, tmp_path):
+        d = tmp_path / "seed_dir"
+        d.mkdir()
+        a = d / "a.yml"
+        b = d / "b.yaml"
+        a.write_text("a: 1\n", encoding="utf-8")
+        b.write_text("b: 2\n", encoding="utf-8")
+        result = scanner._resolve_seed_var_files([str(d)])
+        resolved = [p.resolve() for p in result]
+        assert a.resolve() in resolved
+        assert b.resolve() in resolved
+
+    def test_ignores_non_yaml_files(self, tmp_path):
+        f = tmp_path / "notes.txt"
+        f.write_text("not yaml\n", encoding="utf-8")
+        result = scanner._resolve_seed_var_files([str(f)])
+        assert result == []
+
+    def test_none_input_returns_empty(self):
+        result = scanner._resolve_seed_var_files(None)
+        assert result == []
+
+    def test_empty_list_returns_empty(self):
+        result = scanner._resolve_seed_var_files([])
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Task parsing helpers
+# ---------------------------------------------------------------------------
+
+
+class TestIterTaskMappings:
+    """_iter_task_mappings: yield task dicts from YAML task document recursively."""
+
+    def test_yields_tasks_from_flat_list(self):
+        data = [{"name": "task1", "debug": {}}, {"name": "task2", "debug": {}}]
+        result = list(scanner._iter_task_mappings(data))
+        assert len(result) == 2
+        assert result[0]["name"] == "task1"
+
+    def test_yields_tasks_from_block_body(self):
+        data = [{"block": [{"name": "inner", "debug": {}}]}]
+        result = list(scanner._iter_task_mappings(data))
+        names = [r.get("name") for r in result]
+        assert "inner" in names
+
+    def test_yields_tasks_from_rescue_and_always(self):
+        data = [
+            {
+                "block": [{"name": "main", "debug": {}}],
+                "rescue": [{"name": "rescue_task", "debug": {}}],
+                "always": [{"name": "always_task", "debug": {}}],
+            }
+        ]
+        result = list(scanner._iter_task_mappings(data))
+        names = [r.get("name") for r in result]
+        assert "rescue_task" in names
+        assert "always_task" in names
+
+    def test_ignores_non_dict_items(self):
+        data = ["not a dict", 42, None, {"name": "valid", "debug": {}}]
+        result = list(scanner._iter_task_mappings(data))
+        assert len(result) == 1
+
+    def test_empty_list_yields_nothing(self):
+        result = list(scanner._iter_task_mappings([]))
+        assert result == []
+
+    def test_none_input_yields_nothing(self):
+        result = list(scanner._iter_task_mappings(None))
+        assert result == []
+
+
+class TestSplitTaskAnnotationLabel:
+    """_split_task_annotation_label: parse annotation kind and body from comment payload."""
+
+    def test_empty_text_returns_note_with_empty_body(self):
+        kind, body = scanner._split_task_annotation_label("")
+        assert kind == "note"
+        assert body == ""
+
+    def test_text_without_colon_is_note_with_full_text_as_body(self):
+        kind, body = scanner._split_task_annotation_label("check network connectivity")
+        assert kind == "note"
+        assert body == "check network connectivity"
+
+    def test_valid_runbook_label(self):
+        kind, body = scanner._split_task_annotation_label(
+            "runbook: restart nginx manually"
+        )
+        assert kind == "runbook"
+        assert body == "restart nginx manually"
+
+    def test_valid_warning_label(self):
+        kind, body = scanner._split_task_annotation_label(
+            "warning: service will restart"
+        )
+        assert kind == "warning"
+        assert body == "service will restart"
+
+    def test_valid_deprecated_label(self):
+        kind, body = scanner._split_task_annotation_label(
+            "deprecated: use new_task instead"
+        )
+        assert kind == "deprecated"
+        assert body == "use new_task instead"
+
+    def test_valid_additional_label(self):
+        kind, body = scanner._split_task_annotation_label(
+            "additional: see runbook https://wiki"
+        )
+        assert kind == "additional"
+        assert body == "see runbook https://wiki"
+
+    def test_valid_note_label_explicit(self):
+        kind, body = scanner._split_task_annotation_label(
+            "note: remember to check logs"
+        )
+        assert kind == "note"
+        assert body == "remember to check logs"
+
+    def test_unknown_label_falls_back_to_note_with_full_text(self):
+        raw = "custom: some body"
+        kind, body = scanner._split_task_annotation_label(raw)
+        assert kind == "note"
+        assert body == raw
+
+    def test_label_is_case_insensitive(self):
+        kind, body = scanner._split_task_annotation_label("Warning: check firewall")
+        assert kind == "warning"
+        assert body == "check firewall"
+
+
+class TestTaskAnchor:
+    """_task_anchor: build stable markdown anchor slugs for task links."""
+
+    def test_basic_slug_format(self):
+        result = scanner._task_anchor("main.yml", "Install package", 1)
+        assert result == "task-main-yml-install-package-1"
+
+    def test_special_characters_are_stripped(self):
+        result = scanner._task_anchor("main.yml", "Task: do something!", 2)
+        assert " " not in result
+        assert "!" not in result
+        assert ":" not in result
+
+    def test_path_separators_are_normalized(self):
+        result = scanner._task_anchor("tasks/sub.yml", "run step", 3)
+        assert "/" not in result
+
+    def test_fallback_for_empty_slug(self):
+        # Highly artificial but must not crash
+        result = scanner._task_anchor("", "", 5)
+        assert result.startswith("task-")
+
+    def test_index_appears_at_end(self):
+        result = scanner._task_anchor("main.yml", "do thing", 10)
+        assert result.endswith("-10")
+
+
+class TestExtractRoleFeatures:
+    """extract_role_features: heuristic feature extraction from task structure."""
+
+    def test_returns_expected_keys(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- name: install pkg\n  ansible.builtin.package:\n    name: nginx\n",
+            encoding="utf-8",
+        )
+        result = scanner.extract_role_features(str(role))
+        expected_keys = {
+            "task_files_scanned",
+            "tasks_scanned",
+            "recursive_task_includes",
+            "unique_modules",
+            "external_collections",
+            "handlers_notified",
+            "privileged_tasks",
+            "conditional_tasks",
+            "tagged_tasks",
+        }
+        assert expected_keys == set(result.keys())
+
+    def test_counts_privileged_tasks(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- name: root task\n  command: id\n  become: true\n",
+            encoding="utf-8",
+        )
+        result = scanner.extract_role_features(str(role))
+        assert result["privileged_tasks"] == 1
+
+    def test_counts_conditional_tasks(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- name: conditional task\n  debug:\n    msg: hi\n  when: ansible_os_family == 'Debian'\n",
+            encoding="utf-8",
+        )
+        result = scanner.extract_role_features(str(role))
+        assert result["conditional_tasks"] == 1
+
+    def test_counts_tagged_tasks(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- name: tagged task\n  debug:\n    msg: hi\n  tags: [install]\n",
+            encoding="utf-8",
+        )
+        result = scanner.extract_role_features(str(role))
+        assert result["tagged_tasks"] == 1
+
+    def test_identifies_external_collection(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- name: community task\n  community.general.make:\n    chdir: /src\n",
+            encoding="utf-8",
+        )
+        result = scanner.extract_role_features(str(role))
+        assert "community.general" in result["external_collections"]
+
+    def test_collects_handler_notified(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- name: task with notify\n  debug:\n    msg: hi\n  notify: restart nginx\n",
+            encoding="utf-8",
+        )
+        result = scanner.extract_role_features(str(role))
+        assert "restart nginx" in result["handlers_notified"]
+
+    def test_empty_role_returns_zero_counts(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+        result = scanner.extract_role_features(str(role))
+        assert result["tasks_scanned"] == 0
+        assert result["privileged_tasks"] == 0
+
+
+class TestCollectDynamicTaskIncludeRefs:
+    """_collect_dynamic_task_include_refs: find templated task include targets."""
+
+    def test_finds_dynamic_include_task(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- include_tasks: '{{ env }}_setup.yml'\n", encoding="utf-8"
+        )
+        result = scanner._collect_dynamic_task_include_refs(str(role))
+        assert len(result) == 1
+        assert "{{" in result[0]
+
+    def test_static_include_not_in_dynamic_refs(self, tmp_path):
+        role = tmp_path / "role"
+        (role / "tasks").mkdir(parents=True)
+        (role / "tasks" / "setup.yml").write_text("---\n", encoding="utf-8")
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- include_tasks: setup.yml\n", encoding="utf-8"
+        )
+        result = scanner._collect_dynamic_task_include_refs(str(role))
+        assert result == []
+
+    def test_empty_for_role_without_tasks(self, tmp_path):
+        role = tmp_path / "role"
+        role.mkdir()
+        result = scanner._collect_dynamic_task_include_refs(str(role))
+        assert result == []
