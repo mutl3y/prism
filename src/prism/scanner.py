@@ -2376,6 +2376,182 @@ def _write_optional_runbook_outputs(
         rb_csv_path.write_text(rb_csv_content, encoding="utf-8")
 
 
+def _apply_readme_section_config(
+    metadata: dict, readme_section_config: dict | None
+) -> None:
+    """Apply resolved README section configuration into scan metadata."""
+    if readme_section_config is None:
+        return
+    metadata["enabled_sections"] = sorted(readme_section_config["enabled_sections"])
+    if readme_section_config["section_title_overrides"]:
+        metadata["section_title_overrides"] = dict(
+            readme_section_config["section_title_overrides"]
+        )
+    if readme_section_config["section_content_modes"]:
+        metadata["section_content_modes"] = dict(
+            readme_section_config["section_content_modes"]
+        )
+
+
+def _collect_variable_insights_and_default_filter_findings(
+    *,
+    role_path: str,
+    vars_seed_paths: list[str] | None,
+    include_vars_main: bool,
+    exclude_path_patterns: list[str] | None,
+    found_default_filters: list[dict],
+    variables: dict,
+    metadata: dict,
+    marker_prefix: str,
+) -> tuple[list[dict], list[dict], dict]:
+    """Collect variable insights, scanner counters, and secret-masked defaults."""
+    variable_insights = build_variable_insights(
+        role_path,
+        seed_paths=vars_seed_paths,
+        include_vars_main=include_vars_main,
+        exclude_paths=exclude_path_patterns,
+    )
+    if vars_seed_paths:
+        metadata["external_vars_context"] = {
+            "paths": [str(path) for path in vars_seed_paths],
+            "authoritative": False,
+            "purpose": "required_variable_detection_hints",
+        }
+    metadata["variable_insights"] = variable_insights
+    metadata["yaml_parse_failures"] = _collect_yaml_parse_failures(
+        role_path,
+        exclude_paths=exclude_path_patterns,
+    )
+    metadata["role_notes"] = _extract_role_notes_from_comments(
+        role_path,
+        exclude_paths=exclude_path_patterns,
+        marker_prefix=marker_prefix,
+    )
+
+    inventory_names = {row["name"]: row for row in variable_insights}
+    undocumented_default_filters: list[dict] = []
+    for occurrence in found_default_filters:
+        target_var = _extract_default_target_var(occurrence)
+        if not target_var:
+            continue
+        row = inventory_names.get(target_var)
+        if row and not row.get("documented", False):
+            enriched = dict(occurrence)
+            enriched["target_var"] = target_var
+            if row.get("secret") or (
+                _looks_secret_name(target_var)
+                and _resembles_password_like(enriched.get("args", ""))
+            ):
+                enriched["args"] = "<secret>"
+                enriched["match"] = f"{target_var} | default(<secret>)"
+            undocumented_default_filters.append(enriched)
+
+    metadata["scanner_counters"] = _extract_scanner_counters(
+        variable_insights,
+        undocumented_default_filters,
+        metadata.get("features") or {},
+        metadata.get("yaml_parse_failures") or [],
+    )
+
+    secret_names = {
+        row["name"]
+        for row in variable_insights
+        if row.get("secret") and row["name"] in variables
+    }
+    display_variables = {
+        key: ("<secret>" if key in secret_names else value)
+        for key, value in variables.items()
+    }
+    return variable_insights, undocumented_default_filters, display_variables
+
+
+def _apply_style_and_comparison_metadata(
+    *,
+    metadata: dict,
+    style_readme_path: str | None,
+    style_source_path: str | None,
+    style_guide_skeleton: bool,
+    compare_role_path: str | None,
+    role_path: str,
+    exclude_path_patterns: list[str] | None,
+) -> None:
+    """Attach style-guide and optional baseline comparison metadata."""
+    effective_style_readme_path = style_readme_path
+    if not effective_style_readme_path and style_source_path:
+        effective_style_readme_path = style_source_path
+    if style_guide_skeleton and not effective_style_readme_path:
+        effective_style_readme_path = resolve_default_style_guide_source(
+            explicit_path=style_source_path
+        )
+
+    if effective_style_readme_path:
+        style_path = Path(effective_style_readme_path)
+        if not style_path.is_file():
+            raise FileNotFoundError(
+                f"style README not found: {effective_style_readme_path}"
+            )
+        metadata["style_guide"] = parse_style_readme(str(style_path))
+    if style_guide_skeleton:
+        metadata["style_guide_skeleton"] = True
+    if compare_role_path:
+        cp = Path(compare_role_path)
+        if not cp.is_dir():
+            raise FileNotFoundError(
+                f"comparison role path not found: {compare_role_path}"
+            )
+        metadata["comparison"] = build_comparison_report(
+            role_path,
+            compare_role_path,
+            exclude_paths=exclude_path_patterns,
+        )
+
+
+def _render_and_write_scan_output(
+    *,
+    out_path: Path,
+    output_format: str,
+    role_name: str,
+    description: str,
+    display_variables: dict,
+    requirements_display: list,
+    undocumented_default_filters: list[dict],
+    metadata: dict,
+    template: str | None,
+    dry_run: bool,
+) -> str:
+    """Render final output payload and write it unless dry-run is enabled."""
+    rendered = ""
+    if output_format != "json":
+        rendered = render_readme(
+            str(out_path),
+            role_name,
+            description,
+            display_variables,
+            requirements_display,
+            undocumented_default_filters,
+            template,
+            metadata,
+            write=False,
+        )
+
+    final_content = render_final_output(
+        rendered,
+        output_format,
+        role_name,
+        payload={
+            "role_name": role_name,
+            "description": description,
+            "variables": display_variables,
+            "requirements": requirements_display,
+            "default_filters": undocumented_default_filters,
+            "metadata": metadata,
+        },
+    )
+    if dry_run:
+        return final_content
+    return write_output(out_path, final_content)
+
+
 def run_scan(
     role_path: str,
     output: str = "README.md",
@@ -2442,73 +2618,19 @@ def run_scan(
         config_path=readme_config_path,
         adopt_heading_mode=adopt_heading_mode,
     )
-    if readme_section_config is not None:
-        metadata["enabled_sections"] = sorted(readme_section_config["enabled_sections"])
-        if readme_section_config["section_title_overrides"]:
-            metadata["section_title_overrides"] = dict(
-                readme_section_config["section_title_overrides"]
-            )
-        if readme_section_config["section_content_modes"]:
-            metadata["section_content_modes"] = dict(
-                readme_section_config["section_content_modes"]
-            )
-    variable_insights = build_variable_insights(
-        role_path,
-        seed_paths=vars_seed_paths,
-        include_vars_main=include_vars_main,
-        exclude_paths=exclude_path_patterns,
+    _apply_readme_section_config(metadata, readme_section_config)
+    variable_insights, undocumented_default_filters, display_variables = (
+        _collect_variable_insights_and_default_filter_findings(
+            role_path=role_path,
+            vars_seed_paths=vars_seed_paths,
+            include_vars_main=include_vars_main,
+            exclude_path_patterns=exclude_path_patterns,
+            found_default_filters=found,
+            variables=variables,
+            metadata=metadata,
+            marker_prefix=marker_prefix,
+        )
     )
-    if vars_seed_paths:
-        metadata["external_vars_context"] = {
-            "paths": [str(path) for path in vars_seed_paths],
-            "authoritative": False,
-            "purpose": "required_variable_detection_hints",
-        }
-    metadata["variable_insights"] = variable_insights
-    metadata["yaml_parse_failures"] = _collect_yaml_parse_failures(
-        role_path,
-        exclude_paths=exclude_path_patterns,
-    )
-    metadata["role_notes"] = _extract_role_notes_from_comments(
-        role_path,
-        exclude_paths=exclude_path_patterns,
-        marker_prefix=marker_prefix,
-    )
-    inventory_names = {row["name"]: row for row in variable_insights}
-    undocumented_default_filters: list[dict] = []
-    for occurrence in found:
-        target_var = _extract_default_target_var(occurrence)
-        if not target_var:
-            continue
-        row = inventory_names.get(target_var)
-        if row and not row.get("documented", False):
-            enriched = dict(occurrence)
-            enriched["target_var"] = target_var
-            if row.get("secret") or (
-                _looks_secret_name(target_var)
-                and _resembles_password_like(enriched.get("args", ""))
-            ):
-                enriched["args"] = "<secret>"
-                enriched["match"] = f"{target_var} | default(<secret>)"
-            undocumented_default_filters.append(enriched)
-
-    metadata["scanner_counters"] = _extract_scanner_counters(
-        variable_insights,
-        undocumented_default_filters,
-        metadata.get("features") or {},
-        metadata.get("yaml_parse_failures") or [],
-    )
-
-    # Replace secret values in simple role-variable rendering.
-    secret_names = {
-        row["name"]
-        for row in variable_insights
-        if row.get("secret") and row["name"] in variables
-    }
-    display_variables = {
-        key: ("<secret>" if key in secret_names else value)
-        for key, value in variables.items()
-    }
     metadata["doc_insights"] = build_doc_insights(
         role_name=role_name,
         description=description,
@@ -2516,34 +2638,15 @@ def run_scan(
         variables=variables,
         variable_insights=variable_insights,
     )
-    effective_style_readme_path = style_readme_path
-    if not effective_style_readme_path and style_source_path:
-        effective_style_readme_path = style_source_path
-    if style_guide_skeleton and not effective_style_readme_path:
-        effective_style_readme_path = resolve_default_style_guide_source(
-            explicit_path=style_source_path
-        )
-
-    if effective_style_readme_path:
-        style_path = Path(effective_style_readme_path)
-        if not style_path.is_file():
-            raise FileNotFoundError(
-                f"style README not found: {effective_style_readme_path}"
-            )
-        metadata["style_guide"] = parse_style_readme(str(style_path))
-    if style_guide_skeleton:
-        metadata["style_guide_skeleton"] = True
-    if compare_role_path:
-        cp = Path(compare_role_path)
-        if not cp.is_dir():
-            raise FileNotFoundError(
-                f"comparison role path not found: {compare_role_path}"
-            )
-        metadata["comparison"] = build_comparison_report(
-            role_path,
-            compare_role_path,
-            exclude_paths=exclude_path_patterns,
-        )
+    _apply_style_and_comparison_metadata(
+        metadata=metadata,
+        style_readme_path=style_readme_path,
+        style_source_path=style_source_path,
+        style_guide_skeleton=style_guide_skeleton,
+        compare_role_path=compare_role_path,
+        role_path=role_path,
+        exclude_path_patterns=exclude_path_patterns,
+    )
 
     out_path = resolve_output_path(output, output_format)
     _write_concise_scanner_report_if_enabled(
@@ -2560,36 +2663,20 @@ def run_scan(
         dry_run=dry_run,
     )
 
-    rendered = ""
-    if output_format != "json":
-        rendered = render_readme(
-            str(out_path),
-            role_name,
-            description,
-            display_variables,
-            requirements_display,
-            undocumented_default_filters,
-            template,
-            metadata,
-            write=False,
-        )
-
-    final_content = render_final_output(
-        rendered,
-        output_format,
-        role_name,
-        payload={
-            "role_name": role_name,
-            "description": description,
-            "variables": display_variables,
-            "requirements": requirements_display,
-            "default_filters": undocumented_default_filters,
-            "metadata": metadata,
-        },
+    result = _render_and_write_scan_output(
+        out_path=out_path,
+        output_format=output_format,
+        role_name=role_name,
+        description=description,
+        display_variables=display_variables,
+        requirements_display=requirements_display,
+        undocumented_default_filters=undocumented_default_filters,
+        metadata=metadata,
+        template=template,
+        dry_run=dry_run,
     )
     if dry_run:
-        return final_content
-    result = write_output(out_path, final_content)
+        return result
     _write_optional_runbook_outputs(
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
