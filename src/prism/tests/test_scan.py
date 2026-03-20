@@ -392,6 +392,30 @@ def test_collect_role_contents_and_features_handle_sparse_role(tmp_path):
     assert contents["features"]["tasks_scanned"] == 0
 
 
+def test_extract_role_features_tracks_included_roles(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: include role by dict\n"
+        "  include_role:\n"
+        "    name: acme.common\n"
+        "- name: import role by fqcn\n"
+        "  ansible.builtin.import_role:\n"
+        "    name: acme.web\n"
+        "- name: dynamic include ignored\n"
+        "  import_role:\n"
+        '    name: "{{ dynamic_role_name }}"\n',
+        encoding="utf-8",
+    )
+
+    features = scanner.extract_role_features(str(role))
+
+    assert features["included_role_calls"] == 2
+    assert features["included_roles"] == "acme.common, acme.web"
+
+
 def test_build_variable_insights_detects_required_undocumented_vars(tmp_path):
     role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"

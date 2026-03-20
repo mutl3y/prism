@@ -682,6 +682,8 @@ class TestExtractRoleFeatures:
             "privileged_tasks",
             "conditional_tasks",
             "tagged_tasks",
+            "included_role_calls",
+            "included_roles",
         }
         assert expected_keys == set(result.keys())
 
