@@ -91,11 +91,20 @@ def _stringify_jinja_node(node: object) -> str:
         return f"{base} | {node.name}".strip()
     if isinstance(node, jinja2.nodes.Call):
         callee = _stringify_jinja_node(node.node)
-        args = ", ".join(
+        positional = [
             value
             for value in (_stringify_jinja_node(arg).strip() for arg in node.args)
             if value
-        )
+        ]
+        keyword_args: list[str] = []
+        for kwarg in getattr(node, "kwargs", []) or []:
+            key = str(getattr(kwarg, "key", "") or "").strip()
+            value = _stringify_jinja_node(getattr(kwarg, "value", None)).strip()
+            if key and value:
+                keyword_args.append(f"{key}={value}")
+            elif value:
+                keyword_args.append(value)
+        args = ", ".join(positional + keyword_args)
         return f"{callee}({args})" if callee else f"({args})"
     if isinstance(node, jinja2.nodes.Test):
         left = _stringify_jinja_node(node.node)
@@ -107,6 +116,66 @@ def _stringify_jinja_node(node: object) -> str:
         if args:
             return f"{left} is {node.name}({args})"
         return f"{left} is {node.name}".strip()
+    if isinstance(node, jinja2.nodes.CondExpr):
+        condition = _stringify_jinja_node(getattr(node, "test", None)).strip()
+        when_true = _stringify_jinja_node(getattr(node, "expr1", None)).strip()
+        when_false = _stringify_jinja_node(getattr(node, "expr2", None)).strip()
+        if condition and when_true and when_false:
+            return f"{when_true} if {condition} else {when_false}"
+        return when_true or when_false or condition
+    if isinstance(node, jinja2.nodes.Compare):
+        left = _stringify_jinja_node(getattr(node, "expr", None)).strip()
+        parts = [left] if left else []
+        compare_aliases = {
+            "eq": "==",
+            "ne": "!=",
+            "gt": ">",
+            "gteq": ">=",
+            "lt": "<",
+            "lteq": "<=",
+            "in": "in",
+            "notin": "not in",
+        }
+        for operand in getattr(node, "ops", []) or []:
+            op = str(getattr(operand, "op", "") or "").strip()
+            rhs = _stringify_jinja_node(getattr(operand, "expr", None)).strip()
+            op = compare_aliases.get(op, op)
+            if op and rhs:
+                parts.append(f"{op} {rhs}")
+            elif rhs:
+                parts.append(rhs)
+        return " ".join(part for part in parts if part).strip()
+    if isinstance(node, jinja2.nodes.BinExpr):
+        left = _stringify_jinja_node(getattr(node, "left", None)).strip()
+        right = _stringify_jinja_node(getattr(node, "right", None)).strip()
+        op = node.__class__.__name__.lower()
+        op_aliases = {
+            "and": "and",
+            "or": "or",
+            "add": "+",
+            "sub": "-",
+            "mul": "*",
+            "div": "/",
+            "floordiv": "//",
+            "mod": "%",
+            "pow": "**",
+        }
+        operator = op_aliases.get(op, op)
+        if left and right:
+            return f"{left} {operator} {right}"
+        return left or right
+    if isinstance(node, jinja2.nodes.UnaryExpr):
+        target = _stringify_jinja_node(getattr(node, "node", None)).strip()
+        op = node.__class__.__name__.lower()
+        op_aliases = {
+            "not": "not ",
+            "neg": "-",
+            "pos": "+",
+        }
+        prefix = op_aliases.get(op, "")
+        if prefix and target:
+            return f"{prefix}{target}"
+        return target
     if isinstance(node, jinja2.nodes.TemplateData):
         return node.data.strip()
     return ""
