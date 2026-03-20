@@ -4,7 +4,7 @@ Candidate repositories whose existing READMEs are useful as style guides for gen
 
 ## Primary review set
 
-- [geerlingguy/prismker](https://github.com/geerlingguy/prismker)
+- [geerlingguy/ansible-role-packer](https://github.com/geerlingguy/ansible-role-packer)
   - Strong, widely used Ansible role README structure.
   - Good baseline for sections, examples, and concise operational tone.
 - [geerlingguy/ansible-role-nginx](https://github.com/geerlingguy/ansible-role-nginx)
@@ -33,4 +33,4 @@ Candidate repositories whose existing READMEs are useful as style guides for gen
 
 - Use these repositories as formatting and section-structure guides, not as factual sources.
 - Generated content should continue to come from the scanner output.
-- The first live validation target is `geerlingguy/prismker`.
+- The first live validation target is `geerlingguy/ansible-role-packer`.
