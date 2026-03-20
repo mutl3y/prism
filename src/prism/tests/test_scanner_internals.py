@@ -68,6 +68,22 @@ class TestStringifyJinjaNode:
         assert "default" in result
         assert "fallback" in result
 
+    def test_conditional_expression_is_rendered(self):
+        node = self._parse_expr("foo if is_primary else bar")
+        result = scanner._stringify_jinja_node(node)
+        assert "foo" in result
+        assert "if" in result
+        assert "is_primary" in result
+        assert "else" in result
+        assert "bar" in result
+
+    def test_compare_expression_is_rendered(self):
+        node = self._parse_expr("retry_count > 3")
+        result = scanner._stringify_jinja_node(node)
+        assert "retry_count" in result
+        assert ">" in result
+        assert "3" in result
+
 
 class TestScanTextForDefaultFiltersWithAst:
     """_scan_text_for_default_filters_with_ast: extract | default(...) via AST."""
@@ -114,6 +130,14 @@ class TestScanTextForDefaultFiltersWithAst:
         result = scanner._scan_text_for_default_filters_with_ast(text, lines)
         assert len(result) == 1
         assert result[0]["args"] == ""
+
+    def test_default_target_with_conditional_expression_is_rendered(self):
+        text = "{{ (foo if is_primary else bar) | default('fallback') }}"
+        lines = [text]
+        result = scanner._scan_text_for_default_filters_with_ast(text, lines)
+        assert len(result) == 1
+        assert "foo if is_primary else bar" in result[0]["match"]
+        assert result[0]["args"] == "fallback"
 
 
 class TestCollectUndeclaredJinjaVariables:
