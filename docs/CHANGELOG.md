@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Completed workoff/schedule plan documents were moved into `docs/completed_plans/` as archived records.
 - GitHub Pages project-site configuration now sets `url`/`baseurl` for `mutl3y/prism` and uses `relative_url` links on the docs home page.
 - Unfinished local fixture `src/prism/tests/roles/test_dynamic_role/` was untracked from commits so in-progress role work can continue locally without affecting test sources.
+- Comment-driven annotations now use lint-safe `# <prefix>~<kind>: ...` markers (default `prism~...`), legacy `#t#`/`<task>`/`<notes>` aliases were removed, and marker prefix is configurable via `.prism.yml` (`markers.prefix`).
 
 ### Fixed (Unreleased)
 

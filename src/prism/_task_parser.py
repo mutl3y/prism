@@ -6,8 +6,7 @@ They have zero prism-internal dependencies (stdlib + yaml only).
 Exported names consumed by scanner.py:
   Constants: TASK_INCLUDE_KEYS, INCLUDE_VARS_KEYS, SET_FACT_KEYS,
              TASK_BLOCK_KEYS, TASK_META_KEYS
-  Regex:     ROLE_NOTES_RE, ROLE_NOTES_SHORT_RE, TASK_NOTES_LONG_RE,
-             TASK_NOTES_SHORT_RE, COMMENT_CONTINUATION_RE
+    Regex:     ROLE_NOTES_RE, TASK_NOTES_LONG_RE, COMMENT_CONTINUATION_RE
   Functions: _normalize_exclude_patterns, _is_relpath_excluded,
              _is_path_excluded, _format_inline_yaml, _load_yaml_file,
              _iter_task_include_targets, _iter_task_mappings,
@@ -90,22 +89,35 @@ TASK_META_KEYS = {
 # Regex patterns
 # ---------------------------------------------------------------------------
 
-ROLE_NOTES_RE = re.compile(
-    r"^\s*#\s*<notes>\s*(warning|deprecated|note|additional|additionals)?\s*:?\s*(.*)$",
-    flags=re.IGNORECASE,
-)
-ROLE_NOTES_SHORT_RE = re.compile(
-    r"^\s*#\s*(w|d|n|a)#\s*(.*)$",
-    flags=re.IGNORECASE,
-)
-TASK_NOTES_LONG_RE = re.compile(
-    r"^\s*#\s*<task(?:\s*:\s*([^>]+))?>\s*(.*)$",
-    flags=re.IGNORECASE,
-)
-TASK_NOTES_SHORT_RE = re.compile(
-    r"^\s*#\s*t(?:\(([^)]+)\))?#\s*(.*)$",
-    flags=re.IGNORECASE,
-)
+DEFAULT_DOC_MARKER_PREFIX = "prism"
+
+
+def _normalize_marker_prefix(marker_prefix: str | None) -> str:
+    """Return a safe marker prefix, falling back to the default."""
+    if not isinstance(marker_prefix, str):
+        return DEFAULT_DOC_MARKER_PREFIX
+    prefix = marker_prefix.strip()
+    if not prefix:
+        return DEFAULT_DOC_MARKER_PREFIX
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", prefix):
+        return DEFAULT_DOC_MARKER_PREFIX
+    return prefix
+
+
+def _build_marker_line_re(marker_prefix: str):
+    """Build a regex for ``# <prefix>~<label>: ...`` marker comments."""
+    escaped_prefix = re.escape(_normalize_marker_prefix(marker_prefix))
+    return re.compile(
+        rf"^\s*#\s*{escaped_prefix}\s*~\s*(?P<label>[a-z0-9_-]+)\s*:?\s*(?P<body>.*)$",
+        flags=re.IGNORECASE,
+    )
+
+
+# Default compiled regexes kept for backwards import compatibility.
+ROLE_NOTES_RE = _build_marker_line_re(DEFAULT_DOC_MARKER_PREFIX)
+TASK_NOTES_LONG_RE = _build_marker_line_re(DEFAULT_DOC_MARKER_PREFIX)
+ROLE_NOTES_SHORT_RE = ROLE_NOTES_RE
+TASK_NOTES_SHORT_RE = TASK_NOTES_LONG_RE
 COMMENT_CONTINUATION_RE = re.compile(r"^\s*#\s?(.*)$")
 
 # ---------------------------------------------------------------------------
@@ -331,14 +343,18 @@ def _collect_task_files(
 def _extract_role_notes_from_comments(
     role_path: str,
     exclude_paths: list[str] | None = None,
+    marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX,
 ) -> dict[str, list[str]]:
     """Extract comment-driven role notes from YAML files.
 
     Supported syntax:
-        # <notes> Warning: text
-        # <notes> Deprecated: text
-        # <notes> Note: text
+        # prism~warning: text
+        # prism~deprecated: text
+        # prism~note: text
+        # prism~notes: text
+        # prism~additional: text
     """
+    marker_line_re = _build_marker_line_re(marker_prefix)
     role_root = Path(role_path).resolve()
     categories: dict[str, list[str]] = {
         "warnings": [],
@@ -363,32 +379,31 @@ def _extract_role_notes_from_comments(
         i = 0
         while i < len(lines):
             line = lines[i]
-            match = ROLE_NOTES_RE.match(line)
-            short_match = ROLE_NOTES_SHORT_RE.match(line)
-            if not match and not short_match:
+            match = marker_line_re.match(line)
+            if not match:
                 i += 1
                 continue
+
+            label = (match.group("label") or "").strip().lower()
             note_type = "note"
-            text = ""
-            if match:
-                note_type = (match.group(1) or "note").lower()
-                text = (match.group(2) or "").strip()
-            elif short_match:
-                alias = (short_match.group(1) or "n").lower()
-                text = (short_match.group(2) or "").strip()
-                if alias == "w":
-                    note_type = "warning"
-                elif alias == "d":
-                    note_type = "deprecated"
-                elif alias == "a":
-                    note_type = "additional"
+            if label == "warning":
+                note_type = "warning"
+            elif label == "deprecated":
+                note_type = "deprecated"
+            elif label in {"additional", "additionals"}:
+                note_type = "additional"
+            elif label in {"note", "notes"}:
+                note_type = "note"
+            else:
+                i += 1
+                continue
+
+            text = (match.group("body") or "").strip()
             continuation: list[str] = []
             j = i + 1
             while j < len(lines):
                 next_line = lines[j]
-                if ROLE_NOTES_RE.match(next_line) or ROLE_NOTES_SHORT_RE.match(
-                    next_line
-                ):
+                if marker_line_re.match(next_line):
                     break
                 cont_match = COMMENT_CONTINUATION_RE.match(next_line)
                 if not cont_match:
@@ -427,43 +442,79 @@ def _split_task_annotation_label(text: str) -> tuple[str, str]:
     prefix, remainder = raw.split(":", 1)
     label = prefix.strip().lower()
     body = remainder.strip()
-    if label in {"runbook", "warning", "deprecated", "note", "additional"}:
+    if label in {
+        "runbook",
+        "warning",
+        "deprecated",
+        "note",
+        "notes",
+        "additional",
+        "additionals",
+    }:
+        if label == "notes":
+            label = "note"
+        if label == "additionals":
+            label = "additional"
         return label, body
     return "note", raw
 
 
+def _split_task_target_payload(text: str) -> tuple[str, str]:
+    """Split ``task`` marker body into ``target | annotation`` parts."""
+    if "|" not in text:
+        return "", text.strip()
+    target, payload = text.split("|", 1)
+    return target.strip(), payload.strip()
+
+
 def _extract_task_annotations_for_file(
     lines: list[str],
+    marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX,
 ) -> tuple[list[dict[str, str]], dict[str, list[dict[str, str]]]]:
     """Extract implicit and explicit task annotations from file comment lines."""
+    marker_line_re = _build_marker_line_re(marker_prefix)
     implicit: list[dict[str, str]] = []
     explicit: dict[str, list[dict[str, str]]] = defaultdict(list)
 
     i = 0
     while i < len(lines):
         line = lines[i]
-        long_match = TASK_NOTES_LONG_RE.match(line)
-        short_match = TASK_NOTES_SHORT_RE.match(line)
-        if not long_match and not short_match:
+        marker_match = marker_line_re.match(line)
+        if not marker_match:
             i += 1
             continue
 
         target_name = ""
-        text = ""
-        if long_match:
-            target_name = (long_match.group(1) or "").strip()
-            text = (long_match.group(2) or "").strip()
-        elif short_match:
-            target_name = (short_match.group(1) or "").strip()
-            text = (short_match.group(2) or "").strip()
+        label = (marker_match.group("label") or "").strip().lower()
+        text = (marker_match.group("body") or "").strip()
+
+        if label == "task":
+            target_name, text = _split_task_target_payload(text)
+            if not target_name:
+                # task with no explicit target is treated as a regular note payload
+                label = "note"
+        elif label not in {
+            "runbook",
+            "warning",
+            "deprecated",
+            "note",
+            "notes",
+            "additional",
+            "additionals",
+        }:
+            i += 1
+            continue
+
+        if label == "notes":
+            label = "note"
+        if label == "additionals":
+            label = "additional"
 
         continuation: list[str] = []
         j = i + 1
         while j < len(lines):
             next_line = lines[j]
-            if TASK_NOTES_LONG_RE.match(next_line) or TASK_NOTES_SHORT_RE.match(
-                next_line
-            ):
+            if marker_line_re.match(next_line):
                 break
             cont_match = COMMENT_CONTINUATION_RE.match(next_line)
             if not cont_match:
@@ -474,7 +525,10 @@ def _extract_task_annotations_for_file(
         if continuation:
             text = "\n".join(part for part in [text, *continuation] if part)
 
-        kind, body = _split_task_annotation_label(text)
+        if label == "task" and target_name:
+            kind, body = _split_task_annotation_label(text)
+        else:
+            kind, body = _split_task_annotation_label(f"{label}: {text}")
         if body:
             item = {"kind": kind, "text": body}
             if target_name:
@@ -588,6 +642,7 @@ def _compact_task_parameters(task: dict, module_name: str) -> str:
 def _collect_task_handler_catalog(
     role_path: str,
     exclude_paths: list[str] | None = None,
+    marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     """Build optional detailed task and handler catalogs for README rendering.
 
@@ -614,7 +669,8 @@ def _collect_task_handler_catalog(
         except OSError:
             raw_lines = []
         implicit_annotations, explicit_annotations = _extract_task_annotations_for_file(
-            raw_lines
+            raw_lines,
+            marker_prefix=marker_prefix,
         )
         implicit_index = 0
         relpath = str(task_file.relative_to(role_root))

@@ -230,6 +230,7 @@ LEGACY_SYSTEM_STYLE_GUIDE_SOURCE_PATH = (
 DEFAULT_SECTION_DISPLAY_TITLES_PATH = (
     Path(__file__).parent / "data" / "section_display_titles.yml"
 )
+DEFAULT_DOC_MARKER_PREFIX = "prism"
 
 MARKDOWN_VAR_BACKTICK_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")
 MARKDOWN_VAR_TABLE_RE = re.compile(r"^\|\s*`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\|")
@@ -1317,6 +1318,54 @@ def _resolve_section_selector(selector: str) -> str | None:
     return STYLE_SECTION_ALIASES.get(normalized)
 
 
+def _resolve_role_config_file(
+    role_path: str,
+    config_path: str | None = None,
+) -> Path:
+    """Resolve the role-level config file path used by scanner settings."""
+    if config_path:
+        return Path(config_path)
+    role_root = Path(role_path)
+    for filename in SECTION_CONFIG_FILENAMES:
+        candidate = role_root / filename
+        if candidate.is_file():
+            return candidate
+    return role_root / SECTION_CONFIG_FILENAME
+
+
+def load_readme_marker_prefix(
+    role_path: str,
+    config_path: str | None = None,
+) -> str:
+    """Load configured documentation marker prefix from role config."""
+    cfg_file = _resolve_role_config_file(role_path, config_path=config_path)
+    if not cfg_file.is_file():
+        return DEFAULT_DOC_MARKER_PREFIX
+
+    try:
+        raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return DEFAULT_DOC_MARKER_PREFIX
+    if not isinstance(raw, dict):
+        return DEFAULT_DOC_MARKER_PREFIX
+
+    marker_cfg = raw.get("markers")
+    if marker_cfg is None and isinstance(raw.get("readme"), dict):
+        marker_cfg = raw["readme"].get("markers")
+    if not isinstance(marker_cfg, dict):
+        return DEFAULT_DOC_MARKER_PREFIX
+
+    prefix = marker_cfg.get("prefix")
+    if not isinstance(prefix, str):
+        return DEFAULT_DOC_MARKER_PREFIX
+    prefix = prefix.strip()
+    if not prefix:
+        return DEFAULT_DOC_MARKER_PREFIX
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", prefix):
+        return DEFAULT_DOC_MARKER_PREFIX
+    return prefix
+
+
 def load_readme_section_visibility(
     role_path: str,
     config_path: str | None = None,
@@ -1352,18 +1401,7 @@ def load_readme_section_config(
     adopt_heading_mode: str | None = None,
 ) -> dict | None:
     """Load README section visibility and section rendering options."""
-    if config_path:
-        cfg_file = Path(config_path)
-    else:
-        cfg_file = None
-        role_root = Path(role_path)
-        for filename in SECTION_CONFIG_FILENAMES:
-            candidate = role_root / filename
-            if candidate.is_file():
-                cfg_file = candidate
-                break
-        if cfg_file is None:
-            cfg_file = role_root / SECTION_CONFIG_FILENAME
+    cfg_file = _resolve_role_config_file(role_path, config_path=config_path)
 
     if not cfg_file.is_file():
         return None
@@ -2696,6 +2734,11 @@ def run_scan(
         role_path,
         exclude_paths=exclude_path_patterns,
     )
+    marker_prefix = load_readme_marker_prefix(
+        role_path,
+        config_path=readme_config_path,
+    )
+    metadata["marker_prefix"] = marker_prefix
     metadata["detailed_catalog"] = bool(detailed_catalog)
     metadata["include_task_parameters"] = bool(include_task_parameters)
     metadata["include_task_runbooks"] = bool(include_task_runbooks)
@@ -2704,6 +2747,7 @@ def run_scan(
         task_catalog, handler_catalog = _collect_task_handler_catalog(
             role_path,
             exclude_paths=exclude_path_patterns,
+            marker_prefix=marker_prefix,
         )
         metadata["task_catalog"] = task_catalog
         metadata["handler_catalog"] = handler_catalog
@@ -2750,6 +2794,7 @@ def run_scan(
     metadata["role_notes"] = _extract_role_notes_from_comments(
         role_path,
         exclude_paths=exclude_path_patterns,
+        marker_prefix=marker_prefix,
     )
     inventory_names = {row["name"]: row for row in variable_insights}
     undocumented_default_filters: list[dict] = []

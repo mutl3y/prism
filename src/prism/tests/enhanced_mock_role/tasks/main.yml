@@ -1,9 +1,9 @@
 #SPDX-License-Identifier: MIT-0
 ---
-# <notes> Warning: this package is unhealthy
-# <notes> Additional: ensure rollback playbooks are reviewed before production use
+# prism~warning: this package is unhealthy
+# prism~additional: ensure rollback playbooks are reviewed before production use
 
-#t# Runbook: check `journalctl -u systemd-resolved` if home lookup fails; set HOME manually in the environment block
+# prism~runbook: check `journalctl -u systemd-resolved` if home lookup fails; set HOME manually in the environment block
 - name: Gather runtime context
   debug:
     msg: "{{ lookup('env','HOME') | default('/home/unknown') }}"

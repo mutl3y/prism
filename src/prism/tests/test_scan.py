@@ -876,11 +876,11 @@ def test_extract_role_notes_from_comments(tmp_path):
     tasks.mkdir(parents=True)
     (tasks / "main.yml").write_text(
         "---\n"
-        "# <notes> Warning: This package is unhealthy\n"
-        "# <notes> Deprecated: old parameter is deprecated\n"
-        "# <notes> Note: run with --check first\n"
-        "# <notes> Additional: keep inventory in sync\n"
-        "# <notes> this is also a free-form note\n",
+        "# prism~warning: This package is unhealthy\n"
+        "# prism~deprecated: old parameter is deprecated\n"
+        "# prism~note: run with --check first\n"
+        "# prism~additional: keep inventory in sync\n"
+        "# prism~notes: this is also a free-form note\n",
         encoding="utf-8",
     )
 
@@ -892,7 +892,31 @@ def test_extract_role_notes_from_comments(tmp_path):
     assert notes["additionals"] == ["keep inventory in sync"]
 
 
-def test_extract_role_notes_from_short_aliases(tmp_path):
+def test_extract_role_notes_honors_configured_marker_prefix(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "# docs~warning: custom marker warning\n"
+        "# docs~notes: custom marker note\n",
+        encoding="utf-8",
+    )
+    (role / ".prism.yml").write_text(
+        "markers:\n" "  prefix: docs\n",
+        encoding="utf-8",
+    )
+
+    notes = scanner._extract_role_notes_from_comments(
+        str(role),
+        marker_prefix=scanner.load_readme_marker_prefix(str(role)),
+    )
+
+    assert notes["warnings"] == ["custom marker warning"]
+    assert notes["notes"] == ["custom marker note"]
+
+
+def test_extract_role_notes_ignores_legacy_aliases(tmp_path):
     role = tmp_path / "role"
     tasks = role / "tasks"
     tasks.mkdir(parents=True)
@@ -907,21 +931,21 @@ def test_extract_role_notes_from_short_aliases(tmp_path):
 
     notes = scanner._extract_role_notes_from_comments(str(role))
 
-    assert notes["warnings"] == ["package is unhealthy"]
-    assert notes["deprecations"] == ["old parameter is deprecated"]
-    assert notes["notes"] == ["run with --check first"]
-    assert notes["additionals"] == ["keep inventory in sync"]
+    assert notes["warnings"] == []
+    assert notes["deprecations"] == []
+    assert notes["notes"] == []
+    assert notes["additionals"] == []
 
 
 def test_extract_task_annotations_for_file_supports_short_and_explicit():
     lines = [
         "---",
-        "#t# Runbook: verify template syntax",
+        "# prism~runbook: verify template syntax",
         "- name: Deploy app",
         "  ansible.builtin.template:",
         "    src: app.conf.j2",
-        "#t(Deploy app)# Warning: verify permissions manually",
-        "#t# note: check service health",
+        "# prism~task: Deploy app | warning: verify permissions manually",
+        "# prism~note: check service health",
     ]
 
     implicit, explicit = scanner._extract_task_annotations_for_file(lines)
@@ -944,7 +968,7 @@ def test_collect_task_handler_catalog_attaches_annotation_metadata(tmp_path):
 
     (tasks / "main.yml").write_text(
         "---\n"
-        "#t# Runbook: fallback to manual copy if automation fails\n"
+        "# prism~runbook: fallback to manual copy if automation fails\n"
         "- name: Deploy app\n"
         "  ansible.builtin.template:\n"
         "    src: app.conf.j2\n"
