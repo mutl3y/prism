@@ -20,6 +20,12 @@ import jinja2
 from .doc_insights import build_doc_insights, parse_comma_values
 from .output import render_final_output, resolve_output_path, write_output
 from .pattern_config import load_pattern_config
+from .readme_config import (
+    DEFAULT_DOC_MARKER_PREFIX as READMECFG_DEFAULT_DOC_MARKER_PREFIX,
+    load_readme_marker_prefix as _load_readme_marker_prefix,
+    load_readme_section_config as _load_readme_section_config,
+    load_readme_section_visibility as _load_readme_section_visibility,
+)
 from .style_guide import (
     detect_style_section_level,
     format_heading,
@@ -230,7 +236,7 @@ LEGACY_SYSTEM_STYLE_GUIDE_SOURCE_PATH = (
 DEFAULT_SECTION_DISPLAY_TITLES_PATH = (
     Path(__file__).parent / "data" / "section_display_titles.yml"
 )
-DEFAULT_DOC_MARKER_PREFIX = "prism"
+DEFAULT_DOC_MARKER_PREFIX = READMECFG_DEFAULT_DOC_MARKER_PREFIX
 
 MARKDOWN_VAR_BACKTICK_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")
 MARKDOWN_VAR_TABLE_RE = re.compile(r"^\|\s*`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\|")
@@ -1301,12 +1307,7 @@ def build_variable_insights(
 
 
 def _resolve_section_selector(selector: str) -> str | None:
-    """Resolve a section selector to a canonical section id.
-
-    Selectors can be:
-    - canonical ids (e.g. ``galaxy_info``)
-    - heading text aliases (e.g. ``Role purpose and capabilities``)
-    """
+    """Resolve a section selector to a canonical section id."""
     value = selector.strip()
     if not value:
         return None
@@ -1316,178 +1317,6 @@ def _resolve_section_selector(selector: str) -> str | None:
     if normalized in ALL_SECTION_IDS:
         return normalized
     return STYLE_SECTION_ALIASES.get(normalized)
-
-
-def _resolve_role_config_file(
-    role_path: str,
-    config_path: str | None = None,
-) -> Path:
-    """Resolve the role-level config file path used by scanner settings."""
-    if config_path:
-        return Path(config_path)
-    role_root = Path(role_path)
-    for filename in SECTION_CONFIG_FILENAMES:
-        candidate = role_root / filename
-        if candidate.is_file():
-            return candidate
-    return role_root / SECTION_CONFIG_FILENAME
-
-
-def load_readme_marker_prefix(
-    role_path: str,
-    config_path: str | None = None,
-) -> str:
-    """Load configured documentation marker prefix from role config."""
-    cfg_file = _resolve_role_config_file(role_path, config_path=config_path)
-    if not cfg_file.is_file():
-        return DEFAULT_DOC_MARKER_PREFIX
-
-    try:
-        raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return DEFAULT_DOC_MARKER_PREFIX
-    if not isinstance(raw, dict):
-        return DEFAULT_DOC_MARKER_PREFIX
-
-    marker_cfg = raw.get("markers")
-    if marker_cfg is None and isinstance(raw.get("readme"), dict):
-        marker_cfg = raw["readme"].get("markers")
-    if not isinstance(marker_cfg, dict):
-        return DEFAULT_DOC_MARKER_PREFIX
-
-    prefix = marker_cfg.get("prefix")
-    if not isinstance(prefix, str):
-        return DEFAULT_DOC_MARKER_PREFIX
-    prefix = prefix.strip()
-    if not prefix:
-        return DEFAULT_DOC_MARKER_PREFIX
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+", prefix):
-        return DEFAULT_DOC_MARKER_PREFIX
-    return prefix
-
-
-def load_readme_section_visibility(
-    role_path: str,
-    config_path: str | None = None,
-) -> set[str] | None:
-    """Load optional README section visibility rules from YAML config.
-
-    Configuration format (either explicit ``config_path`` or auto-discovered
-    ``<role_path>/.prism.yml`` / legacy ``<role_path>/.ansible_role_doc.yml``):
-
-    .. code-block:: yaml
-
-        readme:
-          include_sections:
-            - galaxy_info
-            - Role purpose and capabilities
-          exclude_sections:
-            - comparison
-
-    Returns:
-        ``None`` when no config exists or no include/exclude keys are present,
-        otherwise the enabled section-id set.
-    """
-    config = load_readme_section_config(role_path, config_path=config_path)
-    if config is None:
-        return None
-
-    return config["enabled_sections"]
-
-
-def load_readme_section_config(
-    role_path: str,
-    config_path: str | None = None,
-    adopt_heading_mode: str | None = None,
-) -> dict | None:
-    """Load README section visibility and section rendering options."""
-    cfg_file = _resolve_role_config_file(role_path, config_path=config_path)
-
-    if not cfg_file.is_file():
-        return None
-
-    try:
-        raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return None
-    if not isinstance(raw, dict):
-        return None
-
-    readme_cfg = raw.get("readme", raw)
-    if not isinstance(readme_cfg, dict):
-        return None
-
-    include_raw = readme_cfg.get("include_sections")
-    exclude_raw = readme_cfg.get("exclude_sections")
-    content_modes_raw = readme_cfg.get("section_content_modes")
-    config_adopt_heading_mode = readme_cfg.get("adopt_heading_mode")
-    if include_raw is None and exclude_raw is None and content_modes_raw is None:
-        return None
-
-    if adopt_heading_mode is None and isinstance(config_adopt_heading_mode, str):
-        adopt_heading_mode = config_adopt_heading_mode.strip().lower()
-    if adopt_heading_mode is None:
-        adopt_heading_mode = "canonical"
-    if adopt_heading_mode not in {"canonical", "style", "popular"}:
-        adopt_heading_mode = "canonical"
-
-    include_items = include_raw if isinstance(include_raw, list) else None
-    exclude_items = exclude_raw if isinstance(exclude_raw, list) else []
-    content_modes_items = (
-        content_modes_raw if isinstance(content_modes_raw, dict) else {}
-    )
-    title_overrides: dict[str, str] = {}
-    display_titles = _load_section_display_titles()
-    section_content_modes: dict[str, str] = {}
-    include_selector_map: dict[str, str] = {}
-
-    if include_items is None:
-        enabled: set[str] = set(ALL_SECTION_IDS)
-    else:
-        enabled = set()
-        for item in include_items:
-            if isinstance(item, str):
-                resolved = _resolve_section_selector(item)
-                if resolved:
-                    enabled.add(resolved)
-                    normalized_item = normalize_style_heading(item)
-                    if normalized_item:
-                        include_selector_map[normalized_item] = resolved
-                    if adopt_heading_mode == "style":
-                        title_overrides[resolved] = item.strip()
-
-    for item in exclude_items:
-        if isinstance(item, str):
-            resolved = _resolve_section_selector(item)
-            if resolved:
-                enabled.discard(resolved)
-
-    if adopt_heading_mode == "popular":
-        for section_id in enabled:
-            display_title = display_titles.get(section_id)
-            if display_title:
-                title_overrides[section_id] = display_title
-
-    for selector, mode in content_modes_items.items():
-        if not isinstance(selector, str) or not isinstance(mode, str):
-            continue
-        normalized_selector = normalize_style_heading(selector)
-        resolved = include_selector_map.get(normalized_selector)
-        if not resolved:
-            resolved = _resolve_section_selector(selector)
-        if not resolved:
-            continue
-        normalized_mode = mode.strip().lower()
-        if normalized_mode not in {"generate", "replace", "merge"}:
-            continue
-        section_content_modes[resolved] = normalized_mode
-
-    return {
-        "enabled_sections": enabled,
-        "section_title_overrides": title_overrides,
-        "adopt_heading_mode": adopt_heading_mode,
-        "section_content_modes": section_content_modes,
-    }
 
 
 def _load_section_display_titles() -> dict[str, str]:
@@ -1514,6 +1343,74 @@ def _load_section_display_titles() -> dict[str, str]:
         if sid and label:
             parsed[sid] = label
     return parsed
+
+
+def load_readme_marker_prefix(
+    role_path: str,
+    config_path: str | None = None,
+) -> str:
+    """Load configured documentation marker prefix from role config."""
+    return _load_readme_marker_prefix(
+        role_path,
+        config_path=config_path,
+        default_prefix=DEFAULT_DOC_MARKER_PREFIX,
+        config_filenames=SECTION_CONFIG_FILENAMES,
+        default_filename=SECTION_CONFIG_FILENAME,
+    )
+
+
+def load_readme_section_visibility(
+    role_path: str,
+    config_path: str | None = None,
+) -> set[str] | None:
+    """Load optional README section visibility rules from YAML config.
+
+    Configuration format (either explicit ``config_path`` or auto-discovered
+    ``<role_path>/.prism.yml`` / legacy ``<role_path>/.ansible_role_doc.yml``):
+
+    .. code-block:: yaml
+
+        readme:
+          include_sections:
+            - galaxy_info
+            - Role purpose and capabilities
+          exclude_sections:
+            - comparison
+
+    Returns:
+        ``None`` when no config exists or no include/exclude keys are present,
+        otherwise the enabled section-id set.
+    """
+    return _load_readme_section_visibility(
+        role_path=role_path,
+        config_path=config_path,
+        adopt_heading_mode=None,
+        all_section_ids=ALL_SECTION_IDS,
+        section_aliases=STYLE_SECTION_ALIASES,
+        normalize_heading=normalize_style_heading,
+        display_titles_path=DEFAULT_SECTION_DISPLAY_TITLES_PATH,
+        config_filenames=SECTION_CONFIG_FILENAMES,
+        default_filename=SECTION_CONFIG_FILENAME,
+    )
+
+
+def load_readme_section_config(
+    role_path: str,
+    config_path: str | None = None,
+    adopt_heading_mode: str | None = None,
+) -> dict | None:
+    """Load README section visibility and section rendering options."""
+    return _load_readme_section_config(
+        role_path=role_path,
+        config_path=config_path,
+        adopt_heading_mode=adopt_heading_mode,
+        all_section_ids=ALL_SECTION_IDS,
+        section_aliases=STYLE_SECTION_ALIASES,
+        normalize_heading=normalize_style_heading,
+        display_titles_path=DEFAULT_SECTION_DISPLAY_TITLES_PATH,
+        config_filenames=SECTION_CONFIG_FILENAMES,
+        default_filename=SECTION_CONFIG_FILENAME,
+    )
 
 
 def _describe_variable(name: str, source: str) -> str:
