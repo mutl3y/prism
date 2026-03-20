@@ -1,3 +1,28 @@
+# Prism
+
+> **Refract complexity into clarity.**
+
+An Ansible role isn't a single file; it's a complex system of interconnected parts. Its defaults, variables, tasks, and metadata combine to create powerful automation, but this interconnectedness can make it opaque and difficult for others (and even your future self) to understand at a glance. Manually documenting this is tedious, error-prone, and rarely kept up-to-date.
+
+**Prism** treats your Ansible automation like a beam of light.
+
+It passes your entire role or collection through its analytical engine, refracting the tangled, monolithic code into a **full spectrum** of its constituent parts. It doesn't just list files; it intelligently parses them to reveal the relationships and logic hidden within.
+
+The result is a single, beautiful, and maintainable README that is always in sync with your code.
+
+### The Spectrum of Documentation
+
+*   **A Clear Palette of Variables:** Defaults, group variables, and role variables are separated and presented with their types, comments, and context, so you never have to guess a variable's purpose or precedence.
+*   **The Bright Lines of Tasks:** Every task is rendered clearly, showing its name, module, and parameters, turning a wall of YAML into a readable sequence of actions.
+*   **The Deep Hues of Metadata:** Platform support, Galaxy info, and role dependencies are brought to the forefront, defining the role's precise operational boundaries.
+*   **A Coherent Structure:** By analyzing every component, Prism builds a document that is not just a concatenation of files, but a holistic and accurate representation of your entire automation.
+
+Stop wrestling with convoluted code and out-of-date documentation. **Let Prism illuminate your automation.**
+
+---
+
+## Example: mock_role
+
 mock_role
 =========
 
