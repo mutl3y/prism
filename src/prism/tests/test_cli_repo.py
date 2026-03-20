@@ -1666,3 +1666,188 @@ def test_cli_completion_bash_outputs_generated_script(capsys):
 
 def test_cli_completion_requires_shell_choice():
     assert cli.main(["completion"]) == 2
+
+
+def test_render_collection_markdown_handles_conflicts_and_failures_overflow():
+    payload = {
+        "collection": {"metadata": {"namespace": "demo", "name": "toolkit"}},
+        "dependencies": {
+            "collections": [
+                "invalid",
+                {"key": "community.general", "version": "9.0.0"},
+            ],
+            "roles": ["invalid", {"key": "geerlingguy.mysql", "version": "3.3.0"}],
+            "conflicts": [
+                "invalid",
+                {"key": "community.general", "versions": ["8", "9"]},
+            ],
+        },
+        "roles": [
+            {"role": f"role_{i:02d}", "payload": {"metadata": {"scanner_counters": {}}}}
+            for i in range(65)
+        ],
+        "plugin_catalog": {
+            "summary": {"total_plugins": 100, "files_scanned": 10, "files_failed": 1},
+            "by_type": {
+                **{f"type_{i:02d}": [{"name": f"plugin_{i}"}] for i in range(45)},
+                "filter": [
+                    {
+                        "name": "cap-rich",
+                        "symbols": ["a", "b", "c", "d", "e", "f", "g"],
+                        "confidence": "high",
+                    },
+                    {"name": "a-no-symbols", "symbols": "n/a", "confidence": "low"},
+                ]
+                + [
+                    {"name": f"extra_{i}", "symbols": ["x"], "confidence": "medium"}
+                    for i in range(30)
+                ],
+            },
+            "failures": [
+                "invalid",
+                {
+                    "relative_path": "plugins/filter/a.py",
+                    "stage": "parse",
+                    "error": "boom",
+                },
+            ],
+        },
+        "failures": ["invalid"]
+        + [{"role": f"failed_{i:02d}", "error": "broken"} for i in range(35)],
+        "summary": {"total_roles": 100, "scanned_roles": 65, "failed_roles": 35},
+    }
+
+    rendered = cli._render_collection_markdown(payload)
+
+    assert "## Dependency Conflicts" in rendered
+    assert "`community.general`: 8, 9" in rendered
+    assert "... and 5 more roles" in rendered
+    assert "... and 6 more plugin types" in rendered
+    assert "`cap-rich` [high]: a, b, c, d, e, f, ..." in rendered
+    assert "`a-no-symbols` [low]: (none discovered)" in rendered
+    assert "... and 7 more filter plugins" in rendered
+    assert "### Plugin Scan Failures" in rendered
+    assert "plugins/filter/a.py" in rendered
+    assert "## Role Scan Failures" in rendered
+    assert "... and 5 more role failures" in rendered
+
+
+def test_build_bash_completion_script_raises_without_subparsers(monkeypatch):
+    parser = cli.argparse.ArgumentParser(prog="prism")
+    monkeypatch.setattr(cli, "build_parser", lambda: parser)
+
+    with pytest.raises(RuntimeError, match="subcommand parser is not configured"):
+        cli._build_bash_completion_script()
+
+
+def test_resolve_effective_readme_config_returns_explicit_path(tmp_path):
+    role_dir = tmp_path / "role"
+    role_dir.mkdir()
+
+    assert (
+        cli._resolve_effective_readme_config(role_dir, "/tmp/explicit.yml")
+        == "/tmp/explicit.yml"
+    )
+
+
+def test_handle_completion_command_rejects_non_bash(capsys):
+    rc = cli._handle_completion_command(SimpleNamespace(shell="zsh"))
+    captured = capsys.readouterr()
+
+    assert rc == 2
+    assert "unsupported completion shell: zsh" in captured.err
+
+
+def test_github_repo_from_url_supports_git_ssh_form():
+    assert cli._github_repo_from_url("git@github.com:org/repo.git") == ("org", "repo")
+
+
+def test_github_repo_from_url_returns_none_for_malformed_git_ssh_forms():
+    assert cli._github_repo_from_url("git@github.com:") is None
+    assert cli._github_repo_from_url("git@github.com:owner/") is None
+
+
+def test_fetch_repo_directory_names_returns_none_for_non_list_payload(monkeypatch):
+    monkeypatch.setattr(
+        cli,
+        "_fetch_repo_contents_payload",
+        lambda *args, **kwargs: {"type": "file"},
+    )
+    assert (
+        cli._fetch_repo_directory_names("https://github.com/example/repo.git") is None
+    )
+
+
+def test_repo_path_looks_like_role_returns_false_for_missing_required_dirs():
+    assert cli._repo_path_looks_like_role({"tasks", "defaults"}) is False
+
+
+@pytest.mark.parametrize(
+    "payload,expected",
+    [
+        (None, None),
+        ({"type": "dir"}, None),
+        ({"type": "file", "content": 123, "encoding": "base64"}, None),
+        ({"type": "file", "content": "abc", "encoding": "utf-8"}, None),
+        ({"type": "file", "content": "***", "encoding": "base64"}, None),
+    ],
+)
+def test_fetch_repo_file_invalid_payload_shapes_return_none(
+    monkeypatch, tmp_path, payload, expected
+):
+    monkeypatch.setattr(
+        cli, "_fetch_repo_contents_payload", lambda *args, **kwargs: payload
+    )
+    out = cli._fetch_repo_file(
+        "https://github.com/example/repo.git",
+        "README.md",
+        tmp_path / "README.md",
+    )
+    assert out is expected
+
+
+def test_save_style_comparison_artifacts_marks_truncated_unknown_sections(
+    monkeypatch, tmp_path
+):
+    style_readme = tmp_path / "STYLE.md"
+    style_readme.write_text("# Source\n", encoding="utf-8")
+    generated = tmp_path / "README.generated.md"
+    generated.write_text("# Generated\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        cli,
+        "parse_style_readme",
+        lambda _: {
+            "sections": [
+                {"id": "unknown", "title": "One", "body": "alpha"},
+                {"id": "unknown", "title": "One", "body": "duplicate"},
+                {"id": "unknown", "title": "Two", "body": "x" * 200},
+                {"id": "unknown", "title": "Three", "body": "tail"},
+            ]
+        },
+    )
+    monkeypatch.setattr(cli, "_CAPTURE_MAX_SECTIONS", 50)
+    monkeypatch.setattr(cli, "_CAPTURE_MAX_CONTENT_CHARS", 20)
+    monkeypatch.setattr(cli, "_CAPTURE_MAX_TOTAL_CHARS", 40)
+
+    source_path, demo_path = cli._save_style_comparison_artifacts(
+        str(style_readme),
+        str(generated),
+        keep_unknown_style_sections=False,
+    )
+
+    cfg_path = Path(demo_path).parent / "ROLE_README_CONFIG.yml"
+    cfg_text = cfg_path.read_text(encoding="utf-8")
+    assert source_path is not None
+    assert "truncated: true" in cfg_text
+    assert "title: One" in cfg_text
+    assert "title: Two" in cfg_text
+
+
+def test_main_returns_error_for_unknown_command(monkeypatch):
+    fake_parser = SimpleNamespace(
+        parse_args=lambda argv: SimpleNamespace(command="bogus")
+    )
+    monkeypatch.setattr(cli, "build_parser", lambda: fake_parser)
+
+    assert cli.main([]) == 2
