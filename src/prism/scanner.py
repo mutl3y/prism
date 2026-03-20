@@ -1811,163 +1811,194 @@ def _render_guide_task_sections(
 ) -> str | None:
     """Render style-guide sections focused on task, handler, and test activity."""
     if section_id == "task_summary":
-        summary = (metadata.get("doc_insights") or {}).get("task_summary", {})
-        if not summary:
-            return "No task summary available."
-        yaml_parse_failures = metadata.get("yaml_parse_failures") or []
-        lines = [
-            f"- **Task files scanned**: {summary.get('task_files_scanned', 0)}",
-            f"- **Tasks scanned**: {summary.get('tasks_scanned', 0)}",
-            f"- **Recursive includes**: {summary.get('recursive_task_includes', 0)}",
-            f"- **Unique modules**: {summary.get('module_count', 0)}",
-            f"- **Handlers referenced**: {summary.get('handler_count', 0)}",
-            f"- **YAML parse failures**: {len(yaml_parse_failures)}",
-        ]
-        if yaml_parse_failures:
-            lines.extend(["", "Parse failures detected:"])
-            for item in yaml_parse_failures[:5]:
-                file_name = str(item.get("file") or "<unknown>")
-                line = item.get("line")
-                column = item.get("column")
-                location = (
-                    f"{file_name}:{line}:{column}"
-                    if line is not None and column is not None
-                    else file_name
-                )
-                error_text = str(item.get("error") or "parse error")
-                lines.append(f"- `{location}`: {error_text}")
-            if len(yaml_parse_failures) > 5:
-                lines.append(
-                    f"- ... and {len(yaml_parse_failures) - 5} additional parse failures"
-                )
-        task_catalog = metadata.get("task_catalog") or []
-        if metadata.get("detailed_catalog") and task_catalog:
-            lines.extend(
-                [
-                    "",
-                    "Detailed task catalog:",
-                    "",
-                    "| File | Task | Module | Parameters |",
-                    "| --- | --- | --- | --- |",
-                ]
-            )
-            for entry in task_catalog:
-                if not isinstance(entry, dict):
-                    continue
-                lines.append(
-                    f"| `{entry.get('file', '')}` | {entry.get('name', '')} | `{entry.get('module', '')}` | {entry.get('parameters', '')} |"
-                )
-        return "\n".join(lines)
-
+        return _render_task_summary_section(metadata)
     if section_id == "example_usage":
-        example = (metadata.get("doc_insights") or {}).get("example_playbook")
-        if not example:
-            return "No inferred example available."
-        return f"```yaml\n{example}\n```"
-
+        return _render_example_usage_section(metadata)
     if section_id == "local_testing":
-        role_tests = metadata.get("tests") or []
-        molecule_scenarios = metadata.get("molecule_scenarios") or []
-        scenario_lines: list[str] = []
-        if molecule_scenarios:
-            scenario_lines.extend(["", "Molecule scenarios detected:"])
-            for scenario in molecule_scenarios:
-                if not isinstance(scenario, dict):
-                    continue
-                name = str(scenario.get("name") or "default")
-                driver = str(scenario.get("driver") or "unknown")
-                verifier = str(scenario.get("verifier") or "unknown")
-                platforms = scenario.get("platforms") or []
-                platform_summary = ", ".join(
-                    str(item) for item in platforms if isinstance(item, str)
-                )
-                if not platform_summary:
-                    platform_summary = "unspecified"
-                scenario_lines.append(
-                    f"- `{name}` (driver: `{driver}`, verifier: `{verifier}`, platforms: {platform_summary})"
-                )
-        if role_tests:
-            inventory = next(
-                (item for item in role_tests if "inventory" in item), role_tests[0]
-            )
-            playbook = next(
-                (
-                    item
-                    for item in role_tests
-                    if item.endswith(".yml") or item.endswith(".yaml")
-                ),
-                role_tests[0],
-            )
-            guidance = (
-                "Run a quick local validation using bundled role tests:\n\n"
-                "```bash\n"
-                f"ansible-playbook -i {inventory} {playbook}\n"
-                "```"
-            )
-            if scenario_lines:
-                guidance += "\n" + "\n".join(scenario_lines)
-            return guidance
-        fallback = "Run `tox` or `pytest -q` locally to validate scanner behavior and generated output."
-        if scenario_lines:
-            fallback += "\n" + "\n".join(scenario_lines)
-        return fallback
-
+        return _render_local_testing_section(metadata)
     if section_id == "handlers":
-        features = metadata.get("features") or {}
-        handler_names = parse_comma_values(
-            str(features.get("handlers_notified", "none"))
-        )
-        handler_files = metadata.get("handlers") or []
-        summary = (metadata.get("doc_insights") or {}).get("task_summary", {})
-        if not handler_names and not handler_files and not summary:
-            return "No handler activity was detected."
-
-        lines = [
-            f"- **Handler files detected**: {len(handler_files)}",
-            f"- **Handlers referenced by tasks**: {summary.get('handler_count', len(handler_names))}",
-        ]
-        if handler_names:
-            lines.append("- **Named handlers**: " + ", ".join(handler_names))
-        if handler_files:
-            lines.append("")
-            lines.append("Handler definition files:")
-            lines.extend(f"- `{path}`" for path in handler_files)
-        handler_catalog = metadata.get("handler_catalog") or []
-        if metadata.get("detailed_catalog") and handler_catalog:
-            lines.extend(
-                [
-                    "",
-                    "Detailed handler catalog:",
-                    "",
-                    "| File | Handler | Module | Parameters |",
-                    "| --- | --- | --- | --- |",
-                ]
-            )
-            for entry in handler_catalog:
-                if not isinstance(entry, dict):
-                    continue
-                lines.append(
-                    f"| `{entry.get('file', '')}` | {entry.get('name', '')} | `{entry.get('module', '')}` | {entry.get('parameters', '')} |"
-                )
-        return "\n".join(lines)
-
+        return _render_handlers_section(metadata)
     if section_id == "faq_pitfalls":
-        features = metadata.get("features") or {}
-        lines = [
-            "- Ensure default values are defined in `defaults/main.yml` so they are discoverable.",
-            "- Keep task includes file-based when possible for better recursive scanning.",
-        ]
-        if int(features.get("recursive_task_includes", 0) or 0) > 0:
-            lines.append(
-                "- Nested include chains are detected; avoid heavily dynamic include paths when possible."
-            )
-        if default_filters:
-            lines.append(
-                "- `default()` usages are captured from source files; keep expressions readable for better docs."
-            )
-        return "\n".join(lines)
-
+        return _render_faq_pitfalls_section(default_filters, metadata)
     return None
+
+
+def _render_task_summary_section(metadata: dict) -> str:
+    """Render task-summary section details including optional parse failures/catalog."""
+    summary = (metadata.get("doc_insights") or {}).get("task_summary", {})
+    if not summary:
+        return "No task summary available."
+
+    yaml_parse_failures = metadata.get("yaml_parse_failures") or []
+    lines = [
+        f"- **Task files scanned**: {summary.get('task_files_scanned', 0)}",
+        f"- **Tasks scanned**: {summary.get('tasks_scanned', 0)}",
+        f"- **Recursive includes**: {summary.get('recursive_task_includes', 0)}",
+        f"- **Unique modules**: {summary.get('module_count', 0)}",
+        f"- **Handlers referenced**: {summary.get('handler_count', 0)}",
+        f"- **YAML parse failures**: {len(yaml_parse_failures)}",
+    ]
+    if yaml_parse_failures:
+        lines.extend(["", "Parse failures detected:"])
+        for item in yaml_parse_failures[:5]:
+            file_name = str(item.get("file") or "<unknown>")
+            line = item.get("line")
+            column = item.get("column")
+            location = (
+                f"{file_name}:{line}:{column}"
+                if line is not None and column is not None
+                else file_name
+            )
+            error_text = str(item.get("error") or "parse error")
+            lines.append(f"- `{location}`: {error_text}")
+        if len(yaml_parse_failures) > 5:
+            lines.append(
+                f"- ... and {len(yaml_parse_failures) - 5} additional parse failures"
+            )
+
+    task_catalog = metadata.get("task_catalog") or []
+    if metadata.get("detailed_catalog") and task_catalog:
+        lines.extend(
+            [
+                "",
+                "Detailed task catalog:",
+                "",
+                "| File | Task | Module | Parameters |",
+                "| --- | --- | --- | --- |",
+            ]
+        )
+        for entry in task_catalog:
+            if not isinstance(entry, dict):
+                continue
+            lines.append(
+                f"| `{entry.get('file', '')}` | {entry.get('name', '')} | `{entry.get('module', '')}` | {entry.get('parameters', '')} |"
+            )
+
+    return "\n".join(lines)
+
+
+def _render_example_usage_section(metadata: dict) -> str:
+    """Render inferred example playbook block for style guide output."""
+    example = (metadata.get("doc_insights") or {}).get("example_playbook")
+    if not example:
+        return "No inferred example available."
+    return f"```yaml\n{example}\n```"
+
+
+def _build_molecule_scenario_lines(metadata: dict) -> list[str]:
+    """Render optional molecule scenario bullet list for testing guidance."""
+    molecule_scenarios = metadata.get("molecule_scenarios") or []
+    scenario_lines: list[str] = []
+    if molecule_scenarios:
+        scenario_lines.extend(["", "Molecule scenarios detected:"])
+        for scenario in molecule_scenarios:
+            if not isinstance(scenario, dict):
+                continue
+            name = str(scenario.get("name") or "default")
+            driver = str(scenario.get("driver") or "unknown")
+            verifier = str(scenario.get("verifier") or "unknown")
+            platforms = scenario.get("platforms") or []
+            platform_summary = ", ".join(
+                str(item) for item in platforms if isinstance(item, str)
+            )
+            if not platform_summary:
+                platform_summary = "unspecified"
+            scenario_lines.append(
+                f"- `{name}` (driver: `{driver}`, verifier: `{verifier}`, platforms: {platform_summary})"
+            )
+    return scenario_lines
+
+
+def _render_local_testing_section(metadata: dict) -> str:
+    """Render local testing guidance including role-test and molecule hints."""
+    role_tests = metadata.get("tests") or []
+    scenario_lines = _build_molecule_scenario_lines(metadata)
+
+    if role_tests:
+        inventory = next(
+            (item for item in role_tests if "inventory" in item), role_tests[0]
+        )
+        playbook = next(
+            (
+                item
+                for item in role_tests
+                if item.endswith(".yml") or item.endswith(".yaml")
+            ),
+            role_tests[0],
+        )
+        guidance = (
+            "Run a quick local validation using bundled role tests:\n\n"
+            "```bash\n"
+            f"ansible-playbook -i {inventory} {playbook}\n"
+            "```"
+        )
+        if scenario_lines:
+            guidance += "\n" + "\n".join(scenario_lines)
+        return guidance
+
+    fallback = "Run `tox` or `pytest -q` locally to validate scanner behavior and generated output."
+    if scenario_lines:
+        fallback += "\n" + "\n".join(scenario_lines)
+    return fallback
+
+
+def _render_handlers_section(metadata: dict) -> str:
+    """Render handler summary and optional handler catalog for style output."""
+    features = metadata.get("features") or {}
+    handler_names = parse_comma_values(str(features.get("handlers_notified", "none")))
+    handler_files = metadata.get("handlers") or []
+    summary = (metadata.get("doc_insights") or {}).get("task_summary", {})
+    if not handler_names and not handler_files and not summary:
+        return "No handler activity was detected."
+
+    lines = [
+        f"- **Handler files detected**: {len(handler_files)}",
+        f"- **Handlers referenced by tasks**: {summary.get('handler_count', len(handler_names))}",
+    ]
+    if handler_names:
+        lines.append("- **Named handlers**: " + ", ".join(handler_names))
+    if handler_files:
+        lines.append("")
+        lines.append("Handler definition files:")
+        lines.extend(f"- `{path}`" for path in handler_files)
+
+    handler_catalog = metadata.get("handler_catalog") or []
+    if metadata.get("detailed_catalog") and handler_catalog:
+        lines.extend(
+            [
+                "",
+                "Detailed handler catalog:",
+                "",
+                "| File | Handler | Module | Parameters |",
+                "| --- | --- | --- | --- |",
+            ]
+        )
+        for entry in handler_catalog:
+            if not isinstance(entry, dict):
+                continue
+            lines.append(
+                f"| `{entry.get('file', '')}` | {entry.get('name', '')} | `{entry.get('module', '')}` | {entry.get('parameters', '')} |"
+            )
+
+    return "\n".join(lines)
+
+
+def _render_faq_pitfalls_section(default_filters: list, metadata: dict) -> str:
+    """Render common scanner-detected pitfalls for role docs."""
+    features = metadata.get("features") or {}
+    lines = [
+        "- Ensure default values are defined in `defaults/main.yml` so they are discoverable.",
+        "- Keep task includes file-based when possible for better recursive scanning.",
+    ]
+    if int(features.get("recursive_task_includes", 0) or 0) > 0:
+        lines.append(
+            "- Nested include chains are detected; avoid heavily dynamic include paths when possible."
+        )
+    if default_filters:
+        lines.append(
+            "- `default()` usages are captured from source files; keep expressions readable for better docs."
+        )
+    return "\n".join(lines)
 
 
 def _render_guide_operations_sections(section_id: str, metadata: dict) -> str | None:
