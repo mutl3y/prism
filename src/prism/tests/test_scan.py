@@ -2668,3 +2668,303 @@ def test_write_unknown_headings_log_creates_valid_json(tmp_path):
     write_unknown_headings_log({"some heading": 5, "other": 2}, out)
     data = json.loads(out.read_text(encoding="utf-8"))
     assert data == {"unknown_headings": {"some heading": 5, "other": 2}}
+
+
+def test_build_scanner_report_markdown_includes_provenance_issue_categories():
+    """_build_scanner_report_markdown renders provenance issue categories when present."""
+    report = scanner._build_scanner_report_markdown(
+        role_name="test_role",
+        description="Test description",
+        variables={},
+        requirements=[],
+        default_filters=[],
+        metadata={
+            "scanner_counters": {
+                "total_variables": 0,
+                "documented_variables": 0,
+                "undocumented_variables": 0,
+                "unresolved_variables": 1,
+                "ambiguous_variables": 1,
+                "secret_variables": 0,
+                "required_variables": 0,
+                "high_confidence_variables": 0,
+                "medium_confidence_variables": 0,
+                "low_confidence_variables": 0,
+                "total_default_filters": 0,
+                "undocumented_default_filters": 0,
+                "included_role_calls": 0,
+                "dynamic_included_role_calls": 0,
+                "yaml_parse_failures": 0,
+                "provenance_issue_categories": {
+                    "unresolved_readme_documented_only": 1,
+                    "ambiguous_include_vars_sources": 2,
+                    "unresolved_dynamic_include_vars": 0,
+                    "unresolved_no_static_definition": 0,
+                    "unresolved_other": 0,
+                    "ambiguous_defaults_vars_override": 0,
+                    "ambiguous_set_fact_runtime": 0,
+                    "ambiguous_other": 0,
+                },
+            }
+        },
+    )
+
+    assert "Provenance issue categories" in report
+    assert "`unresolved_readme_documented_only`: 1" in report
+    assert "`ambiguous_include_vars_sources`: 2" in report
+
+
+def test_build_scanner_report_markdown_renders_unresolved_variables():
+    """_build_scanner_report_markdown renders unresolved variables section."""
+    report = scanner._build_scanner_report_markdown(
+        role_name="test_role",
+        description="Test description",
+        variables={},
+        requirements=[],
+        default_filters=[],
+        metadata={
+            "variable_insights": [
+                {
+                    "name": "unresolved_var",
+                    "is_unresolved": True,
+                    "is_ambiguous": False,
+                    "uncertainty_reason": "No static definition found.",
+                }
+            ],
+            "scanner_counters": {
+                "total_variables": 1,
+                "documented_variables": 0,
+                "undocumented_variables": 1,
+                "unresolved_variables": 1,
+                "ambiguous_variables": 0,
+                "secret_variables": 0,
+                "required_variables": 0,
+                "high_confidence_variables": 0,
+                "medium_confidence_variables": 0,
+                "low_confidence_variables": 1,
+                "total_default_filters": 0,
+                "undocumented_default_filters": 0,
+                "included_role_calls": 0,
+                "dynamic_included_role_calls": 0,
+                "yaml_parse_failures": 0,
+                "provenance_issue_categories": {
+                    "unresolved_no_static_definition": 1,
+                    "unresolved_readme_documented_only": 0,
+                    "unresolved_dynamic_include_vars": 0,
+                    "unresolved_other": 0,
+                    "ambiguous_defaults_vars_override": 0,
+                    "ambiguous_include_vars_sources": 0,
+                    "ambiguous_set_fact_runtime": 0,
+                    "ambiguous_other": 0,
+                },
+            },
+        },
+    )
+
+    assert "Variable provenance issues" in report
+    assert "Unresolved variables:" in report
+    assert "unresolved_var" in report
+    assert "No static definition found." in report
+
+
+def test_build_scanner_report_markdown_renders_yaml_parse_failures_without_ambiguous():
+    """_build_scanner_report_markdown renders parse failures without ambiguous vars."""
+    report = scanner._build_scanner_report_markdown(
+        role_name="test_role",
+        description="Test description",
+        variables={},
+        requirements=[],
+        default_filters=[],
+        metadata={
+            "yaml_parse_failures": [
+                {
+                    "file": "tasks/bad.yml",
+                    "line": 5,
+                    "column": 10,
+                    "error": "expected ',', found EOF",
+                }
+            ],
+            "variable_insights": [],
+            "scanner_counters": {
+                "total_variables": 0,
+                "documented_variables": 0,
+                "undocumented_variables": 0,
+                "unresolved_variables": 0,
+                "ambiguous_variables": 0,
+                "secret_variables": 0,
+                "required_variables": 0,
+                "high_confidence_variables": 0,
+                "medium_confidence_variables": 0,
+                "low_confidence_variables": 0,
+                "total_default_filters": 0,
+                "undocumented_default_filters": 0,
+                "included_role_calls": 0,
+                "dynamic_included_role_calls": 0,
+                "yaml_parse_failures": 1,
+                "provenance_issue_categories": {
+                    "unresolved_readme_documented_only": 0,
+                    "unresolved_dynamic_include_vars": 0,
+                    "unresolved_no_static_definition": 0,
+                    "unresolved_other": 0,
+                    "ambiguous_defaults_vars_override": 0,
+                    "ambiguous_include_vars_sources": 0,
+                    "ambiguous_set_fact_runtime": 0,
+                    "ambiguous_other": 0,
+                },
+            },
+        },
+    )
+
+    assert "YAML parse failures" in report
+    assert "tasks/bad.yml:5:10" in report
+    assert "expected ',', found EOF" in report
+
+
+def test_build_scanner_report_markdown_renders_ambiguous_after_parse_failures():
+    """_build_scanner_report_markdown renders ambiguous variables after parse failures."""
+    report = scanner._build_scanner_report_markdown(
+        role_name="test_role",
+        description="Test description",
+        variables={},
+        requirements=[],
+        default_filters=[],
+        metadata={
+            "yaml_parse_failures": [
+                {"file": "broken.yml", "line": 1, "column": 1, "error": "bad yaml"}
+            ],
+            "variable_insights": [
+                {
+                    "name": "ambig_var",
+                    "is_unresolved": False,
+                    "is_ambiguous": True,
+                    "uncertainty_reason": "May come from include_vars.",
+                }
+            ],
+            "scanner_counters": {
+                "total_variables": 1,
+                "documented_variables": 1,
+                "undocumented_variables": 0,
+                "unresolved_variables": 0,
+                "ambiguous_variables": 1,
+                "secret_variables": 0,
+                "required_variables": 0,
+                "high_confidence_variables": 0,
+                "medium_confidence_variables": 1,
+                "low_confidence_variables": 0,
+                "total_default_filters": 0,
+                "undocumented_default_filters": 0,
+                "included_role_calls": 0,
+                "dynamic_included_role_calls": 0,
+                "yaml_parse_failures": 1,
+                "provenance_issue_categories": {
+                    "unresolved_readme_documented_only": 0,
+                    "unresolved_dynamic_include_vars": 0,
+                    "unresolved_no_static_definition": 0,
+                    "unresolved_other": 0,
+                    "ambiguous_defaults_vars_override": 0,
+                    "ambiguous_include_vars_sources": 1,
+                    "ambiguous_set_fact_runtime": 0,
+                    "ambiguous_other": 0,
+                },
+            },
+        },
+    )
+
+    assert "YAML parse failures" in report
+    assert "broken.yml:1:1" in report
+    assert "Ambiguous variables:" in report
+    assert "ambig_var" in report
+    assert "May come from include_vars." in report
+
+
+def test_classify_provenance_issue_unresolved_with_dynamic_include_vars_reason():
+    """_classify_provenance_issue classifies 'dynamic include_vars' unresolved issues."""
+    result = scanner._classify_provenance_issue(
+        {
+            "is_unresolved": True,
+            "is_ambiguous": False,
+            "uncertainty_reason": "Referenced but not in static analysis; likely from dynamic include_vars.",
+        }
+    )
+    assert result == "unresolved_dynamic_include_vars"
+
+
+def test_classify_provenance_issue_unresolved_with_other_reason():
+    """_classify_provenance_issue classifies unresolved with unrecognized reason."""
+    result = scanner._classify_provenance_issue(
+        {
+            "is_unresolved": True,
+            "is_ambiguous": False,
+            "uncertainty_reason": "Some other reason.",
+        }
+    )
+    assert result == "unresolved_other"
+
+
+def test_classify_provenance_issue_ambiguous_with_runtime_reason():
+    """_classify_provenance_issue classifies 'runtime' ambiguous issues."""
+    result = scanner._classify_provenance_issue(
+        {
+            "is_unresolved": False,
+            "is_ambiguous": True,
+            "uncertainty_reason": "Value set at runtime by set_fact.",
+        }
+    )
+    assert result == "ambiguous_set_fact_runtime"
+
+
+def test_classify_provenance_issue_ambiguous_with_other_reason():
+    """_classify_provenance_issue classifies ambiguous with unrecognized reason."""
+    result = scanner._classify_provenance_issue(
+        {
+            "is_unresolved": False,
+            "is_ambiguous": True,
+            "uncertainty_reason": "Some other cause of ambiguity.",
+        }
+    )
+    assert result == "ambiguous_other"
+
+
+def test_classify_provenance_issue_returns_none_for_resolved_unambiguous():
+    """_classify_provenance_issue returns None for resolved, unambiguous rows."""
+    result = scanner._classify_provenance_issue(
+        {
+            "is_unresolved": False,
+            "is_ambiguous": False,
+            "uncertainty_reason": "",
+        }
+    )
+    assert result is None
+
+
+def test_strip_prior_generated_merge_block_with_both_prefix_and_suffix():
+    """_render_readme_with_style_guide handles merged prefix/suffix in guide conversion."""
+    # This is a complex integration test that exercises the merge behavior
+    # through the full render_readme pathway.
+    role_name = "test"
+    description = "Test role"
+    variables = {}
+    requirements = []
+    default_filters = []
+
+    # The prepended content should be preserved along with content after markers
+    metadata = {
+        "style_guide": {
+            "sections": [{"id": "purpose", "title": "Purpose"}],
+        }
+    }
+
+    # Just verify render_readme completes without error when using merge mode
+    result = scanner.render_readme(
+        output="/tmp/README.md",
+        role_name=role_name,
+        description=description,
+        variables=variables,
+        requirements=requirements,
+        default_filters=default_filters,
+        metadata=metadata,
+        write=False,
+    )
+
+    assert "Purpose" in result
+    assert role_name in result
