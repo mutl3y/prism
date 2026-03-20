@@ -1190,6 +1190,16 @@ def test_resolve_default_style_guide_source_explicit_path_branches(tmp_path):
         scanner.resolve_default_style_guide_source(str(tmp_path / "missing.md"))
 
 
+def test_resolve_default_style_guide_source_falls_back_when_no_candidates(monkeypatch):
+    monkeypatch.setenv(scanner.ENV_STYLE_GUIDE_SOURCE_PATH, "")
+    monkeypatch.setenv(scanner.LEGACY_ENV_STYLE_GUIDE_SOURCE_PATH, "")
+    monkeypatch.setattr(Path, "is_file", lambda self: False)
+
+    resolved = scanner.resolve_default_style_guide_source()
+
+    assert resolved == str(scanner.DEFAULT_STYLE_GUIDE_SOURCE_PATH.resolve())
+
+
 def test_collect_molecule_scenarios_ignores_malformed_and_excluded_files(tmp_path):
     role = tmp_path / "role"
     valid = role / "molecule" / "default"
@@ -1230,6 +1240,100 @@ def test_collect_molecule_scenarios_ignores_malformed_and_excluded_files(tmp_pat
             "path": "molecule/default/molecule.yml",
         }
     ]
+
+
+def test_scan_file_for_default_filters_deduplicates_duplicate_ast_rows(
+    tmp_path, monkeypatch
+):
+    role = tmp_path / "role"
+    role.mkdir(parents=True)
+    target = role / "tasks.yml"
+    target.write_text("{{ x | default('y') }}\n", encoding="utf-8")
+
+    duplicate_rows = [
+        {"line_no": 1, "line": "l", "match": "x | default(y)", "args": "y"},
+        {"line_no": 1, "line": "l", "match": "x | default(y)", "args": "y"},
+    ]
+    monkeypatch.setattr(
+        scanner,
+        "_scan_text_for_default_filters_with_ast",
+        lambda text, lines: duplicate_rows,
+    )
+
+    rows = scanner._scan_file_for_default_filters(target, role)
+
+    assert len(rows) == 1
+
+
+def test_scan_file_for_default_filters_deduplicates_duplicate_regex_matches(
+    tmp_path, monkeypatch
+):
+    role = tmp_path / "role"
+    role.mkdir(parents=True)
+    target = role / "tasks.yml"
+    target.write_text("no jinja but defaults\n", encoding="utf-8")
+
+    class _FakeMatch:
+        def group(self, key):
+            return "fallback" if key == "args" else None
+
+        def start(self):
+            return 0
+
+        def end(self):
+            return 8
+
+    class _FakeRegex:
+        def finditer(self, line):
+            return [_FakeMatch(), _FakeMatch()]
+
+    monkeypatch.setattr(
+        scanner, "_scan_text_for_default_filters_with_ast", lambda *_: []
+    )
+    monkeypatch.setattr(scanner, "DEFAULT_RE", _FakeRegex())
+
+    rows = scanner._scan_file_for_default_filters(target, role)
+
+    assert len(rows) == 1
+
+
+def test_collect_yaml_parse_failures_read_and_problem_fallback_paths(
+    tmp_path, monkeypatch
+):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    read_fail = tasks / "read_fail.yml"
+    parse_fail = tasks / "parse_fail.yml"
+    read_fail.write_text("x: 1\n", encoding="utf-8")
+    parse_fail.write_text("x: 2\n", encoding="utf-8")
+
+    original_read_text = Path.read_text
+
+    def fake_read_text(self, encoding="utf-8"):
+        if self == read_fail:
+            raise OSError("denied")
+        return original_read_text(self, encoding=encoding)
+
+    def fake_safe_load(text):
+        raise scanner.yaml.YAMLError("plain parser failure")
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+    monkeypatch.setattr(scanner.yaml, "safe_load", fake_safe_load)
+
+    failures = scanner._collect_yaml_parse_failures(str(role))
+    by_file = {row["file"]: row for row in failures}
+
+    assert "tasks/read_fail.yml" in by_file
+    assert str(by_file["tasks/read_fail.yml"]["error"]).startswith("read_error:")
+    assert "tasks/parse_fail.yml" in by_file
+    assert by_file["tasks/parse_fail.yml"]["error"] == "plain parser failure"
+
+
+def test_readme_variable_heading_and_blank_text_helpers(monkeypatch):
+    monkeypatch.setattr(scanner, "normalize_style_heading", lambda title: "")
+    assert scanner._is_readme_variable_section_heading("Variables") is False
+    assert scanner._extract_readme_input_variables("   \n\n") == set()
 
 
 def test_collect_task_handler_catalog_handles_empty_or_non_task_docs(tmp_path):
