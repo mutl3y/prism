@@ -29,6 +29,20 @@ def test_load_feedback_raises_for_missing_local_file(tmp_path):
         feedback.load_feedback(str(tmp_path / "missing.json"))
 
 
+def test_load_feedback_raises_when_local_file_read_fails(monkeypatch, tmp_path):
+    path = tmp_path / "feedback.json"
+    path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(
+        feedback.Path,
+        "read_text",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("denied")),
+    )
+
+    with pytest.raises(FileNotFoundError, match="failed to read feedback file"):
+        feedback.load_feedback(str(path))
+
+
 def test_load_feedback_raises_for_invalid_json(tmp_path):
     path = tmp_path / "feedback.json"
     path.write_text("{broken", encoding="utf-8")
