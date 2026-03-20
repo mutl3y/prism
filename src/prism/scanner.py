@@ -506,7 +506,7 @@ def _collect_readme_input_variables(role_path: str) -> set[str]:
         return set()
     try:
         text = readme_path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return set()
     return _extract_readme_input_variables(text)
 
@@ -520,7 +520,7 @@ def load_meta(role_path: str) -> dict:
     if meta_file.exists():
         try:
             return yaml.safe_load(meta_file.read_text(encoding="utf-8")) or {}
-        except Exception:
+        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
             return {}
     return {}
 
@@ -607,7 +607,7 @@ def load_variables(
                 data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
                 if isinstance(data, dict):
                     vars_out.update(data)
-            except Exception:
+            except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
                 continue
     for extra_path in _collect_include_vars_files(
         role_path, exclude_paths=exclude_paths
@@ -616,7 +616,7 @@ def load_variables(
             data = yaml.safe_load(extra_path.read_text(encoding="utf-8")) or {}
             if isinstance(data, dict):
                 vars_out.update(data)
-        except Exception:
+        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
             continue
     return vars_out
 
@@ -627,7 +627,7 @@ def load_requirements(role_path: str) -> list:
     if p.exists():
         try:
             return yaml.safe_load(p.read_text(encoding="utf-8")) or []
-        except Exception:
+        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
             return []
     return []
 

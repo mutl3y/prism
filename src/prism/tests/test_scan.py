@@ -352,6 +352,48 @@ def test_load_variables_and_variable_insights_handle_empty_or_malformed_files(tm
     assert scanner.build_variable_insights(str(role)) == []
 
 
+def test_collect_readme_input_variables_ignores_non_utf8_readme(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+    # Invalid UTF-8 bytes should be ignored instead of aborting the scan.
+    (role / "README.md").write_bytes(b"\xff\xfe\x00\x00")
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+
+    assert isinstance(rows, list)
+    assert rows == []
+
+
+def test_load_meta_requirements_and_variables_ignore_read_errors(tmp_path, monkeypatch):
+    role = tmp_path / "role"
+    (role / "meta").mkdir(parents=True)
+    (role / "defaults").mkdir(parents=True)
+    (role / "vars").mkdir(parents=True)
+
+    (role / "meta" / "main.yml").write_text("galaxy_info: {}\n", encoding="utf-8")
+    (role / "meta" / "requirements.yml").write_text("- src: x\n", encoding="utf-8")
+    (role / "defaults" / "main.yml").write_text("a: 1\n", encoding="utf-8")
+    (role / "vars" / "main.yml").write_text("b: 2\n", encoding="utf-8")
+
+    original_read_text = Path.read_text
+
+    def flaky_read_text(self: Path, *args, **kwargs):
+        if self.name in {"main.yml", "requirements.yml"} and self.parent.name in {
+            "meta",
+            "defaults",
+            "vars",
+        }:
+            raise OSError("permission denied")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", flaky_read_text)
+
+    assert scanner.load_meta(str(role)) == {}
+    assert scanner.load_requirements(str(role)) == []
+    assert scanner.load_variables(str(role)) == {}
+
+
 def test_load_variables_defaults_only_excludes_vars_main(tmp_path):
     role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
