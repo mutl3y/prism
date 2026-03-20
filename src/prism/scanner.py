@@ -2302,6 +2302,80 @@ def _write_concise_scanner_report_if_enabled(
     return scanner_report_path
 
 
+def _resolve_scan_identity(
+    role_path: str,
+    role_name_override: str | None,
+) -> tuple[Path, dict, str, str]:
+    """Resolve role path, metadata, role name, and description."""
+    rp = Path(role_path)
+    if not rp.is_dir():
+        raise FileNotFoundError(f"role path not found: {role_path}")
+    meta = load_meta(role_path)
+    galaxy = meta.get("galaxy_info", {}) if isinstance(meta, dict) else {}
+    role_name = galaxy.get("role_name", rp.name)
+    if role_name_override and (not galaxy.get("role_name") or role_name == "repo"):
+        role_name = role_name_override
+    description = galaxy.get("description", "")
+    return rp, meta, role_name, description
+
+
+def _collect_scan_artifacts(
+    *,
+    role_path: str,
+    include_vars_main: bool,
+    exclude_path_patterns: list[str] | None,
+    detailed_catalog: bool,
+    marker_prefix: str,
+) -> tuple[dict, list, list[dict], dict]:
+    """Collect scan-time variables, requirements, default filters, and metadata."""
+    variables = load_variables(
+        role_path,
+        include_vars_main=include_vars_main,
+        exclude_paths=exclude_path_patterns,
+    )
+    requirements = load_requirements(role_path)
+    found = scan_for_default_filters(role_path, exclude_paths=exclude_path_patterns)
+    metadata = collect_role_contents(role_path, exclude_paths=exclude_path_patterns)
+    metadata["molecule_scenarios"] = _collect_molecule_scenarios(
+        role_path,
+        exclude_paths=exclude_path_patterns,
+    )
+    metadata["marker_prefix"] = marker_prefix
+    metadata["detailed_catalog"] = bool(detailed_catalog)
+    metadata["include_task_parameters"] = True
+    metadata["include_task_runbooks"] = True
+    metadata["inline_task_runbooks"] = True
+    if detailed_catalog:
+        task_catalog, handler_catalog = _collect_task_handler_catalog(
+            role_path,
+            exclude_paths=exclude_path_patterns,
+            marker_prefix=marker_prefix,
+        )
+        metadata["task_catalog"] = task_catalog
+        metadata["handler_catalog"] = handler_catalog
+    return variables, requirements, found, metadata
+
+
+def _write_optional_runbook_outputs(
+    *,
+    runbook_output: str | None,
+    runbook_csv_output: str | None,
+    role_name: str,
+    metadata: dict,
+) -> None:
+    """Write standalone runbook outputs when requested."""
+    if runbook_output:
+        rb_path = Path(runbook_output)
+        rb_path.parent.mkdir(parents=True, exist_ok=True)
+        rb_content = render_runbook(role_name, metadata)
+        rb_path.write_text(rb_content, encoding="utf-8")
+    if runbook_csv_output:
+        rb_csv_path = Path(runbook_csv_output)
+        rb_csv_path.parent.mkdir(parents=True, exist_ok=True)
+        rb_csv_content = render_runbook_csv(metadata)
+        rb_csv_path.write_text(rb_csv_content, encoding="utf-8")
+
+
 def run_scan(
     role_path: str,
     output: str = "README.md",
@@ -2337,44 +2411,24 @@ def run_scan(
     if (runbook_output or runbook_csv_output) and not detailed_catalog:
         detailed_catalog = True
 
-    rp = Path(role_path)
-    if not rp.is_dir():
-        raise FileNotFoundError(f"role path not found: {role_path}")
-    meta = load_meta(role_path)
-    galaxy = meta.get("galaxy_info", {}) if isinstance(meta, dict) else {}
-    role_name = galaxy.get("role_name", rp.name)
-    if role_name_override and (not galaxy.get("role_name") or role_name == "repo"):
-        role_name = role_name_override
-    description = galaxy.get("description", "")
-    variables = load_variables(
+    rp, meta, role_name, description = _resolve_scan_identity(
         role_path,
-        include_vars_main=include_vars_main,
-        exclude_paths=exclude_path_patterns,
-    )
-    requirements = load_requirements(role_path)
-    found = scan_for_default_filters(role_path, exclude_paths=exclude_path_patterns)
-    metadata = collect_role_contents(role_path, exclude_paths=exclude_path_patterns)
-    metadata["molecule_scenarios"] = _collect_molecule_scenarios(
-        role_path,
-        exclude_paths=exclude_path_patterns,
+        role_name_override,
     )
     marker_prefix = load_readme_marker_prefix(
         role_path,
         config_path=readme_config_path,
     )
-    metadata["marker_prefix"] = marker_prefix
-    metadata["detailed_catalog"] = bool(detailed_catalog)
+    variables, requirements, found, metadata = _collect_scan_artifacts(
+        role_path=role_path,
+        include_vars_main=include_vars_main,
+        exclude_path_patterns=exclude_path_patterns,
+        detailed_catalog=detailed_catalog,
+        marker_prefix=marker_prefix,
+    )
     metadata["include_task_parameters"] = bool(include_task_parameters)
     metadata["include_task_runbooks"] = bool(include_task_runbooks)
     metadata["inline_task_runbooks"] = bool(inline_task_runbooks)
-    if detailed_catalog:
-        task_catalog, handler_catalog = _collect_task_handler_catalog(
-            role_path,
-            exclude_paths=exclude_path_patterns,
-            marker_prefix=marker_prefix,
-        )
-        metadata["task_catalog"] = task_catalog
-        metadata["handler_catalog"] = handler_catalog
     requirements_display, collection_compliance_notes = _build_requirements_display(
         requirements=requirements,
         meta=meta,
@@ -2536,14 +2590,10 @@ def run_scan(
     if dry_run:
         return final_content
     result = write_output(out_path, final_content)
-    if runbook_output:
-        rb_path = Path(runbook_output)
-        rb_path.parent.mkdir(parents=True, exist_ok=True)
-        rb_content = render_runbook(role_name, metadata)
-        rb_path.write_text(rb_content, encoding="utf-8")
-    if runbook_csv_output:
-        rb_csv_path = Path(runbook_csv_output)
-        rb_csv_path.parent.mkdir(parents=True, exist_ok=True)
-        rb_csv_content = render_runbook_csv(metadata)
-        rb_csv_path.write_text(rb_csv_content, encoding="utf-8")
+    _write_optional_runbook_outputs(
+        runbook_output=runbook_output,
+        runbook_csv_output=runbook_csv_output,
+        role_name=role_name,
+        metadata=metadata,
+    )
     return result
