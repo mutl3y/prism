@@ -114,10 +114,16 @@ def load_feedback(feedback_source: str | None) -> FeedbackPayload | None:
                 feedback_data = response.read().decode("utf-8")
         except HTTPError as exc:
             raise HTTPError(
-                exc.url, exc.code, f"prism-learn API returned {exc.code}", exc.hdrs, exc.fp
+                exc.url,
+                exc.code,
+                f"prism-learn API returned {exc.code}",
+                exc.hdrs,
+                exc.fp,
             ) from exc
         except URLError as exc:
-            raise URLError(f"failed to fetch feedback from {feedback_source}: {exc}") from exc
+            raise URLError(
+                f"failed to fetch feedback from {feedback_source}: {exc}"
+            ) from exc
     else:
         # Load from local file
         path = Path(feedback_source)
@@ -126,14 +132,18 @@ def load_feedback(feedback_source: str | None) -> FeedbackPayload | None:
         try:
             feedback_data = path.read_text(encoding="utf-8")
         except OSError as exc:
-            raise FileNotFoundError(f"failed to read feedback file: {feedback_source}") from exc
+            raise FileNotFoundError(
+                f"failed to read feedback file: {feedback_source}"
+            ) from exc
 
     # Parse JSON
     try:
         feedback_dict = json.loads(feedback_data)
     except json.JSONDecodeError as exc:
         raise json.JSONDecodeError(
-            f"invalid JSON in feedback response from {feedback_source}", exc.doc, exc.pos
+            f"invalid JSON in feedback response from {feedback_source}",
+            exc.doc,
+            exc.pos,
         ) from exc
 
     if not isinstance(feedback_dict, dict):

@@ -180,7 +180,10 @@ def test_render_runbook_standalone_returns_role_name_and_sections(tmp_path):
                 "anchor": "task-main-yml-deploy-app-1",
                 "runbook": "copy /tmp/app to /opt/app then restart",
                 "annotations": [
-                    {"kind": "runbook", "text": "copy /tmp/app to /opt/app then restart"},
+                    {
+                        "kind": "runbook",
+                        "text": "copy /tmp/app to /opt/app then restart",
+                    },
                     {"kind": "warning", "text": "requires sudo"},
                 ],
             },
@@ -192,7 +195,7 @@ def test_render_runbook_standalone_returns_role_name_and_sections(tmp_path):
                 "anchor": "task-main-yml-validate-app-2",
                 "runbook": "",
                 "annotations": [],
-            }
+            },
         ],
         "role_notes": {
             "warnings": [],
@@ -1739,7 +1742,7 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
                     "default": "x",
                     "source": "seed: /tmp/group_vars/all.yml",
                     "provenance_source_file": "/tmp/group_vars/all.yml",
-                }
+                },
             ],
         },
     )
@@ -1769,7 +1772,10 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
     )
     assert "**Task files scanned**: 2" in task_summary
     assert "| File | Task | Module | Parameters |" in task_summary
-    assert "| `tasks/main.yml` | Configure service | `ansible.builtin.template` | mode=0644, owner=root |" in task_summary
+    assert (
+        "| `tasks/main.yml` | Configure service | `ansible.builtin.template` | mode=0644, owner=root |"
+        in task_summary
+    )
 
     example = scanner._render_guide_section_body(
         "example_usage", "demo", "", {}, [], [], metadata
@@ -1824,7 +1830,10 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
     assert "**Handler files detected**: 1" in handlers
     assert "restart ssh" in handlers
     assert "| File | Handler | Module | Parameters |" in handlers
-    assert "| `handlers/main.yml` | restart ssh | `ansible.builtin.service` | state=restarted |" in handlers
+    assert (
+        "| `handlers/main.yml` | restart ssh | `ansible.builtin.service` | state=restarted |"
+        in handlers
+    )
 
     template_overrides = scanner._render_guide_section_body(
         "template_overrides",

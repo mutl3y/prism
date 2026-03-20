@@ -45,7 +45,9 @@ def test_cli_scans_from_repo_url(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "repo-out.md"
-    rc = cli.main(["repo", "--repo-url", "https://github.com/example/role.git", "-o", str(out)])
+    rc = cli.main(
+        ["repo", "--repo-url", "https://github.com/example/role.git", "-o", str(out)]
+    )
 
     assert rc == 0
     assert out.exists()
@@ -146,7 +148,9 @@ def test_cli_repo_scan_uses_shared_temp_root(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "repo-shared-tmp.md"
-    rc = cli.main(["repo", "--repo-url", "https://github.com/example/role.git", "-o", str(out)])
+    rc = cli.main(
+        ["repo", "--repo-url", "https://github.com/example/role.git", "-o", str(out)]
+    )
 
     assert rc == 0
     assert clone_calls["destination"].parent.parent == tmp_path / "prism"
@@ -407,7 +411,9 @@ def test_cli_collection_root_md_mode_writes_collection_and_role_docs(
     assert role_doc.read_text(encoding="utf-8") == "# web role\n"
 
 
-def test_cli_collection_markdown_includes_plugin_catalog_sections(monkeypatch, tmp_path):
+def test_cli_collection_markdown_includes_plugin_catalog_sections(
+    monkeypatch, tmp_path
+):
     collection_root = tmp_path / "collection"
     (collection_root / "roles").mkdir(parents=True)
     (collection_root / "galaxy.yml").write_text(
@@ -1118,7 +1124,9 @@ def test_cli_style_source_is_forwarded(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "style-source.md"
-    rc = cli.main(["role", str(role), "--style-source", str(style_source), "-o", str(out)])
+    rc = cli.main(
+        ["role", str(role), "--style-source", str(style_source), "-o", str(out)]
+    )
 
     assert rc == 0
     assert calls["style_source_path"] == str(style_source)
@@ -1140,7 +1148,9 @@ def test_cli_policy_config_is_forwarded(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     out = tmp_path / "policy.md"
-    rc = cli.main(["role", str(role), "--policy-config", str(policy_cfg), "-o", str(out)])
+    rc = cli.main(
+        ["role", str(role), "--policy-config", str(policy_cfg), "-o", str(out)]
+    )
 
     assert rc == 0
     assert calls["policy_config_path"] == str(policy_cfg)
@@ -1532,7 +1542,14 @@ def test_cli_verbose_repo_scan_prints_clone_and_write(monkeypatch, tmp_path, cap
 
     out = tmp_path / "verbose.md"
     rc = cli.main(
-        ["repo", "--repo-url", "https://github.com/example/role.git", "-o", str(out), "-v"]
+        [
+            "repo",
+            "--repo-url",
+            "https://github.com/example/role.git",
+            "-o",
+            str(out),
+            "-v",
+        ]
     )
     captured = capsys.readouterr()
 
@@ -1560,7 +1577,15 @@ def test_cli_verbose_local_scan_prints_style_and_demo_paths(
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
     rc = cli.main(
-        ["role", str(role_dir), "--style-readme", str(style_guide), "-o", str(out), "-v"]
+        [
+            "role",
+            str(role_dir),
+            "--style-readme",
+            str(style_guide),
+            "-o",
+            str(out),
+            "-v",
+        ]
     )
     captured = capsys.readouterr()
 
@@ -1610,7 +1635,15 @@ def test_cli_dry_run_skips_style_comparison_artifacts(monkeypatch, tmp_path):
 
     out = tmp_path / "dry-run-output.md"
     rc = cli.main(
-        ["role", str(role), "--style-readme", str(style_guide), "--dry-run", "-o", str(out)]
+        [
+            "role",
+            str(role),
+            "--style-readme",
+            str(style_guide),
+            "--dry-run",
+            "-o",
+            str(out),
+        ]
     )
 
     assert rc == 0

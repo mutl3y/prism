@@ -263,9 +263,7 @@ def _render_collection_markdown(payload: dict) -> str:
                 else:
                     symbol_text = "(none discovered)"
                 confidence = str(record.get("confidence") or "unknown")
-                lines.append(
-                    f"- `{plugin_name}` [{confidence}]: {symbol_text}"
-                )
+                lines.append(f"- `{plugin_name}` [{confidence}]: {symbol_text}")
             if filter_overflow:
                 lines.append(f"- ... and {filter_overflow} more filter plugins")
 
@@ -511,7 +509,9 @@ def _add_common_output_arguments(
         action="store_true",
         help="Render output without writing files; prints the rendered result to stdout.",
     )
-    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose output"
+    )
 
 
 def _add_repo_arguments(parser: argparse.ArgumentParser) -> None:
@@ -558,7 +558,9 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.required = True
 
     role_parser = subparsers.add_parser("role", help="Document a local role")
-    role_parser.add_argument("role_path", help="Path to the Ansible role directory to scan")
+    role_parser.add_argument(
+        "role_path", help="Path to the Ansible role directory to scan"
+    )
     _add_shared_scan_arguments(role_parser)
     _add_common_output_arguments(
         role_parser,
@@ -580,7 +582,9 @@ def build_parser() -> argparse.ArgumentParser:
         format_choices=("md", "json"),
     )
 
-    repo_parser = subparsers.add_parser("repo", help="Document a role from a repository source")
+    repo_parser = subparsers.add_parser(
+        "repo", help="Document a role from a repository source"
+    )
     _add_repo_arguments(repo_parser)
     _add_shared_scan_arguments(repo_parser)
     _add_common_output_arguments(
@@ -592,7 +596,9 @@ def build_parser() -> argparse.ArgumentParser:
     completion_parser = subparsers.add_parser(
         "completion", help="Generate shell completion output"
     )
-    completion_parser.add_argument("shell", choices=("bash",), help="Shell to generate completion for")
+    completion_parser.add_argument(
+        "shell", choices=("bash",), help="Shell to generate completion for"
+    )
     return p
 
 
@@ -653,7 +659,7 @@ def _build_bash_completion_script() -> str:
         "# prism bash completion (generated)",
         "_prism_completion() {",
         "    local cur prev cmd opts",
-        '    COMPREPLY=()',
+        "    COMPREPLY=()",
         '    cur="${COMP_WORDS[COMP_CWORD]}"',
         '    prev="${COMP_WORDS[COMP_CWORD-1]}"',
         '    cmd="${COMP_WORDS[1]}"',
@@ -663,24 +669,24 @@ def _build_bash_completion_script() -> str:
         "        return 0",
         "    fi",
         "",
-        "    case \"$cmd\" in",
+        '    case "$cmd" in',
         *case_lines,
         "        *)",
         '            opts=""',
         "            ;;",
         "    esac",
         "",
-        "    if [[ \"$cur\" == -* ]]; then",
+        '    if [[ "$cur" == -* ]]; then',
         '        COMPREPLY=( $(compgen -W "$opts" -- "$cur") )',
         "        return 0",
         "    fi",
         "",
-        "    if [[ \"$cmd\" == \"completion\" && ${COMP_CWORD} -eq 2 ]]; then",
+        '    if [[ "$cmd" == "completion" && ${COMP_CWORD} -eq 2 ]]; then',
         '        COMPREPLY=( $(compgen -W "bash" -- "$cur") )',
         "        return 0",
         "    fi",
         "",
-        "    COMPREPLY=( $(compgen -f -- \"$cur\") )",
+        '    COMPREPLY=( $(compgen -f -- "$cur") )',
         "}",
         "complete -F _prism_completion prism",
         "",
@@ -747,7 +753,9 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
             ref=args.repo_ref,
             timeout=args.repo_timeout,
         )
-        if repo_dir_names is not None and not _repo_path_looks_like_role(repo_dir_names):
+        if repo_dir_names is not None and not _repo_path_looks_like_role(
+            repo_dir_names
+        ):
             raise FileNotFoundError(
                 "repository path does not look like an Ansible role: "
                 f"{args.repo_role_path}"
@@ -797,12 +805,20 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
                     style_readme_path = str(candidate_path)
                     break
         if args.create_style_guide and not style_readme_path:
-            style_readme_path = args.style_source or resolve_default_style_guide_source()
+            style_readme_path = (
+                args.style_source or resolve_default_style_guide_source()
+            )
 
         # Load optional feedback from prism-learn to guide scanner behavior
         try:
             feedback = load_feedback(args.feedback_from_learn)
-        except (FileNotFoundError, HTTPError, URLError, json.JSONDecodeError, ValueError) as exc:
+        except (
+            FileNotFoundError,
+            HTTPError,
+            URLError,
+            json.JSONDecodeError,
+            ValueError,
+        ) as exc:
             print(f"Error loading feedback: {exc}", file=sys.stderr)
             return 1
 
@@ -868,14 +884,18 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
     # Load optional feedback from prism-learn to guide scanner behavior
     try:
         feedback = load_feedback(args.feedback_from_learn)
-    except (FileNotFoundError, HTTPError, URLError, json.JSONDecodeError, ValueError) as exc:
+    except (
+        FileNotFoundError,
+        HTTPError,
+        URLError,
+        json.JSONDecodeError,
+        ValueError,
+    ) as exc:
         print(f"Error loading feedback: {exc}", file=sys.stderr)
         return 1
 
     # Apply feedback recommendations to override CLI flags if recommended
-    applied = apply_feedback_recommendations(
-        feedback, args.include_collection_checks
-    )
+    applied = apply_feedback_recommendations(feedback, args.include_collection_checks)
     include_collection_checks = applied["include_collection_checks"]
 
     payload = scan_collection(
@@ -945,14 +965,18 @@ def _handle_role_command(args: argparse.Namespace) -> int:
     # Load optional feedback from prism-learn to guide scanner behavior
     try:
         feedback = load_feedback(args.feedback_from_learn)
-    except (FileNotFoundError, HTTPError, URLError, json.JSONDecodeError, ValueError) as exc:
+    except (
+        FileNotFoundError,
+        HTTPError,
+        URLError,
+        json.JSONDecodeError,
+        ValueError,
+    ) as exc:
         print(f"Error loading feedback: {exc}", file=sys.stderr)
         return 1
 
     # Apply feedback recommendations to override CLI flags if recommended
-    applied = apply_feedback_recommendations(
-        feedback, args.include_collection_checks
-    )
+    applied = apply_feedback_recommendations(feedback, args.include_collection_checks)
     include_collection_checks = applied["include_collection_checks"]
 
     style_readme_path = args.style_readme
