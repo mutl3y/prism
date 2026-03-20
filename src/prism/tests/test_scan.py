@@ -1479,6 +1479,124 @@ def test_render_role_notes_section_with_and_without_entries():
     assert "Additionals:" in rendered
 
 
+def test_render_variable_uncertainty_notes_with_defaults_and_sections():
+    rendered = scanner._render_variable_uncertainty_notes(
+        [
+            {
+                "name": "missing_var",
+                "is_unresolved": True,
+                "is_ambiguous": False,
+                "uncertainty_reason": "",
+            },
+            {
+                "name": "shared_var",
+                "is_unresolved": False,
+                "is_ambiguous": True,
+                "uncertainty_reason": None,
+            },
+        ]
+    )
+
+    assert "Variable provenance and confidence notes:" in rendered
+    assert "Unresolved variables:" in rendered
+    assert "`missing_var`: Unknown source." in rendered
+    assert "Ambiguous variables:" in rendered
+    assert "`shared_var`: Multiple possible sources." in rendered
+    assert scanner._render_variable_uncertainty_notes([]) == ""
+
+
+def test_render_guide_section_body_purpose_and_variable_summary_branches():
+    metadata = {
+        "doc_insights": {
+            "purpose_summary": "Configures and validates the demo service.",
+            "capabilities": ["Install package", "Manage service"],
+        },
+        "variable_insights": [
+            {
+                "name": "service_password",
+                "type": "string",
+                "default": "redacted",
+                "source": "defaults/main.yml",
+                "secret": True,
+                "is_unresolved": True,
+                "is_ambiguous": False,
+                "uncertainty_reason": "Provided at deploy time.",
+                "provenance_source_file": "defaults/main.yml",
+            },
+            {
+                "name": "external_only",
+                "type": "string",
+                "default": "ctx",
+                "source": "seed: env",
+                "secret": False,
+                "is_unresolved": False,
+                "is_ambiguous": False,
+                "provenance_source_file": "group_vars/all.yml",
+            },
+        ],
+        "external_vars_context": {"paths": ["group_vars"]},
+    }
+
+    purpose = scanner._render_guide_section_body(
+        "purpose",
+        "demo",
+        "desc",
+        {},
+        [],
+        [],
+        metadata,
+    )
+    summary = scanner._render_guide_section_body(
+        "variable_summary",
+        "demo",
+        "desc",
+        {},
+        [],
+        [],
+        metadata,
+    )
+
+    assert "Capabilities:" in purpose
+    assert "Install package" in purpose
+    assert "service_password" in summary
+    assert "(secret)" in summary
+    assert "External variable context paths were used" in summary
+    assert "Variable provenance and confidence notes:" in summary
+    assert "Provided at deploy time." in summary
+
+
+def test_render_guide_section_body_variable_guidance_priority_and_fallbacks():
+    no_rows = scanner._render_guide_section_body(
+        "variable_guidance",
+        "demo",
+        "desc",
+        {},
+        [],
+        [],
+        {"variable_insights": []},
+    )
+    with_rows = scanner._render_guide_section_body(
+        "variable_guidance",
+        "demo",
+        "desc",
+        {},
+        [],
+        [],
+        {
+            "variable_insights": [
+                {"name": "service_port", "default": 8080},
+                {"name": "app_package", "default": "demo"},
+                {"name": "feature_flag", "default": True},
+            ]
+        },
+    )
+
+    assert "No variable guidance available" in no_rows
+    assert "Recommended variables to tune:" in with_rows
+    assert "`service_port`" in with_rows
+    assert "Use these as initial overrides" in with_rows
+
+
 def test_collect_molecule_scenarios_ignores_malformed_and_excluded_files(tmp_path):
     role = tmp_path / "role"
     valid = role / "molecule" / "default"
