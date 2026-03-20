@@ -1,24 +1,10 @@
-Of course. Here is the complete, raw Markdown content. You can copy this directly into your `README.md` file.
-
----
+--
 
 # Prism: Your Automation's Living Documentation
 
-Project site: [mutl3y.github.io/prism](https://mutl3y.github.io/prism)
+Project site: [mutl3y.github.io/prism](https://mutl3y.github.io/prism) [![CI](https://github.com/mutl3y/prism/actions/workflows/prism.yml/badge.svg?branch=main)](https://github.com/mutl3y/prism/actions/workflows/prism.yml) [![Branch](https://img.shields.io/github/actions/workflow/status/mutl3y/prism/prism.yml?branch=main&label=main)](https://github.com/mutl3y/prism/tree/main) [![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](docs/COVERAGE_WORKOFF_PLAN.md) [![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml) [![License](https://img.shields.io/github/license/mutl3y/prism)](LICENSE)
 
-<div align="center">
-  <!-- Optional: Add a logo here -->
-  <!-- <img src="path/to/your/logo.png" alt="Prism Logo" width="200"/> -->
-  <p>
-    <strong>From Code to Knowledge: Automatically generate beautiful, accurate, and operator-friendly documentation for your Ansible roles, collections, and repositories.</strong>
-  </p>
-  <p>
-    <!-- Badges: Replace placeholders with your actual badge URLs -->
-    <a href="#"><img src="https://img.shields.io/pypi/v/prism.svg" alt="PyPI version"></a>
-    <a href="#"><img src="https://img.shields.io/github/actions/workflow/status/mutl3y/prism/default.yml?branch=main" alt="Build Status"></a>
-    <a href="#"><img src="https://img.shields.io/pypi/l/prism.svg" alt="License"></a>
-  </p>
-</div>
+**From Code to Knowledge: Automatically generate beautiful, accurate, and operator-friendly documentation for your Ansible roles, collections, and repositories.**
 
 ---
 
@@ -45,7 +31,7 @@ Prism goes beyond simple variable lists. It's an ecosystem designed to capture a
 > ```yaml
 >   #t# Runbook
 >   # Before proceeding, ensure no active transactions are in the message queue.
->   # Use `mq-status --check` to verify.
+>   #t# Use `mq-status --check` to verify.
 > - name: Stop the primary application service
 >   ansible.builtin.service:
 >     name: my-app
