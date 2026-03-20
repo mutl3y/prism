@@ -2086,121 +2086,120 @@ def _render_guide_section_body(
     return ""
 
 
-def _render_readme_with_style_guide(
-    role_name: str,
-    description: str,
-    variables: dict,
-    requirements: list,
-    default_filters: list,
-    metadata: dict,
+def _generated_merge_markers(section_id: str) -> list[tuple[str, str]]:
+    """Return supported hidden marker pairs for generated merge payloads."""
+    return [
+        (
+            f"<!-- prism:generated:start:{section_id} -->",
+            f"<!-- prism:generated:end:{section_id} -->",
+        ),
+        (
+            f"<!-- ansible-role-doc:generated:start:{section_id} -->",
+            f"<!-- ansible-role-doc:generated:end:{section_id} -->",
+        ),
+    ]
+
+
+def _strip_prior_generated_merge_block(section: dict, guide_body: str) -> str:
+    """Remove previously generated merge payload for a section, if present."""
+    section_id = str(section.get("id") or "")
+    cleaned = guide_body
+    for start_marker, end_marker in _generated_merge_markers(section_id):
+        start_idx = cleaned.find(start_marker)
+        end_idx = cleaned.find(end_marker)
+        if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
+            prefix = cleaned[:start_idx].rstrip()
+            suffix = cleaned[end_idx + len(end_marker) :].lstrip()
+            if prefix and suffix:
+                cleaned = f"{prefix}\n\n{suffix}"
+            else:
+                cleaned = prefix or suffix
+
+    # Backward compatibility for earlier merge output without markers.
+    legacy_labels = ["\n\nGenerated content:\n"]
+    if section_id == "requirements":
+        legacy_labels.append("\n\nDetected requirements from scanner:\n")
+    for label in legacy_labels:
+        if label in cleaned:
+            cleaned = cleaned.split(label, 1)[0].rstrip()
+
+    return cleaned
+
+
+def _resolve_section_content_mode(section: dict, modes: dict[str, str]) -> str:
+    """Resolve content handling mode for a style section."""
+    section_id = str(section.get("id") or "")
+    guide_body = str(section.get("body") or "").strip()
+    configured = str(modes.get(section_id) or "").strip().lower()
+    if configured in {"generate", "replace", "merge"}:
+        return configured
+    if section_id == "requirements":
+        return "merge"
+    # Preserve source prose patterns for narrative sections while still
+    # appending scanner-derived structured content.
+    if guide_body and section_id in {
+        "purpose",
+        "task_summary",
+        "local_testing",
+        "handlers",
+        "template_overrides",
+        "faq_pitfalls",
+        "contributing",
+    }:
+        return "merge"
+    return "generate"
+
+
+def _merge_section_body(
+    section: dict,
+    generated_body: str,
+    guide_body: str,
 ) -> str:
-    """Render markdown following the structure of a guide README."""
-
-    def _generated_merge_markers(section_id: str) -> list[tuple[str, str]]:
-        return [
-            (
-                f"<!-- prism:generated:start:{section_id} -->",
-                f"<!-- prism:generated:end:{section_id} -->",
-            ),
-            (
-                f"<!-- ansible-role-doc:generated:start:{section_id} -->",
-                f"<!-- ansible-role-doc:generated:end:{section_id} -->",
-            ),
-        ]
-
-    def _strip_prior_generated_merge_block(section: dict, guide_body: str) -> str:
-        """Remove previously generated merge payload for a section, if present."""
-        section_id = str(section.get("id") or "")
-        cleaned = guide_body
-        for start_marker, end_marker in _generated_merge_markers(section_id):
-            start_idx = cleaned.find(start_marker)
-            end_idx = cleaned.find(end_marker)
-            if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
-                prefix = cleaned[:start_idx].rstrip()
-                suffix = cleaned[end_idx + len(end_marker) :].lstrip()
-                if prefix and suffix:
-                    cleaned = f"{prefix}\n\n{suffix}"
-                else:
-                    cleaned = prefix or suffix
-
-        # Backward compatibility for earlier merge output without markers.
-        legacy_labels = ["\n\nGenerated content:\n"]
-        if section_id == "requirements":
-            legacy_labels.append("\n\nDetected requirements from scanner:\n")
-        for label in legacy_labels:
-            if label in cleaned:
-                cleaned = cleaned.split(label, 1)[0].rstrip()
-
-        return cleaned
-
-    def _resolve_section_content_mode(section: dict, modes: dict[str, str]) -> str:
-        """Resolve content handling mode for a style section."""
-        section_id = str(section.get("id") or "")
-        guide_body = str(section.get("body") or "").strip()
-        configured = str(modes.get(section_id) or "").strip().lower()
-        if configured in {"generate", "replace", "merge"}:
-            return configured
-        if section_id == "requirements":
-            return "merge"
-        # Preserve source prose patterns for narrative sections while still
-        # appending scanner-derived structured content.
-        if guide_body and section_id in {
-            "purpose",
-            "task_summary",
-            "local_testing",
-            "handlers",
-            "template_overrides",
-            "faq_pitfalls",
-            "contributing",
-        }:
-            return "merge"
-        return "generate"
-
-    def _merge_section_body(
-        section: dict,
-        generated_body: str,
-        guide_body: str,
-    ) -> str:
-        """Merge scanner-generated and style-guide content for a section."""
-        cleaned_guide_body = _strip_prior_generated_merge_block(section, guide_body)
-        if not cleaned_guide_body:
-            return generated_body
-        if not generated_body:
-            return cleaned_guide_body
-        if generated_body in cleaned_guide_body:
-            return cleaned_guide_body
-        section_id = str(section.get("id") or "")
-        start_marker, end_marker = _generated_merge_markers(section_id)[0]
-        if section_id == "requirements":
-            return (
-                f"{cleaned_guide_body}\n\n"
-                "Detected requirements from scanner:\n"
-                f"{start_marker}\n"
-                f"{generated_body}\n"
-                f"{end_marker}"
-            )
+    """Merge scanner-generated and style-guide content for a section."""
+    cleaned_guide_body = _strip_prior_generated_merge_block(section, guide_body)
+    if not cleaned_guide_body:
+        return generated_body
+    if not generated_body:
+        return cleaned_guide_body
+    if generated_body in cleaned_guide_body:
+        return cleaned_guide_body
+    section_id = str(section.get("id") or "")
+    start_marker, end_marker = _generated_merge_markers(section_id)[0]
+    if section_id == "requirements":
         return (
             f"{cleaned_guide_body}\n\n"
-            "Generated content:\n"
+            "Detected requirements from scanner:\n"
             f"{start_marker}\n"
             f"{generated_body}\n"
             f"{end_marker}"
         )
+    return (
+        f"{cleaned_guide_body}\n\n"
+        "Generated content:\n"
+        f"{start_marker}\n"
+        f"{generated_body}\n"
+        f"{end_marker}"
+    )
 
-    def _compose_section_body(section: dict, generated_body: str, mode: str) -> str:
-        """Compose final section body according to configured mode."""
-        guide_body = str(section.get("body") or "").strip()
-        if mode == "replace":
-            return guide_body or generated_body
-        if mode == "merge":
-            return _merge_section_body(section, generated_body, guide_body)
-        return generated_body
 
-    style_guide = metadata.get("style_guide") or {}
+def _compose_section_body(section: dict, generated_body: str, mode: str) -> str:
+    """Compose final section body according to configured mode."""
+    guide_body = str(section.get("body") or "").strip()
+    if mode == "replace":
+        return guide_body or generated_body
+    if mode == "merge":
+        return _merge_section_body(section, generated_body, guide_body)
+    return generated_body
+
+
+def _resolve_ordered_style_sections(
+    style_guide: dict,
+    metadata: dict,
+) -> tuple[list[dict], set[str], dict[str, str], bool]:
+    """Resolve ordered style-guide sections after scanner/readme config filters."""
     ordered_sections = list(style_guide.get("sections") or [])
     enabled_sections = set(metadata.get("enabled_sections") or [])
     section_title_overrides = metadata.get("section_title_overrides") or {}
-    section_content_modes = metadata.get("section_content_modes") or {}
     keep_unknown_style_sections = bool(metadata.get("keep_unknown_style_sections"))
 
     if not ordered_sections:
@@ -2241,7 +2240,30 @@ def _render_readme_with_style_guide(
                 if section.get("id") != "role_variables"
             ]
 
-    style_guide_skeleton = bool(metadata.get("style_guide_skeleton"))
+    return (
+        ordered_sections,
+        enabled_sections,
+        metadata.get("section_content_modes") or {},
+        bool(metadata.get("style_guide_skeleton")),
+    )
+
+
+def _render_readme_with_style_guide(
+    role_name: str,
+    description: str,
+    variables: dict,
+    requirements: list,
+    default_filters: list,
+    metadata: dict,
+) -> str:
+    """Render markdown following the structure of a guide README."""
+    style_guide = metadata.get("style_guide") or {}
+    (
+        ordered_sections,
+        enabled_sections,
+        section_content_modes,
+        style_guide_skeleton,
+    ) = _resolve_ordered_style_sections(style_guide, metadata)
 
     rendered_title = role_name
     if style_guide.get("title_text"):
