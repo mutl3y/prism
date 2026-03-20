@@ -13,6 +13,7 @@ Test groups mirror the planned submodule boundaries:
 """
 
 from prism import scanner
+from types import SimpleNamespace
 
 # ---------------------------------------------------------------------------
 # Jinja analysis helpers
@@ -147,6 +148,13 @@ class TestStringifyJinjaNode:
         assert scanner._stringify_jinja_node(pair_only_value) == "v"
         assert scanner._stringify_jinja_node(keyword_value_only) == "home"
 
+    def test_keyword_key_and_value_render_as_assignment(self):
+        import jinja2
+
+        keyword = jinja2.nodes.Keyword("name", jinja2.nodes.Const("HOME"))
+
+        assert scanner._stringify_jinja_node(keyword) == "name=HOME"
+
     def test_template_data_and_unknown_node_fallbacks(self):
         import jinja2
 
@@ -170,6 +178,21 @@ class TestStringifyJinjaNode:
 
         assert scanner._stringify_jinja_node(cond_partial) == "A"
         assert scanner._stringify_jinja_node(add_partial) == "r"
+
+    def test_call_compare_and_unary_edge_fallback_paths(self):
+        call_node = self._parse_expr("lookup(name='HOME')")
+        call_node.kwargs[0].key = ""
+
+        compare_node = self._parse_expr("attempts == max_attempts")
+        compare_node.ops[0].op = ""
+
+        import jinja2
+
+        unary_missing_target = jinja2.nodes.Neg(None)
+
+        assert scanner._stringify_jinja_node(call_node) == "lookup(HOME)"
+        assert scanner._stringify_jinja_node(compare_node) == "attempts max_attempts"
+        assert scanner._stringify_jinja_node(unary_missing_target) == ""
 
 
 class TestScanTextForDefaultFiltersWithAst:
@@ -343,6 +366,35 @@ class TestCollectJinjaLocalBindings:
         )
         result = scanner._collect_jinja_local_bindings_from_text(text)
         assert "result" in result
+
+    def test_collect_local_bindings_handles_sparse_node_shapes(self):
+        import jinja2
+
+        class _FakeTemplate:
+            def __init__(self, mapping):
+                self._mapping = mapping
+
+            def find_all(self, node_type):
+                return self._mapping.get(node_type, [])
+
+        fake = _FakeTemplate(
+            {
+                # Empty args trigger the "or []" fallback paths.
+                jinja2.nodes.Macro: [SimpleNamespace(args=[])],
+                jinja2.nodes.CallBlock: [SimpleNamespace(args=[])],
+                # Non-string import target should be ignored safely.
+                jinja2.nodes.Import: [SimpleNamespace(target=None)],
+                # Tuple with empty alias should fall back to source name.
+                jinja2.nodes.FromImport: [
+                    SimpleNamespace(names=[("render", ""), "helper_fn"])
+                ],
+            }
+        )
+
+        result = scanner._collect_jinja_local_bindings(fake)
+
+        assert "render" in result
+        assert "helper_fn" in result
 
 
 class TestExtractJinjaNameTargets:
