@@ -265,7 +265,7 @@ readme:
 Testing note:
 
 - Running `tox` (default `py` env) runs tests with coverage and writes `debug_readmes/coverage.xml`.
-- Latest local snapshot (2026-03-17): `244 passed` with total coverage `85.0%`.
+- Latest local snapshot (2026-03-20): `236 passed` with total coverage `84.2%`.
 - Generate review outputs on demand with `tox -e readmes` (or `tox -e py,readmes`), which writes:
   - `debug_readmes/REVIEW_README.md`
   - `debug_readmes/REVIEW_README.html`
