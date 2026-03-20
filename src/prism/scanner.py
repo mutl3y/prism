@@ -2059,6 +2059,20 @@ def _render_guide_section_body(
     if rendered is not None:
         return rendered
 
+    rendered = _render_guide_misc_sections(section_id, default_filters, metadata)
+    if rendered is not None:
+        return rendered
+
+    return ""
+
+
+def _render_guide_misc_sections(
+    section_id: str,
+    default_filters: list,
+    metadata: dict,
+) -> str | None:
+    """Render remaining style-guide sections not covered by other groups."""
+
     if section_id == "role_contents":
         lines = ["The scanner collected these role subdirectories (counts):", ""]
         for key, items in metadata.items():
@@ -2114,7 +2128,7 @@ def _render_guide_section_body(
             lines.append(f"  args: `{args}`")
         return "\n".join(lines)
 
-    return ""
+    return None
 
 
 def _generated_merge_markers(section_id: str) -> list[tuple[str, str]]:
@@ -2279,33 +2293,20 @@ def _resolve_ordered_style_sections(
     )
 
 
-def _render_readme_with_style_guide(
+def _render_style_guide_sections_into_parts(
+    parts: list[str],
+    ordered_sections: list[dict],
+    style_guide: dict,
+    style_guide_skeleton: bool,
+    section_content_modes: dict[str, str],
     role_name: str,
     description: str,
     variables: dict,
     requirements: list,
     default_filters: list,
     metadata: dict,
-) -> str:
-    """Render markdown following the structure of a guide README."""
-    style_guide = metadata.get("style_guide") or {}
-    (
-        ordered_sections,
-        enabled_sections,
-        section_content_modes,
-        style_guide_skeleton,
-    ) = _resolve_ordered_style_sections(style_guide, metadata)
-
-    rendered_title = role_name
-    if style_guide.get("title_text"):
-        rendered_title = role_name
-
-    parts = [
-        format_heading(rendered_title, 1, style_guide.get("title_style", "setext")),
-        "",
-        description,
-        "",
-    ]
+) -> None:
+    """Append rendered style-guide sections into the markdown parts list."""
     for section in ordered_sections:
         heading_level = int(
             section.get("level") or style_guide.get("section_level") or 2
@@ -2344,25 +2345,89 @@ def _render_readme_with_style_guide(
         parts.append(body)
         parts.append("")
 
-    scanner_report_relpath = metadata.get("scanner_report_relpath")
+
+def _append_scanner_report_section_if_enabled(
+    parts: list[str],
+    style_guide: dict,
+    style_guide_skeleton: bool,
+    scanner_report_relpath: str | None,
+    include_scanner_report_link: bool,
+    enabled_sections: set[str],
+) -> None:
+    """Append scanner report section when concise/section settings allow it."""
     if (
-        not style_guide_skeleton
-        and scanner_report_relpath
-        and metadata.get("include_scanner_report_link", True)
-        and (not enabled_sections or "scanner_report" in enabled_sections)
+        style_guide_skeleton
+        or not scanner_report_relpath
+        or not include_scanner_report_link
+        or (enabled_sections and "scanner_report" not in enabled_sections)
     ):
-        parts.append(
-            format_heading(
-                "Scanner report",
-                int(style_guide.get("section_level") or 2),
-                style_guide.get("section_style", "setext"),
-            )
+        return
+    parts.append(
+        format_heading(
+            "Scanner report",
+            int(style_guide.get("section_level") or 2),
+            style_guide.get("section_style", "setext"),
         )
-        parts.append("")
-        parts.append(
-            f"Detailed scanner output is available in `{scanner_report_relpath}`. It includes task/module statistics, role-content inventory, baseline comparison details, and undocumented `default()` findings."
-        )
-        parts.append("")
+    )
+    parts.append("")
+    parts.append(
+        f"Detailed scanner output is available in `{scanner_report_relpath}`. It includes task/module statistics, role-content inventory, baseline comparison details, and undocumented `default()` findings."
+    )
+    parts.append("")
+
+
+def _render_readme_with_style_guide(
+    role_name: str,
+    description: str,
+    variables: dict,
+    requirements: list,
+    default_filters: list,
+    metadata: dict,
+) -> str:
+    """Render markdown following the structure of a guide README."""
+    style_guide = metadata.get("style_guide") or {}
+    (
+        ordered_sections,
+        enabled_sections,
+        section_content_modes,
+        style_guide_skeleton,
+    ) = _resolve_ordered_style_sections(style_guide, metadata)
+
+    rendered_title = role_name
+    if style_guide.get("title_text"):
+        rendered_title = role_name
+
+    parts = [
+        format_heading(rendered_title, 1, style_guide.get("title_style", "setext")),
+        "",
+        description,
+        "",
+    ]
+    _render_style_guide_sections_into_parts(
+        parts=parts,
+        ordered_sections=ordered_sections,
+        style_guide=style_guide,
+        style_guide_skeleton=style_guide_skeleton,
+        section_content_modes=section_content_modes,
+        role_name=role_name,
+        description=description,
+        variables=variables,
+        requirements=requirements,
+        default_filters=default_filters,
+        metadata=metadata,
+    )
+
+    scanner_report_relpath = metadata.get("scanner_report_relpath")
+    _append_scanner_report_section_if_enabled(
+        parts=parts,
+        style_guide=style_guide,
+        style_guide_skeleton=style_guide_skeleton,
+        scanner_report_relpath=scanner_report_relpath,
+        include_scanner_report_link=bool(
+            metadata.get("include_scanner_report_link", True)
+        ),
+        enabled_sections=enabled_sections,
+    )
     return "\n".join(parts).strip() + "\n"
 
 
@@ -2787,41 +2852,26 @@ def _render_and_write_scan_output(
     return write_output(out_path, final_content)
 
 
-def run_scan(
+def _prepare_scan_context(
     role_path: str,
-    output: str = "README.md",
-    template: str | None = None,
-    output_format: str = "md",
-    compare_role_path: str | None = None,
-    style_readme_path: str | None = None,
-    role_name_override: str | None = None,
-    vars_seed_paths: list[str] | None = None,
-    concise_readme: bool = False,
-    scanner_report_output: str | None = None,
-    include_vars_main: bool = True,
-    include_scanner_report_link: bool = True,
-    readme_config_path: str | None = None,
-    adopt_heading_mode: str | None = None,
-    style_guide_skeleton: bool = False,
-    keep_unknown_style_sections: bool = True,
-    exclude_path_patterns: list[str] | None = None,
-    style_source_path: str | None = None,
-    policy_config_path: str | None = None,
-    detailed_catalog: bool = False,
-    dry_run: bool = False,
-    include_collection_checks: bool = True,
-    include_task_parameters: bool = True,
-    include_task_runbooks: bool = True,
-    inline_task_runbooks: bool = True,
-    runbook_output: str | None = None,
-    runbook_csv_output: str | None = None,
-) -> str:
-    _refresh_policy(policy_config_path)
-
-    # Auto-enable task catalog collection when a standalone runbook is requested.
-    if (runbook_output or runbook_csv_output) and not detailed_catalog:
-        detailed_catalog = True
-
+    role_name_override: str | None,
+    readme_config_path: str | None,
+    include_vars_main: bool,
+    exclude_path_patterns: list[str] | None,
+    detailed_catalog: bool,
+    include_task_parameters: bool,
+    include_task_runbooks: bool,
+    inline_task_runbooks: bool,
+    include_collection_checks: bool,
+    keep_unknown_style_sections: bool,
+    adopt_heading_mode: str | None,
+    vars_seed_paths: list[str] | None,
+    style_readme_path: str | None,
+    style_source_path: str | None,
+    style_guide_skeleton: bool,
+    compare_role_path: str | None,
+) -> tuple[str, str, str, list, list, dict]:
+    """Collect role metadata and scanner context required for rendering outputs."""
     rp, meta, role_name, description = _resolve_scan_identity(
         role_path,
         role_name_override,
@@ -2882,7 +2932,37 @@ def run_scan(
         role_path=role_path,
         exclude_path_patterns=exclude_path_patterns,
     )
+    return (
+        rp,
+        role_name,
+        description,
+        requirements_display,
+        undocumented_default_filters,
+        {
+            "display_variables": display_variables,
+            "metadata": metadata,
+        },
+    )
 
+
+def _emit_scan_outputs(
+    output: str,
+    output_format: str,
+    concise_readme: bool,
+    scanner_report_output: str | None,
+    include_scanner_report_link: bool,
+    role_name: str,
+    description: str,
+    display_variables: dict,
+    requirements_display: list,
+    undocumented_default_filters: list,
+    metadata: dict,
+    template: str | None,
+    dry_run: bool,
+    runbook_output: str | None,
+    runbook_csv_output: str | None,
+) -> str:
+    """Render primary outputs and optional sidecars for a scanner run."""
     out_path = resolve_output_path(output, output_format)
     _write_concise_scanner_report_if_enabled(
         concise_readme=concise_readme,
@@ -2897,7 +2977,6 @@ def run_scan(
         metadata=metadata,
         dry_run=dry_run,
     )
-
     result = _render_and_write_scan_output(
         out_path=out_path,
         output_format=output_format,
@@ -2919,3 +2998,83 @@ def run_scan(
         metadata=metadata,
     )
     return result
+
+
+def run_scan(
+    role_path: str,
+    output: str = "README.md",
+    template: str | None = None,
+    output_format: str = "md",
+    compare_role_path: str | None = None,
+    style_readme_path: str | None = None,
+    role_name_override: str | None = None,
+    vars_seed_paths: list[str] | None = None,
+    concise_readme: bool = False,
+    scanner_report_output: str | None = None,
+    include_vars_main: bool = True,
+    include_scanner_report_link: bool = True,
+    readme_config_path: str | None = None,
+    adopt_heading_mode: str | None = None,
+    style_guide_skeleton: bool = False,
+    keep_unknown_style_sections: bool = True,
+    exclude_path_patterns: list[str] | None = None,
+    style_source_path: str | None = None,
+    policy_config_path: str | None = None,
+    detailed_catalog: bool = False,
+    dry_run: bool = False,
+    include_collection_checks: bool = True,
+    include_task_parameters: bool = True,
+    include_task_runbooks: bool = True,
+    inline_task_runbooks: bool = True,
+    runbook_output: str | None = None,
+    runbook_csv_output: str | None = None,
+) -> str:
+    _refresh_policy(policy_config_path)
+
+    # Auto-enable task catalog collection when a standalone runbook is requested.
+    if (runbook_output or runbook_csv_output) and not detailed_catalog:
+        detailed_catalog = True
+
+    (
+        _rp,
+        role_name,
+        description,
+        requirements_display,
+        undocumented_default_filters,
+        scan_context,
+    ) = _prepare_scan_context(
+        role_path=role_path,
+        role_name_override=role_name_override,
+        readme_config_path=readme_config_path,
+        include_vars_main=include_vars_main,
+        exclude_path_patterns=exclude_path_patterns,
+        detailed_catalog=detailed_catalog,
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
+        include_collection_checks=include_collection_checks,
+        keep_unknown_style_sections=keep_unknown_style_sections,
+        adopt_heading_mode=adopt_heading_mode,
+        vars_seed_paths=vars_seed_paths,
+        style_readme_path=style_readme_path,
+        style_source_path=style_source_path,
+        style_guide_skeleton=style_guide_skeleton,
+        compare_role_path=compare_role_path,
+    )
+    return _emit_scan_outputs(
+        output=output,
+        output_format=output_format,
+        concise_readme=concise_readme,
+        scanner_report_output=scanner_report_output,
+        include_scanner_report_link=include_scanner_report_link,
+        role_name=role_name,
+        description=description,
+        display_variables=scan_context["display_variables"],
+        requirements_display=requirements_display,
+        undocumented_default_filters=undocumented_default_filters,
+        metadata=scan_context["metadata"],
+        template=template,
+        dry_run=dry_run,
+        runbook_output=runbook_output,
+        runbook_csv_output=runbook_csv_output,
+    )
