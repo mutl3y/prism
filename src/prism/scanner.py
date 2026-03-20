@@ -29,6 +29,7 @@ from .style_guide import (
 from ._jinja_analyzer import (
     _JINJA_AST_ENV as _JINJA_AST_ENV,
     _stringify_jinja_node as _stringify_jinja_node,
+    _scan_text_for_all_filters_with_ast as _scan_text_for_all_filters_with_ast,
     _scan_text_for_default_filters_with_ast as _scan_text_for_default_filters_with_ast,
     _collect_undeclared_jinja_variables as _collect_undeclared_jinja_variables,
     _collect_undeclared_jinja_variables_from_ast as _collect_undeclared_jinja_variables_from_ast,
@@ -207,6 +208,7 @@ DEFAULT_RE = re.compile(
     r"""(?P<context>.{0,40}?)(\|\s*default\b|\bdefault\s*\()\s*(?P<args>[^)\n]{0,200})""",
     flags=re.IGNORECASE,
 )
+ANY_FILTER_RE = re.compile(r"""\|\s*(?P<name>[A-Za-z_][A-Za-z0-9_]*)""")
 
 DEFAULT_STYLE_GUIDE_SOURCE_PATH = (
     Path(__file__).parent / "templates" / "STYLE_GUIDE_SOURCE.md"
@@ -382,6 +384,45 @@ def scan_for_default_filters(
     return sorted(occurrences, key=lambda item: (item["file"], item["line_no"]))
 
 
+def scan_for_all_filters(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> list[dict]:
+    """Scan files under ``role_path`` for all discovered Jinja filters.
+
+    Returns a list of occurrence dictionaries with keys: ``file``,
+    ``line_no``, ``line``, ``match``, ``args`` and ``filter_name``.
+    """
+    occurrences: list[dict] = []
+    role_root = Path(role_path).resolve()
+    scanned_files: set[Path] = set()
+
+    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
+        scanned_files.add(task_file.resolve())
+        occurrences.extend(_scan_file_for_all_filters(task_file, role_root))
+
+    role_path = str(role_root)
+    for root, dirs, files in os.walk(role_path):
+        dirs[:] = [
+            d
+            for d in dirs
+            if d not in IGNORED_DIRS
+            and not _is_relpath_excluded(
+                str((Path(root) / d).resolve().relative_to(role_root)),
+                exclude_paths,
+            )
+        ]
+        for fname in files:
+            fpath = Path(root) / fname
+            if _is_path_excluded(fpath, role_root, exclude_paths):
+                continue
+            if fpath.resolve() in scanned_files:
+                continue
+            occurrences.extend(_scan_file_for_all_filters(fpath, role_root))
+
+    return sorted(occurrences, key=lambda item: (item["file"], item["line_no"]))
+
+
 def _scan_file_for_default_filters(file_path: Path, role_root: Path) -> list[dict]:
     """Scan a single file for uses of the ``default()`` filter."""
     occurrences: list[dict] = []
@@ -417,6 +458,53 @@ def _scan_file_for_default_filters(file_path: Path, role_root: Path) -> list[dic
                         "line": line,
                         "match": excerpt,
                         "args": args,
+                    }
+                )
+    except (UnicodeDecodeError, PermissionError, OSError):
+        return []
+    return occurrences
+
+
+def _scan_file_for_all_filters(file_path: Path, role_root: Path) -> list[dict]:
+    """Scan a single file for uses of any Jinja filter."""
+    occurrences: list[dict] = []
+    seen: set[tuple[int, str, str, str]] = set()
+    try:
+        text = file_path.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        ast_rows = _scan_text_for_all_filters_with_ast(text, lines)
+        ast_line_numbers = {row["line_no"] for row in ast_rows}
+
+        for row in ast_rows:
+            filter_name = str(row.get("filter_name") or "")
+            key = (row["line_no"], row["match"], row["args"], filter_name)
+            if key in seen:
+                continue
+            seen.add(key)
+            row["file"] = os.path.relpath(file_path, role_root)
+            occurrences.append(row)
+
+        # Fallback for malformed templates where AST parsing fails.
+        for idx, line in enumerate(lines, start=1):
+            if idx in ast_line_numbers and ("{{" in line or "{%" in line):
+                continue
+            for match in ANY_FILTER_RE.finditer(line):
+                filter_name = str(match.group("name") or "").strip()
+                if not filter_name:
+                    continue
+                excerpt = line[max(0, match.start() - 80) : match.end() + 80].strip()
+                key = (idx, excerpt, "", filter_name)
+                if key in seen:
+                    continue
+                seen.add(key)
+                occurrences.append(
+                    {
+                        "file": os.path.relpath(file_path, role_root),
+                        "line_no": idx,
+                        "line": line,
+                        "match": excerpt,
+                        "args": "",
+                        "filter_name": filter_name,
                     }
                 )
     except (UnicodeDecodeError, PermissionError, OSError):

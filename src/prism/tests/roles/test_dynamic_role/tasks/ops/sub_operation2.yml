@@ -1,0 +1,3 @@
+- name: Define a task with a Jinja2 expression in its name
+  debug:
+    msg: "This is another {{ sub_operation }}"

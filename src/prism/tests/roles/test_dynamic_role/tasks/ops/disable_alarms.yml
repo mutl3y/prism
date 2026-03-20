@@ -1,0 +1,38 @@
+---
+#t# Fake task list for disabling alarms in a test role.
+
+- name: Define fake alarm targets
+  ansible.builtin.set_fact:
+    fake_alarm_targets:
+      - cpu_high
+      - memory_high
+      - disk_latency
+## . This file is intended for test and placeholder purposes only.
+
+- name: Show fake alarm targets
+  ansible.builtin.debug:
+    msg: "Preparing to disable fake alarm: {{ item }}"
+  loop: "{{ fake_alarm_targets }}"
+
+## t # Comment lines in this file use the required `#t#` prefix.
+# t # RUNBOOK: This task simulates the process of disabling alarms in a test role. It defines a list of fake alarm targets and then iterates over them to display a debug message indicating that each alarm is being prepared for disabling. The actual disabling logic is not implemented, as this file serves as a placeholder for testing purposes. The focus is on ensuring that tasks with Jinja2 expressions and loops are correctly analyzed and rendered in the generated documentation, rather than on executing real service actions.
+# - if this task fails you must exit the building within 30 minutes and re-enable the service manually,
+# - as the service will be left in a disabled state after the test runs.
+# This is a common practice in testing to ensure that the test environment is not altered in a way that could affect subsequent tests or the overall system stability.
+# w # This is very important warning for anyone running this test, as it emphasizes the need to be cautious when executing tests that involve service actions, even if they are simulated. The warning serves as a reminder to monitor the test execution and take appropriate action if any issues arise, ensuring that the system remains stable and functional after the test completes.
+- name: Simulate disabling alarms
+  ansible.builtin.debug:
+    msg: "Alarm {{ item }} has been marked as disabled"
+  loop: "{{ fake_alarm_targets }}"
+  changed_when: true
+
+- name: Record fake disable operation result
+  ansible.builtin.set_fact:
+    fake_disable_alarms_result:
+      changed: true
+      disabled_alarms: "{{ fake_alarm_targets }}"
+      status: success
+
+- name: Display fake disable result
+  ansible.builtin.debug:
+    var: fake_disable_alarms_result

@@ -21,7 +21,7 @@ from prism.pattern_config import (
     write_unknown_headings_log,
 )
 from prism import scanner
-from prism.scanner import scan_for_default_filters
+from prism.scanner import scan_for_all_filters, scan_for_default_filters
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -149,6 +149,72 @@ def test_scan_default_filter_deduplicates_ast_and_regex_results(tmp_path):
 
     assert len(matches) == 1
     assert matches[0]["args"] == "admin"
+
+
+def test_scan_detects_all_filters_via_jinja_ast(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: All filters\n"
+        "  debug:\n"
+        "    msg: \"{{ app_name | default('x') | trim | lower }}\"\n",
+        encoding="utf-8",
+    )
+
+    found = scan_for_all_filters(str(role))
+    names = {item["filter_name"] for item in found}
+
+    assert {"default", "trim", "lower"}.issubset(names)
+    assert any(item["file"] == "tasks/main.yml" for item in found)
+
+
+def test_scan_all_filters_falls_back_to_regex_on_invalid_template(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Broken filter line\n"
+        "  debug:\n"
+        '    msg: "{{ user_name | upper "\n',
+        encoding="utf-8",
+    )
+
+    found = scan_for_all_filters(str(role))
+
+    assert any(item["filter_name"] == "upper" for item in found)
+
+
+def test_scan_all_filters_respects_exclude_paths(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    nested = tasks / "nested"
+    nested.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- include_tasks: nested/extra.yml\n"
+        "- debug:\n"
+        '    msg: "{{ base | trim }}"\n',
+        encoding="utf-8",
+    )
+    (nested / "extra.yml").write_text(
+        "---\n" "- debug:\n" '    msg: "{{ nested_value | lower }}"\n',
+        encoding="utf-8",
+    )
+
+    found_all = scan_for_all_filters(str(role))
+    found_excluded = scan_for_all_filters(str(role), exclude_paths=["tasks/nested/*"])
+
+    all_names = {item["filter_name"] for item in found_all}
+    excluded_names = {item["filter_name"] for item in found_excluded}
+
+    assert "trim" in all_names
+    assert "lower" in all_names
+    assert "trim" in excluded_names
+    assert "lower" not in excluded_names
 
 
 def test_collect_referenced_variable_names_uses_jinja_ast(tmp_path):

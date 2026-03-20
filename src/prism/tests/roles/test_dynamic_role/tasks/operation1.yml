@@ -1,0 +1,3 @@
+- name: Include dynamic task file
+  include_tasks: "{{ sub_operation }}.yml"
+  when: sub_operation in ["sub_operation1", "sub_operation2"]

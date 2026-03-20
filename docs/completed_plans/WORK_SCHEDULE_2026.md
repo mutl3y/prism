@@ -4,6 +4,8 @@ Updated: 2026-03-20
 
 Status key: [x] complete, [~] in progress, [ ] planned
 
+Overall status: Completed
+
 ## Objective
 
 Deliver known-limitation reductions and external-review improvements in a practical 6-week schedule, with scanner stability first and compatibility testing after stabilization.
@@ -57,7 +59,7 @@ Week 5-6:
 Week 5-6:
 
 - [x] Full test and integration validation across tracks.
-- [~] Keep coverage >= 80 and target high-risk branch closure in scanner/Jinja paths.
+- [x] Keep coverage >= 80 and target high-risk branch closure in scanner/Jinja paths.
 - [x] Validate compatibility matrix and concise scanner-report quality.
 
 ## Dependency Rules
@@ -104,11 +106,10 @@ Completed this session:
 - Added focused `collection_plugins.py` helper tests and raised module coverage to 92.5%.
 - Added focused `api.py` helper/runbook-path tests and raised module coverage to 87.5%.
 - Added additional `scanner.py` helper/path branch tests and refreshed Jinja fallback-path tests.
-- Full suite passing: 417 tests.
-- Latest tox coverage: 87.83% total.
+- Full suite passing: 502 tests.
+- Latest tox coverage: 91.66% total.
 
-## Immediate Next Actions
+## Closeout
 
-1. Continue targeted branch closure in `src/prism/scanner.py` for remaining branch-heavy paths.
-2. Continue targeted branch closure in `src/prism/_jinja_analyzer.py` for low-coverage branches.
-3. Re-run full suite and tox after each micro-batch and keep coverage trend moving upward.
+1. Planned roadmap tracks are complete for this cycle.
+2. Remaining work should be tracked in a new schedule file for the next cycle.

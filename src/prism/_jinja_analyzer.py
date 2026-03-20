@@ -5,14 +5,15 @@ They have zero prism-internal dependencies and can be unit-tested
 in complete isolation.
 
 Public (importable) names:
-  _JINJA_AST_ENV
-  _stringify_jinja_node
-  _scan_text_for_default_filters_with_ast
-  _collect_undeclared_jinja_variables
-  _collect_undeclared_jinja_variables_from_ast
-  _collect_jinja_local_bindings_from_text
-  _collect_jinja_local_bindings
-  _extract_jinja_name_targets
+    _JINJA_AST_ENV
+    _stringify_jinja_node
+    _scan_text_for_all_filters_with_ast
+    _scan_text_for_default_filters_with_ast
+    _collect_undeclared_jinja_variables
+    _collect_undeclared_jinja_variables_from_ast
+    _collect_jinja_local_bindings_from_text
+    _collect_jinja_local_bindings
+    _extract_jinja_name_targets
 """
 
 from __future__ import annotations
@@ -24,8 +25,8 @@ from jinja2 import meta
 _JINJA_AST_ENV = jinja2.Environment()
 
 
-def _scan_text_for_default_filters_with_ast(text: str, lines: list[str]) -> list[dict]:
-    """Return occurrences discovered via Jinja AST parsing."""
+def _scan_text_for_all_filters_with_ast(text: str, lines: list[str]) -> list[dict]:
+    """Return all filter occurrences discovered via Jinja AST parsing."""
     if "{{" not in text and "{%" not in text:
         return []
     try:
@@ -35,11 +36,13 @@ def _scan_text_for_default_filters_with_ast(text: str, lines: list[str]) -> list
 
     occurrences: list[dict] = []
     for node in parsed.find_all(jinja2.nodes.Filter):
-        if node.name != "default":
-            continue
         line_no = int(getattr(node, "lineno", 1) or 1)
         line_no = max(1, min(line_no, len(lines) if lines else 1))
         line = lines[line_no - 1] if lines else ""
+
+        filter_name = str(getattr(node, "name", "") or "").strip()
+        if not filter_name:
+            continue
 
         target = _stringify_jinja_node(getattr(node, "node", None)).strip()
         args = ", ".join(
@@ -49,7 +52,11 @@ def _scan_text_for_default_filters_with_ast(text: str, lines: list[str]) -> list
         )
 
         if target:
-            match = f"{target} | default({args})" if args else f"{target} | default()"
+            match = (
+                f"{target} | {filter_name}({args})"
+                if args
+                else f"{target} | {filter_name}()"
+            )
         else:
             match = line.strip()
 
@@ -59,9 +66,16 @@ def _scan_text_for_default_filters_with_ast(text: str, lines: list[str]) -> list
                 "line": line,
                 "match": match,
                 "args": args,
+                "filter_name": filter_name,
             }
         )
     return occurrences
+
+
+def _scan_text_for_default_filters_with_ast(text: str, lines: list[str]) -> list[dict]:
+    """Return default() filter occurrences discovered via Jinja AST parsing."""
+    rows = _scan_text_for_all_filters_with_ast(text, lines)
+    return [row for row in rows if row.get("filter_name") == "default"]
 
 
 def _stringify_jinja_node(node: object) -> str:

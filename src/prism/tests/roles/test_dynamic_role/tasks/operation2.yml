@@ -1,0 +1,23 @@
+---
+- name: Define a task with a Jinja2 expression in its name{{ operation }}
+  debug:
+    msg: "This is {{ operation }}"
+
+#t# RUNBOOK: This task is part of a test role designed to verify that dynamic includes and Jinja2 expressions in task names are correctly analyzed and rendered in the generated documentation. The task itself defines a debug message that incorporates the value of the "operation" variable, demonstrating how Jinja2 expressions can be used in task names and messages.
+# - Service is disabled during testing to prevent unintended consequences on the system where the test is run. The focus of the test is on the correct rendering of the task name and message in the documentation, rather than on the actual execution of the service action.
+# -You mustre-enable this service manually if the workflow exits with a non-zero code, as the service will be left in a disabled state after the test runs. This is a common practice in testing to ensure that the test environment is not altered in a way that could affect subsequent tests or the overall system stability.
+- name: Take a service action on {{ operation }}
+  service:
+    name: "{{ operation }}"
+    state: disabled
+
+#t# This task is included to demonstrate that tasks with Jinja2 expressions in their names are correctly rendered in the generated documentation. The task itself performs a service action based on the value of the "operation" variable, but it is disabled during testing to prevent any unintended consequences on the system. The focus of this test is on the correct analysis and rendering of dynamic includes and Jinja2 expressions in task names, rather than on the actual execution of the service action.
+
+- name: Shutdown the system if the operation is "shutdown"
+  shutdown:
+  when: operation == "shutdown"
+
+- naame: Set fact for shutdown operation
+  set_fact:
+    shutdown_initiated: true
+  when: operation == "shutdown"
