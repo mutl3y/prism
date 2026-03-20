@@ -250,6 +250,27 @@ class TestScanTextForDefaultFiltersWithAst:
         assert result[0]["args"] == "fallback"
 
 
+class TestScanTextForAllFiltersWithAst:
+    """_scan_text_for_all_filters_with_ast: extract all Jinja filters via AST."""
+
+    def test_detects_non_default_filters(self):
+        text = "{{ my_var | upper }}"
+        result = scanner._scan_text_for_all_filters_with_ast(text, [text])
+        assert len(result) == 1
+        assert result[0]["filter_name"] == "upper"
+        assert result[0]["match"] == "my_var | upper()"
+
+    def test_detects_filter_chains(self):
+        text = "{{ app_name | default('x') | trim | lower }}"
+        result = scanner._scan_text_for_all_filters_with_ast(text, [text])
+        names = {row["filter_name"] for row in result}
+        assert names == {"default", "trim", "lower"}
+
+    def test_invalid_template_returns_empty(self):
+        result = scanner._scan_text_for_all_filters_with_ast("{{ bad {{", ["{{ bad {{"])
+        assert result == []
+
+
 class TestCollectUndeclaredJinjaVariables:
     """_collect_undeclared_jinja_variables: find externally required names."""
 

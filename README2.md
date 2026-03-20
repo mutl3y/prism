@@ -2,7 +2,7 @@
 
 # Prism: Your Automation's Living Documentation
 
-Project site: [mutl3y.github.io/prism](https://mutl3y.github.io/prism) [![CI](https://github.com/mutl3y/prism/actions/workflows/prism.yml/badge.svg?branch=main)](https://github.com/mutl3y/prism/actions/workflows/prism.yml) [![Branch](https://img.shields.io/github/actions/workflow/status/mutl3y/prism/prism.yml?branch=main&label=main)](https://github.com/mutl3y/prism/tree/main) [![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](docs/COVERAGE_WORKOFF_PLAN.md) [![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml) [![License](https://img.shields.io/github/license/mutl3y/prism)](LICENSE)
+Project site: [mutl3y.github.io/prism](https://mutl3y.github.io/prism) [![CI](https://github.com/mutl3y/prism/actions/workflows/prism.yml/badge.svg?branch=main)](https://github.com/mutl3y/prism/actions/workflows/prism.yml) [![Branch](https://img.shields.io/github/actions/workflow/status/mutl3y/prism/prism.yml?branch=main&label=main)](https://github.com/mutl3y/prism/tree/main) [![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](docs/completed_plans/COVERAGE_WORKOFF_PLAN.md) [![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml) [![License](https://img.shields.io/github/license/mutl3y/prism)](LICENSE)
 
 **From Code to Knowledge: Automatically generate beautiful, accurate, and operator-friendly documentation for your Ansible roles, collections, and repositories.**
 

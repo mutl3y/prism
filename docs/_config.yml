@@ -1,0 +1,11 @@
+title: Prism Documentation
+description: Project documentation and long-form article for GitHub Pages.
+baseurl: ""
+url: ""
+theme: minima
+markdown: kramdown
+kramdown:
+  input: GFM
+exclude:
+  - "*.tmp"
+  - "*.bak"

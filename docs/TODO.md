@@ -165,7 +165,7 @@
 - [x] Cover remaining high-value gaps:
   - [x] remaining `cli.py` branches in repo-name parsing and artifact copy edge cases
   - [x] remaining `scanner.py` helper branches around `_describe_variable()`, `_detect_task_module()`, and metadata/detail render combinations
-- [x] Re-run coverage after each batch and update `COVERAGE_WORKOFF_PLAN.md`
+- [x] Re-run coverage after each batch and update `docs/completed_plans/COVERAGE_WORKOFF_PLAN.md`
 - [x] Optional stretch: add `--cov-fail-under` threshold to `tox` once a stable baseline is agreed
 - [x] `cli.py` pushed to 100% line and branch coverage
 - [x] Optional stretch: one additional micro-batch targeting remaining defensive exception branches in `scanner.py` to push toward 92%+ line / 88%+ branch

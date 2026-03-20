@@ -3,7 +3,7 @@ Prism
 
 [![CI](https://github.com/mutl3y/prism/actions/workflows/prism.yml/badge.svg?branch=main)](https://github.com/mutl3y/prism/actions/workflows/prism.yml)
 [![Branch](https://img.shields.io/github/actions/workflow/status/mutl3y/prism/prism.yml?branch=main&label=main)](https://github.com/mutl3y/prism/tree/main)
-[![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](docs/COVERAGE_WORKOFF_PLAN.md)
+[![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](docs/completed_plans/COVERAGE_WORKOFF_PLAN.md)
 [![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml)
 [![License](https://img.shields.io/github/license/mutl3y/prism)](LICENSE)
 Project site: [mutl3y.github.io/prism](https://mutl3y.github.io/prism)
@@ -269,7 +269,7 @@ readme:
 Testing note:
 
 - Running `tox` (default `py` env) runs tests with coverage and writes `debug_readmes/coverage.xml`.
-- Latest local snapshot (2026-03-20): `236 passed` with total coverage `84.2%`.
+- Latest local snapshot (2026-03-20): `502 passed` with total coverage `91.66%`.
 - Generate review outputs on demand with `tox -e readmes` (or `tox -e py,readmes`), which writes:
   - `debug_readmes/REVIEW_README.md`
   - `debug_readmes/REVIEW_README.html`
@@ -278,7 +278,7 @@ Testing note:
   - `debug_readmes/REVIEW_README_STYLE_GUIDE_SKELETON.md`
   - `debug_readmes/REVIEW_README_INROLE_CONFIG.md`
 - `debug_readmes/` is ignored by git.
-- Coverage gaps and the staged workoff plan are tracked in `docs/COVERAGE_WORKOFF_PLAN.md`.
+- Coverage workoff closeout is archived in `docs/completed_plans/COVERAGE_WORKOFF_PLAN.md`.
 
 CI note:
 

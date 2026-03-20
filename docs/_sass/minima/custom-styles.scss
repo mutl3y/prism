@@ -1,0 +1,128 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+:root {
+  --bg-top: #f6f2e8;
+  --bg-bottom: #ffffff;
+  --ink: #1c2430;
+  --muted: #4b5b73;
+  --brand: #0f5cc0;
+  --brand-2: #0a8478;
+  --card: #ffffff;
+  --edge: #d7deea;
+}
+
+body {
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 220px);
+}
+
+.site-header {
+  border-top: 6px solid var(--brand);
+  border-bottom: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: saturate(120%) blur(2px);
+}
+
+.site-title,
+.site-title:visited {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--ink);
+}
+
+.page-content {
+  padding-top: 2rem;
+}
+
+.wrapper {
+  max-width: 1040px;
+}
+
+.page-heading,
+h1,
+h2,
+h3 {
+  color: var(--ink);
+}
+
+h1 {
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+h2 {
+  margin-top: 1.8rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 2px solid #e8edf5;
+}
+
+p,
+li {
+  color: var(--muted);
+}
+
+a {
+  color: var(--brand);
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: #0b448f;
+}
+
+/* Turn markdown lists into responsive cards on the docs landing page. */
+.home ul {
+  list-style: none;
+  margin: 0.7rem 0 1.2rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.7rem;
+}
+
+.home li {
+  margin: 0;
+}
+
+.home li a {
+  display: block;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  background: var(--card);
+  font-weight: 500;
+  color: var(--ink);
+  box-shadow: 0 4px 14px rgba(16, 46, 88, 0.06);
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+}
+
+.home li a:hover {
+  transform: translateY(-2px);
+  border-color: #a9bddf;
+  box-shadow: 0 8px 20px rgba(16, 46, 88, 0.13);
+  text-decoration: none;
+}
+
+.home blockquote {
+  margin: 0 0 1.3rem;
+  padding: 0.9rem 1rem;
+  border-left: 4px solid var(--brand-2);
+  background: #f4fbfa;
+  color: #274245;
+  border-radius: 6px;
+}
+
+code {
+  font-family: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+@media (max-width: 640px) {
+  .page-content {
+    padding-top: 1.2rem;
+  }
+
+  h1 {
+    font-size: 1.6rem;
+  }
+}
