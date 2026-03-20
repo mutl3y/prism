@@ -176,6 +176,12 @@ class TestCollectUndeclaredJinjaVariables:
         result = scanner._collect_undeclared_jinja_variables("{{ bad syntax !!!")
         assert isinstance(result, set)
 
+    def test_excludes_with_block_local_binding(self):
+        text = "{% with temp_user = users[0] %}{{ temp_user.name }}{% endwith %}"
+        result = scanner._collect_undeclared_jinja_variables(text)
+        assert "temp_user" not in result
+        assert "users" in result
+
 
 class TestCollectJinjaLocalBindings:
     """_collect_jinja_local_bindings_from_text: identify locally bound names."""
@@ -208,6 +214,21 @@ class TestCollectJinjaLocalBindings:
     def test_invalid_jinja_returns_empty_set(self):
         result = scanner._collect_jinja_local_bindings_from_text("{{ bad !!!")
         assert result == set()
+
+    def test_with_target_is_local(self):
+        text = "{% with local_name = name %}{{ local_name }}{% endwith %}"
+        result = scanner._collect_jinja_local_bindings_from_text(text)
+        assert "local_name" in result
+
+    def test_import_alias_is_local(self):
+        text = "{% import 'helpers.j2' as helpers %}{{ helpers.render('x') }}"
+        result = scanner._collect_jinja_local_bindings_from_text(text)
+        assert "helpers" in result
+
+    def test_from_import_names_are_local(self):
+        text = "{% from 'helpers.j2' import render as draw %}{{ draw('x') }}"
+        result = scanner._collect_jinja_local_bindings_from_text(text)
+        assert "draw" in result
 
 
 class TestExtractJinjaNameTargets:

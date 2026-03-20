@@ -253,6 +253,28 @@ def _collect_jinja_local_bindings(parsed: jinja2.nodes.Template) -> set[str]:
             _extract_jinja_name_targets(getattr(assign_block, "target", None))
         )
 
+    for with_node in parsed.find_all(jinja2.nodes.With):
+        for target in getattr(with_node, "targets", []) or []:
+            local_names.update(_extract_jinja_name_targets(target))
+
+    for import_node in parsed.find_all(jinja2.nodes.Import):
+        target = getattr(import_node, "target", None)
+        if isinstance(target, str) and target:
+            local_names.add(target)
+
+    for from_import in parsed.find_all(jinja2.nodes.FromImport):
+        for imported in getattr(from_import, "names", []) or []:
+            if isinstance(imported, tuple) and len(imported) == 2:
+                alias = imported[1]
+                name = imported[0]
+                if isinstance(alias, str) and alias:
+                    local_names.add(alias)
+                elif isinstance(name, str) and name:
+                    local_names.add(name)
+                continue
+            if isinstance(imported, str) and imported:
+                local_names.add(imported)
+
     return local_names
 
 
