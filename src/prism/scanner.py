@@ -24,6 +24,16 @@ from .readme_config import (
     load_readme_section_config as _load_readme_section_config,
     load_readme_section_visibility as _load_readme_section_visibility,
 )
+from .requirements import (
+    build_collection_compliance_notes as _requirements_build_collection_compliance_notes,
+    build_requirements_display as _requirements_build_display,
+    extract_declared_collections_from_meta as _requirements_extract_declared_meta,
+    extract_declared_collections_from_requirements as _requirements_extract_declared_requirements,
+    format_requirement_line as _requirements_format_line,
+    normalize_included_role_dependencies as _requirements_normalize_included_roles,
+    normalize_meta_role_dependencies as _requirements_normalize_meta_deps,
+    normalize_requirements as _requirements_normalize,
+)
 from .runbook import (
     _build_runbook_rows as _runbook_build_rows,
     render_runbook as _runbook_render,
@@ -787,75 +797,32 @@ def load_requirements(role_path: str) -> list:
 
 def _format_requirement_line(item: object) -> str:
     """Format one requirement entry into a markdown-safe display line."""
-    if isinstance(item, dict):
-        source_value = item.get("src") or item.get("name") or ""
-        line = str(source_value)
-        version = item.get("version")
-        if version:
-            line += f" (version: {version})"
-        return line
-    return str(item)
+    return _requirements_format_line(item)
 
 
 def normalize_requirements(requirements: list) -> list[str]:
     """Normalize requirements entries to display strings."""
-    lines = [_format_requirement_line(item).strip() for item in requirements]
-    return [line for line in lines if line]
+    return _requirements_normalize(requirements)
 
 
 def _normalize_meta_role_dependencies(meta: dict) -> list[str]:
     """Normalize role dependencies from ``meta/main.yml`` for README output."""
-    dependencies = meta.get("dependencies") if isinstance(meta, dict) else None
-    if not isinstance(dependencies, list):
-        return []
-    lines = [_format_requirement_line(item).strip() for item in dependencies]
-    return [line for line in lines if line]
+    return _requirements_normalize_meta_deps(meta)
 
 
 def _normalize_included_role_dependencies(features: dict) -> list[str]:
     """Normalize static role includes detected from task parsing features."""
-    raw = str((features or {}).get("included_roles", "none")).strip()
-    if not raw or raw == "none":
-        return []
-    values = [item.strip() for item in raw.split(",") if item.strip()]
-    return sorted(set(values))
+    return _requirements_normalize_included_roles(features)
 
 
 def _extract_declared_collections_from_meta(meta: dict) -> set[str]:
     """Extract declared non-ansible collections from ``meta/main.yml`` content."""
-    declared: set[str] = set()
-    galaxy = meta.get("galaxy_info") if isinstance(meta, dict) else None
-    if not isinstance(galaxy, dict):
-        return declared
-    collections_raw = galaxy.get("collections")
-    if not isinstance(collections_raw, list):
-        return declared
-    for item in collections_raw:
-        if not isinstance(item, str):
-            continue
-        candidate = item.strip()
-        if not candidate or candidate.startswith("ansible."):
-            continue
-        if re.match(r"^[A-Za-z0-9_]+\.[A-Za-z0-9_]+$", candidate):
-            declared.add(candidate)
-    return declared
+    return _requirements_extract_declared_meta(meta)
 
 
 def _extract_declared_collections_from_requirements(requirements: list) -> set[str]:
     """Extract declared non-ansible collections from ``meta/requirements.yml``."""
-    declared: set[str] = set()
-    for item in requirements:
-        raw: object = item
-        if isinstance(item, dict):
-            raw = item.get("src") or item.get("name") or ""
-        if not isinstance(raw, str):
-            continue
-        candidate = raw.strip().split()[0]
-        if not candidate or candidate.startswith("ansible."):
-            continue
-        if re.match(r"^[A-Za-z0-9_]+\.[A-Za-z0-9_]+$", candidate):
-            declared.add(candidate)
-    return declared
+    return _requirements_extract_declared_requirements(requirements)
 
 
 def _build_collection_compliance_notes(
@@ -865,39 +832,11 @@ def _build_collection_compliance_notes(
     requirements: list,
 ) -> list[str]:
     """Build human-readable notes about collection declaration coverage."""
-    raw_collections = str(features.get("external_collections", "none")).strip()
-    if not raw_collections or raw_collections == "none":
-        return []
-
-    detected = {item.strip() for item in raw_collections.split(",") if item.strip()}
-    if not detected:
-        return []
-
-    declared_meta = _extract_declared_collections_from_meta(meta)
-    declared_requirements = _extract_declared_collections_from_requirements(
-        requirements
+    return _requirements_build_collection_compliance_notes(
+        features=features,
+        meta=meta,
+        requirements=requirements,
     )
-    missing_meta = sorted(detected - declared_meta)
-    missing_requirements = sorted(detected - declared_requirements)
-
-    notes = [
-        "Detected non-ansible collections from task usage: "
-        + ", ".join(sorted(detected))
-        + "."
-    ]
-    if missing_meta:
-        notes.append(
-            "Missing from meta/main.yml galaxy_info.collections: "
-            + ", ".join(missing_meta)
-            + "."
-        )
-    if missing_requirements:
-        notes.append(
-            "Missing from meta/requirements.yml: "
-            + ", ".join(missing_requirements)
-            + "."
-        )
-    return notes
 
 
 def collect_role_contents(
@@ -2467,28 +2406,12 @@ def _build_requirements_display(
     include_collection_checks: bool = True,
 ) -> tuple[list[str], list[str]]:
     """Build rendered requirements lines and collection compliance notes."""
-    collection_compliance_notes = []
-    if include_collection_checks:
-        collection_compliance_notes = _build_collection_compliance_notes(
-            features=features,
-            meta=meta,
-            requirements=requirements,
-        )
-    requirements_display = normalize_requirements(requirements)
-    meta_dependencies_display = _normalize_meta_role_dependencies(meta)
-    for dep in meta_dependencies_display:
-        if dep not in requirements_display:
-            requirements_display.append(dep)
-    included_role_dependencies = _normalize_included_role_dependencies(features)
-    for dep in included_role_dependencies:
-        rendered = f"[Role include] {dep}"
-        if rendered not in requirements_display:
-            requirements_display.append(rendered)
-    if include_collection_checks:
-        requirements_display.extend(
-            f"[Collection check] {note}" for note in collection_compliance_notes
-        )
-    return requirements_display, collection_compliance_notes
+    return _requirements_build_display(
+        requirements=requirements,
+        meta=meta,
+        features=features,
+        include_collection_checks=include_collection_checks,
+    )
 
 
 def _write_concise_scanner_report_if_enabled(
