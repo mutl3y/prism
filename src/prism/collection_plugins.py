@@ -9,7 +9,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 import re
-from typing import Any, TypedDict
+from typing import TypedDict
 
 PLUGIN_CATALOG_SCHEMA_VERSION = 1
 PLUGIN_TYPES: tuple[str, ...] = (
