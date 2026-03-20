@@ -659,6 +659,15 @@ def _normalize_meta_role_dependencies(meta: dict) -> list[str]:
     return [line for line in lines if line]
 
 
+def _normalize_included_role_dependencies(features: dict) -> list[str]:
+    """Normalize static role includes detected from task parsing features."""
+    raw = str((features or {}).get("included_roles", "none")).strip()
+    if not raw or raw == "none":
+        return []
+    values = [item.strip() for item in raw.split(",") if item.strip()]
+    return sorted(set(values))
+
+
 def _extract_declared_collections_from_meta(meta: dict) -> set[str]:
     """Extract declared non-ansible collections from ``meta/main.yml`` content."""
     declared: set[str] = set()
@@ -2392,6 +2401,11 @@ def _build_requirements_display(
     for dep in meta_dependencies_display:
         if dep not in requirements_display:
             requirements_display.append(dep)
+    included_role_dependencies = _normalize_included_role_dependencies(features)
+    for dep in included_role_dependencies:
+        rendered = f"[Role include] {dep}"
+        if rendered not in requirements_display:
+            requirements_display.append(rendered)
     if include_collection_checks:
         requirements_display.extend(
             f"[Collection check] {note}" for note in collection_compliance_notes

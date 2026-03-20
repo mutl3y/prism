@@ -417,6 +417,35 @@ def test_run_scan_includes_meta_role_dependencies_in_requirements(tmp_path):
     assert "custom.other_dep" in content
 
 
+def test_run_scan_includes_static_role_include_dependencies_in_requirements(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "meta").mkdir(parents=True)
+
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: include common role\n"
+        "  include_role:\n"
+        "    name: acme.common\n"
+        "- name: import web role\n"
+        "  ansible.builtin.import_role:\n"
+        "    name: acme.web\n",
+        encoding="utf-8",
+    )
+    (role / "meta" / "main.yml").write_text(
+        "---\n" "galaxy_info:\n" "  role_name: demo\n" "  description: demo role\n",
+        encoding="utf-8",
+    )
+    (role / "meta" / "requirements.yml").write_text("---\n[]\n", encoding="utf-8")
+
+    out = tmp_path / "README_ROLE_INCLUDE_DEPS.md"
+    scanner.run_scan(str(role), output=str(out))
+    content = out.read_text(encoding="utf-8")
+
+    assert "[Role include] acme.common" in content
+    assert "[Role include] acme.web" in content
+
+
 def test_run_scan_readme_includes_uncertainty_notes_for_precedence_and_unresolved(
     tmp_path,
 ):
