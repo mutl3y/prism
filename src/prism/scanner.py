@@ -982,13 +982,11 @@ def build_comparison_report(
     }
 
 
-def build_variable_insights(
+def _load_role_variable_maps(
     role_path: str,
-    seed_paths: list[str] | None = None,
-    include_vars_main: bool = True,
-    exclude_paths: list[str] | None = None,
-) -> list[dict]:
-    """Build variable rows with inferred type/default/source details."""
+    include_vars_main: bool,
+) -> tuple[dict, dict, Path, Path]:
+    """Load defaults/vars variable maps from conventional role paths."""
     defaults_file = Path(role_path) / "defaults" / "main.yml"
     vars_file = Path(role_path) / "vars" / "main.yml"
 
@@ -1002,25 +1000,37 @@ def build_variable_insights(
         loaded = _load_yaml_file(vars_file)
         if isinstance(loaded, dict):
             vars_data = loaded
+    return defaults_data, vars_data, defaults_file, vars_file
 
-    seed_values, seed_secrets, seed_sources = load_seed_variables(seed_paths)
-    dynamic_include_vars_refs = _collect_dynamic_include_vars_refs(
-        role_path,
-        exclude_paths=exclude_paths,
-    )
+
+def _collect_dynamic_task_include_tokens(
+    role_path: str,
+    exclude_paths: list[str] | None,
+) -> set[str]:
+    """Collect unresolved Jinja identifier tokens from dynamic task includes."""
     dynamic_task_include_refs = _collect_dynamic_task_include_refs(
         role_path,
         exclude_paths=exclude_paths,
     )
-    dynamic_task_include_tokens: set[str] = set()
+    tokens: set[str] = set()
     for ref in dynamic_task_include_refs:
-        dynamic_task_include_tokens.update(
+        tokens.update(
             token
             for token in JINJA_IDENTIFIER_RE.findall(ref)
             if token.lower() not in IGNORED_IDENTIFIERS
             and not token.lower().startswith("ansible_")
         )
+    return tokens
 
+
+def _build_static_variable_rows(
+    *,
+    defaults_data: dict,
+    vars_data: dict,
+    defaults_file: Path,
+    vars_file: Path,
+) -> tuple[list[dict], dict[str, dict]]:
+    """Build baseline rows from defaults/main.yml and vars/main.yml."""
     rows: list[dict] = []
     rows_by_name: dict[str, dict] = {}
     for name in sorted(set(defaults_data) | set(vars_data)):
@@ -1062,10 +1072,19 @@ def build_variable_insights(
         }
         rows.append(row)
         rows_by_name[name] = row
+    return rows, rows_by_name
 
-    # Discover variables from include_vars task references
+
+def _append_include_vars_rows(
+    *,
+    role_path: str,
+    role_root: Path,
+    rows: list[dict],
+    rows_by_name: dict[str, dict],
+    exclude_paths: list[str] | None,
+) -> set[str]:
+    """Merge include_vars-derived values into variable insight rows."""
     known_names: set[str] = {row["name"] for row in rows}
-    role_root = Path(role_path).resolve()
     include_var_sources: dict[str, list[dict]] = defaultdict(list)
     for extra_path in _collect_include_vars_files(
         role_path, exclude_paths=exclude_paths
@@ -1123,7 +1142,17 @@ def build_variable_insights(
             }
         )
 
-    # Discover computed variable names from set_fact tasks
+    return known_names
+
+
+def _append_set_fact_rows(
+    *,
+    role_path: str,
+    rows: list[dict],
+    known_names: set[str],
+    exclude_paths: list[str] | None,
+) -> None:
+    """Append computed variable placeholders discovered from set_fact usage."""
     for name in sorted(
         _collect_set_fact_names(role_path, exclude_paths=exclude_paths) - known_names
     ):
@@ -1131,7 +1160,7 @@ def build_variable_insights(
             {
                 "name": name,
                 "type": "computed",
-                "default": "—",
+                "default": "-",
                 "source": "tasks (set_fact)",
                 "documented": True,
                 "required": False,
@@ -1145,7 +1174,14 @@ def build_variable_insights(
             }
         )
 
-    # Discover documented inputs from README variable/input sections.
+
+def _append_readme_documented_rows(
+    *,
+    role_path: str,
+    rows: list[dict],
+    known_names: set[str],
+) -> None:
+    """Append README-documented inputs that are not statically defined."""
     for name in sorted(_collect_readme_input_variables(role_path) - known_names):
         rows.append(
             {
@@ -1165,8 +1201,14 @@ def build_variable_insights(
             }
         )
 
-    # Discover declared role inputs from argument_specs metadata.
-    known_names = {row["name"] for row in rows}
+
+def _append_argument_spec_rows(
+    *,
+    role_path: str,
+    rows: list[dict],
+    known_names: set[str],
+) -> set[str]:
+    """Append argument_specs-declared inputs not yet present in row set."""
     for source_file, name, spec in _iter_role_argument_spec_entries(role_path):
         if name in known_names:
             continue
@@ -1198,8 +1240,22 @@ def build_variable_insights(
             }
         )
         known_names.add(name)
+    return known_names
 
-    known_names: set[str] = {row["name"] for row in rows}
+
+def _append_referenced_variable_rows(
+    *,
+    role_path: str,
+    rows: list[dict],
+    known_names: set[str],
+    seed_values: dict,
+    seed_secrets: set[str],
+    seed_sources: dict,
+    dynamic_include_vars_refs: list[str],
+    dynamic_task_include_tokens: set[str],
+    exclude_paths: list[str] | None,
+) -> None:
+    """Append rows for referenced-but-undefined variable names."""
     referenced_names = _collect_referenced_variable_names(
         role_path,
         exclude_paths=exclude_paths,
@@ -1244,6 +1300,74 @@ def build_variable_insights(
                 "is_ambiguous": False,
             }
         )
+
+
+def build_variable_insights(
+    role_path: str,
+    seed_paths: list[str] | None = None,
+    include_vars_main: bool = True,
+    exclude_paths: list[str] | None = None,
+) -> list[dict]:
+    """Build variable rows with inferred type/default/source details."""
+    defaults_data, vars_data, defaults_file, vars_file = _load_role_variable_maps(
+        role_path,
+        include_vars_main,
+    )
+
+    seed_values, seed_secrets, seed_sources = load_seed_variables(seed_paths)
+    dynamic_include_vars_refs = _collect_dynamic_include_vars_refs(
+        role_path,
+        exclude_paths=exclude_paths,
+    )
+    dynamic_task_include_tokens = _collect_dynamic_task_include_tokens(
+        role_path,
+        exclude_paths=exclude_paths,
+    )
+
+    rows, rows_by_name = _build_static_variable_rows(
+        defaults_data=defaults_data,
+        vars_data=vars_data,
+        defaults_file=defaults_file,
+        vars_file=vars_file,
+    )
+    role_root = Path(role_path).resolve()
+    known_names = _append_include_vars_rows(
+        role_path=role_path,
+        role_root=role_root,
+        rows=rows,
+        rows_by_name=rows_by_name,
+        exclude_paths=exclude_paths,
+    )
+    _append_set_fact_rows(
+        role_path=role_path,
+        rows=rows,
+        known_names=known_names,
+        exclude_paths=exclude_paths,
+    )
+    _append_readme_documented_rows(
+        role_path=role_path,
+        rows=rows,
+        known_names=known_names,
+    )
+    known_names = {row["name"] for row in rows}
+    known_names = _append_argument_spec_rows(
+        role_path=role_path,
+        rows=rows,
+        known_names=known_names,
+    )
+
+    known_names = {row["name"] for row in rows}
+    _append_referenced_variable_rows(
+        role_path=role_path,
+        rows=rows,
+        known_names=known_names,
+        seed_values=seed_values,
+        seed_secrets=seed_secrets,
+        seed_sources=seed_sources,
+        dynamic_include_vars_refs=dynamic_include_vars_refs,
+        dynamic_task_include_tokens=dynamic_task_include_tokens,
+        exclude_paths=exclude_paths,
+    )
 
     # redact secret defaults before returning rows
     for row in rows:
