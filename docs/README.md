@@ -13,6 +13,10 @@ In repository settings:
 
 Your site will publish from this folder and use `index.md` as the homepage.
 
+Current project-site target:
+
+- `https://mutl3y.github.io/prism/`
+
 ## Local Preview (Optional)
 
 You can preview the site locally with Jekyll.
@@ -36,7 +40,7 @@ bundle add github-pages --group jekyll_plugins
 From repository root:
 
 ```bash
-bundle exec jekyll serve --source docs --destination _site_docs
+bundle exec jekyll serve --source docs --destination _site_docs --baseurl /prism
 ```
 
 Then open:

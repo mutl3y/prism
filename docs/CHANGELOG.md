@@ -27,6 +27,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Unknown style sections now preserve source body content when available, with fallback placeholder text only when section body is empty.
 - README overview language now explicitly keeps the refracted-documentation vision as the product end goal while clarifying current static-analysis delivery boundaries.
 - Completed workoff/schedule plan documents were moved into `docs/completed_plans/` as archived records.
+- GitHub Pages project-site configuration now sets `url`/`baseurl` for `mutl3y/prism` and uses `relative_url` links on the docs home page.
+- Unfinished local fixture `src/prism/tests/roles/test_dynamic_role/` was untracked from commits so in-progress role work can continue locally without affecting test sources.
+- GitHub Pages project-site configuration now sets `url`/`baseurl` for `mutl3y/prism` and uses `relative_url` links on the docs home page.
+- Unfinished local fixture `src/prism/tests/roles/test_dynamic_role/` was untracked from commits so in-progress role work can continue locally without affecting test sources.
 
 ### Fixed (Unreleased)
 
