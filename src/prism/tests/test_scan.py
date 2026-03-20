@@ -1190,6 +1190,147 @@ def test_resolve_default_style_guide_source_explicit_path_branches(tmp_path):
         scanner.resolve_default_style_guide_source(str(tmp_path / "missing.md"))
 
 
+def test_iter_role_argument_spec_entries_yields_valid_entries(tmp_path, monkeypatch):
+    role = tmp_path / "role"
+    meta_dir = role / "meta"
+    meta_dir.mkdir(parents=True)
+    (meta_dir / "argument_specs.yml").write_text(
+        "argument_specs: {}\n", encoding="utf-8"
+    )
+
+    monkeypatch.setattr(
+        scanner,
+        "_load_yaml_file",
+        lambda path: {
+            "argument_specs": {
+                "main": {
+                    "options": {
+                        "good_from_file": {"type": "str"},
+                        "{{ dynamic_name }}": {"type": "str"},
+                        "bad_spec": "not-a-dict",
+                    }
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        scanner,
+        "load_meta",
+        lambda role_path: {
+            "argument_specs": {
+                "install": {
+                    "options": {
+                        "good_from_meta": {"type": "bool"},
+                    }
+                }
+            }
+        },
+    )
+
+    entries = list(scanner._iter_role_argument_spec_entries(str(role)))
+
+    assert ("meta/argument_specs.yml", "good_from_file", {"type": "str"}) in entries
+    assert ("meta/main.yml", "good_from_meta", {"type": "bool"}) in entries
+    assert not any("{{" in var_name for _, var_name, _ in entries)
+
+
+def test_iter_role_argument_spec_entries_skips_invalid_payload_shapes(
+    tmp_path, monkeypatch
+):
+    role = tmp_path / "role"
+    meta_dir = role / "meta"
+    meta_dir.mkdir(parents=True)
+    (meta_dir / "argument_specs.yml").write_text(
+        "argument_specs: []\n", encoding="utf-8"
+    )
+
+    monkeypatch.setattr(scanner, "_load_yaml_file", lambda path: ["not", "a", "dict"])
+    monkeypatch.setattr(
+        scanner,
+        "load_meta",
+        lambda role_path: {"argument_specs": {"main": {"options": ["bad"]}}},
+    )
+
+    assert list(scanner._iter_role_argument_spec_entries(str(role))) == []
+
+
+@pytest.mark.parametrize(
+    "spec_type,expected",
+    [
+        ("str", "string"),
+        ("raw", "string"),
+        ("bytes", "string"),
+        ("int", "int"),
+        ("bool", "bool"),
+        ("dict", "dict"),
+        ("list", "list"),
+        ("float", "string"),
+        ("unknown", "documented"),
+        (None, "documented"),
+    ],
+)
+def test_map_argument_spec_type_variants(spec_type, expected):
+    assert scanner._map_argument_spec_type(spec_type) == expected
+
+
+def test_requirement_format_and_normalization_helpers():
+    requirement = {"src": "acme.role", "version": "1.2.3"}
+    assert scanner._format_requirement_line(requirement) == "acme.role (version: 1.2.3)"
+    assert scanner._format_requirement_line("community.general") == "community.general"
+
+    normalized = scanner.normalize_requirements(
+        [
+            {"src": "acme.role", "version": "1.2.3"},
+            " community.mysql ",
+            "",
+            {"name": "  "},
+        ]
+    )
+
+    assert normalized == ["acme.role (version: 1.2.3)", "community.mysql"]
+
+
+def test_normalize_meta_and_included_role_dependencies_helpers():
+    assert scanner._normalize_meta_role_dependencies(
+        {"dependencies": [{"name": "acme.dep"}, "other.dep"]}
+    ) == ["acme.dep", "other.dep"]
+    assert scanner._normalize_meta_role_dependencies({"dependencies": "bad"}) == []
+
+    assert scanner._normalize_included_role_dependencies(
+        {"included_roles": "acme.one, acme.two, acme.one"}
+    ) == ["acme.one", "acme.two"]
+    assert (
+        scanner._normalize_included_role_dependencies({"included_roles": "none"}) == []
+    )
+
+
+def test_extract_declared_collections_from_meta_and_requirements_helpers():
+    meta_declared = scanner._extract_declared_collections_from_meta(
+        {
+            "galaxy_info": {
+                "collections": [
+                    "community.general",
+                    "ansible.posix",
+                    "not-valid",
+                    42,
+                ]
+            }
+        }
+    )
+    req_declared = scanner._extract_declared_collections_from_requirements(
+        [
+            {"src": "community.mysql"},
+            {"name": "community.general"},
+            {"src": "ansible.utils"},
+            {"src": "not-valid"},
+            42,
+        ]
+    )
+
+    assert meta_declared == {"community.general"}
+    assert req_declared == {"community.mysql", "community.general"}
+
+
 def test_resolve_default_style_guide_source_falls_back_when_no_candidates(monkeypatch):
     monkeypatch.setenv(scanner.ENV_STYLE_GUIDE_SOURCE_PATH, "")
     monkeypatch.setenv(scanner.LEGACY_ENV_STYLE_GUIDE_SOURCE_PATH, "")
