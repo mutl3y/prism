@@ -3219,3 +3219,339 @@ def test_render_runbook_with_no_metadata():
     result = scanner.render_runbook(role_name="no_meta_role")
 
     assert "no_meta_role" in result
+
+
+# ---------------------------------------------------------------------------
+# doc_insights: parse_comma_values
+# ---------------------------------------------------------------------------
+
+
+def test_parse_comma_values_normal():
+    from prism.doc_insights import parse_comma_values
+
+    assert parse_comma_values("a, b, c") == ["a", "b", "c"]
+
+
+def test_parse_comma_values_none_string():
+    from prism.doc_insights import parse_comma_values
+
+    assert parse_comma_values("none") == []
+
+
+def test_parse_comma_values_empty_string():
+    from prism.doc_insights import parse_comma_values
+
+    assert parse_comma_values("") == []
+
+
+def test_parse_comma_values_whitespace_only():
+    from prism.doc_insights import parse_comma_values
+
+    assert parse_comma_values("   ") == []
+
+
+def test_parse_comma_values_single_item():
+    from prism.doc_insights import parse_comma_values
+
+    assert parse_comma_values("ansible.builtin.template") == [
+        "ansible.builtin.template"
+    ]
+
+
+def test_parse_comma_values_strips_internal_spaces():
+    from prism.doc_insights import parse_comma_values
+
+    assert parse_comma_values("  x ,  y  ") == ["x", "y"]
+
+
+# ---------------------------------------------------------------------------
+# doc_insights: build_doc_insights
+# ---------------------------------------------------------------------------
+
+
+def test_build_doc_insights_returns_required_keys():
+    from prism.doc_insights import build_doc_insights
+
+    result = build_doc_insights(
+        role_name="myrole",
+        description="A test role",
+        metadata={},
+        variables={},
+        variable_insights=[],
+    )
+
+    assert "purpose_summary" in result
+    assert "capabilities" in result
+    assert "task_summary" in result
+    assert "example_playbook" in result
+
+
+def test_build_doc_insights_uses_description_as_purpose():
+    from prism.doc_insights import build_doc_insights
+
+    result = build_doc_insights(
+        role_name="myrole",
+        description="Installs nginx",
+        metadata={},
+        variables={},
+        variable_insights=[],
+    )
+
+    assert result["purpose_summary"] == "Installs nginx"
+
+
+def test_build_doc_insights_fallback_purpose_when_no_description():
+    from prism.doc_insights import build_doc_insights
+
+    result = build_doc_insights(
+        role_name="myrole",
+        description="",
+        metadata={},
+        variables={},
+        variable_insights=[],
+    )
+
+    assert "myrole" in result["purpose_summary"]
+
+
+def test_build_doc_insights_detects_template_capability():
+    from prism.doc_insights import build_doc_insights
+
+    result = build_doc_insights(
+        role_name="myrole",
+        description="desc",
+        metadata={"features": {"unique_modules": "template, service"}},
+        variables={},
+        variable_insights=[],
+    )
+
+    assert any("configuration" in cap.lower() for cap in result["capabilities"])
+    assert any("service" in cap.lower() for cap in result["capabilities"])
+
+
+def test_build_doc_insights_detects_package_capability():
+    from prism.doc_insights import build_doc_insights
+
+    result = build_doc_insights(
+        role_name="myrole",
+        description="desc",
+        metadata={"features": {"unique_modules": "apt"}},
+        variables={},
+        variable_insights=[],
+    )
+
+    assert any("package" in cap.lower() for cap in result["capabilities"])
+
+
+def test_build_doc_insights_detects_user_capability():
+    from prism.doc_insights import build_doc_insights
+
+    result = build_doc_insights(
+        role_name="myrole",
+        description="desc",
+        metadata={"features": {"unique_modules": "user"}},
+        variables={},
+        variable_insights=[],
+    )
+
+    assert any("user" in cap.lower() for cap in result["capabilities"])
+
+
+def test_build_doc_insights_detects_lineinfile_capability():
+    from prism.doc_insights import build_doc_insights
+
+    result = build_doc_insights(
+        role_name="myrole",
+        description="desc",
+        metadata={"features": {"unique_modules": "lineinfile"}},
+        variables={},
+        variable_insights=[],
+    )
+
+    assert any("configuration" in cap.lower() for cap in result["capabilities"])
+
+
+def test_build_doc_insights_detects_recursive_includes_capability():
+    from prism.doc_insights import build_doc_insights
+
+    result = build_doc_insights(
+        role_name="myrole",
+        description="desc",
+        metadata={"features": {"recursive_task_includes": 2}},
+        variables={},
+        variable_insights=[],
+    )
+
+    assert any("nested" in cap.lower() for cap in result["capabilities"])
+
+
+def test_build_doc_insights_detects_handler_capability():
+    from prism.doc_insights import build_doc_insights
+
+    result = build_doc_insights(
+        role_name="myrole",
+        description="desc",
+        metadata={"features": {"handlers_notified": "restart nginx"}},
+        variables={},
+        variable_insights=[],
+    )
+
+    assert any("handler" in cap.lower() for cap in result["capabilities"])
+
+
+def test_build_doc_insights_fallback_capability_when_no_modules():
+    from prism.doc_insights import build_doc_insights
+
+    result = build_doc_insights(
+        role_name="myrole",
+        description="desc",
+        metadata={},
+        variables={},
+        variable_insights=[],
+    )
+
+    assert any("reusable" in cap.lower() for cap in result["capabilities"])
+
+
+def test_build_doc_insights_example_playbook_includes_role():
+    from prism.doc_insights import build_doc_insights
+
+    result = build_doc_insights(
+        role_name="my_role",
+        description="desc",
+        metadata={},
+        variables={"var_a": "val_a"},
+        variable_insights=[
+            {"name": "var_a", "default": "val_a"},
+        ],
+    )
+
+    assert "my_role" in result["example_playbook"]
+    assert "var_a" in result["example_playbook"]
+
+
+def test_build_doc_insights_example_playbook_empty_vars_block():
+    from prism.doc_insights import build_doc_insights
+
+    result = build_doc_insights(
+        role_name="my_role",
+        description="desc",
+        metadata={},
+        variables={"x": 1},
+        variable_insights=[],
+    )
+
+    assert "vars: {}" in result["example_playbook"]
+
+
+def test_build_doc_insights_task_summary_counts():
+    from prism.doc_insights import build_doc_insights
+
+    result = build_doc_insights(
+        role_name="myrole",
+        description="desc",
+        metadata={
+            "features": {
+                "task_files_scanned": 3,
+                "tasks_scanned": 12,
+                "recursive_task_includes": 1,
+                "unique_modules": "apt, service",
+                "handlers_notified": "restart svc",
+            }
+        },
+        variables={},
+        variable_insights=[],
+    )
+
+    ts = result["task_summary"]
+    assert ts["task_files_scanned"] == 3
+    assert ts["tasks_scanned"] == 12
+    assert ts["recursive_task_includes"] == 1
+    assert ts["module_count"] == 2
+    assert ts["handler_count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# feedback: load_feedback and apply_feedback_recommendations
+# ---------------------------------------------------------------------------
+
+
+def test_load_feedback_returns_none_for_none_source():
+    from prism.feedback import load_feedback
+
+    assert load_feedback(None) is None
+
+
+def test_load_feedback_returns_none_for_empty_string():
+    from prism.feedback import load_feedback
+
+    assert load_feedback("") is None
+
+
+def test_load_feedback_raises_for_missing_file():
+    from prism.feedback import load_feedback
+
+    with pytest.raises(FileNotFoundError):
+        load_feedback("/nonexistent/path/feedback.json")
+
+
+def test_load_feedback_reads_valid_json_file(tmp_path):
+    from prism.feedback import load_feedback
+
+    feedback_file = tmp_path / "feedback.json"
+    feedback_file.write_text(
+        '{"version": "1.0", "recommendations": []}', encoding="utf-8"
+    )
+
+    result = load_feedback(str(feedback_file))
+
+    assert result is not None
+    assert result["version"] == "1.0"
+
+
+def test_load_feedback_raises_for_invalid_json(tmp_path):
+    from prism.feedback import load_feedback
+
+    feedback_file = tmp_path / "feedback.json"
+    feedback_file.write_text("not valid json {{{", encoding="utf-8")
+
+    with pytest.raises(Exception):
+        load_feedback(str(feedback_file))
+
+
+def test_load_feedback_raises_for_non_dict_json(tmp_path):
+    from prism.feedback import load_feedback
+
+    feedback_file = tmp_path / "feedback.json"
+    feedback_file.write_text("[1, 2, 3]", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        load_feedback(str(feedback_file))
+
+
+def test_apply_feedback_recommendations_none_feedback():
+    from prism.feedback import apply_feedback_recommendations
+
+    result = apply_feedback_recommendations(None, include_collection_checks=True)
+
+    assert result["include_collection_checks"] is True
+    assert result["recommendations_applied"] == []
+
+
+def test_apply_feedback_recommendations_empty_feedback():
+    from prism.feedback import apply_feedback_recommendations
+
+    result = apply_feedback_recommendations({}, include_collection_checks=False)
+
+    assert result["include_collection_checks"] is False
+    assert result["recommendations_applied"] == []
+
+
+def test_apply_feedback_recommendations_passes_through_cli_flag():
+    from prism.feedback import apply_feedback_recommendations
+
+    result = apply_feedback_recommendations(
+        {"recommendations": []}, include_collection_checks=True
+    )
+
+    assert result["include_collection_checks"] is True
