@@ -6,6 +6,7 @@ Prism
 [![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](docs/COVERAGE_WORKOFF_PLAN.md)
 [![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml)
 [![License](https://img.shields.io/github/license/mutl3y/prism)](LICENSE)
+Project site: [mutl3y.github.io/prism](https://mutl3y.github.io/prism)
 <!-- Codespaces badge disabled for now.
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/mutl3y/prism)
 -->

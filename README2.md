@@ -4,6 +4,8 @@ Of course. Here is the complete, raw Markdown content. You can copy this directl
 
 # Prism: Your Automation's Living Documentation
 
+Project site: [mutl3y.github.io/prism](https://mutl3y.github.io/prism)
+
 <div align="center">
   <!-- Optional: Add a logo here -->
   <!-- <img src="path/to/your/logo.png" alt="Prism Logo" width="200"/> -->
