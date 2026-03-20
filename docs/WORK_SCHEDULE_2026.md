@@ -14,8 +14,8 @@ Deliver known-limitation reductions and external-review improvements in a practi
 
 Week 1-2:
 
-- [~] Expand variable-source coverage and provenance confidence labels.
-- [~] Improve unresolved/non-literal handling for static scan output.
+- [x] Expand variable-source coverage and provenance confidence labels.
+- [x] Improve unresolved/non-literal handling for static scan output.
 
 Week 2-3:
 
@@ -29,8 +29,8 @@ Week 3-4:
 
 Week 4-5:
 
-- [~] Cover edge cases: dynamic includes, precedence interactions, dependency-provided values.
-- [~] Add realistic integration fixtures to reduce regressions.
+- [x] Cover edge cases: dynamic includes, precedence interactions, dependency-provided values.
+- [x] Add realistic integration fixtures to reduce regressions.
 
 ### Track B: User Experience
 
@@ -41,7 +41,7 @@ Week 1-2 (parallel):
 
 Week 3-4 (parallel):
 
-- [~] Improve error reporting quality and actionability.
+- [x] Improve error reporting quality and actionability.
 - [x] Surface parse/problem context in scanner report output.
 
 Week 5:
@@ -58,7 +58,7 @@ Week 5-6:
 
 - [x] Full test and integration validation across tracks.
 - [~] Keep coverage >= 80 and target high-risk branch closure in scanner/Jinja paths.
-- [~] Validate compatibility matrix and concise scanner-report quality.
+- [x] Validate compatibility matrix and concise scanner-report quality.
 
 ## Dependency Rules
 
@@ -102,11 +102,13 @@ Completed this session:
 - Added `docs/STATIC_ANALYSIS_SCOPE_AND_NONGOALS.md` for explicit scope boundaries and non-goals.
 - Added focused `feedback.py` tests and raised module coverage to 97.6%.
 - Added focused `collection_plugins.py` helper tests and raised module coverage to 92.5%.
-- Full suite passing: 408 tests.
-- Latest tox coverage: 86.98% total.
+- Added focused `api.py` helper/runbook-path tests and raised module coverage to 87.5%.
+- Added additional `scanner.py` helper/path branch tests and refreshed Jinja fallback-path tests.
+- Full suite passing: 417 tests.
+- Latest tox coverage: 87.83% total.
 
 ## Immediate Next Actions
 
-1. Extend AST/Jinja coverage in `src/prism/_jinja_analyzer.py` for remaining low-coverage branches.
-2. Add targeted scanner edge-case tests in `src/prism/scanner.py` branch-heavy paths.
-3. Add focused coverage batches for lower-coverage modules (`src/prism/api.py`).
+1. Continue targeted branch closure in `src/prism/scanner.py` for remaining branch-heavy paths.
+2. Continue targeted branch closure in `src/prism/_jinja_analyzer.py` for low-coverage branches.
+3. Re-run full suite and tox after each micro-batch and keep coverage trend moving upward.
