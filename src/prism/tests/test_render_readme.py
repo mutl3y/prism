@@ -307,6 +307,7 @@ def test_run_scan_scanner_report_includes_issue_categories(tmp_path):
     report_content = report.read_text(encoding="utf-8")
     assert "Provenance issue categories" in report_content
     assert "unresolved_no_static_definition" in report_content
+    assert "Role include graph signals" in report_content
 
 
 def test_run_scan_reports_missing_non_ansible_collection_declarations(tmp_path):

@@ -942,6 +942,20 @@ def test_extract_scanner_counters_categorizes_provenance_issues():
     assert categories["unresolved_readme_documented_only"] == 1
 
 
+def test_extract_scanner_counters_includes_role_include_observability():
+    counters = scanner._extract_scanner_counters(
+        [],
+        [],
+        {
+            "included_role_calls": 3,
+            "dynamic_included_role_calls": 2,
+        },
+    )
+
+    assert counters["included_role_calls"] == 3
+    assert counters["dynamic_included_role_calls"] == 2
+
+
 def test_scan_for_default_filters_respects_exclude_paths(tmp_path):
     role = tmp_path / "role"
     tasks = role / "tasks"

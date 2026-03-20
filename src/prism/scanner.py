@@ -2090,6 +2090,7 @@ def _build_scanner_report_markdown(
     counters = metadata.get("scanner_counters") or _extract_scanner_counters(
         metadata.get("variable_insights") or [],
         default_filters,
+        metadata.get("features") or {},
     )
     lines = [
         f"{role_name} scanner report",
@@ -2104,6 +2105,7 @@ def _build_scanner_report_markdown(
         f"- **Unresolved**: {counters['unresolved_variables']} | **Ambiguous**: {counters['ambiguous_variables']} | **Required**: {counters['required_variables']} | **Secrets**: {counters['secret_variables']}",
         f"- **Confidence buckets**: high={counters['high_confidence_variables']}, medium={counters['medium_confidence_variables']}, low={counters['low_confidence_variables']}",
         f"- **Default filter findings**: {counters['undocumented_default_filters']} undocumented out of {counters['total_default_filters']} discovered",
+        f"- **Role include graph signals**: static={counters['included_role_calls']}, dynamic={counters['dynamic_included_role_calls']}",
     ]
 
     issue_categories = counters.get("provenance_issue_categories") or {}
@@ -2167,6 +2169,7 @@ def _build_scanner_report_markdown(
 def _extract_scanner_counters(
     variable_insights: list[dict],
     default_filters: list[dict],
+    features: dict | None = None,
 ) -> dict[str, int | dict[str, int]]:
     """Summarize scanner findings by certainty and variable category."""
     counters = {
@@ -2182,6 +2185,8 @@ def _extract_scanner_counters(
         "low_confidence_variables": 0,
         "total_default_filters": len(default_filters),
         "undocumented_default_filters": len(default_filters),
+        "included_role_calls": 0,
+        "dynamic_included_role_calls": 0,
         "provenance_issue_categories": {
             "unresolved_readme_documented_only": 0,
             "unresolved_dynamic_include_vars": 0,
@@ -2219,6 +2224,12 @@ def _extract_scanner_counters(
             counters["medium_confidence_variables"] += 1
         else:
             counters["low_confidence_variables"] += 1
+
+    features = features or {}
+    counters["included_role_calls"] = int(features.get("included_role_calls") or 0)
+    counters["dynamic_included_role_calls"] = int(
+        features.get("dynamic_included_role_calls") or 0
+    )
 
     return counters
 
@@ -2561,6 +2572,7 @@ def run_scan(
     metadata["scanner_counters"] = _extract_scanner_counters(
         variable_insights,
         undocumented_default_filters,
+        metadata.get("features") or {},
     )
 
     # Replace secret values in simple role-variable rendering.
