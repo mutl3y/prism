@@ -79,6 +79,42 @@ def _stringify_jinja_node(node: object) -> str:
         base = _stringify_jinja_node(node.node)
         arg = _stringify_jinja_node(node.arg)
         return f"{base}[{arg}]" if base else f"[{arg}]"
+    if isinstance(node, jinja2.nodes.Tuple):
+        values = [
+            value
+            for value in (_stringify_jinja_node(item).strip() for item in node.items)
+            if value
+        ]
+        return f"({', '.join(values)})" if values else "()"
+    if isinstance(node, jinja2.nodes.List):
+        values = [
+            value
+            for value in (_stringify_jinja_node(item).strip() for item in node.items)
+            if value
+        ]
+        return f"[{', '.join(values)}]"
+    if isinstance(node, jinja2.nodes.Pair):
+        key = _stringify_jinja_node(getattr(node, "key", None)).strip()
+        value = _stringify_jinja_node(getattr(node, "value", None)).strip()
+        if key and value:
+            return f"{key}: {value}"
+        return key or value
+    if isinstance(node, jinja2.nodes.Dict):
+        pairs = [
+            rendered
+            for rendered in (
+                _stringify_jinja_node(item).strip()
+                for item in getattr(node, "items", []) or []
+            )
+            if rendered
+        ]
+        return "{" + ", ".join(pairs) + "}"
+    if isinstance(node, jinja2.nodes.Keyword):
+        key = str(getattr(node, "key", "") or "").strip()
+        value = _stringify_jinja_node(getattr(node, "value", None)).strip()
+        if key and value:
+            return f"{key}={value}"
+        return value
     if isinstance(node, jinja2.nodes.Filter):
         base = _stringify_jinja_node(node.node)
         args = ", ".join(
@@ -256,6 +292,11 @@ def _collect_jinja_local_bindings(parsed: jinja2.nodes.Template) -> set[str]:
     for with_node in parsed.find_all(jinja2.nodes.With):
         for target in getattr(with_node, "targets", []) or []:
             local_names.update(_extract_jinja_name_targets(target))
+
+    for call_block in parsed.find_all(jinja2.nodes.CallBlock):
+        for arg in getattr(call_block, "args", []) or []:
+            if isinstance(arg, jinja2.nodes.Name) and isinstance(arg.name, str):
+                local_names.add(arg.name)
 
     for import_node in parsed.find_all(jinja2.nodes.Import):
         target = getattr(import_node, "target", None)

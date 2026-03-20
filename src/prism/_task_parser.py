@@ -509,6 +509,12 @@ def _detect_task_module(task: dict) -> str | None:
                 return "import_tasks"
             return "include_tasks"
 
+    for include_key in ROLE_INCLUDE_KEYS:
+        if include_key in task:
+            if "import_role" in include_key:
+                return "import_role"
+            return "include_role"
+
     # Then look for regular modules
     for key in task:
         if key in TASK_META_KEYS or key in TASK_BLOCK_KEYS:
@@ -537,6 +543,25 @@ def _extract_collection_from_module_name(module_name: str) -> str | None:
 
 def _compact_task_parameters(task: dict, module_name: str) -> str:
     """Render a compact and bounded summary of key task parameters."""
+    if module_name in {"include_role", "import_role"}:
+        role_target = ""
+        role_payload = None
+        if module_name in task:
+            role_payload = task.get(module_name)
+        else:
+            for include_key in ROLE_INCLUDE_KEYS:
+                if include_key in task and include_key.endswith(module_name):
+                    role_payload = task.get(include_key)
+                    break
+        if isinstance(role_payload, str):
+            role_target = role_payload.strip()
+        elif isinstance(role_payload, dict):
+            candidate = role_payload.get("name") or role_payload.get("_raw_params")
+            if isinstance(candidate, str):
+                role_target = candidate.strip()
+        if role_target:
+            return f"name={role_target}"
+
     value = task.get(module_name)
     if isinstance(value, dict):
         pairs = [
@@ -630,11 +655,20 @@ def _collect_task_handler_catalog(
             for include_key in TASK_INCLUDE_KEYS:
                 if include_key in task:
                     include_target = task[include_key]
-                    if isinstance(include_target, str) and not (
-                        "{{" in include_target or "{%" in include_target
+                    include_path: str | None = None
+                    if isinstance(include_target, str):
+                        include_path = include_target
+                    elif isinstance(include_target, dict):
+                        candidate = include_target.get("file") or include_target.get(
+                            "_raw_params"
+                        )
+                        if isinstance(candidate, str):
+                            include_path = candidate
+                    if include_path and not (
+                        "{{" in include_path or "{%" in include_path
                     ):
                         included_file = _resolve_task_include(
-                            role_root, task_file, include_target
+                            role_root, task_file, include_path
                         )
                         if included_file:
                             _collect_tasks_recursive(

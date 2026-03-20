@@ -460,6 +460,58 @@ def test_extract_role_features_tracks_included_roles(tmp_path):
     assert features["dynamic_included_roles"] == "{{ dynamic_role_name }}"
 
 
+def test_collect_task_handler_catalog_follows_dict_style_task_includes(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: include nested by dict\n"
+        "  include_tasks:\n"
+        '    file: "nested.yml"\n',
+        encoding="utf-8",
+    )
+    (tasks / "nested.yml").write_text(
+        "---\n" "- name: nested task\n" "  debug:\n" '    msg: "ok"\n',
+        encoding="utf-8",
+    )
+
+    task_catalog, _ = scanner._collect_task_handler_catalog(str(role))
+
+    assert [entry["name"] for entry in task_catalog] == [
+        "include nested by dict",
+        "nested task",
+    ]
+
+
+def test_collect_task_handler_catalog_normalizes_role_include_module_and_parameters(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: include common role\n"
+        "  include_role:\n"
+        "    name: acme.common\n"
+        "- name: import fqcn role\n"
+        "  ansible.builtin.import_role:\n"
+        "    name: acme.web\n",
+        encoding="utf-8",
+    )
+
+    task_catalog, _ = scanner._collect_task_handler_catalog(str(role))
+
+    by_name = {entry["name"]: entry for entry in task_catalog}
+    assert by_name["include common role"]["module"] == "include_role"
+    assert by_name["include common role"]["parameters"] == "name=acme.common"
+    assert by_name["import fqcn role"]["module"] == "import_role"
+    assert by_name["import fqcn role"]["parameters"] == "name=acme.web"
+
+
 def test_build_variable_insights_detects_required_undocumented_vars(tmp_path):
     role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
@@ -956,6 +1008,40 @@ def test_extract_scanner_counters_includes_role_include_observability():
     assert counters["dynamic_included_role_calls"] == 2
 
 
+def test_collect_yaml_parse_failures_reports_file_and_line(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    bad = role / "tasks" / "broken.yml"
+    bad.write_text("---\nfoo: [unterminated\n", encoding="utf-8")
+
+    failures = scanner._collect_yaml_parse_failures(str(role))
+
+    assert len(failures) == 1
+    assert failures[0]["file"] == "tasks/broken.yml"
+    assert isinstance(failures[0]["line"], int)
+    assert failures[0]["line"] >= 2
+    assert failures[0]["column"] is not None
+    assert "expected" in str(failures[0]["error"]).lower()
+
+
+def test_extract_scanner_counters_includes_yaml_parse_failure_count():
+    counters = scanner._extract_scanner_counters(
+        [],
+        [],
+        {},
+        [
+            {
+                "file": "tasks/broken.yml",
+                "line": 2,
+                "column": 5,
+                "error": "expected ',' or ']'",
+            }
+        ],
+    )
+
+    assert counters["yaml_parse_failures"] == 1
+
+
 def test_scan_for_default_filters_respects_exclude_paths(tmp_path):
     role = tmp_path / "role"
     tasks = role / "tasks"
@@ -1127,6 +1213,100 @@ def test_compact_task_parameters_formats_dict_values():
     assert "state=started" in rendered
     assert "enabled=true" in rendered
     assert rendered.endswith("...")
+
+
+def test_detect_task_module_normalizes_role_include_keys():
+    assert (
+        scanner._detect_task_module({"include_role": {"name": "acme.common"}})
+        == "include_role"
+    )
+    assert (
+        scanner._detect_task_module(
+            {"ansible.builtin.import_role": {"name": "acme.web"}}
+        )
+        == "import_role"
+    )
+
+
+def test_compact_task_parameters_handles_role_include_string_and_raw_params():
+    short_task = {"include_role": "acme.common"}
+    fqcn_task = {"ansible.builtin.import_role": {"_raw_params": "acme.web"}}
+
+    short_rendered = scanner._compact_task_parameters(short_task, "include_role")
+    fqcn_rendered = scanner._compact_task_parameters(fqcn_task, "import_role")
+
+    assert short_rendered == "name=acme.common"
+    assert fqcn_rendered == "name=acme.web"
+
+
+def test_collect_task_handler_catalog_skips_dynamic_dict_include_path(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: include dynamic path\n"
+        "  include_tasks:\n"
+        '    file: "{{ dynamic_task_file }}"\n'
+        "- name: second static task\n"
+        "  debug:\n"
+        '    msg: "ok"\n',
+        encoding="utf-8",
+    )
+    (tasks / "ignored.yml").write_text(
+        "---\n"
+        "- name: should never be traversed\n"
+        "  debug:\n"
+        '    msg: "ignored"\n',
+        encoding="utf-8",
+    )
+
+    task_catalog, _ = scanner._collect_task_handler_catalog(str(role))
+
+    assert [entry["name"] for entry in task_catalog] == [
+        "include dynamic path",
+        "second static task",
+    ]
+
+
+def test_collect_task_handler_catalog_skips_missing_static_include_file(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: include missing file\n"
+        "  include_tasks:\n"
+        "    file: missing.yml\n"
+        "- name: still present\n"
+        "  debug:\n"
+        '    msg: "ok"\n',
+        encoding="utf-8",
+    )
+
+    task_catalog, _ = scanner._collect_task_handler_catalog(str(role))
+
+    assert [entry["name"] for entry in task_catalog] == [
+        "include missing file",
+        "still present",
+    ]
+
+
+def test_compact_task_parameters_role_include_dict_falls_back_to_non_name_keys():
+    task = {
+        "include_role": {
+            "name": ["unexpected"],
+            "tasks_from": "install.yml",
+            "vars_from": "main.yml",
+        }
+    }
+
+    rendered = scanner._compact_task_parameters(task, "include_role")
+
+    assert "tasks_from=install.yml" in rendered
+    assert "vars_from=main.yml" in rendered
 
 
 def test_collect_referenced_variable_names_handles_custom_jinja_tests_and_filters(

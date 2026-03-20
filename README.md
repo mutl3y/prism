@@ -39,6 +39,7 @@ Summary
 - Supports local role scans via `prism role <role_path>`.
 - Supports repository-backed scans via `prism repo --repo-url <url>`.
 - Supports local collection roots via `prism collection <collection_path>` with collection-level markdown or JSON output.
+- CI validates scanner behavior across multiple `ansible-core` release lines (`2.17.x`, `2.18.x`, `2.19.x`).
 - Repo scans now opportunistically use sparse/partial clone for sub-path targets and fall back to shallow clone when sparse checkout is unavailable.
 - Can reuse an existing README as a style guide with section/order preservation.
 - Can generate headings-only style skeletons with `--create-style-guide`.

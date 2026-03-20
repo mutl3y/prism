@@ -424,6 +424,61 @@ def _scan_file_for_default_filters(file_path: Path, role_root: Path) -> list[dic
     return occurrences
 
 
+def _collect_yaml_parse_failures(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> list[dict[str, object]]:
+    """Collect YAML parse failures with file/line context across a role tree."""
+    role_root = Path(role_path).resolve()
+    failures: list[dict[str, object]] = []
+
+    for root, dirs, files in os.walk(str(role_root)):
+        dirs[:] = [
+            d
+            for d in dirs
+            if d not in IGNORED_DIRS
+            and not _is_relpath_excluded(
+                str((Path(root) / d).resolve().relative_to(role_root)),
+                exclude_paths,
+            )
+        ]
+        for fname in sorted(files):
+            candidate = Path(root) / fname
+            if candidate.suffix.lower() not in {".yml", ".yaml"}:
+                continue
+            if _is_path_excluded(candidate, role_root, exclude_paths):
+                continue
+            try:
+                text = candidate.read_text(encoding="utf-8")
+                yaml.safe_load(text)
+            except (OSError, UnicodeDecodeError) as exc:
+                failures.append(
+                    {
+                        "file": str(candidate.resolve().relative_to(role_root)),
+                        "line": None,
+                        "column": None,
+                        "error": f"read_error: {exc}",
+                    }
+                )
+            except (yaml.YAMLError, ValueError) as exc:
+                mark = getattr(exc, "problem_mark", None)
+                line = int(mark.line) + 1 if mark is not None else None
+                column = int(mark.column) + 1 if mark is not None else None
+                problem = str(getattr(exc, "problem", "") or "").strip()
+                if not problem:
+                    problem = str(exc).splitlines()[0].strip()
+                failures.append(
+                    {
+                        "file": str(candidate.resolve().relative_to(role_root)),
+                        "line": line,
+                        "column": column,
+                        "error": problem,
+                    }
+                )
+
+    return failures
+
+
 def _is_readme_variable_section_heading(title: str) -> bool:
     """Return True when a heading likely describes role input variables."""
     normalized = normalize_style_heading(title)
@@ -1628,13 +1683,32 @@ def _render_guide_section_body(
         summary = (metadata.get("doc_insights") or {}).get("task_summary", {})
         if not summary:
             return "No task summary available."
+        yaml_parse_failures = metadata.get("yaml_parse_failures") or []
         lines = [
             f"- **Task files scanned**: {summary.get('task_files_scanned', 0)}",
             f"- **Tasks scanned**: {summary.get('tasks_scanned', 0)}",
             f"- **Recursive includes**: {summary.get('recursive_task_includes', 0)}",
             f"- **Unique modules**: {summary.get('module_count', 0)}",
             f"- **Handlers referenced**: {summary.get('handler_count', 0)}",
+            f"- **YAML parse failures**: {len(yaml_parse_failures)}",
         ]
+        if yaml_parse_failures:
+            lines.extend(["", "Parse failures detected:"])
+            for item in yaml_parse_failures[:5]:
+                file_name = str(item.get("file") or "<unknown>")
+                line = item.get("line")
+                column = item.get("column")
+                location = (
+                    f"{file_name}:{line}:{column}"
+                    if line is not None and column is not None
+                    else file_name
+                )
+                error_text = str(item.get("error") or "parse error")
+                lines.append(f"- `{location}`: {error_text}")
+            if len(yaml_parse_failures) > 5:
+                lines.append(
+                    f"- ... and {len(yaml_parse_failures) - 5} additional parse failures"
+                )
         task_catalog = metadata.get("task_catalog") or []
         if metadata.get("detailed_catalog") and task_catalog:
             lines.extend(
@@ -2100,7 +2174,9 @@ def _build_scanner_report_markdown(
         metadata.get("variable_insights") or [],
         default_filters,
         metadata.get("features") or {},
+        metadata.get("yaml_parse_failures") or [],
     )
+    parse_failures = metadata.get("yaml_parse_failures") or []
     lines = [
         f"{role_name} scanner report",
         "=" * (len(role_name) + len(" scanner report")),
@@ -2115,6 +2191,7 @@ def _build_scanner_report_markdown(
         f"- **Confidence buckets**: high={counters['high_confidence_variables']}, medium={counters['medium_confidence_variables']}, low={counters['low_confidence_variables']}",
         f"- **Default filter findings**: {counters['undocumented_default_filters']} undocumented out of {counters['total_default_filters']} discovered",
         f"- **Role include graph signals**: static={counters['included_role_calls']}, dynamic={counters['dynamic_included_role_calls']}",
+        f"- **YAML parse failures**: {counters['yaml_parse_failures']}",
     ]
 
     issue_categories = counters.get("provenance_issue_categories") or {}
@@ -2145,6 +2222,21 @@ def _build_scanner_report_markdown(
                 reason = row.get("uncertainty_reason") or "Unknown source."
                 lines.append(f"- `{row['name']}`: {reason}")
             lines.append("")
+
+    if parse_failures:
+        lines.extend(["YAML parse failures", "-------------------", ""])
+        for item in parse_failures:
+            file_name = str(item.get("file") or "<unknown>")
+            line = item.get("line")
+            column = item.get("column")
+            location = (
+                f"{file_name}:{line}:{column}"
+                if line is not None and column is not None
+                else file_name
+            )
+            message = str(item.get("error") or "parse error")
+            lines.append(f"- `{location}`: {message}")
+        lines.append("")
         if ambiguous_rows:
             lines.append("Ambiguous variables:")
             for row in ambiguous_rows:
@@ -2179,6 +2271,7 @@ def _extract_scanner_counters(
     variable_insights: list[dict],
     default_filters: list[dict],
     features: dict | None = None,
+    parse_failures: list[dict[str, object]] | None = None,
 ) -> dict[str, int | dict[str, int]]:
     """Summarize scanner findings by certainty and variable category."""
     counters = {
@@ -2196,6 +2289,7 @@ def _extract_scanner_counters(
         "undocumented_default_filters": len(default_filters),
         "included_role_calls": 0,
         "dynamic_included_role_calls": 0,
+        "yaml_parse_failures": len(parse_failures or []),
         "provenance_issue_categories": {
             "unresolved_readme_documented_only": 0,
             "unresolved_dynamic_include_vars": 0,
@@ -2561,6 +2655,10 @@ def run_scan(
             "purpose": "required_variable_detection_hints",
         }
     metadata["variable_insights"] = variable_insights
+    metadata["yaml_parse_failures"] = _collect_yaml_parse_failures(
+        role_path,
+        exclude_paths=exclude_path_patterns,
+    )
     metadata["role_notes"] = _extract_role_notes_from_comments(
         role_path,
         exclude_paths=exclude_path_patterns,
@@ -2587,6 +2685,7 @@ def run_scan(
         variable_insights,
         undocumented_default_filters,
         metadata.get("features") or {},
+        metadata.get("yaml_parse_failures") or [],
     )
 
     # Replace secret values in simple role-variable rendering.

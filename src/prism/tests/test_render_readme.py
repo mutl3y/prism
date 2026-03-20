@@ -169,6 +169,30 @@ def test_run_scan_renders_task_catalog_with_links_and_details(tmp_path):
     assert "manually copy /tmp/demo if template fails" in content
 
 
+def test_run_scan_renders_task_catalog_role_include_entries(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: include common role\n"
+        "  include_role:\n"
+        "    name: acme.common\n"
+        "- name: import web role\n"
+        "  ansible.builtin.import_role:\n"
+        "    name: acme.web\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "README_TASK_CATALOG_ROLE_INCLUDE.md"
+    scanner.run_scan(str(role), output=str(out), detailed_catalog=True)
+
+    content = out.read_text(encoding="utf-8")
+    assert "| `main.yml` | [include common role]" in content
+    assert "| include_role | name=acme.common |" in content
+    assert "| `main.yml` | [import web role]" in content
+    assert "| import_role | name=acme.web |" in content
+
+
 def test_render_runbook_standalone_returns_role_name_and_sections(tmp_path):
     metadata = {
         "task_catalog": [
@@ -308,6 +332,69 @@ def test_run_scan_scanner_report_includes_issue_categories(tmp_path):
     assert "Provenance issue categories" in report_content
     assert "unresolved_no_static_definition" in report_content
     assert "Role include graph signals" in report_content
+
+
+def test_run_scan_scanner_report_includes_yaml_parse_failures(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "defaults").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text(
+        "---\n" "- name: noop\n" "  debug:\n" '    msg: "ok"\n',
+        encoding="utf-8",
+    )
+    (role / "defaults" / "main.yml").write_text(
+        "---\n" "broken: [unterminated\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "CONCISE_PARSE_FAILURE.md"
+    report = tmp_path / "SCAN_REPORT_PARSE_FAILURE.md"
+    scanner.run_scan(
+        str(role),
+        output=str(out),
+        concise_readme=True,
+        scanner_report_output=str(report),
+    )
+
+    report_content = report.read_text(encoding="utf-8")
+    assert "YAML parse failures" in report_content
+    assert "defaults/main.yml" in report_content
+
+
+def test_render_task_summary_includes_yaml_parse_failure_details():
+    metadata = {
+        "doc_insights": {
+            "task_summary": {
+                "task_files_scanned": 1,
+                "tasks_scanned": 1,
+                "recursive_task_includes": 0,
+                "module_count": 1,
+                "handler_count": 0,
+            }
+        },
+        "yaml_parse_failures": [
+            {
+                "file": "defaults/main.yml",
+                "line": 2,
+                "column": 9,
+                "error": "expected ',' or ']'",
+            }
+        ],
+    }
+
+    content = scanner._render_guide_section_body(
+        "task_summary",
+        "role",
+        "",
+        {},
+        [],
+        [],
+        metadata,
+    )
+
+    assert "**YAML parse failures**: 1" in content
+    assert "Parse failures detected:" in content
+    assert "defaults/main.yml:2:9" in content
 
 
 def test_run_scan_reports_missing_non_ansible_collection_declarations(tmp_path):

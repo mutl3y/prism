@@ -84,6 +84,69 @@ class TestStringifyJinjaNode:
         assert ">" in result
         assert "3" in result
 
+    def test_list_literal_is_rendered(self):
+        node = self._parse_expr("['a', item]")
+        result = scanner._stringify_jinja_node(node)
+        assert "[" in result and "]" in result
+        assert "a" in result
+        assert "item" in result
+
+    def test_tuple_literal_is_rendered(self):
+        node = self._parse_expr("(left, right)")
+        result = scanner._stringify_jinja_node(node)
+        assert "(" in result and ")" in result
+        assert "left" in result
+        assert "right" in result
+
+    def test_dict_literal_is_rendered(self):
+        node = self._parse_expr("{'key': value}")
+        result = scanner._stringify_jinja_node(node)
+        assert "{" in result and "}" in result
+        assert "key" in result
+        assert "value" in result
+
+    def test_call_with_keyword_args_is_rendered(self):
+        node = self._parse_expr("lookup('env', name='HOME')")
+        result = scanner._stringify_jinja_node(node)
+        assert "lookup" in result
+        assert "env" in result
+        assert "name=HOME" in result
+
+    def test_test_expression_with_args_is_rendered(self):
+        node = self._parse_expr("value is match('^ok')")
+        result = scanner._stringify_jinja_node(node)
+        assert "value" in result
+        assert "is match" in result
+        assert "^ok" in result
+
+    def test_default_filter_with_empty_target_falls_back_to_source_line(self):
+        text = "{{ '' | default('fallback') }}"
+        result = scanner._scan_text_for_default_filters_with_ast(text, [text])
+        assert len(result) == 1
+        assert result[0]["match"] == text
+
+    def test_test_expression_without_args_is_rendered(self):
+        node = self._parse_expr("value is odd")
+        result = scanner._stringify_jinja_node(node)
+        assert result == "value is odd"
+
+    def test_binary_and_unary_expressions_are_rendered(self):
+        add_node = self._parse_expr("left + right")
+        not_node = self._parse_expr("not enabled")
+        assert scanner._stringify_jinja_node(add_node) == "left + right"
+        assert scanner._stringify_jinja_node(not_node) == "not enabled"
+
+    def test_pair_and_keyword_fallback_paths_return_available_side(self):
+        import jinja2
+
+        pair_only_key = jinja2.nodes.Pair(jinja2.nodes.Const("k"), None)
+        pair_only_value = jinja2.nodes.Pair(None, jinja2.nodes.Const("v"))
+        keyword_value_only = jinja2.nodes.Keyword("", jinja2.nodes.Const("home"))
+
+        assert scanner._stringify_jinja_node(pair_only_key) == "k"
+        assert scanner._stringify_jinja_node(pair_only_value) == "v"
+        assert scanner._stringify_jinja_node(keyword_value_only) == "home"
+
 
 class TestScanTextForDefaultFiltersWithAst:
     """_scan_text_for_default_filters_with_ast: extract | default(...) via AST."""
@@ -182,6 +245,15 @@ class TestCollectUndeclaredJinjaVariables:
         assert "temp_user" not in result
         assert "users" in result
 
+    def test_excludes_call_block_macro_argument(self):
+        text = (
+            "{% macro wrapper() %}<x>{{ caller('result') }}</x>{% endmacro %}"
+            "{% call(value) wrapper() %}{{ value }} {{ service_name }}{% endcall %}"
+        )
+        result = scanner._collect_undeclared_jinja_variables(text)
+        assert "value" not in result
+        assert "service_name" in result
+
 
 class TestCollectJinjaLocalBindings:
     """_collect_jinja_local_bindings_from_text: identify locally bound names."""
@@ -229,6 +301,24 @@ class TestCollectJinjaLocalBindings:
         text = "{% from 'helpers.j2' import render as draw %}{{ draw('x') }}"
         result = scanner._collect_jinja_local_bindings_from_text(text)
         assert "draw" in result
+
+    def test_from_import_name_without_alias_is_local(self):
+        text = "{% from 'helpers.j2' import render %}{{ render('x') }}"
+        result = scanner._collect_jinja_local_bindings_from_text(text)
+        assert "render" in result
+
+    def test_assign_block_target_is_local(self):
+        text = "{% set body %}hello{% endset %}{{ body }}"
+        result = scanner._collect_jinja_local_bindings_from_text(text)
+        assert "body" in result
+
+    def test_call_block_args_are_local(self):
+        text = (
+            "{% macro wrap() %}{{ caller('ok') }}{% endmacro %}"
+            "{% call(result) wrap() %}{{ result }}{% endcall %}"
+        )
+        result = scanner._collect_jinja_local_bindings_from_text(text)
+        assert "result" in result
 
 
 class TestExtractJinjaNameTargets:
