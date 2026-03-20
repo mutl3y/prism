@@ -44,8 +44,8 @@ Prism goes beyond simple variable lists. It's an ecosystem designed to capture a
 >
 > ```yaml
 >   #t# Runbook
->   #t# Before proceeding, ensure no active transactions are in the message queue.
->   #t# Use `mq-status --check` to verify.
+>   # Before proceeding, ensure no active transactions are in the message queue.
+>   # Use `mq-status --check` to verify.
 > - name: Stop the primary application service
 >   ansible.builtin.service:
 >     name: my-app

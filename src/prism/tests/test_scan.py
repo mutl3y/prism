@@ -1341,6 +1341,144 @@ def test_resolve_default_style_guide_source_falls_back_when_no_candidates(monkey
     assert resolved == str(scanner.DEFAULT_STYLE_GUIDE_SOURCE_PATH.resolve())
 
 
+def test_resolve_section_selector_handles_blank_canonical_and_alias():
+    assert scanner._resolve_section_selector("   ") is None
+    assert scanner._resolve_section_selector("requirements") == "requirements"
+    assert (
+        scanner._resolve_section_selector("Role purpose and capabilities") == "purpose"
+    )
+
+
+def test_load_readme_section_config_parses_include_exclude_and_modes(tmp_path):
+    role = tmp_path / "role"
+    role.mkdir(parents=True)
+    cfg = role / ".prism.yml"
+    cfg.write_text(
+        "readme:\n"
+        "  adopt_heading_mode: invalid\n"
+        "  include_sections:\n"
+        "    - requirements\n"
+        "    - Role purpose and capabilities\n"
+        "  exclude_sections:\n"
+        "    - requirements\n"
+        "  section_content_modes:\n"
+        "    Role purpose and capabilities: merge\n"
+        "    unknown section: replace\n"
+        "    requirements: nope\n",
+        encoding="utf-8",
+    )
+
+    config = scanner.load_readme_section_config(str(role))
+
+    assert config is not None
+    assert config["adopt_heading_mode"] == "canonical"
+    assert "requirements" not in config["enabled_sections"]
+    assert "purpose" in config["enabled_sections"]
+    assert config["section_content_modes"]["purpose"] == "merge"
+
+
+def test_load_readme_section_config_and_visibility_handle_invalid_shapes(tmp_path):
+    role = tmp_path / "role"
+    role.mkdir(parents=True)
+    cfg = role / ".prism.yml"
+
+    cfg.write_text("readme: {note: true}\n", encoding="utf-8")
+    assert scanner.load_readme_section_config(str(role)) is None
+    assert scanner.load_readme_section_visibility(str(role)) is None
+
+    cfg.write_text("readme: [bad]\n", encoding="utf-8")
+    assert scanner.load_readme_section_config(str(role)) is None
+
+    cfg.write_text("not: [valid\n", encoding="utf-8")
+    assert scanner.load_readme_section_config(str(role)) is None
+
+
+def test_load_section_display_titles_parses_valid_entries_only(tmp_path, monkeypatch):
+    titles = tmp_path / "titles.yml"
+    titles.write_text(
+        "display_titles:\n"
+        "  purpose: Purpose and Scope\n"
+        "  empty_label: '   '\n"
+        "  42: bad\n"
+        "  role_variables: Role Variables\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(scanner, "DEFAULT_SECTION_DISPLAY_TITLES_PATH", titles)
+
+    loaded = scanner._load_section_display_titles()
+
+    assert loaded == {
+        "purpose": "Purpose and Scope",
+        "role_variables": "Role Variables",
+    }
+
+
+def test_describe_variable_and_role_local_row_helpers_cover_fallbacks():
+    assert scanner._describe_variable(
+        "feature_enabled", "defaults/main.yml"
+    ).startswith("Enable or disable")
+    assert "port value" in scanner._describe_variable("http_port", "defaults/main.yml")
+    assert "package name" in scanner._describe_variable(
+        "app_package", "defaults/main.yml"
+    )
+    assert "service name" in scanner._describe_variable(
+        "service_state", "defaults/main.yml"
+    )
+    assert "file or path" in scanner._describe_variable(
+        "config_path", "defaults/main.yml"
+    )
+    assert "user or group" in scanner._describe_variable(
+        "run_user", "defaults/main.yml"
+    )
+    assert "`vars/main.yml`" in scanner._describe_variable("other", "vars/main.yml")
+
+    assert scanner._is_role_local_variable_row({"source": "seed: ctx"}) is False
+    assert (
+        scanner._is_role_local_variable_row({"source": "README.md (documented input)"})
+        is False
+    )
+    assert scanner._is_role_local_variable_row({"source": "defaults/main.yml"}) is False
+    assert (
+        scanner._is_role_local_variable_row(
+            {
+                "source": "defaults/main.yml",
+                "provenance_source_file": "/tmp/abs.yml",
+            }
+        )
+        is False
+    )
+    assert (
+        scanner._is_role_local_variable_row(
+            {
+                "source": "defaults/main.yml",
+                "provenance_source_file": "defaults/main.yml",
+            }
+        )
+        is True
+    )
+
+
+def test_render_role_notes_section_with_and_without_entries():
+    assert (
+        scanner._render_role_notes_section(None)
+        == "No role notes were found in comment annotations."
+    )
+
+    rendered = scanner._render_role_notes_section(
+        {
+            "warnings": ["Do not run on prod first."],
+            "deprecations": ["Legacy path will be removed."],
+            "notes": ["Requires restart."],
+            "additionals": ["See runbook appendix."],
+        }
+    )
+
+    assert "Warnings:" in rendered
+    assert "Deprecations:" in rendered
+    assert "Notes:" in rendered
+    assert "Additionals:" in rendered
+
+
 def test_collect_molecule_scenarios_ignores_malformed_and_excluded_files(tmp_path):
     role = tmp_path / "role"
     valid = role / "molecule" / "default"
