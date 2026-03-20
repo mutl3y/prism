@@ -21,7 +21,7 @@ Stop wrestling with convoluted code and out-of-date documentation. **Let Prism i
 
 ---
 
-## Example: mock_role
+## Test Fixture: mock_role
 
 mock_role
 =========
