@@ -30,6 +30,8 @@ The Spectrum of Documentation
 Generate README documentation for Ansible collections and roles from local paths or repository sources.
 
 Release history is tracked in `docs/CHANGELOG.md`.
+Authoring guidance is available in `docs/PRISM_FRIENDLY_ROLE_GUIDE.md`.
+Static-analysis scope and non-goals are documented in `docs/STATIC_ANALYSIS_SCOPE_AND_NONGOALS.md`.
 
 Summary
 -------
