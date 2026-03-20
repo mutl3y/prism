@@ -1523,20 +1523,15 @@ def _render_variable_uncertainty_notes(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _render_guide_section_body(
+def _render_guide_identity_sections(
     section_id: str,
     role_name: str,
     description: str,
-    variables: dict,
     requirements: list,
-    default_filters: list,
+    galaxy: dict,
     metadata: dict,
-) -> str:
-    """Render one canonical section body for guided README output."""
-    galaxy = (
-        metadata.get("meta", {}).get("galaxy_info", {}) if metadata.get("meta") else {}
-    )
-
+) -> str | None:
+    """Render style-guide sections focused on role identity and metadata."""
     if section_id == "galaxy_info":
         if not galaxy:
             return "No Galaxy metadata found."
@@ -1600,6 +1595,15 @@ def _render_guide_section_body(
     if section_id == "role_notes":
         return _render_role_notes_section(metadata.get("role_notes"))
 
+    return None
+
+
+def _render_guide_variable_sections(
+    section_id: str,
+    variables: dict,
+    metadata: dict,
+) -> str | None:
+    """Render style-guide sections focused on variable inventory and guidance."""
     if section_id == "variable_summary":
         rows = metadata.get("variable_insights") or []
         local_rows = [row for row in rows if _is_role_local_variable_row(row)]
@@ -1649,6 +1653,39 @@ def _render_guide_section_body(
         )
         return "\n".join(lines)
 
+    if section_id == "template_overrides":
+        template_files = metadata.get("templates") or []
+        variable_rows = metadata.get("variable_insights") or []
+        template_vars = [
+            row["name"]
+            for row in variable_rows
+            if isinstance(row.get("name"), str) and "template" in row["name"].lower()
+        ]
+        lines = [
+            "Override template-related variables or point them at playbook-local templates when the built-in layout is not sufficient."
+        ]
+        if template_vars:
+            lines.append("")
+            lines.append("Likely template override variables:")
+            lines.extend(f"- `{name}`" for name in template_vars[:8])
+        if template_files:
+            lines.append("")
+            lines.append("Templates detected in this role:")
+            lines.extend(f"- `{path}`" for path in template_files)
+        return "\n".join(lines)
+
+    if section_id == "role_variables":
+        return _render_role_variables_for_style(variables, metadata)
+
+    return None
+
+
+def _render_guide_task_sections(
+    section_id: str,
+    default_filters: list,
+    metadata: dict,
+) -> str | None:
+    """Render style-guide sections focused on task, handler, and test activity."""
     if section_id == "task_summary":
         summary = (metadata.get("doc_insights") or {}).get("task_summary", {})
         if not summary:
@@ -1790,35 +1827,6 @@ def _render_guide_section_body(
                 )
         return "\n".join(lines)
 
-    if section_id == "template_overrides":
-        template_files = metadata.get("templates") or []
-        variable_rows = metadata.get("variable_insights") or []
-        template_vars = [
-            row["name"]
-            for row in variable_rows
-            if isinstance(row.get("name"), str) and "template" in row["name"].lower()
-        ]
-        lines = [
-            "Override template-related variables or point them at playbook-local templates when the built-in layout is not sufficient."
-        ]
-        if template_vars:
-            lines.append("")
-            lines.append("Likely template override variables:")
-            lines.extend(f"- `{name}`" for name in template_vars[:8])
-        if template_files:
-            lines.append("")
-            lines.append("Templates detected in this role:")
-            lines.extend(f"- `{path}`" for path in template_files)
-        return "\n".join(lines)
-
-    if section_id == "basic_authorization":
-        return (
-            "Use custom vhost or directory directives to add HTTP Basic Authentication where needed.\n\n"
-            "- Provide credential files such as `.htpasswd` from your playbook or a companion role.\n"
-            "- Prefer explicit configuration blocks or custom templates over editing generated files in place.\n"
-            "- Keep authentication settings alongside the related virtual host configuration so the access policy remains reviewable."
-        )
-
     if section_id == "faq_pitfalls":
         features = metadata.get("features") or {}
         lines = [
@@ -1835,6 +1843,19 @@ def _render_guide_section_body(
             )
         return "\n".join(lines)
 
+    return None
+
+
+def _render_guide_operations_sections(section_id: str, metadata: dict) -> str | None:
+    """Render style-guide sections for operational guidance."""
+    if section_id == "basic_authorization":
+        return (
+            "Use custom vhost or directory directives to add HTTP Basic Authentication where needed.\n\n"
+            "- Provide credential files such as `.htpasswd` from your playbook or a companion role.\n"
+            "- Prefer explicit configuration blocks or custom templates over editing generated files in place.\n"
+            "- Keep authentication settings alongside the related virtual host configuration so the access policy remains reviewable."
+        )
+
     if section_id == "contributing":
         return (
             "Contributions are welcome.\n\n"
@@ -1843,8 +1864,45 @@ def _render_guide_section_body(
             "- Update docs/templates when scanner behavior changes."
         )
 
-    if section_id == "role_variables":
-        return _render_role_variables_for_style(variables, metadata)
+    return None
+
+
+def _render_guide_section_body(
+    section_id: str,
+    role_name: str,
+    description: str,
+    variables: dict,
+    requirements: list,
+    default_filters: list,
+    metadata: dict,
+) -> str:
+    """Render one canonical section body for guided README output."""
+    galaxy = (
+        metadata.get("meta", {}).get("galaxy_info", {}) if metadata.get("meta") else {}
+    )
+
+    rendered = _render_guide_identity_sections(
+        section_id,
+        role_name,
+        description,
+        requirements,
+        galaxy,
+        metadata,
+    )
+    if rendered is not None:
+        return rendered
+
+    rendered = _render_guide_variable_sections(section_id, variables, metadata)
+    if rendered is not None:
+        return rendered
+
+    rendered = _render_guide_task_sections(section_id, default_filters, metadata)
+    if rendered is not None:
+        return rendered
+
+    rendered = _render_guide_operations_sections(section_id, metadata)
+    if rendered is not None:
+        return rendered
 
     if section_id == "role_contents":
         lines = ["The scanner collected these role subdirectories (counts):", ""]
@@ -1897,7 +1955,7 @@ def _render_guide_section_body(
         for occ in default_filters:
             match = occ["match"].replace("`", "'")
             args = occ["args"].replace("`", "'")
-            lines.append(f"- {occ['file']}:{occ['line_no']} — `{match}`")
+            lines.append(f"- {occ['file']}:{occ['line_no']} - `{match}`")
             lines.append(f"  args: `{args}`")
         return "\n".join(lines)
 
