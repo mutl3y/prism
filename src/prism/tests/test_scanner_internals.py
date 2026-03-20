@@ -708,6 +708,8 @@ class TestExtractRoleFeatures:
             "tagged_tasks",
             "included_role_calls",
             "included_roles",
+            "dynamic_included_role_calls",
+            "dynamic_included_roles",
         }
         assert expected_keys == set(result.keys())
 

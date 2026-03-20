@@ -213,6 +213,28 @@ def _iter_role_include_targets(task: dict) -> list[str]:
     return role_targets
 
 
+def _iter_dynamic_role_include_targets(task: dict) -> list[str]:
+    """Return templated role refs from include_role/import_role keys."""
+    dynamic_targets: list[str] = []
+    for key in ROLE_INCLUDE_KEYS:
+        if key not in task:
+            continue
+        value = task[key]
+        ref: str | None = None
+        if isinstance(value, str):
+            ref = value
+        elif isinstance(value, dict):
+            candidate = value.get("name") or value.get("_raw_params")
+            if isinstance(candidate, str):
+                ref = candidate
+        if not ref:
+            continue
+        ref = ref.strip()
+        if ref and ("{{" in ref or "{%" in ref):
+            dynamic_targets.append(ref)
+    return dynamic_targets
+
+
 def _iter_task_mappings(data: object):
     """Yield task dictionaries from a YAML task document recursively."""
     if isinstance(data, list):
@@ -752,6 +774,8 @@ def extract_role_features(
     handlers_notified: set[str] = set()
     included_roles: set[str] = set()
     included_role_calls = 0
+    dynamic_included_role_calls = 0
+    dynamic_included_roles: set[str] = set()
 
     for task_file in task_files:
         data = _load_yaml_file(task_file)
@@ -761,6 +785,9 @@ def extract_role_features(
             included_targets = _iter_role_include_targets(task)
             included_role_calls += len(included_targets)
             included_roles.update(included_targets)
+            dynamic_targets = _iter_dynamic_role_include_targets(task)
+            dynamic_included_role_calls += len(dynamic_targets)
+            dynamic_included_roles.update(dynamic_targets)
             module_name = _detect_task_module(task)
             if module_name:
                 modules.add(module_name)
@@ -800,5 +827,11 @@ def extract_role_features(
         "included_role_calls": included_role_calls,
         "included_roles": (
             ", ".join(sorted(included_roles)) if included_roles else "none"
+        ),
+        "dynamic_included_role_calls": dynamic_included_role_calls,
+        "dynamic_included_roles": (
+            ", ".join(sorted(dynamic_included_roles))
+            if dynamic_included_roles
+            else "none"
         ),
     }
