@@ -525,6 +525,64 @@ def load_meta(role_path: str) -> dict:
     return {}
 
 
+def _iter_role_argument_spec_entries(role_path: str):
+    """Yield argument spec variable entries discovered in role metadata files.
+
+    Supported layouts:
+    - ``meta/argument_specs.yml`` with top-level ``argument_specs`` mapping
+    - ``meta/main.yml`` with embedded ``argument_specs`` mapping
+    """
+    role_root = Path(role_path)
+    arg_specs_file = role_root / "meta" / "argument_specs.yml"
+    sources: list[tuple[str, dict]] = []
+
+    if arg_specs_file.is_file():
+        loaded = _load_yaml_file(arg_specs_file)
+        if isinstance(loaded, dict):
+            sources.append(("meta/argument_specs.yml", loaded))
+
+    meta_main = load_meta(role_path)
+    if isinstance(meta_main, dict):
+        sources.append(("meta/main.yml", meta_main))
+
+    for source_file, payload in sources:
+        argument_specs = payload.get("argument_specs")
+        if not isinstance(argument_specs, dict):
+            continue
+        for task_spec in argument_specs.values():
+            if not isinstance(task_spec, dict):
+                continue
+            options = task_spec.get("options")
+            if not isinstance(options, dict):
+                continue
+            for var_name, spec in options.items():
+                if not isinstance(var_name, str) or not isinstance(spec, dict):
+                    continue
+                if "{{" in var_name or "{%" in var_name:
+                    continue
+                yield source_file, var_name, spec
+
+
+def _map_argument_spec_type(spec_type: object) -> str:
+    """Map argument-spec type labels into scanner variable type labels."""
+    if not isinstance(spec_type, str):
+        return "documented"
+    normalized = spec_type.strip().lower()
+    if normalized in {"str", "raw", "path", "bytes", "bits"}:
+        return "string"
+    if normalized in {"int"}:
+        return "int"
+    if normalized in {"bool"}:
+        return "bool"
+    if normalized in {"dict"}:
+        return "dict"
+    if normalized in {"list"}:
+        return "list"
+    if normalized in {"float"}:
+        return "string"
+    return "documented"
+
+
 def load_variables(
     role_path: str,
     include_vars_main: bool = True,
@@ -1000,6 +1058,40 @@ def build_variable_insights(
                 "is_ambiguous": False,
             }
         )
+
+    # Discover declared role inputs from argument_specs metadata.
+    known_names = {row["name"] for row in rows}
+    for source_file, name, spec in _iter_role_argument_spec_entries(role_path):
+        if name in known_names:
+            continue
+        has_default = "default" in spec
+        default_value = spec.get("default")
+        required = bool(spec.get("required", False) and not has_default)
+        line_hint = _find_variable_line_in_yaml(Path(role_path) / source_file, name)
+        rows.append(
+            {
+                "name": name,
+                "type": _map_argument_spec_type(spec.get("type")),
+                "default": (
+                    _format_inline_yaml(default_value) if has_default else "<required>"
+                ),
+                "source": f"{source_file} (argument_specs)",
+                "documented": True,
+                "required": required,
+                "secret": _is_sensitive_variable(name, default_value),
+                "provenance_source_file": source_file,
+                "provenance_line": line_hint,
+                "provenance_confidence": 0.88 if has_default else 0.78,
+                "uncertainty_reason": (
+                    "Declared in argument_specs without a static default value."
+                    if required
+                    else None
+                ),
+                "is_unresolved": required,
+                "is_ambiguous": False,
+            }
+        )
+        known_names.add(name)
 
     known_names: set[str] = {row["name"] for row in rows}
     referenced_names = _collect_referenced_variable_names(

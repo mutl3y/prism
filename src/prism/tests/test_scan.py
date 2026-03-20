@@ -624,6 +624,66 @@ def test_build_variable_insights_mentions_dynamic_include_vars_uncertainty(tmp_p
     assert "Dynamic include_vars" in unresolved["uncertainty_reason"]
 
 
+def test_build_variable_insights_reads_meta_argument_specs_file(tmp_path):
+    role = tmp_path / "role"
+    (role / "meta").mkdir(parents=True)
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+    (role / "meta" / "argument_specs.yml").write_text(
+        "argument_specs:\n"
+        "  main:\n"
+        "    options:\n"
+        "      arg_required:\n"
+        "        type: str\n"
+        "        required: true\n"
+        "      arg_with_default:\n"
+        "        type: int\n"
+        "        default: 5\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role))
+    by_name = {row["name"]: row for row in rows}
+
+    required = by_name["arg_required"]
+    assert required["source"] == "meta/argument_specs.yml (argument_specs)"
+    assert required["required"] is True
+    assert required["is_unresolved"] is True
+    assert required["default"] == "<required>"
+    assert "argument_specs" in required["uncertainty_reason"]
+
+    with_default = by_name["arg_with_default"]
+    assert with_default["source"] == "meta/argument_specs.yml (argument_specs)"
+    assert with_default["required"] is False
+    assert with_default["is_unresolved"] is False
+    assert with_default["default"] == "5"
+    assert with_default["type"] == "int"
+
+
+def test_build_variable_insights_reads_meta_main_embedded_argument_specs(tmp_path):
+    role = tmp_path / "role"
+    (role / "meta").mkdir(parents=True)
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+    (role / "meta" / "main.yml").write_text(
+        "argument_specs:\n"
+        "  main:\n"
+        "    options:\n"
+        "      embedded_opt:\n"
+        "        type: bool\n"
+        "        default: true\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role))
+    row = next(item for item in rows if item["name"] == "embedded_opt")
+
+    assert row["source"] == "meta/main.yml (argument_specs)"
+    assert row["type"] == "bool"
+    assert row["required"] is False
+    assert row["is_unresolved"] is False
+
+
 def test_extract_role_notes_from_comments(tmp_path):
     role = tmp_path / "role"
     tasks = role / "tasks"
