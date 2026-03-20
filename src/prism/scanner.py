@@ -454,7 +454,7 @@ def _scan_file_for_default_filters(file_path: Path, role_root: Path) -> list[dic
                         "args": args,
                     }
                 )
-    except (UnicodeDecodeError, PermissionError, OSError):
+    except UnicodeDecodeError, PermissionError, OSError:
         return []
     return occurrences
 
@@ -1007,7 +1007,9 @@ def _extract_role_notes_from_comments(
             j = i + 1
             while j < len(lines):
                 next_line = lines[j]
-                if ROLE_NOTES_RE.match(next_line) or ROLE_NOTES_SHORT_RE.match(next_line):
+                if ROLE_NOTES_RE.match(next_line) or ROLE_NOTES_SHORT_RE.match(
+                    next_line
+                ):
                     break
                 cont_match = COMMENT_CONTINUATION_RE.match(next_line)
                 if not cont_match:
@@ -1075,7 +1077,9 @@ def _extract_task_annotations_for_file(
         j = i + 1
         while j < len(lines):
             next_line = lines[j]
-            if TASK_NOTES_LONG_RE.match(next_line) or TASK_NOTES_SHORT_RE.match(next_line):
+            if TASK_NOTES_LONG_RE.match(next_line) or TASK_NOTES_SHORT_RE.match(
+                next_line
+            ):
                 break
             cont_match = COMMENT_CONTINUATION_RE.match(next_line)
             if not cont_match:
@@ -1445,12 +1449,12 @@ def _collect_task_handler_catalog(
     exclude_paths: list[str] | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     """Build optional detailed task and handler catalogs for README rendering.
-    
+
     Tasks are collected in execution order (depth-first), following includes
     as they would be encountered during Ansible playbook execution.
     """
     role_root = Path(role_path).resolve()
-    
+
     def _collect_tasks_recursive(
         task_file: Path,
         task_entries: list[dict[str, object]],
@@ -1461,7 +1465,7 @@ def _collect_task_handler_catalog(
             return
         if _is_path_excluded(task_file, role_root, exclude_paths):
             return
-        
+
         seen_files.add(task_file)
         data = _load_yaml_file(task_file)
         try:
@@ -1476,7 +1480,7 @@ def _collect_task_handler_catalog(
         # Strip "tasks/" prefix since this is a task catalog
         if relpath.startswith("tasks/"):
             relpath = relpath[6:]
-        
+
         for task in _iter_task_mappings(data):
             # Add this task to the catalog
             module_name = _detect_task_module(task) or "unknown"
@@ -1505,21 +1509,27 @@ def _collect_task_handler_catalog(
                     "annotations": annotations,
                 }
             )
-            
+
             # If this task includes/imports another file, process it inline
             for include_key in TASK_INCLUDE_KEYS:
                 if include_key in task:
                     include_target = task[include_key]
-                    if isinstance(include_target, str) and not ("{{" in include_target or "{%" in include_target):
-                        included_file = _resolve_task_include(role_root, task_file, include_target)
+                    if isinstance(include_target, str) and not (
+                        "{{" in include_target or "{%" in include_target
+                    ):
+                        included_file = _resolve_task_include(
+                            role_root, task_file, include_target
+                        )
                         if included_file:
-                            _collect_tasks_recursive(included_file, task_entries, seen_files)
-    
+                            _collect_tasks_recursive(
+                                included_file, task_entries, seen_files
+                            )
+
     # Start with main.yml if it exists, otherwise with any available task file
     tasks_dir = role_root / "tasks"
     task_entries: list[dict[str, object]] = []
     seen_files: set[Path] = set()
-    
+
     if tasks_dir.is_dir():
         main_file = tasks_dir / "main.yml"
         if main_file.exists():
@@ -1532,7 +1542,7 @@ def _collect_task_handler_catalog(
                 if path.is_file() and path.suffix in {".yml", ".yaml"}
             ):
                 _collect_tasks_recursive(task_file, task_entries, seen_files)
-    
+
     # Handlers are typically not nested, so collect them normally
     handler_entries: list[dict[str, object]] = []
     handlers_dir = role_root / "handlers"
@@ -1556,7 +1566,9 @@ def _collect_task_handler_catalog(
                         "name": task_name,
                         "module": module_name,
                         "parameters": _compact_task_parameters(task, module_name),
-                        "anchor": _task_anchor(relpath, task_name, len(handler_entries) + 1),
+                        "anchor": _task_anchor(
+                            relpath, task_name, len(handler_entries) + 1
+                        ),
                     }
                 )
     return task_entries, handler_entries
@@ -2366,9 +2378,7 @@ def _render_role_variables_for_style(variables: dict, metadata: dict) -> str:
                 ]
             )
         lines.extend(["| Name | Default | Description |", "| --- | --- | --- |"])
-        source_by_name = {
-            row.get("name"): row for row in local_rows if row.get("name")
-        }
+        source_by_name = {row.get("name"): row for row in local_rows if row.get("name")}
         for name, value in variables.items():
             row = source_by_name.get(name) or {}
             default = str(row.get("default") or _format_inline_yaml(value)).replace(
@@ -3241,7 +3251,7 @@ def _detect_task_module(task: dict) -> str | None:
             if "import_tasks" in include_key:
                 return "import_tasks"
             return "include_tasks"
-    
+
     # Then look for regular modules
     for key in task:
         if key in TASK_META_KEYS or key in TASK_BLOCK_KEYS:

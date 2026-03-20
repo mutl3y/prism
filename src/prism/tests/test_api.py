@@ -647,7 +647,9 @@ def test_scan_collection_extracts_filter_plugins_into_catalog(monkeypatch, tmp_p
     assert catalog["failures"] == []
 
 
-def test_scan_collection_filter_summary_prefers_function_docstring(monkeypatch, tmp_path):
+def test_scan_collection_filter_summary_prefers_function_docstring(
+    monkeypatch, tmp_path
+):
     collection_root = tmp_path / "demo_collection"
     (collection_root / "roles" / "role_a").mkdir(parents=True)
     (collection_root / "plugins" / "filter").mkdir(parents=True)
@@ -677,7 +679,9 @@ def test_scan_collection_filter_summary_prefers_function_docstring(monkeypatch, 
     payload = api.scan_collection(str(collection_root))
     record = payload["plugin_catalog"]["by_type"]["filter"][0]
 
-    assert record["summary"] == "Check whether an IP belongs to the supplied CIDR block."
+    assert (
+        record["summary"] == "Check whether an IP belongs to the supplied CIDR block."
+    )
     assert record["doc_source"] == "filter_function_docstring"
 
 

@@ -104,9 +104,7 @@ def scan_collection_plugins(collection_root: Path) -> PluginCatalog:
         len(catalog["by_type"][plugin_type]) for plugin_type in PLUGIN_TYPES
     )
     catalog["summary"]["types_present"] = [
-        plugin_type
-        for plugin_type in PLUGIN_TYPES
-        if catalog["by_type"][plugin_type]
+        plugin_type for plugin_type in PLUGIN_TYPES if catalog["by_type"][plugin_type]
     ]
     return catalog
 
@@ -119,7 +117,9 @@ def _scan_filter_plugins(
     records = catalog["by_type"]["filter"]
     failures = catalog["failures"]
 
-    for plugin_file in sorted(path for path in plugin_dir.rglob("*.py") if path.is_file()):
+    for plugin_file in sorted(
+        path for path in plugin_dir.rglob("*.py") if path.is_file()
+    ):
         relpath = _relative_path(plugin_file, collection_root)
         catalog["summary"]["files_scanned"] += 1
         try:
@@ -372,16 +372,19 @@ def _module_function_docstrings(parsed: ast.Module) -> dict[str, str]:
 def _extract_python_plugin_summary(
     plugin_file: Path,
     plugin_type: str,
-) -> tuple[
-    str,
-    str,
-    str,
-    str,
-    float,
-    list[str],
-    list[str],
-    dict[str, str],
-] | None:
+) -> (
+    tuple[
+        str,
+        str,
+        str,
+        str,
+        float,
+        list[str],
+        list[str],
+        dict[str, str],
+    ]
+    | None
+):
     try:
         text = plugin_file.read_text(encoding="utf-8")
     except Exception:
@@ -452,7 +455,9 @@ def _extract_documentation_literals(parsed: ast.Module) -> dict[str, str]:
             "EXAMPLES",
             "RETURN",
         }:
-            if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            if isinstance(node.value, ast.Constant) and isinstance(
+                node.value.value, str
+            ):
                 blocks[target.id] = node.value.value
     return blocks
 
@@ -489,7 +494,9 @@ def _extract_python_symbol_names(parsed: ast.Module) -> list[str]:
     return sorted(symbols)
 
 
-def _extract_short_description_from_documentation(documentation: str | None) -> str | None:
+def _extract_short_description_from_documentation(
+    documentation: str | None,
+) -> str | None:
     if not documentation:
         return None
     match = re.search(
