@@ -1597,6 +1597,123 @@ def test_render_guide_section_body_variable_guidance_priority_and_fallbacks():
     assert "Use these as initial overrides" in with_rows
 
 
+def test_render_guide_section_body_task_summary_handles_parse_overflow_and_catalog():
+    metadata = {
+        "doc_insights": {
+            "task_summary": {
+                "task_files_scanned": 7,
+                "tasks_scanned": 14,
+                "recursive_task_includes": 2,
+                "module_count": 4,
+                "handler_count": 3,
+            }
+        },
+        "yaml_parse_failures": [
+            {"file": f"tasks/bad_{idx}.yml", "error": f"parse error {idx}"}
+            for idx in range(6)
+        ],
+        "detailed_catalog": True,
+        "task_catalog": [
+            "skip-me",
+            {
+                "file": "tasks/main.yml",
+                "name": "Install",
+                "module": "ansible.builtin.package",
+                "parameters": "name=httpd state=present",
+            },
+        ],
+    }
+
+    rendered = scanner._render_guide_section_body(
+        "task_summary",
+        "demo",
+        "desc",
+        {},
+        [],
+        [],
+        metadata,
+    )
+
+    assert "YAML parse failures" in rendered
+    assert "... and 1 additional parse failures" in rendered
+    assert "Detailed task catalog:" in rendered
+    assert "| `tasks/main.yml` | Install |" in rendered
+
+
+def test_render_guide_section_body_local_testing_fallback_and_unspecified_platforms():
+    with_tests = scanner._render_guide_section_body(
+        "local_testing",
+        "demo",
+        "desc",
+        {},
+        [],
+        [],
+        {
+            "tests": ["tests/inventory", "tests/playbook.txt"],
+            "molecule_scenarios": [
+                "skip",
+                {"name": "default", "driver": "podman", "platforms": []},
+            ],
+        },
+    )
+    fallback = scanner._render_guide_section_body(
+        "local_testing",
+        "demo",
+        "desc",
+        {},
+        [],
+        [],
+        {
+            "tests": [],
+            "molecule_scenarios": [{"name": "smoke", "platforms": []}],
+        },
+    )
+
+    assert "ansible-playbook -i tests/inventory tests/inventory" in with_tests
+    assert "platforms: unspecified" in with_tests
+    assert "Run `tox` or `pytest -q` locally" in fallback
+    assert "Molecule scenarios detected:" in fallback
+
+
+def test_render_guide_section_body_handlers_empty_and_catalog_non_dict():
+    empty = scanner._render_guide_section_body(
+        "handlers",
+        "demo",
+        "desc",
+        {},
+        [],
+        [],
+        {"features": {}, "handlers": [], "doc_insights": {}},
+    )
+    catalog = scanner._render_guide_section_body(
+        "handlers",
+        "demo",
+        "desc",
+        {},
+        [],
+        [],
+        {
+            "features": {"handlers_notified": "restart service"},
+            "handlers": ["handlers/main.yml"],
+            "doc_insights": {"task_summary": {"handler_count": 1}},
+            "detailed_catalog": True,
+            "handler_catalog": [
+                "skip",
+                {
+                    "file": "handlers/main.yml",
+                    "name": "restart service",
+                    "module": "ansible.builtin.service",
+                    "parameters": "name=demo state=restarted",
+                },
+            ],
+        },
+    )
+
+    assert empty == "No handler activity was detected."
+    assert "Detailed handler catalog:" in catalog
+    assert "| `handlers/main.yml` | restart service |" in catalog
+
+
 def test_collect_molecule_scenarios_ignores_malformed_and_excluded_files(tmp_path):
     role = tmp_path / "role"
     valid = role / "molecule" / "default"
