@@ -29,8 +29,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Completed workoff/schedule plan documents were moved into `docs/completed_plans/` as archived records.
 - GitHub Pages project-site configuration now sets `url`/`baseurl` for `mutl3y/prism` and uses `relative_url` links on the docs home page.
 - Unfinished local fixture `src/prism/tests/roles/test_dynamic_role/` was untracked from commits so in-progress role work can continue locally without affecting test sources.
-- GitHub Pages project-site configuration now sets `url`/`baseurl` for `mutl3y/prism` and uses `relative_url` links on the docs home page.
-- Unfinished local fixture `src/prism/tests/roles/test_dynamic_role/` was untracked from commits so in-progress role work can continue locally without affecting test sources.
 
 ### Fixed (Unreleased)
 
