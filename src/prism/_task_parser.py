@@ -37,6 +37,12 @@ TASK_INCLUDE_KEYS = {
     "ansible.builtin.include_tasks",
     "ansible.builtin.import_tasks",
 }
+ROLE_INCLUDE_KEYS = {
+    "include_role",
+    "import_role",
+    "ansible.builtin.include_role",
+    "ansible.builtin.import_role",
+}
 INCLUDE_VARS_KEYS = {
     "include_vars",
     "ansible.builtin.include_vars",
@@ -182,6 +188,29 @@ def _iter_task_include_targets(data: object) -> list[str]:
                 if isinstance(file_value, str):
                     targets.append(file_value)
     return targets
+
+
+def _iter_role_include_targets(task: dict) -> list[str]:
+    """Return static role names referenced by include_role/import_role keys."""
+    role_targets: list[str] = []
+    for key in ROLE_INCLUDE_KEYS:
+        if key not in task:
+            continue
+        value = task[key]
+        ref: str | None = None
+        if isinstance(value, str):
+            ref = value
+        elif isinstance(value, dict):
+            candidate = value.get("name") or value.get("_raw_params")
+            if isinstance(candidate, str):
+                ref = candidate
+        if not ref:
+            continue
+        ref = ref.strip()
+        if not ref or "{{" in ref or "{%" in ref:
+            continue
+        role_targets.append(ref)
+    return role_targets
 
 
 def _iter_task_mappings(data: object):
@@ -721,12 +750,17 @@ def extract_role_features(
     modules: set[str] = set()
     external_collections: set[str] = set()
     handlers_notified: set[str] = set()
+    included_roles: set[str] = set()
+    included_role_calls = 0
 
     for task_file in task_files:
         data = _load_yaml_file(task_file)
         include_count += len(_iter_task_include_targets(data))
         for task in _iter_task_mappings(data):
             tasks_scanned += 1
+            included_targets = _iter_role_include_targets(task)
+            included_role_calls += len(included_targets)
+            included_roles.update(included_targets)
             module_name = _detect_task_module(task)
             if module_name:
                 modules.add(module_name)
@@ -763,4 +797,8 @@ def extract_role_features(
         "privileged_tasks": privileged_tasks,
         "conditional_tasks": conditional_tasks,
         "tagged_tasks": tagged_tasks,
+        "included_role_calls": included_role_calls,
+        "included_roles": (
+            ", ".join(sorted(included_roles)) if included_roles else "none"
+        ),
     }
