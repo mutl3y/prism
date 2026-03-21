@@ -6,17 +6,39 @@
 # The list is sorted alphabetically.
 
 ignored_identifiers:
+  - and
   - ansible_facts
+  - callable
   - default
+  - defined
+  - divisibleby
+  - equalto
+  - even
   - "false"
+  - float
   - groups
   - hostvars
+  - in
+  - integer
   - inventory_hostname
+  - is
+  - iterable
   - item
   - lookup
+  - lower
+  - mapping
   - none
+  - not
   - "null"
+  - number
+  - odd
   - omit
+  - or
   - query
+  - sameas
+  - sequence
+  - string
   - "true"
+  - undefined
+  - upper
   - vars
