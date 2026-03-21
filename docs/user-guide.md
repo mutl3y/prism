@@ -5,6 +5,8 @@ title: User Guide
 
 Use this page as the task catalog for day-to-day usage.
 
+For runnable end-to-end examples, see [demos.md](./demos.md).
+
 ## Role Contract Mindset
 
 Treat generated output as the role's interface contract.

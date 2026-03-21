@@ -37,19 +37,21 @@ prism role path/to/role -o README.md
 
 ## Learning Order
 
-1. [Getting Started](./getting-started.md)
-2. [User Guide](./user-guide.md)
-3. [Provenance Tracking](./provenance-tracking.md)
-4. [Comment-Driven Documentation](./comment-driven-documentation.md)
-5. [Prism-Friendly Role Authoring](./prism-friendly-role-authoring.md)
-6. [DevOps Guide](./devops-guide.md)
-7. [Feedback Integration](./feedback-integration.md)
-8. [Changelog](./changelog.md)
+1. [Demos](./demos.md)
+2. [Getting Started](./getting-started.md)
+3. [User Guide](./user-guide.md)
+4. [Provenance Tracking](./provenance-tracking.md)
+5. [Comment-Driven Documentation](./comment-driven-documentation.md)
+6. [Prism-Friendly Role Authoring](./prism-friendly-role-authoring.md)
+7. [DevOps Guide](./devops-guide.md)
+8. [Feedback Integration](./feedback-integration.md)
+9. [Changelog](./changelog.md)
 
 ## Track By Role
 
 For average users:
 
+- run Demos first for runnable reference workflows
 - start at Getting Started and complete the first role scan
 - use User Guide workflows for routine docs generation
 - use Provenance Tracking to understand what Prism knows versus infers
@@ -83,3 +85,5 @@ short product explanation before the engineering details.
 ## Developer Documentation
 
 Engineering and project maintenance documentation lives under `dev_docs/`.
+
+For runnable examples, start with [demos.md](./demos.md).
