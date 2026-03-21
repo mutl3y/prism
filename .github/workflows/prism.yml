@@ -51,7 +51,7 @@ jobs:
 
       - name: Generate role docs
         run: |
-          prism role src/prism/tests/roles/enhanced_mock_role -o README.generated.md
+          prism role src/prism/tests/roles/enhanced_mock_role --fail-on-yaml-like-task-annotations -o README.generated.md
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
