@@ -257,3 +257,4 @@ Execution gates (recommended order):
 - [x] Surface annotation quality counters in scanner report markdown output
 - [x] Add optional strict mode to fail lint/scan when YAML-like annotation payloads are detected
 - [x] Add docs examples showing valid `key=value` annotation patterns
+- [x] Define fleet threshold guidance for annotation quality counters

@@ -1,6 +1,6 @@
 # Annotation Quality Workoff Plan
 
-**Status**: In Progress
+**Status**: Complete
 **Updated**: 2026-03-21
 
 ## Scope
@@ -26,9 +26,15 @@ Raise quality and consistency of marker-comment annotations (for example `# pris
 
 ## Remaining work
 
-1. Evaluate threshold guidance for fleet reporting:
-   - expected `yaml_like_task_annotations == 0`
-   - expected `disabled_task_annotations` within team-defined baseline.
+None for this workoff item.
+
+## Fleet Threshold Guidance
+
+- `yaml_like_task_annotations`: target `0` for every role and scan run.
+- `yaml_like_task_annotations`: in CI, prefer strict mode (`--fail-on-yaml-like-task-annotations`) once repos are remediated.
+- `disabled_task_annotations`: maintain a team-owned baseline per role family; treat upward drift as a review trigger.
+- `disabled_task_annotations`: recommended policy is warn on any increase from baseline, and fail only when crossing a team-defined hard cap.
+- Review cadence: recompute baselines after planned refactors or role consolidation changes.
 
 ## Validation checklist
 
