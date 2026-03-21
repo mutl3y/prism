@@ -1,0 +1,5 @@
+file,task_name,step
+main.yml,Prepare demo service prerequisites,owner=platform impact=low
+prepare.yml,Ensure demo service group exists,owner=platform step=prepare impact=low
+main.yml,Ensure demo config file is present,Note: This fixture exists only to exercise Prism scanners.
+deploy.yml,Render demo service configuration,Warning: rollback=manual timeout=60s

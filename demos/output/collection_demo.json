@@ -1,0 +1,686 @@
+{
+  "collection": {
+    "path": "/raid5/source/test/prism/demos/fixtures/collection_demo",
+    "metadata": {
+      "namespace": "demo",
+      "name": "prism_demos",
+      "version": "1.0.0",
+      "readme": "README.md",
+      "authors": [
+        "prism"
+      ],
+      "description": "Minimal collection fixture for Prism demos",
+      "license": [
+        "MIT"
+      ]
+    }
+  },
+  "dependencies": {
+    "collections": [],
+    "roles": [],
+    "conflicts": []
+  },
+  "plugin_catalog": {
+    "schema_version": 1,
+    "summary": {
+      "total_plugins": 13,
+      "types_present": [
+        "filter",
+        "modules",
+        "lookup",
+        "inventory",
+        "callback",
+        "connection",
+        "strategy",
+        "test",
+        "doc_fragments",
+        "module_utils"
+      ],
+      "files_scanned": 13,
+      "files_failed": 0
+    },
+    "by_type": {
+      "filter": [
+        {
+          "type": "filter",
+          "name": "demo_filters",
+          "relative_path": "plugins/filter/demo_filters.py",
+          "language": "python",
+          "symbols": [
+            "upper_trimmed"
+          ],
+          "summary": "Filter plugin fixture for Prism collection demo.",
+          "doc_source": "module_docstring",
+          "confidence": "high",
+          "confidence_score": 0.95,
+          "extraction": {
+            "method": "ast",
+            "ast_version": "py3",
+            "fallback_used": false
+          },
+          "capability_hints": [
+            "upper_trimmed"
+          ]
+        }
+      ],
+      "modules": [
+        {
+          "type": "modules",
+          "name": "demo_ping",
+          "relative_path": "plugins/modules/demo_ping.py",
+          "language": "python",
+          "symbols": [
+            "main"
+          ],
+          "summary": "Demo module fixture for Prism plugin inventory",
+          "doc_source": "documentation_short_description",
+          "confidence": "medium",
+          "confidence_score": 0.7,
+          "extraction": {
+            "method": "ast",
+            "ast_version": "py3",
+            "fallback_used": false
+          },
+          "documentation_blocks": {
+            "DOCUMENTATION": "\n---\nmodule: demo_ping\nshort_description: Demo module fixture for Prism plugin inventory\ndescription:\n  - Minimal module file used to demonstrate module plugin discovery.\noptions:\n  message:\n    description:\n      - Message returned by the demo module.\n    type: str\n    default: pong\n",
+            "EXAMPLES": "\n- name: Run demo ping module\n  demo.prism_demos.demo_ping:\n    message: hello\n",
+            "RETURN": "\nmessage:\n  description: Response message.\n  type: str\n  returned: always\n"
+          }
+        },
+        {
+          "type": "modules",
+          "name": "demo_report",
+          "relative_path": "plugins/modules/demo_report.py",
+          "language": "python",
+          "symbols": [
+            "main"
+          ],
+          "summary": "Demo reporting module fixture for Prism plugin inventory",
+          "doc_source": "documentation_short_description",
+          "confidence": "medium",
+          "confidence_score": 0.7,
+          "extraction": {
+            "method": "ast",
+            "ast_version": "py3",
+            "fallback_used": false
+          },
+          "documentation_blocks": {
+            "DOCUMENTATION": "\n---\nmodule: demo_report\nshort_description: Demo reporting module fixture for Prism plugin inventory\ndescription:\n  - A second module plugin that makes generated documentation more representative.\noptions:\n  format:\n    description:\n      - Output format for the generated report.\n    type: str\n    default: text\n",
+            "EXAMPLES": "\n- name: Generate a demo report\n  demo.prism_demos.demo_report:\n    format: json\n"
+          }
+        }
+      ],
+      "lookup": [
+        {
+          "type": "lookup",
+          "name": "demo_lookup",
+          "relative_path": "plugins/lookup/demo_lookup.py",
+          "language": "python",
+          "symbols": [
+            "LookupModule",
+            "run"
+          ],
+          "summary": "Return a small static lookup payload for demos",
+          "doc_source": "documentation_short_description",
+          "confidence": "medium",
+          "confidence_score": 0.7,
+          "extraction": {
+            "method": "ast",
+            "ast_version": "py3",
+            "fallback_used": false
+          },
+          "capability_hints": [
+            "LookupModule.run"
+          ],
+          "documentation_blocks": {
+            "DOCUMENTATION": "\n---\nlookup: demo_lookup\nshort_description: Return a small static lookup payload for demos\ndescription:\n  - Used by the Prism demo collection to populate non-filter plugin inventory.\n"
+          }
+        },
+        {
+          "type": "lookup",
+          "name": "environment_lookup",
+          "relative_path": "plugins/lookup/environment_lookup.py",
+          "language": "python",
+          "symbols": [
+            "LookupModule",
+            "run"
+          ],
+          "summary": "Demo lookup that returns environment-style values",
+          "doc_source": "documentation_short_description",
+          "confidence": "medium",
+          "confidence_score": 0.7,
+          "extraction": {
+            "method": "ast",
+            "ast_version": "py3",
+            "fallback_used": false
+          },
+          "capability_hints": [
+            "LookupModule.run"
+          ],
+          "documentation_blocks": {
+            "DOCUMENTATION": "\n---\nlookup: environment_lookup\nshort_description: Demo lookup that returns environment-style values\ndescription:\n  - Demonstrates how Prism inventories multiple lookup plugins in one collection.\n"
+          }
+        }
+      ],
+      "inventory": [
+        {
+          "type": "inventory",
+          "name": "demo_inventory",
+          "relative_path": "plugins/inventory/demo_inventory.py",
+          "language": "python",
+          "symbols": [
+            "InventoryModule",
+            "parse"
+          ],
+          "summary": "Demo dynamic inventory plugin fixture",
+          "doc_source": "documentation_short_description",
+          "confidence": "medium",
+          "confidence_score": 0.7,
+          "extraction": {
+            "method": "ast",
+            "ast_version": "py3",
+            "fallback_used": false
+          },
+          "capability_hints": [
+            "InventoryModule.parse"
+          ],
+          "documentation_blocks": {
+            "DOCUMENTATION": "\n---\nplugin: demo_inventory\nshort_description: Demo dynamic inventory plugin fixture\ndescription:\n  - Provides a minimal inventory plugin so Prism can document inventory coverage.\noptions:\n  plugin:\n    description:\n      - Token required by Ansible inventory plugin loading.\n    required: true\n    choices:\n      - demo.prism_demos.demo_inventory\n"
+          }
+        }
+      ],
+      "callback": [
+        {
+          "type": "callback",
+          "name": "audit_callback",
+          "relative_path": "plugins/callback/audit_callback.py",
+          "language": "python",
+          "symbols": [],
+          "summary": "Demo audit callback plugin",
+          "doc_source": "documentation_short_description",
+          "confidence": "medium",
+          "confidence_score": 0.7,
+          "extraction": {
+            "method": "ast",
+            "ast_version": "py3",
+            "fallback_used": false
+          },
+          "documentation_blocks": {
+            "DOCUMENTATION": "\n---\ncallback: audit_callback\nshort_description: Demo audit callback plugin\ntype: aggregate\ndescription:\n  - Represents a second callback plugin so generated docs can show callback breadth.\n"
+          }
+        },
+        {
+          "type": "callback",
+          "name": "demo_callback",
+          "relative_path": "plugins/callback/demo_callback.py",
+          "language": "python",
+          "symbols": [],
+          "summary": "Demo callback plugin fixture",
+          "doc_source": "documentation_short_description",
+          "confidence": "medium",
+          "confidence_score": 0.7,
+          "extraction": {
+            "method": "ast",
+            "ast_version": "py3",
+            "fallback_used": false
+          },
+          "documentation_blocks": {
+            "DOCUMENTATION": "\n---\ncallback: demo_callback\nshort_description: Demo callback plugin fixture\ntype: stdout\ndescription:\n  - Minimal callback plugin used for inventory demos.\n"
+          }
+        }
+      ],
+      "connection": [
+        {
+          "type": "connection",
+          "name": "demo_connection",
+          "relative_path": "plugins/connection/demo_connection.py",
+          "language": "python",
+          "symbols": [
+            "Connection",
+            "exec_command"
+          ],
+          "summary": "Demo connection plugin fixture",
+          "doc_source": "documentation_short_description",
+          "confidence": "medium",
+          "confidence_score": 0.7,
+          "extraction": {
+            "method": "ast",
+            "ast_version": "py3",
+            "fallback_used": false
+          },
+          "capability_hints": [
+            "Connection.exec_command"
+          ],
+          "documentation_blocks": {
+            "DOCUMENTATION": "\n---\nconnection: demo_connection\nshort_description: Demo connection plugin fixture\ndescription:\n  - Minimal connection plugin used to demonstrate connection plugin inventory.\n"
+          }
+        }
+      ],
+      "strategy": [
+        {
+          "type": "strategy",
+          "name": "demo_strategy",
+          "relative_path": "plugins/strategy/demo_strategy.py",
+          "language": "python",
+          "symbols": [
+            "StrategyModule",
+            "run"
+          ],
+          "summary": "Demo strategy plugin fixture",
+          "doc_source": "documentation_short_description",
+          "confidence": "medium",
+          "confidence_score": 0.7,
+          "extraction": {
+            "method": "ast",
+            "ast_version": "py3",
+            "fallback_used": false
+          },
+          "capability_hints": [
+            "StrategyModule.run"
+          ],
+          "documentation_blocks": {
+            "DOCUMENTATION": "\n---\nstrategy: demo_strategy\nshort_description: Demo strategy plugin fixture\ndescription:\n  - Used to show strategy plugin discovery in generated collection docs.\n"
+          }
+        }
+      ],
+      "test": [
+        {
+          "type": "test",
+          "name": "demo_tests",
+          "relative_path": "plugins/test/demo_tests.py",
+          "language": "python",
+          "symbols": [
+            "TestModule",
+            "is_even_length",
+            "tests"
+          ],
+          "summary": "Demo Jinja test plugin fixture.",
+          "doc_source": "module_docstring",
+          "confidence": "medium",
+          "confidence_score": 0.65,
+          "extraction": {
+            "method": "ast",
+            "ast_version": "py3",
+            "fallback_used": false
+          }
+        }
+      ],
+      "doc_fragments": [
+        {
+          "type": "doc_fragments",
+          "name": "common_options",
+          "relative_path": "plugins/doc_fragments/common_options.py",
+          "language": "python",
+          "symbols": [],
+          "summary": "doc_fragments plugin `common_options`.",
+          "doc_source": "path_inventory",
+          "confidence": "low",
+          "confidence_score": 0.3,
+          "extraction": {
+            "method": "path_inventory",
+            "ast_version": null,
+            "fallback_used": false
+          }
+        }
+      ],
+      "module_utils": [
+        {
+          "type": "module_utils",
+          "name": "http_helpers",
+          "relative_path": "plugins/module_utils/http_helpers.py",
+          "language": "python",
+          "symbols": [
+            "build_demo_response"
+          ],
+          "summary": "Shared helper utilities for demo modules.",
+          "doc_source": "module_docstring",
+          "confidence": "medium",
+          "confidence_score": 0.65,
+          "extraction": {
+            "method": "ast",
+            "ast_version": "py3",
+            "fallback_used": false
+          }
+        }
+      ]
+    },
+    "failures": []
+  },
+  "roles": [
+    {
+      "role": "ops_role",
+      "path": "/raid5/source/test/prism/demos/fixtures/collection_demo/roles/ops_role",
+      "payload": {
+        "default_filters": [],
+        "description": "Operations-oriented role fixture for collection demos",
+        "metadata": {
+          "collection_compliance_notes": [],
+          "defaults": [
+            "defaults/main.yml"
+          ],
+          "detailed_catalog": false,
+          "doc_insights": {
+            "capabilities": [
+              "Deploy configuration or content files",
+              "Triggers role handlers based on task changes"
+            ],
+            "example_playbook": "- hosts: all\n  roles:\n    - role: ops_role\n      vars:\n        ops_role_retries: 3\n        ops_role_state_path: /tmp/prism-ops-role.state",
+            "purpose_summary": "Operations-oriented role fixture for collection demos",
+            "task_summary": {
+              "handler_count": 1,
+              "module_count": 2,
+              "recursive_task_includes": 0,
+              "task_files_scanned": 1,
+              "tasks_scanned": 2
+            }
+          },
+          "fail_on_unconstrained_dynamic_includes": false,
+          "fail_on_yaml_like_task_annotations": false,
+          "features": {
+            "conditional_tasks": 0,
+            "disabled_task_annotations": 0,
+            "dynamic_included_role_calls": 0,
+            "dynamic_included_roles": "none",
+            "external_collections": "none",
+            "handlers_notified": "Emit ops role refresh notice",
+            "included_role_calls": 0,
+            "included_roles": "none",
+            "privileged_tasks": 0,
+            "recursive_task_includes": 0,
+            "tagged_tasks": 0,
+            "task_files_scanned": 1,
+            "tasks_scanned": 2,
+            "unique_modules": "ansible.builtin.copy, ansible.builtin.debug",
+            "yaml_like_task_annotations": 0
+          },
+          "files": [],
+          "handlers": [
+            "handlers/main.yml"
+          ],
+          "include_task_parameters": true,
+          "include_task_runbooks": true,
+          "inline_task_runbooks": true,
+          "keep_unknown_style_sections": true,
+          "marker_prefix": "prism",
+          "meta": {
+            "dependencies": [],
+            "galaxy_info": {
+              "author": "prism",
+              "description": "Operations-oriented role fixture for collection demos",
+              "license": "MIT",
+              "min_ansible_version": "2.14",
+              "role_name": "ops_role"
+            }
+          },
+          "molecule_scenarios": [],
+          "role_notes": {
+            "additionals": [],
+            "deprecations": [],
+            "notes": [
+              "This role demonstrates a second collection role for aggregate docs."
+            ],
+            "warnings": []
+          },
+          "scanner_counters": {
+            "ambiguous_variables": 0,
+            "disabled_task_annotations": 0,
+            "documented_variables": 2,
+            "dynamic_included_role_calls": 0,
+            "high_confidence_variables": 2,
+            "included_role_calls": 0,
+            "low_confidence_variables": 0,
+            "medium_confidence_variables": 0,
+            "provenance_issue_categories": {
+              "ambiguous_defaults_vars_override": 0,
+              "ambiguous_include_vars_sources": 0,
+              "ambiguous_other": 0,
+              "ambiguous_set_fact_runtime": 0,
+              "unresolved_dynamic_include_vars": 0,
+              "unresolved_no_static_definition": 0,
+              "unresolved_other": 0,
+              "unresolved_readme_documented_only": 0
+            },
+            "required_variables": 0,
+            "secret_variables": 0,
+            "total_default_filters": 0,
+            "total_variables": 2,
+            "undocumented_default_filters": 0,
+            "undocumented_variables": 0,
+            "unresolved_variables": 0,
+            "yaml_like_task_annotations": 0,
+            "yaml_parse_failures": 0
+          },
+          "tasks": [
+            "tasks/main.yml"
+          ],
+          "templates": [],
+          "tests": [],
+          "unconstrained_dynamic_role_includes": [],
+          "unconstrained_dynamic_task_includes": [],
+          "variable_insights": [
+            {
+              "default": "3",
+              "documented": true,
+              "is_ambiguous": false,
+              "is_unresolved": false,
+              "name": "ops_role_retries",
+              "provenance_confidence": 0.95,
+              "provenance_line": 3,
+              "provenance_source_file": "defaults/main.yml",
+              "required": false,
+              "secret": false,
+              "source": "defaults/main.yml",
+              "type": "int",
+              "uncertainty_reason": null
+            },
+            {
+              "default": "/tmp/prism-ops-role.state",
+              "documented": true,
+              "is_ambiguous": false,
+              "is_unresolved": false,
+              "name": "ops_role_state_path",
+              "provenance_confidence": 0.95,
+              "provenance_line": 2,
+              "provenance_source_file": "defaults/main.yml",
+              "required": false,
+              "secret": false,
+              "source": "defaults/main.yml",
+              "type": "str",
+              "uncertainty_reason": null
+            }
+          ],
+          "vars": [],
+          "yaml_parse_failures": []
+        },
+        "requirements": [],
+        "role_name": "ops_role",
+        "variables": {
+          "ops_role_retries": 3,
+          "ops_role_state_path": "/tmp/prism-ops-role.state"
+        }
+      },
+      "rendered_readme": null
+    },
+    {
+      "role": "sample_role",
+      "path": "/raid5/source/test/prism/demos/fixtures/collection_demo/roles/sample_role",
+      "payload": {
+        "default_filters": [],
+        "description": "Role fixture packaged inside collection demo",
+        "metadata": {
+          "collection_compliance_notes": [],
+          "defaults": [
+            "defaults/main.yml"
+          ],
+          "detailed_catalog": false,
+          "doc_insights": {
+            "capabilities": [
+              "Deploy configuration or content files",
+              "Uses nested task includes for modular orchestration",
+              "Triggers role handlers based on task changes"
+            ],
+            "example_playbook": "- hosts: all\n  roles:\n    - role: sample_role\n      vars:\n        collection_demo_enabled: true\n        collection_demo_message: Hello from collection sample_role\n        collection_demo_tags: [docs, collection]",
+            "purpose_summary": "Role fixture packaged inside collection demo",
+            "task_summary": {
+              "handler_count": 1,
+              "module_count": 4,
+              "recursive_task_includes": 1,
+              "task_files_scanned": 2,
+              "tasks_scanned": 4
+            }
+          },
+          "fail_on_unconstrained_dynamic_includes": false,
+          "fail_on_yaml_like_task_annotations": false,
+          "features": {
+            "conditional_tasks": 0,
+            "disabled_task_annotations": 0,
+            "dynamic_included_role_calls": 0,
+            "dynamic_included_roles": "none",
+            "external_collections": "none",
+            "handlers_notified": "Refresh collection sample role state",
+            "included_role_calls": 0,
+            "included_roles": "none",
+            "privileged_tasks": 0,
+            "recursive_task_includes": 1,
+            "tagged_tasks": 0,
+            "task_files_scanned": 2,
+            "tasks_scanned": 4,
+            "unique_modules": "ansible.builtin.copy, ansible.builtin.debug, ansible.builtin.template, import_tasks",
+            "yaml_like_task_annotations": 0
+          },
+          "files": [],
+          "handlers": [
+            "handlers/main.yml"
+          ],
+          "include_task_parameters": true,
+          "include_task_runbooks": true,
+          "inline_task_runbooks": true,
+          "keep_unknown_style_sections": true,
+          "marker_prefix": "prism",
+          "meta": {
+            "dependencies": [],
+            "galaxy_info": {
+              "author": "prism",
+              "description": "Role fixture packaged inside collection demo",
+              "license": "MIT",
+              "min_ansible_version": "2.14",
+              "role_name": "sample_role"
+            }
+          },
+          "molecule_scenarios": [],
+          "role_notes": {
+            "additionals": [],
+            "deprecations": [],
+            "notes": [],
+            "warnings": []
+          },
+          "scanner_counters": {
+            "ambiguous_variables": 0,
+            "disabled_task_annotations": 0,
+            "documented_variables": 3,
+            "dynamic_included_role_calls": 0,
+            "high_confidence_variables": 3,
+            "included_role_calls": 0,
+            "low_confidence_variables": 0,
+            "medium_confidence_variables": 0,
+            "provenance_issue_categories": {
+              "ambiguous_defaults_vars_override": 0,
+              "ambiguous_include_vars_sources": 0,
+              "ambiguous_other": 0,
+              "ambiguous_set_fact_runtime": 0,
+              "unresolved_dynamic_include_vars": 0,
+              "unresolved_no_static_definition": 0,
+              "unresolved_other": 0,
+              "unresolved_readme_documented_only": 0
+            },
+            "required_variables": 0,
+            "secret_variables": 0,
+            "total_default_filters": 0,
+            "total_variables": 3,
+            "undocumented_default_filters": 0,
+            "undocumented_variables": 0,
+            "unresolved_variables": 0,
+            "yaml_like_task_annotations": 0,
+            "yaml_parse_failures": 0
+          },
+          "tasks": [
+            "tasks/configure.yml",
+            "tasks/main.yml"
+          ],
+          "templates": [
+            "templates/sample-role.txt.j2"
+          ],
+          "tests": [],
+          "unconstrained_dynamic_role_includes": [],
+          "unconstrained_dynamic_task_includes": [],
+          "variable_insights": [
+            {
+              "default": "true",
+              "documented": true,
+              "is_ambiguous": false,
+              "is_unresolved": false,
+              "name": "collection_demo_enabled",
+              "provenance_confidence": 0.95,
+              "provenance_line": 3,
+              "provenance_source_file": "defaults/main.yml",
+              "required": false,
+              "secret": false,
+              "source": "defaults/main.yml",
+              "type": "bool",
+              "uncertainty_reason": null
+            },
+            {
+              "default": "Hello from collection sample_role",
+              "documented": true,
+              "is_ambiguous": false,
+              "is_unresolved": false,
+              "name": "collection_demo_message",
+              "provenance_confidence": 0.95,
+              "provenance_line": 2,
+              "provenance_source_file": "defaults/main.yml",
+              "required": false,
+              "secret": false,
+              "source": "defaults/main.yml",
+              "type": "str",
+              "uncertainty_reason": null
+            },
+            {
+              "default": "[docs, collection]",
+              "documented": true,
+              "is_ambiguous": false,
+              "is_unresolved": false,
+              "name": "collection_demo_tags",
+              "provenance_confidence": 0.95,
+              "provenance_line": 4,
+              "provenance_source_file": "defaults/main.yml",
+              "required": false,
+              "secret": false,
+              "source": "defaults/main.yml",
+              "type": "list",
+              "uncertainty_reason": null
+            }
+          ],
+          "vars": [],
+          "yaml_parse_failures": []
+        },
+        "requirements": [],
+        "role_name": "sample_role",
+        "variables": {
+          "collection_demo_enabled": true,
+          "collection_demo_message": "Hello from collection sample_role",
+          "collection_demo_tags": [
+            "docs",
+            "collection"
+          ]
+        }
+      },
+      "rendered_readme": null
+    }
+  ],
+  "failures": [],
+  "summary": {
+    "total_roles": 2,
+    "scanned_roles": 2,
+    "failed_roles": 0
+  }
+}

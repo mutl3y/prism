@@ -1,0 +1,4 @@
+---
+- name: Emit ops role refresh notice
+  ansible.builtin.debug:
+    msg: "ops_role refresh complete"

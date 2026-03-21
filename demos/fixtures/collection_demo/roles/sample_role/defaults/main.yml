@@ -1,0 +1,6 @@
+---
+collection_demo_message: Hello from collection sample_role
+collection_demo_enabled: true
+collection_demo_tags:
+  - docs
+  - collection

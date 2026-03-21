@@ -1,0 +1,12 @@
+---
+# prism~warning: rollback=manual timeout=60s
+- name: Render demo service configuration
+  ansible.builtin.template:
+    src: demo-service.conf.j2
+    dest: /tmp/prism-demo-service.conf
+    mode: "0644"
+  notify: Restart demo service
+
+- name: Verify configured feature flags
+  ansible.builtin.debug:
+    msg: "Enabled features: {{ demo_feature_flags | join(', ') }}"

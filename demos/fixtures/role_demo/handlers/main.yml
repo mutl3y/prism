@@ -1,0 +1,8 @@
+---
+- name: Restart demo service
+  ansible.builtin.debug:
+    msg: "Restarting {{ demo_service_name }}"
+
+- name: Reload demo service
+  ansible.builtin.debug:
+    msg: "Reloading {{ demo_service_name }}"

@@ -1,0 +1,10 @@
+---
+namespace: demo
+name: prism_demos
+version: 1.0.0
+readme: README.md
+authors:
+  - prism
+description: Minimal collection fixture for Prism demos
+license:
+  - MIT

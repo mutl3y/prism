@@ -1,0 +1,12 @@
+---
+# prism~runbook: owner=platform step=prepare impact=low
+- name: Ensure demo service group exists
+  ansible.builtin.group:
+    name: "{{ demo_service_name }}"
+    state: present
+
+- name: Ensure demo service user exists
+  ansible.builtin.user:
+    name: "{{ demo_service_name }}"
+    group: "{{ demo_service_name }}"
+    system: true
