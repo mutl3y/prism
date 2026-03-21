@@ -1,4 +1,7 @@
-# CLI Targets
+---
+layout: default
+title: CLI Targets
+---
 
 Primary Prism CLI targets and when to use each one.
 

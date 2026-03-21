@@ -1,4 +1,7 @@
-# CI Starter Workflows
+---
+layout: default
+title: CI Starter Workflows
+---
 
 Starter usage patterns for running Prism in CI.
 

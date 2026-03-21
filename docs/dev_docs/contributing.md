@@ -1,4 +1,7 @@
-# Contributing
+---
+layout: default
+title: Contributing
+---
 
 Use this workflow when contributing code or docs.
 

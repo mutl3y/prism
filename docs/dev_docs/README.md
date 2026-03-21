@@ -1,4 +1,7 @@
-# Developer Documentation
+---
+layout: default
+title: Developer Documentation
+---
 
 Reference index for engineering, maintenance, and governance.
 

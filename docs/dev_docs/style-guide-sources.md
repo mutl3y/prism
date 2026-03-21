@@ -1,4 +1,7 @@
-# Style Guide Sources
+---
+layout: default
+title: Style Guide Sources
+---
 
 Reference repositories commonly used for README structure and section-style comparisons.
 
