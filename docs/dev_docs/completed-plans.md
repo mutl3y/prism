@@ -1,4 +1,7 @@
-# Completed Plans Archive
+---
+layout: default
+title: Completed Plans Archive
+---
 
 Closed plans from previous cycles.
 

@@ -1,4 +1,7 @@
-# Annotation Quality Workoff
+---
+layout: default
+title: Annotation Quality Workoff
+---
 
 Status: complete
 

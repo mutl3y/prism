@@ -1,4 +1,7 @@
-# Developer Changelog
+---
+layout: default
+title: Developer Changelog
+---
 
 Technical and implementation-facing change history.
 

@@ -1,4 +1,7 @@
-# Architecture
+---
+layout: default
+title: Architecture
+---
 
 Prism is a static-analysis documentation engine for Ansible roles and collections.
 

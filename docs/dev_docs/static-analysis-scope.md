@@ -1,4 +1,7 @@
-# Static Analysis Scope
+---
+layout: default
+title: Static Analysis Scope
+---
 
 Defines what Prism currently guarantees and what remains out of scope.
 
