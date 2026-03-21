@@ -2236,6 +2236,64 @@ def _compose_section_body(section: dict, generated_body: str, mode: str) -> str:
     return generated_body
 
 
+def _default_ordered_style_sections() -> list[dict]:
+    """Return default style sections when no style guide sections are supplied."""
+    return [
+        {"id": section_id, "title": title}
+        for section_id, title in DEFAULT_SECTION_SPECS
+    ]
+
+
+def _apply_section_title_overrides(
+    ordered_sections: list[dict],
+    section_title_overrides: dict[str, str],
+) -> list[dict]:
+    """Apply metadata-driven section title overrides to a copied section list."""
+    overridden_sections = [dict(section) for section in ordered_sections]
+    for section in overridden_sections:
+        override_title = section_title_overrides.get(section.get("id"))
+        if override_title:
+            section["title"] = override_title
+    return overridden_sections
+
+
+def _filter_ordered_sections_by_metadata(
+    ordered_sections: list[dict],
+    enabled_sections: set[str],
+    keep_unknown_style_sections: bool,
+) -> list[dict]:
+    """Filter sections by unknown/enabled metadata controls."""
+    filtered_sections = ordered_sections
+    if not keep_unknown_style_sections:
+        filtered_sections = [
+            section for section in filtered_sections if section.get("id") != "unknown"
+        ]
+    if enabled_sections:
+        filtered_sections = [
+            section
+            for section in filtered_sections
+            if section.get("id") in enabled_sections
+        ]
+    return filtered_sections
+
+
+def _filter_concise_readme_sections(ordered_sections: list[dict]) -> list[dict]:
+    """Drop verbose sections and duplicate variable detail rows for concise output."""
+    concise_sections = [
+        section
+        for section in ordered_sections
+        if section.get("id") not in SCANNER_STATS_SECTION_IDS
+    ]
+    section_ids = [section.get("id") for section in concise_sections]
+    if "variable_summary" in section_ids and "role_variables" in section_ids:
+        concise_sections = [
+            section
+            for section in concise_sections
+            if section.get("id") != "role_variables"
+        ]
+    return concise_sections
+
+
 def _resolve_ordered_style_sections(
     style_guide: dict,
     metadata: dict,
@@ -2247,42 +2305,20 @@ def _resolve_ordered_style_sections(
     keep_unknown_style_sections = bool(metadata.get("keep_unknown_style_sections"))
 
     if not ordered_sections:
-        ordered_sections = [
-            {"id": section_id, "title": title}
-            for section_id, title in DEFAULT_SECTION_SPECS
-        ]
+        ordered_sections = _default_ordered_style_sections()
 
-    ordered_sections = [dict(section) for section in ordered_sections]
-    for section in ordered_sections:
-        override_title = section_title_overrides.get(section.get("id"))
-        if override_title:
-            section["title"] = override_title
-
-    if not keep_unknown_style_sections:
-        ordered_sections = [
-            section for section in ordered_sections if section.get("id") != "unknown"
-        ]
-
-    if enabled_sections:
-        ordered_sections = [
-            section
-            for section in ordered_sections
-            if section.get("id") in enabled_sections
-        ]
+    ordered_sections = _apply_section_title_overrides(
+        ordered_sections,
+        section_title_overrides,
+    )
+    ordered_sections = _filter_ordered_sections_by_metadata(
+        ordered_sections,
+        enabled_sections,
+        keep_unknown_style_sections,
+    )
 
     if metadata.get("concise_readme"):
-        ordered_sections = [
-            section
-            for section in ordered_sections
-            if section.get("id") not in SCANNER_STATS_SECTION_IDS
-        ]
-        section_ids = [section.get("id") for section in ordered_sections]
-        if "variable_summary" in section_ids and "role_variables" in section_ids:
-            ordered_sections = [
-                section
-                for section in ordered_sections
-                if section.get("id") != "role_variables"
-            ]
+        ordered_sections = _filter_concise_readme_sections(ordered_sections)
 
     return (
         ordered_sections,
@@ -2875,56 +2911,25 @@ def _render_and_write_scan_output(
     return write_output(out_path, final_content)
 
 
-def _prepare_scan_context(
-    role_path: str,
-    role_name_override: str | None,
-    readme_config_path: str | None,
-    include_vars_main: bool,
-    exclude_path_patterns: list[str] | None,
-    detailed_catalog: bool,
-    include_task_parameters: bool,
-    include_task_runbooks: bool,
-    inline_task_runbooks: bool,
-    include_collection_checks: bool,
-    keep_unknown_style_sections: bool,
-    adopt_heading_mode: str | None,
-    vars_seed_paths: list[str] | None,
-    style_readme_path: str | None,
-    style_source_path: str | None,
-    style_guide_skeleton: bool,
-    compare_role_path: str | None,
-) -> tuple[str, str, str, list, list, dict]:
+def _prepare_scan_context(scan_options: dict) -> tuple[str, str, str, list, list, dict]:
     """Collect role metadata and scanner context required for rendering outputs."""
-    base_context = _collect_scan_base_context(
-        role_path=role_path,
-        role_name_override=role_name_override,
-        readme_config_path=readme_config_path,
-        include_vars_main=include_vars_main,
-        exclude_path_patterns=exclude_path_patterns,
-        detailed_catalog=detailed_catalog,
-        adopt_heading_mode=adopt_heading_mode,
-        include_task_parameters=include_task_parameters,
-        include_task_runbooks=include_task_runbooks,
-        inline_task_runbooks=inline_task_runbooks,
-        include_collection_checks=include_collection_checks,
-        keep_unknown_style_sections=keep_unknown_style_sections,
-    )
+    base_context = _collect_scan_base_context(scan_options)
     undocumented_default_filters, display_variables = (
         _enrich_scan_context_with_insights(
-            role_path=role_path,
+            role_path=scan_options["role_path"],
             role_name=base_context["role_name"],
             description=base_context["description"],
-            vars_seed_paths=vars_seed_paths,
-            include_vars_main=include_vars_main,
-            exclude_path_patterns=exclude_path_patterns,
+            vars_seed_paths=scan_options["vars_seed_paths"],
+            include_vars_main=scan_options["include_vars_main"],
+            exclude_path_patterns=scan_options["exclude_path_patterns"],
             marker_prefix=base_context["marker_prefix"],
             found=base_context["found"],
             variables=base_context["variables"],
             metadata=base_context["metadata"],
-            style_readme_path=style_readme_path,
-            style_source_path=style_source_path,
-            style_guide_skeleton=style_guide_skeleton,
-            compare_role_path=compare_role_path,
+            style_readme_path=scan_options["style_readme_path"],
+            style_source_path=scan_options["style_source_path"],
+            style_guide_skeleton=scan_options["style_guide_skeleton"],
+            compare_role_path=scan_options["compare_role_path"],
         )
     )
     return _finalize_scan_context_payload(
@@ -2938,21 +2943,7 @@ def _prepare_scan_context(
     )
 
 
-def _collect_scan_base_context(
-    *,
-    role_path: str,
-    role_name_override: str | None,
-    readme_config_path: str | None,
-    include_vars_main: bool,
-    exclude_path_patterns: list[str] | None,
-    detailed_catalog: bool,
-    adopt_heading_mode: str | None,
-    include_task_parameters: bool,
-    include_task_runbooks: bool,
-    inline_task_runbooks: bool,
-    include_collection_checks: bool,
-    keep_unknown_style_sections: bool,
-) -> dict:
+def _collect_scan_base_context(scan_options: dict) -> dict:
     """Collect baseline scan artifacts and configured metadata state."""
     (
         rp,
@@ -2965,22 +2956,22 @@ def _collect_scan_base_context(
         found,
         metadata,
     ) = _collect_scan_identity_and_artifacts(
-        role_path=role_path,
-        role_name_override=role_name_override,
-        readme_config_path=readme_config_path,
-        include_vars_main=include_vars_main,
-        exclude_path_patterns=exclude_path_patterns,
-        detailed_catalog=detailed_catalog,
+        role_path=scan_options["role_path"],
+        role_name_override=scan_options["role_name_override"],
+        readme_config_path=scan_options["readme_config_path"],
+        include_vars_main=scan_options["include_vars_main"],
+        exclude_path_patterns=scan_options["exclude_path_patterns"],
+        detailed_catalog=scan_options["detailed_catalog"],
     )
     requirements_display = _apply_scan_metadata_configuration(
-        role_path=role_path,
-        readme_config_path=readme_config_path,
-        adopt_heading_mode=adopt_heading_mode,
-        include_task_parameters=include_task_parameters,
-        include_task_runbooks=include_task_runbooks,
-        inline_task_runbooks=inline_task_runbooks,
-        include_collection_checks=include_collection_checks,
-        keep_unknown_style_sections=keep_unknown_style_sections,
+        role_path=scan_options["role_path"],
+        readme_config_path=scan_options["readme_config_path"],
+        adopt_heading_mode=scan_options["adopt_heading_mode"],
+        include_task_parameters=scan_options["include_task_parameters"],
+        include_task_runbooks=scan_options["include_task_runbooks"],
+        inline_task_runbooks=scan_options["inline_task_runbooks"],
+        include_collection_checks=scan_options["include_collection_checks"],
+        keep_unknown_style_sections=scan_options["keep_unknown_style_sections"],
         meta=meta,
         requirements=requirements,
         metadata=metadata,
@@ -3230,7 +3221,7 @@ def run_scan(
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
     )
-    prepared = _prepare_run_scan_payload(
+    scan_options = _build_run_scan_options(
         role_path=role_path,
         role_name_override=role_name_override,
         readme_config_path=readme_config_path,
@@ -3249,6 +3240,7 @@ def run_scan(
         style_guide_skeleton=style_guide_skeleton,
         compare_role_path=compare_role_path,
     )
+    prepared = _prepare_run_scan_payload(scan_options)
     return _emit_scan_outputs(
         output=output,
         output_format=output_format,
@@ -3280,7 +3272,7 @@ def _resolve_detailed_catalog_flag(
     return detailed_catalog
 
 
-def _prepare_run_scan_payload(
+def _build_run_scan_options(
     *,
     role_path: str,
     role_name_override: str | None,
@@ -3300,6 +3292,29 @@ def _prepare_run_scan_payload(
     style_guide_skeleton: bool,
     compare_role_path: str | None,
 ) -> dict:
+    """Build normalized scan options consumed by scan orchestration helpers."""
+    return {
+        "role_path": role_path,
+        "role_name_override": role_name_override,
+        "readme_config_path": readme_config_path,
+        "include_vars_main": include_vars_main,
+        "exclude_path_patterns": exclude_path_patterns,
+        "detailed_catalog": detailed_catalog,
+        "include_task_parameters": include_task_parameters,
+        "include_task_runbooks": include_task_runbooks,
+        "inline_task_runbooks": inline_task_runbooks,
+        "include_collection_checks": include_collection_checks,
+        "keep_unknown_style_sections": keep_unknown_style_sections,
+        "adopt_heading_mode": adopt_heading_mode,
+        "vars_seed_paths": vars_seed_paths,
+        "style_readme_path": style_readme_path,
+        "style_source_path": style_source_path,
+        "style_guide_skeleton": style_guide_skeleton,
+        "compare_role_path": compare_role_path,
+    }
+
+
+def _prepare_run_scan_payload(scan_options: dict) -> dict:
     """Prepare role metadata and display payloads used by scan output emission."""
     (
         _rp,
@@ -3308,25 +3323,7 @@ def _prepare_run_scan_payload(
         requirements_display,
         undocumented_default_filters,
         scan_context,
-    ) = _prepare_scan_context(
-        role_path=role_path,
-        role_name_override=role_name_override,
-        readme_config_path=readme_config_path,
-        include_vars_main=include_vars_main,
-        exclude_path_patterns=exclude_path_patterns,
-        detailed_catalog=detailed_catalog,
-        include_task_parameters=include_task_parameters,
-        include_task_runbooks=include_task_runbooks,
-        inline_task_runbooks=inline_task_runbooks,
-        include_collection_checks=include_collection_checks,
-        keep_unknown_style_sections=keep_unknown_style_sections,
-        adopt_heading_mode=adopt_heading_mode,
-        vars_seed_paths=vars_seed_paths,
-        style_readme_path=style_readme_path,
-        style_source_path=style_source_path,
-        style_guide_skeleton=style_guide_skeleton,
-        compare_role_path=compare_role_path,
-    )
+    ) = _prepare_scan_context(scan_options)
     return {
         "role_name": role_name,
         "description": description,
