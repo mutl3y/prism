@@ -27,6 +27,13 @@ Prism goes beyond variable lists and captures operational context from the same 
 
 **Prism's solution:** Add marker comments like `# prism~runbook: ...`, `# prism~warning: ...`, and `# prism~note: ...` to tasks for human-centric guidance. Prism extracts these directives and produces a clear, ordered runbook.
 
+Marker guidance: keep annotation payloads as plain text or compact `key=value` hints (for example `owner=platform impact=high`). Do not embed YAML structures in marker comments.
+
+Valid compact examples:
+
+- `# prism~runbook: owner=platform impact=high`
+- `# prism~warning: rollback=manual timeout=300s`
+
 Example snippet:
 
 ```yaml
@@ -88,7 +95,11 @@ readme:
     Inputs / variables summary: generate
 markers:
   prefix: prism
+scan:
+  fail_on_yaml_like_task_annotations: false
 ```
+
+To enforce strict annotation payload hygiene in CI, set `scan.fail_on_yaml_like_task_annotations: true` or pass `--fail-on-yaml-like-task-annotations` on the CLI.
 
 Marker prefix rules:
 

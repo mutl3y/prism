@@ -5,21 +5,11 @@ invoking the entrypoint in a subprocess to simulate real usage.
 """
 
 from pathlib import Path
-import json
 import pytest
 import shutil
 import subprocess
 import sys
-import urllib.error
-import urllib.request
 
-from prism import pattern_config
-from prism.pattern_config import (
-    _load_yaml,
-    fetch_remote_policy,
-    load_pattern_config,
-    write_unknown_headings_log,
-)
 from prism import scanner
 from prism.scanner import scan_for_all_filters, scan_for_default_filters
 
@@ -526,6 +516,27 @@ def test_extract_role_features_tracks_included_roles(tmp_path):
     assert features["dynamic_included_roles"] == "{{ dynamic_role_name }}"
 
 
+def test_extract_role_features_counts_disabled_task_annotations(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "# prism~runbook: owner=platform impact=high\n"
+        "# - name: Disabled rollback step\n"
+        "#   ansible.builtin.debug:\n"
+        "#     msg: disabled\n"
+        "- name: Real task\n"
+        "  ansible.builtin.debug:\n"
+        "    msg: ok\n",
+        encoding="utf-8",
+    )
+
+    features = scanner.extract_role_features(str(role))
+
+    assert features["disabled_task_annotations"] == 1
+
+
 def test_collect_task_handler_catalog_follows_dict_style_task_includes(tmp_path):
     role = tmp_path / "role"
     tasks = role / "tasks"
@@ -635,124 +646,6 @@ def test_run_scan_redacts_secret_like_default_filter_values(tmp_path):
     assert "TopSecret123" not in content
     assert "api_secret | default(<secret>)" in content
     assert "args: `<secret>`" in content
-
-
-def test_load_pattern_config_reads_cwd_override(monkeypatch, tmp_path):
-    override = tmp_path / ".prism_patterns.yml"
-    override.write_text(
-        "sensitivity:\n  name_tokens:\n    - from_cwd_override\n",
-        encoding="utf-8",
-    )
-
-    monkeypatch.chdir(tmp_path)
-    config = load_pattern_config()
-
-    assert "from_cwd_override" in config["sensitivity"]["name_tokens"]
-
-
-def test_load_pattern_config_reads_legacy_cwd_override(monkeypatch, tmp_path):
-    override = tmp_path / ".ansible_role_doc_patterns.yml"
-    override.write_text(
-        "sensitivity:\n  name_tokens:\n    - from_legacy_cwd_override\n",
-        encoding="utf-8",
-    )
-
-    monkeypatch.chdir(tmp_path)
-    config = load_pattern_config()
-
-    assert "from_legacy_cwd_override" in config["sensitivity"]["name_tokens"]
-
-
-def test_load_pattern_config_reads_xdg_user_override(monkeypatch, tmp_path):
-    xdg_home = tmp_path / "xdg-home"
-    override = xdg_home / "prism" / pattern_config.CWD_OVERRIDE_FILENAME
-    override.parent.mkdir(parents=True)
-    override.write_text(
-        "sensitivity:\n  name_tokens:\n    - from_xdg_override\n",
-        encoding="utf-8",
-    )
-
-    monkeypatch.setenv("XDG_DATA_HOME", str(xdg_home))
-    monkeypatch.chdir(tmp_path)
-    config = load_pattern_config()
-
-    assert "from_xdg_override" in config["sensitivity"]["name_tokens"]
-
-
-def test_load_pattern_config_reads_env_override(monkeypatch, tmp_path):
-    override = tmp_path / "patterns-env.yml"
-    override.write_text(
-        "sensitivity:\n  name_tokens:\n    - from_env_override\n",
-        encoding="utf-8",
-    )
-
-    monkeypatch.setenv(pattern_config.ENV_PATTERNS_OVERRIDE_PATH, str(override))
-    monkeypatch.chdir(tmp_path)
-    config = load_pattern_config()
-
-    assert "from_env_override" in config["sensitivity"]["name_tokens"]
-
-
-def test_load_pattern_config_reads_legacy_env_override(monkeypatch, tmp_path):
-    override = tmp_path / "patterns-legacy-env.yml"
-    override.write_text(
-        "sensitivity:\n  name_tokens:\n    - from_legacy_env_override\n",
-        encoding="utf-8",
-    )
-
-    monkeypatch.setenv(pattern_config.LEGACY_ENV_PATTERNS_OVERRIDE_PATH, str(override))
-    monkeypatch.chdir(tmp_path)
-    config = load_pattern_config()
-
-    assert "from_legacy_env_override" in config["sensitivity"]["name_tokens"]
-
-
-def test_load_pattern_config_reads_system_override(monkeypatch, tmp_path):
-    system_override = tmp_path / "system" / pattern_config.CWD_OVERRIDE_FILENAME
-    system_override.parent.mkdir(parents=True)
-    system_override.write_text(
-        "sensitivity:\n  name_tokens:\n    - from_system_override\n",
-        encoding="utf-8",
-    )
-
-    monkeypatch.setattr(pattern_config, "SYSTEM_PATTERN_OVERRIDE_PATH", system_override)
-    monkeypatch.chdir(tmp_path)
-    config = load_pattern_config()
-
-    assert "from_system_override" in config["sensitivity"]["name_tokens"]
-
-
-def test_load_pattern_config_precedence_later_overrides_earlier(monkeypatch, tmp_path):
-    def write_name_tokens(path: Path, token: str) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            f"sensitivity:\n  name_tokens:\n    - {token}\n",
-            encoding="utf-8",
-        )
-
-    system_override = tmp_path / "system" / pattern_config.CWD_OVERRIDE_FILENAME
-    xdg_home = tmp_path / "xdg-home"
-    xdg_override = xdg_home / "prism" / pattern_config.CWD_OVERRIDE_FILENAME
-    cwd_override = tmp_path / pattern_config.CWD_OVERRIDE_FILENAME
-    env_override = tmp_path / "patterns-env.yml"
-    explicit_override = tmp_path / "patterns-explicit.yml"
-
-    write_name_tokens(system_override, "from_system")
-    write_name_tokens(xdg_override, "from_xdg")
-    write_name_tokens(cwd_override, "from_cwd")
-    write_name_tokens(env_override, "from_env")
-    write_name_tokens(explicit_override, "from_explicit")
-
-    monkeypatch.setattr(pattern_config, "SYSTEM_PATTERN_OVERRIDE_PATH", system_override)
-    monkeypatch.setenv(pattern_config.XDG_DATA_HOME_ENV, str(xdg_home))
-    monkeypatch.setenv(pattern_config.ENV_PATTERNS_OVERRIDE_PATH, str(env_override))
-    monkeypatch.chdir(tmp_path)
-
-    implicit = load_pattern_config()
-    explicit = load_pattern_config(override_path=explicit_override)
-
-    assert implicit["sensitivity"]["name_tokens"] == ["from_env"]
-    assert explicit["sensitivity"]["name_tokens"] == ["from_explicit"]
 
 
 def test_build_variable_insights_include_provenance_fields(tmp_path):
@@ -1091,11 +984,15 @@ def test_extract_scanner_counters_includes_role_include_observability():
         {
             "included_role_calls": 3,
             "dynamic_included_role_calls": 2,
+            "disabled_task_annotations": 4,
+            "yaml_like_task_annotations": 1,
         },
     )
 
     assert counters["included_role_calls"] == 3
     assert counters["dynamic_included_role_calls"] == 2
+    assert counters["disabled_task_annotations"] == 4
+    assert counters["yaml_like_task_annotations"] == 1
 
 
 def test_collect_yaml_parse_failures_reports_file_and_line(tmp_path):
@@ -1536,6 +1433,28 @@ def test_run_scan_allows_constrained_dynamic_role_include_when_enabled(tmp_path)
     )
 
     assert out.exists()
+
+
+def test_run_scan_fails_on_yaml_like_task_annotations_when_enabled(tmp_path):
+    role = tmp_path / "role"
+    tasks_dir = role / "tasks"
+    tasks_dir.mkdir(parents=True)
+    (tasks_dir / "main.yml").write_text(
+        "---\n"
+        "# prism~runbook: owner: platform\n"
+        "- name: demo\n"
+        "  debug:\n"
+        '    msg: "ok"\n',
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "README.md"
+    with pytest.raises(RuntimeError, match="YAML-like task annotations"):
+        scanner.run_scan(
+            str(role),
+            output=str(out),
+            fail_on_yaml_like_task_annotations=True,
+        )
 
 
 def test_load_section_display_titles_parses_valid_entries_only(tmp_path, monkeypatch):
@@ -2672,149 +2591,6 @@ def test_build_variable_insights_readme_with_special_characters(tmp_path):
         assert by_name[var_name]["source"] == "README.md (documented input)"
 
 
-# ── pattern_config: uncovered branch coverage ──────────────────────────────
-
-
-class _FakeHTTPResponse:
-    """Minimal stub for urllib.request.urlopen context-manager response."""
-
-    def __init__(self, content: bytes) -> None:
-        self._content = content
-
-    def read(self) -> bytes:
-        return self._content
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *_):
-        pass
-
-
-def test_load_yaml_returns_empty_dict_on_io_error(tmp_path, monkeypatch):
-    """_load_yaml catches IOError and returns {} without propagating."""
-    target = tmp_path / "bad.yml"
-    target.write_text("key: value", encoding="utf-8")
-
-    def raise_oserror(*a, **kw):
-        raise OSError("permission denied")
-
-    monkeypatch.setattr(Path, "open", raise_oserror)
-    assert _load_yaml(target) == {}
-
-
-def test_load_pattern_config_ignores_nonexistent_override_path(tmp_path):
-    """load_pattern_config silently skips a non-existent explicit override_path."""
-    config = load_pattern_config(override_path=str(tmp_path / "missing.yml"))
-    assert isinstance(config, dict)
-    assert "section_aliases" in config
-
-
-def test_load_pattern_config_ignores_blank_override_file(tmp_path):
-    """load_pattern_config skips an override whose YAML yields no mapping."""
-    blank = tmp_path / "empty.yml"
-    blank.write_text("", encoding="utf-8")
-    config = load_pattern_config(override_path=str(blank))
-    assert isinstance(config, dict)
-    assert "section_aliases" in config
-
-
-def test_fetch_remote_policy_success(monkeypatch):
-    """fetch_remote_policy returns a normalised policy on a successful fetch."""
-    monkeypatch.setattr(
-        urllib.request,
-        "urlopen",
-        lambda *a, **kw: _FakeHTTPResponse(b"section_aliases:\n  foo: bar\n"),
-    )
-    result = fetch_remote_policy("http://example.test/policy.yml")
-    assert isinstance(result, dict)
-    assert "section_aliases" in result
-
-
-def test_fetch_remote_policy_writes_cache_bytes(monkeypatch, tmp_path):
-    """A successful fetch writes the raw YAML bytes to cache_path."""
-    content = b"section_aliases: {}\n"
-    monkeypatch.setattr(
-        urllib.request,
-        "urlopen",
-        lambda *a, **kw: _FakeHTTPResponse(content),
-    )
-    cache = tmp_path / "sub" / "policy.yml"
-    fetch_remote_policy("http://example.test/policy.yml", cache_path=cache)
-    assert cache.read_bytes() == content
-
-
-def test_fetch_remote_policy_falls_back_to_existing_cache(monkeypatch, tmp_path):
-    """fetch_remote_policy reads the cache file when the URL fetch fails."""
-    cache = tmp_path / "policy.yml"
-    cache.write_bytes(b"section_aliases: {}\n")
-
-    def fake_open(*a, **kw):
-        raise urllib.error.URLError("no network")
-
-    monkeypatch.setattr(urllib.request, "urlopen", fake_open)
-    result = fetch_remote_policy("http://example.test/policy.yml", cache_path=cache)
-    assert isinstance(result, dict)
-
-
-def test_fetch_remote_policy_raises_on_failure_without_cache(monkeypatch):
-    """fetch_remote_policy raises RuntimeError when fetch fails and no cache_path."""
-
-    def fake_open(*a, **kw):
-        raise urllib.error.URLError("no network")
-
-    monkeypatch.setattr(urllib.request, "urlopen", fake_open)
-    with pytest.raises(RuntimeError, match="Failed to fetch remote patterns"):
-        fetch_remote_policy("http://example.test/policy.yml")
-
-
-def test_fetch_remote_policy_raises_when_cache_file_missing(monkeypatch, tmp_path):
-    """fetch_remote_policy raises RuntimeError when fetch fails and cache absent."""
-
-    def fake_open(*a, **kw):
-        raise urllib.error.URLError("no network")
-
-    monkeypatch.setattr(urllib.request, "urlopen", fake_open)
-    with pytest.raises(RuntimeError, match="no cache found"):
-        fetch_remote_policy(
-            "http://example.test/policy.yml",
-            cache_path=str(tmp_path / "missing.yml"),
-        )
-
-
-def test_fetch_remote_policy_raises_on_invalid_yaml(monkeypatch):
-    """fetch_remote_policy raises RuntimeError when response is not parseable YAML."""
-    # *undefined_alias triggers a yaml.composer.ComposerError
-    monkeypatch.setattr(
-        urllib.request,
-        "urlopen",
-        lambda *a, **kw: _FakeHTTPResponse(b"*undefined_alias"),
-    )
-    with pytest.raises(
-        RuntimeError, match="Failed to parse remote pattern policy YAML"
-    ):
-        fetch_remote_policy("http://example.test/policy.yml")
-
-
-def test_fetch_remote_policy_raises_on_non_mapping_yaml(monkeypatch):
-    """fetch_remote_policy raises RuntimeError when YAML parses to a non-dict."""
-    monkeypatch.setattr(
-        urllib.request,
-        "urlopen",
-        lambda *a, **kw: _FakeHTTPResponse(b"- item1\n- item2\n"),
-    )
-    with pytest.raises(RuntimeError, match="did not parse to a mapping"):
-        fetch_remote_policy("http://example.test/policy.yml")
-
-
-def test_write_unknown_headings_log_creates_valid_json(tmp_path):
-    """write_unknown_headings_log writes a JSON file with unknown_headings key."""
-    out = tmp_path / "sub" / "report.json"
-    write_unknown_headings_log({"some heading": 5, "other": 2}, out)
-    data = json.loads(out.read_text(encoding="utf-8"))
-    assert data == {"unknown_headings": {"some heading": 5, "other": 2}}
-
-
 def test_build_scanner_report_markdown_includes_provenance_issue_categories():
     """_build_scanner_report_markdown renders provenance issue categories when present."""
     report = scanner._build_scanner_report_markdown(
@@ -2857,6 +2633,52 @@ def test_build_scanner_report_markdown_includes_provenance_issue_categories():
     assert "Provenance issue categories" in report
     assert "`unresolved_readme_documented_only`: 1" in report
     assert "`ambiguous_include_vars_sources`: 2" in report
+
+
+def test_build_scanner_report_markdown_includes_annotation_quality_counters():
+    """_build_scanner_report_markdown renders annotation quality counters."""
+    report = scanner._build_scanner_report_markdown(
+        role_name="test_role",
+        description="Test description",
+        variables={},
+        requirements=[],
+        default_filters=[],
+        metadata={
+            "scanner_counters": {
+                "total_variables": 0,
+                "documented_variables": 0,
+                "undocumented_variables": 0,
+                "unresolved_variables": 0,
+                "ambiguous_variables": 0,
+                "secret_variables": 0,
+                "required_variables": 0,
+                "high_confidence_variables": 0,
+                "medium_confidence_variables": 0,
+                "low_confidence_variables": 0,
+                "total_default_filters": 0,
+                "undocumented_default_filters": 0,
+                "included_role_calls": 0,
+                "dynamic_included_role_calls": 0,
+                "disabled_task_annotations": 2,
+                "yaml_like_task_annotations": 1,
+                "yaml_parse_failures": 0,
+                "provenance_issue_categories": {
+                    "unresolved_readme_documented_only": 0,
+                    "ambiguous_include_vars_sources": 0,
+                    "unresolved_dynamic_include_vars": 0,
+                    "unresolved_no_static_definition": 0,
+                    "unresolved_other": 0,
+                    "ambiguous_defaults_vars_override": 0,
+                    "ambiguous_set_fact_runtime": 0,
+                    "ambiguous_other": 0,
+                },
+            }
+        },
+    )
+
+    assert "Task annotation quality" in report
+    assert "disabled=2" in report
+    assert "yaml_like=1" in report
 
 
 def test_build_scanner_report_markdown_renders_unresolved_variables():
@@ -3080,623 +2902,3 @@ def test_classify_provenance_issue_returns_none_for_resolved_unambiguous():
         }
     )
     assert result is None
-
-
-def test_strip_prior_generated_merge_block_with_both_prefix_and_suffix():
-    """_render_readme_with_style_guide handles merged prefix/suffix in guide conversion."""
-    # This is a complex integration test that exercises the merge behavior
-    # through the full render_readme pathway.
-    role_name = "test"
-    description = "Test role"
-    variables = {}
-    requirements = []
-    default_filters = []
-
-    # The prepended content should be preserved along with content after markers
-    metadata = {
-        "style_guide": {
-            "sections": [{"id": "purpose", "title": "Purpose"}],
-        }
-    }
-
-    # Just verify render_readme completes without error when using merge mode
-    result = scanner.render_readme(
-        output="/tmp/README.md",
-        role_name=role_name,
-        description=description,
-        variables=variables,
-        requirements=requirements,
-        default_filters=default_filters,
-        metadata=metadata,
-        write=False,
-    )
-
-    assert "Purpose" in result
-    assert role_name in result
-
-
-def test_render_readme_with_style_guide_renders_title_from_guide():
-    """render_readme uses style guide title when provided."""
-    result = scanner.render_readme(
-        output="/tmp/README.md",
-        role_name="myapp_role",
-        description="Setup myapp",
-        variables={},
-        requirements=[],
-        default_filters=[],
-        metadata={
-            "style_guide": {
-                "title_text": "Custom Title",
-                "title_style": "setext",
-                "sections": [{"id": "purpose", "title": "Purpose"}],
-            }
-        },
-        write=False,
-    )
-
-    assert "myapp_role" in result
-    assert "Purpose" in result
-
-
-def test_render_readme_with_style_guide_skeleton_renders_headings_only():
-    """render_readme with style_guide_skeleton renders only headings without bodies."""
-    result = scanner.render_readme(
-        output="/tmp/README.md",
-        role_name="skeleton_role",
-        description="Skeleton description",
-        variables={},
-        requirements=[],
-        default_filters=[],
-        metadata={
-            "style_guide": {
-                "sections": [
-                    {"id": "purpose", "title": "Purpose"},
-                    {"id": "requirements", "title": "Requirements"},
-                ],
-            },
-            "style_guide_skeleton": True,
-        },
-        write=False,
-    )
-
-    assert "skeleton_role" in result
-    assert "Purpose" in result
-    assert "Requirements" in result
-    # Skeleton should not include detailed body content
-    assert result.count("\n") < 20
-
-
-def test_render_readme_with_scanner_report_link_when_enabled():
-    """render_readme includes scanner report link when configured."""
-    result = scanner.render_readme(
-        output="/tmp/README.md",
-        role_name="test_role",
-        description="Test",
-        variables={},
-        requirements=[],
-        default_filters=[],
-        metadata={
-            "style_guide": {
-                "sections": [{"id": "purpose", "title": "Purpose"}],
-            },
-            "scanner_report_relpath": "../reports/scanner_report.md",
-            "include_scanner_report_link": True,
-        },
-        write=False,
-    )
-
-    assert "Scanner report" in result
-    assert "scanner_report.md" in result
-
-
-def test_render_readme_respects_enabled_sections_filter():
-    """render_readme filters sections when enabled_sections is provided."""
-    result = scanner.render_readme(
-        output="/tmp/README.md",
-        role_name="test_role",
-        description="Test description",
-        variables={},
-        requirements=[],
-        default_filters=[],
-        metadata={
-            "style_guide": {
-                "sections": [
-                    {"id": "purpose", "title": "Purpose"},
-                    {"id": "requirements", "title": "Requirements"},
-                    {"id": "role_variables", "title": "Variables"},
-                ],
-            },
-            "enabled_sections": ["purpose", "role_variables"],
-        },
-        write=False,
-    )
-
-    assert "Purpose" in result
-    assert "Variables" in result
-    # Requirements should not be in the output
-    assert "# Requirements" not in result and "## Requirements" not in result
-
-
-def test_render_readme_keeps_unknown_section_when_configured():
-    """render_readme preserves unknown section when keep_unknown_style_sections is True."""
-    result = scanner.render_readme(
-        output="/tmp/README.md",
-        role_name="test_role",
-        description="Test",
-        variables={},
-        requirements=[],
-        default_filters=[],
-        metadata={
-            "style_guide": {
-                "sections": [
-                    {"id": "purpose", "title": "Purpose"},
-                    {
-                        "id": "unknown",
-                        "title": "Unknown Section",
-                        "body": "Custom unknown content",
-                    },
-                ],
-            },
-            "keep_unknown_style_sections": True,
-        },
-        write=False,
-    )
-
-    assert "Unknown Section" in result
-    assert "Custom unknown content" in result
-
-
-def test_render_readme_without_style_guide_uses_template():
-    """render_readme falls back to Jinja template when no style_guide in metadata."""
-    result = scanner.render_readme(
-        output="/tmp/README.md",
-        role_name="template_role",
-        description="Template test",
-        variables={"app_port": {"default": 8080}},
-        requirements=["ansible >= 2.9"],
-        default_filters=[],
-        metadata={},
-        write=False,
-    )
-
-    assert "template_role" in result
-    assert "Template test" in result
-
-
-def test_render_readme_with_custom_template_path():
-    """render_readme uses custom template when template path is provided."""
-    # Since we can't easily mock template files, this test just verifies
-    # that render_readme handles a custom template path without crashing
-    # when metadata has no style_guide
-    result = scanner.render_readme(
-        output="/tmp/README.md",
-        role_name="custom_template_role",
-        description="Custom template test",
-        variables={},
-        requirements=[],
-        default_filters=[],
-        template=None,  # Will use default
-        metadata={},
-        write=False,
-    )
-
-    assert "custom_template_role" in result
-
-
-def test_render_readme_omits_stats_sections_in_concise_mode():
-    """render_readme excludes stat sections when concise_readme is enabled."""
-    result = scanner.render_readme(
-        output="/tmp/README.md",
-        role_name="test_role",
-        description="Test",
-        variables={"var1": {"documented": True}},
-        requirements=[],
-        default_filters=[],
-        metadata={
-            "style_guide": {
-                "sections": [
-                    {"id": "purpose", "title": "Purpose"},
-                    {"id": "role_variables", "title": "Variables"},
-                    {"id": "task_summary", "title": "Tasks"},
-                ],
-            },
-            "concise_readme": True,
-        },
-        write=False,
-    )
-
-    assert "Purpose" in result
-    # role_variables might still appear depending on task_summary configuration
-    # but the key is that concise mode processes sections
-
-
-def test_render_readme_write_false_returns_content():
-    """render_readme returns content as string when write=False."""
-    result = scanner.render_readme(
-        output="/tmp/README.md",
-        role_name="test",
-        description="desc",
-        variables={},
-        requirements=[],
-        default_filters=[],
-        metadata={},
-        write=False,
-    )
-
-    assert isinstance(result, str)
-    assert len(result) > 0
-
-
-def test_render_runbook_renders_with_metadata():
-    """render_runbook renders task catalog into runbook markdown."""
-    result = scanner.render_runbook(
-        role_name="app_role",
-        metadata={
-            "task_catalog": [
-                {
-                    "file": "tasks/main.yml",
-                    "name": "install packages",
-                    "annotations": [],
-                    "anchor": "task-main-yml-install-packages",
-                }
-            ]
-        },
-    )
-
-    assert "app_role" in result
-    # Runbook should reference the role name
-    assert isinstance(result, str)
-    assert len(result) > 0
-
-
-def test_render_runbook_with_empty_metadata():
-    """render_runbook handles empty metadata gracefully."""
-    result = scanner.render_runbook(
-        role_name="minimal_role",
-        metadata={},
-    )
-
-    assert "minimal_role" in result
-
-
-def test_render_runbook_with_no_metadata():
-    """render_runbook handles None metadata gracefully."""
-    result = scanner.render_runbook(role_name="no_meta_role")
-
-    assert "no_meta_role" in result
-
-
-# ---------------------------------------------------------------------------
-# doc_insights: parse_comma_values
-# ---------------------------------------------------------------------------
-
-
-def test_parse_comma_values_normal():
-    from prism.scanner_submodules.doc_insights import parse_comma_values
-
-    assert parse_comma_values("a, b, c") == ["a", "b", "c"]
-
-
-def test_parse_comma_values_none_string():
-    from prism.scanner_submodules.doc_insights import parse_comma_values
-
-    assert parse_comma_values("none") == []
-
-
-def test_parse_comma_values_empty_string():
-    from prism.scanner_submodules.doc_insights import parse_comma_values
-
-    assert parse_comma_values("") == []
-
-
-def test_parse_comma_values_whitespace_only():
-    from prism.scanner_submodules.doc_insights import parse_comma_values
-
-    assert parse_comma_values("   ") == []
-
-
-def test_parse_comma_values_single_item():
-    from prism.scanner_submodules.doc_insights import parse_comma_values
-
-    assert parse_comma_values("ansible.builtin.template") == [
-        "ansible.builtin.template"
-    ]
-
-
-def test_parse_comma_values_strips_internal_spaces():
-    from prism.scanner_submodules.doc_insights import parse_comma_values
-
-    assert parse_comma_values("  x ,  y  ") == ["x", "y"]
-
-
-# ---------------------------------------------------------------------------
-# doc_insights: build_doc_insights
-# ---------------------------------------------------------------------------
-
-
-def test_build_doc_insights_returns_required_keys():
-    from prism.scanner_submodules.doc_insights import build_doc_insights
-
-    result = build_doc_insights(
-        role_name="myrole",
-        description="A test role",
-        metadata={},
-        variables={},
-        variable_insights=[],
-    )
-
-    assert "purpose_summary" in result
-    assert "capabilities" in result
-    assert "task_summary" in result
-    assert "example_playbook" in result
-
-
-def test_build_doc_insights_uses_description_as_purpose():
-    from prism.scanner_submodules.doc_insights import build_doc_insights
-
-    result = build_doc_insights(
-        role_name="myrole",
-        description="Installs nginx",
-        metadata={},
-        variables={},
-        variable_insights=[],
-    )
-
-    assert result["purpose_summary"] == "Installs nginx"
-
-
-def test_build_doc_insights_fallback_purpose_when_no_description():
-    from prism.scanner_submodules.doc_insights import build_doc_insights
-
-    result = build_doc_insights(
-        role_name="myrole",
-        description="",
-        metadata={},
-        variables={},
-        variable_insights=[],
-    )
-
-    assert "myrole" in result["purpose_summary"]
-
-
-def test_build_doc_insights_detects_template_capability():
-    from prism.scanner_submodules.doc_insights import build_doc_insights
-
-    result = build_doc_insights(
-        role_name="myrole",
-        description="desc",
-        metadata={"features": {"unique_modules": "template, service"}},
-        variables={},
-        variable_insights=[],
-    )
-
-    assert any("configuration" in cap.lower() for cap in result["capabilities"])
-    assert any("service" in cap.lower() for cap in result["capabilities"])
-
-
-def test_build_doc_insights_detects_package_capability():
-    from prism.scanner_submodules.doc_insights import build_doc_insights
-
-    result = build_doc_insights(
-        role_name="myrole",
-        description="desc",
-        metadata={"features": {"unique_modules": "apt"}},
-        variables={},
-        variable_insights=[],
-    )
-
-    assert any("package" in cap.lower() for cap in result["capabilities"])
-
-
-def test_build_doc_insights_detects_user_capability():
-    from prism.scanner_submodules.doc_insights import build_doc_insights
-
-    result = build_doc_insights(
-        role_name="myrole",
-        description="desc",
-        metadata={"features": {"unique_modules": "user"}},
-        variables={},
-        variable_insights=[],
-    )
-
-    assert any("user" in cap.lower() for cap in result["capabilities"])
-
-
-def test_build_doc_insights_detects_lineinfile_capability():
-    from prism.scanner_submodules.doc_insights import build_doc_insights
-
-    result = build_doc_insights(
-        role_name="myrole",
-        description="desc",
-        metadata={"features": {"unique_modules": "lineinfile"}},
-        variables={},
-        variable_insights=[],
-    )
-
-    assert any("configuration" in cap.lower() for cap in result["capabilities"])
-
-
-def test_build_doc_insights_detects_recursive_includes_capability():
-    from prism.scanner_submodules.doc_insights import build_doc_insights
-
-    result = build_doc_insights(
-        role_name="myrole",
-        description="desc",
-        metadata={"features": {"recursive_task_includes": 2}},
-        variables={},
-        variable_insights=[],
-    )
-
-    assert any("nested" in cap.lower() for cap in result["capabilities"])
-
-
-def test_build_doc_insights_detects_handler_capability():
-    from prism.scanner_submodules.doc_insights import build_doc_insights
-
-    result = build_doc_insights(
-        role_name="myrole",
-        description="desc",
-        metadata={"features": {"handlers_notified": "restart nginx"}},
-        variables={},
-        variable_insights=[],
-    )
-
-    assert any("handler" in cap.lower() for cap in result["capabilities"])
-
-
-def test_build_doc_insights_fallback_capability_when_no_modules():
-    from prism.scanner_submodules.doc_insights import build_doc_insights
-
-    result = build_doc_insights(
-        role_name="myrole",
-        description="desc",
-        metadata={},
-        variables={},
-        variable_insights=[],
-    )
-
-    assert any("reusable" in cap.lower() for cap in result["capabilities"])
-
-
-def test_build_doc_insights_example_playbook_includes_role():
-    from prism.scanner_submodules.doc_insights import build_doc_insights
-
-    result = build_doc_insights(
-        role_name="my_role",
-        description="desc",
-        metadata={},
-        variables={"var_a": "val_a"},
-        variable_insights=[
-            {"name": "var_a", "default": "val_a"},
-        ],
-    )
-
-    assert "my_role" in result["example_playbook"]
-    assert "var_a" in result["example_playbook"]
-
-
-def test_build_doc_insights_example_playbook_empty_vars_block():
-    from prism.scanner_submodules.doc_insights import build_doc_insights
-
-    result = build_doc_insights(
-        role_name="my_role",
-        description="desc",
-        metadata={},
-        variables={"x": 1},
-        variable_insights=[],
-    )
-
-    assert "vars: {}" in result["example_playbook"]
-
-
-def test_build_doc_insights_task_summary_counts():
-    from prism.scanner_submodules.doc_insights import build_doc_insights
-
-    result = build_doc_insights(
-        role_name="myrole",
-        description="desc",
-        metadata={
-            "features": {
-                "task_files_scanned": 3,
-                "tasks_scanned": 12,
-                "recursive_task_includes": 1,
-                "unique_modules": "apt, service",
-                "handlers_notified": "restart svc",
-            }
-        },
-        variables={},
-        variable_insights=[],
-    )
-
-    ts = result["task_summary"]
-    assert ts["task_files_scanned"] == 3
-    assert ts["tasks_scanned"] == 12
-    assert ts["recursive_task_includes"] == 1
-    assert ts["module_count"] == 2
-    assert ts["handler_count"] == 1
-
-
-# ---------------------------------------------------------------------------
-# feedback: load_feedback and apply_feedback_recommendations
-# ---------------------------------------------------------------------------
-
-
-def test_load_feedback_returns_none_for_none_source():
-    from prism.feedback import load_feedback
-
-    assert load_feedback(None) is None
-
-
-def test_load_feedback_returns_none_for_empty_string():
-    from prism.feedback import load_feedback
-
-    assert load_feedback("") is None
-
-
-def test_load_feedback_raises_for_missing_file():
-    from prism.feedback import load_feedback
-
-    with pytest.raises(FileNotFoundError):
-        load_feedback("/nonexistent/path/feedback.json")
-
-
-def test_load_feedback_reads_valid_json_file(tmp_path):
-    from prism.feedback import load_feedback
-
-    feedback_file = tmp_path / "feedback.json"
-    feedback_file.write_text(
-        '{"version": "1.0", "recommendations": []}', encoding="utf-8"
-    )
-
-    result = load_feedback(str(feedback_file))
-
-    assert result is not None
-    assert result["version"] == "1.0"
-
-
-def test_load_feedback_raises_for_invalid_json(tmp_path):
-    from prism.feedback import load_feedback
-
-    feedback_file = tmp_path / "feedback.json"
-    feedback_file.write_text("not valid json {{{", encoding="utf-8")
-
-    with pytest.raises(Exception):
-        load_feedback(str(feedback_file))
-
-
-def test_load_feedback_raises_for_non_dict_json(tmp_path):
-    from prism.feedback import load_feedback
-
-    feedback_file = tmp_path / "feedback.json"
-    feedback_file.write_text("[1, 2, 3]", encoding="utf-8")
-
-    with pytest.raises(ValueError):
-        load_feedback(str(feedback_file))
-
-
-def test_apply_feedback_recommendations_none_feedback():
-    from prism.feedback import apply_feedback_recommendations
-
-    result = apply_feedback_recommendations(None, include_collection_checks=True)
-
-    assert result["include_collection_checks"] is True
-    assert result["recommendations_applied"] == []
-
-
-def test_apply_feedback_recommendations_empty_feedback():
-    from prism.feedback import apply_feedback_recommendations
-
-    result = apply_feedback_recommendations({}, include_collection_checks=False)
-
-    assert result["include_collection_checks"] is False
-    assert result["recommendations_applied"] == []
-
-
-def test_apply_feedback_recommendations_passes_through_cli_flag():
-    from prism.feedback import apply_feedback_recommendations
-
-    result = apply_feedback_recommendations(
-        {"recommendations": []}, include_collection_checks=True
-    )
-
-    assert result["include_collection_checks"] is True

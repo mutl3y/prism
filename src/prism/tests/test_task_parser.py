@@ -187,6 +187,46 @@ def test_extract_task_annotations_for_file_long_syntax_with_continuation():
     assert "then install packages" in explicit["Install package"][0]["text"]
 
 
+def test_extract_task_annotations_marks_commented_task_block_as_disabled():
+    lines = [
+        "# prism~runbook: owner=platform impact=medium",
+        "# - name: Disabled task",
+        "#   ansible.builtin.debug:",
+        "#     msg: disabled",
+    ]
+
+    implicit, explicit = task_parser._extract_task_annotations_for_file(lines)
+
+    assert explicit == {}
+    assert implicit == [
+        {
+            "kind": "runbook",
+            "text": "owner=platform impact=medium\n- name: Disabled task\nansible.builtin.debug:\nmsg: disabled",
+            "disabled": True,
+            "format_warning": "yaml-like-payload-use-key-equals-value",
+        }
+    ]
+
+
+def test_extract_task_annotations_marks_yaml_like_payload_with_warning():
+    lines = [
+        "# prism~runbook: owner: platform",
+        "# severity: high",
+        "- name: Real task",
+    ]
+
+    implicit, explicit = task_parser._extract_task_annotations_for_file(lines)
+
+    assert explicit == {}
+    assert implicit == [
+        {
+            "kind": "runbook",
+            "text": "owner: platform\nseverity: high",
+            "format_warning": "yaml-like-payload-use-key-equals-value",
+        }
+    ]
+
+
 def test_detect_task_module_skips_with_items_keys():
     task = {
         "with_items": ["a"],
@@ -365,3 +405,25 @@ def test_extract_role_features_ignores_non_string_notify_items(tmp_path):
     features = task_parser.extract_role_features(str(role_root))
 
     assert features["handlers_notified"] == "restart app"
+
+
+def test_extract_role_features_counts_yaml_like_task_annotations(tmp_path):
+    role_root = tmp_path / "role"
+    tasks_dir = role_root / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    (tasks_dir / "main.yml").write_text(
+        "---\n"
+        "# prism~runbook: owner: platform\n"
+        "# severity: high\n"
+        "- name: first task\n"
+        "  ansible.builtin.debug:\n"
+        "    msg: first\n"
+        "# prism~task: first task | note: source=auto\n"
+        "# prism~task: first task | note: source: pasted\n",
+        encoding="utf-8",
+    )
+
+    features = task_parser.extract_role_features(str(role_root))
+
+    assert features["yaml_like_task_annotations"] == 2

@@ -53,6 +53,8 @@ def extract_scanner_counters(
         "undocumented_default_filters": len(default_filters),
         "included_role_calls": 0,
         "dynamic_included_role_calls": 0,
+        "disabled_task_annotations": 0,
+        "yaml_like_task_annotations": 0,
         "yaml_parse_failures": len(parse_failures or []),
         "provenance_issue_categories": {
             "unresolved_readme_documented_only": 0,
@@ -97,6 +99,12 @@ def extract_scanner_counters(
     counters["dynamic_included_role_calls"] = int(
         features.get("dynamic_included_role_calls") or 0
     )
+    counters["disabled_task_annotations"] = int(
+        features.get("disabled_task_annotations") or 0
+    )
+    counters["yaml_like_task_annotations"] = int(
+        features.get("yaml_like_task_annotations") or 0
+    )
 
     return counters
 
@@ -133,6 +141,7 @@ def build_scanner_report_markdown(
         f"- **Confidence buckets**: high={counters['high_confidence_variables']}, medium={counters['medium_confidence_variables']}, low={counters['low_confidence_variables']}",
         f"- **Default filter findings**: {counters['undocumented_default_filters']} undocumented out of {counters['total_default_filters']} discovered",
         f"- **Role include graph signals**: static={counters['included_role_calls']}, dynamic={counters['dynamic_included_role_calls']}",
+        f"- **Task annotation quality**: disabled={counters.get('disabled_task_annotations', 0)}, yaml_like={counters.get('yaml_like_task_annotations', 0)}",
         f"- **YAML parse failures**: {counters['yaml_parse_failures']}",
     ]
 

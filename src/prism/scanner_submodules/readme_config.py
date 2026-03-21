@@ -134,6 +134,48 @@ def load_fail_on_unconstrained_dynamic_includes(
     return coerced
 
 
+def load_fail_on_yaml_like_task_annotations(
+    role_path: str,
+    config_path: str | None = None,
+    default: bool = False,
+    config_filenames: tuple[str, ...] = SECTION_CONFIG_FILENAMES,
+    default_filename: str = SECTION_CONFIG_FILENAME,
+) -> bool:
+    """Load scan policy toggle for YAML-like task annotation strict failures.
+
+    Supported keys in role config (``.prism.yml``):
+      - ``scan.fail_on_yaml_like_task_annotations``
+      - ``fail_on_yaml_like_task_annotations`` (legacy/flat fallback)
+    """
+    cfg_file = resolve_role_config_file(
+        role_path,
+        config_path=config_path,
+        config_filenames=config_filenames,
+        default_filename=default_filename,
+    )
+    if not cfg_file.is_file():
+        return default
+
+    try:
+        raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return default
+    if not isinstance(raw, dict):
+        return default
+
+    value: object | None = None
+    scan_cfg = raw.get("scan")
+    if isinstance(scan_cfg, dict):
+        value = scan_cfg.get("fail_on_yaml_like_task_annotations")
+    if value is None:
+        value = raw.get("fail_on_yaml_like_task_annotations")
+
+    coerced = _coerce_bool(value)
+    if coerced is None:
+        return default
+    return coerced
+
+
 def load_readme_section_visibility(
     role_path: str,
     config_path: str | None,
