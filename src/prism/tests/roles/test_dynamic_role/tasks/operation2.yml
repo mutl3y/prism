@@ -1,0 +1,23 @@
+---
+- name: Define a task with a Jinja2 expression in its name{{ operation }}
+  ansible.builtin.debug:
+    msg: "This is {{ operation }}"
+
+# prism~runbook: This task verifies that dynamic includes and Jinja2 expressions in task names are correctly analyzed and rendered.
+# Service is disabled during testing to prevent unintended system changes.
+# Re-enable the service manually if the workflow exits with a non-zero status.
+- name: Take a service action on {{ operation }}
+  ansible.builtin.service:
+    name: "{{ operation }}"
+    state: disabled
+
+# prism~note: This task demonstrates that Jinja2 expressions in task names are rendered correctly in generated documentation.
+
+- name: Shutdown the system if the operation is "shutdown"
+  shutdown:
+  when: operation == "shutdown"
+
+- name: Set fact for shutdown operation
+  ansible.builtin.set_fact:
+    shutdown_initiated: true
+  when: operation == "shutdown"

@@ -1,0 +1,35 @@
+---
+# prism~task: Fake task list for disabling alarms in a test role.
+
+- name: Define fake alarm targets
+  ansible.builtin.set_fact:
+    fake_alarm_targets:
+      - cpu_high
+      - memory_high
+      - disk_latency
+## . This file is intended for test and placeholder purposes only.
+
+- name: Show fake alarm targets
+  ansible.builtin.debug:
+    msg: "Preparing to disable fake alarm: {{ item }}"
+  loop: "{{ fake_alarm_targets }}"
+
+# prism~runbook: This task simulates disabling alarms using fake targets and debug output only.
+# If this task fails, re-enable the related service state in your test environment before continuing.
+# prism~warning: This scenario intentionally simulates service-style operations; monitor execution and verify post-test system state.
+- name: Simulate disabling alarms
+  ansible.builtin.debug:
+    msg: "Alarm {{ item }} has been marked as disabled"
+  loop: "{{ fake_alarm_targets }}"
+  changed_when: true
+
+- name: Record fake disable operation result
+  ansible.builtin.set_fact:
+    fake_disable_alarms_result:
+      changed: true
+      disabled_alarms: "{{ fake_alarm_targets }}"
+      status: success
+
+- name: Display fake disable result
+  ansible.builtin.debug:
+    var: fake_disable_alarms_result

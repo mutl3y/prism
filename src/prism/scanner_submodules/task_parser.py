@@ -119,6 +119,12 @@ TASK_NOTES_LONG_RE = _build_marker_line_re(DEFAULT_DOC_MARKER_PREFIX)
 ROLE_NOTES_SHORT_RE = ROLE_NOTES_RE
 TASK_NOTES_SHORT_RE = TASK_NOTES_LONG_RE
 COMMENT_CONTINUATION_RE = re.compile(r"^\s*#\s?(.*)$")
+WHEN_IN_LIST_RE = re.compile(
+    r"^\s*(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s+in\s+(?P<values>\[[^\]]*\])\s*$"
+)
+TEMPLATED_INCLUDE_RE = re.compile(
+    r"^\s*(?P<prefix>[^{}]*)\{\{\s*(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*\}\}(?P<suffix>[^{}]*)\s*$"
+)
 
 # ---------------------------------------------------------------------------
 # Path exclusion helpers
@@ -194,12 +200,75 @@ def _iter_task_include_targets(data: object) -> list[str]:
                 continue
             value = task[key]
             if isinstance(value, str):
-                targets.append(value)
+                targets.extend(_expand_include_target_candidates(task, value))
             elif isinstance(value, dict):
                 file_value = value.get("file") or value.get("_raw_params")
                 if isinstance(file_value, str):
-                    targets.append(file_value)
+                    targets.extend(_expand_include_target_candidates(task, file_value))
     return targets
+
+
+def _extract_constrained_when_values(task: dict, variable: str) -> list[str]:
+    """Return constrained values for ``variable`` from simple ``when`` clauses.
+
+    Supported form:
+        when: variable in ["a", "b"]
+        when:
+          - variable in ["a", "b"]
+    """
+    when_value = task.get("when")
+    conditions: list[str] = []
+    if isinstance(when_value, str):
+        conditions.append(when_value)
+    elif isinstance(when_value, list):
+        conditions.extend(item for item in when_value if isinstance(item, str))
+
+    values: list[str] = []
+    for condition in conditions:
+        match = WHEN_IN_LIST_RE.match(condition.strip())
+        if not match:
+            continue
+        if (match.group("var") or "").strip() != variable:
+            continue
+        parsed = yaml.safe_load(match.group("values"))
+        if not isinstance(parsed, list):
+            continue
+        for item in parsed:
+            if isinstance(item, str):
+                values.append(item)
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in values:
+        if item in seen:
+            continue
+        seen.add(item)
+        deduped.append(item)
+    return deduped
+
+
+def _expand_include_target_candidates(task: dict, include_target: str) -> list[str]:
+    """Return concrete include candidates from static or constrained dynamic target."""
+    candidate = include_target.strip()
+    if not candidate:
+        return []
+    if "{{" not in candidate and "{%" not in candidate:
+        return [candidate]
+
+    match = TEMPLATED_INCLUDE_RE.match(candidate)
+    if not match:
+        return []
+
+    variable = (match.group("var") or "").strip()
+    if not variable:
+        return []
+    allowed_values = _extract_constrained_when_values(task, variable)
+    if not allowed_values:
+        return []
+
+    prefix = (match.group("prefix") or "").strip()
+    suffix = (match.group("suffix") or "").strip()
+    return [f"{prefix}{value}{suffix}" for value in allowed_values]
 
 
 def _iter_role_include_targets(task: dict) -> list[str]:
@@ -287,6 +356,19 @@ def _resolve_task_include(
         except ValueError:
             continue
         return resolved
+
+    # Heuristic fallback for role fixtures/docs: if include target has no
+    # directory segment, try finding a unique basename under tasks/**.
+    if not path.is_absolute() and len(path.parts) == 1:
+        tasks_dir = role_root / "tasks"
+        suffixes = [path.suffix] if path.suffix else [".yml", ".yaml"]
+        fallback_matches: list[Path] = []
+        for suffix in suffixes:
+            name = path.name if path.suffix else f"{path.name}{suffix}"
+            fallback_matches.extend(p for p in tasks_dir.rglob(name) if p.is_file())
+        unique_matches = sorted({p.resolve() for p in fallback_matches})
+        if len(unique_matches) == 1:
+            return unique_matches[0]
 
     return None
 
@@ -711,18 +793,21 @@ def _collect_task_handler_catalog(
             for include_key in TASK_INCLUDE_KEYS:
                 if include_key in task:
                     include_target = task[include_key]
-                    include_path: str | None = None
+                    include_paths: list[str] = []
                     if isinstance(include_target, str):
-                        include_path = include_target
+                        include_paths.extend(
+                            _expand_include_target_candidates(task, include_target)
+                        )
                     elif isinstance(include_target, dict):
                         candidate = include_target.get("file") or include_target.get(
                             "_raw_params"
                         )
                         if isinstance(candidate, str):
-                            include_path = candidate
-                    if include_path and not (
-                        "{{" in include_path or "{%" in include_path
-                    ):
+                            include_paths.extend(
+                                _expand_include_target_candidates(task, candidate)
+                            )
+
+                    for include_path in include_paths:
                         included_file = _resolve_task_include(
                             role_root, task_file, include_path
                         )

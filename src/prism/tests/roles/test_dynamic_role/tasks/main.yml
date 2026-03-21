@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: MIT-0
+---
+# tasks file for test_dynamic_role
+
+# prism~note: This role is used to test that dynamic includes are properly analyzed and included in the rendered README.
+# The main.yml file includes another task file, and the included file contains a task with a Jinja2 expression in its name.
+# The test verifies that the Jinja2 expression is correctly rendered in the generated documentation.
+
+- name: Include dynamic task file
+  ansible.builtin.include_tasks: "{{ operation }}.yml"
+  when: operation in ["operation1", "operation2"]
+
+- name: Include another dynamic task file
+  ansible.builtin.include_tasks: "ops/disable_alarms.yml"
+  when: shutdown_initiated is defined and shutdown_initiated

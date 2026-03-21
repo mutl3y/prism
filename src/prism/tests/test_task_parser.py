@@ -70,6 +70,41 @@ def test_collect_task_files_skips_excluded_resolved_include(tmp_path):
     ]
 
 
+def test_collect_task_files_expands_constrained_dynamic_include(tmp_path):
+    role_root = tmp_path / "role"
+    tasks_dir = role_root / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    (tasks_dir / "main.yml").write_text(
+        "---\n" "- name: include operation\n" "  include_tasks: operation.yml\n",
+        encoding="utf-8",
+    )
+    (tasks_dir / "operation.yml").write_text(
+        "---\n"
+        "- name: Include dynamic task file\n"
+        '  ansible.builtin.include_tasks: "{{ sub_operation }}.yml"\n'
+        '  when: sub_operation in ["sub_operation1", "sub_operation2"]\n',
+        encoding="utf-8",
+    )
+    (tasks_dir / "sub_operation1.yml").write_text(
+        "---\n" "- name: sub operation one\n" "  debug:\n" "    msg: one\n",
+        encoding="utf-8",
+    )
+    (tasks_dir / "sub_operation2.yml").write_text(
+        "---\n" "- name: sub operation two\n" "  debug:\n" "    msg: two\n",
+        encoding="utf-8",
+    )
+
+    discovered = task_parser._collect_task_files(role_root)
+
+    assert [str(path.relative_to(role_root)) for path in discovered] == [
+        "tasks/main.yml",
+        "tasks/operation.yml",
+        "tasks/sub_operation1.yml",
+        "tasks/sub_operation2.yml",
+    ]
+
+
 def test_extract_role_notes_from_comments_short_aliases_cover_branches(tmp_path):
     role_root = tmp_path / "role"
     tasks_dir = role_root / "tasks"
@@ -168,6 +203,83 @@ def test_collect_task_handler_catalog_fallback_and_excluded_paths(tmp_path):
     assert "loop back" in task_names
     assert "excluded" not in task_names
     assert handler_catalog == []
+
+
+def test_collect_task_handler_catalog_expands_constrained_dynamic_include(tmp_path):
+    role_root = tmp_path / "role"
+    tasks_dir = role_root / "tasks"
+    tasks_dir.mkdir(parents=True)
+
+    (tasks_dir / "main.yml").write_text(
+        "---\n" "- name: include operation\n" "  include_tasks: operation.yml\n",
+        encoding="utf-8",
+    )
+    (tasks_dir / "operation.yml").write_text(
+        "---\n"
+        "- name: Include dynamic task file\n"
+        '  ansible.builtin.include_tasks: "{{ sub_operation }}.yml"\n'
+        '  when: sub_operation in ["sub_operation1", "sub_operation2"]\n',
+        encoding="utf-8",
+    )
+    (tasks_dir / "sub_operation1.yml").write_text(
+        "---\n"
+        "- name: sub operation one\n"
+        "  ansible.builtin.debug:\n"
+        "    msg: one\n",
+        encoding="utf-8",
+    )
+    (tasks_dir / "sub_operation2.yml").write_text(
+        "---\n"
+        "- name: sub operation two\n"
+        "  ansible.builtin.debug:\n"
+        "    msg: two\n",
+        encoding="utf-8",
+    )
+
+    task_catalog, _ = task_parser._collect_task_handler_catalog(str(role_root))
+
+    assert [entry["name"] for entry in task_catalog] == [
+        "include operation",
+        "Include dynamic task file",
+        "sub operation one",
+        "sub operation two",
+    ]
+
+
+def test_collect_task_handler_catalog_resolves_unique_basename_fallback(tmp_path):
+    role_root = tmp_path / "role"
+    tasks_dir = role_root / "tasks"
+    ops_dir = tasks_dir / "ops"
+    ops_dir.mkdir(parents=True)
+
+    (tasks_dir / "main.yml").write_text(
+        "---\n" "- name: include operation\n" "  include_tasks: operation.yml\n",
+        encoding="utf-8",
+    )
+    (tasks_dir / "operation.yml").write_text(
+        "---\n"
+        "- name: include constrained dynamic\n"
+        '  ansible.builtin.include_tasks: "{{ sub_operation }}.yml"\n'
+        '  when: sub_operation in ["sub_operation1", "sub_operation2"]\n',
+        encoding="utf-8",
+    )
+    (ops_dir / "sub_operation1.yml").write_text(
+        "---\n" "- name: nested one\n" "  debug:\n" "    msg: one\n",
+        encoding="utf-8",
+    )
+    (ops_dir / "sub_operation2.yml").write_text(
+        "---\n" "- name: nested two\n" "  debug:\n" "    msg: two\n",
+        encoding="utf-8",
+    )
+
+    task_catalog, _ = task_parser._collect_task_handler_catalog(str(role_root))
+
+    assert [entry["name"] for entry in task_catalog] == [
+        "include operation",
+        "include constrained dynamic",
+        "nested one",
+        "nested two",
+    ]
 
 
 def test_collect_molecule_scenarios_skips_non_dict_platform_entries(tmp_path):
