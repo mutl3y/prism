@@ -1532,59 +1532,111 @@ def _render_role_variables_for_style(variables: dict, metadata: dict) -> str:
     has_external_context = bool(external_context.get("paths"))
 
     if variable_style == "table":
-        lines: list[str] = []
-        if variable_intro:
-            lines.extend([variable_intro, ""])
-        if has_external_context:
-            lines.extend(
-                [
-                    "External variable context paths were provided as non-authoritative hints and are excluded from this role-source table.",
-                    "",
-                ]
-            )
-        lines.extend(["| Name | Default | Description |", "| --- | --- | --- |"])
-        source_by_name = {row.get("name"): row for row in local_rows if row.get("name")}
-        for name, value in variables.items():
-            row = source_by_name.get(name) or {}
-            default = str(row.get("default") or _format_inline_yaml(value)).replace(
-                "`", "'"
-            )
-            description = _describe_variable(
-                name,
-                str(row.get("source") or "defaults/main.yml"),
-            )
-            lines.append(f"| `{name}` | `{default}` | {description} |")
-        return "\n".join(lines)
+        return _render_role_variables_table_style(
+            variables=variables,
+            local_rows=local_rows,
+            variable_intro=variable_intro,
+            has_external_context=has_external_context,
+        )
 
     if variable_style == "nested_bullets":
-        lines: list[str] = []
-        if variable_intro:
-            lines.extend([variable_intro, ""])
-        if has_external_context:
-            lines.append(
-                "External variable context paths were provided as non-authoritative hints and are excluded from this role-source list."
-            )
-            lines.append("")
-        rows_for_display = local_rows or variable_insights
-        for row in rows_for_display:
-            default = _format_inline_yaml(row["default"]).replace("`", "'")
-            lines.append(f"* `{row['name']}`")
-            lines.append(f"  * Default: `{default}`")
-            lines.append(
-                f"  * Description: {_describe_variable(row['name'], row['source'])}"
-            )
-        return "\n".join(lines)
+        return _render_role_variables_nested_bullets_style(
+            variable_insights=variable_insights,
+            local_rows=local_rows,
+            variable_intro=variable_intro,
+            has_external_context=has_external_context,
+        )
 
     if variable_style == "yaml_block":
-        intro = (
-            variable_intro
-            or "Available variables are listed below, along with default values (see `defaults/main.yml`):"
+        return _render_role_variables_yaml_block_style(
+            variables=variables,
+            variable_intro=variable_intro,
         )
-        yaml_block = yaml.safe_dump(
-            variables, sort_keys=False, default_flow_style=False
-        ).strip()
-        return f"{intro}\n\n```yaml\n{yaml_block}\n```"
 
+    return _render_role_variables_simple_list_style(variables, variable_intro)
+
+
+def _render_role_variables_table_style(
+    *,
+    variables: dict,
+    local_rows: list[dict],
+    variable_intro: str | None,
+    has_external_context: bool,
+) -> str:
+    """Render role variables in markdown table style."""
+    lines: list[str] = []
+    if variable_intro:
+        lines.extend([variable_intro, ""])
+    if has_external_context:
+        lines.extend(
+            [
+                "External variable context paths were provided as non-authoritative hints and are excluded from this role-source table.",
+                "",
+            ]
+        )
+    lines.extend(["| Name | Default | Description |", "| --- | --- | --- |"])
+    source_by_name = {row.get("name"): row for row in local_rows if row.get("name")}
+    for name, value in variables.items():
+        row = source_by_name.get(name) or {}
+        default = str(row.get("default") or _format_inline_yaml(value)).replace(
+            "`", "'"
+        )
+        description = _describe_variable(
+            name,
+            str(row.get("source") or "defaults/main.yml"),
+        )
+        lines.append(f"| `{name}` | `{default}` | {description} |")
+    return "\n".join(lines)
+
+
+def _render_role_variables_nested_bullets_style(
+    *,
+    variable_insights: list[dict],
+    local_rows: list[dict],
+    variable_intro: str | None,
+    has_external_context: bool,
+) -> str:
+    """Render role variables in nested bullet style."""
+    lines: list[str] = []
+    if variable_intro:
+        lines.extend([variable_intro, ""])
+    if has_external_context:
+        lines.append(
+            "External variable context paths were provided as non-authoritative hints and are excluded from this role-source list."
+        )
+        lines.append("")
+    rows_for_display = local_rows or variable_insights
+    for row in rows_for_display:
+        default = _format_inline_yaml(row["default"]).replace("`", "'")
+        lines.append(f"* `{row['name']}`")
+        lines.append(f"  * Default: `{default}`")
+        lines.append(
+            f"  * Description: {_describe_variable(row['name'], row['source'])}"
+        )
+    return "\n".join(lines)
+
+
+def _render_role_variables_yaml_block_style(
+    *,
+    variables: dict,
+    variable_intro: str | None,
+) -> str:
+    """Render role variables in a YAML code block style."""
+    intro = (
+        variable_intro
+        or "Available variables are listed below, along with default values (see `defaults/main.yml`):"
+    )
+    yaml_block = yaml.safe_dump(
+        variables, sort_keys=False, default_flow_style=False
+    ).strip()
+    return f"{intro}\n\n```yaml\n{yaml_block}\n```"
+
+
+def _render_role_variables_simple_list_style(
+    variables: dict,
+    variable_intro: str | None,
+) -> str:
+    """Render role variables as a simple key/value bullet list."""
     lines = [variable_intro or "The following variables are available:"]
     for name, value in variables.items():
         rendered = _format_inline_yaml(value).replace("`", "'")
@@ -1657,69 +1709,99 @@ def _render_guide_identity_sections(
 ) -> str | None:
     """Render style-guide sections focused on role identity and metadata."""
     if section_id == "galaxy_info":
-        if not galaxy:
-            return "No Galaxy metadata found."
-        lines = [
-            f"- **Role name**: {galaxy.get('role_name', role_name)}",
-            f"- **Description**: {galaxy.get('description', description)}",
-            f"- **License**: {galaxy.get('license', 'N/A')}",
-            f"- **Min Ansible Version**: {galaxy.get('min_ansible_version', 'N/A')}",
-        ]
-        tags = galaxy.get("galaxy_tags")
-        if tags:
-            lines.append(f"- **Tags**: {', '.join(tags)}")
-        return "\n".join(lines)
-
+        return _render_identity_galaxy_info_section(role_name, description, galaxy)
     if section_id == "requirements":
-        requirement_lines = normalize_requirements(requirements)
-        if not requirement_lines:
-            return "No additional requirements."
-        return "\n".join(f"- {line}" for line in requirement_lines)
-
+        return _render_identity_requirements_section(requirements)
     if section_id == "installation":
-        install_name = str(galaxy.get("role_name") or role_name)
-        return (
-            "Install the role with Ansible Galaxy:\n\n"
-            "```bash\n"
-            f"ansible-galaxy install {install_name}\n"
-            "```\n\n"
-            "Or pin it in `requirements.yml`:\n\n"
-            "```yaml\n"
-            f"- src: {install_name}\n"
-            "```"
-        )
-
+        return _render_identity_installation_section(role_name, galaxy)
     if section_id == "license":
-        if galaxy and galaxy.get("license"):
-            return str(galaxy.get("license"))
-        return "N/A"
-
+        return _render_identity_license_section(galaxy)
     if section_id == "author_information":
-        if galaxy and galaxy.get("author"):
-            return str(galaxy.get("author"))
-        return "N/A"
-
+        return _render_identity_author_section(galaxy)
     if section_id == "license_author":
-        license_value = str(galaxy.get("license", "N/A")) if galaxy else "N/A"
-        author_value = str(galaxy.get("author", "N/A")) if galaxy else "N/A"
-        return f"License: {license_value}\n\nAuthor: {author_value}"
-
+        return _render_identity_license_author_section(galaxy)
     if section_id == "sponsors":
         return "No sponsorship metadata detected for this role."
-
     if section_id == "purpose":
-        insights = metadata.get("doc_insights") or {}
-        lines = [insights.get("purpose_summary", "No inferred role summary available.")]
-        capabilities = insights.get("capabilities", [])
-        if capabilities:
-            lines.extend(["", "Capabilities:"])
-            lines.extend(f"- {capability}" for capability in capabilities)
-        return "\n".join(lines)
-
+        return _render_identity_purpose_section(metadata)
     if section_id == "role_notes":
         return _render_role_notes_section(metadata.get("role_notes"))
-
     return None
+
+
+def _render_identity_galaxy_info_section(
+    role_name: str,
+    description: str,
+    galaxy: dict,
+) -> str:
+    """Render Galaxy metadata section details."""
+    if not galaxy:
+        return "No Galaxy metadata found."
+    lines = [
+        f"- **Role name**: {galaxy.get('role_name', role_name)}",
+        f"- **Description**: {galaxy.get('description', description)}",
+        f"- **License**: {galaxy.get('license', 'N/A')}",
+        f"- **Min Ansible Version**: {galaxy.get('min_ansible_version', 'N/A')}",
+    ]
+    tags = galaxy.get("galaxy_tags")
+    if tags:
+        lines.append(f"- **Tags**: {', '.join(tags)}")
+    return "\n".join(lines)
+
+
+def _render_identity_requirements_section(requirements: list) -> str:
+    """Render normalized requirements bullet list."""
+    requirement_lines = normalize_requirements(requirements)
+    if not requirement_lines:
+        return "No additional requirements."
+    return "\n".join(f"- {line}" for line in requirement_lines)
+
+
+def _render_identity_installation_section(role_name: str, galaxy: dict) -> str:
+    """Render installation guidance using Ansible Galaxy and requirements.yml."""
+    install_name = str(galaxy.get("role_name") or role_name)
+    return (
+        "Install the role with Ansible Galaxy:\n\n"
+        "```bash\n"
+        f"ansible-galaxy install {install_name}\n"
+        "```\n\n"
+        "Or pin it in `requirements.yml`:\n\n"
+        "```yaml\n"
+        f"- src: {install_name}\n"
+        "```"
+    )
+
+
+def _render_identity_license_section(galaxy: dict) -> str:
+    """Render license value from Galaxy metadata when present."""
+    if galaxy and galaxy.get("license"):
+        return str(galaxy.get("license"))
+    return "N/A"
+
+
+def _render_identity_author_section(galaxy: dict) -> str:
+    """Render author value from Galaxy metadata when present."""
+    if galaxy and galaxy.get("author"):
+        return str(galaxy.get("author"))
+    return "N/A"
+
+
+def _render_identity_license_author_section(galaxy: dict) -> str:
+    """Render combined license/author identity section."""
+    license_value = str(galaxy.get("license", "N/A")) if galaxy else "N/A"
+    author_value = str(galaxy.get("author", "N/A")) if galaxy else "N/A"
+    return f"License: {license_value}\n\nAuthor: {author_value}"
+
+
+def _render_identity_purpose_section(metadata: dict) -> str:
+    """Render inferred purpose and capabilities from doc insights."""
+    insights = metadata.get("doc_insights") or {}
+    lines = [insights.get("purpose_summary", "No inferred role summary available.")]
+    capabilities = insights.get("capabilities", [])
+    if capabilities:
+        lines.extend(["", "Capabilities:"])
+        lines.extend(f"- {capability}" for capability in capabilities)
+    return "\n".join(lines)
 
 
 def _render_guide_variable_sections(
