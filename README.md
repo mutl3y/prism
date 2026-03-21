@@ -1,311 +1,116 @@
-Prism
-=================
+# Prism: Your Automation's Living Documentation
 
-![Prism logo](docs/prism_logo.jfif)
-
-[![CI](https://github.com/mutl3y/prism/actions/workflows/prism.yml/badge.svg?branch=main)](https://github.com/mutl3y/prism/actions/workflows/prism.yml)
-[![Branch](https://img.shields.io/github/actions/workflow/status/mutl3y/prism/prism.yml?branch=main&label=main)](https://github.com/mutl3y/prism/tree/main)
-[![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](docs/completed_plans/COVERAGE_WORKOFF_PLAN.md)
-[![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml)
-[![License](https://img.shields.io/github/license/mutl3y/prism)](LICENSE)
 Project site: [mutl3y.github.io/prism](https://mutl3y.github.io/prism)
-<!-- Codespaces badge disabled for now.
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/mutl3y/prism)
--->
+[![CI](https://github.com/mutl3y/prism/actions/workflows/prism.yml/badge.svg?branch=main)](https://github.com/mutl3y/prism/actions/workflows/prism.yml) [![Branch](https://img.shields.io/github/actions/workflow/status/mutl3y/prism/prism.yml?branch=main&label=main)](https://github.com/mutl3y/prism/tree/main) [![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](docs/completed_plans/COVERAGE_WORKOFF_PLAN.md) [![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml) [![License](https://img.shields.io/github/license/mutl3y/prism)](LICENSE)
 
-Overview
---------
+**From code to knowledge: automatically generate accurate, operator-friendly documentation for Ansible roles, collections, and repositories.**
 
-> **Refract complexity into clarity.**
+---
 
-An Ansible role is not a single file. It is a system of defaults, variables, tasks, handlers, metadata, and dependencies that interact to produce automation behavior. That power also makes roles and collections hard to understand quickly, and manual documentation drifts out of date.
+Ansible is the source of truth for your infrastructure, but its documentation is often the first source of technical debt. Manually written READMEs quickly become stale, making roles hard to reuse, difficult to onboard new team members, and risky to operate during incidents.
 
-`Prism` treats your automation like a beam of light. It scans your role or collection, refracts the monolith into its core parts, and generates a maintainable README that stays aligned with source.
+**Prism treats documentation as code.** It performs static analysis on Ansible content to generate accurate, operator-friendly documentation that stays aligned with source.
 
-The Spectrum of Documentation
------------------------------
+## ✨ Key Features
 
-- **Clear variable surfaces:** documents role variables from role-local sources with type, defaults, provenance, and uncertainty notes.
-- **Readable task flow:** renders task and handler activity into a clear, reviewable sequence.
-- **Visible metadata boundaries:** surfaces Galaxy metadata, platform support, and dependency signals.
-- **Collection-aware output:** supports collection roots and collection-level summaries alongside per-role docs.
+Prism goes beyond variable lists and captures operational context from the same source files your automation runs.
 
-Generate README documentation for Ansible collections and roles from local paths or repository sources.
+### Intelligently Adapts to Your Style
 
-Release history is tracked in `docs/CHANGELOG.md`.
-Authoring guidance is available in `docs/PRISM_FRIENDLY_ROLE_GUIDE.md`.
-Static-analysis scope and non-goals are documented in `docs/STATIC_ANALYSIS_SCOPE_AND_NONGOALS.md`.
+**Problem:** Most doc generators force a rigid template.
 
-Summary
--------
+**Prism's solution:** Through `prism-learn` experimentation, GitHub Models were used to categorize section titles across more than 37,000 real-world roles. Prism recognizes common conventions, detects existing section headers (like `Usage`, `Example Playbook`, or `Role Variables`), and injects generated content while preserving hand-written prose.
 
-`Prism` scans role structure, tasks, handlers, metadata, and variables, then renders a consistent README from templates.
+### 🤖 From Code to Crisis: Automated Runbooks
 
-- Supports local role scans via `prism role <role_path>`.
-- Supports repository-backed scans via `prism repo --repo-url <url>`.
-- Supports local collection roots via `prism collection <collection_path>` with collection-level markdown or JSON output.
-- CI validates scanner behavior across multiple `ansible-core` release lines (`2.17.x`, `2.18.x`, `2.19.x`).
-- Repo scans now opportunistically use sparse/partial clone for sub-path targets and fall back to shallow clone when sparse checkout is unavailable.
-- Can reuse an existing README as a style guide with section/order preservation.
-- Can generate headings-only style skeletons with `--create-style-guide`.
-- Can append detailed task and handler tables with `--detailed-catalog`.
-- Can render PDF output with `--format pdf` when the optional `weasyprint` dependency is installed.
-- Variable sourcing defaults to `defaults-only` (or use `--variable-sources defaults+vars`).
-- Parses and documents Molecule scenarios found in `molecule/*/molecule.yml`.
-- Supports per-role config files (`.prism.yml`) and explicit `--readme-config` / `--policy-config` flags for repeatable configuration.
-- Supports custom Jinja2 output templates via `--template` to adapt rendered output without forking the project.
+**Problem:** When automation fails, operators need a procedure, not just code.
 
-Scan scope (current)
---------------------
+**Prism's solution:** Add marker comments like `# prism~runbook: ...`, `# prism~warning: ...`, and `# prism~note: ...` to tasks for human-centric guidance. Prism extracts these directives and produces a clear, ordered runbook.
 
-Current scanning is static and file-based. The tool currently focuses on these sources/signals:
+Example snippet:
 
-- Role structure and conventional paths (`tasks/`, `handlers/`, `templates/`, `defaults/`, `vars/`, `meta/`, tests).
-- Variables from defaults-focused discovery (and optional vars discovery via `--variable-sources defaults+vars`).
-- Static task includes and selected `include_vars`/`set_fact` patterns where they can be resolved deterministically.
-- Jinja2 AST-assisted detection for `default(...)` usage and undeclared template variable references, with regex fallback for malformed or unsupported expressions.
-- README-input discovery for documented variables in role README variable/input sections (including markdown tables and list formats).
-- Style-guide-driven rendering when `--style-readme` or `--repo-style-readme-path` is provided.
-- Molecule scenario discovery from `molecule/*/molecule.yml` (driver, verifier, platforms).
-- Collection root scanning: iterates `roles/` inside a collection directory, renders per-role docs, and produces a collection-level summary via `prism collection`.
+```yaml
+# prism~runbook: Before proceeding, ensure no active transactions are in the message queue.
+# prism~warning: Draining may take up to 5 minutes on large backlogs.
+# prism~note: Use mq-status --check to verify queue health.
+- name: Stop the primary application service
+  ansible.builtin.service:
+    name: my-app
+    state: stopped
+```
 
-Known limitations
------------------
+### 🌐 Fleet-Wide Governance with `prism-learn`
 
-- Variable discovery is intentionally conservative and can miss values defined outside scanned defaults/vars patterns (for example dynamic `include_vars`, complex `set_fact`, role parameters, or precedence-driven overrides).
-- External context supplied via `--vars-context-path`/`--vars-seed` is treated as non-authoritative hint data for required-variable detection and does not redefine role-source truth.
-- Template analysis is moving toward Jinja2 AST parsing, but it still cannot fully resolve values that come from runtime includes, dynamic file loads, or variables computed only at execution time.
-- Static analysis still merges role sources such as `defaults/` and `vars/`, but some values must remain documented as unknown or runtime-derived when provenance cannot be resolved statically.
-- Complex computed defaults may not reduce cleanly to a literal value; in those cases generated docs may show the expression itself or treat it as a non-literal default.
-- Collection plugin extraction is confidence-based; filter/doc metadata can be partial when plugins are highly dynamic or built indirectly at runtime.
-- Generated docs can be incomplete when variable provenance is ambiguous or conditional defaults are difficult to resolve statically.
-- Edge cases still include role dependencies, variable precedence interactions, templated filenames, and dynamic include paths.
+**Problem:** You cannot manage what you cannot measure.
 
-Priority improvements planned
------------------------------
+**Prism's solution:** Prism exports structured metadata across your automation fleet. The companion project, [`prism-learn`](https://github.com/mutl3y/prism-learn), ingests that data to report on documentation quality, complexity hotspots, and dependency risk.
 
-- Expand Jinja2 AST coverage beyond the current default-filter and undeclared-variable paths (for example macros, custom filters/tests, and more complex control flow).
-- Expand variable/source coverage for `defaults/`, `vars/`, `meta/`, and simple `set_fact`/`include_vars` detection with provenance markers.
-- Add broader integration fixtures using realistic sample roles to validate real-world coverage and avoid regressions.
-- Extend CLI ergonomics with additional discovery/report controls (remaining focus: exclusions).
-- Expand task/handler parsing to recognise `include_role` and `import_role` directives and trace cross-role dependencies (currently only `include_tasks`/`import_tasks` file paths are followed).
+## 🚀 Quick Start
 
-Usage:
+1. Install Prism: `pip install prism-ansible`
+2. Move into your Ansible project: `cd /path/to/your/ansible-project`
+3. Run Prism against a role: `prism role roles/my-webserver-role`
+4. Review the generated role README.
 
-- Install core scanner only: pip install -e .
-- Install dev tooling: pip install -e .[dev]
-- Run (local role): `prism role path/to/role -o output.md`
-- Scan a local collection root into collection markdown plus per-role docs: `prism collection path/to/collection --format md -o COLLECTION_README.md`
-- Emit a machine-readable collection payload: `prism collection path/to/collection --format json -o collection.json`
-- Compare against local baseline (optional review/testing mode, not default generation): `prism role path/to/role --compare-role-path path/to/baseline -o debug_readmes/REVIEW_README_COMPARE.md`
-- Reuse an existing README as a style guide: `prism role path/to/role --style-readme path/to/README.md -o debug_readmes/REVIEW_README_STYLED.md`
-- Include detailed task and handler tables: `prism role path/to/role --detailed-catalog -o debug_readmes/REVIEW_README_CATALOG.md`
-- Generate PDF output (requires `weasyprint`): `prism role path/to/role --format pdf -o debug_readmes/REVIEW_README.pdf`
-- Live repo test: `python -m prism.cli repo --repo-url https://github.com/mutl3y/ansible_port_listener -o debug_readmes/REVIEW_README_PORT_LISTENER.md -v`
-- Use a README inside a cloned repo as a guide: `python -m prism.cli repo --repo-url https://github.com/mutl3y/ansible_port_listener --repo-style-readme-path README.md -o debug_readmes/REVIEW_README_PORT_LISTENER_STYLED.md -v`
-- Generate a style-guide skeleton (section order/headings only): `prism role path/to/role --create-style-guide -o debug_readmes/REVIEW_README_SKELETON.md`
-- Add external variable context hints (non-authoritative): `prism role path/to/role --vars-context-path group_vars -o debug_readmes/REVIEW_README_WITH_CONTEXT.md`
-- Use a per-role config file: place `.prism.yml` in the role root (auto-discovered) or pass `--readme-config path/to/config.yml`
-- Use a custom output template: `prism role path/to/role --template path/to/README.md.j2 -o output.md`
-- Apply a custom pattern policy: `prism role path/to/role --policy-config path/to/patterns.yml -o output.md`
+## Command-Line Usage
 
-Shell completion:
+- Scan a role: `prism role <path/to/role>`
+- Scan a collection: `prism collection <path/to/collection>`
+- Scan a repository: `prism repo <path/to/repo>`
 
-- Generate Bash completion script on demand: `prism completion bash`
-- Install for current shell session: `source <(prism completion bash)`
-- Install persistently for Bash users:
-  - `mkdir -p ~/.local/share/bash-completion/completions`
-  - `prism completion bash > ~/.local/share/bash-completion/completions/prism`
-  - restart shell (or source your shell rc file)
-- Completion is generated from the live CLI parser, so options stay aligned with command changes.
+Run `prism --help` for the full command and option list.
 
-<!--
-Codespaces live demo (disabled for now):
+## ⚙️ CI/CD Integration: Keep Docs Fresh Automatically
 
-- This repository includes a `.devcontainer/devcontainer.json` configuration for GitHub Codespaces.
-- On first create, Codespaces installs dev dependencies with `pip install -e .[dev]`.
-- On start, Codespaces runs `bash scripts/codespaces_live_demo.sh --quick` to generate demo artifacts in `debug_readmes/codespaces_demo/`.
-- Main demo output: `debug_readmes/codespaces_demo/README.md`
-- Optional local preview server:
-	- `bash scripts/codespaces_live_demo.sh --serve --port 8000`
-	- Then open forwarded port `8000` in Codespaces.
--->
+Prism is designed to run in CI/CD so generated docs stay in sync with source.
 
-Library API:
+Typical workflow:
 
-- `prism` can also be used as a scanner library by external orchestration code.
-- This repo should remain the scanner/render engine; high-volume learning-loop orchestration can live in a separate app that imports the public API wrapper.
-- Prefer `prism.api.scan_role(...)`, `prism.api.scan_repo(...)`, and `prism.api.scan_collection(...)` instead of importing internal helpers directly.
+1. Install `prism-ansible` in the pipeline job.
+2. Run `prism role ...` or `prism repo ...` during validation.
+3. Commit or publish generated docs as part of your docs workflow.
+
+## 🔧 Configuration
+
+Create a `.prism.yml` file in the target repo or role root to tune behavior.
 
 Example:
 
-```python
-from prism.api import scan_role
-
-payload = scan_role(
-    "/path/to/role",
-    exclude_path_patterns=["tests/**", "molecule/**"],
-)
-
-print(payload["role_name"])
-print(payload["metadata"]["scanner_counters"])
-```
-
-The wrapper returns the same machine-readable scan payload used by JSON output mode, but as a Python dictionary and without writing files.
-
-Repo example:
-
-```python
-from prism.api import scan_repo
-
-payload = scan_repo(
- "https://github.com/example/role.git",
- repo_role_path="roles/demo",
- repo_style_readme_path="README.md",
-)
-```
-
-Collection example:
-
-```python
-from prism.api import scan_collection
-
-payload = scan_collection(
- "/path/to/collection",
- include_rendered_readme=True,
-)
-
-print(payload["summary"])
-print(payload["roles"][0]["role"])
-```
-
-Prism-learn add-on
-------------------
-
-Learning-loop orchestration, metrics storage, and Postgres-backed batch workflows now live in the optional companion project: [prism-learn](https://github.com/mutl3y/prism-learn).
-
-Use `prism` for core role scanning and README generation.
-Use `prism-learn` when you need:
-
-- long-running learning/batch scans
-- persistence and reporting over scan history
-- local containerized Postgres + worker workflows
-
-`prism-learn` depends on `prism-ansible`, so `prism` remains the scanner/render engine and library API.
-
-CLI capabilities (today):
-
-- Verbose logging: `-v` / `--verbose`
-- Output formats: `--format md|html|json|pdf`
-- Preview without writes: `--dry-run` (prints rendered output to stdout)
-- Scanner detail output: `--concise-readme`, `--scanner-report-output`
-- Subcommand workflows: `prism role`, `prism collection`, `prism repo`, `prism completion bash`
-- External context hints: `--vars-context-path` (preferred) with backward-compatible `--vars-seed` alias
-- Detailed task/handler tables: `--detailed-catalog`
-- Local baseline comparison is opt-in only via `--compare-role-path`.
-- Unmapped style-guide sections are kept by default; use `--no-keep-unknown-style-sections` to suppress them.
-- PDF output requires the optional `weasyprint` dependency.
-- Per-role configuration: auto-discovers `.prism.yml` in the role root; override with `--readme-config`
-- Pattern policy overrides: `--policy-config` for custom token/alias/sensitivity rules
-- Custom Jinja2 output template: `--template` (falls back to bundled `templates/README.md.j2`)
-- Molecule scenario documentation: detected automatically from `molecule/*/molecule.yml`
-
-When a style guide README is used, comparison artifacts are saved beside the generated output:
-
-- source guide copy: `style_<source>/SOURCE_STYLE_GUIDE.md`
-- generated demo copy: `style_<source>/DEMO_GENERATED.md`
-- generated keep-unknown demo copy: `style_<source>/DEMO_GENERATED_KEEP_UNKNOWN.md`
-- captured/source-of-truth config sidecar: `style_<source>/ROLE_README_CONFIG.yml`
-
-`ROLE_README_CONFIG.yml` behavior:
-
-- If the role already has `.prism.yml`, that config is copied beside demo artifacts.
-- If no role config exists, the sidecar is synthesized from unknown style headings in the source guide.
-- Captured content includes `readme.capture_metadata` fields:
-  - `schema_version`
-  - `captured_at_utc`
-  - `style_source_path`
-  - `truncated`
-- Guardrails apply to synthesized captures:
-  - obvious secret-like tokens are redacted (for example password/token/api-key assignments and bearer tokens)
-  - per-section and total capture size limits are enforced
-  - entries are deduplicated and sorted for deterministic output
-  - unchanged sidecars are not rewritten
-
-Current style-guide behavior:
-
-- Guide section order and heading style are preserved where possible.
-- `--create-style-guide` generates section headings/order only (no generated section bodies) for iterative style-guide evolution.
-- README config section selection is independent from heading rendering mode. Use `--adopt-heading-mode {canonical,style,popular}` or `readme.adopt_heading_mode`.
-  - `canonical`: render canonical section titles (default)
-  - `style`: render include_sections labels such as `Capabilities`
-  - `popular`: render bundled popular display titles from `data/section_display_titles.yml`
-- README config can control how each section body is handled via `readme.section_content_modes` with per-section modes:
-  - `generate`: use scanner-generated section content only
-  - `replace`: use style-guide/source section body text only
-  - `merge`: combine source section text and generated output
-- Comment-driven role/task annotations now use `# <prefix>~<kind>: ...` markers (default prefix: `prism`). Configure the prefix with `markers.prefix` in `.prism.yml`.
-- `readme.section_content_modes` keys are resolved first against section labels used in `readme.include_sections`, then against aliases/canonical section ids.
-- Merge mode is idempotent for repeated ingest/re-render passes: generated merge payloads are replaced in-place using hidden markers instead of appended repeatedly.
-- Unknown style sections preserve source body text when present, with a fallback placeholder only when the source section body is empty.
-- Skeleton style source precedence is: explicit `--style-readme` path, then `$PRISM_STYLE_SOURCE`, then `./STYLE_GUIDE_SOURCE.md`, then `$XDG_DATA_HOME/prism/STYLE_GUIDE_SOURCE.md` (or `~/.local/share/prism/STYLE_GUIDE_SOURCE.md`), then `/var/lib/prism/STYLE_GUIDE_SOURCE.md`, then bundled package `templates/STYLE_GUIDE_SOURCE.md`.
-- Common guide sections such as role variables, examples, local testing, FAQ/pitfalls, contributing, sponsors, and license/author are mapped to generated content.
-- License and author values are always taken from scanned role metadata (`meta/main.yml`) when available, even when style-guide body text differs.
-- Variable sections now adapt to the source README style, including YAML-block and nested-bullet variable formats.
-- Variable sections now adapt to source README styles including YAML blocks, nested bullets, and markdown tables.
-- Pattern policy config merge order is: bundled package defaults, then `/var/lib/prism/.prism_patterns.yml`, then `$XDG_DATA_HOME/prism/.prism_patterns.yml` (or `~/.local/share/prism/.prism_patterns.yml`), then optional `./.prism_patterns.yml`, then optional `$PRISM_PATTERNS_PATH`, then explicit override path if supplied.
-
-README config example:
-
 ```yaml
 readme:
- adopt_heading_mode: style
- include_sections:
-  - Capabilities
-  - Inputs / variables summary
-  - Requirements
- section_content_modes:
-  Requirements: merge
-  Inputs / variables summary: generate
+  adopt_heading_mode: style
+  include_sections:
+    - Capabilities
+    - Inputs / variables summary
+    - Requirements
+  section_content_modes:
+    Requirements: merge
+    Inputs / variables summary: generate
 markers:
- prefix: prism
+  prefix: prism
 ```
 
-Testing note:
+Marker prefix rules:
 
-- Running `tox` (default `py` env) runs tests with coverage and writes `debug_readmes/coverage.xml`.
-- Latest local snapshot (2026-03-20): `502 passed` with total coverage `91.66%`.
-- Generate review outputs on demand with `tox -e readmes` (or `tox -e py,readmes`), which writes:
-  - `debug_readmes/REVIEW_README.md`
-  - `debug_readmes/REVIEW_README.html`
-  - `debug_readmes/REVIEW_README.json`
-  - `debug_readmes/REVIEW_README_CONCISE.md` and `debug_readmes/SCAN_REPORT.md`
-  - `debug_readmes/REVIEW_README_STYLE_GUIDE_SKELETON.md`
-  - `debug_readmes/REVIEW_README_INROLE_CONFIG.md`
-- `debug_readmes/` is ignored by git.
-- Coverage workoff closeout is archived in `docs/completed_plans/COVERAGE_WORKOFF_PLAN.md`.
+- Default prefix: `prism`
+- Allowed pattern: `[A-Za-z0-9_.-]+`
+- Allowed characters: letters, numbers, `_`, `.`, `-`
 
-CI note:
+## Technical Documentation
 
-- Ruff annotations are published by reviewdog only on pull request events.
-- Annotations are reported as a PR check (`github-pr-check`) with warning-level findings.
-- Coverage badge updates are written to the dedicated `badges` branch via GitHub API calls from CI (avoids protected-branch direct pushes to `main`).
-- Starter docs-generation templates are included in `docs/ci-starter-workflows.md` and `.github/workflows/prism.yml`.
+Most deep technical material now lives in `docs/`:
 
-Review note:
+- `docs/CHANGELOG.md`
+- `docs/PRISM_FRIENDLY_ROLE_GUIDE.md`
+- `docs/STATIC_ANALYSIS_SCOPE_AND_NONGOALS.md`
+- `docs/TODO.md`
+- `docs/STYLE_GUIDE_SOURCES.md`
+- `docs/ci-starter-workflows.md`
 
-- `debug_readmes/STYLE_GUIDE_REVIEW_SUMMARY.md` indexes the current generated comparison set.
-- `debug_readmes/STYLE_MISSED_SECTIONS_REPORT.md` lists unmapped style-guide headings from the latest sample repo pass.
-- Current sample-repo matrix validates end-to-end generation across the configured six style sources.
+## 🌱 Contributing
 
-Roadmap:
+Contributions are welcome. See `docs/CONTRIBUTING.md`.
 
-- See `docs/TODO.md` for planned enhancements and remaining gaps (richer mock role realism and further style-fidelity reductions).
-- Current roadmap also tracks follow-up phases for mutable Linux-host data locations (for example XDG user data and system-level paths).
-- See `docs/STYLE_GUIDE_SOURCES.md` for candidate README source repositories to use as style guides during review.
+## 📄 License
 
-<- hosts: reviewdog test -->
-
-<- hosts: reviewdog verify -->
-
-<- hosts: reviewdog retry -->
+Prism is licensed under the [MIT License](LICENSE).
