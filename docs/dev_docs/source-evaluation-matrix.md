@@ -1,4 +1,7 @@
-# Source Evaluation Matrix
+---
+layout: default
+title: Source Evaluation Matrix
+---
 
 This matrix confirms every artifact under `docs/` was reviewed and assigned a destination in the current documentation tree.
 
