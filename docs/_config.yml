@@ -1,10 +1,19 @@
 title: Prism Documentation
-description: Project documentation and long-form article for GitHub Pages.
+description: Documentation for users and DevOps professionals using Prism.
 url: "https://mutl3y.github.io"
 baseurl: "/prism"
 theme: minima
 header_pages:
   - index.md
+  - getting-started.md
+  - user-guide.md
+  - provenance-tracking.md
+  - comment-driven-documentation.md
+  - devops-guide.md
+  - prism-friendly-role-authoring.md
+  - feedback-integration.md
+  - changelog.md
+  - dev_docs/README.md
 markdown: kramdown
 kramdown:
   input: GFM
