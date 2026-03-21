@@ -2715,6 +2715,65 @@ def _prepare_scan_context(
     compare_role_path: str | None,
 ) -> tuple[str, str, str, list, list, dict]:
     """Collect role metadata and scanner context required for rendering outputs."""
+    base_context = _collect_scan_base_context(
+        role_path=role_path,
+        role_name_override=role_name_override,
+        readme_config_path=readme_config_path,
+        include_vars_main=include_vars_main,
+        exclude_path_patterns=exclude_path_patterns,
+        detailed_catalog=detailed_catalog,
+        adopt_heading_mode=adopt_heading_mode,
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
+        include_collection_checks=include_collection_checks,
+        keep_unknown_style_sections=keep_unknown_style_sections,
+    )
+    undocumented_default_filters, display_variables = (
+        _enrich_scan_context_with_insights(
+            role_path=role_path,
+            role_name=base_context["role_name"],
+            description=base_context["description"],
+            vars_seed_paths=vars_seed_paths,
+            include_vars_main=include_vars_main,
+            exclude_path_patterns=exclude_path_patterns,
+            marker_prefix=base_context["marker_prefix"],
+            found=base_context["found"],
+            variables=base_context["variables"],
+            metadata=base_context["metadata"],
+            style_readme_path=style_readme_path,
+            style_source_path=style_source_path,
+            style_guide_skeleton=style_guide_skeleton,
+            compare_role_path=compare_role_path,
+        )
+    )
+    return _finalize_scan_context_payload(
+        rp=base_context["rp"],
+        role_name=base_context["role_name"],
+        description=base_context["description"],
+        requirements_display=base_context["requirements_display"],
+        undocumented_default_filters=undocumented_default_filters,
+        display_variables=display_variables,
+        metadata=base_context["metadata"],
+    )
+
+
+def _collect_scan_base_context(
+    *,
+    role_path: str,
+    role_name_override: str | None,
+    readme_config_path: str | None,
+    include_vars_main: bool,
+    exclude_path_patterns: list[str] | None,
+    detailed_catalog: bool,
+    adopt_heading_mode: str | None,
+    include_task_parameters: bool,
+    include_task_runbooks: bool,
+    inline_task_runbooks: bool,
+    include_collection_checks: bool,
+    keep_unknown_style_sections: bool,
+) -> dict:
+    """Collect baseline scan artifacts and configured metadata state."""
     (
         rp,
         meta,
@@ -2746,24 +2805,29 @@ def _prepare_scan_context(
         requirements=requirements,
         metadata=metadata,
     )
-    undocumented_default_filters, display_variables = (
-        _enrich_scan_context_with_insights(
-            role_path=role_path,
-            role_name=role_name,
-            description=description,
-            vars_seed_paths=vars_seed_paths,
-            include_vars_main=include_vars_main,
-            exclude_path_patterns=exclude_path_patterns,
-            marker_prefix=marker_prefix,
-            found=found,
-            variables=variables,
-            metadata=metadata,
-            style_readme_path=style_readme_path,
-            style_source_path=style_source_path,
-            style_guide_skeleton=style_guide_skeleton,
-            compare_role_path=compare_role_path,
-        )
-    )
+    return {
+        "rp": rp,
+        "role_name": role_name,
+        "description": description,
+        "marker_prefix": marker_prefix,
+        "variables": variables,
+        "found": found,
+        "metadata": metadata,
+        "requirements_display": requirements_display,
+    }
+
+
+def _finalize_scan_context_payload(
+    *,
+    rp: str,
+    role_name: str,
+    description: str,
+    requirements_display: list,
+    undocumented_default_filters: list[dict],
+    display_variables: dict,
+    metadata: dict,
+) -> tuple[str, str, str, list, list, dict]:
+    """Return normalized context payload used by run_scan output emission."""
     return (
         rp,
         role_name,
@@ -2981,11 +3045,82 @@ def run_scan(
     runbook_csv_output: str | None = None,
 ) -> str:
     _refresh_policy(policy_config_path)
+    detailed_catalog = _resolve_detailed_catalog_flag(
+        detailed_catalog=detailed_catalog,
+        runbook_output=runbook_output,
+        runbook_csv_output=runbook_csv_output,
+    )
+    prepared = _prepare_run_scan_payload(
+        role_path=role_path,
+        role_name_override=role_name_override,
+        readme_config_path=readme_config_path,
+        include_vars_main=include_vars_main,
+        exclude_path_patterns=exclude_path_patterns,
+        detailed_catalog=detailed_catalog,
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
+        include_collection_checks=include_collection_checks,
+        keep_unknown_style_sections=keep_unknown_style_sections,
+        adopt_heading_mode=adopt_heading_mode,
+        vars_seed_paths=vars_seed_paths,
+        style_readme_path=style_readme_path,
+        style_source_path=style_source_path,
+        style_guide_skeleton=style_guide_skeleton,
+        compare_role_path=compare_role_path,
+    )
+    return _emit_scan_outputs(
+        output=output,
+        output_format=output_format,
+        concise_readme=concise_readme,
+        scanner_report_output=scanner_report_output,
+        include_scanner_report_link=include_scanner_report_link,
+        role_name=prepared["role_name"],
+        description=prepared["description"],
+        display_variables=prepared["display_variables"],
+        requirements_display=prepared["requirements_display"],
+        undocumented_default_filters=prepared["undocumented_default_filters"],
+        metadata=prepared["metadata"],
+        template=template,
+        dry_run=dry_run,
+        runbook_output=runbook_output,
+        runbook_csv_output=runbook_csv_output,
+    )
 
-    # Auto-enable task catalog collection when a standalone runbook is requested.
-    if (runbook_output or runbook_csv_output) and not detailed_catalog:
-        detailed_catalog = True
 
+def _resolve_detailed_catalog_flag(
+    *,
+    detailed_catalog: bool,
+    runbook_output: str | None,
+    runbook_csv_output: str | None,
+) -> bool:
+    """Ensure task catalog collection is enabled when standalone runbooks are requested."""
+    if runbook_output or runbook_csv_output:
+        return True
+    return detailed_catalog
+
+
+def _prepare_run_scan_payload(
+    *,
+    role_path: str,
+    role_name_override: str | None,
+    readme_config_path: str | None,
+    include_vars_main: bool,
+    exclude_path_patterns: list[str] | None,
+    detailed_catalog: bool,
+    include_task_parameters: bool,
+    include_task_runbooks: bool,
+    inline_task_runbooks: bool,
+    include_collection_checks: bool,
+    keep_unknown_style_sections: bool,
+    adopt_heading_mode: str | None,
+    vars_seed_paths: list[str] | None,
+    style_readme_path: str | None,
+    style_source_path: str | None,
+    style_guide_skeleton: bool,
+    compare_role_path: str | None,
+) -> dict:
+    """Prepare role metadata and display payloads used by scan output emission."""
     (
         _rp,
         role_name,
@@ -3012,20 +3147,11 @@ def run_scan(
         style_guide_skeleton=style_guide_skeleton,
         compare_role_path=compare_role_path,
     )
-    return _emit_scan_outputs(
-        output=output,
-        output_format=output_format,
-        concise_readme=concise_readme,
-        scanner_report_output=scanner_report_output,
-        include_scanner_report_link=include_scanner_report_link,
-        role_name=role_name,
-        description=description,
-        display_variables=scan_context["display_variables"],
-        requirements_display=requirements_display,
-        undocumented_default_filters=undocumented_default_filters,
-        metadata=scan_context["metadata"],
-        template=template,
-        dry_run=dry_run,
-        runbook_output=runbook_output,
-        runbook_csv_output=runbook_csv_output,
-    )
+    return {
+        "role_name": role_name,
+        "description": description,
+        "requirements_display": requirements_display,
+        "undocumented_default_filters": undocumented_default_filters,
+        "display_variables": scan_context["display_variables"],
+        "metadata": scan_context["metadata"],
+    }
