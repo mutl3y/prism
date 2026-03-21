@@ -1156,6 +1156,117 @@ def test_cli_policy_config_is_forwarded(monkeypatch, tmp_path):
     assert calls["policy_config_path"] == str(policy_cfg)
 
 
+def test_cli_fail_on_unconstrained_dynamic_includes_is_forwarded_for_role(
+    monkeypatch, tmp_path
+):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    role.mkdir()
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["fail_on_unconstrained_dynamic_includes"] = kwargs.get(
+            "fail_on_unconstrained_dynamic_includes"
+        )
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "fail-policy.md"
+    rc = cli.main(
+        [
+            "role",
+            str(role),
+            "--fail-on-unconstrained-dynamic-includes",
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert calls["fail_on_unconstrained_dynamic_includes"] is True
+
+
+def test_cli_fail_on_unconstrained_dynamic_includes_is_forwarded_for_repo(
+    monkeypatch, tmp_path
+):
+    calls: dict = {}
+
+    def fake_clone_run(cmd, check, stdout, stderr, text, timeout, env):
+        destination = Path(cmd[-1])
+        destination.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["fail_on_unconstrained_dynamic_includes"] = kwargs.get(
+            "fail_on_unconstrained_dynamic_includes"
+        )
+        Path(output).write_text("generated", encoding="utf-8")
+        return str(Path(output).resolve())
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "repo-fail-policy.md"
+    rc = cli.main(
+        [
+            "repo",
+            "--repo-url",
+            "https://github.com/example/role.git",
+            "--fail-on-unconstrained-dynamic-includes",
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert calls["fail_on_unconstrained_dynamic_includes"] is True
+
+
+def test_cli_fail_on_unconstrained_dynamic_includes_is_forwarded_for_collection(
+    monkeypatch, tmp_path
+):
+    calls: dict = {}
+    collection_root = tmp_path / "collection"
+    (collection_root / "roles").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+
+    def fake_scan_collection(collection_path, **kwargs):
+        calls["fail_on_unconstrained_dynamic_includes"] = kwargs.get(
+            "fail_on_unconstrained_dynamic_includes"
+        )
+        return {
+            "collection": {
+                "path": collection_path,
+                "metadata": {"namespace": "demo", "name": "toolkit"},
+            },
+            "summary": {"total_roles": 0, "scanned_roles": 0, "failed_roles": 0},
+            "roles": [],
+        }
+
+    import prism.api as api_module
+
+    monkeypatch.setattr(api_module, "scan_collection", fake_scan_collection)
+
+    out = tmp_path / "collection-fail-policy"
+    rc = cli.main(
+        [
+            "collection",
+            str(collection_root),
+            "--fail-on-unconstrained-dynamic-includes",
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert calls["fail_on_unconstrained_dynamic_includes"] is True
+
+
 def test_cli_repo_style_readme_path_is_resolved(monkeypatch, tmp_path):
     calls: dict = {}
 

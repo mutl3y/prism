@@ -1483,6 +1483,61 @@ def test_load_readme_section_config_and_visibility_handle_invalid_shapes(tmp_pat
     assert scanner.load_readme_section_config(str(role)) is None
 
 
+def test_load_fail_on_unconstrained_dynamic_includes_reads_scan_toggle(tmp_path):
+    role = tmp_path / "role"
+    role.mkdir(parents=True)
+    cfg = role / ".prism.yml"
+    cfg.write_text(
+        "scan:\n" "  fail_on_unconstrained_dynamic_includes: 'yes'\n",
+        encoding="utf-8",
+    )
+
+    assert scanner.load_fail_on_unconstrained_dynamic_includes(str(role)) is True
+
+
+def test_run_scan_fails_on_unconstrained_dynamic_role_include_when_enabled(tmp_path):
+    role = tmp_path / "role"
+    tasks_dir = role / "tasks"
+    tasks_dir.mkdir(parents=True)
+    (tasks_dir / "main.yml").write_text(
+        "---\n"
+        "- name: dynamic include role\n"
+        "  include_role:\n"
+        '    name: "{{ target_role }}"\n',
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "README.md"
+    with pytest.raises(RuntimeError, match="Unconstrained dynamic includes"):
+        scanner.run_scan(
+            str(role),
+            output=str(out),
+            fail_on_unconstrained_dynamic_includes=True,
+        )
+
+
+def test_run_scan_allows_constrained_dynamic_role_include_when_enabled(tmp_path):
+    role = tmp_path / "role"
+    tasks_dir = role / "tasks"
+    tasks_dir.mkdir(parents=True)
+    (tasks_dir / "main.yml").write_text(
+        "---\n"
+        "- name: constrained include role\n"
+        '  include_role: "{{ target_role }}"\n'
+        '  when: target_role in ["acme.base", "acme.web"]\n',
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "README.md"
+    scanner.run_scan(
+        str(role),
+        output=str(out),
+        fail_on_unconstrained_dynamic_includes=True,
+    )
+
+    assert out.exists()
+
+
 def test_load_section_display_titles_parses_valid_entries_only(tmp_path, monkeypatch):
     titles = tmp_path / "titles.yml"
     titles.write_text(

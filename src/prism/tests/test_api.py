@@ -46,6 +46,7 @@ def test_scan_role_forwards_library_options(monkeypatch):
         exclude_path_patterns=["tests/**"],
         style_source_path="/tmp/style.md",
         policy_config_path="/tmp/policy.yml",
+        fail_on_unconstrained_dynamic_includes=True,
         keep_unknown_style_sections=False,
     )
 
@@ -57,6 +58,7 @@ def test_scan_role_forwards_library_options(monkeypatch):
     assert calls["exclude_path_patterns"] == ["tests/**"]
     assert calls["style_source_path"] == "/tmp/style.md"
     assert calls["policy_config_path"] == "/tmp/policy.yml"
+    assert calls["fail_on_unconstrained_dynamic_includes"] is True
     assert calls["keep_unknown_style_sections"] is False
 
 

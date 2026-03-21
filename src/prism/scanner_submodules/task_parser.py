@@ -200,11 +200,23 @@ def _iter_task_include_targets(data: object) -> list[str]:
                 continue
             value = task[key]
             if isinstance(value, str):
-                targets.extend(_expand_include_target_candidates(task, value))
+                expanded = _expand_include_target_candidates(task, value)
+                if expanded:
+                    targets.extend(expanded)
+                else:
+                    candidate = value.strip()
+                    if candidate:
+                        targets.append(candidate)
             elif isinstance(value, dict):
                 file_value = value.get("file") or value.get("_raw_params")
                 if isinstance(file_value, str):
-                    targets.extend(_expand_include_target_candidates(task, file_value))
+                    expanded = _expand_include_target_candidates(task, file_value)
+                    if expanded:
+                        targets.extend(expanded)
+                    else:
+                        candidate = file_value.strip()
+                        if candidate:
+                            targets.append(candidate)
     return targets
 
 
@@ -269,6 +281,117 @@ def _expand_include_target_candidates(task: dict, include_target: str) -> list[s
     prefix = (match.group("prefix") or "").strip()
     suffix = (match.group("suffix") or "").strip()
     return [f"{prefix}{value}{suffix}" for value in allowed_values]
+
+
+def _collect_unconstrained_dynamic_task_includes(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> list[dict[str, str]]:
+    """Return unconstrained dynamic include/import task references.
+
+    A dynamic include is considered unconstrained when it contains templating
+    and cannot be expanded into static candidates via simple ``when`` allow-lists.
+    """
+    role_root = Path(role_path).resolve()
+    findings: list[dict[str, str]] = []
+
+    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
+        data = _load_yaml_file(task_file)
+        relpath = str(task_file.relative_to(role_root))
+        for task in _iter_task_mappings(data):
+            task_name = str(task.get("name") or "(unnamed task)")
+            for include_key in TASK_INCLUDE_KEYS:
+                if include_key not in task:
+                    continue
+                include_target = task[include_key]
+                include_path: str | None = None
+                if isinstance(include_target, str):
+                    include_path = include_target
+                elif isinstance(include_target, dict):
+                    candidate = include_target.get("file") or include_target.get(
+                        "_raw_params"
+                    )
+                    if isinstance(candidate, str):
+                        include_path = candidate
+
+                if not include_path:
+                    continue
+                include_path = include_path.strip()
+                if "{{" not in include_path and "{%" not in include_path:
+                    continue
+                if _expand_include_target_candidates(task, include_path):
+                    continue
+
+                findings.append(
+                    {
+                        "file": relpath,
+                        "task": task_name,
+                        "module": (
+                            "import_tasks"
+                            if "import_tasks" in include_key
+                            else "include_tasks"
+                        ),
+                        "target": include_path,
+                    }
+                )
+
+    return findings
+
+
+def _collect_unconstrained_dynamic_role_includes(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> list[dict[str, str]]:
+    """Return unconstrained dynamic include/import role references.
+
+    A dynamic include role reference is considered unconstrained when it
+    contains templating and cannot be expanded into static candidates via
+    simple ``when`` allow-lists.
+    """
+    role_root = Path(role_path).resolve()
+    findings: list[dict[str, str]] = []
+
+    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
+        data = _load_yaml_file(task_file)
+        relpath = str(task_file.relative_to(role_root))
+        for task in _iter_task_mappings(data):
+            task_name = str(task.get("name") or "(unnamed task)")
+            for include_key in ROLE_INCLUDE_KEYS:
+                if include_key not in task:
+                    continue
+                include_target = task[include_key]
+                role_ref: str | None = None
+                if isinstance(include_target, str):
+                    role_ref = include_target
+                elif isinstance(include_target, dict):
+                    candidate = include_target.get("name") or include_target.get(
+                        "_raw_params"
+                    )
+                    if isinstance(candidate, str):
+                        role_ref = candidate
+
+                if not role_ref:
+                    continue
+                role_ref = role_ref.strip()
+                if "{{" not in role_ref and "{%" not in role_ref:
+                    continue
+                if _expand_include_target_candidates(task, role_ref):
+                    continue
+
+                findings.append(
+                    {
+                        "file": relpath,
+                        "task": task_name,
+                        "module": (
+                            "import_role"
+                            if "import_role" in include_key
+                            else "include_role"
+                        ),
+                        "target": role_ref,
+                    }
+                )
+
+    return findings
 
 
 def _iter_role_include_targets(task: dict) -> list[str]:

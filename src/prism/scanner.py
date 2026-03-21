@@ -24,6 +24,7 @@ from .scanner_submodules.output import (
 from .pattern_config import load_pattern_config
 from .scanner_submodules.readme_config import (
     DEFAULT_DOC_MARKER_PREFIX as READMECFG_DEFAULT_DOC_MARKER_PREFIX,
+    load_fail_on_unconstrained_dynamic_includes as _load_fail_on_unconstrained_dynamic_includes,
     load_readme_marker_prefix as _load_readme_marker_prefix,
     load_readme_section_config as _load_readme_section_config,
     load_readme_section_visibility as _load_readme_section_visibility,
@@ -92,6 +93,8 @@ from .scanner_submodules.task_parser import (
     _detect_task_module as _detect_task_module,
     _extract_collection_from_module_name as _extract_collection_from_module_name,
     _compact_task_parameters as _compact_task_parameters,
+    _collect_unconstrained_dynamic_role_includes as _collect_unconstrained_dynamic_role_includes,
+    _collect_unconstrained_dynamic_task_includes as _collect_unconstrained_dynamic_task_includes,
     _collect_task_handler_catalog as _collect_task_handler_catalog,
     _collect_molecule_scenarios as _collect_molecule_scenarios,
     extract_role_features as extract_role_features,
@@ -1594,6 +1597,21 @@ def load_readme_marker_prefix(
     )
 
 
+def load_fail_on_unconstrained_dynamic_includes(
+    role_path: str,
+    config_path: str | None = None,
+    default: bool = False,
+) -> bool:
+    """Load scan policy toggle for unconstrained dynamic include failures."""
+    return _load_fail_on_unconstrained_dynamic_includes(
+        role_path,
+        config_path=config_path,
+        default=default,
+        config_filenames=SECTION_CONFIG_FILENAMES,
+        default_filename=SECTION_CONFIG_FILENAME,
+    )
+
+
 def load_readme_section_visibility(
     role_path: str,
     config_path: str | None = None,
@@ -1819,6 +1837,16 @@ def _render_task_summary_section(metadata: dict) -> str:
         return "No task summary available."
 
     yaml_parse_failures = metadata.get("yaml_parse_failures") or []
+    unconstrained_dynamic_task_includes = (
+        metadata.get("unconstrained_dynamic_task_includes") or []
+    )
+    unconstrained_dynamic_role_includes = (
+        metadata.get("unconstrained_dynamic_role_includes") or []
+    )
+    unconstrained_dynamic_includes = [
+        *unconstrained_dynamic_task_includes,
+        *unconstrained_dynamic_role_includes,
+    ]
     lines = [
         f"- **Task files scanned**: {summary.get('task_files_scanned', 0)}",
         f"- **Tasks scanned**: {summary.get('tasks_scanned', 0)}",
@@ -1826,6 +1854,8 @@ def _render_task_summary_section(metadata: dict) -> str:
         f"- **Unique modules**: {summary.get('module_count', 0)}",
         f"- **Handlers referenced**: {summary.get('handler_count', 0)}",
         f"- **YAML parse failures**: {len(yaml_parse_failures)}",
+        f"- **Unconstrained dynamic task includes**: {len(unconstrained_dynamic_task_includes)}",
+        f"- **Unconstrained dynamic role includes**: {len(unconstrained_dynamic_role_includes)}",
     ]
     if yaml_parse_failures:
         lines.extend(["", "Parse failures detected:"])
@@ -1843,6 +1873,21 @@ def _render_task_summary_section(metadata: dict) -> str:
         if len(yaml_parse_failures) > 5:
             lines.append(
                 f"- ... and {len(yaml_parse_failures) - 5} additional parse failures"
+            )
+
+    if unconstrained_dynamic_includes:
+        lines.extend(["", "Unconstrained dynamic include hazards detected:"])
+        for item in unconstrained_dynamic_includes[:5]:
+            if not isinstance(item, dict):
+                continue
+            file_name = str(item.get("file") or "<unknown>")
+            task_name = str(item.get("task") or "(unnamed task)")
+            target = str(item.get("target") or "")
+            lines.append(f"- `{file_name}` / {task_name}: `{target}`")
+        if len(unconstrained_dynamic_includes) > 5:
+            lines.append(
+                "- ... and "
+                f"{len(unconstrained_dynamic_includes) - 5} additional unconstrained dynamic includes"
             )
 
     task_catalog = metadata.get("task_catalog") or []
@@ -2714,6 +2759,18 @@ def _collect_scan_artifacts(
     metadata["include_task_parameters"] = True
     metadata["include_task_runbooks"] = True
     metadata["inline_task_runbooks"] = True
+    metadata["unconstrained_dynamic_task_includes"] = (
+        _collect_unconstrained_dynamic_task_includes(
+            role_path,
+            exclude_paths=exclude_path_patterns,
+        )
+    )
+    metadata["unconstrained_dynamic_role_includes"] = (
+        _collect_unconstrained_dynamic_role_includes(
+            role_path,
+            exclude_paths=exclude_path_patterns,
+        )
+    )
     if detailed_catalog:
         task_catalog, handler_catalog = _collect_task_handler_catalog(
             role_path,
@@ -3010,6 +3067,14 @@ def _collect_scan_base_context(scan_options: dict) -> dict:
         requirements=requirements,
         metadata=metadata,
     )
+    _apply_unconstrained_dynamic_include_policy(
+        role_path=scan_options["role_path"],
+        readme_config_path=scan_options["readme_config_path"],
+        fail_on_unconstrained_dynamic_includes=scan_options[
+            "fail_on_unconstrained_dynamic_includes"
+        ],
+        metadata=metadata,
+    )
     return {
         "rp": rp,
         "role_name": role_name,
@@ -3020,6 +3085,46 @@ def _collect_scan_base_context(scan_options: dict) -> dict:
         "metadata": metadata,
         "requirements_display": requirements_display,
     }
+
+
+def _apply_unconstrained_dynamic_include_policy(
+    *,
+    role_path: str,
+    readme_config_path: str | None,
+    fail_on_unconstrained_dynamic_includes: bool | None,
+    metadata: dict,
+) -> None:
+    """Apply and enforce unconstrained dynamic include scan policy."""
+    config_default = load_fail_on_unconstrained_dynamic_includes(
+        role_path,
+        config_path=readme_config_path,
+        default=False,
+    )
+    effective_fail = (
+        config_default
+        if fail_on_unconstrained_dynamic_includes is None
+        else bool(fail_on_unconstrained_dynamic_includes)
+    )
+    metadata["fail_on_unconstrained_dynamic_includes"] = effective_fail
+
+    hazards = [
+        *(metadata.get("unconstrained_dynamic_task_includes") or []),
+        *(metadata.get("unconstrained_dynamic_role_includes") or []),
+    ]
+    if effective_fail and hazards:
+        first = hazards[0] if isinstance(hazards[0], dict) else {}
+        first_file = str(first.get("file") or "<unknown>")
+        first_task = str(first.get("task") or "(unnamed task)")
+        first_module = str(first.get("module") or "include")
+        first_target = str(first.get("target") or "")
+        raise RuntimeError(
+            "Unconstrained dynamic includes detected "
+            f"({len(hazards)} findings). "
+            f"First finding: {first_file} / {first_task} / {first_module} -> {first_target}. "
+            "Constrain with a simple when allow-list, disable via "
+            "scan.fail_on_unconstrained_dynamic_includes in .prism.yml, "
+            "or override at call time."
+        )
 
 
 def _finalize_scan_context_payload(
@@ -3286,6 +3391,7 @@ def run_scan(
     exclude_path_patterns: list[str] | None = None,
     style_source_path: str | None = None,
     policy_config_path: str | None = None,
+    fail_on_unconstrained_dynamic_includes: bool | None = None,
     detailed_catalog: bool = False,
     dry_run: bool = False,
     include_collection_checks: bool = True,
@@ -3319,6 +3425,7 @@ def run_scan(
         style_source_path=style_source_path,
         style_guide_skeleton=style_guide_skeleton,
         compare_role_path=compare_role_path,
+        fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
     )
     prepared = _prepare_run_scan_payload(scan_options)
     return _emit_scan_outputs(
@@ -3371,6 +3478,7 @@ def _build_run_scan_options(
     style_source_path: str | None,
     style_guide_skeleton: bool,
     compare_role_path: str | None,
+    fail_on_unconstrained_dynamic_includes: bool | None,
 ) -> dict:
     """Build normalized scan options consumed by scan orchestration helpers."""
     return {
@@ -3391,6 +3499,9 @@ def _build_run_scan_options(
         "style_source_path": style_source_path,
         "style_guide_skeleton": style_guide_skeleton,
         "compare_role_path": compare_role_path,
+        "fail_on_unconstrained_dynamic_includes": (
+            fail_on_unconstrained_dynamic_includes
+        ),
     }
 
 

@@ -32,6 +32,47 @@ def test_iter_dynamic_role_include_targets_accepts_templated_string_only():
     assert task_parser._iter_dynamic_role_include_targets(task) == ["{{ role_ref }}"]
 
 
+def test_collect_unconstrained_dynamic_role_includes_detects_unconstrained(tmp_path):
+    role_root = tmp_path / "role"
+    tasks_dir = role_root / "tasks"
+    tasks_dir.mkdir(parents=True)
+    (tasks_dir / "main.yml").write_text(
+        "---\n"
+        "- name: dynamic role one\n"
+        "  include_role:\n"
+        '    name: "{{ role_ref }}"\n'
+        "- name: dynamic role two\n"
+        "  ansible.builtin.import_role:\n"
+        '    name: "acme.{{ role_suffix }}"\n',
+        encoding="utf-8",
+    )
+
+    findings = task_parser._collect_unconstrained_dynamic_role_includes(str(role_root))
+
+    assert len(findings) == 2
+    assert findings[0]["module"] == "include_role"
+    assert findings[0]["target"] == "{{ role_ref }}"
+    assert findings[1]["module"] == "import_role"
+    assert findings[1]["target"] == "acme.{{ role_suffix }}"
+
+
+def test_collect_unconstrained_dynamic_role_includes_skips_constrained(tmp_path):
+    role_root = tmp_path / "role"
+    tasks_dir = role_root / "tasks"
+    tasks_dir.mkdir(parents=True)
+    (tasks_dir / "main.yml").write_text(
+        "---\n"
+        "- name: constrained dynamic role\n"
+        '  include_role: "{{ role_ref }}"\n'
+        '  when: role_ref in ["acme.base", "acme.web"]\n',
+        encoding="utf-8",
+    )
+
+    findings = task_parser._collect_unconstrained_dynamic_role_includes(str(role_root))
+
+    assert findings == []
+
+
 def test_resolve_task_include_rejects_absolute_file_outside_role(tmp_path):
     role_root = tmp_path / "role"
     current_file = role_root / "tasks" / "main.yml"

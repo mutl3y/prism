@@ -13,8 +13,24 @@ Use this guide when authoring roles you want Prism to document with high confide
 
 - Prefer static `include_tasks` and `import_tasks` paths whenever possible.
 - Keep include targets file-based (`file:` or `_raw_params`) and relative to the role task tree.
-- Limit deeply dynamic include chains (`{{ ... }}`) when static alternatives are possible.
+- If dynamic include paths are required, constrain them with explicit `when` allow-lists so readers and tooling can follow known branches.
+- Treat unconstrained dynamic include paths as a hazard: they hide execution paths, reduce documentation confidence, and make review/debugging harder.
 - Use explicit task names for every task and handler.
+
+Example: constrained dynamic include (preferred)
+
+```yaml
+- name: Include sub-operation
+  ansible.builtin.include_tasks: "{{ sub_operation }}.yml"
+  when: sub_operation in ["sub_operation1", "sub_operation2"]
+```
+
+Example: unconstrained dynamic include (hazard)
+
+```yaml
+- name: Include runtime-selected task file
+  ansible.builtin.include_tasks: "{{ arbitrary_task_file }}"
+```
 
 ## Templates and Jinja
 

@@ -394,6 +394,17 @@ def _add_shared_scan_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--fail-on-unconstrained-dynamic-includes",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Fail scan when unconstrained dynamic includes are detected "
+            "(include_tasks/import_tasks/include_role/import_role). "
+            "Overrides scan.fail_on_unconstrained_dynamic_includes from .prism.yml "
+            "when explicitly set."
+        ),
+    )
+    parser.add_argument(
         "--adopt-heading-mode",
         choices=("canonical", "style", "popular"),
         default=None,
@@ -857,6 +868,7 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
             exclude_path_patterns=args.exclude_path,
             style_source_path=args.style_source,
             policy_config_path=args.policy_config,
+            fail_on_unconstrained_dynamic_includes=args.fail_on_unconstrained_dynamic_includes,
             detailed_catalog=args.detailed_catalog,
             include_collection_checks=include_collection_checks,
             include_task_parameters=args.task_parameters,
@@ -913,6 +925,7 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
         exclude_path_patterns=args.exclude_path,
         style_source_path=args.style_source,
         policy_config_path=args.policy_config,
+        fail_on_unconstrained_dynamic_includes=args.fail_on_unconstrained_dynamic_includes,
         detailed_catalog=args.detailed_catalog,
         include_collection_checks=include_collection_checks,
         include_task_parameters=args.task_parameters,
@@ -990,6 +1003,7 @@ def _handle_role_command(args: argparse.Namespace) -> int:
         exclude_path_patterns=args.exclude_path,
         style_source_path=args.style_source,
         policy_config_path=args.policy_config,
+        fail_on_unconstrained_dynamic_includes=args.fail_on_unconstrained_dynamic_includes,
         detailed_catalog=args.detailed_catalog,
         include_collection_checks=include_collection_checks,
         include_task_parameters=args.task_parameters,

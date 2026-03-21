@@ -79,6 +79,61 @@ def load_readme_marker_prefix(
     return prefix
 
 
+def _coerce_bool(value: object) -> bool | None:
+    """Return a normalized bool for common YAML-friendly truthy/falsey values."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "off"}:
+            return False
+    return None
+
+
+def load_fail_on_unconstrained_dynamic_includes(
+    role_path: str,
+    config_path: str | None = None,
+    default: bool = False,
+    config_filenames: tuple[str, ...] = SECTION_CONFIG_FILENAMES,
+    default_filename: str = SECTION_CONFIG_FILENAME,
+) -> bool:
+    """Load scan policy toggle for unconstrained dynamic include failures.
+
+    Supported keys in role config (``.prism.yml``):
+      - ``scan.fail_on_unconstrained_dynamic_includes``
+      - ``fail_on_unconstrained_dynamic_includes`` (legacy/flat fallback)
+    """
+    cfg_file = resolve_role_config_file(
+        role_path,
+        config_path=config_path,
+        config_filenames=config_filenames,
+        default_filename=default_filename,
+    )
+    if not cfg_file.is_file():
+        return default
+
+    try:
+        raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return default
+    if not isinstance(raw, dict):
+        return default
+
+    value: object | None = None
+    scan_cfg = raw.get("scan")
+    if isinstance(scan_cfg, dict):
+        value = scan_cfg.get("fail_on_unconstrained_dynamic_includes")
+    if value is None:
+        value = raw.get("fail_on_unconstrained_dynamic_includes")
+
+    coerced = _coerce_bool(value)
+    if coerced is None:
+        return default
+    return coerced
+
+
 def load_readme_section_visibility(
     role_path: str,
     config_path: str | None,
