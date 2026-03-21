@@ -1,4 +1,7 @@
-# DevOps Guide
+---
+layout: default
+title: DevOps Guide
+---
 
 Run Prism as a repeatable, policy-aware pipeline.
 

@@ -1,4 +1,7 @@
-# User Changelog
+---
+layout: default
+title: User Changelog
+---
 
 All notable user-facing documentation and behavior changes are tracked here.
 

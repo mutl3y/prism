@@ -1,4 +1,7 @@
-# Code of Conduct
+---
+layout: default
+title: Code of Conduct
+---
 
 Prism follows Contributor Covenant principles.
 

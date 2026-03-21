@@ -1,4 +1,7 @@
-# Beyond The README: Automation As Knowledge Capital
+---
+layout: default
+title: Beyond The README: Automation As Knowledge Capital
+---
 
 Prism treats infrastructure automation as a source of operational knowledge, not only execution logic.
 
