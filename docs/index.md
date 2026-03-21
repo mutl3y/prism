@@ -1,38 +1,85 @@
 ---
 layout: default
-title: Prism Docs Home
+title: Prism Documentation Home
 ---
 
-Browse project references, implementation guides, and archived delivery plans.
+## Overview
 
-> This site is generated from the repository `docs/` folder for GitHub Pages.
+Build practical, trustworthy Ansible documentation from source code.
 
-## Featured
+Prism helps teams keep existing conventions while still producing consistent
+documentation and runbook artifacts. This reduces migration friction and enables
+incremental quality improvement instead of all-at-once rewrites.
 
-- [Beyond the README: Turning Your Automation into Knowledge Capital]({{ '/article.htm' | relative_url }})
-- [Changelog]({{ '/CHANGELOG.md' | relative_url }})
-- [Contributing]({{ '/CONTRIBUTING.md' | relative_url }})
-- [Code of Conduct]({{ '/CODE_OF_CONDUCT.md' | relative_url }})
+Prism uses static analysis, so unresolved runtime behavior is surfaced as
+explicit uncertainty instead of hidden assumptions.
 
-## Technical Documentation
+## Why Provenance Comes Early
 
-- [CI Starter Workflows]({{ '/ci-starter-workflows.md' | relative_url }})
-- [Pipeline Diagram]({{ '/pipeline-diagram.md' | relative_url }})
-- [Feedback Integration]({{ '/FEEDBACK_INTEGRATION.md' | relative_url }})
-- [Provenance Tracking]({{ '/PROVENANCE_TRACKING.md' | relative_url }})
-- [Static Analysis Scope and Non-Goals]({{ '/STATIC_ANALYSIS_SCOPE_AND_NONGOALS.md' | relative_url }})
-- [Prism Friendly Role Guide]({{ '/PRISM_FRIENDLY_ROLE_GUIDE.md' | relative_url }})
-- [Style Guide Sources]({{ '/STYLE_GUIDE_SOURCES.md' | relative_url }})
-- [Project TODO / Roadmap]({{ '/TODO.md' | relative_url }})
+Prism is most useful when readers can trust what it says. Provenance tracking
+shows where facts came from and how confident the scanner is, which makes the
+output auditable for authors, consumers, and platform teams.
 
-## Completed Plans Archive
+## Why Teams Standardize On Prism
 
-- [Completed Plans Index]({{ '/completed_plans/README.md' | relative_url }})
-- [Coverage Workoff Plan]({{ '/completed_plans/COVERAGE_WORKOFF_PLAN.md' | relative_url }})
-- [Jinja2 AST Expansion Workoff Plan]({{ '/completed_plans/JINJA2_AST_EXPANSION_WORKOFF_PLAN.md' | relative_url }})
-- [Work Schedule 2026]({{ '/completed_plans/WORK_SCHEDULE_2026.md' | relative_url }})
+- **Automation API contract**: generated docs make role inputs and behavior reviewable
+- **Knowledge capital**: each scan adds queryable documentation intelligence
+- **Policy as code**: CI can enforce quality and annotation standards at source
 
-## Notes
+## Quick Start
 
-- This site is designed to be served from the repository `docs/` folder using GitHub Pages.
-- If Pages is configured to use `main` + `/docs`, this page becomes the site homepage.
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -e .
+prism role path/to/role -o README.md
+```
+
+## Learning Order
+
+1. [Getting Started](./getting-started.md)
+2. [User Guide](./user-guide.md)
+3. [Provenance Tracking](./provenance-tracking.md)
+4. [Comment-Driven Documentation](./comment-driven-documentation.md)
+5. [Prism-Friendly Role Authoring](./prism-friendly-role-authoring.md)
+6. [DevOps Guide](./devops-guide.md)
+7. [Feedback Integration](./feedback-integration.md)
+8. [Changelog](./changelog.md)
+
+## Track By Role
+
+For average users:
+
+- start at Getting Started and complete the first role scan
+- use User Guide workflows for routine docs generation
+- use Provenance Tracking to understand what Prism knows versus infers
+- add marker-based context with Comment-Driven Documentation patterns
+- use Prism-Friendly Role Authoring when output quality is low
+- keep current section naming conventions while improving structure over time
+
+For DevOps professionals:
+
+- implement policy-enforced CI in DevOps Guide
+- add JSON and runbook CSV artifacts for automation
+- add feedback-driven recommendations from prism-learn
+- use generated runbook steps to reduce incident response cognitive load
+
+## Leadership and Governance View
+
+Use machine-readable outputs and `prism-learn` reporting to track:
+
+- documentation health across roles and collections
+- complexity hotspots and runbook coverage
+- policy adherence and drift trends over time
+
+## Why Provenance Matters
+
+Prism does not hide uncertainty. Provenance tracking shows where role facts came
+from and how confident the scanner is in each conclusion.
+
+Start with [provenance-tracking.md](./provenance-tracking.md) if you want the
+short product explanation before the engineering details.
+
+## Developer Documentation
+
+Engineering and project maintenance documentation lives under `dev_docs/`.

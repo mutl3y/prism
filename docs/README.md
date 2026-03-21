@@ -1,61 +1,80 @@
-# Docs Site Maintenance
+# Prism Documentation
 
-This directory is configured for GitHub Pages with Jekyll.
+Prism documentation in a dual-lane format: fast onboarding for average users and operational depth for DevOps professionals.
 
-## GitHub Pages Configuration
+## What Prism Solves
 
-In repository settings:
+Prism is not only a README generator. It is a workflow for codifying automation
+knowledge from source and keeping it usable during delivery and incidents.
 
-1. Open `Settings` -> `Pages`.
-2. Under `Source`, choose `Deploy from a branch`.
-3. Select branch `main` and folder `/docs`.
-4. Save.
+Key outcomes:
 
-Your site will publish from this folder and use `index.md` as the homepage.
+- lower adoption friction by mapping existing documentation conventions
+- runbook-ready task guidance generated from source-adjacent markers
+- portfolio visibility through machine-readable outputs and `prism-learn`
 
-Current project-site target:
+## Why Provenance Is Core
 
-- `https://mutl3y.github.io/prism/`
+Prism does not ask readers to trust a black box. Provenance tracking makes
+scanner output explainable by tying findings back to source and confidence.
 
-## Local Preview (Optional)
+- it shows what is explicit versus inferred
+- it keeps static-analysis uncertainty visible instead of hidden
+- it makes generated docs safer to use as automation contracts
 
-You can preview the site locally with Jekyll.
+## Strategic Model
 
-### Prerequisites
+Prism treats automation as a governed knowledge asset.
 
-- Ruby and Bundler installed
-- Jekyll gem available
+- **Automation contract**: generated docs define role/collection interface expectations
+- **Knowledge capital**: JSON/markdown outputs compound in value as coverage grows
+- **Policy loop**: scanner flags plus machine-readable outputs enable CI enforcement
 
-### One-time Setup
+## Start Here (10 Minutes)
 
-From repository root:
-
-```bash
-bundle init
-bundle add github-pages --group jekyll_plugins
-```
-
-### Serve Locally
-
-From repository root:
+Step 1: set up a local environment and install Prism.
 
 ```bash
-bundle exec jekyll serve --source docs --destination _site_docs --baseurl /prism
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -e .
 ```
 
-Then open:
+Step 2: generate your first role README.
 
-- `http://127.0.0.1:4000`
+```bash
+prism role path/to/role -o README.md
+```
 
-## Files
+You should see: a generated README at the output path.
 
-- `_config.yml`: Jekyll/GitHub Pages config
-- `index.md`: docs homepage
-- `_sass/minima/custom-styles.scss`: custom style overrides for the Minima theme
-- `article.htm`: long-form project article
+## Dual-Lane Paths
 
-## Content Updates
+For average users:
 
-- Add new docs markdown files to `docs/`.
-- Add links to `index.md` so they appear on the homepage.
-- Keep archived plans under `docs/completed_plans/`.
+- [Getting Started](./getting-started.md)
+- [User Guide](./user-guide.md)
+
+For DevOps professionals:
+
+- [DevOps Guide](./devops-guide.md)
+- [Feedback Integration](./feedback-integration.md)
+
+Shared quality references:
+
+- [Provenance Tracking](./provenance-tracking.md)
+- [Prism-Friendly Role Authoring](./prism-friendly-role-authoring.md)
+- [Comment-Driven Documentation](./comment-driven-documentation.md)
+- [Changelog](./changelog.md)
+
+## Full Navigation
+
+- [Getting Started](./getting-started.md): fastest path for average users
+- [User Guide](./user-guide.md): complete common tasks step by step
+- [Provenance Tracking](./provenance-tracking.md): why Prism output is auditable and trustworthy
+- [Comment-Driven Documentation](./comment-driven-documentation.md): marker-driven notes, runbooks, and task annotations
+- [DevOps Guide](./devops-guide.md): build CI and policy workflows
+
+## Developer Docs
+
+Contributor and architecture content is in [dev_docs](./dev_docs/README.md).
