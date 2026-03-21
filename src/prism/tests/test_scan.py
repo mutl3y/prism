@@ -3317,31 +3317,31 @@ def test_render_runbook_with_no_metadata():
 
 
 def test_parse_comma_values_normal():
-    from prism.doc_insights import parse_comma_values
+    from prism.scanner_submodules.doc_insights import parse_comma_values
 
     assert parse_comma_values("a, b, c") == ["a", "b", "c"]
 
 
 def test_parse_comma_values_none_string():
-    from prism.doc_insights import parse_comma_values
+    from prism.scanner_submodules.doc_insights import parse_comma_values
 
     assert parse_comma_values("none") == []
 
 
 def test_parse_comma_values_empty_string():
-    from prism.doc_insights import parse_comma_values
+    from prism.scanner_submodules.doc_insights import parse_comma_values
 
     assert parse_comma_values("") == []
 
 
 def test_parse_comma_values_whitespace_only():
-    from prism.doc_insights import parse_comma_values
+    from prism.scanner_submodules.doc_insights import parse_comma_values
 
     assert parse_comma_values("   ") == []
 
 
 def test_parse_comma_values_single_item():
-    from prism.doc_insights import parse_comma_values
+    from prism.scanner_submodules.doc_insights import parse_comma_values
 
     assert parse_comma_values("ansible.builtin.template") == [
         "ansible.builtin.template"
@@ -3349,7 +3349,7 @@ def test_parse_comma_values_single_item():
 
 
 def test_parse_comma_values_strips_internal_spaces():
-    from prism.doc_insights import parse_comma_values
+    from prism.scanner_submodules.doc_insights import parse_comma_values
 
     assert parse_comma_values("  x ,  y  ") == ["x", "y"]
 
@@ -3360,7 +3360,7 @@ def test_parse_comma_values_strips_internal_spaces():
 
 
 def test_build_doc_insights_returns_required_keys():
-    from prism.doc_insights import build_doc_insights
+    from prism.scanner_submodules.doc_insights import build_doc_insights
 
     result = build_doc_insights(
         role_name="myrole",
@@ -3377,7 +3377,7 @@ def test_build_doc_insights_returns_required_keys():
 
 
 def test_build_doc_insights_uses_description_as_purpose():
-    from prism.doc_insights import build_doc_insights
+    from prism.scanner_submodules.doc_insights import build_doc_insights
 
     result = build_doc_insights(
         role_name="myrole",
@@ -3391,7 +3391,7 @@ def test_build_doc_insights_uses_description_as_purpose():
 
 
 def test_build_doc_insights_fallback_purpose_when_no_description():
-    from prism.doc_insights import build_doc_insights
+    from prism.scanner_submodules.doc_insights import build_doc_insights
 
     result = build_doc_insights(
         role_name="myrole",
@@ -3405,7 +3405,7 @@ def test_build_doc_insights_fallback_purpose_when_no_description():
 
 
 def test_build_doc_insights_detects_template_capability():
-    from prism.doc_insights import build_doc_insights
+    from prism.scanner_submodules.doc_insights import build_doc_insights
 
     result = build_doc_insights(
         role_name="myrole",
@@ -3420,7 +3420,7 @@ def test_build_doc_insights_detects_template_capability():
 
 
 def test_build_doc_insights_detects_package_capability():
-    from prism.doc_insights import build_doc_insights
+    from prism.scanner_submodules.doc_insights import build_doc_insights
 
     result = build_doc_insights(
         role_name="myrole",
@@ -3434,7 +3434,7 @@ def test_build_doc_insights_detects_package_capability():
 
 
 def test_build_doc_insights_detects_user_capability():
-    from prism.doc_insights import build_doc_insights
+    from prism.scanner_submodules.doc_insights import build_doc_insights
 
     result = build_doc_insights(
         role_name="myrole",
@@ -3448,7 +3448,7 @@ def test_build_doc_insights_detects_user_capability():
 
 
 def test_build_doc_insights_detects_lineinfile_capability():
-    from prism.doc_insights import build_doc_insights
+    from prism.scanner_submodules.doc_insights import build_doc_insights
 
     result = build_doc_insights(
         role_name="myrole",
@@ -3462,7 +3462,7 @@ def test_build_doc_insights_detects_lineinfile_capability():
 
 
 def test_build_doc_insights_detects_recursive_includes_capability():
-    from prism.doc_insights import build_doc_insights
+    from prism.scanner_submodules.doc_insights import build_doc_insights
 
     result = build_doc_insights(
         role_name="myrole",
@@ -3476,7 +3476,7 @@ def test_build_doc_insights_detects_recursive_includes_capability():
 
 
 def test_build_doc_insights_detects_handler_capability():
-    from prism.doc_insights import build_doc_insights
+    from prism.scanner_submodules.doc_insights import build_doc_insights
 
     result = build_doc_insights(
         role_name="myrole",
@@ -3490,7 +3490,7 @@ def test_build_doc_insights_detects_handler_capability():
 
 
 def test_build_doc_insights_fallback_capability_when_no_modules():
-    from prism.doc_insights import build_doc_insights
+    from prism.scanner_submodules.doc_insights import build_doc_insights
 
     result = build_doc_insights(
         role_name="myrole",
@@ -3504,7 +3504,7 @@ def test_build_doc_insights_fallback_capability_when_no_modules():
 
 
 def test_build_doc_insights_example_playbook_includes_role():
-    from prism.doc_insights import build_doc_insights
+    from prism.scanner_submodules.doc_insights import build_doc_insights
 
     result = build_doc_insights(
         role_name="my_role",
@@ -3521,7 +3521,7 @@ def test_build_doc_insights_example_playbook_includes_role():
 
 
 def test_build_doc_insights_example_playbook_empty_vars_block():
-    from prism.doc_insights import build_doc_insights
+    from prism.scanner_submodules.doc_insights import build_doc_insights
 
     result = build_doc_insights(
         role_name="my_role",
@@ -3535,7 +3535,7 @@ def test_build_doc_insights_example_playbook_empty_vars_block():
 
 
 def test_build_doc_insights_task_summary_counts():
-    from prism.doc_insights import build_doc_insights
+    from prism.scanner_submodules.doc_insights import build_doc_insights
 
     result = build_doc_insights(
         role_name="myrole",
