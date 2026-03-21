@@ -15,16 +15,20 @@ from typing import TypedDict
 import yaml
 import jinja2
 
-from .doc_insights import build_doc_insights, parse_comma_values
-from .output import render_final_output, resolve_output_path, write_output
+from .scanner_submodules.doc_insights import build_doc_insights, parse_comma_values
+from .scanner_submodules.output import (
+    render_final_output,
+    resolve_output_path,
+    write_output,
+)
 from .pattern_config import load_pattern_config
-from .readme_config import (
+from .scanner_submodules.readme_config import (
     DEFAULT_DOC_MARKER_PREFIX as READMECFG_DEFAULT_DOC_MARKER_PREFIX,
     load_readme_marker_prefix as _load_readme_marker_prefix,
     load_readme_section_config as _load_readme_section_config,
     load_readme_section_visibility as _load_readme_section_visibility,
 )
-from .requirements import (
+from .scanner_submodules.requirements import (
     build_collection_compliance_notes as _requirements_build_collection_compliance_notes,
     build_requirements_display as _requirements_build_display,
     extract_declared_collections_from_meta as _requirements_extract_declared_meta,
@@ -34,17 +38,17 @@ from .requirements import (
     normalize_meta_role_dependencies as _requirements_normalize_meta_deps,
     normalize_requirements as _requirements_normalize,
 )
-from .scanner_report import (
+from .scanner_submodules.scanner_report import (
     build_scanner_report_markdown as _report_build_markdown,
     classify_provenance_issue as _report_classify_provenance_issue,
     extract_scanner_counters as _report_extract_counters,
 )
-from .runbook import (
+from .scanner_submodules.runbook import (
     _build_runbook_rows as _runbook_build_rows,
     render_runbook as _runbook_render,
     render_runbook_csv as _runbook_render_csv,
 )
-from .style_guide import (
+from .scanner_submodules.style_guide import (
     detect_style_section_level,
     format_heading,
     normalize_style_heading,
