@@ -52,6 +52,8 @@ DEFAULT_TARGET_RE = re.compile(r"\b(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*\|\s*defaul
 JINJA_VAR_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)")
 JINJA_IDENTIFIER_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
 VAULT_KEY_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*!vault\b", re.MULTILINE)
+# Strip quoted string literals before identifier scanning of when: expressions
+_QUOTED_STRING_RE = re.compile(r"\"[^\"]*\"|'[^']*'")
 
 # ---------------------------------------------------------------------------
 # Policy-derived constants (refreshed by scanner._refresh_policy)
@@ -245,7 +247,7 @@ def _collect_referenced_variable_names(
                 for line in text.splitlines():
                     if "when:" not in line:
                         continue
-                    expression = line.split("when:", 1)[1]
+                    expression = _QUOTED_STRING_RE.sub("", line.split("when:", 1)[1])
                     for token in JINJA_IDENTIFIER_RE.findall(expression):
                         lowered = token.lower()
                         if lowered in IGNORED_IDENTIFIERS:
