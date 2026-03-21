@@ -1348,44 +1348,72 @@ def _append_referenced_variable_rows(
     )
 
     for name in sorted(referenced_names - known_names):
-        seeded = name in seed_values
-        value = seed_values.get(name, "<required>")
         rows.append(
-            {
-                "name": name,
-                "type": _infer_variable_type(value) if seeded else "required",
-                "default": _format_inline_yaml(value) if seeded else "<required>",
-                "source": (
-                    f"seed: {seed_sources.get(name, 'external vars')}"
-                    if seeded
-                    else "inferred usage"
-                ),
-                "documented": False,
-                "required": not seeded,
-                "secret": (name in seed_secrets or _is_sensitive_variable(name, value)),
-                "provenance_source_file": (
-                    seed_sources.get(name, "external vars") if seeded else None
-                ),
-                "provenance_line": None,
-                "provenance_confidence": 0.75 if seeded else 0.40,
-                "uncertainty_reason": (
-                    "Provided by external seed vars."
-                    if seeded
-                    else (
-                        "Referenced in role but no static definition found. Dynamic include_vars paths detected."
-                        if dynamic_include_vars_refs
-                        else "Referenced in role but no static definition found."
-                    )
-                    + (
-                        " Dynamic include_tasks/import_tasks paths detected."
-                        if (not seeded and name in dynamic_task_include_tokens)
-                        else ""
-                    )
-                ),
-                "is_unresolved": not seeded,
-                "is_ambiguous": False,
-            }
+            _build_referenced_variable_row(
+                name=name,
+                seed_values=seed_values,
+                seed_secrets=seed_secrets,
+                seed_sources=seed_sources,
+                dynamic_include_vars_refs=dynamic_include_vars_refs,
+                dynamic_task_include_tokens=dynamic_task_include_tokens,
+            )
         )
+
+
+def _build_referenced_variable_row(
+    *,
+    name: str,
+    seed_values: dict,
+    seed_secrets: set[str],
+    seed_sources: dict,
+    dynamic_include_vars_refs: list[str],
+    dynamic_task_include_tokens: set[str],
+) -> dict:
+    """Build one inferred variable row for referenced-but-undefined names."""
+    seeded = name in seed_values
+    value = seed_values.get(name, "<required>")
+    source_name = seed_sources.get(name, "external vars")
+    return {
+        "name": name,
+        "type": _infer_variable_type(value) if seeded else "required",
+        "default": _format_inline_yaml(value) if seeded else "<required>",
+        "source": f"seed: {source_name}" if seeded else "inferred usage",
+        "documented": False,
+        "required": not seeded,
+        "secret": (name in seed_secrets or _is_sensitive_variable(name, value)),
+        "provenance_source_file": source_name if seeded else None,
+        "provenance_line": None,
+        "provenance_confidence": 0.75 if seeded else 0.40,
+        "uncertainty_reason": _build_referenced_variable_uncertainty_reason(
+            name=name,
+            seeded=seeded,
+            dynamic_include_vars_refs=dynamic_include_vars_refs,
+            dynamic_task_include_tokens=dynamic_task_include_tokens,
+        ),
+        "is_unresolved": not seeded,
+        "is_ambiguous": False,
+    }
+
+
+def _build_referenced_variable_uncertainty_reason(
+    *,
+    name: str,
+    seeded: bool,
+    dynamic_include_vars_refs: list[str],
+    dynamic_task_include_tokens: set[str],
+) -> str:
+    """Return uncertainty reason text for inferred referenced variables."""
+    if seeded:
+        return "Provided by external seed vars."
+    message = "Referenced in role but no static definition found."
+    if dynamic_include_vars_refs:
+        message = (
+            "Referenced in role but no static definition found. "
+            "Dynamic include_vars paths detected."
+        )
+    if name in dynamic_task_include_tokens:
+        message += " Dynamic include_tasks/import_tasks paths detected."
+    return message
 
 
 def build_variable_insights(
