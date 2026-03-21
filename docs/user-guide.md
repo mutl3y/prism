@@ -1,4 +1,7 @@
-# User Guide
+---
+layout: default
+title: User Guide
+---
 
 Use this page as the task catalog for day-to-day usage.
 

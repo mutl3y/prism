@@ -1,4 +1,7 @@
-# Getting Started
+---
+layout: default
+title: Getting Started
+---
 
 Start with one role scan, then branch to either average-user or DevOps workflows.
 
