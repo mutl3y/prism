@@ -1,6 +1,8 @@
 Prism
 =================
 
+![Prism logo](docs/prism_logo.jfif)
+
 [![CI](https://github.com/mutl3y/prism/actions/workflows/prism.yml/badge.svg?branch=main)](https://github.com/mutl3y/prism/actions/workflows/prism.yml)
 [![Branch](https://img.shields.io/github/actions/workflow/status/mutl3y/prism/prism.yml?branch=main&label=main)](https://github.com/mutl3y/prism/tree/main)
 [![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](docs/completed_plans/COVERAGE_WORKOFF_PLAN.md)
