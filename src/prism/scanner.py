@@ -554,6 +554,23 @@ def _collect_yaml_parse_failures(
     role_root = Path(role_path).resolve()
     failures: list[dict[str, object]] = []
 
+    for candidate in _iter_role_yaml_candidates(
+        role_root,
+        exclude_paths=exclude_paths,
+    ):
+        failure = _parse_yaml_candidate(candidate, role_root)
+        if failure is not None:
+            failures.append(failure)
+
+    return failures
+
+
+def _iter_role_yaml_candidates(
+    role_root: Path,
+    *,
+    exclude_paths: list[str] | None,
+):
+    """Yield role-local YAML files while honoring ignored and excluded paths."""
     for root, dirs, files in os.walk(str(role_root)):
         dirs[:] = [
             d
@@ -570,35 +587,35 @@ def _collect_yaml_parse_failures(
                 continue
             if _is_path_excluded(candidate, role_root, exclude_paths):
                 continue
-            try:
-                text = candidate.read_text(encoding="utf-8")
-                yaml.safe_load(text)
-            except (OSError, UnicodeDecodeError) as exc:
-                failures.append(
-                    {
-                        "file": str(candidate.resolve().relative_to(role_root)),
-                        "line": None,
-                        "column": None,
-                        "error": f"read_error: {exc}",
-                    }
-                )
-            except (yaml.YAMLError, ValueError) as exc:
-                mark = getattr(exc, "problem_mark", None)
-                line = int(mark.line) + 1 if mark is not None else None
-                column = int(mark.column) + 1 if mark is not None else None
-                problem = str(getattr(exc, "problem", "") or "").strip()
-                if not problem:
-                    problem = str(exc).splitlines()[0].strip()
-                failures.append(
-                    {
-                        "file": str(candidate.resolve().relative_to(role_root)),
-                        "line": line,
-                        "column": column,
-                        "error": problem,
-                    }
-                )
+            yield candidate
 
-    return failures
+
+def _parse_yaml_candidate(candidate: Path, role_root: Path) -> dict[str, object] | None:
+    """Parse one YAML candidate and return a failure payload when parsing fails."""
+    try:
+        text = candidate.read_text(encoding="utf-8")
+        yaml.safe_load(text)
+        return None
+    except (OSError, UnicodeDecodeError) as exc:
+        return {
+            "file": str(candidate.resolve().relative_to(role_root)),
+            "line": None,
+            "column": None,
+            "error": f"read_error: {exc}",
+        }
+    except (yaml.YAMLError, ValueError) as exc:
+        mark = getattr(exc, "problem_mark", None)
+        line = int(mark.line) + 1 if mark is not None else None
+        column = int(mark.column) + 1 if mark is not None else None
+        problem = str(getattr(exc, "problem", "") or "").strip()
+        if not problem:
+            problem = str(exc).splitlines()[0].strip()
+        return {
+            "file": str(candidate.resolve().relative_to(role_root)),
+            "line": line,
+            "column": column,
+            "error": problem,
+        }
 
 
 def _is_readme_variable_section_heading(title: str) -> bool:
@@ -628,51 +645,83 @@ def _extract_readme_input_variables(text: str) -> set[str]:
         line = raw_line.rstrip()
         next_line = lines[idx + 1].rstrip() if idx + 1 < len(lines) else ""
 
-        fence_match = re.match(r"^\s*([`~]{3,})", line)
-        if fence_match:
-            marker = fence_match.group(1)
-            marker_char = marker[0]
-            marker_len = len(marker)
-            if not in_fence:
-                in_fence = True
-                fence_char = marker_char
-                fence_len = marker_len
-            elif marker_char == fence_char and marker_len >= fence_len:
-                in_fence = False
-                fence_char = ""
-                fence_len = 0
+        (
+            in_fence,
+            fence_char,
+            fence_len,
+            fence_handled,
+        ) = _consume_fence_marker(
+            line=line,
+            in_fence=in_fence,
+            fence_char=fence_char,
+            fence_len=fence_len,
+        )
+        if fence_handled:
             continue
 
         if in_fence:
             continue
 
-        atx_match = re.match(r"^(#{1,6})\s+(.*?)\s*$", line)
-        if atx_match:
-            level = len(atx_match.group(1))
-            if level <= 2:
-                in_variable_section = _is_readme_variable_section_heading(
-                    atx_match.group(2).strip()
-                )
-            continue
-
-        if line.strip() and re.match(r"^[-=]{3,}\s*$", next_line):
-            in_variable_section = _is_readme_variable_section_heading(line.strip())
+        header_state = _resolve_variable_section_heading_state(line, next_line)
+        if header_state is not None:
+            in_variable_section = header_state
             continue
 
         if not in_variable_section:
             continue
 
-        for pattern in (
-            MARKDOWN_VAR_BACKTICK_RE,
-            MARKDOWN_VAR_TABLE_RE,
-            MARKDOWN_VAR_BULLET_RE,
-        ):
-            for match in pattern.findall(line):
-                lowered = match.lower()
-                if lowered in IGNORED_IDENTIFIERS or lowered.startswith("ansible_"):
-                    continue
-                names.add(match)
+        names.update(_extract_readme_variable_names_from_line(line))
 
+    return names
+
+
+def _consume_fence_marker(
+    *,
+    line: str,
+    in_fence: bool,
+    fence_char: str,
+    fence_len: int,
+) -> tuple[bool, str, int, bool]:
+    """Update fenced-code parsing state and indicate whether line was a marker."""
+    fence_match = re.match(r"^\s*([`~]{3,})", line)
+    if not fence_match:
+        return in_fence, fence_char, fence_len, False
+    marker = fence_match.group(1)
+    marker_char = marker[0]
+    marker_len = len(marker)
+    if not in_fence:
+        return True, marker_char, marker_len, True
+    if marker_char == fence_char and marker_len >= fence_len:
+        return False, "", 0, True
+    return in_fence, fence_char, fence_len, True
+
+
+def _resolve_variable_section_heading_state(line: str, next_line: str) -> bool | None:
+    """Return variable-section state update from heading syntax, else ``None``."""
+    atx_match = re.match(r"^(#{1,6})\s+(.*?)\s*$", line)
+    if atx_match:
+        level = len(atx_match.group(1))
+        if level <= 2:
+            return _is_readme_variable_section_heading(atx_match.group(2).strip())
+        return None
+    if line.strip() and re.match(r"^[-=]{3,}\s*$", next_line):
+        return _is_readme_variable_section_heading(line.strip())
+    return None
+
+
+def _extract_readme_variable_names_from_line(line: str) -> set[str]:
+    """Extract variable names from one markdown line using supported patterns."""
+    names: set[str] = set()
+    for pattern in (
+        MARKDOWN_VAR_BACKTICK_RE,
+        MARKDOWN_VAR_TABLE_RE,
+        MARKDOWN_VAR_BULLET_RE,
+    ):
+        for match in pattern.findall(line):
+            lowered = match.lower()
+            if lowered in IGNORED_IDENTIFIERS or lowered.startswith("ansible_"):
+                continue
+            names.add(match)
     return names
 
 
