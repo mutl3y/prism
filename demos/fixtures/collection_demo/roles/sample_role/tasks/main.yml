@@ -1,0 +1,10 @@
+---
+# prism~runbook: owner=docs impact=low
+- name: Write collection demo marker file
+  ansible.builtin.copy:
+    dest: /tmp/prism-collection-demo.txt
+    content: "{{ collection_demo_message }}"
+    mode: "0644"
+
+- name: Configure sample role artifacts
+  ansible.builtin.import_tasks: configure.yml

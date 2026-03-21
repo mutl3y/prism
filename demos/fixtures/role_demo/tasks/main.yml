@@ -1,0 +1,17 @@
+---
+# prism~runbook: owner=platform impact=low
+# prism~note: This fixture exists only to exercise Prism scanners.
+- name: Prepare demo service prerequisites
+  ansible.builtin.import_tasks: prepare.yml
+
+- name: Ensure demo config file is present
+  ansible.builtin.copy:
+    dest: /tmp/prism-demo.conf
+    content: |
+      service={{ demo_service_name }}
+      enabled={{ demo_service_enabled }}
+      port={{ demo_service_port }}
+    mode: "0644"
+
+- name: Deploy rendered configuration and validate settings
+  ansible.builtin.import_tasks: deploy.yml

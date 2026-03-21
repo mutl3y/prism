@@ -1,0 +1,3 @@
+---
+ops_role_state_path: /tmp/prism-ops-role.state
+ops_role_retries: 3

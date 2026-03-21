@@ -1,0 +1,13 @@
+---
+# prism~runbook: owner=ops impact=medium
+# prism~note: This role demonstrates a second collection role for aggregate docs.
+- name: Persist ops state marker
+  ansible.builtin.copy:
+    dest: "{{ ops_role_state_path }}"
+    content: "retries={{ ops_role_retries }}"
+    mode: "0644"
+  notify: Emit ops role refresh notice
+
+- name: Report ops retry configuration
+  ansible.builtin.debug:
+    msg: "ops_role retries set to {{ ops_role_retries }}"
