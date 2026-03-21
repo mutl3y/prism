@@ -1094,9 +1094,37 @@ def _append_include_vars_rows(
 ) -> set[str]:
     """Merge include_vars-derived values into variable insight rows."""
     known_names: set[str] = {row["name"] for row in rows}
+    include_var_sources = _collect_include_var_sources(
+        role_path=role_path,
+        role_root=role_root,
+        exclude_paths=exclude_paths,
+    )
+
+    for name in sorted(include_var_sources):
+        entries = include_var_sources[name]
+        if name in rows_by_name:
+            _mark_existing_row_as_include_vars_ambiguous(
+                rows_by_name[name],
+                entries,
+            )
+            continue
+        known_names.add(name)
+        rows.append(_build_include_vars_row(name, entries))
+
+    return known_names
+
+
+def _collect_include_var_sources(
+    *,
+    role_path: str,
+    role_root: Path,
+    exclude_paths: list[str] | None,
+) -> dict[str, list[dict]]:
+    """Collect include_vars value sources keyed by variable name."""
     include_var_sources: dict[str, list[dict]] = defaultdict(list)
     for extra_path in _collect_include_vars_files(
-        role_path, exclude_paths=exclude_paths
+        role_path,
+        exclude_paths=exclude_paths,
     ):
         extra_data = _load_yaml_file(extra_path)
         if not isinstance(extra_data, dict):
@@ -1110,48 +1138,48 @@ def _append_include_vars_rows(
                     "line": _find_variable_line_in_yaml(extra_path, name),
                 }
             )
+    return include_var_sources
 
-    for name in sorted(include_var_sources):
-        entries = include_var_sources[name]
-        selected = entries[-1]
-        if name in rows_by_name:
-            row = rows_by_name[name]
-            row["is_ambiguous"] = True
-            row["uncertainty_reason"] = (
-                "May be overridden by include_vars sources: "
-                + ", ".join(entry["source"] for entry in entries)
-            )
-            row["provenance_confidence"] = min(
-                float(row.get("provenance_confidence", 1.0)),
-                0.70,
-            )
-            continue
-        known_names.add(name)
-        ambiguous = len(entries) > 1
-        rows.append(
-            {
-                "name": name,
-                "type": _infer_variable_type(selected["value"]),
-                "default": _format_inline_yaml(selected["value"]),
-                "source": selected["source"],
-                "documented": True,
-                "required": False,
-                "secret": _is_sensitive_variable(name, selected["value"]),
-                "provenance_source_file": selected["source"],
-                "provenance_line": selected["line"],
-                "provenance_confidence": 0.60 if ambiguous else 0.85,
-                "uncertainty_reason": (
-                    "Defined in multiple include_vars files: "
-                    + ", ".join(entry["source"] for entry in entries)
-                    if ambiguous
-                    else None
-                ),
-                "is_unresolved": False,
-                "is_ambiguous": ambiguous,
-            }
-        )
 
-    return known_names
+def _mark_existing_row_as_include_vars_ambiguous(
+    row: dict, entries: list[dict]
+) -> None:
+    """Downgrade confidence for rows that can be overridden by include_vars."""
+    row["is_ambiguous"] = True
+    row["uncertainty_reason"] = (
+        "May be overridden by include_vars sources: "
+        + ", ".join(entry["source"] for entry in entries)
+    )
+    row["provenance_confidence"] = min(
+        float(row.get("provenance_confidence", 1.0)),
+        0.70,
+    )
+
+
+def _build_include_vars_row(name: str, entries: list[dict]) -> dict:
+    """Build a variable insight row for include_vars-discovered variables."""
+    selected = entries[-1]
+    ambiguous = len(entries) > 1
+    return {
+        "name": name,
+        "type": _infer_variable_type(selected["value"]),
+        "default": _format_inline_yaml(selected["value"]),
+        "source": selected["source"],
+        "documented": True,
+        "required": False,
+        "secret": _is_sensitive_variable(name, selected["value"]),
+        "provenance_source_file": selected["source"],
+        "provenance_line": selected["line"],
+        "provenance_confidence": 0.60 if ambiguous else 0.85,
+        "uncertainty_reason": (
+            "Defined in multiple include_vars files: "
+            + ", ".join(entry["source"] for entry in entries)
+            if ambiguous
+            else None
+        ),
+        "is_unresolved": False,
+        "is_ambiguous": ambiguous,
+    }
 
 
 def _append_set_fact_rows(
@@ -1322,14 +1350,9 @@ def build_variable_insights(
         role_path,
         include_vars_main,
     )
-
-    seed_values, seed_secrets, seed_sources = load_seed_variables(seed_paths)
-    dynamic_include_vars_refs = _collect_dynamic_include_vars_refs(
-        role_path,
-        exclude_paths=exclude_paths,
-    )
-    dynamic_task_include_tokens = _collect_dynamic_task_include_tokens(
-        role_path,
+    reference_context = _collect_variable_reference_context(
+        role_path=role_path,
+        seed_paths=seed_paths,
         exclude_paths=exclude_paths,
     )
 
@@ -1339,6 +1362,53 @@ def build_variable_insights(
         defaults_file=defaults_file,
         vars_file=vars_file,
     )
+    _populate_variable_rows(
+        role_path=role_path,
+        rows=rows,
+        rows_by_name=rows_by_name,
+        exclude_paths=exclude_paths,
+        reference_context=reference_context,
+    )
+
+    _redact_secret_defaults(rows)
+
+    return rows
+
+
+def _collect_variable_reference_context(
+    *,
+    role_path: str,
+    seed_paths: list[str] | None,
+    exclude_paths: list[str] | None,
+) -> dict:
+    """Collect seed and dynamic-reference context for inferred variable rows."""
+    seed_values, seed_secrets, seed_sources = load_seed_variables(seed_paths)
+    dynamic_include_vars_refs = _collect_dynamic_include_vars_refs(
+        role_path,
+        exclude_paths=exclude_paths,
+    )
+    dynamic_task_include_tokens = _collect_dynamic_task_include_tokens(
+        role_path,
+        exclude_paths=exclude_paths,
+    )
+    return {
+        "seed_values": seed_values,
+        "seed_secrets": seed_secrets,
+        "seed_sources": seed_sources,
+        "dynamic_include_vars_refs": dynamic_include_vars_refs,
+        "dynamic_task_include_tokens": dynamic_task_include_tokens,
+    }
+
+
+def _populate_variable_rows(
+    *,
+    role_path: str,
+    rows: list[dict],
+    rows_by_name: dict,
+    exclude_paths: list[str] | None,
+    reference_context: dict,
+) -> None:
+    """Populate dynamic, documented, and inferred variable rows in-place."""
     role_root = Path(role_path).resolve()
     known_names = _append_include_vars_rows(
         role_path=role_path,
@@ -1364,23 +1434,18 @@ def build_variable_insights(
         rows=rows,
         known_names=known_names,
     )
-
     known_names = _refresh_known_names(rows)
     _append_referenced_variable_rows(
         role_path=role_path,
         rows=rows,
         known_names=known_names,
-        seed_values=seed_values,
-        seed_secrets=seed_secrets,
-        seed_sources=seed_sources,
-        dynamic_include_vars_refs=dynamic_include_vars_refs,
-        dynamic_task_include_tokens=dynamic_task_include_tokens,
+        seed_values=reference_context["seed_values"],
+        seed_secrets=reference_context["seed_secrets"],
+        seed_sources=reference_context["seed_sources"],
+        dynamic_include_vars_refs=reference_context["dynamic_include_vars_refs"],
+        dynamic_task_include_tokens=reference_context["dynamic_task_include_tokens"],
         exclude_paths=exclude_paths,
     )
-
-    _redact_secret_defaults(rows)
-
-    return rows
 
 
 def _refresh_known_names(rows: list[dict]) -> set[str]:
@@ -1915,63 +1980,77 @@ def _render_guide_misc_sections(
     metadata: dict,
 ) -> str | None:
     """Render remaining style-guide sections not covered by other groups."""
+    renderers = {
+        "role_contents": lambda: _render_role_contents_section(metadata),
+        "features": lambda: _render_features_section(metadata),
+        "comparison": lambda: _render_comparison_section(metadata),
+        "default_filters": lambda: _render_default_filters_section(default_filters),
+    }
+    renderer = renderers.get(section_id)
+    return renderer() if renderer else None
 
-    if section_id == "role_contents":
-        lines = ["The scanner collected these role subdirectories (counts):", ""]
-        for key, items in metadata.items():
-            if key in (
-                "meta",
-                "features",
-                "comparison",
-                "variable_insights",
-                "doc_insights",
-                "style_guide",
-                "role_notes",
-                "scanner_counters",
-            ):
-                continue
-            if isinstance(items, list):
-                lines.append(f"- **{key}**: {len(items)} files")
-        return "\n".join(lines)
 
-    if section_id == "features":
-        features = metadata.get("features") or {}
-        if not features:
-            return "No role features detected."
-        return "\n".join(f"- **{key}**: {value}" for key, value in features.items())
+def _render_role_contents_section(metadata: dict) -> str:
+    """Render a compact count summary of discovered role subdirectories."""
+    lines = ["The scanner collected these role subdirectories (counts):", ""]
+    for key, items in metadata.items():
+        if key in {
+            "meta",
+            "features",
+            "comparison",
+            "variable_insights",
+            "doc_insights",
+            "style_guide",
+            "role_notes",
+            "scanner_counters",
+        }:
+            continue
+        if isinstance(items, list):
+            lines.append(f"- **{key}**: {len(items)} files")
+    return "\n".join(lines)
 
-    if section_id == "comparison":
-        comparison = metadata.get("comparison")
-        if not comparison:
-            return "No comparison baseline provided."
-        lines = [
-            f"- **Baseline path**: {comparison['baseline_path']}",
-            f"- **Target score**: {comparison['target_score']}/100",
-            f"- **Baseline score**: {comparison['baseline_score']}/100",
-            f"- **Score delta**: {comparison['score_delta']}",
-            "",
-        ]
-        for metric, values in comparison["metrics"].items():
-            lines.append(
-                f"- **{metric}**: target={values['target']}, baseline={values['baseline']}, delta={values['delta']}"
-            )
-        return "\n".join(lines)
 
-    if section_id == "default_filters":
-        if not default_filters:
-            return "No undocumented variables using `default()` were detected."
-        lines = [
-            "The scanner found undocumented variables using `default()` in role files:",
-            "",
-        ]
-        for occ in default_filters:
-            match = occ["match"].replace("`", "'")
-            args = occ["args"].replace("`", "'")
-            lines.append(f"- {occ['file']}:{occ['line_no']} - `{match}`")
-            lines.append(f"  args: `{args}`")
-        return "\n".join(lines)
+def _render_features_section(metadata: dict) -> str:
+    """Render extracted role feature heuristics."""
+    features = metadata.get("features") or {}
+    if not features:
+        return "No role features detected."
+    return "\n".join(f"- **{key}**: {value}" for key, value in features.items())
 
-    return None
+
+def _render_comparison_section(metadata: dict) -> str:
+    """Render baseline comparison metrics when available."""
+    comparison = metadata.get("comparison")
+    if not comparison:
+        return "No comparison baseline provided."
+    lines = [
+        f"- **Baseline path**: {comparison['baseline_path']}",
+        f"- **Target score**: {comparison['target_score']}/100",
+        f"- **Baseline score**: {comparison['baseline_score']}/100",
+        f"- **Score delta**: {comparison['score_delta']}",
+        "",
+    ]
+    for metric, values in comparison["metrics"].items():
+        lines.append(
+            f"- **{metric}**: target={values['target']}, baseline={values['baseline']}, delta={values['delta']}"
+        )
+    return "\n".join(lines)
+
+
+def _render_default_filters_section(default_filters: list) -> str:
+    """Render undocumented default() findings in bullet-list form."""
+    if not default_filters:
+        return "No undocumented variables using `default()` were detected."
+    lines = [
+        "The scanner found undocumented variables using `default()` in role files:",
+        "",
+    ]
+    for occ in default_filters:
+        match = occ["match"].replace("`", "'")
+        args = occ["args"].replace("`", "'")
+        lines.append(f"- {occ['file']}:{occ['line_no']} - `{match}`")
+        lines.append(f"  args: `{args}`")
+    return "\n".join(lines)
 
 
 def _generated_merge_markers(section_id: str) -> list[tuple[str, str]]:
@@ -2554,12 +2633,7 @@ def _collect_variable_insights_and_default_filter_findings(
         include_vars_main=include_vars_main,
         exclude_paths=exclude_path_patterns,
     )
-    if vars_seed_paths:
-        metadata["external_vars_context"] = {
-            "paths": [str(path) for path in vars_seed_paths],
-            "authoritative": False,
-            "purpose": "required_variable_detection_hints",
-        }
+    _attach_external_vars_context(metadata, vars_seed_paths)
     metadata["variable_insights"] = variable_insights
     metadata["yaml_parse_failures"] = _collect_yaml_parse_failures(
         role_path,
@@ -2570,7 +2644,40 @@ def _collect_variable_insights_and_default_filter_findings(
         exclude_paths=exclude_path_patterns,
         marker_prefix=marker_prefix,
     )
+    undocumented_default_filters = _build_undocumented_default_filters(
+        variable_insights=variable_insights,
+        found_default_filters=found_default_filters,
+    )
 
+    metadata["scanner_counters"] = _extract_scanner_counters(
+        variable_insights,
+        undocumented_default_filters,
+        metadata.get("features") or {},
+        metadata.get("yaml_parse_failures") or [],
+    )
+    display_variables = _build_display_variables(variables, variable_insights)
+    return variable_insights, undocumented_default_filters, display_variables
+
+
+def _attach_external_vars_context(
+    metadata: dict, vars_seed_paths: list[str] | None
+) -> None:
+    """Attach non-authoritative external variable context metadata when provided."""
+    if not vars_seed_paths:
+        return
+    metadata["external_vars_context"] = {
+        "paths": [str(path) for path in vars_seed_paths],
+        "authoritative": False,
+        "purpose": "required_variable_detection_hints",
+    }
+
+
+def _build_undocumented_default_filters(
+    *,
+    variable_insights: list[dict],
+    found_default_filters: list[dict],
+) -> list[dict]:
+    """Return undocumented default() occurrences enriched with variable metadata."""
     inventory_names = {row["name"]: row for row in variable_insights}
     undocumented_default_filters: list[dict] = []
     for occurrence in found_default_filters:
@@ -2588,24 +2695,20 @@ def _collect_variable_insights_and_default_filter_findings(
                 enriched["args"] = "<secret>"
                 enriched["match"] = f"{target_var} | default(<secret>)"
             undocumented_default_filters.append(enriched)
+    return undocumented_default_filters
 
-    metadata["scanner_counters"] = _extract_scanner_counters(
-        variable_insights,
-        undocumented_default_filters,
-        metadata.get("features") or {},
-        metadata.get("yaml_parse_failures") or [],
-    )
 
+def _build_display_variables(variables: dict, variable_insights: list[dict]) -> dict:
+    """Return role variables with secret values masked for rendering/output."""
     secret_names = {
         row["name"]
         for row in variable_insights
         if row.get("secret") and row["name"] in variables
     }
-    display_variables = {
+    return {
         key: ("<secret>" if key in secret_names else value)
         for key, value in variables.items()
     }
-    return variable_insights, undocumented_default_filters, display_variables
 
 
 def _apply_style_and_comparison_metadata(
