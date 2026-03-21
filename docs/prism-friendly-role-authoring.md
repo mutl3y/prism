@@ -1,4 +1,7 @@
-# Prism-Friendly Role Authoring
+---
+layout: default
+title: Prism-Friendly Role Authoring
+---
 
 Write roles so scanner output stays stable, complete, and review-friendly.
 

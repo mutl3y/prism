@@ -1,4 +1,7 @@
-# Provenance Tracking
+---
+layout: default
+title: Provenance Tracking
+---
 
 Prism records where variable insights came from and how confident they are.
 

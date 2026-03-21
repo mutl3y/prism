@@ -1,4 +1,7 @@
-# Feedback Integration
+---
+layout: default
+title: Feedback Integration
+---
 
 Use external recommendation payloads from prism-learn to tune scan behavior.
 

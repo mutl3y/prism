@@ -1,4 +1,7 @@
-# Prism Documentation
+---
+layout: default
+title: Prism Documentation
+---
 
 Prism documentation in a dual-lane format: fast onboarding for average users and operational depth for DevOps professionals.
 

@@ -1,4 +1,7 @@
-# Comment-Driven Documentation
+---
+layout: default
+title: Comment-Driven Documentation
+---
 
 Prism can turn task-adjacent comments into structured documentation.
 
