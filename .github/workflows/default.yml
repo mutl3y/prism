@@ -4,8 +4,7 @@ name: CI
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 # Controls when the workflow will run
 on:
   # Triggers the workflow on push or pull request events but only for the "main" branch
@@ -29,6 +28,9 @@ jobs:
   build:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      checks: write
     # No temporary Node allow flags; using updated action versions instead
 
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -57,7 +59,7 @@ jobs:
         if: ${{ always() && github.event_name == 'pull_request' }}
         uses: reviewdog/action-setup@v1
         with:
-          reviewdog_version: latest
+          reviewdog_version: v0.20.3
 
       - name: Run ruff and post annotations via reviewdog
         if: ${{ always() && github.event_name == 'pull_request' }}
@@ -208,14 +210,27 @@ jobs:
         run: |
           pre-commit run --all-files || true
 
+      - name: Verify pre-commit after auto-fix
+        run: |
+          pre-commit run --all-files
+
       - name: Commit & push formatting changes
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           if [ -n "$(git status --porcelain)" ]; then
+            if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+              echo "::error::Formatting updates are required, but this PR comes from a fork and cannot be auto-pushed."
+              echo "Run these locally, commit, and push to your PR branch:"
+              echo "  pip install pre-commit"
+              echo "  pre-commit run --all-files"
+              exit 1
+            fi
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add -A
             git commit -m "chore: apply automatic formatting via pre-commit" || echo "No changes to commit"
-            git push origin HEAD:${{ github.head_ref }}
+            git push origin "HEAD:${HEAD_REF}"
             echo "Auto-formatted and pushed changes."
           else
             echo "No formatting changes needed."
