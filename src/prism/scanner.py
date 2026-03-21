@@ -25,6 +25,7 @@ from .pattern_config import load_pattern_config
 from .scanner_submodules.readme_config import (
     DEFAULT_DOC_MARKER_PREFIX as READMECFG_DEFAULT_DOC_MARKER_PREFIX,
     load_fail_on_unconstrained_dynamic_includes as _load_fail_on_unconstrained_dynamic_includes,
+    load_fail_on_yaml_like_task_annotations as _load_fail_on_yaml_like_task_annotations,
     load_readme_marker_prefix as _load_readme_marker_prefix,
     load_readme_section_config as _load_readme_section_config,
     load_readme_section_visibility as _load_readme_section_visibility,
@@ -1612,6 +1613,21 @@ def load_fail_on_unconstrained_dynamic_includes(
     )
 
 
+def load_fail_on_yaml_like_task_annotations(
+    role_path: str,
+    config_path: str | None = None,
+    default: bool = False,
+) -> bool:
+    """Load scan policy toggle for YAML-like task annotation strict failures."""
+    return _load_fail_on_yaml_like_task_annotations(
+        role_path,
+        config_path=config_path,
+        default=default,
+        config_filenames=SECTION_CONFIG_FILENAMES,
+        default_filename=SECTION_CONFIG_FILENAME,
+    )
+
+
 def load_readme_section_visibility(
     role_path: str,
     config_path: str | None = None,
@@ -3075,6 +3091,14 @@ def _collect_scan_base_context(scan_options: dict) -> dict:
         ],
         metadata=metadata,
     )
+    _apply_yaml_like_task_annotation_policy(
+        role_path=scan_options["role_path"],
+        readme_config_path=scan_options["readme_config_path"],
+        fail_on_yaml_like_task_annotations=scan_options[
+            "fail_on_yaml_like_task_annotations"
+        ],
+        metadata=metadata,
+    )
     return {
         "rp": rp,
         "role_name": role_name,
@@ -3123,6 +3147,38 @@ def _apply_unconstrained_dynamic_include_policy(
             f"First finding: {first_file} / {first_task} / {first_module} -> {first_target}. "
             "Constrain with a simple when allow-list, disable via "
             "scan.fail_on_unconstrained_dynamic_includes in .prism.yml, "
+            "or override at call time."
+        )
+
+
+def _apply_yaml_like_task_annotation_policy(
+    *,
+    role_path: str,
+    readme_config_path: str | None,
+    fail_on_yaml_like_task_annotations: bool | None,
+    metadata: dict,
+) -> None:
+    """Apply and enforce YAML-like task annotation strict-fail policy."""
+    config_default = load_fail_on_yaml_like_task_annotations(
+        role_path,
+        config_path=readme_config_path,
+        default=False,
+    )
+    effective_fail = (
+        config_default
+        if fail_on_yaml_like_task_annotations is None
+        else bool(fail_on_yaml_like_task_annotations)
+    )
+    metadata["fail_on_yaml_like_task_annotations"] = effective_fail
+
+    features = metadata.get("features") or {}
+    yaml_like_count = int(features.get("yaml_like_task_annotations") or 0)
+    if effective_fail and yaml_like_count > 0:
+        raise RuntimeError(
+            "YAML-like task annotations detected "
+            f"({yaml_like_count} findings). "
+            "Use plain text or key=value payloads in marker comments, disable via "
+            "scan.fail_on_yaml_like_task_annotations in .prism.yml, "
             "or override at call time."
         )
 
@@ -3392,6 +3448,7 @@ def run_scan(
     style_source_path: str | None = None,
     policy_config_path: str | None = None,
     fail_on_unconstrained_dynamic_includes: bool | None = None,
+    fail_on_yaml_like_task_annotations: bool | None = None,
     detailed_catalog: bool = False,
     dry_run: bool = False,
     include_collection_checks: bool = True,
@@ -3426,6 +3483,7 @@ def run_scan(
         style_guide_skeleton=style_guide_skeleton,
         compare_role_path=compare_role_path,
         fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
+        fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
     )
     prepared = _prepare_run_scan_payload(scan_options)
     return _emit_scan_outputs(
@@ -3479,6 +3537,7 @@ def _build_run_scan_options(
     style_guide_skeleton: bool,
     compare_role_path: str | None,
     fail_on_unconstrained_dynamic_includes: bool | None,
+    fail_on_yaml_like_task_annotations: bool | None,
 ) -> dict:
     """Build normalized scan options consumed by scan orchestration helpers."""
     return {
@@ -3502,6 +3561,7 @@ def _build_run_scan_options(
         "fail_on_unconstrained_dynamic_includes": (
             fail_on_unconstrained_dynamic_includes
         ),
+        "fail_on_yaml_like_task_annotations": (fail_on_yaml_like_task_annotations),
     }
 
 

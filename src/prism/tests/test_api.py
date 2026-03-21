@@ -11,6 +11,13 @@ ROLE_FIXTURES = HERE / "roles"
 BASE_ROLE_FIXTURE = ROLE_FIXTURES / "base_mock_role"
 
 
+def _write_guide_file(path: Path) -> Path:
+    """Write a simple markdown guide fixture and return the path."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("# Guide\n", encoding="utf-8")
+    return path
+
+
 @pytest.fixture(autouse=True)
 def _disable_remote_github_api(monkeypatch):
     monkeypatch.setattr(
@@ -138,7 +145,7 @@ def test_scan_repo_uses_fetched_style_readme_when_available(monkeypatch, tmp_pat
     clone_calls: dict = {}
     scan_calls: dict = {}
     fetched_style = tmp_path / "fetched-style.md"
-    fetched_style.write_text("# Guide\n", encoding="utf-8")
+    _write_guide_file(fetched_style)
 
     def fake_fetch_repo_file(repo_url, repo_path, destination, ref=None, timeout=60):
         clone_calls["fetched_repo_path"] = repo_path
@@ -214,7 +221,7 @@ def test_scan_repo_raises_for_missing_repo_role_path(monkeypatch):
 
 def test_scan_repo_lightweight_readme_only_skips_clone(monkeypatch, tmp_path):
     fetched_style = tmp_path / "fetched-style.md"
-    fetched_style.write_text("# Guide\n", encoding="utf-8")
+    _write_guide_file(fetched_style)
     scan_calls: dict = {}
 
     monkeypatch.setattr(
@@ -264,9 +271,7 @@ def test_scan_repo_uses_shared_temp_root_and_normalizes_style_path(
     )
 
     def fake_fetch_repo_file(repo_url, repo_path, destination, ref=None, timeout=60):
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text("# Guide\n", encoding="utf-8")
-        return destination
+        return _write_guide_file(destination)
 
     def fake_clone_repo(repo_url, destination, ref=None, timeout=60, sparse_paths=None):
         clone_calls["destination"] = destination
@@ -305,9 +310,7 @@ def test_scan_repo_resolves_case_variant_repo_style_readme(monkeypatch, tmp_path
         calls["requested_paths"].append(repo_path)
         if repo_path != "readme.md":
             return None
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text("# Guide\n", encoding="utf-8")
-        return destination
+        return _write_guide_file(destination)
 
     def fake_clone_repo(repo_url, destination, ref=None, timeout=60, sparse_paths=None):
         calls["sparse_paths"] = sparse_paths

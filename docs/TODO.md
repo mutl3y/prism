@@ -245,3 +245,15 @@ Execution gates (recommended order):
   - [x] Add README/docs section for `prism completion bash` generation and installation
   - [x] Update CLI help text and limitations language
   - [x] Refresh demo scenarios to include collection plugin/filter documentation output
+
+## 14) Annotation quality metrics and guidance hardening
+
+- [x] Mark annotations that reference commented-out tasks as `disabled`
+- [x] Add code-quality metric: `disabled_task_annotations`
+- [x] Add marker comment guidance to avoid YAML payloads and prefer `key=value` hints
+- [x] Add YAML-like payload heuristic warning on annotations (`format_warning`)
+- [x] Add code-quality metric: `yaml_like_task_annotations`
+- [x] Add focused parser tests for disabled and YAML-like annotation paths
+- [x] Surface annotation quality counters in scanner report markdown output
+- [x] Add optional strict mode to fail lint/scan when YAML-like annotation payloads are detected
+- [x] Add docs examples showing valid `key=value` annotation patterns

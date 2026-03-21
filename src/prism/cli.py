@@ -405,6 +405,17 @@ def _add_shared_scan_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--fail-on-yaml-like-task-annotations",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Fail scan when YAML-like marker comment payloads are detected "
+            "(for example key: value). Overrides "
+            "scan.fail_on_yaml_like_task_annotations from .prism.yml "
+            "when explicitly set."
+        ),
+    )
+    parser.add_argument(
         "--adopt-heading-mode",
         choices=("canonical", "style", "popular"),
         default=None,
@@ -869,6 +880,7 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
             style_source_path=args.style_source,
             policy_config_path=args.policy_config,
             fail_on_unconstrained_dynamic_includes=args.fail_on_unconstrained_dynamic_includes,
+            fail_on_yaml_like_task_annotations=args.fail_on_yaml_like_task_annotations,
             detailed_catalog=args.detailed_catalog,
             include_collection_checks=include_collection_checks,
             include_task_parameters=args.task_parameters,
@@ -926,6 +938,7 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
         style_source_path=args.style_source,
         policy_config_path=args.policy_config,
         fail_on_unconstrained_dynamic_includes=args.fail_on_unconstrained_dynamic_includes,
+        fail_on_yaml_like_task_annotations=args.fail_on_yaml_like_task_annotations,
         detailed_catalog=args.detailed_catalog,
         include_collection_checks=include_collection_checks,
         include_task_parameters=args.task_parameters,
@@ -1004,6 +1017,7 @@ def _handle_role_command(args: argparse.Namespace) -> int:
         style_source_path=args.style_source,
         policy_config_path=args.policy_config,
         fail_on_unconstrained_dynamic_includes=args.fail_on_unconstrained_dynamic_includes,
+        fail_on_yaml_like_task_annotations=args.fail_on_yaml_like_task_annotations,
         detailed_catalog=args.detailed_catalog,
         include_collection_checks=include_collection_checks,
         include_task_parameters=args.task_parameters,

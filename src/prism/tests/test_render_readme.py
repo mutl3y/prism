@@ -332,6 +332,7 @@ def test_run_scan_scanner_report_includes_issue_categories(tmp_path):
     assert "Provenance issue categories" in report_content
     assert "unresolved_no_static_definition" in report_content
     assert "Role include graph signals" in report_content
+    assert "Task annotation quality" in report_content
 
 
 def test_run_scan_scanner_report_includes_yaml_parse_failures(tmp_path):

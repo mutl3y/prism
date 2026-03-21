@@ -12,6 +12,12 @@ _REAL_FETCH_REPO_FILE = cli._fetch_repo_file
 _REAL_FETCH_REPO_DIRECTORY_NAMES = cli._fetch_repo_directory_names
 
 
+def _write_generated_output(output: str) -> str:
+    """Persist a fake generated artifact and return its resolved path."""
+    Path(output).write_text("generated", encoding="utf-8")
+    return str(Path(output).resolve())
+
+
 @pytest.fixture(autouse=True)
 def _disable_remote_github_api(monkeypatch):
     monkeypatch.setattr(
@@ -38,8 +44,7 @@ def test_cli_scans_from_repo_url(monkeypatch, tmp_path):
         calls["template"] = template
         calls["format"] = output_format
         calls["role_name_override"] = kwargs.get("role_name_override")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
@@ -68,8 +73,7 @@ def test_cli_repo_ref_is_used_for_clone(monkeypatch, tmp_path):
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
@@ -107,8 +111,7 @@ def test_cli_repo_timeout_is_forwarded(monkeypatch, tmp_path):
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
@@ -140,8 +143,7 @@ def test_cli_repo_scan_uses_shared_temp_root(monkeypatch, tmp_path):
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli.tempfile, "gettempdir", lambda: str(tmp_path))
     monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
@@ -167,8 +169,7 @@ def test_cli_github_https_url_is_converted_to_ssh(monkeypatch, tmp_path):
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
@@ -198,8 +199,7 @@ def test_cli_ssh_repo_url_is_preserved(monkeypatch, tmp_path):
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
@@ -581,8 +581,7 @@ def test_cli_compare_role_path_is_forwarded(monkeypatch, tmp_path):
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["role_path"] = role_path
         calls["compare_role_path"] = kwargs.get("compare_role_path")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -611,8 +610,7 @@ def test_cli_exclude_path_is_forwarded(monkeypatch, tmp_path):
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["exclude_path_patterns"] = kwargs.get("exclude_path_patterns")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -641,8 +639,7 @@ def test_cli_detailed_catalog_is_forwarded(monkeypatch, tmp_path):
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["detailed_catalog"] = kwargs.get("detailed_catalog")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -667,8 +664,7 @@ def test_cli_style_readme_is_forwarded(monkeypatch, tmp_path):
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["style_readme_path"] = kwargs.get("style_readme_path")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -697,8 +693,7 @@ def test_cli_style_guide_skeleton_defaults_to_local_style_source(monkeypatch, tm
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["style_guide_skeleton"] = kwargs.get("style_guide_skeleton")
         calls["style_readme_path"] = kwargs.get("style_readme_path")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -721,8 +716,7 @@ def test_cli_style_guide_skeleton_prefers_cwd_source(monkeypatch, tmp_path):
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["style_guide_skeleton"] = kwargs.get("style_guide_skeleton")
         calls["style_readme_path"] = kwargs.get("style_readme_path")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
     monkeypatch.chdir(tmp_path)
@@ -750,8 +744,7 @@ def test_cli_style_guide_skeleton_prefers_env_source(monkeypatch, tmp_path):
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["style_guide_skeleton"] = kwargs.get("style_guide_skeleton")
         calls["style_readme_path"] = kwargs.get("style_readme_path")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
     monkeypatch.chdir(tmp_path)
@@ -775,8 +768,7 @@ def test_cli_vars_seed_is_forwarded(monkeypatch, tmp_path):
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["vars_seed_paths"] = kwargs.get("vars_seed_paths")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -808,8 +800,7 @@ def test_cli_vars_context_path_is_forwarded(monkeypatch, tmp_path):
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["vars_seed_paths"] = kwargs.get("vars_seed_paths")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -836,8 +827,7 @@ def test_cli_vars_seed_emits_deprecation_warning(monkeypatch, tmp_path, capsys):
     seed_file.write_text("---\nexample: value\n", encoding="utf-8")
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -861,8 +851,7 @@ def test_cli_vars_context_and_seed_are_merged_in_order(monkeypatch, tmp_path, ca
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["vars_seed_paths"] = kwargs.get("vars_seed_paths")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -967,8 +956,7 @@ def test_cli_concise_and_scanner_report_flags_are_forwarded(monkeypatch, tmp_pat
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["concise_readme"] = kwargs.get("concise_readme")
         calls["scanner_report_output"] = kwargs.get("scanner_report_output")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -998,8 +986,7 @@ def test_cli_variable_sources_defaults_only_is_forwarded(monkeypatch, tmp_path):
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["include_vars_main"] = kwargs.get("include_vars_main")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -1027,8 +1014,7 @@ def test_cli_variable_sources_default_excludes_vars(monkeypatch, tmp_path):
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["include_vars_main"] = kwargs.get("include_vars_main")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -1047,8 +1033,7 @@ def test_cli_scanner_report_link_flag_is_forwarded(monkeypatch, tmp_path):
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["include_scanner_report_link"] = kwargs.get("include_scanner_report_link")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -1076,8 +1061,7 @@ def test_cli_adopt_heading_mode_flag_is_forwarded(monkeypatch, tmp_path):
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["adopt_heading_mode"] = kwargs.get("adopt_heading_mode")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -1096,8 +1080,7 @@ def test_cli_keep_unknown_style_sections_flag_is_forwarded(monkeypatch, tmp_path
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["keep_unknown_style_sections"] = kwargs.get("keep_unknown_style_sections")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -1118,8 +1101,7 @@ def test_cli_style_source_is_forwarded(monkeypatch, tmp_path):
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["style_source_path"] = kwargs.get("style_source_path")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -1142,8 +1124,7 @@ def test_cli_policy_config_is_forwarded(monkeypatch, tmp_path):
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["policy_config_path"] = kwargs.get("policy_config_path")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -1168,8 +1149,7 @@ def test_cli_fail_on_unconstrained_dynamic_includes_is_forwarded_for_role(
         calls["fail_on_unconstrained_dynamic_includes"] = kwargs.get(
             "fail_on_unconstrained_dynamic_includes"
         )
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 
@@ -1202,8 +1182,7 @@ def test_cli_fail_on_unconstrained_dynamic_includes_is_forwarded_for_repo(
         calls["fail_on_unconstrained_dynamic_includes"] = kwargs.get(
             "fail_on_unconstrained_dynamic_includes"
         )
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
@@ -1267,6 +1246,115 @@ def test_cli_fail_on_unconstrained_dynamic_includes_is_forwarded_for_collection(
     assert calls["fail_on_unconstrained_dynamic_includes"] is True
 
 
+def test_cli_fail_on_yaml_like_task_annotations_is_forwarded_for_role(
+    monkeypatch, tmp_path
+):
+    calls: dict = {}
+
+    role = tmp_path / "role"
+    role.mkdir()
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["fail_on_yaml_like_task_annotations"] = kwargs.get(
+            "fail_on_yaml_like_task_annotations"
+        )
+        return _write_generated_output(output)
+
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "annotation-policy.md"
+    rc = cli.main(
+        [
+            "role",
+            str(role),
+            "--fail-on-yaml-like-task-annotations",
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert calls["fail_on_yaml_like_task_annotations"] is True
+
+
+def test_cli_fail_on_yaml_like_task_annotations_is_forwarded_for_repo(
+    monkeypatch, tmp_path
+):
+    calls: dict = {}
+
+    def fake_clone_run(cmd, check, stdout, stderr, text, timeout, env):
+        destination = Path(cmd[-1])
+        destination.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        calls["fail_on_yaml_like_task_annotations"] = kwargs.get(
+            "fail_on_yaml_like_task_annotations"
+        )
+        return _write_generated_output(output)
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "repo-annotation-policy.md"
+    rc = cli.main(
+        [
+            "repo",
+            "--repo-url",
+            "https://github.com/example/role.git",
+            "--fail-on-yaml-like-task-annotations",
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert calls["fail_on_yaml_like_task_annotations"] is True
+
+
+def test_cli_fail_on_yaml_like_task_annotations_is_forwarded_for_collection(
+    monkeypatch, tmp_path
+):
+    calls: dict = {}
+    collection_root = tmp_path / "collection"
+    (collection_root / "roles").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+
+    def fake_scan_collection(collection_path, **kwargs):
+        calls["fail_on_yaml_like_task_annotations"] = kwargs.get(
+            "fail_on_yaml_like_task_annotations"
+        )
+        return {
+            "collection": {
+                "path": collection_path,
+                "metadata": {"namespace": "demo", "name": "toolkit"},
+            },
+            "summary": {"total_roles": 0, "scanned_roles": 0, "failed_roles": 0},
+            "roles": [],
+        }
+
+    import prism.api as api_module
+
+    monkeypatch.setattr(api_module, "scan_collection", fake_scan_collection)
+
+    out = tmp_path / "collection-annotation-policy"
+    rc = cli.main(
+        [
+            "collection",
+            str(collection_root),
+            "--fail-on-yaml-like-task-annotations",
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert calls["fail_on_yaml_like_task_annotations"] is True
+
+
 def test_cli_repo_style_readme_path_is_resolved(monkeypatch, tmp_path):
     calls: dict = {}
 
@@ -1285,8 +1373,7 @@ def test_cli_repo_style_readme_path_is_resolved(monkeypatch, tmp_path):
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["style_readme_path"] = kwargs.get("style_readme_path")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
@@ -1341,8 +1428,7 @@ def test_cli_repo_style_readme_fetch_skips_sparse_style_path(monkeypatch, tmp_pa
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
         calls["style_readme_path"] = kwargs.get("style_readme_path")
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(
         cli,
@@ -1645,8 +1731,7 @@ def test_cli_verbose_repo_scan_prints_clone_and_write(monkeypatch, tmp_path, cap
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
@@ -1682,8 +1767,7 @@ def test_cli_verbose_local_scan_prints_style_and_demo_paths(
     out = tmp_path / "out.md"
 
     def fake_run_scan(role_path, output, template, output_format, **kwargs):
-        Path(output).write_text("generated", encoding="utf-8")
-        return str(Path(output).resolve())
+        return _write_generated_output(output)
 
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
 

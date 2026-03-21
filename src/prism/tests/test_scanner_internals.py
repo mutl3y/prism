@@ -15,6 +15,19 @@ Test groups mirror the planned submodule boundaries:
 from prism import scanner
 from types import SimpleNamespace
 
+
+def _make_role(tmp_path):
+    role = tmp_path / "role"
+    role.mkdir(parents=True, exist_ok=True)
+    return role
+
+
+def _make_role_with_tasks_dir(tmp_path):
+    role = _make_role(tmp_path)
+    (role / "tasks").mkdir(parents=True, exist_ok=True)
+    return role
+
+
 # ---------------------------------------------------------------------------
 # Jinja analysis helpers
 # ---------------------------------------------------------------------------
@@ -475,8 +488,7 @@ class TestCollectIncludeVarsFiles:
     """_collect_include_vars_files: resolve static include_vars references."""
 
     def test_finds_static_include_vars_file(self, tmp_path):
-        role = tmp_path / "role"
-        (role / "tasks").mkdir(parents=True)
+        role = _make_role_with_tasks_dir(tmp_path)
         (role / "vars").mkdir()
         extra_vars = role / "vars" / "extra.yml"
         extra_vars.write_text("extra_var: value\n", encoding="utf-8")
@@ -487,8 +499,7 @@ class TestCollectIncludeVarsFiles:
         assert extra_vars.resolve() in result
 
     def test_ignores_dynamic_include_vars(self, tmp_path):
-        role = tmp_path / "role"
-        (role / "tasks").mkdir(parents=True)
+        role = _make_role_with_tasks_dir(tmp_path)
         (role / "tasks" / "main.yml").write_text(
             "---\n- include_vars: '{{ dynamic_path }}'\n", encoding="utf-8"
         )
@@ -496,14 +507,12 @@ class TestCollectIncludeVarsFiles:
         assert result == []
 
     def test_returns_empty_for_role_without_tasks(self, tmp_path):
-        role = tmp_path / "role"
-        role.mkdir()
+        role = _make_role(tmp_path)
         result = scanner._collect_include_vars_files(str(role))
         assert result == []
 
     def test_does_not_include_files_outside_role(self, tmp_path):
-        role = tmp_path / "role"
-        (role / "tasks").mkdir(parents=True)
+        role = _make_role_with_tasks_dir(tmp_path)
         outside = tmp_path / "outside_vars.yml"
         outside.write_text("x: 1\n", encoding="utf-8")
         (role / "tasks" / "main.yml").write_text(
@@ -517,8 +526,7 @@ class TestCollectSetFactNames:
     """_collect_set_fact_names: find variable names assigned via set_fact."""
 
     def test_finds_set_fact_variable(self, tmp_path):
-        role = tmp_path / "role"
-        (role / "tasks").mkdir(parents=True)
+        role = _make_role_with_tasks_dir(tmp_path)
         (role / "tasks" / "main.yml").write_text(
             "---\n- set_fact:\n    computed_value: hello\n", encoding="utf-8"
         )
@@ -526,8 +534,7 @@ class TestCollectSetFactNames:
         assert "computed_value" in result
 
     def test_ignores_dynamic_set_fact_keys(self, tmp_path):
-        role = tmp_path / "role"
-        (role / "tasks").mkdir(parents=True)
+        role = _make_role_with_tasks_dir(tmp_path)
         (role / "tasks" / "main.yml").write_text(
             "---\n- set_fact:\n    '{{ dynamic_key }}': value\n", encoding="utf-8"
         )
@@ -535,8 +542,7 @@ class TestCollectSetFactNames:
         assert not any("{{" in name for name in result)
 
     def test_returns_empty_for_role_with_no_set_fact(self, tmp_path):
-        role = tmp_path / "role"
-        (role / "tasks").mkdir(parents=True)
+        role = _make_role_with_tasks_dir(tmp_path)
         (role / "tasks" / "main.yml").write_text(
             "---\n- name: do something\n  debug:\n    msg: hi\n", encoding="utf-8"
         )
@@ -571,8 +577,7 @@ class TestCollectDynamicIncludeVarsRefs:
     """_collect_dynamic_include_vars_refs: collect unresolvable include_vars paths."""
 
     def test_finds_dynamic_include_vars(self, tmp_path):
-        role = tmp_path / "role"
-        (role / "tasks").mkdir(parents=True)
+        role = _make_role_with_tasks_dir(tmp_path)
         (role / "tasks" / "main.yml").write_text(
             "---\n- include_vars: '{{ env_specific_file }}'\n", encoding="utf-8"
         )
@@ -581,8 +586,7 @@ class TestCollectDynamicIncludeVarsRefs:
         assert "{{" in result[0]
 
     def test_static_include_vars_not_in_dynamic_refs(self, tmp_path):
-        role = tmp_path / "role"
-        (role / "tasks").mkdir(parents=True)
+        role = _make_role_with_tasks_dir(tmp_path)
         (role / "vars").mkdir()
         (role / "vars" / "extra.yml").write_text("x: 1\n", encoding="utf-8")
         (role / "tasks" / "main.yml").write_text(
@@ -592,8 +596,7 @@ class TestCollectDynamicIncludeVarsRefs:
         assert result == []
 
     def test_empty_for_role_without_tasks(self, tmp_path):
-        role = tmp_path / "role"
-        role.mkdir()
+        role = _make_role(tmp_path)
         result = scanner._collect_dynamic_include_vars_refs(str(role))
         assert result == []
 
@@ -918,6 +921,8 @@ class TestExtractRoleFeatures:
             "included_roles",
             "dynamic_included_role_calls",
             "dynamic_included_roles",
+            "disabled_task_annotations",
+            "yaml_like_task_annotations",
         }
         assert expected_keys == set(result.keys())
 

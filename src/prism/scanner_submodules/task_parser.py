@@ -119,6 +119,12 @@ TASK_NOTES_LONG_RE = _build_marker_line_re(DEFAULT_DOC_MARKER_PREFIX)
 ROLE_NOTES_SHORT_RE = ROLE_NOTES_RE
 TASK_NOTES_SHORT_RE = TASK_NOTES_LONG_RE
 COMMENT_CONTINUATION_RE = re.compile(r"^\s*#\s?(.*)$")
+# Matches a stripped (de-commented) line that begins a YAML task list entry.
+# Used to detect commented-out task blocks following an annotation.
+COMMENTED_TASK_ENTRY_RE = re.compile(r"^\s*-\s+name:\s*\S")
+# Heuristic markers for YAML-like payloads in annotation comments.
+YAML_LIKE_KEY_VALUE_RE = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_-]*\s*:\s*\S")
+YAML_LIKE_LIST_ITEM_RE = re.compile(r"^\s*-\s+[A-Za-z_][A-Za-z0-9_-]*\s*:\s*\S")
 WHEN_IN_LIST_RE = re.compile(
     r"^\s*(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s+in\s+(?P<values>\[[^\]]*\])\s*$"
 )
@@ -672,14 +678,22 @@ def _split_task_target_payload(text: str) -> tuple[str, str]:
     return target.strip(), payload.strip()
 
 
+def _annotation_payload_looks_yaml(payload: str) -> bool:
+    """Heuristically detect YAML-style mapping syntax in annotation payloads."""
+    return any(
+        YAML_LIKE_KEY_VALUE_RE.match(line) or YAML_LIKE_LIST_ITEM_RE.match(line)
+        for line in payload.splitlines()
+    )
+
+
 def _extract_task_annotations_for_file(
     lines: list[str],
     marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX,
-) -> tuple[list[dict[str, str]], dict[str, list[dict[str, str]]]]:
+) -> tuple[list[dict[str, object]], dict[str, list[dict[str, object]]]]:
     """Extract implicit and explicit task annotations from file comment lines."""
     marker_line_re = _build_marker_line_re(marker_prefix)
-    implicit: list[dict[str, str]] = []
-    explicit: dict[str, list[dict[str, str]]] = defaultdict(list)
+    implicit: list[dict[str, object]] = []
+    explicit: dict[str, list[dict[str, object]]] = defaultdict(list)
 
     i = 0
     while i < len(lines):
@@ -730,12 +744,18 @@ def _extract_task_annotations_for_file(
         if continuation:
             text = "\n".join(part for part in [text, *continuation] if part)
 
+        disabled = any(COMMENTED_TASK_ENTRY_RE.match(c) for c in continuation)
         if label == "task" and target_name:
             kind, body = _split_task_annotation_label(text)
         else:
             kind, body = _split_task_annotation_label(f"{label}: {text}")
         if body:
-            item = {"kind": kind, "text": body}
+            yaml_like = _annotation_payload_looks_yaml(body)
+            item: dict[str, object] = {"kind": kind, "text": body}
+            if disabled:
+                item["disabled"] = True
+            if yaml_like:
+                item["format_warning"] = "yaml-like-payload-use-key-equals-value"
             if target_name:
                 explicit[target_name].append(item)
             else:
@@ -1108,6 +1128,22 @@ def extract_role_features(
                     item for item in notify if isinstance(item, str)
                 )
 
+    disabled_task_annotations = 0
+    yaml_like_task_annotations = 0
+    for task_file in task_files:
+        try:
+            raw_lines = task_file.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            raw_lines = []
+        impl_anns, expl_anns = _extract_task_annotations_for_file(raw_lines)
+        disabled_task_annotations += sum(1 for a in impl_anns if a.get("disabled"))
+        yaml_like_task_annotations += sum(
+            1 for a in impl_anns if a.get("format_warning")
+        )
+        yaml_like_task_annotations += sum(
+            1 for items in expl_anns.values() for a in items if a.get("format_warning")
+        )
+
     return {
         "task_files_scanned": len(task_files),
         "tasks_scanned": tasks_scanned,
@@ -1132,4 +1168,6 @@ def extract_role_features(
             if dynamic_included_roles
             else "none"
         ),
+        "disabled_task_annotations": disabled_task_annotations,
+        "yaml_like_task_annotations": yaml_like_task_annotations,
     }

@@ -22,3 +22,10 @@
   ansible.builtin.set_fact:
     shutdown_initiated: true
   when: operation == "shutdown"
+
+# prism~runbook: should not see this task in the rendered documentation
+# If this task is included in the documentation, thats an issue with scannernot seeing task was disabled by comments
+# - name: Set fact for shutdown operation
+#   ansible.builtin.set_fact:
+#     shutdown_initiated: true
+#   when: operation == "shutdown"
