@@ -3161,6 +3161,49 @@ def _enrich_scan_context_with_insights(
     return undocumented_default_filters, display_variables
 
 
+def _build_scan_output_payload(
+    *,
+    role_name: str,
+    description: str,
+    display_variables: dict,
+    requirements_display: list,
+    undocumented_default_filters: list,
+    metadata: dict,
+) -> dict:
+    """Build the shared payload used for scanner report and primary output rendering."""
+    return {
+        "role_name": role_name,
+        "description": description,
+        "display_variables": display_variables,
+        "requirements_display": requirements_display,
+        "undocumented_default_filters": undocumented_default_filters,
+        "metadata": metadata,
+    }
+
+
+def _render_primary_scan_output(
+    *,
+    out_path: Path,
+    output_format: str,
+    template: str | None,
+    dry_run: bool,
+    output_payload: dict,
+) -> str:
+    """Render and optionally write the primary scan output."""
+    return _render_and_write_scan_output(
+        out_path=out_path,
+        output_format=output_format,
+        role_name=output_payload["role_name"],
+        description=output_payload["description"],
+        display_variables=output_payload["display_variables"],
+        requirements_display=output_payload["requirements_display"],
+        undocumented_default_filters=output_payload["undocumented_default_filters"],
+        metadata=output_payload["metadata"],
+        template=template,
+        dry_run=dry_run,
+    )
+
+
 def _emit_scan_outputs(
     output: str,
     output_format: str,
@@ -3180,38 +3223,41 @@ def _emit_scan_outputs(
 ) -> str:
     """Render primary outputs and optional sidecars for a scanner run."""
     out_path = resolve_output_path(output, output_format)
+    output_payload = _build_scan_output_payload(
+        role_name=role_name,
+        description=description,
+        display_variables=display_variables,
+        requirements_display=requirements_display,
+        undocumented_default_filters=undocumented_default_filters,
+        metadata=metadata,
+    )
     _write_concise_scanner_report_if_enabled(
         concise_readme=concise_readme,
         scanner_report_output=scanner_report_output,
         out_path=out_path,
         include_scanner_report_link=include_scanner_report_link,
-        role_name=role_name,
-        description=description,
-        display_variables=display_variables,
-        requirements_display=requirements_display,
-        undocumented_default_filters=undocumented_default_filters,
-        metadata=metadata,
+        role_name=output_payload["role_name"],
+        description=output_payload["description"],
+        display_variables=output_payload["display_variables"],
+        requirements_display=output_payload["requirements_display"],
+        undocumented_default_filters=output_payload["undocumented_default_filters"],
+        metadata=output_payload["metadata"],
         dry_run=dry_run,
     )
-    result = _render_and_write_scan_output(
+    result = _render_primary_scan_output(
         out_path=out_path,
         output_format=output_format,
-        role_name=role_name,
-        description=description,
-        display_variables=display_variables,
-        requirements_display=requirements_display,
-        undocumented_default_filters=undocumented_default_filters,
-        metadata=metadata,
         template=template,
         dry_run=dry_run,
+        output_payload=output_payload,
     )
     if dry_run:
         return result
     _write_optional_runbook_outputs(
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
-        role_name=role_name,
-        metadata=metadata,
+        role_name=output_payload["role_name"],
+        metadata=output_payload["metadata"],
     )
     return result
 
