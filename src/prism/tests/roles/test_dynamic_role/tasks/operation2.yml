@@ -14,7 +14,8 @@
 # prism~note: This task demonstrates that Jinja2 expressions in task names are rendered correctly in generated documentation.
 
 - name: Shutdown the system if the operation is "shutdown"
-  shutdown:
+  ansible.builtin.shutdown:
+    msg: "System shutdown initiated"
   when: operation == "shutdown"
 
 - name: Set fact for shutdown operation
