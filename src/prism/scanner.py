@@ -1729,79 +1729,89 @@ def _render_guide_variable_sections(
 ) -> str | None:
     """Render style-guide sections focused on variable inventory and guidance."""
     if section_id == "variable_summary":
-        rows = metadata.get("variable_insights") or []
-        local_rows = [row for row in rows if _is_role_local_variable_row(row)]
-        if not local_rows:
-            return "No variable insights available."
-        lines = ["| Name | Type | Default | Source |", "| --- | --- | --- | --- |"]
-        for row in local_rows:
-            default = str(row["default"]).replace("`", "'")
-            source = row["source"]
-            if row.get("secret"):
-                source = f"{source} (secret)"
-            lines.append(
-                f"| `{row['name']}` | {row['type']} | `{default}` | {source} |"
-            )
-        external_context = metadata.get("external_vars_context") or {}
-        if external_context.get("paths"):
-            lines.extend(
-                [
-                    "",
-                    "External variable context paths were used as non-authoritative hints and are not listed in the table above.",
-                ]
-            )
-        uncertainty_notes = _render_variable_uncertainty_notes(local_rows)
-        if uncertainty_notes:
-            lines.extend(["", uncertainty_notes])
-        return "\n".join(lines)
-
+        return _render_variable_summary_section(metadata)
     if section_id == "variable_guidance":
-        rows = metadata.get("variable_insights") or []
-        if not rows:
-            return "No variable guidance available because no variable defaults were discovered."
-        priority = [
-            row
-            for row in rows
-            if any(keyword in row["name"] for keyword in _VARIABLE_GUIDANCE_KEYWORDS)
-        ]
-        if not priority:
-            priority = rows[:5]
-        lines = ["Recommended variables to tune:"]
-        for row in priority[:8]:
-            lines.append(
-                f"- `{row['name']}` (default: `{str(row['default']).replace('`', "'")}`)"
-            )
-        lines.append("")
-        lines.append(
-            "Use these as initial overrides for environment-specific behavior."
-        )
-        return "\n".join(lines)
-
+        return _render_variable_guidance_section(metadata)
     if section_id == "template_overrides":
-        template_files = metadata.get("templates") or []
-        variable_rows = metadata.get("variable_insights") or []
-        template_vars = [
-            row["name"]
-            for row in variable_rows
-            if isinstance(row.get("name"), str) and "template" in row["name"].lower()
-        ]
-        lines = [
-            "Override template-related variables or point them at playbook-local templates when the built-in layout is not sufficient."
-        ]
-        if template_vars:
-            lines.append("")
-            lines.append("Likely template override variables:")
-            lines.extend(f"- `{name}`" for name in template_vars[:8])
-        if template_files:
-            lines.append("")
-            lines.append("Templates detected in this role:")
-            lines.extend(f"- `{path}`" for path in template_files)
-        return "\n".join(lines)
-
+        return _render_template_overrides_section(metadata)
     if section_id == "role_variables":
         return _render_role_variables_for_style(variables, metadata)
-
     return None
+
+
+def _render_variable_summary_section(metadata: dict) -> str:
+    """Render table and notes for role-local variable insights."""
+    rows = metadata.get("variable_insights") or []
+    local_rows = [row for row in rows if _is_role_local_variable_row(row)]
+    if not local_rows:
+        return "No variable insights available."
+
+    lines = ["| Name | Type | Default | Source |", "| --- | --- | --- | --- |"]
+    for row in local_rows:
+        default = str(row["default"]).replace("`", "'")
+        source = row["source"]
+        if row.get("secret"):
+            source = f"{source} (secret)"
+        lines.append(f"| `{row['name']}` | {row['type']} | `{default}` | {source} |")
+
+    external_context = metadata.get("external_vars_context") or {}
+    if external_context.get("paths"):
+        lines.extend(
+            [
+                "",
+                "External variable context paths were used as non-authoritative hints and are not listed in the table above.",
+            ]
+        )
+    uncertainty_notes = _render_variable_uncertainty_notes(local_rows)
+    if uncertainty_notes:
+        lines.extend(["", uncertainty_notes])
+    return "\n".join(lines)
+
+
+def _render_variable_guidance_section(metadata: dict) -> str:
+    """Render recommended variable override candidates."""
+    rows = metadata.get("variable_insights") or []
+    if not rows:
+        return "No variable guidance available because no variable defaults were discovered."
+
+    priority = [
+        row
+        for row in rows
+        if any(keyword in row["name"] for keyword in _VARIABLE_GUIDANCE_KEYWORDS)
+    ]
+    if not priority:
+        priority = rows[:5]
+    lines = ["Recommended variables to tune:"]
+    for row in priority[:8]:
+        lines.append(
+            f"- `{row['name']}` (default: `{str(row['default']).replace('`', "'")}`)"
+        )
+    lines.append("")
+    lines.append("Use these as initial overrides for environment-specific behavior.")
+    return "\n".join(lines)
+
+
+def _render_template_overrides_section(metadata: dict) -> str:
+    """Render template override hints from variables and template files."""
+    template_files = metadata.get("templates") or []
+    variable_rows = metadata.get("variable_insights") or []
+    template_vars = [
+        row["name"]
+        for row in variable_rows
+        if isinstance(row.get("name"), str) and "template" in row["name"].lower()
+    ]
+    lines = [
+        "Override template-related variables or point them at playbook-local templates when the built-in layout is not sufficient."
+    ]
+    if template_vars:
+        lines.append("")
+        lines.append("Likely template override variables:")
+        lines.extend(f"- `{name}`" for name in template_vars[:8])
+    if template_files:
+        lines.append("")
+        lines.append("Templates detected in this role:")
+        lines.extend(f"- `{path}`" for path in template_files)
+    return "\n".join(lines)
 
 
 def _render_guide_task_sections(
@@ -2872,6 +2882,77 @@ def _prepare_scan_context(
     compare_role_path: str | None,
 ) -> tuple[str, str, str, list, list, dict]:
     """Collect role metadata and scanner context required for rendering outputs."""
+    (
+        rp,
+        meta,
+        role_name,
+        description,
+        marker_prefix,
+        variables,
+        requirements,
+        found,
+        metadata,
+    ) = _collect_scan_identity_and_artifacts(
+        role_path=role_path,
+        role_name_override=role_name_override,
+        readme_config_path=readme_config_path,
+        include_vars_main=include_vars_main,
+        exclude_path_patterns=exclude_path_patterns,
+        detailed_catalog=detailed_catalog,
+    )
+    requirements_display = _apply_scan_metadata_configuration(
+        role_path=role_path,
+        readme_config_path=readme_config_path,
+        adopt_heading_mode=adopt_heading_mode,
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
+        include_collection_checks=include_collection_checks,
+        keep_unknown_style_sections=keep_unknown_style_sections,
+        meta=meta,
+        requirements=requirements,
+        metadata=metadata,
+    )
+    undocumented_default_filters, display_variables = (
+        _enrich_scan_context_with_insights(
+            role_path=role_path,
+            role_name=role_name,
+            description=description,
+            vars_seed_paths=vars_seed_paths,
+            include_vars_main=include_vars_main,
+            exclude_path_patterns=exclude_path_patterns,
+            marker_prefix=marker_prefix,
+            found=found,
+            variables=variables,
+            metadata=metadata,
+            style_readme_path=style_readme_path,
+            style_source_path=style_source_path,
+            style_guide_skeleton=style_guide_skeleton,
+            compare_role_path=compare_role_path,
+        )
+    )
+    return (
+        rp,
+        role_name,
+        description,
+        requirements_display,
+        undocumented_default_filters,
+        {
+            "display_variables": display_variables,
+            "metadata": metadata,
+        },
+    )
+
+
+def _collect_scan_identity_and_artifacts(
+    role_path: str,
+    role_name_override: str | None,
+    readme_config_path: str | None,
+    include_vars_main: bool,
+    exclude_path_patterns: list[str] | None,
+    detailed_catalog: bool,
+) -> tuple[str, dict, str, str, str, dict, list, list, dict]:
+    """Resolve scan identity and collect core role artifacts."""
     rp, meta, role_name, description = _resolve_scan_identity(
         role_path,
         role_name_override,
@@ -2887,6 +2968,33 @@ def _prepare_scan_context(
         detailed_catalog=detailed_catalog,
         marker_prefix=marker_prefix,
     )
+    return (
+        rp,
+        meta,
+        role_name,
+        description,
+        marker_prefix,
+        variables,
+        requirements,
+        found,
+        metadata,
+    )
+
+
+def _apply_scan_metadata_configuration(
+    role_path: str,
+    readme_config_path: str | None,
+    adopt_heading_mode: str | None,
+    include_task_parameters: bool,
+    include_task_runbooks: bool,
+    inline_task_runbooks: bool,
+    include_collection_checks: bool,
+    keep_unknown_style_sections: bool,
+    meta: dict,
+    requirements: list,
+    metadata: dict,
+) -> list:
+    """Apply scan options that shape metadata and requirements rendering."""
     metadata["include_task_parameters"] = bool(include_task_parameters)
     metadata["include_task_runbooks"] = bool(include_task_runbooks)
     metadata["inline_task_runbooks"] = bool(inline_task_runbooks)
@@ -2904,6 +3012,26 @@ def _prepare_scan_context(
         adopt_heading_mode=adopt_heading_mode,
     )
     _apply_readme_section_config(metadata, readme_section_config)
+    return requirements_display
+
+
+def _enrich_scan_context_with_insights(
+    role_path: str,
+    role_name: str,
+    description: str,
+    vars_seed_paths: list[str] | None,
+    include_vars_main: bool,
+    exclude_path_patterns: list[str] | None,
+    marker_prefix: str,
+    found: list,
+    variables: dict,
+    metadata: dict,
+    style_readme_path: str | None,
+    style_source_path: str | None,
+    style_guide_skeleton: bool,
+    compare_role_path: str | None,
+) -> tuple[list[dict], dict]:
+    """Add variable/doc/style insights to scan metadata and display payloads."""
     variable_insights, undocumented_default_filters, display_variables = (
         _collect_variable_insights_and_default_filter_findings(
             role_path=role_path,
@@ -2932,17 +3060,7 @@ def _prepare_scan_context(
         role_path=role_path,
         exclude_path_patterns=exclude_path_patterns,
     )
-    return (
-        rp,
-        role_name,
-        description,
-        requirements_display,
-        undocumented_default_filters,
-        {
-            "display_variables": display_variables,
-            "metadata": metadata,
-        },
-    )
+    return undocumented_default_filters, display_variables
 
 
 def _emit_scan_outputs(
