@@ -2343,42 +2343,72 @@ def _render_style_guide_sections_into_parts(
 ) -> None:
     """Append rendered style-guide sections into the markdown parts list."""
     for section in ordered_sections:
-        heading_level = int(
-            section.get("level") or style_guide.get("section_level") or 2
-        )
-        parts.append(
-            format_heading(
-                section["title"],
-                heading_level,
-                style_guide.get("section_style", "setext"),
-            )
-        )
-        parts.append("")
+        _append_style_guide_section_heading(parts, section, style_guide)
 
         if style_guide_skeleton:
             continue
 
-        body = _render_guide_section_body(
-            section["id"],
+        body = _resolve_rendered_style_guide_section_body(
+            section,
+            section_content_modes,
             role_name,
             description,
             variables,
             requirements,
             default_filters,
             metadata,
-        ).strip()
-        mode = _resolve_section_content_mode(section, section_content_modes)
-        body = _compose_section_body(section, body, mode)
-        if section["id"] == "unknown":
-            unknown_guide_body = str(section.get("body") or "").strip()
-            if unknown_guide_body:
-                body = unknown_guide_body
-            else:
-                body = "Style section retained from guide; scanner does not map this section yet."
+        )
         if not body:
             continue
         parts.append(body)
         parts.append("")
+
+
+def _append_style_guide_section_heading(
+    parts: list[str],
+    section: dict,
+    style_guide: dict,
+) -> None:
+    """Append a formatted heading for a style-guide section."""
+    heading_level = int(section.get("level") or style_guide.get("section_level") or 2)
+    parts.append(
+        format_heading(
+            section["title"],
+            heading_level,
+            style_guide.get("section_style", "setext"),
+        )
+    )
+    parts.append("")
+
+
+def _resolve_rendered_style_guide_section_body(
+    section: dict,
+    section_content_modes: dict[str, str],
+    role_name: str,
+    description: str,
+    variables: dict,
+    requirements: list,
+    default_filters: list,
+    metadata: dict,
+) -> str:
+    """Return rendered section body after merge/unknown handling."""
+    body = _render_guide_section_body(
+        section["id"],
+        role_name,
+        description,
+        variables,
+        requirements,
+        default_filters,
+        metadata,
+    ).strip()
+    mode = _resolve_section_content_mode(section, section_content_modes)
+    body = _compose_section_body(section, body, mode)
+    if section["id"] != "unknown":
+        return body
+    unknown_guide_body = str(section.get("body") or "").strip()
+    if unknown_guide_body:
+        return unknown_guide_body
+    return "Style section retained from guide; scanner does not map this section yet."
 
 
 def _append_scanner_report_section_if_enabled(
