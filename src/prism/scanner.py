@@ -65,7 +65,7 @@ from ._jinja_analyzer import (
     _collect_jinja_local_bindings as _collect_jinja_local_bindings,
     _extract_jinja_name_targets as _extract_jinja_name_targets,
 )
-from ._task_parser import (
+from .scanner_submodules.task_parser import (
     TASK_INCLUDE_KEYS as TASK_INCLUDE_KEYS,
     INCLUDE_VARS_KEYS as INCLUDE_VARS_KEYS,
     SET_FACT_KEYS as SET_FACT_KEYS,
@@ -96,7 +96,7 @@ from ._task_parser import (
     _collect_molecule_scenarios as _collect_molecule_scenarios,
     extract_role_features as extract_role_features,
 )
-from ._variable_extractor import (
+from .scanner_submodules.variable_extractor import (
     DEFAULT_TARGET_RE as DEFAULT_TARGET_RE,
     JINJA_VAR_RE as JINJA_VAR_RE,
     JINJA_IDENTIFIER_RE as JINJA_IDENTIFIER_RE,
@@ -122,7 +122,7 @@ from ._variable_extractor import (
     _resolve_seed_var_files as _resolve_seed_var_files,
     load_seed_variables as load_seed_variables,
 )
-from .scanner_style_vars import (
+from .scanner_submodules.style_vars import (
     _describe_variable as _describe_variable,
     _is_role_local_variable_row as _is_role_local_variable_row,
     _render_role_notes_section as _render_role_notes_section,
@@ -300,7 +300,7 @@ def _refresh_policy(override_path: str | None = None) -> None:
     )
     IGNORED_IDENTIFIERS = _POLICY["ignored_identifiers"]
 
-    from . import _variable_extractor as _ve
+    from .scanner_submodules import variable_extractor as _ve
 
     _ve._SECRET_NAME_TOKENS = _SECRET_NAME_TOKENS
     _ve._VAULT_MARKERS = _VAULT_MARKERS

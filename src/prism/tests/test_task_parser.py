@@ -1,4 +1,4 @@
-from prism import _task_parser as task_parser
+from prism.scanner_submodules import task_parser
 
 
 def test_is_relpath_excluded_matches_top_level_directory_pattern():
