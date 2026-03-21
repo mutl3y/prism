@@ -1,0 +1,11 @@
+---
+demo_service_name: prism-demo
+demo_service_enabled: true
+demo_service_port: 8080
+demo_service_log_level: info
+demo_feature_flags:
+  - docs
+  - reporting
+demo_allowed_networks:
+  - 10.0.0.0/24
+  - 192.168.10.0/24

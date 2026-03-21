@@ -1,0 +1,4 @@
+---
+- name: Refresh collection sample role state
+  ansible.builtin.debug:
+    msg: "Refreshing sample_role state"
