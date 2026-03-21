@@ -1,0 +1,3 @@
+file,task_name,step
+main.yml,Persist ops state marker,owner=ops impact=medium
+main.yml,Report ops retry configuration,Note: This role demonstrates a second collection role for aggregate docs.

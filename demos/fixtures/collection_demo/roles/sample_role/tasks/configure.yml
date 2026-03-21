@@ -1,0 +1,11 @@
+---
+- name: Render sample role template output
+  ansible.builtin.template:
+    src: sample-role.txt.j2
+    dest: /tmp/prism-sample-role.txt
+    mode: "0644"
+  notify: Refresh collection sample role state
+
+- name: Print collection demo tags
+  ansible.builtin.debug:
+    msg: "Collection tags: {{ collection_demo_tags | join(', ') }}"
