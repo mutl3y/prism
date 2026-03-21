@@ -5,6 +5,7 @@ baseurl: "/prism"
 theme: minima
 header_pages:
   - index.md
+  - demos.md
   - getting-started.md
   - user-guide.md
   - provenance-tracking.md

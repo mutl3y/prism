@@ -55,6 +55,7 @@ You should see: a generated README at the output path.
 
 For average users:
 
+- [Demos](./demos.md)
 - [Getting Started](./getting-started.md)
 - [User Guide](./user-guide.md)
 
@@ -72,6 +73,7 @@ Shared quality references:
 
 ## Full Navigation
 
+- [Demos](./demos.md): runnable CLI and API examples with expected outputs
 - [Getting Started](./getting-started.md): fastest path for average users
 - [User Guide](./user-guide.md): complete common tasks step by step
 - [Provenance Tracking](./provenance-tracking.md): why Prism output is auditable and trustworthy
