@@ -2610,6 +2610,24 @@ def test_extract_readme_input_variables_direct(tmp_path):
     assert "db_password" in names
 
 
+def test_extract_readme_input_variables_skips_nested_key_prose_backticks(tmp_path):
+    """Backticks in nested-key prose should not become top-level role inputs."""
+    readme_text = (
+        "# Role Variables\n\n"
+        "- `sat_users` - Users to create/update/delete\n\n"
+        "The only required attributes is `login`. Everything else can be mixed and matched.\n"
+        "Please note that using `user_password` leads to changed status.\n"
+        "Set `sat_timeout` to override the default.\n"
+    )
+
+    names = scanner._extract_readme_input_variables(readme_text)
+
+    assert "sat_users" in names
+    assert "sat_timeout" in names
+    assert "login" not in names
+    assert "user_password" not in names
+
+
 def test_build_variable_insights_readme_with_special_characters(tmp_path):
     """Test that README variables with special naming work."""
     role = tmp_path / "role"

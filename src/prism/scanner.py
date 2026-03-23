@@ -277,7 +277,15 @@ DEFAULT_DOC_MARKER_PREFIX = READMECFG_DEFAULT_DOC_MARKER_PREFIX
 MARKDOWN_VAR_BACKTICK_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")
 MARKDOWN_VAR_TABLE_RE = re.compile(r"^\|\s*`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\|")
 MARKDOWN_VAR_BULLET_RE = re.compile(
-    r"^[-*+]\s+`?([A-Za-z_][A-Za-z0-9_]*)`?(?:\s*[:|-]|\s*$)"
+    r"^[-*+]\s+`?([A-Za-z_][A-Za-z0-9_]*)`?(?:\s|$|:|-)"
+)
+MARKDOWN_VAR_PROSE_CONTEXT_RE = re.compile(
+    r"\b(variable|variables|set|define|configured|configure|default|defaults|override|overrides|use|documented)\b",
+    flags=re.IGNORECASE,
+)
+MARKDOWN_VAR_NESTED_KEY_HINT_RE = re.compile(
+    r"\b(attribute|attributes|key|keys|field|fields|dictionary|map|list item|sub-?key)\b",
+    flags=re.IGNORECASE,
 )
 
 
@@ -725,11 +733,28 @@ def _resolve_variable_section_heading_state(line: str, next_line: str) -> bool |
 def _extract_readme_variable_names_from_line(line: str) -> set[str]:
     """Extract variable names from one markdown line using supported patterns."""
     names: set[str] = set()
-    for pattern in (
-        MARKDOWN_VAR_BACKTICK_RE,
-        MARKDOWN_VAR_TABLE_RE,
-        MARKDOWN_VAR_BULLET_RE,
-    ):
+    stripped = line.strip()
+    if not stripped:
+        return names
+
+    patterns: tuple[re.Pattern[str], ...]
+    if stripped.startswith("|"):
+        patterns = (MARKDOWN_VAR_TABLE_RE,)
+    elif MARKDOWN_VAR_BULLET_RE.match(stripped):
+        patterns = (MARKDOWN_VAR_BULLET_RE,)
+    else:
+        # Prose backticks are useful but noisy; require explicit variable guidance hints.
+        if not MARKDOWN_VAR_PROSE_CONTEXT_RE.search(line):
+            return names
+        lowered_line = line.lower()
+        if (
+            MARKDOWN_VAR_NESTED_KEY_HINT_RE.search(line)
+            and "variable" not in lowered_line
+        ):
+            return names
+        patterns = (MARKDOWN_VAR_BACKTICK_RE,)
+
+    for pattern in patterns:
         for match in pattern.findall(line):
             lowered = match.lower()
             if lowered in IGNORED_IDENTIFIERS or lowered.startswith("ansible_"):
