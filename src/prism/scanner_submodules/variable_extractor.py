@@ -14,7 +14,8 @@ Exported names consumed by scanner.py:
              _SECRET_NAME_TOKENS, _VAULT_MARKERS,
              _CREDENTIAL_PREFIXES, _URL_PREFIXES
   Functions: _extract_default_target_var, _collect_include_vars_files,
-             _collect_set_fact_names, _find_variable_line_in_yaml,
+                         _collect_set_fact_names, _collect_register_names,
+                         _find_variable_line_in_yaml,
              _collect_dynamic_include_vars_refs,
              _collect_dynamic_task_include_refs,
              _collect_referenced_variable_names,
@@ -54,6 +55,7 @@ JINJA_IDENTIFIER_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
 VAULT_KEY_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*!vault\b", re.MULTILINE)
 # Strip quoted string literals before identifier scanning of when: expressions
 _QUOTED_STRING_RE = re.compile(r"\"[^\"]*\"|'[^']*'")
+_WHEN_FILTER_OR_TEST_CONTEXT_RE = re.compile(r"(?:\|\s*|is\s+|is\s+not\s+)$")
 
 # ---------------------------------------------------------------------------
 # Policy-derived constants (refreshed by scanner._refresh_policy)
@@ -66,6 +68,21 @@ _VAULT_MARKERS: tuple[str, ...] = tuple(_SENSITIVITY["vault_markers"])
 _CREDENTIAL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["credential_prefixes"])
 _URL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["url_prefixes"])
 IGNORED_IDENTIFIERS: set[str] = _POLICY["ignored_identifiers"]
+
+_REGISTERED_RESULT_ATTRS: frozenset[str] = frozenset(
+    {
+        "stdout",
+        "stderr",
+        "rc",
+        "stdout_lines",
+        "stderr_lines",
+        "results",
+        "changed",
+        "failed",
+        "skipped",
+        "msg",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Default filter target detection
@@ -155,6 +172,29 @@ def _collect_set_fact_names(
     return names
 
 
+def _collect_register_names(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+) -> set[str]:
+    """Return variable names assigned by task-level ``register`` statements."""
+    role_root = Path(role_path).resolve()
+    task_files = _collect_task_files(role_root, exclude_paths=exclude_paths)
+    names: set[str] = set()
+    for task_file in task_files:
+        data = _load_yaml_file(task_file)
+        for task in _iter_task_mappings(data):
+            register_name = task.get("register")
+            if not isinstance(register_name, str):
+                continue
+            # Skip dynamic register names and invalid identifiers.
+            if "{{" in register_name or "{%" in register_name:
+                continue
+            if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", register_name):
+                continue
+            names.add(register_name)
+    return names
+
+
 def _find_variable_line_in_yaml(file_path: Path, var_name: str) -> int | None:
     """Return 1-indexed line where ``var_name`` is defined in a YAML file."""
     pattern = re.compile(rf"^\s*{re.escape(var_name)}\s*:")
@@ -215,7 +255,7 @@ def _collect_referenced_variable_names(
     """Collect likely variable references from role tasks/templates/handlers files."""
     role_root = Path(role_path).resolve()
     candidates: set[str] = set()
-    scan_dirs = ["tasks", "templates", "handlers"]
+    scan_dirs = ["tasks", "templates", "handlers", "vars"]
     for dirname in scan_dirs:
         root = role_root / dirname
         if not root.is_dir():
@@ -248,14 +288,44 @@ def _collect_referenced_variable_names(
                     if "when:" not in line:
                         continue
                     expression = _QUOTED_STRING_RE.sub("", line.split("when:", 1)[1])
-                    for token in JINJA_IDENTIFIER_RE.findall(expression):
+                    for token_match in JINJA_IDENTIFIER_RE.finditer(expression):
+                        token = token_match.group(1)
+                        if not _is_when_expression_token_candidate(
+                            expression, token_match
+                        ):
+                            continue
                         lowered = token.lower()
                         if lowered in IGNORED_IDENTIFIERS:
                             continue
                         if lowered.startswith("ansible_"):
                             continue
                         candidates.add(token)
+    candidates -= _REGISTERED_RESULT_ATTRS
     return candidates
+
+
+def _is_when_expression_token_candidate(
+    expression: str,
+    token_match: re.Match[str],
+) -> bool:
+    """Return whether a token from a ``when:`` expression should count as input."""
+    start = token_match.start(1)
+    end = token_match.end(1)
+
+    # Ignore dotted attributes like result.stdout or result.rc.
+    if start > 0 and expression[start - 1] == ".":
+        return False
+
+    before = expression[:start].rstrip()
+    if _WHEN_FILTER_OR_TEST_CONTEXT_RE.search(before):
+        return False
+
+    # Ignore callable/filter-like names such as version(...), search(...), etc.
+    after = expression[end:].lstrip()
+    if after.startswith("("):
+        return False
+
+    return True
 
 
 # ---------------------------------------------------------------------------

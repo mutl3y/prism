@@ -53,7 +53,9 @@ def _build_section_title_stats(sections: list[dict]) -> dict:
 
 def normalize_style_heading(heading: str) -> str:
     """Normalize markdown heading text for style-guide matching."""
-    normalized = re.sub(r"[^a-z0-9()]+", " ", heading.lower()).strip()
+    # Strip markdown inline links so `[Title](#anchor)` normalizes like `Title`.
+    cleaned = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", heading)
+    normalized = re.sub(r"[^a-z0-9()]+", " ", cleaned.lower()).strip()
     return re.sub(r"\s+", " ", normalized)
 
 

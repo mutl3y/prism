@@ -1249,6 +1249,27 @@ def test_parse_style_readme_maps_additional_section_aliases(tmp_path):
     ]
 
 
+def test_parse_style_readme_normalizes_markdown_link_headings(tmp_path):
+    style = tmp_path / "STYLE_LINK_HEADINGS.md"
+    style.write_text(
+        "# Guide\n\n"
+        "## [Example Playbook](#example-playbook)\n\n"
+        "## [License](#license)\n",
+        encoding="utf-8",
+    )
+
+    parsed = scanner.parse_style_readme(str(style))
+
+    assert [section["id"] for section in parsed["sections"]] == [
+        "example_usage",
+        "license",
+    ]
+    assert [section["normalized_title"] for section in parsed["sections"]] == [
+        "example playbook",
+        "license",
+    ]
+
+
 def test_parse_style_readme_collects_stats_for_existing_section_titles(tmp_path):
     style = tmp_path / "STYLE_STATS.md"
     style.write_text(

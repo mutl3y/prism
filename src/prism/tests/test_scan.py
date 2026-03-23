@@ -698,9 +698,12 @@ def test_build_variable_insights_mentions_dynamic_include_vars_uncertainty(tmp_p
 
     rows = scanner.build_variable_insights(str(role), include_vars_main=False)
     unresolved = next(item for item in rows if item["name"] == "unresolved_name")
+    include_token = next(item for item in rows if item["name"] == "var_file")
 
     assert unresolved["is_unresolved"] is True
-    assert "Dynamic include_vars" in unresolved["uncertainty_reason"]
+    assert "Dynamic include_vars" not in unresolved["uncertainty_reason"]
+    assert include_token["is_unresolved"] is True
+    assert "Dynamic include_vars" in include_token["uncertainty_reason"]
 
 
 def test_build_variable_insights_reads_meta_argument_specs_file(tmp_path):
@@ -2206,6 +2209,45 @@ def test_collect_task_files_follows_static_conditional_includes(tmp_path):
     assert "tasks/conditional.yml" in rel_paths
 
 
+def test_collect_referenced_variable_names_ignores_when_filters_and_result_fields(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Execute command\n"
+        "  ansible.builtin.command: /bin/true\n"
+        "  register: cmd_result\n"
+        "- name: Guarded task\n"
+        "  ansible.builtin.debug:\n"
+        "    msg: ok\n"
+        "  when: cmd_result.stdout | length > 0 and "
+        "cmd_result.rc == 0 and cmd_result.changed | bool and "
+        'feature_enabled | bool and app_version is version("1.2", ">=")\n',
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    names = {row["name"] for row in rows}
+    by_name = {row["name"]: row for row in rows}
+
+    assert "cmd_result" in names
+    assert "feature_enabled" in names
+    assert "app_version" in names
+    assert by_name["cmd_result"]["source"] == "tasks (register)"
+    assert by_name["cmd_result"]["is_unresolved"] is False
+    assert by_name["cmd_result"]["is_ambiguous"] is False
+    assert "stdout" not in names
+    assert "rc" not in names
+    assert "changed" not in names
+    assert "bool" not in names
+    assert "length" not in names
+    assert "version" not in names
+
+
 def test_collect_task_files_resolves_parent_relative_indirection(tmp_path):
     role = tmp_path / "role"
     tasks = role / "tasks"
@@ -2388,7 +2430,7 @@ def test_build_variable_insights_readme_table_format(tmp_path):
 
 
 def test_build_variable_insights_readme_in_code_block_ignored(tmp_path):
-    """Test that variables in code blocks are not extracted."""
+    """Test that variables inside code fence blocks are NOT extracted."""
     role = tmp_path / "role"
     (role / "tasks").mkdir(parents=True)
 
@@ -2400,8 +2442,8 @@ def test_build_variable_insights_readme_in_code_block_ignored(tmp_path):
         "Config example:\n"
         "\n"
         "```yaml\n"
-        "config_var: value  # Should not be extracted\n"
-        "another_var: 123   # Should not be extracted\n"
+        "config_var: value\n"
+        "another_var: 123\n"
         "```\n"
         "\n"
         "But `documented_var` is documented.\n",
@@ -2411,10 +2453,10 @@ def test_build_variable_insights_readme_in_code_block_ignored(tmp_path):
     rows = scanner.build_variable_insights(str(role), include_vars_main=False)
     by_name = {row["name"]: row for row in rows}
 
-    # Code block variables should not be extracted
+    # Variables inside code fence blocks should NOT be extracted
     assert "config_var" not in by_name
     assert "another_var" not in by_name
-    # Documented outside code block should be extracted
+    # Variables documented outside the code block are extracted
     assert "documented_var" in by_name
 
 
@@ -2878,6 +2920,28 @@ def test_classify_provenance_issue_ambiguous_with_runtime_reason():
         }
     )
     assert result == "ambiguous_set_fact_runtime"
+
+
+def test_build_referenced_variable_uncertainty_reason_targets_dynamic_include_var_tokens():
+    reason = scanner._build_referenced_variable_uncertainty_reason(
+        name="foo_var",
+        seeded=False,
+        dynamic_include_vars_refs=["{{ env }}.yml"],
+        dynamic_include_var_tokens={"env"},
+        dynamic_task_include_tokens=set(),
+    )
+    assert reason == "Referenced in role but no static definition found."
+
+
+def test_build_referenced_variable_uncertainty_reason_marks_matching_dynamic_include_var_tokens():
+    reason = scanner._build_referenced_variable_uncertainty_reason(
+        name="env",
+        seeded=False,
+        dynamic_include_vars_refs=["{{ env }}.yml"],
+        dynamic_include_var_tokens={"env"},
+        dynamic_task_include_tokens=set(),
+    )
+    assert "Dynamic include_vars paths detected." in reason
 
 
 def test_classify_provenance_issue_ambiguous_with_other_reason():

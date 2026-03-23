@@ -7,13 +7,19 @@
 
 ignored_identifiers:
   - and
+  - choices
   - ansible_facts
   - callable
+  - cycler
   - default
+  - defaults
+  - description
   - defined
+  - dict
   - divisibleby
   - equalto
   - even
+  - example
   - "false"
   - float
   - groups
@@ -24,21 +30,39 @@ ignored_identifiers:
   - is
   - iterable
   - item
+  - joiner
+  - key
+  - keys
+  - lipsum
   - lookup
+  - loop
   - lower
   - mapping
+  - name
+  - names
+  - namespace
   - none
   - not
+  - now
   - "null"
   - number
   - odd
   - omit
   - or
   - query
+  - range
+  - required
   - sameas
   - sequence
+  - type
+  - types
   - string
   - "true"
+  - undef
   - undefined
   - upper
+  - value
+  - values
+  - variable
+  - variables
   - vars
