@@ -9,8 +9,18 @@ ignored_identifiers:
   - absent
   - always
   - and
+  - ansible_check_mode
+  - ansible_diff_mode
   - ansible_facts
+  - ansible_host
+  - ansible_nodename
+  - ansible_playbook_python
+  - ansible_run_tags
+  - ansible_skip_tags
+  - ansible_version
+  - apt
   - callable
+  - changed
   - choices
   - cycler
   - default
@@ -19,16 +29,20 @@ ignored_identifiers:
   - description
   - dict
   - divisibleby
+  - dnf
   - equalto
   - even
   - example
+  - failed
   - "false"
   - float
+  - git
   - groups
   - hostvars
   - in
   - integer
   - inventory_hostname
+  - iptables
   - is
   - iterable
   - item
@@ -38,8 +52,10 @@ ignored_identifiers:
   - lipsum
   - lookup
   - loop
+  - loop_var
   - lower
   - mapping
+  - msg
   - name
   - names
   - namespace
@@ -53,13 +69,21 @@ ignored_identifiers:
   - odd
   - omit
   - or
+  - pip
   - present
   - query
   - range
+  - rc
   - required
+  - results
+  - rpm
   - sameas
   - sequence
+  - skipped
+  - stderr
+  - stdout
   - string
+  - systemctl
   - type
   - types
   - "true"
@@ -71,4 +95,6 @@ ignored_identifiers:
   - variable
   - variables
   - vars
+  - warnings
   - "yes"
+  - yum
