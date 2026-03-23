@@ -734,16 +734,37 @@ def _extract_readme_variable_names_from_line(line: str) -> set[str]:
     return names
 
 
-def _collect_readme_input_variables(role_path: str) -> set[str]:
-    """Extract variable names documented in ``README.md`` when present."""
+def _collect_readme_input_variables(
+    role_path: str, style_readme_path: str | None = None
+) -> set[str]:
+    """Extract variable names documented in README when present, with fallback to style_readme_path.
+
+    Prefers role README (role_path/README.md), falls back to style_readme_path if role README
+    is missing, empty, or unreadable.
+    """
     readme_path = Path(role_path) / "README.md"
-    if not readme_path.is_file():
-        return set()
-    try:
-        text = readme_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return set()
-    return _extract_readme_input_variables(text)
+
+    # Try to read role README first
+    if readme_path.is_file():
+        try:
+            text = readme_path.read_text(encoding="utf-8")
+            if text.strip():
+                return _extract_readme_input_variables(text)
+        except (OSError, UnicodeDecodeError):
+            pass
+
+    # Fallback to style_readme_path if provided
+    if style_readme_path:
+        style_path = Path(style_readme_path)
+        if style_path.is_file():
+            try:
+                text = style_path.read_text(encoding="utf-8")
+                if text.strip():
+                    return _extract_readme_input_variables(text)
+            except (OSError, UnicodeDecodeError):
+                pass
+
+    return set()
 
 
 def load_meta(role_path: str) -> dict:
@@ -1320,9 +1341,12 @@ def _append_readme_documented_rows(
     role_path: str,
     rows: list[dict],
     known_names: set[str],
+    style_readme_path: str | None = None,
 ) -> None:
-    """Append README-documented inputs that are not statically defined."""
-    for name in sorted(_collect_readme_input_variables(role_path) - known_names):
+    for name in sorted(
+        _collect_readme_input_variables(role_path, style_readme_path=style_readme_path)
+        - known_names
+    ):
         rows.append(
             {
                 "name": name,
@@ -1484,6 +1508,7 @@ def build_variable_insights(
     seed_paths: list[str] | None = None,
     include_vars_main: bool = True,
     exclude_paths: list[str] | None = None,
+    style_readme_path: str | None = None,
 ) -> list[dict]:
     """Build variable rows with inferred type/default/source details."""
     defaults_data, vars_data, defaults_file, vars_file = _load_role_variable_maps(
@@ -1508,6 +1533,7 @@ def build_variable_insights(
         rows_by_name=rows_by_name,
         exclude_paths=exclude_paths,
         reference_context=reference_context,
+        style_readme_path=style_readme_path,
     )
 
     _redact_secret_defaults(rows)
@@ -1551,7 +1577,8 @@ def _populate_variable_rows(
     rows_by_name: dict,
     exclude_paths: list[str] | None,
     reference_context: dict,
-) -> None:
+    style_readme_path: str | None = None,
+) -> None:  # <- ADD THIS LINE (was missing)
     """Populate dynamic, documented, and inferred variable rows in-place."""
     role_root = Path(role_path).resolve()
     known_names = _append_include_vars_rows(
@@ -1579,6 +1606,7 @@ def _populate_variable_rows(
         role_path=role_path,
         rows=rows,
         known_names=known_names,
+        style_readme_path=style_readme_path,
     )
     known_names = _refresh_known_names(rows)
     known_names = _append_argument_spec_rows(
@@ -2913,6 +2941,7 @@ def _collect_variable_insights_and_default_filter_findings(
     variables: dict,
     metadata: dict,
     marker_prefix: str,
+    style_readme_path: str | None = None,
 ) -> tuple[list[dict], list[dict], dict]:
     """Collect variable insights, scanner counters, and secret-masked defaults."""
     variable_insights = build_variable_insights(
@@ -2920,6 +2949,7 @@ def _collect_variable_insights_and_default_filter_findings(
         seed_paths=vars_seed_paths,
         include_vars_main=include_vars_main,
         exclude_paths=exclude_path_patterns,
+        style_readme_path=style_readme_path,
     )
     _attach_external_vars_context(metadata, vars_seed_paths)
     metadata["variable_insights"] = variable_insights
@@ -3373,6 +3403,7 @@ def _enrich_scan_context_with_insights(
             variables=variables,
             metadata=metadata,
             marker_prefix=marker_prefix,
+            style_readme_path=style_readme_path,
         )
     )
     metadata["doc_insights"] = build_doc_insights(
