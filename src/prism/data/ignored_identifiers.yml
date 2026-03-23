@@ -6,15 +6,17 @@
 # The list is sorted alphabetically.
 
 ignored_identifiers:
+  - absent
+  - always
   - and
-  - choices
   - ansible_facts
   - callable
+  - choices
   - cycler
   - default
   - defaults
-  - description
   - defined
+  - description
   - dict
   - divisibleby
   - equalto
@@ -41,6 +43,8 @@ ignored_identifiers:
   - name
   - names
   - namespace
+  - never
+  - "no"
   - none
   - not
   - now
@@ -49,14 +53,15 @@ ignored_identifiers:
   - odd
   - omit
   - or
+  - present
   - query
   - range
   - required
   - sameas
   - sequence
+  - string
   - type
   - types
-  - string
   - "true"
   - undef
   - undefined
@@ -66,3 +71,4 @@ ignored_identifiers:
   - variable
   - variables
   - vars
+  - "yes"
