@@ -710,8 +710,12 @@ def _resolve_variable_section_heading_state(line: str, next_line: str) -> bool |
     atx_match = re.match(r"^(#{1,6})\s+(.*?)\s*$", line)
     if atx_match:
         level = len(atx_match.group(1))
+        heading_text = atx_match.group(2).strip()
         if level <= 2:
-            return _is_readme_variable_section_heading(atx_match.group(2).strip())
+            return _is_readme_variable_section_heading(heading_text)
+        heading_lower = heading_text.lower()
+        if "variable" not in heading_lower and "parameter" not in heading_lower:
+            return False
         return None
     if line.strip() and re.match(r"^[-=]{3,}\s*$", next_line):
         return _is_readme_variable_section_heading(line.strip())
