@@ -113,6 +113,7 @@ from .scanner_submodules.variable_extractor import (
     _extract_default_target_var as _extract_default_target_var,
     _collect_include_vars_files as _collect_include_vars_files,
     _collect_set_fact_names as _collect_set_fact_names,
+    _collect_register_names as _collect_register_names,
     _find_variable_line_in_yaml as _find_variable_line_in_yaml,
     _collect_dynamic_include_vars_refs as _collect_dynamic_include_vars_refs,
     _collect_dynamic_task_include_refs as _collect_dynamic_task_include_refs,
@@ -1089,6 +1090,21 @@ def _collect_dynamic_task_include_tokens(
     return tokens
 
 
+def _collect_dynamic_include_var_tokens(
+    dynamic_include_vars_refs: list[str],
+) -> set[str]:
+    """Collect unresolved Jinja identifier tokens from dynamic include_vars refs."""
+    tokens: set[str] = set()
+    for ref in dynamic_include_vars_refs:
+        tokens.update(
+            token
+            for token in JINJA_IDENTIFIER_RE.findall(ref)
+            if token.lower() not in IGNORED_IDENTIFIERS
+            and not token.lower().startswith("ansible_")
+        )
+    return tokens
+
+
 def _build_static_variable_rows(
     *,
     defaults_data: dict,
@@ -1269,6 +1285,36 @@ def _append_set_fact_rows(
         )
 
 
+def _append_register_rows(
+    *,
+    role_path: str,
+    rows: list[dict],
+    known_names: set[str],
+    exclude_paths: list[str] | None,
+) -> None:
+    """Append runtime placeholders for task-level register variables."""
+    for name in sorted(
+        _collect_register_names(role_path, exclude_paths=exclude_paths) - known_names
+    ):
+        rows.append(
+            {
+                "name": name,
+                "type": "computed",
+                "default": "-",
+                "source": "tasks (register)",
+                "documented": True,
+                "required": False,
+                "secret": False,
+                "provenance_source_file": "tasks (register)",
+                "provenance_line": None,
+                "provenance_confidence": 0.75,
+                "uncertainty_reason": None,
+                "is_unresolved": False,
+                "is_ambiguous": False,
+            }
+        )
+
+
 def _append_readme_documented_rows(
     *,
     role_path: str,
@@ -1346,6 +1392,7 @@ def _append_referenced_variable_rows(
     seed_secrets: set[str],
     seed_sources: dict,
     dynamic_include_vars_refs: list[str],
+    dynamic_include_var_tokens: set[str],
     dynamic_task_include_tokens: set[str],
     exclude_paths: list[str] | None,
 ) -> None:
@@ -1363,6 +1410,7 @@ def _append_referenced_variable_rows(
                 seed_secrets=seed_secrets,
                 seed_sources=seed_sources,
                 dynamic_include_vars_refs=dynamic_include_vars_refs,
+                dynamic_include_var_tokens=dynamic_include_var_tokens,
                 dynamic_task_include_tokens=dynamic_task_include_tokens,
             )
         )
@@ -1375,6 +1423,7 @@ def _build_referenced_variable_row(
     seed_secrets: set[str],
     seed_sources: dict,
     dynamic_include_vars_refs: list[str],
+    dynamic_include_var_tokens: set[str],
     dynamic_task_include_tokens: set[str],
 ) -> dict:
     """Build one inferred variable row for referenced-but-undefined names."""
@@ -1396,6 +1445,7 @@ def _build_referenced_variable_row(
             name=name,
             seeded=seeded,
             dynamic_include_vars_refs=dynamic_include_vars_refs,
+            dynamic_include_var_tokens=dynamic_include_var_tokens,
             dynamic_task_include_tokens=dynamic_task_include_tokens,
         ),
         "is_unresolved": not seeded,
@@ -1408,19 +1458,24 @@ def _build_referenced_variable_uncertainty_reason(
     name: str,
     seeded: bool,
     dynamic_include_vars_refs: list[str],
+    dynamic_include_var_tokens: set[str],
     dynamic_task_include_tokens: set[str],
 ) -> str:
     """Return uncertainty reason text for inferred referenced variables."""
     if seeded:
         return "Provided by external seed vars."
     message = "Referenced in role but no static definition found."
-    if dynamic_include_vars_refs:
+    if dynamic_include_vars_refs and name in dynamic_include_var_tokens:
         message = (
             "Referenced in role but no static definition found. "
             "Dynamic include_vars paths detected."
         )
     if name in dynamic_task_include_tokens:
         message += " Dynamic include_tasks/import_tasks paths detected."
+    if name.isupper():
+        message += (
+            " Uppercase name suggests an environment variable or external constant."
+        )
     return message
 
 
@@ -1472,6 +1527,9 @@ def _collect_variable_reference_context(
         role_path,
         exclude_paths=exclude_paths,
     )
+    dynamic_include_var_tokens = _collect_dynamic_include_var_tokens(
+        dynamic_include_vars_refs
+    )
     dynamic_task_include_tokens = _collect_dynamic_task_include_tokens(
         role_path,
         exclude_paths=exclude_paths,
@@ -1481,6 +1539,7 @@ def _collect_variable_reference_context(
         "seed_secrets": seed_secrets,
         "seed_sources": seed_sources,
         "dynamic_include_vars_refs": dynamic_include_vars_refs,
+        "dynamic_include_var_tokens": dynamic_include_var_tokens,
         "dynamic_task_include_tokens": dynamic_task_include_tokens,
     }
 
@@ -1508,6 +1567,14 @@ def _populate_variable_rows(
         known_names=known_names,
         exclude_paths=exclude_paths,
     )
+    known_names = _refresh_known_names(rows)
+    _append_register_rows(
+        role_path=role_path,
+        rows=rows,
+        known_names=known_names,
+        exclude_paths=exclude_paths,
+    )
+    known_names = _refresh_known_names(rows)
     _append_readme_documented_rows(
         role_path=role_path,
         rows=rows,
@@ -1528,6 +1595,7 @@ def _populate_variable_rows(
         seed_secrets=reference_context["seed_secrets"],
         seed_sources=reference_context["seed_sources"],
         dynamic_include_vars_refs=reference_context["dynamic_include_vars_refs"],
+        dynamic_include_var_tokens=reference_context["dynamic_include_var_tokens"],
         dynamic_task_include_tokens=reference_context["dynamic_task_include_tokens"],
         exclude_paths=exclude_paths,
     )

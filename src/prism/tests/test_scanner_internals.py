@@ -550,6 +550,37 @@ class TestCollectSetFactNames:
         assert result == set()
 
 
+class TestCollectRegisterNames:
+    """_collect_register_names: find task-level register output variable names."""
+
+    def test_finds_register_variable(self, tmp_path):
+        role = _make_role_with_tasks_dir(tmp_path)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- command: /bin/true\n  register: cmd_result\n",
+            encoding="utf-8",
+        )
+        result = scanner._collect_register_names(str(role))
+        assert "cmd_result" in result
+
+    def test_ignores_dynamic_register_name(self, tmp_path):
+        role = _make_role_with_tasks_dir(tmp_path)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- command: /bin/true\n  register: '{{ runtime_name }}'\n",
+            encoding="utf-8",
+        )
+        result = scanner._collect_register_names(str(role))
+        assert result == set()
+
+    def test_ignores_non_identifier_register_name(self, tmp_path):
+        role = _make_role_with_tasks_dir(tmp_path)
+        (role / "tasks" / "main.yml").write_text(
+            "---\n- command: /bin/true\n  register: cmd-result\n",
+            encoding="utf-8",
+        )
+        result = scanner._collect_register_names(str(role))
+        assert result == set()
+
+
 class TestFindVariableLineInYaml:
     """_find_variable_line_in_yaml: locate the 1-indexed line where a var is defined."""
 
