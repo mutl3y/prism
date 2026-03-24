@@ -868,6 +868,30 @@ def _map_argument_spec_type(spec_type: object) -> str:
     return "documented"
 
 
+def _iter_role_variable_map_candidates(role_root: Path, subdir: str) -> list[Path]:
+    """Return role variable map files in deterministic merge order.
+
+    Order is:
+    1) ``<subdir>/main.yml`` then ``<subdir>/main.yaml`` fallback
+    2) sorted fragments under ``<subdir>/main/*.yml`` then ``*.yaml``
+    """
+    candidates: list[Path] = []
+
+    main_yml = role_root / subdir / "main.yml"
+    main_yaml = role_root / subdir / "main.yaml"
+    if main_yml.exists():
+        candidates.append(main_yml)
+    elif main_yaml.exists():
+        candidates.append(main_yaml)
+
+    fragment_dir = role_root / subdir / "main"
+    if fragment_dir.is_dir():
+        candidates.extend(sorted(fragment_dir.glob("*.yml")))
+        candidates.extend(sorted(fragment_dir.glob("*.yaml")))
+
+    return candidates
+
+
 def load_variables(
     role_path: str,
     include_vars_main: bool = True,
@@ -881,13 +905,13 @@ def load_variables(
     override earlier ones).  Returns a flat dict of all discovered variables.
     """
     vars_out: dict = {}
+    role_root = Path(role_path)
     subdirs = ["defaults"]
     if include_vars_main:
         subdirs.append("vars")
 
     for sub in subdirs:
-        p = Path(role_path) / sub / "main.yml"
-        if p.exists():
+        for p in _iter_role_variable_map_candidates(role_root, sub):
             try:
                 data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
                 if isinstance(data, dict):
@@ -1102,22 +1126,27 @@ def build_comparison_report(
 def _load_role_variable_maps(
     role_path: str,
     include_vars_main: bool,
-) -> tuple[dict, dict, Path, Path]:
+) -> tuple[dict, dict, dict[str, Path], dict[str, Path]]:
     """Load defaults/vars variable maps from conventional role paths."""
-    defaults_file = Path(role_path) / "defaults" / "main.yml"
-    vars_file = Path(role_path) / "vars" / "main.yml"
-
     defaults_data: dict = {}
     vars_data: dict = {}
-    if defaults_file.exists():
-        loaded = _load_yaml_file(defaults_file)
+    defaults_sources: dict[str, Path] = {}
+    vars_sources: dict[str, Path] = {}
+    role_root = Path(role_path)
+    for candidate in _iter_role_variable_map_candidates(role_root, "defaults"):
+        loaded = _load_yaml_file(candidate)
         if isinstance(loaded, dict):
-            defaults_data = loaded
-    if include_vars_main and vars_file.exists():
-        loaded = _load_yaml_file(vars_file)
-        if isinstance(loaded, dict):
-            vars_data = loaded
-    return defaults_data, vars_data, defaults_file, vars_file
+            for name in loaded:
+                defaults_sources[name] = candidate
+            defaults_data.update(loaded)
+    if include_vars_main:
+        for candidate in _iter_role_variable_map_candidates(role_root, "vars"):
+            loaded = _load_yaml_file(candidate)
+            if isinstance(loaded, dict):
+                for name in loaded:
+                    vars_sources[name] = candidate
+                vars_data.update(loaded)
+    return defaults_data, vars_data, defaults_sources, vars_sources
 
 
 def _collect_dynamic_task_include_tokens(
@@ -1157,10 +1186,11 @@ def _collect_dynamic_include_var_tokens(
 
 def _build_static_variable_rows(
     *,
+    role_root: Path,
     defaults_data: dict,
     vars_data: dict,
-    defaults_file: Path,
-    vars_file: Path,
+    defaults_sources: dict[str, Path],
+    vars_sources: dict[str, Path],
 ) -> tuple[list[dict], dict[str, dict]]:
     """Build baseline rows from defaults/main.yml and vars/main.yml."""
     rows: list[dict] = []
@@ -1169,23 +1199,47 @@ def _build_static_variable_rows(
         has_default = name in defaults_data
         has_var = name in vars_data
         value = vars_data[name] if has_var else defaults_data.get(name)
+        default_source_file = defaults_sources.get(name)
+        vars_source_file = vars_sources.get(name)
         source = "defaults/main.yml"
         provenance_source_file = "defaults/main.yml"
-        provenance_line = _find_variable_line_in_yaml(defaults_file, name)
+        provenance_line = (
+            _find_variable_line_in_yaml(default_source_file, name)
+            if default_source_file is not None
+            else None
+        )
         provenance_confidence = 0.95
         uncertainty_reason = None
         is_ambiguous = False
+        if default_source_file is not None:
+            provenance_source_file = str(default_source_file.relative_to(role_root))
         if has_var and has_default:
             source = "defaults/main.yml + vars/main.yml override"
-            provenance_source_file = "vars/main.yml"
-            provenance_line = _find_variable_line_in_yaml(vars_file, name)
+            provenance_source_file = (
+                str(vars_source_file.relative_to(role_root))
+                if vars_source_file is not None
+                else "vars/main.yml"
+            )
+            provenance_line = (
+                _find_variable_line_in_yaml(vars_source_file, name)
+                if vars_source_file is not None
+                else None
+            )
             provenance_confidence = 0.80
             uncertainty_reason = "Overridden by vars/main.yml precedence."
             is_ambiguous = True
         elif has_var:
             source = "vars/main.yml"
-            provenance_source_file = "vars/main.yml"
-            provenance_line = _find_variable_line_in_yaml(vars_file, name)
+            provenance_source_file = (
+                str(vars_source_file.relative_to(role_root))
+                if vars_source_file is not None
+                else "vars/main.yml"
+            )
+            provenance_line = (
+                _find_variable_line_in_yaml(vars_source_file, name)
+                if vars_source_file is not None
+                else None
+            )
             provenance_confidence = 0.90
         row = {
             "name": name,
@@ -1372,27 +1426,31 @@ def _append_readme_documented_rows(
     known_names: set[str],
     style_readme_path: str | None = None,
 ) -> None:
-    for name in sorted(
-        _collect_readme_input_variables(role_path, style_readme_path=style_readme_path)
-        - known_names
-    ):
-        rows.append(
-            {
-                "name": name,
-                "type": "documented",
-                "default": "<documented in README>",
-                "source": "README.md (documented input)",
-                "documented": True,
-                "required": False,
-                "secret": _looks_secret_name(name),
-                "provenance_source_file": "README.md",
-                "provenance_line": None,
-                "provenance_confidence": 0.50,
-                "uncertainty_reason": "Documented in README; static role definition not found.",
-                "is_unresolved": True,
-                "is_ambiguous": False,
-            }
-        )
+    """Enrich existing variable rows with README documentation.
+
+    README is used for enrichment only - it does NOT create new variable rows.
+    Variables must exist in defaults/vars/meta/references to be tracked.
+    """
+    readme_vars = _collect_readme_input_variables(
+        role_path, style_readme_path=style_readme_path
+    )
+
+    # Enrich existing variables that are documented in README
+    for row in rows:
+        name = row["name"]
+        if name in readme_vars:
+            # Mark as documented if not already
+            if not row.get("documented"):
+                row["documented"] = True
+            # README docs indicate user-facing input, not a hard required unknown.
+            row["required"] = False
+            row["is_unresolved"] = False
+            # Add README reference marker (optional enhancement)
+            if "README.md" not in row.get("source", ""):
+                row["readme_documented"] = True
+
+    # README-only mentions no longer create variable rows
+    # This eliminates the "readme_only" provenance noise
 
 
 def _append_argument_spec_rows(
@@ -1540,10 +1598,11 @@ def build_variable_insights(
     style_readme_path: str | None = None,
 ) -> list[dict]:
     """Build variable rows with inferred type/default/source details."""
-    defaults_data, vars_data, defaults_file, vars_file = _load_role_variable_maps(
+    defaults_data, vars_data, defaults_sources, vars_sources = _load_role_variable_maps(
         role_path,
         include_vars_main,
     )
+    role_root = Path(role_path)
     reference_context = _collect_variable_reference_context(
         role_path=role_path,
         seed_paths=seed_paths,
@@ -1551,10 +1610,11 @@ def build_variable_insights(
     )
 
     rows, rows_by_name = _build_static_variable_rows(
+        role_root=role_root,
         defaults_data=defaults_data,
         vars_data=vars_data,
-        defaults_file=defaults_file,
-        vars_file=vars_file,
+        defaults_sources=defaults_sources,
+        vars_sources=vars_sources,
     )
     _populate_variable_rows(
         role_path=role_path,
@@ -1631,13 +1691,6 @@ def _populate_variable_rows(
         exclude_paths=exclude_paths,
     )
     known_names = _refresh_known_names(rows)
-    _append_readme_documented_rows(
-        role_path=role_path,
-        rows=rows,
-        known_names=known_names,
-        style_readme_path=style_readme_path,
-    )
-    known_names = _refresh_known_names(rows)
     known_names = _append_argument_spec_rows(
         role_path=role_path,
         rows=rows,
@@ -1655,6 +1708,13 @@ def _populate_variable_rows(
         dynamic_include_var_tokens=reference_context["dynamic_include_var_tokens"],
         dynamic_task_include_tokens=reference_context["dynamic_task_include_tokens"],
         exclude_paths=exclude_paths,
+    )
+    known_names = _refresh_known_names(rows)
+    _append_readme_documented_rows(
+        role_path=role_path,
+        rows=rows,
+        known_names=known_names,
+        style_readme_path=style_readme_path,
     )
 
 

@@ -1,7 +1,7 @@
 # Prism: Your Automation's Living Documentation
 
 Project site: [mutl3y.github.io/prism](https://mutl3y.github.io/prism)
-[![CI](https://github.com/mutl3y/prism/actions/workflows/prism.yml/badge.svg?branch=main)](https://github.com/mutl3y/prism/actions/workflows/prism.yml) [![Branch](https://img.shields.io/github/actions/workflow/status/mutl3y/prism/prism.yml?branch=main&label=main)](https://github.com/mutl3y/prism/tree/main) [![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](docs/completed_plans/COVERAGE_WORKOFF_PLAN.md) [![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml) [![License](https://img.shields.io/github/license/mutl3y/prism)](LICENSE)
+[![CI](https://github.com/mutl3y/prism/actions/workflows/prism.yml/badge.svg?branch=main)](https://github.com/mutl3y/prism/actions/workflows/prism.yml) [![Branch](https://img.shields.io/github/actions/workflow/status/mutl3y/prism/prism.yml?branch=main&label=main)](https://github.com/mutl3y/prism/tree/main) [![Coverage](https://raw.githubusercontent.com/mutl3y/prism/badges/.github/badges/coverage.svg)](docs/dev_docs/completed-plans.md) [![Python](https://img.shields.io/badge/python-3.14-blue)](pyproject.toml) [![License](https://img.shields.io/github/license/mutl3y/prism)](LICENSE)
 
 **From code to knowledge: automatically generate accurate, operator-friendly documentation for Ansible roles, collections, and repositories.**
 
@@ -63,7 +63,7 @@ Example snippet:
 
 - Scan a role: `prism role <path/to/role>`
 - Scan a collection: `prism collection <path/to/collection>`
-- Scan a repository: `prism repo <path/to/repo>`
+- Scan a repository role: `prism repo --repo-url <git-url> [--repo-role-path <path/in/repo>]`
 
 Run `prism --help` for the full command and option list.
 
@@ -74,7 +74,7 @@ Prism is designed to run in CI/CD so generated docs stay in sync with source.
 Typical workflow:
 
 1. Install `prism-ansible` in the pipeline job.
-2. Run `prism role ...` or `prism repo ...` during validation.
+2. Run `prism role ...` or `prism repo --repo-url ...` during validation.
 3. Commit or publish generated docs as part of your docs workflow.
 
 ## 🔧 Configuration
@@ -112,16 +112,17 @@ Marker prefix rules:
 Most deep technical material now lives in `docs/`:
 
 - `docs/CHANGELOG.md`
-- `docs/PRISM_FRIENDLY_ROLE_GUIDE.md`
-- `docs/STATIC_ANALYSIS_SCOPE_AND_NONGOALS.md`
-- `docs/TODO.md`
-- `docs/STYLE_GUIDE_SOURCES.md`
-- `docs/ci-starter-workflows.md`
+- `docs/changelog.md`
+- `docs/prism-friendly-role-authoring.md`
+- `docs/dev_docs/static-analysis-scope.md`
+- `docs/dev_docs/roadmap.md`
+- `docs/dev_docs/style-guide-sources.md`
+- `docs/dev_docs/ci-starter-workflows.md`
 
 ## 🌱 Contributing
 
-Contributions are welcome. See `docs/CONTRIBUTING.md`.
+Contributions are welcome. See `docs/dev_docs/contributing.md`.
 
 ## 📄 License
 
-Prism is licensed under the [MIT License](LICENSE).
+Prism is licensed under the [Apache License 2.0](LICENSE).

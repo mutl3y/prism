@@ -7,7 +7,7 @@ name = "prism-ansible"
 version = "0.1.0"
 description = "Scan an Ansible role for Jinja2 default() usages and generate README documentation."
 authors = [
-  { name="Your Name", email="you@example.com" }
+  { name="mutl3y" }
 ]
 readme = "README.md"
 requires-python = ">=3.14"
