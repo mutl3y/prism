@@ -297,6 +297,75 @@ def test_collect_referenced_variable_names_handles_unknown_jinja_filters(tmp_pat
     assert by_name["config_payload"]["required"] is True
 
 
+def test_collect_referenced_variable_names_filters_when_operator_keywords(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Operator filtering\n"
+        "  debug:\n"
+        '    msg: "ok"\n'
+        "  when: app_enabled and retry_count >= min_retries and status ne 'down' and env in allowed_envs and not skip_checks\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    names = {row["name"] for row in rows}
+
+    assert {
+        "app_enabled",
+        "retry_count",
+        "min_retries",
+        "status",
+        "env",
+        "allowed_envs",
+        "skip_checks",
+    }.issubset(names)
+    assert {
+        "and",
+        "or",
+        "not",
+        "is",
+        "in",
+        "eq",
+        "ne",
+        "lt",
+        "gt",
+        "le",
+        "ge",
+    }.isdisjoint(names)
+
+
+def test_collect_referenced_variable_names_filters_textual_comparison_aliases(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Textual comparison aliases\n"
+        "  debug:\n"
+        '    msg: "ok"\n'
+        "  when: build_number gt min_build and build_number lt max_build and retries le retry_ceiling and retries ge retry_floor\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    names = {row["name"] for row in rows}
+
+    assert {
+        "build_number",
+        "min_build",
+        "max_build",
+        "retries",
+        "retry_ceiling",
+        "retry_floor",
+    }.issubset(names)
+    assert {"gt", "lt", "le", "ge", "and"}.isdisjoint(names)
+
+
 def test_build_variable_insights_reads_documented_inputs_from_readme(tmp_path):
     role = tmp_path / "role"
     (role / "tasks").mkdir(parents=True)
