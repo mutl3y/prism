@@ -29,12 +29,12 @@ demo-readmes:
 	set -e; \
 	BASE_ROLE="src/prism/tests/roles/base_mock_role"; \
 	INROLE_CFG_ROLE="src/prism/tests/roles/inrole_config_role"; \
-	python -m prism.cli "$$BASE_ROLE" -o debug_readmes/REVIEW_README.md -v; \
-	python -m prism.cli "$$BASE_ROLE" -o debug_readmes/REVIEW_README.html -f html -v; \
-	python -m prism.cli "$$BASE_ROLE" -o debug_readmes/REVIEW_README.json -f json -v; \
-	python -m prism.cli "$$BASE_ROLE" -o debug_readmes/REVIEW_README_CONCISE.md --concise-readme --scanner-report-output debug_readmes/SCAN_REPORT.md -v; \
-	python -m prism.cli "$$BASE_ROLE" -o debug_readmes/REVIEW_README_STYLE_GUIDE_SKELETON.md --create-style-guide -v; \
-	python -m prism.cli "$$INROLE_CFG_ROLE" -o debug_readmes/REVIEW_README_INROLE_CONFIG.md -v
+	python -m prism.cli role "$$BASE_ROLE" -o debug_readmes/REVIEW_README.md -v; \
+	python -m prism.cli role "$$BASE_ROLE" -o debug_readmes/REVIEW_README.html -f html -v; \
+	python -m prism.cli role "$$BASE_ROLE" -o debug_readmes/REVIEW_README.json -f json -v; \
+	python -m prism.cli role "$$BASE_ROLE" -o debug_readmes/REVIEW_README_CONCISE.md --concise-readme --scanner-report-output debug_readmes/SCAN_REPORT.md -v; \
+	python -m prism.cli role "$$BASE_ROLE" -o debug_readmes/REVIEW_README_STYLE_GUIDE_SKELETON.md --create-style-guide -v; \
+	python -m prism.cli role "$$INROLE_CFG_ROLE" -o debug_readmes/REVIEW_README_INROLE_CONFIG.md -v
 
 clean:
 	rm -rf debug_readmes

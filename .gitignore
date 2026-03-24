@@ -19,3 +19,4 @@ debug_readmes/
 
 # Stray files
 et *
+.local/

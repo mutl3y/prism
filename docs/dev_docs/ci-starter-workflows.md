@@ -20,7 +20,7 @@ stages:
 
 prism:
   stage: docs
-  image: python:3.11
+  image: python:3.14
   script:
     - python -m pip install --upgrade pip
     - pip install -e .
