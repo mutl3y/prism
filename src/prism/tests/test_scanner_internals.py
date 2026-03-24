@@ -1060,3 +1060,54 @@ def test_extract_readme_variable_names_from_line_gates_prose_backticks():
     assert scanner._extract_readme_variable_names_from_line(
         "- `login` - nested key"
     ) == {"login"}
+
+
+# ---------------------------------------------------------------------------
+# IGNORED_IDENTIFIERS policy-reload synchronization
+# ---------------------------------------------------------------------------
+
+
+def test_reload_pattern_config_synchronizes_ansible_builtin_variables_into_ignored():
+    """After reload_pattern_config, IGNORED_IDENTIFIERS must reflect changes to
+    the ansible_builtin_variables policy key.
+
+    This guards the contract that _refresh_policy_derived_state propagates
+    ansible_builtin_variables into the module-level IGNORED_IDENTIFIERS in
+    variable_extractor and that scanner.reload_pattern_config keeps its own
+    IGNORED_IDENTIFIERS in sync.
+    """
+    sentinel = "ansible_prism_test_sentinel_do_not_use"
+    # Patch a minimal policy that adds the sentinel to ansible_builtin_variables
+    original_policy = (
+        scanner._POLICY.copy()
+        if hasattr(scanner._POLICY, "copy")
+        else dict(scanner._POLICY)
+    )
+    patched_policy = dict(original_policy)
+    existing_builtins = list(patched_policy.get("ansible_builtin_variables", []))
+    patched_policy["ansible_builtin_variables"] = existing_builtins + [sentinel]
+
+    # Drive _refresh_policy_derived_state directly via the variable_extractor
+    from prism.scanner_submodules import variable_extractor as _ve
+
+    _ve._refresh_policy_derived_state(patched_policy)
+
+    try:
+        assert sentinel in _ve.IGNORED_IDENTIFIERS, (
+            "reload must propagate new ansible_builtin_variables entries "
+            "into variable_extractor.IGNORED_IDENTIFIERS"
+        )
+    finally:
+        # Always restore original state
+        _ve._refresh_policy_derived_state(original_policy)
+        assert sentinel not in _ve.IGNORED_IDENTIFIERS
+
+
+def test_custom_ansible_prefixed_var_not_filtered_by_ignored_identifiers():
+    """A custom `ansible_`-prefixed token must pass through IGNORED_IDENTIFIERS
+    filtering unchanged — the prefix alone is not sufficient for suppression."""
+    sentinel = "ansible_my_role_specific_setting"
+    assert sentinel not in scanner.IGNORED_IDENTIFIERS, (
+        f"{sentinel!r} should NOT be in IGNORED_IDENTIFIERS; "
+        "only known builtins belong there"
+    )

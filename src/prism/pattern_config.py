@@ -8,6 +8,7 @@ and is loaded in filename order so the merge is deterministic:
 * ``data/section_aliases.yml``
 * ``data/sensitivity.yml``
 * ``data/variable_guidance.yml``
+* ``data/ansible_builtin_variables.yml``
 
 Typical usage in scanner.py::
 
@@ -115,8 +116,10 @@ def _normalise(policy: dict[str, Any]) -> dict[str, Any]:
     policy["sensitivity"].setdefault("url_prefixes", [])
     policy.setdefault("variable_guidance", {})
     policy["variable_guidance"].setdefault("priority_keywords", [])
+    policy.setdefault("ansible_builtin_variables", [])
     policy.setdefault("ignored_identifiers", [])
     # Return a mutable set so callers can use ``in`` without converting
+    policy["ansible_builtin_variables"] = set(policy["ansible_builtin_variables"])
     policy["ignored_identifiers"] = set(policy["ignored_identifiers"])
     return policy
 
@@ -210,6 +213,7 @@ def load_pattern_config(
         ``sensitivity``     – dict with ``name_tokens``, ``vault_markers``,
                               ``credential_prefixes``, ``url_prefixes``
         ``variable_guidance`` – dict with ``priority_keywords``
+        ``ansible_builtin_variables`` – set[str]
         ``ignored_identifiers`` – set[str]
     """
     policy = _load_builtin_policy()

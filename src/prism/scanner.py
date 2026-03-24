@@ -315,11 +315,8 @@ def _refresh_policy(override_path: str | None = None) -> None:
 
     from .scanner_submodules import variable_extractor as _ve
 
-    _ve._SECRET_NAME_TOKENS = _SECRET_NAME_TOKENS
-    _ve._VAULT_MARKERS = _VAULT_MARKERS
-    _ve._CREDENTIAL_PREFIXES = _CREDENTIAL_PREFIXES
-    _ve._URL_PREFIXES = _URL_PREFIXES
-    _ve.IGNORED_IDENTIFIERS = IGNORED_IDENTIFIERS
+    _ve._refresh_policy_derived_state(_POLICY)
+    IGNORED_IDENTIFIERS = _ve.IGNORED_IDENTIFIERS
 
 
 def _normalize_style_heading(heading: str) -> str:
@@ -757,7 +754,7 @@ def _extract_readme_variable_names_from_line(line: str) -> set[str]:
     for pattern in patterns:
         for match in pattern.findall(line):
             lowered = match.lower()
-            if lowered in IGNORED_IDENTIFIERS or lowered.startswith("ansible_"):
+            if lowered in IGNORED_IDENTIFIERS:
                 continue
             names.add(match)
     return names
@@ -1164,7 +1161,6 @@ def _collect_dynamic_task_include_tokens(
             token
             for token in JINJA_IDENTIFIER_RE.findall(ref)
             if token.lower() not in IGNORED_IDENTIFIERS
-            and not token.lower().startswith("ansible_")
         )
     return tokens
 
@@ -1179,7 +1175,6 @@ def _collect_dynamic_include_var_tokens(
             token
             for token in JINJA_IDENTIFIER_RE.findall(ref)
             if token.lower() not in IGNORED_IDENTIFIERS
-            and not token.lower().startswith("ansible_")
         )
     return tokens
 

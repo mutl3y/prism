@@ -30,12 +30,17 @@ from __future__ import annotations
 import re
 import yaml
 from pathlib import Path
+from typing import Any, Iterable
 
 from .._jinja_analyzer import (
     _collect_jinja_local_bindings_from_text,
     _collect_undeclared_jinja_variables,
 )
 from .task_parser import (
+    TASK_BLOCK_KEYS,
+    TASK_INCLUDE_KEYS,
+    TASK_META_KEYS,
+    ROLE_INCLUDE_KEYS,
     INCLUDE_VARS_KEYS,
     SET_FACT_KEYS,
     _collect_task_files,
@@ -56,6 +61,7 @@ VAULT_KEY_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*!vault\b", re.MUL
 # Strip quoted string literals before identifier scanning of when: expressions
 _QUOTED_STRING_RE = re.compile(r"\"[^\"]*\"|'[^']*'")
 _WHEN_FILTER_OR_TEST_CONTEXT_RE = re.compile(r"(?:\|\s*|is\s+|is\s+not\s+)$")
+_VALID_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _WHEN_OPERATOR_KEYWORDS: frozenset[str] = frozenset(
     {
         # Logical operators
@@ -84,7 +90,128 @@ _SECRET_NAME_TOKENS: tuple[str, ...] = tuple(_SENSITIVITY["name_tokens"])
 _VAULT_MARKERS: tuple[str, ...] = tuple(_SENSITIVITY["vault_markers"])
 _CREDENTIAL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["credential_prefixes"])
 _URL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["url_prefixes"])
-IGNORED_IDENTIFIERS: set[str] = _POLICY["ignored_identifiers"]
+
+
+def _coerce_identifier(value: object) -> str | None:
+    """Return a lower-cased identifier token when ``value`` looks like one."""
+    if not isinstance(value, str):
+        return None
+    token = value.strip()
+    if not token:
+        return None
+    if "." in token:
+        token = token.rsplit(".", 1)[-1]
+    lowered = token.lower()
+    if _VALID_IDENTIFIER_RE.match(lowered):
+        return lowered
+    return None
+
+
+def _iter_strings(value: Any) -> Iterable[str]:
+    """Yield string items recursively from nested containers."""
+    if isinstance(value, str):
+        yield value
+        return
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if isinstance(key, str):
+                yield key
+            yield from _iter_strings(nested)
+        return
+    if isinstance(value, (list, tuple, set, frozenset)):
+        for item in value:
+            yield from _iter_strings(item)
+
+
+def _load_ansible_core_builtin_variables() -> set[str]:
+    """Best-effort import of ansible-core builtin/reserved variable names."""
+    names: set[str] = set()
+
+    try:
+        from ansible.vars.reserved import get_reserved_names  # type: ignore
+
+        for raw in get_reserved_names() or []:
+            token = _coerce_identifier(raw)
+            if token:
+                names.add(token)
+    except Exception:
+        pass
+
+    try:
+        from ansible import constants as ansible_constants  # type: ignore
+
+        for attr_name in (
+            "MAGIC_VARIABLE_MAPPING",
+            "COMMON_CONNECTION_VARS",
+            "INTERNAL_RESULT_KEYS",
+            "RESTRICTED_RESULT_KEYS",
+        ):
+            raw_value = getattr(ansible_constants, attr_name, None)
+            for raw in _iter_strings(raw_value):
+                token = _coerce_identifier(raw)
+                if token:
+                    names.add(token)
+    except Exception:
+        pass
+
+    return names
+
+
+def _build_task_keyword_ignored_identifiers() -> set[str]:
+    """Return keyword-like task parser tokens that must never be treated as vars."""
+    names: set[str] = set()
+    for raw in (
+        *TASK_META_KEYS,
+        *TASK_BLOCK_KEYS,
+        *TASK_INCLUDE_KEYS,
+        *ROLE_INCLUDE_KEYS,
+        *INCLUDE_VARS_KEYS,
+        *SET_FACT_KEYS,
+    ):
+        token = _coerce_identifier(raw)
+        if token:
+            names.add(token)
+    return names
+
+
+def _build_effective_ignored_identifiers(policy: dict[str, Any]) -> set[str]:
+    """Merge policy ignores with task keywords and ansible builtin variables."""
+    ignored: set[str] = {
+        token.lower()
+        for token in policy.get("ignored_identifiers", set())
+        if isinstance(token, str)
+    }
+    ignored.update(_build_task_keyword_ignored_identifiers())
+    ignored.update(
+        {
+            token.lower()
+            for token in policy.get("ansible_builtin_variables", set())
+            if isinstance(token, str)
+        }
+    )
+    ignored.update(_load_ansible_core_builtin_variables())
+    return ignored
+
+
+IGNORED_IDENTIFIERS: set[str] = _build_effective_ignored_identifiers(_POLICY)
+
+
+def _refresh_policy_derived_state(policy: dict[str, Any]) -> None:
+    """Refresh module-level policy state after scanner policy reloads."""
+    global _SENSITIVITY
+    global _SECRET_NAME_TOKENS
+    global _VAULT_MARKERS
+    global _CREDENTIAL_PREFIXES
+    global _URL_PREFIXES
+    global IGNORED_IDENTIFIERS
+
+    _SENSITIVITY = policy["sensitivity"]
+    _SECRET_NAME_TOKENS = tuple(_SENSITIVITY["name_tokens"])
+    _VAULT_MARKERS = tuple(_SENSITIVITY["vault_markers"])
+    _CREDENTIAL_PREFIXES = tuple(_SENSITIVITY["credential_prefixes"])
+    _URL_PREFIXES = tuple(_SENSITIVITY["url_prefixes"])
+    IGNORED_IDENTIFIERS = _build_effective_ignored_identifiers(policy)
+
 
 _REGISTERED_RESULT_ATTRS: frozenset[str] = frozenset(
     {
@@ -289,16 +416,12 @@ def _collect_referenced_variable_names(
             local_bindings = _collect_jinja_local_bindings_from_text(text)
             for name in _collect_undeclared_jinja_variables(text):
                 lowered = name.lower()
-                if lowered in IGNORED_IDENTIFIERS or lowered.startswith("ansible_"):
+                if lowered in IGNORED_IDENTIFIERS:
                     continue
                 candidates.add(name)
             for match in JINJA_VAR_RE.findall(text):
                 lowered = match.lower()
-                if (
-                    lowered not in IGNORED_IDENTIFIERS
-                    and not lowered.startswith("ansible_")
-                    and match not in local_bindings
-                ):
+                if lowered not in IGNORED_IDENTIFIERS and match not in local_bindings:
                     candidates.add(match)
             if file_path.suffix in {".yml", ".yaml"}:
                 for line in text.splitlines():
@@ -313,8 +436,6 @@ def _collect_referenced_variable_names(
                             continue
                         lowered = token.lower()
                         if lowered in IGNORED_IDENTIFIERS:
-                            continue
-                        if lowered.startswith("ansible_"):
                             continue
                         candidates.add(token)
     candidates -= _REGISTERED_RESULT_ATTRS
