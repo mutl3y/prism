@@ -56,6 +56,23 @@ VAULT_KEY_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*!vault\b", re.MUL
 # Strip quoted string literals before identifier scanning of when: expressions
 _QUOTED_STRING_RE = re.compile(r"\"[^\"]*\"|'[^']*'")
 _WHEN_FILTER_OR_TEST_CONTEXT_RE = re.compile(r"(?:\|\s*|is\s+|is\s+not\s+)$")
+_WHEN_OPERATOR_KEYWORDS: frozenset[str] = frozenset(
+    {
+        # Logical operators
+        "and",
+        "or",
+        "not",
+        # Comparison/membership operators and textual aliases
+        "is",
+        "in",
+        "eq",
+        "ne",
+        "lt",
+        "gt",
+        "le",
+        "ge",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Policy-derived constants (refreshed by scanner._refresh_policy)
@@ -309,6 +326,10 @@ def _is_when_expression_token_candidate(
     token_match: re.Match[str],
 ) -> bool:
     """Return whether a token from a ``when:`` expression should count as input."""
+    token = token_match.group(1).lower()
+    if token in _WHEN_OPERATOR_KEYWORDS:
+        return False
+
     start = token_match.start(1)
     end = token_match.end(1)
 
