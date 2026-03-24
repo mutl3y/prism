@@ -24,7 +24,8 @@ def classify_provenance_issue(row: dict) -> str | None:
             return "ambiguous_defaults_vars_override"
         if "include_vars" in reason:
             return "ambiguous_include_vars_sources"
-        if "set_fact" in reason or "runtime" in reason:
+        # Keep this bucket specific to set_fact-derived ambiguity.
+        if "set_fact" in reason:
             return "ambiguous_set_fact_runtime"
         return "ambiguous_other"
 

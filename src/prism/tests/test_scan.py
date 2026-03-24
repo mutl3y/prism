@@ -3060,7 +3060,7 @@ def test_classify_provenance_issue_unresolved_with_other_reason():
 
 
 def test_classify_provenance_issue_ambiguous_with_runtime_reason():
-    """_classify_provenance_issue classifies 'runtime' ambiguous issues."""
+    """_classify_provenance_issue classifies set_fact runtime ambiguous issues."""
     result = scanner._classify_provenance_issue(
         {
             "is_unresolved": False,
@@ -3069,6 +3069,18 @@ def test_classify_provenance_issue_ambiguous_with_runtime_reason():
         }
     )
     assert result == "ambiguous_set_fact_runtime"
+
+
+def test_classify_provenance_issue_ambiguous_with_non_set_fact_runtime_reason():
+    """Generic runtime ambiguity does not get attributed to set_fact bucket."""
+    result = scanner._classify_provenance_issue(
+        {
+            "is_unresolved": False,
+            "is_ambiguous": True,
+            "uncertainty_reason": "Runtime value may depend on host context.",
+        }
+    )
+    assert result == "ambiguous_other"
 
 
 def test_build_referenced_variable_uncertainty_reason_targets_dynamic_include_var_tokens():
