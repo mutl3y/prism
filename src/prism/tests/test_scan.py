@@ -359,11 +359,81 @@ def test_collect_referenced_variable_names_filters_textual_comparison_aliases(tm
         "build_number",
         "min_build",
         "max_build",
-        "retries",
         "retry_ceiling",
         "retry_floor",
     }.issubset(names)
-    assert {"gt", "lt", "le", "ge", "and"}.isdisjoint(names)
+    assert {"gt", "lt", "le", "ge", "and", "retries"}.isdisjoint(names)
+
+
+def test_collect_referenced_variable_names_ignores_task_keywords_and_builtin_vars(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Keyword and builtin filtering\n"
+        "  ansible.builtin.debug:\n"
+        '    msg: "{{ custom_input }} {{ when }} {{ register }} {{ block }} {{ playbook_dir }} {{ inventory_hostname }} {{ ansible_play_hosts_all }}"\n',
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    names = {row["name"] for row in rows}
+
+    assert "custom_input" in names
+    assert {
+        "when",
+        "register",
+        "block",
+        "playbook_dir",
+        "inventory_hostname",
+        "ansible_play_hosts_all",
+    }.isdisjoint(names)
+
+
+def test_ignored_identifiers_include_task_parser_keywords_and_builtin_vars():
+    assert {
+        "when",
+        "register",
+        "block",
+        "include_tasks",
+        "import_role",
+        "include_vars",
+        "set_fact",
+        "playbook_dir",
+        "inventory_hostname",
+        "ansible_play_hosts_all",
+    }.issubset(scanner.IGNORED_IDENTIFIERS)
+
+
+def test_custom_ansible_prefixed_variable_is_not_ignored(tmp_path):
+    """A custom role variable prefixed with ansible_ must not be silently dropped.
+
+    Only identifiers listed in IGNORED_IDENTIFIERS (via ignored_identifiers.yml
+    or ansible_builtin_variables.yml) should be filtered.  A user-defined
+    variable like ``ansible_my_custom_setting`` is a legitimate role input and
+    must appear in the scan results.
+    """
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: Use custom ansible-prefixed var\n"
+        "  debug:\n"
+        '    msg: "{{ ansible_my_custom_setting }}"\n',
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    names = {row["name"] for row in rows}
+
+    assert "ansible_my_custom_setting" in names, (
+        "Custom ansible_-prefixed variable must not be silently dropped "
+        "by a startswith filter; only IGNORED_IDENTIFIERS controls suppression."
+    )
 
 
 def test_build_variable_insights_reads_documented_inputs_from_readme(tmp_path):

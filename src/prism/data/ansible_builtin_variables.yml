@@ -1,0 +1,45 @@
+# Canonical Ansible built-in/special variables.
+#
+# Keep this list curated and sorted. At runtime, prism also attempts to load
+# additional reserved/magic variable names from ansible-core when available.
+
+ansible_builtin_variables:
+  - ansible_check_mode
+  - ansible_collection_name
+  - ansible_config_file
+  - ansible_dependent_role_names
+  - ansible_diff_mode
+  - ansible_facts
+  - ansible_forks
+  - ansible_inventory_sources
+  - ansible_limit
+  - ansible_loop
+  - ansible_loop_var
+  - ansible_parent_role_names
+  - ansible_parent_role_paths
+  - ansible_play_batch
+  - ansible_play_hosts
+  - ansible_play_hosts_all
+  - ansible_play_name
+  - ansible_play_role_names
+  - ansible_playbook_python
+  - ansible_role_name
+  - ansible_role_names
+  - ansible_run_tags
+  - ansible_search_path
+  - ansible_skip_tags
+  - ansible_verbosity
+  - ansible_version
+  - group_names
+  - groups
+  - hostvars
+  - inventory_dir
+  - inventory_file
+  - inventory_hostname
+  - inventory_hostname_short
+  - omit
+  - play_hosts
+  - playbook_dir
+  - role_name
+  - role_names
+  - role_path
