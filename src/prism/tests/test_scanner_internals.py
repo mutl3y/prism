@@ -1044,3 +1044,19 @@ class TestCollectDynamicTaskIncludeRefs:
         role.mkdir()
         result = scanner._collect_dynamic_task_include_refs(str(role))
         assert result == []
+
+
+def test_extract_readme_variable_names_from_line_gates_prose_backticks():
+    """Backtick prose extraction should require variable-guidance context."""
+    assert scanner._extract_readme_variable_names_from_line("Or use `db_user`.") == {
+        "db_user"
+    }
+    assert (
+        scanner._extract_readme_variable_names_from_line(
+            "Only required attributes include `login`."
+        )
+        == set()
+    )
+    assert scanner._extract_readme_variable_names_from_line(
+        "- `login` - nested key"
+    ) == {"login"}
