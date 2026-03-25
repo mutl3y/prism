@@ -106,4 +106,38 @@ Baseline: `roles25-refresh-20260322-candidate8` (batch 8) | Candidate: `overnigh
 
 ## Change Log
 
+- **2026-03-25** — Added 112 missing `ansible_*` gathered-fact and meta-fact variables to `ansible_builtin_variables.yml` (all top-level keys from `gather_facts.json`, including host-specific interface name examples); documented Lane F (Loop Variable Suppression) plan in Planned Lanes.
 - **2026-03-25** — Initial version. Renamed `ambiguous_defaults_vars_override` to `precedence_defaults_overridden_by_vars`; added legacy alias and `unresolved_noise_variables` metric.
+
+---
+
+## Planned Lanes
+
+### Lane F — Loop Variable Suppression
+
+**Status:** Planned — not started.
+
+**Motivation:** `ansible-opnsense` alone has 128 unresolved variables of which a large subset are Jinja2 loop-scoped or role-internal computed names following `__*` / `_*` naming conventions (e.g. `__ipsec_section`, `__ipsec_section_loop`, `__uuid`, `_checkelements`, `_configd_action`). These are never intended as public role inputs but the scanner currently classifies them as `unresolved_no_static_definition` noise. Similar patterns exist across other roles in the cohort.
+
+**Target variables (examples from unresolved-provenance-batch15.md):**
+
+- Double-underscore prefix: `__ipsec_section`, `__ipsec_section_listname`, `__ipsec_section_loop`, `__ipsec_section_settings`, `__ipsec_section_settings_elem`, `__swanctl_section`, `__uuid`, `__uuidsettings`
+- Single-underscore prefix: `_checkelements`, `_configd_action`, `_device`, `_gateways`, `_netiface`
+
+**Approach options (pick one per cycle):**
+
+| Option | Description | Risk |
+| ------ | ----------- | ---- |
+| F-1: Prefix pattern in YAML | Add a `prefix_patterns` list to the `ignored_identifiers.yml` schema; loader compiles these as prefix checks at startup | Low — only suppresses names matching the convention |
+| F-2: Jinja2 scope analysis | Suppress `__*`/`_*` references first *assigned* (via `{% set %}`) before being referenced within the same file | Medium — requires per-file scope pass |
+| F-3: Explicit list expansion | Add known role-internal loop var names to `ignored_identifiers.yml` case-by-case from the cohort report | Low effort but limited generalisation |
+
+**Recommended starting point:** F-1 — the double-underscore convention is a de-facto standard for Jinja2 role-internal temporaries and a prefix guard is safe to add.
+
+**Estimated impact:** ≥50 suppressions in `ansible-opnsense`; potentially 100–200 across the 20-role cohort.
+
+**Gating criteria:**
+
+- `unresolved_no_static_definition` decreases vs batch 15 baseline (1,296)
+- No increase in `unresolved_readme_documented_only` (recall signal)
+- Focused test gate: `test_collect_referenced_variable_names_*` + new prefix-suppression tests
