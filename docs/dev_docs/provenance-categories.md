@@ -102,6 +102,13 @@ Baseline: `roles25-refresh-20260322-candidate8` (batch 8) | Candidate: `overnigh
 
 **Lane verdict: FAIL** — unresolved ratio increased +0.68pp; 44 new `unresolved_no_static_definition` entries driving the increase. Next action: Lane A (`ignored_identifiers.yml`) diagnostic to identify leaking builtins.
 
+### Lane Queue
+
+- Lane F-1 — Prefix pattern in YAML (planned, not started)
+- Lane F-2 — Jinja2 scope analysis (planned, not started)
+- Lane F-3 — Explicit list expansion (planned, not started)
+- Lane F (umbrella) — Loop Variable Suppression (planned, not started)
+
 ---
 
 ## Change Log
