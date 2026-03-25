@@ -13,6 +13,80 @@ title: Unresolved Provenance Issues — Batch 15
 Variables are grouped by provenance category. Only `is_unresolved=true` rows
 and `is_ambiguous=true` rows appear here. Resolved variables are omitted.
 
+## Current Unresolved Review Snapshot
+
+- **Batch context:** 15 (`overnigh_500-builtins-top20-20260324`)
+- **Overall unresolved:** 1,300 / 5,257 (24.73%)
+
+### Top 5 Repositories by Unresolved Count
+
+- `ansible-opnsense`: 128 unresolved
+- `AZURE-CIS`: 128 unresolved
+- `bitcoin_core`: 96 unresolved
+- `open_ondemand`: 94 unresolved
+- `rhel6_stig`: 76 unresolved
+
+### Builtin Leakage Watchlist
+
+Examples currently present in unresolved lists:
+
+- `ansible_distribution`
+- `ansible_distribution_major_version`
+- `ansible_mounts`
+- `ansible_architecture`
+
+### Dynamic include_vars Watchlist
+
+Dynamic include variables reported as path-unknown in this batch:
+
+**Platform-constrained (resolvable) — EL-only roles where `ansible_distribution` is a bounded known constant:**
+
+- `rhel8_cis`: `ansible_distribution` → `vars/RedHat.yml` (EL-only; `meta/main.yml` declares `EL` platforms; `RedHat` is the correct `ansible_distribution` value for RHEL)
+- `rhel7_stig`: `ansible_distribution` → `vars/RedHat.yml` (same pattern; same resolution)
+
+For both roles, the scanner *could* prove provenance by cross-referencing `meta/main.yml` platform declarations against the `vars/<ansible_distribution>.yml` files that exist on disk. See architecture.md §"Implication For Next Lane" for the proposed Lane A implementation.
+
+**Truly unknown path (not statically resolvable):**
+
+- `ansible-vault`: `params`
+- `nomad`: `ansible_os_family`
+
+### Next Lane: Internal Underscore Noise and Test Evidence Enrichment
+
+- Suppress unresolved rows for internal temp-style references that start with `_` or `__` when they have no static definition and no seed source.
+- Keep underscore-prefixed variables authoritative when they are defined in `defaults/` or `vars/`.
+- Enrich remaining unresolved rows with non-authoritative evidence from `tests/` and `molecule/` files, including match count and a bounded confidence/probability score derived from match count.
+- Preserve existing authoritative provenance logic: test evidence is informational only and does not convert unresolved rows to resolved.
+
+### 2026-03-25 Controlled Cohort Validation (Batch 15 vs Batch 19/22/23)
+
+- **Batch 15:** `overnigh_500-builtins-top20-20260324`
+  - `total_targets=20`, `succeeded=20`, `failed=0`
+  - `lightweight_readme_only=false`
+- **Batch 19:** `ansible-lockdown-controlled-b15mode-20260325`
+  - `total_targets=39`, `succeeded=29`, `failed=10`
+  - `lightweight_readme_only=true`
+  - 10 failures are expected non-role repos (`FileNotFoundError: repository path does not look like an Ansible role: .`).
+- **Batch 22:** `ansible-lockdown-controlled-b15mode-fullscan-20260325`
+  - `total_targets=39`, `finished_at_utc=NULL`, `succeeded=0`, `failed=0` at capture time.
+  - Snapshot count was still changing while polling, so this run was still in progress and not yet suitable for promotion/comparison conclusions.
+- **Batch 23:** `ansible-lockdown-controlled-fullscan-workers1b-20260325`
+  - Observed in recent batch listings with no finished timestamp and no finalized success/failure totals at capture time.
+  - Treat as in-progress telemetry, not a completed full-scan comparison point.
+
+#### Comparability Result
+
+- The overlap between Batch 15 and Batch 19 had only 5 repos with baseline metadata.
+- For all 5 overlap repos, Batch 19 reported `tasks_scanned_after=0` and `task_files_scanned_after=0`.
+- The apparent unresolved deltas in Batch 19 (for example AZURE-CIS `128 -> 0`, RHEL7-STIG `42 -> 0`, Windows-2022-STIG `47 -> 0`) are therefore **not true quality improvements**; they are a scan-mode artifact from `lightweight_readme_only=true`.
+
+#### Decision
+
+- Do **not** use Batch 19 unresolved reductions as evidence of scanner quality improvement.
+- Do **not** use Batch 22/23 interim values for unresolved-noise claims until `finished_at_utc` is populated and counters stabilize.
+- Treat any unresolved deltas where `tasks_scanned=0` as scan-mode artifacts, not model-quality wins.
+- Re-run the same cohort with full scan and wait for completion before making promotion/comparison claims.
+
 ---
 
 ## ansible-opnsense
