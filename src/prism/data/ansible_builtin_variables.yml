@@ -4,15 +4,20 @@
 # additional reserved/magic variable names from ansible-core when available.
 
 ansible_builtin_variables:
+  - ansible_become_user
   - ansible_check_mode
   - ansible_collection_name
   - ansible_config_file
+  - ansible_connection
   - ansible_dependent_role_names
   - ansible_diff_mode
   - ansible_facts
   - ansible_forks
+  - ansible_host
+  - ansible_index_var
   - ansible_inventory_sources
   - ansible_limit
+  - ansible_local
   - ansible_loop
   - ansible_loop_var
   - ansible_parent_role_names
@@ -23,11 +28,16 @@ ansible_builtin_variables:
   - ansible_play_name
   - ansible_play_role_names
   - ansible_playbook_python
+  - ansible_port
+  - ansible_python_interpreter
   - ansible_role_name
   - ansible_role_names
   - ansible_run_tags
   - ansible_search_path
+  - ansible_shell_executable
+  - ansible_shell_type
   - ansible_skip_tags
+  - ansible_user
   - ansible_verbosity
   - ansible_version
   - group_names

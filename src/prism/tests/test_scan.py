@@ -376,7 +376,7 @@ def test_collect_referenced_variable_names_ignores_task_keywords_and_builtin_var
         "---\n"
         "- name: Keyword and builtin filtering\n"
         "  ansible.builtin.debug:\n"
-        '    msg: "{{ custom_input }} {{ when }} {{ register }} {{ block }} {{ playbook_dir }} {{ inventory_hostname }} {{ ansible_play_hosts_all }}"\n',
+        '    msg: "{{ custom_input }} {{ when }} {{ register }} {{ block }} {{ playbook_dir }} {{ inventory_hostname }} {{ ansible_play_hosts_all }} {{ ansible_connection }} {{ ansible_host }} {{ ansible_port }} {{ ansible_user }} {{ ansible_index_var }} {{ ansible_local.site.region }} {{ ansible_become_user }}"\n',
         encoding="utf-8",
     )
 
@@ -391,6 +391,13 @@ def test_collect_referenced_variable_names_ignores_task_keywords_and_builtin_var
         "playbook_dir",
         "inventory_hostname",
         "ansible_play_hosts_all",
+        "ansible_connection",
+        "ansible_host",
+        "ansible_port",
+        "ansible_user",
+        "ansible_index_var",
+        "ansible_local",
+        "ansible_become_user",
     }.isdisjoint(names)
 
 
@@ -403,6 +410,13 @@ def test_ignored_identifiers_include_task_parser_keywords_and_builtin_vars():
         "import_role",
         "include_vars",
         "set_fact",
+        "ansible_connection",
+        "ansible_become_user",
+        "ansible_host",
+        "ansible_index_var",
+        "ansible_local",
+        "ansible_port",
+        "ansible_user",
         "playbook_dir",
         "inventory_hostname",
         "ansible_play_hosts_all",
@@ -1168,6 +1182,7 @@ def test_extract_scanner_counters_groups_by_confidence_and_status():
     assert counters["ambiguous_variables"] == 1
     assert counters["secret_variables"] == 1
     assert counters["required_variables"] == 1
+    assert counters["unresolved_noise_variables"] == 1
     assert counters["high_confidence_variables"] == 1
     assert counters["low_confidence_variables"] == 1
     assert counters["undocumented_default_filters"] == 1
@@ -1187,7 +1202,7 @@ def test_extract_scanner_counters_categorizes_provenance_issues():
                 "secret": False,
                 "required": False,
                 "provenance_confidence": 0.8,
-                "uncertainty_reason": "Overridden by vars/main.yml precedence.",
+                "uncertainty_reason": "Defaults value is superseded by vars/main.yml precedence (informational).",
             },
             {
                 "documented": True,
@@ -1222,10 +1237,16 @@ def test_extract_scanner_counters_categorizes_provenance_issues():
     )
 
     categories = counters["provenance_issue_categories"]
+    assert categories["precedence_defaults_overridden_by_vars"] == 1
     assert categories["ambiguous_defaults_vars_override"] == 1
+    assert (
+        categories["precedence_defaults_overridden_by_vars"]
+        == categories["ambiguous_defaults_vars_override"]
+    )
     assert categories["ambiguous_set_fact_runtime"] == 1
     assert categories["unresolved_no_static_definition"] == 1
     assert categories["unresolved_readme_documented_only"] == 1
+    assert counters["unresolved_noise_variables"] == 2
 
 
 def test_extract_scanner_counters_includes_role_include_observability():
@@ -1244,6 +1265,7 @@ def test_extract_scanner_counters_includes_role_include_observability():
     assert counters["dynamic_included_role_calls"] == 2
     assert counters["disabled_task_annotations"] == 4
     assert counters["yaml_like_task_annotations"] == 1
+    assert counters["unresolved_noise_variables"] == 0
 
 
 def test_collect_yaml_parse_failures_reports_file_and_line(tmp_path):
@@ -2929,7 +2951,7 @@ def test_build_scanner_report_markdown_includes_annotation_quality_counters():
                     "unresolved_dynamic_include_vars": 0,
                     "unresolved_no_static_definition": 0,
                     "unresolved_other": 0,
-                    "ambiguous_defaults_vars_override": 0,
+                    "precedence_defaults_overridden_by_vars": 0,
                     "ambiguous_set_fact_runtime": 0,
                     "ambiguous_other": 0,
                 },
@@ -2980,7 +3002,7 @@ def test_build_scanner_report_markdown_renders_unresolved_variables():
                     "unresolved_readme_documented_only": 0,
                     "unresolved_dynamic_include_vars": 0,
                     "unresolved_other": 0,
-                    "ambiguous_defaults_vars_override": 0,
+                    "precedence_defaults_overridden_by_vars": 0,
                     "ambiguous_include_vars_sources": 0,
                     "ambiguous_set_fact_runtime": 0,
                     "ambiguous_other": 0,
@@ -3034,7 +3056,7 @@ def test_build_scanner_report_markdown_renders_yaml_parse_failures_without_ambig
                     "unresolved_dynamic_include_vars": 0,
                     "unresolved_no_static_definition": 0,
                     "unresolved_other": 0,
-                    "ambiguous_defaults_vars_override": 0,
+                    "precedence_defaults_overridden_by_vars": 0,
                     "ambiguous_include_vars_sources": 0,
                     "ambiguous_set_fact_runtime": 0,
                     "ambiguous_other": 0,
@@ -3089,7 +3111,7 @@ def test_build_scanner_report_markdown_renders_ambiguous_after_parse_failures():
                     "unresolved_dynamic_include_vars": 0,
                     "unresolved_no_static_definition": 0,
                     "unresolved_other": 0,
-                    "ambiguous_defaults_vars_override": 0,
+                    "precedence_defaults_overridden_by_vars": 0,
                     "ambiguous_include_vars_sources": 1,
                     "ambiguous_set_fact_runtime": 0,
                     "ambiguous_other": 0,
@@ -3127,6 +3149,31 @@ def test_classify_provenance_issue_unresolved_with_other_reason():
         }
     )
     assert result == "unresolved_other"
+
+
+def test_classify_provenance_issue_precedence_defaults_overridden_by_vars():
+    """Vars precedence is classified as informational precedence, not unresolved."""
+    result = scanner._classify_provenance_issue(
+        {
+            "is_unresolved": False,
+            "is_ambiguous": True,
+            "uncertainty_reason": "Defaults value is superseded by vars/main.yml precedence (informational).",
+        }
+    )
+    assert result == "precedence_defaults_overridden_by_vars"
+
+
+def test_is_unresolved_noise_category_excludes_precedence_informational_category():
+    """Precedence informational category must not be counted as unresolved noise."""
+    assert (
+        scanner._is_unresolved_noise_category("precedence_defaults_overridden_by_vars")
+        is False
+    )
+    assert (
+        scanner._is_unresolved_noise_category("ambiguous_defaults_vars_override")
+        is False
+    )
+    assert scanner._is_unresolved_noise_category("unresolved_other") is True
 
 
 def test_classify_provenance_issue_ambiguous_with_runtime_reason():

@@ -5,8 +5,36 @@ from __future__ import annotations
 from typing import Callable
 
 
+PRECEDENCE_DEFAULTS_OVERRIDDEN_BY_VARS = "precedence_defaults_overridden_by_vars"
+LEGACY_AMBIGUOUS_DEFAULTS_VARS_OVERRIDE = "ambiguous_defaults_vars_override"
+
+# Explicit unresolved-noise categories used by downstream metric gates.
+# Informational precedence categories must stay out of this set.
+UNRESOLVED_NOISE_CATEGORY_KEYS = frozenset(
+    {
+        "unresolved_readme_documented_only",
+        "unresolved_dynamic_include_vars",
+        "unresolved_no_static_definition",
+        "unresolved_other",
+    }
+)
+
+
+def _normalize_provenance_issue_category(category: str | None) -> str | None:
+    """Map legacy category labels onto current stable labels."""
+    if category == LEGACY_AMBIGUOUS_DEFAULTS_VARS_OVERRIDE:
+        return PRECEDENCE_DEFAULTS_OVERRIDDEN_BY_VARS
+    return category
+
+
+def is_unresolved_noise_category(category: str | None) -> bool:
+    """Return True when a category should contribute to unresolved-noise metrics."""
+    normalized = _normalize_provenance_issue_category(category)
+    return normalized in UNRESOLVED_NOISE_CATEGORY_KEYS
+
+
 def classify_provenance_issue(row: dict) -> str | None:
-    """Return a stable issue category label for unresolved/ambiguous rows."""
+    """Return a stable provenance category label for unresolved/ambiguous rows."""
     reason = str(row.get("uncertainty_reason") or "").lower()
     source = str(row.get("source") or "").lower()
 
@@ -20,8 +48,8 @@ def classify_provenance_issue(row: dict) -> str | None:
         return "unresolved_other"
 
     if row.get("is_ambiguous"):
-        if "overridden by vars/main.yml precedence" in reason:
-            return "ambiguous_defaults_vars_override"
+        if "vars/main.yml" in reason and "precedence" in reason:
+            return PRECEDENCE_DEFAULTS_OVERRIDDEN_BY_VARS
         if "include_vars" in reason:
             return "ambiguous_include_vars_sources"
         # Keep this bucket specific to set_fact-derived ambiguity.
@@ -44,6 +72,7 @@ def extract_scanner_counters(
         "documented_variables": 0,
         "undocumented_variables": 0,
         "unresolved_variables": 0,
+        "unresolved_noise_variables": 0,
         "ambiguous_variables": 0,
         "secret_variables": 0,
         "required_variables": 0,
@@ -62,7 +91,8 @@ def extract_scanner_counters(
             "unresolved_dynamic_include_vars": 0,
             "unresolved_no_static_definition": 0,
             "unresolved_other": 0,
-            "ambiguous_defaults_vars_override": 0,
+            PRECEDENCE_DEFAULTS_OVERRIDDEN_BY_VARS: 0,
+            LEGACY_AMBIGUOUS_DEFAULTS_VARS_OVERRIDE: 0,
             "ambiguous_include_vars_sources": 0,
             "ambiguous_set_fact_runtime": 0,
             "ambiguous_other": 0,
@@ -83,9 +113,23 @@ def extract_scanner_counters(
         if row.get("required"):
             counters["required_variables"] += 1
 
-        issue_category = classify_provenance_issue(row)
+        issue_category = _normalize_provenance_issue_category(
+            classify_provenance_issue(row)
+        )
         if issue_category:
+            counters["provenance_issue_categories"].setdefault(issue_category, 0)
             counters["provenance_issue_categories"][issue_category] += 1
+            # Backward-compat alias for downstream consumers; remove after migration.
+            if issue_category == PRECEDENCE_DEFAULTS_OVERRIDDEN_BY_VARS:
+                counters["provenance_issue_categories"].setdefault(
+                    LEGACY_AMBIGUOUS_DEFAULTS_VARS_OVERRIDE,
+                    0,
+                )
+                counters["provenance_issue_categories"][
+                    LEGACY_AMBIGUOUS_DEFAULTS_VARS_OVERRIDE
+                ] += 1
+            if is_unresolved_noise_category(issue_category):
+                counters["unresolved_noise_variables"] += 1
 
         confidence = float(row.get("provenance_confidence") or 0.0)
         if confidence >= 0.90:

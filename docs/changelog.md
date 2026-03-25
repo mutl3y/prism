@@ -21,6 +21,8 @@ This changelog follows Keep a Changelog and Semantic Versioning conventions.
 
 - Reorganized documentation information architecture with a clearer navigation model.
 - Clarified policy-enforcement and CI usage guidance.
+- Renamed provenance category `ambiguous_defaults_vars_override` to `precedence_defaults_overridden_by_vars` to reflect its informational (non-noise) semantics; legacy alias key emitted alongside new key during deprecation window.
+- Added explicit `unresolved_noise_variables` counter to scanner report, excluding informational/precedence categories from noise totals.
 
 ## [0.1.0] - 2026-03-15
 

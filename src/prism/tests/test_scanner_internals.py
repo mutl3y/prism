@@ -1103,6 +1103,40 @@ def test_reload_pattern_config_synchronizes_ansible_builtin_variables_into_ignor
         assert sentinel not in _ve.IGNORED_IDENTIFIERS
 
 
+def test_collect_referenced_variable_names_ignores_explicit_ansible_connection_vars(
+    tmp_path,
+):
+    role = _make_role_with_tasks_dir(tmp_path)
+    (role / "templates").mkdir(parents=True, exist_ok=True)
+
+    (role / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: Render template\n"
+        "  ansible.builtin.template:\n"
+        "    src: app.j2\n"
+        "    dest: /tmp/app\n"
+        "  when: ansible_connection == 'ssh' and ansible_user != '' and ansible_become_user != '' and ansible_local.site.region and custom_input\n",
+        encoding="utf-8",
+    )
+    (role / "templates" / "app.j2").write_text(
+        "{{ ansible_host }} {{ ansible_port }} {{ ansible_index_var }} {{ custom_input }}\n",
+        encoding="utf-8",
+    )
+
+    names = scanner._collect_referenced_variable_names(str(role))
+
+    assert "custom_input" in names
+    assert {
+        "ansible_connection",
+        "ansible_become_user",
+        "ansible_host",
+        "ansible_index_var",
+        "ansible_local",
+        "ansible_port",
+        "ansible_user",
+    }.isdisjoint(names)
+
+
 def test_custom_ansible_prefixed_var_not_filtered_by_ignored_identifiers():
     """A custom `ansible_`-prefixed token must pass through IGNORED_IDENTIFIERS
     filtering unchanged — the prefix alone is not sufficient for suppression."""

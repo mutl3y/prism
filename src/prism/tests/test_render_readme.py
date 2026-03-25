@@ -564,7 +564,10 @@ def test_run_scan_readme_includes_uncertainty_notes_for_precedence_and_unresolve
     content = out.read_text(encoding="utf-8")
     assert "Variable provenance and confidence notes:" in content
     assert "Ambiguous variables:" in content
-    assert "`app_port`: Overridden by vars/main.yml precedence." in content
+    assert (
+        "`app_port`: Defaults value is superseded by vars/main.yml precedence "
+        "(informational)." in content
+    )
     assert "Unresolved variables:" in content
     assert "`missing_runtime_value`:" in content
 

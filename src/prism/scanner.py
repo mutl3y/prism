@@ -44,6 +44,7 @@ from .scanner_submodules.scanner_report import (
     build_scanner_report_markdown as _report_build_markdown,
     classify_provenance_issue as _report_classify_provenance_issue,
     extract_scanner_counters as _report_extract_counters,
+    is_unresolved_noise_category as _report_is_unresolved_noise_category,
 )
 from .scanner_submodules.runbook import (
     _build_runbook_rows as _runbook_build_rows,
@@ -1221,7 +1222,10 @@ def _build_static_variable_rows(
                 else None
             )
             provenance_confidence = 0.80
-            uncertainty_reason = "Overridden by vars/main.yml precedence."
+            uncertainty_reason = (
+                "Defaults value is superseded by vars/main.yml precedence "
+                "(informational)."
+            )
             is_ambiguous = True
         elif has_var:
             source = "vars/main.yml"
@@ -2777,8 +2781,13 @@ def _extract_scanner_counters(
 
 
 def _classify_provenance_issue(row: dict) -> str | None:
-    """Return a stable issue category label for unresolved/ambiguous rows."""
+    """Return a stable provenance category label for unresolved/ambiguous rows."""
     return _report_classify_provenance_issue(row)
+
+
+def _is_unresolved_noise_category(category: str | None) -> bool:
+    """Return True if the category participates in unresolved-noise metrics."""
+    return _report_is_unresolved_noise_category(category)
 
 
 def render_readme(

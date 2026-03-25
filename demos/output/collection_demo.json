@@ -431,7 +431,7 @@
             "low_confidence_variables": 0,
             "medium_confidence_variables": 0,
             "provenance_issue_categories": {
-              "ambiguous_defaults_vars_override": 0,
+              "precedence_defaults_overridden_by_vars": 0,
               "ambiguous_include_vars_sources": 0,
               "ambiguous_other": 0,
               "ambiguous_set_fact_runtime": 0,
@@ -584,7 +584,7 @@
             "low_confidence_variables": 0,
             "medium_confidence_variables": 0,
             "provenance_issue_categories": {
-              "ambiguous_defaults_vars_override": 0,
+              "precedence_defaults_overridden_by_vars": 0,
               "ambiguous_include_vars_sources": 0,
               "ambiguous_other": 0,
               "ambiguous_set_fact_runtime": 0,
