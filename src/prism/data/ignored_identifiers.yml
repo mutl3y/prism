@@ -9,9 +9,6 @@ ignored_identifiers:
   - absent
   - always
   - and
-  - ansible_check_mode
-  - ansible_diff_mode
-  - ansible_facts
   - apt
   - callable
   - changed
@@ -35,7 +32,6 @@ ignored_identifiers:
   - hostvars
   - in
   - integer
-  - inventory_hostname
   - iptables
   - is
   - iterable
