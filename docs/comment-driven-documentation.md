@@ -17,14 +17,27 @@ source that implements it.
 
 ## Supported Marker Model
 
-Prism uses `# prism~...` markers. The supported note marker is `prism~note`.
+By default Prism uses `# prism~...` markers.
+
+The examples below use the default `prism` prefix, but teams can change it in
+`.prism.yml`:
+
+```yaml
+markers:
+  prefix: opsdoc
+```
+
+With that configuration, `# opsdoc~note: ...` and related markers are treated
+the same way as the `prism~...` examples in this guide.
 
 Common marker kinds:
 
-- `prism~note`: general reviewer or operator note
 - `prism~warning`: caution or rollback concern
+- `prism~deprecated`: deprecation or migration warning
+- `prism~note` / `prism~notes`: general reviewer or operator note
+- `prism~additional` / `prism~additionals`: extra implementation or support context
 - `prism~runbook`: task procedure text for runbook output
-- `prism~task`: attach a note, warning, or runbook entry either to a specific named task or implicitly to the next task
+- `prism~task`: attach a note, warning, runbook entry, deprecation, or additional note either to a specific named task or implicitly to the next task
 
 ## Example: `prism~note`
 
