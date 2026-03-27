@@ -78,14 +78,15 @@ def test_scanner_wrapper_extract_scanner_counters_delegates(monkeypatch):
 
 
 def test_scanner_wrapper_uncertainty_helpers_delegate(monkeypatch):
+    # Patch the imported errorhandling functions in the scanner module
     monkeypatch.setattr(
         scanner,
-        "_scan_metrics_build_referenced_variable_uncertainty_reason",
+        "_errorhandling_build_referenced_variable_uncertainty_reason",
         lambda **kwargs: f"build::{kwargs['name']}",
     )
     monkeypatch.setattr(
         scanner,
-        "_scan_metrics_append_non_authoritative_test_evidence_uncertainty_reason",
+        "_errorhandling_append_non_authoritative_test_evidence_uncertainty_reason",
         lambda **kwargs: (f"append::{kwargs['prior_reason']}::{kwargs['match_count']}"),
     )
 

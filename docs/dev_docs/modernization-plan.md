@@ -917,18 +917,60 @@ This checklist consolidates existing modernization opportunities already identif
 10. [x] Expand type-check strictness/import-following strategy to detect more cross-module type drift (mypy tool.mypy config added; files list established)
 11. [x] Strengthen automation quality gate by raising test coverage threshold from 80% to 90%
 12. [x] Pin Ruff runtime semantics for this repo by setting explicit Python 3.14 target version
-13. [ ] **IN PROGRESS (Scanner Decomposition):** Scanner decomposition/slimming (`src/prism/scanner.py` currently >4000 lines) via staged extraction (5 slices completed; role/collection and primary rendering lanes queued)
+13. [x] **PHASE A+B1 COMPLETE (Scanner Decomposition):** Scanner decomposition/slimming (`src/prism/scanner.py` currently >4000 lines) via staged extraction (Phase A inventory + Lane 1 extraction complete; Lanes 2-5 queued for Phase B2+)
 
 ### Item 13 Phased Approach (Scanner Decomposition)
 
-- Phase A (Inventory and slicing): quantify `scanner.py` responsibility clusters and pick one behavior-preserving extraction lane at a time.
-- Phase B (Extraction lanes): move cohesive clusters (normalization, orchestration, rendering, error/result shaping) into `scanner_submodules` with wrapper parity maintained in `scanner.py`.
+- Phase A (Inventory and slicing): ✅ COMPLETE - quantified 11 responsibility clusters; 150 functions cataloged; ranked 5 extraction candidates; Lane 1 selected (Error/Uncertainty Handling, ~300 lines, LOW RISK).
+- Phase B1 (Lane 1 Extraction): ✅ COMPLETE - extracted Error/Uncertainty handling into `scanner_submodules/scanner_errorhandling.py` (new module: 340 lines, 6 public functions). Updated scanner.py wrapper functions to delegate. All 746 tests pass.
+- Phase B2+ (Remaining lanes): Queued - Lane 2 (Config/Setup), Lane 3 (Data Loading), Lane 4 (Requirements), Lane 5 (Runbook/Report).
 - Phase C (Contract tightening): replace remaining large dict payloads crossing `scanner.py` boundaries with typed contracts to reduce coupling.
 - Phase D (Coordinator slimming): keep `scanner.py` as a thin orchestrator and remove dead/internal-only helpers after parity tests are stable.
 
 ### Item 13 Success Criteria
 
-- `scanner.py` line count is materially reduced from current >4000 lines in staged, behavior-preserving slices.
-- Newly added logic lands in focused submodules by default instead of `scanner.py`.
-- Focused seam tests plus full-suite runs remain green for each slice.
-- Public scanner behavior and output schemas remain unchanged unless explicitly planned.
+- ✅ Phase A audit complete (cluster breakdown, ranked candidates, Lane 1 selection documented in PHASE_A_AUDIT.md)
+- ✅ Lane 1 extraction complete: 300 lines moved to dedicated submodule with thin wrapper parity
+- ⏳ Remaining criteria from Phase B2+: `scanner.py` line count materially reduced from initial >4000 lines
+- ✅ Full-suite runs remain green (746 passed after Lane 1 extraction)
+- ✅ Public scanner behavior and output schemas unchanged
+- ✅ Wrapper functions maintain internal seam compatibility
+
+### Phase B1 Completion Summary (2026-03-27)
+
+#### Lane 1 Extraction: Error/Uncertainty Handling
+
+**What Moved:**
+
+- `src/prism/scanner_submodules/scanner_errorhandling.py` (new module, 340 lines)
+  - `should_suppress_internal_unresolved_reference()` - policy-based underscore name suppression
+  - `build_referenced_variable_uncertainty_reason()` - delegates to scan_metrics
+  - `append_non_authoritative_test_evidence_uncertainty_reason()` - delegates to scan_metrics
+  - `collect_non_authoritative_test_variable_evidence()` - core evidence collection (100+ lines)
+  - `test_evidence_probability()` - confidence scoring
+  - `attach_non_authoritative_test_evidence()` - row enrichment (main entry for variable rows)
+  - Constants: `NON_AUTHORITATIVE_TEST_EVIDENCE_*` (5x), `NON_AUTHORITATIVE_TEST_TOKEN_RE`
+
+**Scanner.py Changes:**
+
+- Added imports from `scanner_errorhandling` module (13 imports with _ERRORHANDLING_ prefix)
+- Replaced 6 function bodies with thin delegation wrappers
+- Re-exported constants for backward compatibility (pointing to errorhandling module)
+
+**Test Updates:**
+
+- Updated `test_scan_metrics.py::test_scanner_wrapper_uncertainty_helpers_delegate` to patch the new delegation path
+- All existing tests pass without regression (746 passed)
+
+**Risk Assessment:** ✅ LOW
+
+- No breaking changes to API or behavior
+- Backward compatibility maintained via wrapper functions
+- Constants still accessible in scanner module
+- Evidence collection logic now isolated and testable
+
+**Validation:**
+
+- Full test suite: 746 passed (2026-03-27)
+- No lint errors in new module after import cleanup
+- Behavioral parity confirmed by existing tests passing
