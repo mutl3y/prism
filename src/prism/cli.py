@@ -4,18 +4,19 @@ Provides a small CLI wrapper around :func:`prism.scanner.run_scan`.
 """
 
 from __future__ import annotations
-import base64
 import argparse
-from datetime import datetime, UTC
+import base64
+from datetime import UTC, datetime
 import json
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
-import sys
+
 import yaml
 from .repo_services import (
     _build_sparse_clone_paths,
