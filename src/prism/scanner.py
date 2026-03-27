@@ -7,7 +7,7 @@ metadata and variables, and render a README using a Jinja2 template.
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 import os
 from pathlib import Path
 import re
@@ -18,7 +18,6 @@ import jinja2
 from .scanner_submodules.doc_insights import build_doc_insights, parse_comma_values
 from .scanner_submodules.output import (
     render_final_output,
-    resolve_output_path,
     write_output,
 )
 from .pattern_config import load_pattern_config
@@ -26,6 +25,10 @@ from .scanner_submodules.readme_config import (
     DEFAULT_DOC_MARKER_PREFIX as READMECFG_DEFAULT_DOC_MARKER_PREFIX,
     load_fail_on_unconstrained_dynamic_includes as _load_fail_on_unconstrained_dynamic_includes,
     load_fail_on_yaml_like_task_annotations as _load_fail_on_yaml_like_task_annotations,
+    load_ignore_unresolved_internal_underscore_references as _load_ignore_unresolved_internal_underscore_references,
+    load_non_authoritative_test_evidence_max_file_bytes as _load_non_authoritative_test_evidence_max_file_bytes,
+    load_non_authoritative_test_evidence_max_files_scanned as _load_non_authoritative_test_evidence_max_files_scanned,
+    load_non_authoritative_test_evidence_max_total_bytes as _load_non_authoritative_test_evidence_max_total_bytes,
     load_readme_marker_prefix as _load_readme_marker_prefix,
     load_readme_section_config as _load_readme_section_config,
     load_readme_section_visibility as _load_readme_section_visibility,
@@ -40,10 +43,47 @@ from .scanner_submodules.requirements import (
     normalize_meta_role_dependencies as _requirements_normalize_meta_deps,
     normalize_requirements as _requirements_normalize,
 )
+from .scanner_submodules.scan_request import (
+    build_run_scan_options as _scan_request_build_run_scan_options,
+    resolve_detailed_catalog_flag as _scan_request_resolve_detailed_catalog_flag,
+)
+from .scanner_submodules.scan_context import (
+    RunScanOutputPayload as _scan_context_RunScanOutputPayload,
+    EmitScanOutputsArgs as _scan_context_EmitScanOutputsArgs,
+    ScanReportSidecarArgs as _scan_context_ScanReportSidecarArgs,
+    ScanBaseContext as _scan_context_ScanBaseContext,
+    finalize_scan_context_payload as _scan_context_finalize_scan_context_payload,
+    build_scan_output_payload as _scan_context_build_scan_output_payload,
+    prepare_run_scan_payload as _scan_context_prepare_run_scan_payload,
+    build_emit_scan_outputs_args as _scan_context_build_emit_scan_outputs_args,
+    build_scan_report_sidecar_args as _scan_context_build_scan_report_sidecar_args,
+    RunbookSidecarArgs as _scan_context_RunbookSidecarArgs,
+    build_runbook_sidecar_args as _scan_context_build_runbook_sidecar_args,
+)
+from .scanner_submodules.scan_output_emission import (
+    write_concise_scanner_report_if_enabled as _scan_output_write_concise_scanner_report_if_enabled,
+    write_optional_runbook_outputs as _scan_output_write_optional_runbook_outputs,
+    emit_scan_outputs as _scan_output_emit_scan_outputs,
+)
+from .scanner_submodules.scan_output_primary import (
+    render_and_write_scan_output as _scan_output_primary_render_and_write_scan_output,
+    render_primary_scan_output as _scan_output_primary_render_primary_scan_output,
+)
+from .scanner_submodules.scan_metrics import (
+    extract_scanner_counters as _scan_metrics_extract_scanner_counters,
+    build_referenced_variable_uncertainty_reason as _scan_metrics_build_referenced_variable_uncertainty_reason,
+    append_non_authoritative_test_evidence_uncertainty_reason as _scan_metrics_append_non_authoritative_test_evidence_uncertainty_reason,
+)
+from .scanner_submodules.scan_discovery import (
+    iter_role_variable_map_candidates as _scan_discovery_iter_role_variable_map_candidates,
+    load_meta as _scan_discovery_load_meta,
+    load_requirements as _scan_discovery_load_requirements,
+    load_variables as _scan_discovery_load_variables,
+    resolve_scan_identity as _scan_discovery_resolve_scan_identity,
+)
 from .scanner_submodules.scanner_report import (
     build_scanner_report_markdown as _report_build_markdown,
     classify_provenance_issue as _report_classify_provenance_issue,
-    extract_scanner_counters as _report_extract_counters,
     is_unresolved_noise_category as _report_is_unresolved_noise_category,
 )
 from .scanner_submodules.runbook import (
@@ -288,6 +328,24 @@ MARKDOWN_VAR_NESTED_KEY_HINT_RE = re.compile(
     r"\b(attribute|attributes|key|keys|field|fields|dictionary|map|list item|sub-?key)\b",
     flags=re.IGNORECASE,
 )
+
+NON_AUTHORITATIVE_TEST_TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+NON_AUTHORITATIVE_TEST_EVIDENCE_ALLOWED_SUFFIXES = {
+    ".yml",
+    ".yaml",
+    ".j2",
+    ".jinja2",
+    ".json",
+    ".ini",
+    ".cfg",
+    ".conf",
+    ".md",
+    ".txt",
+}
+NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES = 512 * 1024
+NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED = 400
+NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES = 8 * 1024 * 1024
+NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT = 4
 
 
 def _refresh_policy(override_path: str | None = None) -> None:
@@ -799,13 +857,7 @@ def load_meta(role_path: str) -> dict:
 
     Returns a mapping (empty if missing or unparsable).
     """
-    meta_file = Path(role_path) / "meta" / "main.yml"
-    if meta_file.exists():
-        try:
-            return yaml.safe_load(meta_file.read_text(encoding="utf-8")) or {}
-        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
-            return {}
-    return {}
+    return _scan_discovery_load_meta(role_path)
 
 
 def _iter_role_argument_spec_entries(role_path: str):
@@ -873,21 +925,7 @@ def _iter_role_variable_map_candidates(role_root: Path, subdir: str) -> list[Pat
     1) ``<subdir>/main.yml`` then ``<subdir>/main.yaml`` fallback
     2) sorted fragments under ``<subdir>/main/*.yml`` then ``*.yaml``
     """
-    candidates: list[Path] = []
-
-    main_yml = role_root / subdir / "main.yml"
-    main_yaml = role_root / subdir / "main.yaml"
-    if main_yml.exists():
-        candidates.append(main_yml)
-    elif main_yaml.exists():
-        candidates.append(main_yaml)
-
-    fragment_dir = role_root / subdir / "main"
-    if fragment_dir.is_dir():
-        candidates.extend(sorted(fragment_dir.glob("*.yml")))
-        candidates.extend(sorted(fragment_dir.glob("*.yaml")))
-
-    return candidates
+    return _scan_discovery_iter_role_variable_map_candidates(role_root, subdir)
 
 
 def load_variables(
@@ -902,41 +940,20 @@ def load_variables(
     present.  ``include_vars``-referenced files are merged last (later files
     override earlier ones).  Returns a flat dict of all discovered variables.
     """
-    vars_out: dict = {}
-    role_root = Path(role_path)
-    subdirs = ["defaults"]
-    if include_vars_main:
-        subdirs.append("vars")
-
-    for sub in subdirs:
-        for p in _iter_role_variable_map_candidates(role_root, sub):
-            try:
-                data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-                if isinstance(data, dict):
-                    vars_out.update(data)
-            except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
-                continue
-    for extra_path in _collect_include_vars_files(
-        role_path, exclude_paths=exclude_paths
-    ):
-        try:
-            data = yaml.safe_load(extra_path.read_text(encoding="utf-8")) or {}
-            if isinstance(data, dict):
-                vars_out.update(data)
-        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
-            continue
-    return vars_out
+    return _scan_discovery_load_variables(
+        role_path,
+        include_vars_main=include_vars_main,
+        exclude_paths=exclude_paths,
+        collect_include_vars_files=lambda resolved_role_path, resolved_exclude_paths: _collect_include_vars_files(
+            resolved_role_path,
+            exclude_paths=resolved_exclude_paths,
+        ),
+    )
 
 
 def load_requirements(role_path: str) -> list:
     """Load ``meta/requirements.yml`` as a list, or return an empty list."""
-    p = Path(role_path) / "meta" / "requirements.yml"
-    if p.exists():
-        try:
-            return yaml.safe_load(p.read_text(encoding="utf-8")) or []
-        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
-            return []
-    return []
+    return _scan_discovery_load_requirements(role_path)
 
 
 def _format_requirement_line(item: object) -> str:
@@ -1504,6 +1521,7 @@ def _append_referenced_variable_rows(
     dynamic_include_vars_refs: list[str],
     dynamic_include_var_tokens: set[str],
     dynamic_task_include_tokens: set[str],
+    ignore_unresolved_internal_underscore_references: bool,
     exclude_paths: list[str] | None,
 ) -> None:
     """Append rows for referenced-but-undefined variable names."""
@@ -1513,6 +1531,14 @@ def _append_referenced_variable_rows(
     )
 
     for name in sorted(referenced_names - known_names):
+        if _should_suppress_internal_unresolved_reference(
+            name=name,
+            seed_values=seed_values,
+            ignore_unresolved_internal_underscore_references=(
+                ignore_unresolved_internal_underscore_references
+            ),
+        ):
+            continue
         rows.append(
             _build_referenced_variable_row(
                 name=name,
@@ -1524,6 +1550,21 @@ def _append_referenced_variable_rows(
                 dynamic_task_include_tokens=dynamic_task_include_tokens,
             )
         )
+
+
+def _should_suppress_internal_unresolved_reference(
+    *,
+    name: str,
+    seed_values: dict,
+    ignore_unresolved_internal_underscore_references: bool,
+) -> bool:
+    """Return whether an unresolved internal temp-style name should be skipped."""
+    if not ignore_unresolved_internal_underscore_references:
+        return False
+    if not name.startswith("_"):
+        return False
+    # Keep externally seeded underscore names; suppress unresolved temp-like names.
+    return name not in seed_values
 
 
 def _build_referenced_variable_row(
@@ -1572,21 +1613,207 @@ def _build_referenced_variable_uncertainty_reason(
     dynamic_task_include_tokens: set[str],
 ) -> str:
     """Return uncertainty reason text for inferred referenced variables."""
-    if seeded:
-        return "Provided by external seed vars."
-    message = "Referenced in role but no static definition found."
-    if dynamic_include_vars_refs and name in dynamic_include_var_tokens:
-        message = (
-            "Referenced in role but no static definition found. "
-            "Dynamic include_vars paths detected."
+    return _scan_metrics_build_referenced_variable_uncertainty_reason(
+        name=name,
+        seeded=seeded,
+        dynamic_include_vars_refs=dynamic_include_vars_refs,
+        dynamic_include_var_tokens=dynamic_include_var_tokens,
+        dynamic_task_include_tokens=dynamic_task_include_tokens,
+    )
+
+
+def _append_non_authoritative_test_evidence_uncertainty_reason(
+    *,
+    prior_reason: str,
+    match_count: int,
+    matched_file_count: int,
+    saturation_threshold: int,
+    scan_budget_hit: bool,
+) -> str:
+    """Append non-authoritative test-evidence telemetry to uncertainty notes."""
+    return _scan_metrics_append_non_authoritative_test_evidence_uncertainty_reason(
+        prior_reason=prior_reason,
+        match_count=match_count,
+        matched_file_count=matched_file_count,
+        saturation_threshold=saturation_threshold,
+        scan_budget_hit=scan_budget_hit,
+    )
+
+
+def _collect_non_authoritative_test_variable_evidence(
+    *,
+    role_path: str,
+    unresolved_names: set[str],
+    exclude_paths: list[str] | None,
+    max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
+    max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
+    max_total_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
+) -> dict[str, dict]:
+    """Collect non-authoritative unresolved-name evidence from tests/molecule files."""
+    if not unresolved_names:
+        return {}
+
+    active_names = set(unresolved_names)
+    role_root = Path(role_path).resolve()
+    files_scanned = 0
+    total_bytes_scanned = 0
+    budget_hit = False
+    evidence: dict[str, dict] = {
+        name: {"match_count": 0, "matched_files": set()} for name in unresolved_names
+    }
+
+    for dirname in ("tests", "molecule"):
+        root = role_root / dirname
+        if not root.is_dir():
+            continue
+        for file_path in sorted(root.rglob("*")):
+            if not active_names:
+                break
+            if files_scanned >= max_files_scanned:
+                budget_hit = True
+                break
+            if total_bytes_scanned >= max_total_bytes:
+                budget_hit = True
+                break
+            if not file_path.is_file():
+                continue
+            if _is_path_excluded(file_path, role_root, exclude_paths):
+                continue
+            if (
+                file_path.suffix.lower()
+                not in NON_AUTHORITATIVE_TEST_EVIDENCE_ALLOWED_SUFFIXES
+            ):
+                continue
+            try:
+                raw = file_path.read_bytes()
+            except OSError:
+                continue
+            if len(raw) > max_file_bytes:
+                continue
+            if total_bytes_scanned + len(raw) > max_total_bytes:
+                budget_hit = True
+                break
+            try:
+                text = raw.decode(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+
+            files_scanned += 1
+            total_bytes_scanned += len(raw)
+
+            file_counts: Counter[str] = Counter()
+            for token_match in NON_AUTHORITATIVE_TEST_TOKEN_RE.finditer(text):
+                token = token_match.group(0)
+                if token in active_names:
+                    file_counts[token] += 1
+            if not file_counts:
+                continue
+
+            rel_path = str(file_path.relative_to(role_root))
+            for name, matches in file_counts.items():
+                current = int(evidence[name]["match_count"])
+                remaining = (
+                    NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT - current
+                )
+                if remaining <= 0:
+                    active_names.discard(name)
+                    continue
+                applied = min(matches, remaining)
+                evidence[name]["match_count"] += applied
+                evidence[name]["matched_files"].add(rel_path)
+                if (
+                    evidence[name]["match_count"]
+                    >= NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT
+                ):
+                    active_names.discard(name)
+
+        if not active_names:
+            break
+        if files_scanned >= max_files_scanned:
+            break
+        if total_bytes_scanned >= max_total_bytes:
+            break
+
+    normalized: dict[str, dict] = {}
+    for name, item in evidence.items():
+        if item["match_count"] <= 0:
+            continue
+        normalized[name] = {
+            "match_count": item["match_count"],
+            "matched_files": sorted(item["matched_files"]),
+            "scan_budget_hit": budget_hit,
+        }
+    return normalized
+
+
+def _test_evidence_probability(match_count: int) -> float:
+    """Return a bounded confidence score for non-authoritative test evidence."""
+    if match_count <= 0:
+        return 0.0
+    return round(min(0.25 + (0.15 * min(match_count, 4)), 0.85), 2)
+
+
+def _attach_non_authoritative_test_evidence(
+    *,
+    role_path: str,
+    rows: list[dict],
+    exclude_paths: list[str] | None,
+    max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
+    max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
+    max_total_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
+) -> None:
+    """Enrich unresolved rows with non-authoritative evidence from tests files."""
+    unresolved_names = {
+        row["name"]
+        for row in rows
+        if row.get("is_unresolved") and isinstance(row.get("name"), str)
+    }
+    if not unresolved_names:
+        return
+
+    evidence_by_name = _collect_non_authoritative_test_variable_evidence(
+        role_path=role_path,
+        unresolved_names=unresolved_names,
+        exclude_paths=exclude_paths,
+        max_file_bytes=max_file_bytes,
+        max_files_scanned=max_files_scanned,
+        max_total_bytes=max_total_bytes,
+    )
+    if not evidence_by_name:
+        return
+
+    for row in rows:
+        if not row.get("is_unresolved"):
+            continue
+        name = row.get("name")
+        if not isinstance(name, str):
+            continue
+        evidence = evidence_by_name.get(name)
+        if not evidence:
+            continue
+        match_count = int(evidence["match_count"])
+        probability = _test_evidence_probability(match_count)
+        row["non_authoritative_test_evidence"] = {
+            "authoritative": False,
+            "match_count": match_count,
+            "matched_files": evidence["matched_files"],
+            "confidence": probability,
+            "probability": probability,
+            "saturation_applied": (
+                match_count >= NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT
+            ),
+            "saturation_threshold": NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT,
+            "scan_budget_hit": bool(evidence.get("scan_budget_hit")),
+        }
+        row["uncertainty_reason"] = (
+            _append_non_authoritative_test_evidence_uncertainty_reason(
+                prior_reason=str(row.get("uncertainty_reason") or "").strip(),
+                match_count=match_count,
+                matched_file_count=len(evidence["matched_files"]),
+                saturation_threshold=NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT,
+                scan_budget_hit=bool(evidence.get("scan_budget_hit")),
+            )
         )
-    if name in dynamic_task_include_tokens:
-        message += " Dynamic include_tasks/import_tasks paths detected."
-    if name.isupper():
-        message += (
-            " Uppercase name suggests an environment variable or external constant."
-        )
-    return message
 
 
 def build_variable_insights(
@@ -1595,6 +1822,10 @@ def build_variable_insights(
     include_vars_main: bool = True,
     exclude_paths: list[str] | None = None,
     style_readme_path: str | None = None,
+    ignore_unresolved_internal_underscore_references: bool = True,
+    non_authoritative_test_evidence_max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
+    non_authoritative_test_evidence_max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
+    non_authoritative_test_evidence_max_total_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
 ) -> list[dict]:
     """Build variable rows with inferred type/default/source details."""
     defaults_data, vars_data, defaults_sources, vars_sources = _load_role_variable_maps(
@@ -1622,6 +1853,18 @@ def build_variable_insights(
         exclude_paths=exclude_paths,
         reference_context=reference_context,
         style_readme_path=style_readme_path,
+        ignore_unresolved_internal_underscore_references=(
+            ignore_unresolved_internal_underscore_references
+        ),
+        non_authoritative_test_evidence_max_file_bytes=(
+            non_authoritative_test_evidence_max_file_bytes
+        ),
+        non_authoritative_test_evidence_max_files_scanned=(
+            non_authoritative_test_evidence_max_files_scanned
+        ),
+        non_authoritative_test_evidence_max_total_bytes=(
+            non_authoritative_test_evidence_max_total_bytes
+        ),
     )
 
     _redact_secret_defaults(rows)
@@ -1666,7 +1909,11 @@ def _populate_variable_rows(
     exclude_paths: list[str] | None,
     reference_context: dict,
     style_readme_path: str | None = None,
-) -> None:  # <- ADD THIS LINE (was missing)
+    ignore_unresolved_internal_underscore_references: bool = True,
+    non_authoritative_test_evidence_max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
+    non_authoritative_test_evidence_max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
+    non_authoritative_test_evidence_max_total_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
+) -> None:
     """Populate dynamic, documented, and inferred variable rows in-place."""
     role_root = Path(role_path).resolve()
     known_names = _append_include_vars_rows(
@@ -1706,6 +1953,9 @@ def _populate_variable_rows(
         dynamic_include_vars_refs=reference_context["dynamic_include_vars_refs"],
         dynamic_include_var_tokens=reference_context["dynamic_include_var_tokens"],
         dynamic_task_include_tokens=reference_context["dynamic_task_include_tokens"],
+        ignore_unresolved_internal_underscore_references=(
+            ignore_unresolved_internal_underscore_references
+        ),
         exclude_paths=exclude_paths,
     )
     known_names = _refresh_known_names(rows)
@@ -1714,6 +1964,14 @@ def _populate_variable_rows(
         rows=rows,
         known_names=known_names,
         style_readme_path=style_readme_path,
+    )
+    _attach_non_authoritative_test_evidence(
+        role_path=role_path,
+        rows=rows,
+        exclude_paths=exclude_paths,
+        max_file_bytes=non_authoritative_test_evidence_max_file_bytes,
+        max_files_scanned=non_authoritative_test_evidence_max_files_scanned,
+        max_total_bytes=non_authoritative_test_evidence_max_total_bytes,
     )
 
 
@@ -1804,6 +2062,66 @@ def load_fail_on_yaml_like_task_annotations(
 ) -> bool:
     """Load scan policy toggle for YAML-like task annotation strict failures."""
     return _load_fail_on_yaml_like_task_annotations(
+        role_path,
+        config_path=config_path,
+        default=default,
+        config_filenames=SECTION_CONFIG_FILENAMES,
+        default_filename=SECTION_CONFIG_FILENAME,
+    )
+
+
+def load_ignore_unresolved_internal_underscore_references(
+    role_path: str,
+    config_path: str | None = None,
+    default: bool = True,
+) -> bool:
+    """Load suppression toggle for unresolved internal underscore references."""
+    return _load_ignore_unresolved_internal_underscore_references(
+        role_path,
+        config_path=config_path,
+        default=default,
+        config_filenames=SECTION_CONFIG_FILENAMES,
+        default_filename=SECTION_CONFIG_FILENAME,
+    )
+
+
+def load_non_authoritative_test_evidence_max_file_bytes(
+    role_path: str,
+    config_path: str | None = None,
+    default: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
+) -> int:
+    """Load max bytes per file for tests/molecule evidence scanning."""
+    return _load_non_authoritative_test_evidence_max_file_bytes(
+        role_path,
+        config_path=config_path,
+        default=default,
+        config_filenames=SECTION_CONFIG_FILENAMES,
+        default_filename=SECTION_CONFIG_FILENAME,
+    )
+
+
+def load_non_authoritative_test_evidence_max_files_scanned(
+    role_path: str,
+    config_path: str | None = None,
+    default: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
+) -> int:
+    """Load max file-count budget for tests/molecule evidence scanning."""
+    return _load_non_authoritative_test_evidence_max_files_scanned(
+        role_path,
+        config_path=config_path,
+        default=default,
+        config_filenames=SECTION_CONFIG_FILENAMES,
+        default_filename=SECTION_CONFIG_FILENAME,
+    )
+
+
+def load_non_authoritative_test_evidence_max_total_bytes(
+    role_path: str,
+    config_path: str | None = None,
+    default: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
+) -> int:
+    """Load max aggregate byte budget for tests/molecule evidence scanning."""
+    return _load_non_authoritative_test_evidence_max_total_bytes(
         role_path,
         config_path=config_path,
         default=default,
@@ -2500,7 +2818,12 @@ def _apply_section_title_overrides(
     """Apply metadata-driven section title overrides to a copied section list."""
     overridden_sections = [dict(section) for section in ordered_sections]
     for section in overridden_sections:
-        override_title = section_title_overrides.get(section.get("id"))
+        section_id = section.get("id")
+        override_title = (
+            section_title_overrides.get(str(section_id))
+            if section_id is not None
+            else None
+        )
         if override_title:
             section["title"] = override_title
     return overridden_sections
@@ -2772,7 +3095,7 @@ def _extract_scanner_counters(
     parse_failures: list[dict[str, object]] | None = None,
 ) -> dict[str, int | dict[str, int]]:
     """Summarize scanner findings by certainty and variable category."""
-    return _report_extract_counters(
+    return _scan_metrics_extract_scanner_counters(
         variable_insights,
         default_filters,
         features,
@@ -2891,34 +3214,20 @@ def _write_concise_scanner_report_if_enabled(
     dry_run: bool,
 ) -> Path | None:
     """Write scanner sidecar report when concise mode is enabled."""
-    if not concise_readme:
-        return None
-
-    scanner_report_path = (
-        Path(scanner_report_output)
-        if scanner_report_output
-        else out_path.with_suffix(".scan-report.md")
-    )
-    metadata["concise_readme"] = True
-    metadata["include_scanner_report_link"] = include_scanner_report_link
-
-    if dry_run:
-        return scanner_report_path
-
-    scanner_report_path.parent.mkdir(parents=True, exist_ok=True)
-    scanner_report = _build_scanner_report_markdown(
+    return _scan_output_write_concise_scanner_report_if_enabled(
+        concise_readme=concise_readme,
+        scanner_report_output=scanner_report_output,
+        out_path=out_path,
+        include_scanner_report_link=include_scanner_report_link,
         role_name=role_name,
         description=description,
-        variables=display_variables,
-        requirements=requirements_display,
-        default_filters=undocumented_default_filters,
+        display_variables=display_variables,
+        requirements_display=requirements_display,
+        undocumented_default_filters=undocumented_default_filters,
         metadata=metadata,
+        dry_run=dry_run,
+        build_scanner_report_markdown=_build_scanner_report_markdown,
     )
-    scanner_report_path.write_text(scanner_report, encoding="utf-8")
-    metadata["scanner_report_relpath"] = os.path.relpath(
-        scanner_report_path, out_path.parent
-    )
-    return scanner_report_path
 
 
 def _resolve_scan_identity(
@@ -2926,16 +3235,11 @@ def _resolve_scan_identity(
     role_name_override: str | None,
 ) -> tuple[Path, dict, str, str]:
     """Resolve role path, metadata, role name, and description."""
-    rp = Path(role_path)
-    if not rp.is_dir():
-        raise FileNotFoundError(f"role path not found: {role_path}")
-    meta = load_meta(role_path)
-    galaxy = meta.get("galaxy_info", {}) if isinstance(meta, dict) else {}
-    role_name = galaxy.get("role_name", rp.name)
-    if role_name_override and (not galaxy.get("role_name") or role_name == "repo"):
-        role_name = role_name_override
-    description = galaxy.get("description", "")
-    return rp, meta, role_name, description
+    return _scan_discovery_resolve_scan_identity(
+        role_path,
+        role_name_override,
+        load_meta_fn=load_meta,
+    )
 
 
 def _collect_scan_artifacts(
@@ -2995,16 +3299,14 @@ def _write_optional_runbook_outputs(
     metadata: dict,
 ) -> None:
     """Write standalone runbook outputs when requested."""
-    if runbook_output:
-        rb_path = Path(runbook_output)
-        rb_path.parent.mkdir(parents=True, exist_ok=True)
-        rb_content = render_runbook(role_name, metadata)
-        rb_path.write_text(rb_content, encoding="utf-8")
-    if runbook_csv_output:
-        rb_csv_path = Path(runbook_csv_output)
-        rb_csv_path.parent.mkdir(parents=True, exist_ok=True)
-        rb_csv_content = render_runbook_csv(metadata)
-        rb_csv_path.write_text(rb_csv_content, encoding="utf-8")
+    _scan_output_write_optional_runbook_outputs(
+        runbook_output=runbook_output,
+        runbook_csv_output=runbook_csv_output,
+        role_name=role_name,
+        metadata=metadata,
+        render_runbook=render_runbook,
+        render_runbook_csv=render_runbook_csv,
+    )
 
 
 def _apply_readme_section_config(
@@ -3035,6 +3337,10 @@ def _collect_variable_insights_and_default_filter_findings(
     metadata: dict,
     marker_prefix: str,
     style_readme_path: str | None = None,
+    ignore_unresolved_internal_underscore_references: bool = True,
+    non_authoritative_test_evidence_max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
+    non_authoritative_test_evidence_max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
+    non_authoritative_test_evidence_max_total_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
 ) -> tuple[list[dict], list[dict], dict]:
     """Collect variable insights, scanner counters, and secret-masked defaults."""
     variable_insights = build_variable_insights(
@@ -3043,6 +3349,18 @@ def _collect_variable_insights_and_default_filter_findings(
         include_vars_main=include_vars_main,
         exclude_paths=exclude_path_patterns,
         style_readme_path=style_readme_path,
+        ignore_unresolved_internal_underscore_references=(
+            ignore_unresolved_internal_underscore_references
+        ),
+        non_authoritative_test_evidence_max_file_bytes=(
+            non_authoritative_test_evidence_max_file_bytes
+        ),
+        non_authoritative_test_evidence_max_files_scanned=(
+            non_authoritative_test_evidence_max_files_scanned
+        ),
+        non_authoritative_test_evidence_max_total_bytes=(
+            non_authoritative_test_evidence_max_total_bytes
+        ),
     )
     _attach_external_vars_context(metadata, vars_seed_paths)
     metadata["variable_insights"] = variable_insights
@@ -3177,41 +3495,67 @@ def _render_and_write_scan_output(
     dry_run: bool,
 ) -> str:
     """Render final output payload and write it unless dry-run is enabled."""
-    rendered = ""
-    if output_format != "json":
-        rendered = render_readme(
-            str(out_path),
-            role_name,
-            description,
-            display_variables,
-            requirements_display,
-            undocumented_default_filters,
-            template,
-            metadata,
-            write=False,
-        )
-
-    final_content = render_final_output(
-        rendered,
-        output_format,
-        role_name,
-        payload={
-            "role_name": role_name,
-            "description": description,
-            "variables": display_variables,
-            "requirements": requirements_display,
-            "default_filters": undocumented_default_filters,
-            "metadata": metadata,
-        },
+    return _scan_output_primary_render_and_write_scan_output(
+        out_path=out_path,
+        output_format=output_format,
+        role_name=role_name,
+        description=description,
+        display_variables=display_variables,
+        requirements_display=requirements_display,
+        undocumented_default_filters=undocumented_default_filters,
+        metadata=metadata,
+        template=template,
+        dry_run=dry_run,
+        render_readme=render_readme,
+        render_final_output=render_final_output,
+        write_output=write_output,
     )
-    if dry_run:
-        return final_content
-    return write_output(out_path, final_content)
 
 
 def _prepare_scan_context(scan_options: dict) -> tuple[str, str, str, list, list, dict]:
     """Collect role metadata and scanner context required for rendering outputs."""
     base_context = _collect_scan_base_context(scan_options)
+    config_default_ignore_unresolved_internal_underscore_references = (
+        load_ignore_unresolved_internal_underscore_references(
+            scan_options["role_path"],
+            config_path=scan_options["readme_config_path"],
+            default=True,
+        )
+    )
+    effective_ignore_unresolved_internal_underscore_references = (
+        config_default_ignore_unresolved_internal_underscore_references
+        if scan_options["ignore_unresolved_internal_underscore_references"] is None
+        else bool(scan_options["ignore_unresolved_internal_underscore_references"])
+    )
+    base_context["metadata"][
+        "ignore_unresolved_internal_underscore_references"
+    ] = effective_ignore_unresolved_internal_underscore_references
+    non_authoritative_test_evidence_max_file_bytes = (
+        load_non_authoritative_test_evidence_max_file_bytes(
+            scan_options["role_path"],
+            config_path=scan_options["readme_config_path"],
+            default=NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
+        )
+    )
+    non_authoritative_test_evidence_max_files_scanned = (
+        load_non_authoritative_test_evidence_max_files_scanned(
+            scan_options["role_path"],
+            config_path=scan_options["readme_config_path"],
+            default=NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
+        )
+    )
+    non_authoritative_test_evidence_max_total_bytes = (
+        load_non_authoritative_test_evidence_max_total_bytes(
+            scan_options["role_path"],
+            config_path=scan_options["readme_config_path"],
+            default=NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
+        )
+    )
+    base_context["metadata"]["non_authoritative_test_evidence_limits"] = {
+        "max_file_bytes": non_authoritative_test_evidence_max_file_bytes,
+        "max_files_scanned": non_authoritative_test_evidence_max_files_scanned,
+        "max_total_bytes": non_authoritative_test_evidence_max_total_bytes,
+    }
     undocumented_default_filters, display_variables = (
         _enrich_scan_context_with_insights(
             role_path=scan_options["role_path"],
@@ -3228,6 +3572,18 @@ def _prepare_scan_context(scan_options: dict) -> tuple[str, str, str, list, list
             style_source_path=scan_options["style_source_path"],
             style_guide_skeleton=scan_options["style_guide_skeleton"],
             compare_role_path=scan_options["compare_role_path"],
+            ignore_unresolved_internal_underscore_references=(
+                effective_ignore_unresolved_internal_underscore_references
+            ),
+            non_authoritative_test_evidence_max_file_bytes=(
+                non_authoritative_test_evidence_max_file_bytes
+            ),
+            non_authoritative_test_evidence_max_files_scanned=(
+                non_authoritative_test_evidence_max_files_scanned
+            ),
+            non_authoritative_test_evidence_max_total_bytes=(
+                non_authoritative_test_evidence_max_total_bytes
+            ),
         )
     )
     return _finalize_scan_context_payload(
@@ -3241,7 +3597,7 @@ def _prepare_scan_context(scan_options: dict) -> tuple[str, str, str, list, list
     )
 
 
-def _collect_scan_base_context(scan_options: dict) -> dict:
+def _collect_scan_base_context(scan_options: dict) -> _scan_context_ScanBaseContext:
     """Collect baseline scan artifacts and configured metadata state."""
     (
         rp,
@@ -3385,16 +3741,14 @@ def _finalize_scan_context_payload(
     metadata: dict,
 ) -> tuple[str, str, str, list, list, dict]:
     """Return normalized context payload used by run_scan output emission."""
-    return (
-        rp,
-        role_name,
-        description,
-        requirements_display,
-        undocumented_default_filters,
-        {
-            "display_variables": display_variables,
-            "metadata": metadata,
-        },
+    return _scan_context_finalize_scan_context_payload(
+        rp=rp,
+        role_name=role_name,
+        description=description,
+        requirements_display=requirements_display,
+        undocumented_default_filters=undocumented_default_filters,
+        display_variables=display_variables,
+        metadata=metadata,
     )
 
 
@@ -3405,7 +3759,7 @@ def _collect_scan_identity_and_artifacts(
     include_vars_main: bool,
     exclude_path_patterns: list[str] | None,
     detailed_catalog: bool,
-) -> tuple[str, dict, str, str, str, dict, list, list, dict]:
+) -> tuple[Path, dict, str, str, str, dict, list, list, dict]:
     """Resolve scan identity and collect core role artifacts."""
     rp, meta, role_name, description = _resolve_scan_identity(
         role_path,
@@ -3484,6 +3838,10 @@ def _enrich_scan_context_with_insights(
     style_source_path: str | None,
     style_guide_skeleton: bool,
     compare_role_path: str | None,
+    ignore_unresolved_internal_underscore_references: bool,
+    non_authoritative_test_evidence_max_file_bytes: int,
+    non_authoritative_test_evidence_max_files_scanned: int,
+    non_authoritative_test_evidence_max_total_bytes: int,
 ) -> tuple[list[dict], dict]:
     """Add variable/doc/style insights to scan metadata and display payloads."""
     variable_insights, undocumented_default_filters, display_variables = (
@@ -3497,6 +3855,18 @@ def _enrich_scan_context_with_insights(
             metadata=metadata,
             marker_prefix=marker_prefix,
             style_readme_path=style_readme_path,
+            ignore_unresolved_internal_underscore_references=(
+                ignore_unresolved_internal_underscore_references
+            ),
+            non_authoritative_test_evidence_max_file_bytes=(
+                non_authoritative_test_evidence_max_file_bytes
+            ),
+            non_authoritative_test_evidence_max_files_scanned=(
+                non_authoritative_test_evidence_max_files_scanned
+            ),
+            non_authoritative_test_evidence_max_total_bytes=(
+                non_authoritative_test_evidence_max_total_bytes
+            ),
         )
     )
     metadata["doc_insights"] = build_doc_insights(
@@ -3526,16 +3896,78 @@ def _build_scan_output_payload(
     requirements_display: list,
     undocumented_default_filters: list,
     metadata: dict,
-) -> dict:
+) -> _scan_context_RunScanOutputPayload:
     """Build the shared payload used for scanner report and primary output rendering."""
-    return {
-        "role_name": role_name,
-        "description": description,
-        "display_variables": display_variables,
-        "requirements_display": requirements_display,
-        "undocumented_default_filters": undocumented_default_filters,
-        "metadata": metadata,
-    }
+    return _scan_context_build_scan_output_payload(
+        role_name=role_name,
+        description=description,
+        display_variables=display_variables,
+        requirements_display=requirements_display,
+        undocumented_default_filters=undocumented_default_filters,
+        metadata=metadata,
+    )
+
+
+def _build_emit_scan_outputs_args(
+    *,
+    output: str,
+    output_format: str,
+    concise_readme: bool,
+    scanner_report_output: str | None,
+    include_scanner_report_link: bool,
+    payload: _scan_context_RunScanOutputPayload,
+    template: str | None,
+    dry_run: bool,
+    runbook_output: str | None,
+    runbook_csv_output: str | None,
+) -> _scan_context_EmitScanOutputsArgs:
+    """Build the typed argument bundle for _emit_scan_outputs."""
+    return _scan_context_build_emit_scan_outputs_args(
+        output=output,
+        output_format=output_format,
+        concise_readme=concise_readme,
+        scanner_report_output=scanner_report_output,
+        include_scanner_report_link=include_scanner_report_link,
+        payload=payload,
+        template=template,
+        dry_run=dry_run,
+        runbook_output=runbook_output,
+        runbook_csv_output=runbook_csv_output,
+    )
+
+
+def _build_scan_report_sidecar_args(
+    *,
+    concise_readme: bool,
+    scanner_report_output: str | None,
+    out_path: Path,
+    include_scanner_report_link: bool,
+    payload: _scan_context_RunScanOutputPayload,
+    dry_run: bool,
+) -> _scan_context_ScanReportSidecarArgs:
+    """Build the typed argument bundle for _write_concise_scanner_report_if_enabled."""
+    return _scan_context_build_scan_report_sidecar_args(
+        concise_readme=concise_readme,
+        scanner_report_output=scanner_report_output,
+        out_path=out_path,
+        include_scanner_report_link=include_scanner_report_link,
+        payload=payload,
+        dry_run=dry_run,
+    )
+
+
+def _build_runbook_sidecar_args(
+    *,
+    runbook_output: str | None,
+    runbook_csv_output: str | None,
+    payload: _scan_context_RunScanOutputPayload,
+) -> _scan_context_RunbookSidecarArgs:
+    """Build the typed argument bundle for _write_optional_runbook_outputs."""
+    return _scan_context_build_runbook_sidecar_args(
+        runbook_output=runbook_output,
+        runbook_csv_output=runbook_csv_output,
+        payload=payload,
+    )
 
 
 def _render_primary_scan_output(
@@ -3544,79 +3976,30 @@ def _render_primary_scan_output(
     output_format: str,
     template: str | None,
     dry_run: bool,
-    output_payload: dict,
+    output_payload: _scan_context_RunScanOutputPayload,
 ) -> str:
     """Render and optionally write the primary scan output."""
-    return _render_and_write_scan_output(
-        out_path=out_path,
-        output_format=output_format,
-        role_name=output_payload["role_name"],
-        description=output_payload["description"],
-        display_variables=output_payload["display_variables"],
-        requirements_display=output_payload["requirements_display"],
-        undocumented_default_filters=output_payload["undocumented_default_filters"],
-        metadata=output_payload["metadata"],
-        template=template,
-        dry_run=dry_run,
-    )
-
-
-def _emit_scan_outputs(
-    output: str,
-    output_format: str,
-    concise_readme: bool,
-    scanner_report_output: str | None,
-    include_scanner_report_link: bool,
-    role_name: str,
-    description: str,
-    display_variables: dict,
-    requirements_display: list,
-    undocumented_default_filters: list,
-    metadata: dict,
-    template: str | None,
-    dry_run: bool,
-    runbook_output: str | None,
-    runbook_csv_output: str | None,
-) -> str:
-    """Render primary outputs and optional sidecars for a scanner run."""
-    out_path = resolve_output_path(output, output_format)
-    output_payload = _build_scan_output_payload(
-        role_name=role_name,
-        description=description,
-        display_variables=display_variables,
-        requirements_display=requirements_display,
-        undocumented_default_filters=undocumented_default_filters,
-        metadata=metadata,
-    )
-    _write_concise_scanner_report_if_enabled(
-        concise_readme=concise_readme,
-        scanner_report_output=scanner_report_output,
-        out_path=out_path,
-        include_scanner_report_link=include_scanner_report_link,
-        role_name=output_payload["role_name"],
-        description=output_payload["description"],
-        display_variables=output_payload["display_variables"],
-        requirements_display=output_payload["requirements_display"],
-        undocumented_default_filters=output_payload["undocumented_default_filters"],
-        metadata=output_payload["metadata"],
-        dry_run=dry_run,
-    )
-    result = _render_primary_scan_output(
+    return _scan_output_primary_render_primary_scan_output(
         out_path=out_path,
         output_format=output_format,
         template=template,
         dry_run=dry_run,
         output_payload=output_payload,
+        render_and_write_scan_output=_render_and_write_scan_output,
     )
-    if dry_run:
-        return result
-    _write_optional_runbook_outputs(
-        runbook_output=runbook_output,
-        runbook_csv_output=runbook_csv_output,
-        role_name=output_payload["role_name"],
-        metadata=output_payload["metadata"],
+
+
+def _emit_scan_outputs(
+    args: _scan_context_EmitScanOutputsArgs,
+) -> str:
+    """Render primary outputs and optional sidecars for a scanner run."""
+    return _scan_output_emit_scan_outputs(
+        args,
+        build_scanner_report_markdown=_build_scanner_report_markdown,
+        render_and_write_output=_render_and_write_scan_output,
+        render_runbook_fn=render_runbook,
+        render_runbook_csv_fn=render_runbook_csv,
     )
-    return result
 
 
 def run_scan(
@@ -3641,6 +4024,7 @@ def run_scan(
     policy_config_path: str | None = None,
     fail_on_unconstrained_dynamic_includes: bool | None = None,
     fail_on_yaml_like_task_annotations: bool | None = None,
+    ignore_unresolved_internal_underscore_references: bool | None = None,
     detailed_catalog: bool = False,
     dry_run: bool = False,
     include_collection_checks: bool = True,
@@ -3676,25 +4060,24 @@ def run_scan(
         compare_role_path=compare_role_path,
         fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
         fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
+        ignore_unresolved_internal_underscore_references=(
+            ignore_unresolved_internal_underscore_references
+        ),
     )
     prepared = _prepare_run_scan_payload(scan_options)
-    return _emit_scan_outputs(
+    emit_args = _build_emit_scan_outputs_args(
         output=output,
         output_format=output_format,
         concise_readme=concise_readme,
         scanner_report_output=scanner_report_output,
         include_scanner_report_link=include_scanner_report_link,
-        role_name=prepared["role_name"],
-        description=prepared["description"],
-        display_variables=prepared["display_variables"],
-        requirements_display=prepared["requirements_display"],
-        undocumented_default_filters=prepared["undocumented_default_filters"],
-        metadata=prepared["metadata"],
+        payload=prepared,
         template=template,
         dry_run=dry_run,
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
     )
+    return _emit_scan_outputs(emit_args)
 
 
 def _resolve_detailed_catalog_flag(
@@ -3704,9 +4087,11 @@ def _resolve_detailed_catalog_flag(
     runbook_csv_output: str | None,
 ) -> bool:
     """Ensure task catalog collection is enabled when standalone runbooks are requested."""
-    if runbook_output or runbook_csv_output:
-        return True
-    return detailed_catalog
+    return _scan_request_resolve_detailed_catalog_flag(
+        detailed_catalog=detailed_catalog,
+        runbook_output=runbook_output,
+        runbook_csv_output=runbook_csv_output,
+    )
 
 
 def _build_run_scan_options(
@@ -3730,48 +4115,40 @@ def _build_run_scan_options(
     compare_role_path: str | None,
     fail_on_unconstrained_dynamic_includes: bool | None,
     fail_on_yaml_like_task_annotations: bool | None,
+    ignore_unresolved_internal_underscore_references: bool | None,
 ) -> dict:
     """Build normalized scan options consumed by scan orchestration helpers."""
-    return {
-        "role_path": role_path,
-        "role_name_override": role_name_override,
-        "readme_config_path": readme_config_path,
-        "include_vars_main": include_vars_main,
-        "exclude_path_patterns": exclude_path_patterns,
-        "detailed_catalog": detailed_catalog,
-        "include_task_parameters": include_task_parameters,
-        "include_task_runbooks": include_task_runbooks,
-        "inline_task_runbooks": inline_task_runbooks,
-        "include_collection_checks": include_collection_checks,
-        "keep_unknown_style_sections": keep_unknown_style_sections,
-        "adopt_heading_mode": adopt_heading_mode,
-        "vars_seed_paths": vars_seed_paths,
-        "style_readme_path": style_readme_path,
-        "style_source_path": style_source_path,
-        "style_guide_skeleton": style_guide_skeleton,
-        "compare_role_path": compare_role_path,
-        "fail_on_unconstrained_dynamic_includes": (
-            fail_on_unconstrained_dynamic_includes
+    return _scan_request_build_run_scan_options(
+        role_path=role_path,
+        role_name_override=role_name_override,
+        readme_config_path=readme_config_path,
+        include_vars_main=include_vars_main,
+        exclude_path_patterns=exclude_path_patterns,
+        detailed_catalog=detailed_catalog,
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
+        include_collection_checks=include_collection_checks,
+        keep_unknown_style_sections=keep_unknown_style_sections,
+        adopt_heading_mode=adopt_heading_mode,
+        vars_seed_paths=vars_seed_paths,
+        style_readme_path=style_readme_path,
+        style_source_path=style_source_path,
+        style_guide_skeleton=style_guide_skeleton,
+        compare_role_path=compare_role_path,
+        fail_on_unconstrained_dynamic_includes=(fail_on_unconstrained_dynamic_includes),
+        fail_on_yaml_like_task_annotations=(fail_on_yaml_like_task_annotations),
+        ignore_unresolved_internal_underscore_references=(
+            ignore_unresolved_internal_underscore_references
         ),
-        "fail_on_yaml_like_task_annotations": (fail_on_yaml_like_task_annotations),
-    }
+    )
 
 
-def _prepare_run_scan_payload(scan_options: dict) -> dict:
+def _prepare_run_scan_payload(
+    scan_options: dict,
+) -> _scan_context_RunScanOutputPayload:
     """Prepare role metadata and display payloads used by scan output emission."""
-    (
-        _rp,
-        role_name,
-        description,
-        requirements_display,
-        undocumented_default_filters,
-        scan_context,
-    ) = _prepare_scan_context(scan_options)
-    return {
-        "role_name": role_name,
-        "description": description,
-        "requirements_display": requirements_display,
-        "undocumented_default_filters": undocumented_default_filters,
-        "display_variables": scan_context["display_variables"],
-        "metadata": scan_context["metadata"],
-    }
+    prepared_scan_context = _prepare_scan_context(scan_options)
+    return _scan_context_prepare_run_scan_payload(
+        prepared_scan_context=prepared_scan_context,
+    )

@@ -118,6 +118,90 @@ def test_load_fail_on_yaml_like_task_annotations_returns_default_on_parse_error(
     assert scanner.load_fail_on_yaml_like_task_annotations(str(role), default=True)
 
 
+def test_load_ignore_unresolved_internal_underscore_references_reads_scan_toggle(
+    tmp_path,
+):
+    """load_ignore_unresolved_internal_underscore_references reads scan-level toggle values."""
+    role = _write_role_prism_config(
+        tmp_path,
+        "scan:\n  ignore_unresolved_internal_underscore_references: 'no'\n",
+    )
+    assert (
+        scanner.load_ignore_unresolved_internal_underscore_references(str(role))
+        is False
+    )
+
+
+def test_load_ignore_unresolved_internal_underscore_references_returns_default_on_parse_error(
+    tmp_path,
+):
+    """load_ignore_unresolved_internal_underscore_references falls back on invalid YAML."""
+    role = _write_role_prism_config(tmp_path, "scan: [\n  unclosed\n")
+    assert (
+        scanner.load_ignore_unresolved_internal_underscore_references(
+            str(role),
+            default=False,
+        )
+        is False
+    )
+
+
+def test_load_ignore_unresolved_internal_underscore_references_defaults_true_on_error(
+    tmp_path,
+):
+    """Invalid config falls back to default suppression behavior (enabled)."""
+    role = _write_role_prism_config(tmp_path, "scan: [\n  unclosed\n")
+    assert scanner.load_ignore_unresolved_internal_underscore_references(str(role))
+
+
+def test_load_non_authoritative_test_evidence_limits_reads_scan_values(tmp_path):
+    """Budget limit loaders read positive integer scan-level config values."""
+    role = _write_role_prism_config(
+        tmp_path,
+        "scan:\n"
+        "  non_authoritative_test_evidence_max_file_bytes: 12345\n"
+        "  non_authoritative_test_evidence_max_files_scanned: 77\n"
+        "  non_authoritative_test_evidence_max_total_bytes: 456789\n",
+    )
+
+    assert (
+        scanner.load_non_authoritative_test_evidence_max_file_bytes(str(role)) == 12345
+    )
+    assert (
+        scanner.load_non_authoritative_test_evidence_max_files_scanned(str(role)) == 77
+    )
+    assert (
+        scanner.load_non_authoritative_test_evidence_max_total_bytes(str(role))
+        == 456789
+    )
+
+
+def test_load_non_authoritative_test_evidence_limits_fallback_on_invalid_values(
+    tmp_path,
+):
+    """Budget limit loaders return defaults when values are invalid."""
+    role = _write_role_prism_config(
+        tmp_path,
+        "scan:\n"
+        "  non_authoritative_test_evidence_max_file_bytes: -1\n"
+        "  non_authoritative_test_evidence_max_files_scanned: nope\n"
+        "  non_authoritative_test_evidence_max_total_bytes: 0\n",
+    )
+
+    assert (
+        scanner.load_non_authoritative_test_evidence_max_file_bytes(str(role))
+        == scanner.NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES
+    )
+    assert (
+        scanner.load_non_authoritative_test_evidence_max_files_scanned(str(role))
+        == scanner.NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED
+    )
+    assert (
+        scanner.load_non_authoritative_test_evidence_max_total_bytes(str(role))
+        == scanner.NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES
+    )
+
+
 def test_load_readme_section_visibility_returns_enabled_sections_set(tmp_path):
     """load_readme_section_visibility returns a set of enabled section ids."""
     role = _write_role_prism_config(

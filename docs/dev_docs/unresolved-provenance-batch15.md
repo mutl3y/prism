@@ -68,22 +68,24 @@ For both roles, the scanner *could* prove provenance by cross-referencing `meta/
   - `lightweight_readme_only=true`
   - 10 failures are expected non-role repos (`FileNotFoundError: repository path does not look like an Ansible role: .`).
 - **Batch 22:** `ansible-lockdown-controlled-b15mode-fullscan-20260325`
-  - `total_targets=39`, `finished_at_utc=NULL`, `succeeded=0`, `failed=0` at capture time.
-  - Snapshot count was still changing while polling, so this run was still in progress and not yet suitable for promotion/comparison conclusions.
+  - `total_targets=39`, `succeeded=39`, `failed=0`, `finished_at_utc=2026-03-25 21:09:06+00`
+  - `lightweight_readme_only=false` (full-scan mode), with 39 snapshots recorded.
+  - This run is now complete and suitable as a controlled full-scan reference point for the ansible-lockdown cohort.
 - **Batch 23:** `ansible-lockdown-controlled-fullscan-workers1b-20260325`
-  - Observed in recent batch listings with no finished timestamp and no finalized success/failure totals at capture time.
-  - Treat as in-progress telemetry, not a completed full-scan comparison point.
+  - `total_targets=39`, `succeeded=0`, `failed=0`, `finished_at_utc=2026-03-25 20:59:16+00`
+  - No snapshots were recorded for this batch, so it is not usable as a scan-quality comparison point.
 
 #### Comparability Result
 
 - The overlap between Batch 15 and Batch 19 had only 5 repos with baseline metadata.
 - For all 5 overlap repos, Batch 19 reported `tasks_scanned_after=0` and `task_files_scanned_after=0`.
 - The apparent unresolved deltas in Batch 19 (for example AZURE-CIS `128 -> 0`, RHEL7-STIG `42 -> 0`, Windows-2022-STIG `47 -> 0`) are therefore **not true quality improvements**; they are a scan-mode artifact from `lightweight_readme_only=true`.
+- Any candidate row with `tasks_scanned=0` or `task_files_scanned=0` is non-comparable for unresolved-quality trend interpretation.
 
 #### Decision
 
 - Do **not** use Batch 19 unresolved reductions as evidence of scanner quality improvement.
-- Do **not** use Batch 22/23 interim values for unresolved-noise claims until `finished_at_utc` is populated and counters stabilize.
+- Batch 22 is complete and can be used for full-scan controlled-cohort analysis; Batch 23 is complete but non-informative (`0` snapshots).
 - Treat any unresolved deltas where `tasks_scanned=0` as scan-mode artifacts, not model-quality wins.
 - Re-run the same cohort with full scan and wait for completion before making promotion/comparison claims.
 

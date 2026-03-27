@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: MIT-0
+---
+# prism~runbook:
+# wait for the service port before checking application health
+# treat repeated health failures as rollback signals, not as retries forever
+- name: Wait for application port
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ comment_demo_http_port }}"
+    timeout: 30
+
+# prism~task: Verify health endpoint returns success | warning: capture the failing payload in the incident ticket before rolling back
+- name: Verify health endpoint returns success
+  ansible.builtin.uri:
+    url: "{{ comment_demo_healthcheck_url }}"
+    method: GET
+    status_code: 200
+  register: comment_demo_healthcheck
+
+# prism~task: Assert deployed version matches expectation | note: a version mismatch usually means the symlink or artifact selection drifted
+- name: Assert deployed version matches expectation
+  ansible.builtin.assert:
+    that:
+      - comment_demo_expected_version == comment_demo_release_version
+    fail_msg: The running version did not match the requested release.
+
+# prism~task: Record validation outcome | runbook: capture a final status line so the generated runbook contains a clean postcheck narrative
+- name: Record validation outcome
+  ansible.builtin.debug:
+    msg: "Validation complete for {{ comment_demo_release_version }}"

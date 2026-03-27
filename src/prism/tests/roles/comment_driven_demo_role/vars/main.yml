@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT-0
+---
+# prism~deprecated: prefer comment_demo_expected_version over legacy_release_marker in downstream automation
+# prism~note: operators often override comment_demo_healthcheck_url in ephemeral test environments
+
+legacy_release_marker: stable
+comment_demo_runtime_group: commentdemo

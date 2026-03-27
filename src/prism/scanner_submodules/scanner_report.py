@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Any, Callable, TypedDict, cast
 
 
 PRECEDENCE_DEFAULTS_OVERRIDDEN_BY_VARS = "precedence_defaults_overridden_by_vars"
@@ -20,6 +20,251 @@ UNRESOLVED_NOISE_CATEGORY_KEYS = frozenset(
 )
 
 
+class ScannerCounters(TypedDict):
+    """Typed scanner counter payload used by report rendering and sidecars."""
+
+    total_variables: int
+    documented_variables: int
+    undocumented_variables: int
+    unresolved_variables: int
+    unresolved_noise_variables: int
+    ambiguous_variables: int
+    secret_variables: int
+    required_variables: int
+    high_confidence_variables: int
+    medium_confidence_variables: int
+    low_confidence_variables: int
+    total_default_filters: int
+    undocumented_default_filters: int
+    included_role_calls: int
+    dynamic_included_role_calls: int
+    disabled_task_annotations: int
+    yaml_like_task_annotations: int
+    yaml_parse_failures: int
+    non_authoritative_test_evidence_variables: int
+    non_authoritative_test_evidence_saturation_hits: int
+    non_authoritative_test_evidence_budget_hits: int
+    provenance_issue_categories: dict[str, int]
+
+
+class ScannerReportMetadata(TypedDict, total=False):
+    """Typed metadata contract consumed by scanner-report rendering helpers."""
+
+    scanner_counters: ScannerCounters
+    variable_insights: list[dict[str, Any]]
+    features: dict[str, Any]
+    yaml_parse_failures: list[dict[str, object]]
+
+
+class ReadmeSectionRenderInput(TypedDict):
+    """Typed contract for readme section rendering invocation inputs."""
+
+    section_id: str
+    role_name: str
+    description: str
+    variables: dict[str, Any]
+    requirements: list[Any]
+    default_filters: list[Any]
+    metadata: ScannerReportMetadata
+
+
+class ScannerReportIssueListRow(TypedDict):
+    """Typed contract for scanner report issue-list row rendering."""
+
+    name: str
+    uncertainty_reason: str | None
+
+
+class ScannerReportYamlParseFailureRow(TypedDict):
+    """Typed contract for scanner report YAML parse-failure row rendering."""
+
+    location: str
+    error: str
+
+
+class AnnotationQualityCounters(TypedDict):
+    """Typed annotation-quality counter payload extracted from scan features."""
+
+    disabled_task_annotations: int
+    yaml_like_task_annotations: int
+
+
+class ScannerReportSectionRenderInput(TypedDict):
+    """Typed contract for scanner report section-title/body rendering."""
+
+    title: str
+    body: str
+
+
+class NormalizedScannerReportMetadata(TypedDict):
+    """Typed optional-field normalization result for scanner-report metadata."""
+
+    scanner_counters: ScannerCounters | None
+    variable_insights: list[dict[str, Any]]
+    features: dict[str, Any]
+    yaml_parse_failures: list[dict[str, object]]
+
+
+class SectionBodyRenderResult(TypedDict):
+    """Typed result of a readme section body renderer invocation."""
+
+    body: str
+    has_content: bool
+
+
+ReadmeSectionBodyRenderer = Callable[
+    [
+        str,
+        str,
+        str,
+        dict[str, Any],
+        list[Any],
+        list[Any],
+        ScannerReportMetadata,
+    ],
+    str,
+]
+
+
+def build_readme_section_render_input(
+    *,
+    section_id: str,
+    role_name: str,
+    description: str,
+    variables: dict[str, Any],
+    requirements: list[Any],
+    default_filters: list[Any],
+    metadata: ScannerReportMetadata,
+) -> ReadmeSectionRenderInput:
+    """Build typed readme-section render inputs for scanner report rendering."""
+    return {
+        "section_id": section_id,
+        "role_name": role_name,
+        "description": description,
+        "variables": variables,
+        "requirements": requirements,
+        "default_filters": default_filters,
+        "metadata": metadata,
+    }
+
+
+def build_scanner_report_issue_list_row(
+    *, row: dict[str, Any]
+) -> ScannerReportIssueListRow:
+    """Build typed scanner report issue-list row payloads from raw insights."""
+    reason_value = row.get("uncertainty_reason") or None
+    return {
+        "name": str(row["name"]),
+        "uncertainty_reason": (str(reason_value) if reason_value is not None else None),
+    }
+
+
+def render_scanner_report_issue_list_row(
+    *, row: ScannerReportIssueListRow, fallback_reason: str
+) -> str:
+    """Render one markdown row for unresolved/ambiguous issue lists."""
+    reason = row["uncertainty_reason"] or fallback_reason
+    return f"- `{row['name']}`: {reason}"
+
+
+def build_scanner_report_yaml_parse_failure_row(
+    *, row: dict[str, object]
+) -> ScannerReportYamlParseFailureRow:
+    """Build typed scanner report YAML parse-failure row payloads."""
+    file_name = str(row.get("file") or "<unknown>")
+    line = row.get("line")
+    column = row.get("column")
+    location = (
+        f"{file_name}:{line}:{column}"
+        if line is not None and column is not None
+        else file_name
+    )
+    message = str(row.get("error") or "parse error")
+    return {"location": location, "error": message}
+
+
+def render_scanner_report_yaml_parse_failure_row(
+    *, row: ScannerReportYamlParseFailureRow
+) -> str:
+    """Render one markdown row for YAML parse-failure lists."""
+    return f"- `{row['location']}`: {row['error']}"
+
+
+def build_scanner_report_section_render_input(
+    *, title: str, body: str
+) -> ScannerReportSectionRenderInput:
+    """Build typed scanner report section-title/body payloads."""
+    return {
+        "title": title,
+        "body": body,
+    }
+
+
+def render_scanner_report_section(*, row: ScannerReportSectionRenderInput) -> list[str]:
+    """Render section heading/body lines for scanner report markdown."""
+    return [
+        row["title"],
+        "-" * len(row["title"]),
+        "",
+        row["body"],
+        "",
+    ]
+
+
+def normalize_section_body_render_result(raw: str) -> SectionBodyRenderResult:
+    """Normalize a raw renderer result string into a typed result payload."""
+    stripped = raw.strip()
+    return {"body": stripped, "has_content": bool(stripped)}
+
+
+def invoke_readme_section_renderer(
+    render_input: ReadmeSectionRenderInput,
+    renderer: ReadmeSectionBodyRenderer,
+) -> SectionBodyRenderResult:
+    """Invoke the section body renderer with typed inputs and normalize the result."""
+    raw = renderer(
+        render_input["section_id"],
+        render_input["role_name"],
+        render_input["description"],
+        render_input["variables"],
+        render_input["requirements"],
+        render_input["default_filters"],
+        render_input["metadata"],
+    )
+    return normalize_section_body_render_result(raw)
+
+
+def coerce_optional_scanner_report_metadata_fields(
+    metadata: ScannerReportMetadata,
+) -> NormalizedScannerReportMetadata:
+    """Coerce optional scanner-report metadata fields to stable typed containers."""
+    raw_counters = metadata.get("scanner_counters")
+    raw_variable_insights = metadata.get("variable_insights")
+    raw_features = metadata.get("features")
+    raw_parse_failures = metadata.get("yaml_parse_failures")
+
+    return {
+        "scanner_counters": (
+            cast(ScannerCounters, raw_counters)
+            if isinstance(raw_counters, dict)
+            else None
+        ),
+        "variable_insights": (
+            cast(list[dict[str, Any]], raw_variable_insights)
+            if isinstance(raw_variable_insights, list)
+            else []
+        ),
+        "features": (
+            cast(dict[str, Any], raw_features) if isinstance(raw_features, dict) else {}
+        ),
+        "yaml_parse_failures": (
+            cast(list[dict[str, object]], raw_parse_failures)
+            if isinstance(raw_parse_failures, list)
+            else []
+        ),
+    }
+
+
 def _normalize_provenance_issue_category(category: str | None) -> str | None:
     """Map legacy category labels onto current stable labels."""
     if category == LEGACY_AMBIGUOUS_DEFAULTS_VARS_OVERRIDE:
@@ -33,7 +278,7 @@ def is_unresolved_noise_category(category: str | None) -> bool:
     return normalized in UNRESOLVED_NOISE_CATEGORY_KEYS
 
 
-def classify_provenance_issue(row: dict) -> str | None:
+def classify_provenance_issue(row: dict[str, Any]) -> str | None:
     """Return a stable provenance category label for unresolved/ambiguous rows."""
     reason = str(row.get("uncertainty_reason") or "").lower()
     source = str(row.get("source") or "").lower()
@@ -60,14 +305,28 @@ def classify_provenance_issue(row: dict) -> str | None:
     return None
 
 
+def coerce_annotation_quality_counters_from_features(
+    features: dict[str, Any],
+) -> AnnotationQualityCounters:
+    """Extract and coerce annotation-quality counters from scan features."""
+    return {
+        "disabled_task_annotations": int(
+            features.get("disabled_task_annotations") or 0
+        ),
+        "yaml_like_task_annotations": int(
+            features.get("yaml_like_task_annotations") or 0
+        ),
+    }
+
+
 def extract_scanner_counters(
-    variable_insights: list[dict],
-    default_filters: list[dict],
-    features: dict | None = None,
+    variable_insights: list[dict[str, Any]],
+    default_filters: list[dict[str, Any]],
+    features: dict[str, Any] | None = None,
     parse_failures: list[dict[str, object]] | None = None,
-) -> dict[str, int | dict[str, int]]:
+) -> ScannerCounters:
     """Summarize scanner findings by certainty and variable category."""
-    counters = {
+    counters: ScannerCounters = {
         "total_variables": len(variable_insights),
         "documented_variables": 0,
         "undocumented_variables": 0,
@@ -86,6 +345,9 @@ def extract_scanner_counters(
         "disabled_task_annotations": 0,
         "yaml_like_task_annotations": 0,
         "yaml_parse_failures": len(parse_failures or []),
+        "non_authoritative_test_evidence_variables": 0,
+        "non_authoritative_test_evidence_saturation_hits": 0,
+        "non_authoritative_test_evidence_budget_hits": 0,
         "provenance_issue_categories": {
             "unresolved_readme_documented_only": 0,
             "unresolved_dynamic_include_vars": 0,
@@ -139,17 +401,26 @@ def extract_scanner_counters(
         else:
             counters["low_confidence_variables"] += 1
 
+        test_evidence = row.get("non_authoritative_test_evidence")
+        if isinstance(test_evidence, dict):
+            counters["non_authoritative_test_evidence_variables"] += 1
+            if bool(test_evidence.get("saturation_applied")):
+                counters["non_authoritative_test_evidence_saturation_hits"] += 1
+            if bool(test_evidence.get("scan_budget_hit")):
+                counters["non_authoritative_test_evidence_budget_hits"] += 1
+
     features = features or {}
     counters["included_role_calls"] = int(features.get("included_role_calls") or 0)
     counters["dynamic_included_role_calls"] = int(
         features.get("dynamic_included_role_calls") or 0
     )
-    counters["disabled_task_annotations"] = int(
-        features.get("disabled_task_annotations") or 0
-    )
-    counters["yaml_like_task_annotations"] = int(
-        features.get("yaml_like_task_annotations") or 0
-    )
+    annotation_quality = coerce_annotation_quality_counters_from_features(features)
+    counters["disabled_task_annotations"] = annotation_quality[
+        "disabled_task_annotations"
+    ]
+    counters["yaml_like_task_annotations"] = annotation_quality[
+        "yaml_like_task_annotations"
+    ]
 
     return counters
 
@@ -158,20 +429,21 @@ def build_scanner_report_markdown(
     *,
     role_name: str,
     description: str,
-    variables: dict,
-    requirements: list,
-    default_filters: list,
-    metadata: dict,
-    render_section_body: Callable[..., str],
+    variables: dict[str, Any],
+    requirements: list[Any],
+    default_filters: list[Any],
+    metadata: ScannerReportMetadata,
+    render_section_body: ReadmeSectionBodyRenderer,
 ) -> str:
     """Render a scanner-focused markdown sidecar report."""
-    counters = metadata.get("scanner_counters") or extract_scanner_counters(
-        metadata.get("variable_insights") or [],
+    normalized = coerce_optional_scanner_report_metadata_fields(metadata)
+    counters = normalized["scanner_counters"] or extract_scanner_counters(
+        normalized["variable_insights"],
         default_filters,
-        metadata.get("features") or {},
-        metadata.get("yaml_parse_failures") or [],
+        normalized["features"],
+        normalized["yaml_parse_failures"],
     )
-    parse_failures = metadata.get("yaml_parse_failures") or []
+    parse_failures = normalized["yaml_parse_failures"]
     lines = [
         f"{role_name} scanner report",
         "=" * (len(role_name) + len(" scanner report")),
@@ -188,9 +460,15 @@ def build_scanner_report_markdown(
         f"- **Role include graph signals**: static={counters['included_role_calls']}, dynamic={counters['dynamic_included_role_calls']}",
         f"- **Task annotation quality**: disabled={counters.get('disabled_task_annotations', 0)}, yaml_like={counters.get('yaml_like_task_annotations', 0)}",
         f"- **YAML parse failures**: {counters['yaml_parse_failures']}",
+        (
+            "- **Test-evidence telemetry**: "
+            f"vars={counters.get('non_authoritative_test_evidence_variables', 0)}, "
+            f"saturated={counters.get('non_authoritative_test_evidence_saturation_hits', 0)}, "
+            f"budget_hits={counters.get('non_authoritative_test_evidence_budget_hits', 0)}"
+        ),
     ]
 
-    issue_categories = counters.get("provenance_issue_categories") or {}
+    issue_categories = counters["provenance_issue_categories"]
     non_zero_categories = [
         (name, value) for name, value in issue_categories.items() if value
     ]
@@ -201,43 +479,47 @@ def build_scanner_report_markdown(
     lines.append("")
 
     unresolved_rows = [
-        row
-        for row in (metadata.get("variable_insights") or [])
-        if row.get("is_unresolved")
+        row for row in normalized["variable_insights"] if row.get("is_unresolved")
     ]
     ambiguous_rows = [
-        row
-        for row in (metadata.get("variable_insights") or [])
-        if row.get("is_ambiguous")
+        row for row in normalized["variable_insights"] if row.get("is_ambiguous")
     ]
     if unresolved_rows or ambiguous_rows:
         lines.extend(["Variable provenance issues", "-------------------------", ""])
         if unresolved_rows:
             lines.append("Unresolved variables:")
             for row in unresolved_rows:
-                reason = row.get("uncertainty_reason") or "Unknown source."
-                lines.append(f"- `{row['name']}`: {reason}")
+                issue_row = build_scanner_report_issue_list_row(row=row)
+                lines.append(
+                    render_scanner_report_issue_list_row(
+                        row=issue_row,
+                        fallback_reason="Unknown source.",
+                    )
+                )
             lines.append("")
 
     if parse_failures:
         lines.extend(["YAML parse failures", "-------------------", ""])
         for item in parse_failures:
-            file_name = str(item.get("file") or "<unknown>")
-            line = item.get("line")
-            column = item.get("column")
-            location = (
-                f"{file_name}:{line}:{column}"
-                if line is not None and column is not None
-                else file_name
+            parse_failure_row = build_scanner_report_yaml_parse_failure_row(
+                row=item,
             )
-            message = str(item.get("error") or "parse error")
-            lines.append(f"- `{location}`: {message}")
+            lines.append(
+                render_scanner_report_yaml_parse_failure_row(
+                    row=parse_failure_row,
+                )
+            )
         lines.append("")
         if ambiguous_rows:
             lines.append("Ambiguous variables:")
             for row in ambiguous_rows:
-                reason = row.get("uncertainty_reason") or "Multiple possible sources."
-                lines.append(f"- `{row['name']}`: {reason}")
+                issue_row = build_scanner_report_issue_list_row(row=row)
+                lines.append(
+                    render_scanner_report_issue_list_row(
+                        row=issue_row,
+                        fallback_reason="Multiple possible sources.",
+                    )
+                )
             lines.append("")
 
     sections = [
@@ -248,16 +530,24 @@ def build_scanner_report_markdown(
         ("default_filters", "Detected usages of the default() filter"),
     ]
     for section_id, title in sections:
-        body = render_section_body(
-            section_id,
-            role_name,
-            description,
-            variables,
-            requirements,
-            default_filters,
-            metadata,
-        ).strip()
-        if not body:
+        section_inputs = build_readme_section_render_input(
+            section_id=section_id,
+            role_name=role_name,
+            description=description,
+            variables=variables,
+            requirements=requirements,
+            default_filters=default_filters,
+            metadata=metadata,
+        )
+        render_result = invoke_readme_section_renderer(
+            render_input=section_inputs,
+            renderer=render_section_body,
+        )
+        if not render_result["has_content"]:
             continue
-        lines.extend([title, "-" * len(title), "", body, ""])
+        section_row = build_scanner_report_section_render_input(
+            title=title,
+            body=render_result["body"],
+        )
+        lines.extend(render_scanner_report_section(row=section_row))
     return "\n".join(lines).strip() + "\n"

@@ -1,5 +1,7 @@
 # Docs Site Maintenance
 
+> **Legacy directory.** This is the original docs directory, preserved for reference. The active documentation site is served from [`/docs`](../docs/) and published at <https://mutl3y.github.io/prism/>. Do not add new content here.
+
 This directory is configured for GitHub Pages with Jekyll.
 
 ## GitHub Pages Configuration

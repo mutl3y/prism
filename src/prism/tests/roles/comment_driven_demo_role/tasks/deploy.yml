@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: MIT-0
+---
+# prism~runbook:
+# stop the service only for full deploys or incompatible schema changes
+# if the stop hangs, inspect systemd and active connections before forcing termination
+# prism~task: Stop application service for full deploy | warning: confirm no active migrations are running before stopping the service
+# capture active worker counts before the stop for incident comparison
+- name: Stop application service for full deploy
+  ansible.builtin.service:
+    name: "{{ comment_demo_service_name }}"
+    state: stopped
+  when: comment_demo_full_deploy
+
+# prism~task: Deploy application configuration | note: template changes should prefer handler reloads where possible
+- name: Deploy application configuration
+  ansible.builtin.template:
+    src: app-config.yml.j2
+    dest: "{{ comment_demo_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload comment demo service
+
+# prism~task: Install environment defaults | runbook: refresh environment defaults so responders can reason about runtime flags from the deployed node itself
+- name: Install environment defaults
+  ansible.builtin.copy:
+    dest: /etc/default/comment-demo
+    content: |
+      APP_ENV={{ comment_demo_env.APP_ENV }}
+      APP_LOG_LEVEL={{ comment_demo_env.APP_LOG_LEVEL }}
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart comment demo service
+
+# prism~task: Link current release into place | runbook: if the symlink update fails, verify the previous target and restore it before retrying
+- name: Link current release into place
+  ansible.builtin.file:
+    src: "{{ comment_demo_release_path }}"
+    dest: "{{ comment_demo_current_path }}"
+    state: link
+    force: true
+  notify: Restart comment demo service
+
+# prism~task: Warm application cache | additional: warming cache is optional in development but useful in production-like examples
+# it helps generated runbooks show optional but valuable post-deploy steps
+- name: Warm application cache
+  ansible.builtin.command:
+    cmd: "/usr/local/bin/comment-demo-warm-cache --release {{ comment_demo_release_version }}"
+  changed_when: true
+  notify: Clear comment demo cache

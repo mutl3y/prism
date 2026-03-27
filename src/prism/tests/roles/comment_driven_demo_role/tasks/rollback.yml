@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MIT-0
+---
+# prism~runbook:
+# rollback should restore the previous symlink target before restarting services
+# if no previous release exists, stop and escalate instead of improvising
+- name: Restore previous release symlink
+  ansible.builtin.file:
+    src: "{{ comment_demo_release_root }}/previous"
+    dest: "{{ comment_demo_current_path }}"
+    state: link
+    force: true
+  notify: Restart comment demo service
+
+# prism~task: Restart service after rollback | warning: verify the rollback target still contains a compatible config file
+- name: Restart service after rollback
+  ansible.builtin.service:
+    name: "{{ comment_demo_service_name }}"
+    state: restarted
+
+# prism~task: Confirm rollback health | note: this step intentionally mirrors the forward-deploy health check to keep operator flow symmetrical
+- name: Confirm rollback health
+  ansible.builtin.uri:
+    url: "{{ comment_demo_healthcheck_url }}"
+    method: GET
+    status_code: 200

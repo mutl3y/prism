@@ -7,6 +7,38 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, TypedDict
+
+
+class FinalOutputPayload(TypedDict):
+    """Typed payload passed into final output rendering."""
+
+    role_name: str
+    description: str
+    variables: dict[str, Any]
+    requirements: list[Any]
+    default_filters: list[dict[str, Any]]
+    metadata: dict[str, Any]
+
+
+def build_final_output_payload(
+    *,
+    role_name: str,
+    description: str,
+    variables: dict[str, Any],
+    requirements: list[Any],
+    default_filters: list[dict[str, Any]],
+    metadata: dict[str, Any],
+) -> FinalOutputPayload:
+    """Build the typed final-output payload contract."""
+    return {
+        "role_name": role_name,
+        "description": description,
+        "variables": variables,
+        "requirements": requirements,
+        "default_filters": default_filters,
+        "metadata": metadata,
+    }
 
 
 def resolve_output_path(output: str, output_format: str) -> Path:
@@ -38,7 +70,7 @@ def render_final_output(
     markdown_content: str,
     output_format: str,
     title: str,
-    payload: dict | None = None,
+    payload: FinalOutputPayload | None = None,
 ) -> str | bytes:
     """Return output payload in the requested format."""
     if output_format == "md":

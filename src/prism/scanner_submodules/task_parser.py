@@ -907,7 +907,7 @@ def _collect_task_handler_catalog(
             # Add this task to the catalog
             module_name = _detect_task_module(task) or "unknown"
             task_name = str(task.get("name") or "(unnamed task)")
-            annotations: list[dict[str, str]] = []
+            annotations: list[dict[str, object]] = []
             if implicit_index < len(implicit_annotations):
                 annotations.append(implicit_annotations[implicit_index])
                 implicit_index += 1
@@ -1036,11 +1036,12 @@ def _collect_molecule_scenarios(
         if not isinstance(doc, dict):
             continue
 
-        driver = doc.get("driver") if isinstance(doc.get("driver"), dict) else {}
-        verifier = doc.get("verifier") if isinstance(doc.get("verifier"), dict) else {}
-        platforms_raw = (
-            doc.get("platforms") if isinstance(doc.get("platforms"), list) else []
-        )
+        driver_raw = doc.get("driver")
+        verifier_raw = doc.get("verifier")
+        platforms_value = doc.get("platforms")
+        driver = driver_raw if isinstance(driver_raw, dict) else {}
+        verifier = verifier_raw if isinstance(verifier_raw, dict) else {}
+        platforms_raw = platforms_value if isinstance(platforms_value, list) else []
         platforms: list[str] = []
         for platform in platforms_raw:
             if not isinstance(platform, dict):
