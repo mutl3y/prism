@@ -662,6 +662,34 @@ Validation for this slice:
   - Additional targeted seams: consider typed row contracts (VariableRow, TaskRow), if time permits
 - current full-suite status: green (`746 passed`)
 
+## Phase D Decision Note (2026-03-27, Coordinator slimming deferred)
+
+Attempted Phase D orchestration extraction but identified implementation risk:
+
+- audit identified 4 thin orchestration helpers in scanner.py as extraction candidates (collect_scan_artifacts, resolve_scan_identity, collection-compliance coordination, requirements-display logic)
+- created `src/prism/scanner_submodules/scanner_orchestration.py` as extraction module
+- during implementation, discovered function name collision in extracted module (resolve_scan_identity recursively calling itself instead of delegating to scan_discovery module)
+- this circular call pattern would cause infinite recursion at runtime and hang all test execution
+- **decision:** Revert Phase D extraction and keep scanner.py at current 3926 lines; postpone orchestration slimming to future modernization cycle after more careful audit of delegation boundaries
+
+**Rationale for deferral:**
+- Phase C (all TypedDict contracts) is complete and stable — core data structure typing is solid
+- Phase D has higher complexity (orchestration logic has subtle interdependencies)
+- Design requires more careful refactoring to avoid circular dependencies between extraction modules
+- Current scanner.py state is well-tested and maintainable; further slimming can wait
+- Risk of regression outweighs benefit of 100-200 line reduction at this stage
+
+**What remains (optional for future):**
+- Phase D (deferred): Thin-orchestrator extraction with careful boundary definition
+- Row TypedDicts (optional): VariableRow, TaskRow, IssueRow if needed for future phases
+- Item 8 (deferred): os.walk → Path.walk refactoring (high-risk, requires dedicated test review)
+
+**Current modernization completion status:**
+- ✅ Tranches 1-4: Config, CI, security, and polish modernization COMPLETE (9 commits total on origin/main)
+- ✅ Phase A-C: Scanner decomposition with TypedDict contracts COMPLETE (5 extraction modules, 3 TypedDict phases)
+- ⏸️ Phase D: Deferred to future cycle (implementation complexity outweighs current benefit)
+- 📊 Final metrics: scanner.py 3926 lines (reduced from 4154), 17 extraction modules, 746 tests passing, mypy clean
+
 ## Phase 4 Completion Note (2026-03-27)
 
 Documentation consolidation complete (Workstream 4 success criteria met):
