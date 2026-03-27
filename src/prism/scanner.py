@@ -107,15 +107,18 @@ from .scanner_submodules.scan_discovery import (
     load_variables as _scan_discovery_load_variables,
     resolve_scan_identity as _scan_discovery_resolve_scan_identity,
 )
-from .scanner_submodules.scanner_report import (
-    build_scanner_report_markdown as _report_build_markdown,
-    classify_provenance_issue as _report_classify_provenance_issue,
-    is_unresolved_noise_category as _report_is_unresolved_noise_category,
-)
-from .scanner_submodules.runbook import (
-    _build_runbook_rows as _runbook_build_rows,
-    render_runbook as _runbook_render,
-    render_runbook_csv as _runbook_render_csv,
+from .scanner_submodules.scanner_runbook_report import (
+    build_scanner_report_markdown as _runbook_report_build_scanner_report_markdown,
+    extract_scanner_counters as _runbook_report_extract_scanner_counters,
+    classify_provenance_issue as _runbook_report_classify_provenance_issue,
+    is_unresolved_noise_category as _runbook_report_is_unresolved_noise_category,
+    render_runbook as _runbook_report_render_runbook,
+    build_runbook_rows as _runbook_report_build_runbook_rows,
+    render_runbook_csv as _runbook_report_render_runbook_csv,
+    build_requirements_display as _runbook_report_build_requirements_display,
+    write_concise_scanner_report_if_enabled as _runbook_report_write_concise_scanner_report_if_enabled,
+    build_scan_report_sidecar_args as _runbook_report_build_scan_report_sidecar_args,
+    build_runbook_sidecar_args as _runbook_report_build_runbook_sidecar_args,
 )
 from .scanner_submodules.style_guide import (
     detect_style_section_level,
@@ -2845,7 +2848,7 @@ def _build_scanner_report_markdown(
     metadata: dict,
 ) -> str:
     """Render a scanner-focused markdown sidecar report."""
-    return _report_build_markdown(
+    return _runbook_report_build_scanner_report_markdown(
         role_name=role_name,
         description=description,
         variables=variables,
@@ -2863,7 +2866,7 @@ def _extract_scanner_counters(
     parse_failures: list[dict[str, object]] | None = None,
 ) -> dict[str, int | dict[str, int]]:
     """Summarize scanner findings by certainty and variable category."""
-    return _scan_metrics_extract_scanner_counters(
+    return _runbook_report_extract_scanner_counters(
         variable_insights,
         default_filters,
         features,
@@ -2873,12 +2876,12 @@ def _extract_scanner_counters(
 
 def _classify_provenance_issue(row: dict) -> str | None:
     """Return a stable provenance category label for unresolved/ambiguous rows."""
-    return _report_classify_provenance_issue(row)
+    return _runbook_report_classify_provenance_issue(row)
 
 
 def _is_unresolved_noise_category(category: str | None) -> bool:
     """Return True if the category participates in unresolved-noise metrics."""
-    return _report_is_unresolved_noise_category(category)
+    return _runbook_report_is_unresolved_noise_category(category)
 
 
 def render_readme(
@@ -2938,17 +2941,17 @@ def render_runbook(
     template: str | None = None,
 ) -> str:
     """Render a standalone runbook markdown document for a role."""
-    return _runbook_render(role_name=role_name, metadata=metadata, template=template)
+    return _runbook_report_render_runbook(role_name=role_name, metadata=metadata, template=template)
 
 
 def _build_runbook_rows(metadata: dict | None) -> list[tuple[str, str, str]]:
     """Build normalized runbook rows: (file, task_name, step)."""
-    return _runbook_build_rows(metadata)
+    return _runbook_report_build_runbook_rows(metadata)
 
 
 def render_runbook_csv(metadata: dict | None = None) -> str:
     """Render runbook rows to CSV with columns: file, task_name, step."""
-    return _runbook_render_csv(metadata)
+    return _runbook_report_render_runbook_csv(metadata)
 
 
 def _build_requirements_display(
@@ -2959,7 +2962,7 @@ def _build_requirements_display(
     include_collection_checks: bool = True,
 ) -> tuple[list[str], list[str]]:
     """Build rendered requirements lines and collection compliance notes."""
-    return _requirements_build_requirements_display(
+    return _runbook_report_build_requirements_display(
         requirements=requirements,
         meta=meta,
         features=features,
@@ -2982,7 +2985,7 @@ def _write_concise_scanner_report_if_enabled(
     dry_run: bool,
 ) -> Path | None:
     """Write scanner sidecar report when concise mode is enabled."""
-    return _scan_output_write_concise_scanner_report_if_enabled(
+    return _runbook_report_write_concise_scanner_report_if_enabled(
         concise_readme=concise_readme,
         scanner_report_output=scanner_report_output,
         out_path=out_path,
@@ -2994,7 +2997,7 @@ def _write_concise_scanner_report_if_enabled(
         undocumented_default_filters=undocumented_default_filters,
         metadata=metadata,
         dry_run=dry_run,
-        build_scanner_report_markdown=_build_scanner_report_markdown,
+        build_scanner_report_markdown_fn=_build_scanner_report_markdown,
     )
 
 
@@ -3714,7 +3717,7 @@ def _build_scan_report_sidecar_args(
     dry_run: bool,
 ) -> _scan_context_ScanReportSidecarArgs:
     """Build the typed argument bundle for _write_concise_scanner_report_if_enabled."""
-    return _scan_context_build_scan_report_sidecar_args(
+    return _runbook_report_build_scan_report_sidecar_args(
         concise_readme=concise_readme,
         scanner_report_output=scanner_report_output,
         out_path=out_path,
@@ -3731,7 +3734,7 @@ def _build_runbook_sidecar_args(
     payload: _scan_context_RunScanOutputPayload,
 ) -> _scan_context_RunbookSidecarArgs:
     """Build the typed argument bundle for _write_optional_runbook_outputs."""
-    return _scan_context_build_runbook_sidecar_args(
+    return _runbook_report_build_runbook_sidecar_args(
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
         payload=payload,
