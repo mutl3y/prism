@@ -9,6 +9,135 @@ if TYPE_CHECKING:
     pass
 
 
+class _SectionTitleBucket(TypedDict):
+    """Aggregated section title statistics from style guide parsing."""
+
+    count: int
+    """Number of occurrences of this section."""
+    known: bool
+    """True if section has a known/mapped identifier."""
+    titles: list[str]
+    """Observed section titles (original casing)."""
+    normalized_titles: list[str]
+    """Observed section titles (normalized for matching)."""
+
+
+class _StyleSection(TypedDict):
+    """Individual section parsed from a style guide README."""
+
+    id: str
+    """Canonical section identifier (mapped via STYLE_SECTION_ALIASES)."""
+    title: str
+    """Original section title text."""
+    normalized_title: str
+    """Normalized title for matching (lowercase, spaces normalized)."""
+    body: str
+    """Rendered section body content."""
+    level: int
+    """Markdown heading level (2-6)."""
+
+
+class _SectionTitleStats(TypedDict):
+    """Aggregated title statistics from all style guide sections."""
+
+    total_sections: int
+    """Total number of sections parsed."""
+    known_sections: int
+    """Count of sections with known/mapped identifiers."""
+    unknown_sections: int
+    """Count of sections with unknown identifiers."""
+    by_section_id: dict[str, _SectionTitleBucket]
+    """Aggregated statistics keyed by section identifier."""
+
+
+class FeaturesContext(TypedDict):
+    """Typed contract for role feature detection results.
+
+    Captures adaptive role features extracted from task scanning and role structure,
+    enabling type-safe feature access throughout scanner orchestration.
+
+    **Task Analysis (always present):**
+    - task_files_scanned: Number of task files discovered
+    - tasks_scanned: Total task count across all scanned files
+    - recursive_task_includes: Number of nested task includes (import_tasks/include_tasks)
+    - unique_modules: Comma-separated list of distinct Ansible modules used
+    - external_collections: Comma-separated list of non-ansible.builtin collections
+    - handlers_notified: Comma-separated list of handlers notified by tasks
+
+    **Task Metadata Counts (always present):**
+    - privileged_tasks: Number of tasks using become/privilege escalation
+    - conditional_tasks: Number of tasks with when conditions
+    - tagged_tasks: Number of tasks with tags
+    - included_role_calls: Count of static role includes (import_role/include_role)
+    - included_roles: Comma-separated list of included role names
+    - dynamic_included_role_calls: Count of dynamic role includes (variables in include_role)
+    - dynamic_included_roles: Comma-separated list of dynamically included role names
+
+    **Annotation Quality Metrics (always present):**
+    - disabled_task_annotations: Count of disabled/commented task annotations
+    - yaml_like_task_annotations: Count of YAML-like format violations
+
+    Flow:
+    1. extract_role_features() builds this dict from role paths
+    2. Used for feature detection, doc insights, and capability inference
+    3. Consumed by build_doc_insights() and collection compliance checking
+    """
+
+    task_files_scanned: int
+    tasks_scanned: int
+    recursive_task_includes: int
+    unique_modules: str
+    external_collections: str
+    handlers_notified: str
+    privileged_tasks: int
+    conditional_tasks: int
+    tagged_tasks: int
+    included_role_calls: int
+    included_roles: str
+    dynamic_included_role_calls: int
+    dynamic_included_roles: str
+    disabled_task_annotations: int
+    yaml_like_task_annotations: int
+
+
+class StyleGuideConfig(TypedDict):
+    """Typed contract for parsed style guide configuration.
+
+    Captures rendered style guide metadata and configuration flowing through
+    style-guide-based README rendering, enabling type-safe style configuration
+    access and section ordering.
+
+    **Source & Rendering (always present):**
+    - path: Absolute path to source style guide markdown file
+    - title_text: Parsed document title from style guide
+    - title_style: Heading style for document title ('atx' or 'setext')
+    - section_style: Heading style for section headings ('atx' or 'setext')
+    - section_level: Markdown level for section headings (2-6)
+
+    **Parsed Sections & Metadata (always present):**
+    - sections: List of parsed section dicts (id, title, body, level, etc.)
+    - section_title_stats: Aggregated title statistics by section identifier
+    - variable_style: Variable section rendering format detected ('simple_list',
+      'yaml_block', 'table', 'nested_bullets')
+    - variable_intro: Optional introductory text for variable section
+
+    Flow:
+    1. parse_style_readme() builds this dict from style guide file path
+    2. Used by _render_readme_with_style_guide() for section ordering/rendering
+    3. Consumed by _resolve_ordered_style_sections() and section formatters
+    """
+
+    path: str
+    title_text: str
+    title_style: str
+    section_style: str
+    section_level: int
+    sections: list[_StyleSection]
+    section_title_stats: _SectionTitleStats
+    variable_style: str
+    variable_intro: NotRequired[str | None]
+
+
 class ScanMetadata(TypedDict, total=False):
     """Comprehensive metadata contract flowing through scanner orchestration.
 
@@ -93,7 +222,7 @@ class ScanMetadata(TypedDict, total=False):
     defaults: list[str]
     vars: list[str]
     meta: dict[str, Any]
-    features: dict[str, Any]
+    features: FeaturesContext
 
     # Dynamic includes (always present after discovery)
     unconstrained_dynamic_task_includes: list[Any]
@@ -120,7 +249,7 @@ class ScanMetadata(TypedDict, total=False):
 
     # Compliance & styling (conditionally present)
     collection_compliance_notes: NotRequired[Any]
-    style_guide: NotRequired[dict[str, Any]]
+    style_guide: NotRequired[StyleGuideConfig]
     style_guide_skeleton: NotRequired[bool]
     comparison: NotRequired[dict[str, Any]]
 

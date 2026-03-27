@@ -46,6 +46,8 @@ from .scanner_submodules.scan_context import (
     ScanBaseContext as _scan_context_ScanBaseContext,
     ScanMetadata as _scan_context_ScanMetadata,
     ReferenceContext as _scan_context_ReferenceContext,
+    FeaturesContext as _scan_context_FeaturesContext,
+    StyleGuideConfig as _scan_context_StyleGuideConfig,
     finalize_scan_context_payload as _scan_context_finalize_scan_context_payload,
     build_scan_output_payload as _scan_context_build_scan_output_payload,
     prepare_run_scan_payload as _scan_context_prepare_run_scan_payload,
@@ -906,7 +908,9 @@ def _normalize_meta_role_dependencies(meta: dict) -> list[str]:
     return _requirements_normalize_meta_role_dependencies(meta)
 
 
-def _normalize_included_role_dependencies(features: dict) -> list[str]:
+def _normalize_included_role_dependencies(
+    features: _scan_context_FeaturesContext,
+) -> list[str]:
     """Normalize static role includes detected from task parsing features."""
     return _requirements_normalize_included_role_dependencies(features)
 
@@ -923,7 +927,7 @@ def _extract_declared_collections_from_requirements(requirements: list) -> set[s
 
 def _build_collection_compliance_notes(
     *,
-    features: dict,
+    features: _scan_context_FeaturesContext,
     meta: dict,
     requirements: list,
 ) -> list[str]:
@@ -2633,7 +2637,7 @@ def _filter_concise_readme_sections(ordered_sections: list[dict]) -> list[dict]:
 
 
 def _resolve_ordered_style_sections(
-    style_guide: dict,
+    style_guide: _scan_context_StyleGuideConfig,
     metadata: dict,
 ) -> tuple[list[dict], set[str], dict[str, str], bool]:
     """Resolve ordered style-guide sections after scanner/readme config filters."""
@@ -2669,7 +2673,7 @@ def _resolve_ordered_style_sections(
 def _render_style_guide_sections_into_parts(
     parts: list[str],
     ordered_sections: list[dict],
-    style_guide: dict,
+    style_guide: _scan_context_StyleGuideConfig,
     style_guide_skeleton: bool,
     section_content_modes: dict[str, str],
     role_name: str,
@@ -2705,7 +2709,7 @@ def _render_style_guide_sections_into_parts(
 def _append_style_guide_section_heading(
     parts: list[str],
     section: dict,
-    style_guide: dict,
+    style_guide: _scan_context_StyleGuideConfig,
 ) -> None:
     """Append a formatted heading for a style-guide section."""
     heading_level = int(section.get("level") or style_guide.get("section_level") or 2)
@@ -2751,7 +2755,7 @@ def _resolve_rendered_style_guide_section_body(
 
 def _append_scanner_report_section_if_enabled(
     parts: list[str],
-    style_guide: dict,
+    style_guide: _scan_context_StyleGuideConfig,
     style_guide_skeleton: bool,
     scanner_report_relpath: str | None,
     include_scanner_report_link: bool,
@@ -2857,7 +2861,7 @@ def _build_scanner_report_markdown(
 def _extract_scanner_counters(
     variable_insights: list[dict],
     default_filters: list[dict],
-    features: dict | None = None,
+    features: _scan_context_FeaturesContext | None = None,
     parse_failures: list[dict[str, object]] | None = None,
 ) -> dict[str, int | dict[str, int]]:
     """Summarize scanner findings by certainty and variable category."""
@@ -2955,7 +2959,7 @@ def _build_requirements_display(
     *,
     requirements: list,
     meta: dict,
-    features: dict,
+    features: _scan_context_FeaturesContext,
     include_collection_checks: bool = True,
 ) -> tuple[list[str], list[str]]:
     """Build rendered requirements lines and collection compliance notes."""

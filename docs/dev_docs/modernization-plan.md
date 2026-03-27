@@ -626,6 +626,42 @@ Integrated `tox -e typecheck` into the CI workflow so mypy runs on every push an
   - consider expanding `follow-imports` scope to catch cross-module type drift
 - current full-suite status: green (`746 passed`)
 
+## Progress Note (2026-03-27, Phase C3 Features and StyleGuide TypedDicts + function retrofitting slice)
+
+Completed Phase C3 auxiliary TypedDict definitions and function retrofitting for role feature detection and style guide configuration:
+
+- introduced `FeaturesContext` TypedDict in `src/prism/scanner_submodules/scan_context.py` capturing 14 fields from role feature extraction (task counts, module usage, handlers, privilege/condition/tag usage, annotation quality metrics)
+- introduced `StyleGuideConfig` TypedDict capturing style guide parsed metadata (path, heading styles/levels, section list, section title stats, variable-style detection)
+- introduced two supporting TypedDicts (`_SectionTitleBucket`, `_StyleSection`, `_SectionTitleStats`) for nested contracts within StyleGuideConfig
+- retrofitted 8 function signatures in `scanner.py` to use explicit typed parameters:
+  - `_normalize_included_role_dependencies(features: FeaturesContext)`
+  - `_build_collection_compliance_notes(*, features: FeaturesContext, ...)`
+  - `_resolve_ordered_style_sections(style_guide: StyleGuideConfig, ...)`
+  - `_render_style_guide_sections_into_parts(..., style_guide: StyleGuideConfig, ...)`
+  - `_append_style_guide_section_heading(..., style_guide: StyleGuideConfig)`
+  - `_append_scanner_report_section_if_enabled(..., style_guide: StyleGuideConfig, ...)`
+  - `_extract_scanner_counters(..., features: FeaturesContext | None = None, ...)`
+  - `_build_requirements_display(..., features: FeaturesContext, ...)`
+- updated `ScanMetadata` TypedDict to reference the new contract types:
+  - `features: FeaturesContext` (was `dict[str, Any]`)
+  - `style_guide: NotRequired[StyleGuideConfig]` (was `NotRequired[dict[str, Any]]`)
+- preserved scanner behavior and all 746 tests remain passing
+- mypy validation: no new errors introduced; all type gates remain green
+
+Validation for this slice:
+
+- focused: mypy check of `src/prism/scanner_submodules/scan_context.py` and `src/prism/scanner.py` — `Success: no issues`
+- full suite: task `tests: full` (`746 passed`)
+
+### Anti-Stall Queue Refresh (2026-03-27, slice C3 complete — Phase C TypedDict queue exhausted)
+
+- completed slices count (Phase C): C1 (ScanMetadata) + C2 (ReferenceContext) + C3 (FeaturesContext + StyleGuideConfig) = 3 phases complete
+- queue status: **Phase C TypedDict definitions complete** — all core data structures now have explicit typed contracts
+- next queued focus:
+  - Phase D: Evaluate thin-orchestrator extraction opportunities and dead-code removal (deferred)
+  - Additional targeted seams: consider typed row contracts (VariableRow, TaskRow), if time permits
+- current full-suite status: green (`746 passed`)
+
 ## Phase 4 Completion Note (2026-03-27)
 
 Documentation consolidation complete (Workstream 4 success criteria met):
