@@ -7,10 +7,11 @@ generation, delegating actual implementation to submodules.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TypedDict
 
 # Import public interfaces from submodules
+from .scan_context import ScanMetadata
 from .scanner_report import (
+    ScannerCounters,
     build_scanner_report_markdown as _report_build_markdown,
     classify_provenance_issue as _report_classify_provenance_issue,
     is_unresolved_noise_category as _report_is_unresolved_noise_category,
@@ -54,7 +55,7 @@ def build_scanner_report_markdown(
         variables=variables,
         requirements=requirements,
         default_filters=default_filters,
-        metadata=metadata,
+        metadata=metadata,  # type: ignore[arg-type]
         render_section_body=render_section_body,
     )
 
@@ -64,7 +65,7 @@ def extract_scanner_counters(
     default_filters: list[dict],
     features: dict | None = None,
     parse_failures: list[dict[str, object]] | None = None,
-) -> dict[str, int | dict[str, int]]:
+) -> ScannerCounters:
     """Summarize scanner findings by certainty and variable category."""
     return _scan_metrics_extract_scanner_counters(
         variable_insights,
@@ -130,14 +131,14 @@ def write_concise_scanner_report_if_enabled(
     display_variables: dict,
     requirements_display: list,
     undocumented_default_filters: list,
-    metadata: dict,
+    metadata: ScanMetadata,
     dry_run: bool,
     build_scanner_report_markdown_fn=None,
 ) -> Path | None:
     """Write scanner sidecar report when concise mode is enabled."""
     if build_scanner_report_markdown_fn is None:
         build_scanner_report_markdown_fn = build_scanner_report_markdown
-    
+
     return _scan_output_write_concise_scanner_report_if_enabled(
         concise_readme=concise_readme,
         scanner_report_output=scanner_report_output,

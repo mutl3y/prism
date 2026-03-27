@@ -38,11 +38,13 @@ class TestStringifyJinjaNode:
 
     def _parse_expr(self, src: str):
         import jinja2
+        from typing import cast
+        import jinja2.nodes
 
         env = jinja2.Environment()
         parsed = env.parse(f"{{{{ {src} }}}}")
         # The first Output node's child contains the expression.
-        output = list(parsed.body)[0]
+        output = cast(jinja2.nodes.Output, list(parsed.body)[0])
         return list(output.nodes)[0]
 
     def test_none_returns_empty_string(self):

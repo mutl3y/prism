@@ -13,6 +13,7 @@ from typing import Callable
 from .output import resolve_output_path
 from .scan_context import (
     EmitScanOutputsArgs,
+    ScanMetadata,
     build_scan_output_payload,
     build_scan_report_sidecar_args,
     build_runbook_sidecar_args,
@@ -42,7 +43,7 @@ def write_concise_scanner_report_if_enabled(
     display_variables: dict,
     requirements_display: list,
     undocumented_default_filters: list,
-    metadata: dict,
+    metadata: ScanMetadata,
     dry_run: bool,
     build_scanner_report_markdown: Callable[..., str],
 ) -> Path | None:
@@ -82,20 +83,20 @@ def write_optional_runbook_outputs(
     runbook_output: str | None,
     runbook_csv_output: str | None,
     role_name: str,
-    metadata: dict,
-    render_runbook: Callable[[str, dict], str],
-    render_runbook_csv: Callable[[dict], str],
+    metadata: ScanMetadata,
+    render_runbook: Callable[[str, dict | None], str],
+    render_runbook_csv: Callable[[dict | None], str],
 ) -> None:
     """Write standalone runbook outputs when requested."""
     if runbook_output:
         rb_path = Path(runbook_output)
         rb_path.parent.mkdir(parents=True, exist_ok=True)
-        rb_content = render_runbook(role_name, metadata)
+        rb_content = render_runbook(role_name, metadata)  # type: ignore
         rb_path.write_text(rb_content, encoding="utf-8")
     if runbook_csv_output:
         rb_csv_path = Path(runbook_csv_output)
         rb_csv_path.parent.mkdir(parents=True, exist_ok=True)
-        rb_csv_content = render_runbook_csv(metadata)
+        rb_csv_content = render_runbook_csv(metadata)  # type: ignore
         rb_csv_path.write_text(rb_csv_content, encoding="utf-8")
 
 

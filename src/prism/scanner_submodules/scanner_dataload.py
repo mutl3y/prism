@@ -108,7 +108,7 @@ def collect_yaml_parse_failures(
 
     for candidate in iter_yaml_candidates_fn(
         role_root,
-        exclude_paths=exclude_paths,
+        exclude_paths,
     ):
         failure = parse_yaml_candidate(candidate, role_root)
         if failure is not None:
