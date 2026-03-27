@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MIT-0
+---
+galaxy_info:
+  role_name: comment_driven_demo_role
+  namespace: fixture
+  description: >-
+    Rich fixture role used to demonstrate Prism comment-driven documentation
+    across a fuller deployment workflow.
+  authors:
+    - name: Prism Fixture Maintainer
+      email: fixtures@example.com
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+  galaxy_tags:
+    - prism
+    - docs
+    - fixture
+    - deployment
+
+dependencies: []

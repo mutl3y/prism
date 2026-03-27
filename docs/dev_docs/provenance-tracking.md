@@ -35,6 +35,8 @@ This page is the technical companion to the top-level product guide at
 - `explicit`: value was declared directly in source and can be treated as contract-grade
 - `inferred`: value was derived from static context and should be reviewed with surrounding logic
 - `dynamic_unknown`: value depends on runtime behavior and should not be treated as fully resolved
+- `non_authoritative_test_evidence`: unresolved variable name appears in `tests/` or `molecule/` files; this is a runtime hint only and does not make the variable resolved
+- `comment_annotations`: values implied by comments or marker notes are guidance-only evidence and should be reviewed against executable source before enforcement
 
 ## Related Guides
 

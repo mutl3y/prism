@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+from typing import TypedDict
 
 from ..pattern_config import load_pattern_config
 
@@ -11,9 +12,16 @@ _POLICY = load_pattern_config()
 STYLE_SECTION_ALIASES: dict[str, str] = _POLICY["section_aliases"]
 
 
+class _SectionTitleBucket(TypedDict):
+    count: int
+    known: bool
+    titles: list[str]
+    normalized_titles: list[str]
+
+
 def _build_section_title_stats(sections: list[dict]) -> dict:
     """Summarize observed section titles for downstream pattern analysis."""
-    by_section_id: dict[str, dict[str, object]] = {}
+    by_section_id: dict[str, _SectionTitleBucket] = {}
 
     for section in sections:
         section_id = str(section.get("id") or "unknown")
@@ -41,7 +49,10 @@ def _build_section_title_stats(sections: list[dict]) -> dict:
         for section_id, stats in by_section_id.items()
         if section_id != "unknown"
     )
-    unknown_sections = int(by_section_id.get("unknown", {}).get("count", 0))
+    _unknown_bucket = by_section_id.get("unknown")
+    unknown_sections = (
+        int(_unknown_bucket["count"]) if _unknown_bucket is not None else 0
+    )
 
     return {
         "total_sections": len(sections),
@@ -238,17 +249,17 @@ def parse_style_readme(style_readme_path: str) -> dict:
             r"^\s*[*-]\s+Default:", body, flags=re.MULTILINE
         ):
             variable_style = "nested_bullets"
-            intro_lines: list[str] = []
+            intro_lines_nb: list[str] = []
             for raw_line in body.splitlines():
                 stripped = raw_line.strip()
                 if not stripped:
-                    if intro_lines:
+                    if intro_lines_nb:
                         break
                     continue
                 if stripped.startswith(("*", "-", "|", "```", "~~~")):
                     break
-                intro_lines.append(stripped)
-            variable_intro = "\n".join(intro_lines) if intro_lines else None
+                intro_lines_nb.append(stripped)
+            variable_intro = "\n".join(intro_lines_nb) if intro_lines_nb else None
 
     return {
         "path": str(Path(style_readme_path).resolve()),

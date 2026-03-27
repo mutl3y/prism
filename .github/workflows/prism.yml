@@ -35,6 +35,10 @@ jobs:
           pip install -e .[dev]
           pip install "ansible-core==${{ matrix.ansible-core-version }}"
 
+      - name: Run typecheck
+        run: |
+          tox -e typecheck
+
       - name: Run tests
         run: |
           python -m pytest -q

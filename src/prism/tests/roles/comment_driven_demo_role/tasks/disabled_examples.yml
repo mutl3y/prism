@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: MIT-0
+---
+# prism~warning: disabled during freeze windows or database maintenance
+#
+# - name: Run data backfill after deploy
+#   ansible.builtin.command:
+#     cmd: /usr/local/bin/comment-demo-backfill --release {{ comment_demo_release_version }}
+#   changed_when: true

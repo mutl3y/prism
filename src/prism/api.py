@@ -11,17 +11,24 @@ from pathlib import Path
 from typing import Any
 import yaml
 
-from .cli import (
-    _build_repo_style_readme_candidates,
+from .collection_plugins import scan_collection_plugins
+from .repo_services import (
+    _build_lightweight_sparse_clone_paths,
     _build_sparse_clone_paths,
+    _checkout_repo_lightweight_style_readme,
+    _checkout_repo_scan_role,
     _clone_repo,
     _fetch_repo_directory_names,
     _fetch_repo_file,
-    _repo_scan_workspace,
-    _repo_path_looks_like_role,
+    _normalize_repo_scan_result_payload,
+    _normalize_repo_scan_metadata_paths,
+    _prepare_repo_scan_inputs,
     _repo_name_from_url,
+    _repo_path_looks_like_role,
+    _repo_scan_workspace,
+    _resolve_repo_scan_scanner_report_relpath,
+    _resolve_style_readme_candidate,
 )
-from .collection_plugins import scan_collection_plugins
 from .scanner import render_runbook, render_runbook_csv, run_scan
 
 _REQUIRED_ROLE_DIRS = ("defaults", "tasks", "meta")
@@ -220,6 +227,7 @@ def scan_collection(
     policy_config_path: str | None = None,
     fail_on_unconstrained_dynamic_includes: bool | None = None,
     fail_on_yaml_like_task_annotations: bool | None = None,
+    ignore_unresolved_internal_underscore_references: bool | None = None,
     include_rendered_readme: bool = False,
     detailed_catalog: bool = False,
     include_collection_checks: bool = False,
@@ -270,6 +278,9 @@ def scan_collection(
                 policy_config_path=policy_config_path,
                 fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
                 fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
+                ignore_unresolved_internal_underscore_references=(
+                    ignore_unresolved_internal_underscore_references
+                ),
                 detailed_catalog=detailed_catalog,
                 include_collection_checks=include_collection_checks,
                 include_task_parameters=include_task_parameters,
@@ -299,6 +310,9 @@ def scan_collection(
                     policy_config_path=policy_config_path,
                     fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
                     fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
+                    ignore_unresolved_internal_underscore_references=(
+                        ignore_unresolved_internal_underscore_references
+                    ),
                     detailed_catalog=detailed_catalog,
                     include_collection_checks=include_collection_checks,
                     include_task_parameters=include_task_parameters,
@@ -365,27 +379,14 @@ def scan_collection(
 def _normalize_repo_style_guide_path(
     payload: dict[str, Any], repo_style_readme_path: str | None
 ) -> dict[str, Any]:
-    """Replace temp-backed style guide paths with the logical repo path."""
-    if not repo_style_readme_path:
-        return payload
-
-    metadata = payload.get("metadata")
-    if not isinstance(metadata, dict):
-        return payload
-
-    style_guide = metadata.get("style_guide")
-    if not isinstance(style_guide, dict):
-        return payload
-
-    normalized_style_guide = dict(style_guide)
-    normalized_style_guide["path"] = repo_style_readme_path
-
-    normalized_metadata = dict(metadata)
-    normalized_metadata["style_guide"] = normalized_style_guide
-
-    normalized_payload = dict(payload)
-    normalized_payload["metadata"] = normalized_metadata
-    return normalized_payload
+    """Backward-compatible wrapper around repo scan metadata normalization."""
+    normalized_payload = _normalize_repo_scan_result_payload(
+        payload,
+        repo_style_readme_path=repo_style_readme_path,
+    )
+    if isinstance(normalized_payload, dict):
+        return normalized_payload
+    return payload
 
 
 def scan_role(
@@ -408,6 +409,7 @@ def scan_role(
     policy_config_path: str | None = None,
     fail_on_unconstrained_dynamic_includes: bool | None = None,
     fail_on_yaml_like_task_annotations: bool | None = None,
+    ignore_unresolved_internal_underscore_references: bool | None = None,
     detailed_catalog: bool = False,
     include_collection_checks: bool = False,
     include_task_parameters: bool = True,
@@ -443,6 +445,9 @@ def scan_role(
         policy_config_path=policy_config_path,
         fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
         fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
+        ignore_unresolved_internal_underscore_references=(
+            ignore_unresolved_internal_underscore_references
+        ),
         detailed_catalog=detailed_catalog,
         include_collection_checks=include_collection_checks,
         include_task_parameters=include_task_parameters,
@@ -476,6 +481,7 @@ def scan_repo(
     policy_config_path: str | None = None,
     fail_on_unconstrained_dynamic_includes: bool | None = None,
     fail_on_yaml_like_task_annotations: bool | None = None,
+    ignore_unresolved_internal_underscore_references: bool | None = None,
     lightweight_readme_only: bool = False,
     include_collection_checks: bool = False,
     include_task_parameters: bool = True,
@@ -489,104 +495,26 @@ def scan_repo(
     """
 
     with _repo_scan_workspace() as workspace:
-        checkout_dir = workspace / "repo"
-        resolved_repo_style_readme_path = repo_style_readme_path
-        repo_dir_names = _fetch_repo_directory_names(
-            repo_url,
-            repo_path=repo_role_path,
-            ref=repo_ref,
-            timeout=repo_timeout,
-        )
-        if repo_dir_names is not None and not _repo_path_looks_like_role(
-            repo_dir_names
-        ):
-            raise FileNotFoundError(
-                f"repository path does not look like an Ansible role: {repo_role_path}"
-            )
-
-        style_candidates = _build_repo_style_readme_candidates(repo_style_readme_path)
-        fetched_repo_style_readme_path = None
-        for style_candidate in style_candidates:
-            fetched_repo_style_readme_path = _fetch_repo_file(
-                repo_url,
-                style_candidate,
-                workspace / "repo-style-readme" / Path(style_candidate).name,
-                ref=repo_ref,
-                timeout=repo_timeout,
-            )
-            if fetched_repo_style_readme_path is not None:
-                resolved_repo_style_readme_path = style_candidate
-                break
-
         if lightweight_readme_only:
-            if not style_candidates:
-                raise FileNotFoundError(
-                    "lightweight repo scan requires repo_style_readme_path"
-                )
-
-            effective_style_readme_path: str | None = None
-            if fetched_repo_style_readme_path is not None:
-                effective_style_readme_path = str(
-                    fetched_repo_style_readme_path.resolve()
-                )
-            else:
-                if repo_dir_names is None:
-                    if repo_role_path.strip() in {"", "."}:
-                        role_sparse_paths = list(_REQUIRED_ROLE_DIRS)
-                    else:
-                        role_sparse_paths = [
-                            f"{repo_role_path.rstrip('/')}/{required_dir}"
-                            for required_dir in _REQUIRED_ROLE_DIRS
-                        ]
-
-                    sparse_paths = []
-                    for sparse_path in [*role_sparse_paths, *style_candidates]:
-                        if sparse_path and sparse_path not in sparse_paths:
-                            sparse_paths.append(sparse_path)
-
-                    _clone_repo(
-                        repo_url,
-                        checkout_dir,
-                        repo_ref,
-                        repo_timeout,
-                        sparse_paths=sparse_paths,
-                        allow_sparse_fallback_to_full=False,
-                    )
-
-                    role_path = (checkout_dir / repo_role_path).resolve()
-                    if not role_path.exists() or not role_path.is_dir():
-                        raise FileNotFoundError(
-                            f"role path not found in cloned repository: {repo_role_path}"
-                        )
-
-                    local_dir_names = {
-                        child.name for child in role_path.iterdir() if child.is_dir()
-                    }
-                    if not _repo_path_looks_like_role(local_dir_names):
-                        raise FileNotFoundError(
-                            "repository path does not look like an Ansible role: "
-                            f"{repo_role_path}"
-                        )
-
-                    for style_candidate in style_candidates:
-                        candidate_path = (checkout_dir / style_candidate).resolve()
-                        if candidate_path.is_file():
-                            effective_style_readme_path = str(candidate_path)
-                            resolved_repo_style_readme_path = style_candidate
-                            break
-
-            if effective_style_readme_path is None:
-                expected = repo_style_readme_path or "README.md"
-                raise FileNotFoundError(
-                    f"style README not found in repository: {expected}"
-                )
-
-            role_stub_dir = workspace / "role-stub"
-            role_stub_dir.mkdir(parents=True, exist_ok=True)
+            lightweight_checkout = _checkout_repo_lightweight_style_readme(
+                repo_url,
+                workspace=workspace,
+                repo_role_path=repo_role_path,
+                repo_style_readme_path=repo_style_readme_path,
+                repo_ref=repo_ref,
+                repo_timeout=repo_timeout,
+                prepare_repo_scan_inputs=_prepare_repo_scan_inputs,
+                fetch_repo_directory_names=_fetch_repo_directory_names,
+                repo_path_looks_like_role=_repo_path_looks_like_role,
+                fetch_repo_file=_fetch_repo_file,
+                clone_repo=_clone_repo,
+                build_lightweight_sparse_clone_paths=_build_lightweight_sparse_clone_paths,
+                resolve_style_readme_candidate=_resolve_style_readme_candidate,
+            )
             payload = scan_role(
-                str(role_stub_dir),
+                str(lightweight_checkout.role_stub_dir),
                 compare_role_path=compare_role_path,
-                style_readme_path=effective_style_readme_path,
+                style_readme_path=lightweight_checkout.effective_style_readme_path,
                 role_name_override=_repo_name_from_url(repo_url),
                 vars_seed_paths=vars_seed_paths,
                 concise_readme=concise_readme,
@@ -602,52 +530,45 @@ def scan_repo(
                 policy_config_path=policy_config_path,
                 fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
                 fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
+                ignore_unresolved_internal_underscore_references=(
+                    ignore_unresolved_internal_underscore_references
+                ),
                 include_collection_checks=include_collection_checks,
                 include_task_parameters=include_task_parameters,
                 include_task_runbooks=include_task_runbooks,
                 inline_task_runbooks=inline_task_runbooks,
             )
-            return _normalize_repo_style_guide_path(
+            return _normalize_repo_scan_metadata_paths(
                 payload,
-                resolved_repo_style_readme_path,
+                repo_style_readme_path=lightweight_checkout.resolved_repo_style_readme_path,
+                scanner_report_relpath=_resolve_repo_scan_scanner_report_relpath(
+                    concise_readme=concise_readme,
+                    scanner_report_output=scanner_report_output,
+                    primary_output_path="scan.json",
+                ),
             )
 
-        _clone_repo(
+        checkout = _checkout_repo_scan_role(
             repo_url,
-            checkout_dir,
-            repo_ref,
-            repo_timeout,
-            sparse_paths=_build_sparse_clone_paths(
-                repo_role_path,
-                (
-                    None
-                    if fetched_repo_style_readme_path is not None
-                    else style_candidates
-                ),
-            ),
+            workspace=workspace,
+            repo_role_path=repo_role_path,
+            repo_style_readme_path=repo_style_readme_path,
+            style_readme_path=style_readme_path,
+            repo_ref=repo_ref,
+            repo_timeout=repo_timeout,
+            prepare_repo_scan_inputs=_prepare_repo_scan_inputs,
+            fetch_repo_directory_names=_fetch_repo_directory_names,
+            repo_path_looks_like_role=_repo_path_looks_like_role,
+            fetch_repo_file=_fetch_repo_file,
+            clone_repo=_clone_repo,
+            build_sparse_clone_paths=_build_sparse_clone_paths,
+            resolve_style_readme_candidate=_resolve_style_readme_candidate,
         )
 
-        role_path = (checkout_dir / repo_role_path).resolve()
-        if not role_path.exists() or not role_path.is_dir():
-            raise FileNotFoundError(
-                f"role path not found in cloned repository: {repo_role_path}"
-            )
-
-        effective_style_readme_path = style_readme_path
-        if fetched_repo_style_readme_path is not None:
-            effective_style_readme_path = str(fetched_repo_style_readme_path.resolve())
-        elif style_candidates:
-            for style_candidate in style_candidates:
-                candidate_path = (checkout_dir / style_candidate).resolve()
-                if candidate_path.is_file():
-                    effective_style_readme_path = str(candidate_path)
-                    resolved_repo_style_readme_path = style_candidate
-                    break
-
         payload = scan_role(
-            str(role_path),
+            str(checkout.role_path),
             compare_role_path=compare_role_path,
-            style_readme_path=effective_style_readme_path,
+            style_readme_path=checkout.effective_style_readme_path,
             role_name_override=_repo_name_from_url(repo_url),
             vars_seed_paths=vars_seed_paths,
             concise_readme=concise_readme,
@@ -663,14 +584,22 @@ def scan_repo(
             policy_config_path=policy_config_path,
             fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
             fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
+            ignore_unresolved_internal_underscore_references=(
+                ignore_unresolved_internal_underscore_references
+            ),
             include_collection_checks=include_collection_checks,
             include_task_parameters=include_task_parameters,
             include_task_runbooks=include_task_runbooks,
             inline_task_runbooks=inline_task_runbooks,
         )
-        return _normalize_repo_style_guide_path(
+        return _normalize_repo_scan_metadata_paths(
             payload,
-            resolved_repo_style_readme_path,
+            repo_style_readme_path=checkout.resolved_repo_style_readme_path,
+            scanner_report_relpath=_resolve_repo_scan_scanner_report_relpath(
+                concise_readme=concise_readme,
+                scanner_report_output=scanner_report_output,
+                primary_output_path="scan.json",
+            ),
         )
 
 

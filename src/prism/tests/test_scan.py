@@ -890,6 +890,257 @@ def test_build_variable_insights_seed_vars_reduce_required_and_mark_secret(tmp_p
     assert by_name["required_api_token"]["default"] == "<secret>"
 
 
+def test_build_variable_insights_suppresses_unresolved_internal_underscore_names(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Internal and external refs\n"
+        "  ansible.builtin.debug:\n"
+        '    msg: "{{ _internal_tmp }} {{ __internal_state }} {{ external_input }}"\n',
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    by_name = {row["name"]: row for row in rows}
+
+    assert "_internal_tmp" not in by_name
+    assert "__internal_state" not in by_name
+    assert "external_input" in by_name
+    assert by_name["external_input"]["is_unresolved"] is True
+
+
+def test_build_variable_insights_can_include_unresolved_internal_underscore_names(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Internal and external refs\n"
+        "  ansible.builtin.debug:\n"
+        '    msg: "{{ _internal_tmp }} {{ __internal_state }} {{ external_input }}"\n',
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(
+        str(role),
+        include_vars_main=False,
+        ignore_unresolved_internal_underscore_references=False,
+    )
+    by_name = {row["name"]: row for row in rows}
+
+    assert "_internal_tmp" in by_name
+    assert by_name["_internal_tmp"]["is_unresolved"] is True
+    assert "__internal_state" in by_name
+    assert by_name["__internal_state"]["is_unresolved"] is True
+    assert "external_input" in by_name
+    assert by_name["external_input"]["is_unresolved"] is True
+
+
+def test_build_variable_insights_preserves_defined_underscore_vars_from_defaults(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    defaults = role / "defaults"
+    tasks = role / "tasks"
+    defaults.mkdir(parents=True)
+    tasks.mkdir(parents=True)
+
+    (defaults / "main.yml").write_text(
+        "_documented_internal_flag: true\n",
+        encoding="utf-8",
+    )
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Use underscore var\n"
+        "  ansible.builtin.debug:\n"
+        '    msg: "{{ _documented_internal_flag }}"\n',
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    by_name = {row["name"]: row for row in rows}
+
+    assert "_documented_internal_flag" in by_name
+    assert by_name["_documented_internal_flag"]["is_unresolved"] is False
+    assert by_name["_documented_internal_flag"]["provenance_source_file"] == (
+        "defaults/main.yml"
+    )
+
+
+def test_build_variable_insights_adds_non_authoritative_test_evidence_for_unresolved(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tests_dir = role / "tests"
+    tasks.mkdir(parents=True)
+    tests_dir.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Runtime input\n"
+        "  ansible.builtin.debug:\n"
+        '    msg: "{{ external_input }}"\n',
+        encoding="utf-8",
+    )
+    (tests_dir / "test.yml").write_text(
+        "---\n"
+        "external_input: one\n"
+        "nested:\n"
+        '  value: "{{ external_input }}"\n'
+        "notes: external_input should be passed by inventory\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    unresolved = next(item for item in rows if item["name"] == "external_input")
+    evidence = unresolved.get("non_authoritative_test_evidence")
+
+    assert unresolved["is_unresolved"] is True
+    assert unresolved["source"] == "inferred usage"
+    assert isinstance(evidence, dict)
+    assert evidence["authoritative"] is False
+    assert evidence["match_count"] == 3
+    assert evidence["confidence"] == 0.7
+    assert evidence["probability"] == 0.7
+    assert evidence["matched_files"] == ["tests/test.yml"]
+    assert evidence["saturation_applied"] is False
+    assert evidence["scan_budget_hit"] is False
+    assert "Non-authoritative test evidence found" in unresolved["uncertainty_reason"]
+
+
+def test_collect_non_authoritative_test_variable_evidence_uses_token_boundaries(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    tests_dir = role / "tests"
+    tests_dir.mkdir(parents=True)
+    (tests_dir / "case.yml").write_text(
+        "---\n"
+        "external_input: one\n"
+        "note: external_input\n"
+        "other: external_input_extra\n",
+        encoding="utf-8",
+    )
+
+    evidence = scanner._collect_non_authoritative_test_variable_evidence(
+        role_path=str(role),
+        unresolved_names={"external_input", "external_input_extra", "missing_value"},
+        exclude_paths=None,
+    )
+
+    assert evidence["external_input"]["match_count"] == 2
+    assert evidence["external_input"]["matched_files"] == ["tests/case.yml"]
+    assert evidence["external_input_extra"]["match_count"] == 1
+    assert "missing_value" not in evidence
+
+
+def test_collect_non_authoritative_test_variable_evidence_honors_max_files(tmp_path):
+    role = tmp_path / "role"
+    tests_dir = role / "tests"
+    tests_dir.mkdir(parents=True)
+    for idx in range(3):
+        (tests_dir / f"f{idx}.yml").write_text(
+            "external_input: true\n", encoding="utf-8"
+        )
+
+    evidence = scanner._collect_non_authoritative_test_variable_evidence(
+        role_path=str(role),
+        unresolved_names={"external_input"},
+        exclude_paths=None,
+        max_files_scanned=1,
+    )
+
+    assert evidence["external_input"]["match_count"] == 1
+    assert len(evidence["external_input"]["matched_files"]) == 1
+    assert evidence["external_input"]["scan_budget_hit"] is True
+
+
+def test_collect_non_authoritative_test_variable_evidence_honors_max_total_bytes(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    tests_dir = role / "tests"
+    tests_dir.mkdir(parents=True)
+    content = "external_input: true\n"
+    (tests_dir / "a.yml").write_text(content, encoding="utf-8")
+    (tests_dir / "b.yml").write_text(content, encoding="utf-8")
+
+    evidence = scanner._collect_non_authoritative_test_variable_evidence(
+        role_path=str(role),
+        unresolved_names={"external_input"},
+        exclude_paths=None,
+        max_total_bytes=len(content.encode("utf-8")),
+    )
+
+    assert evidence["external_input"]["match_count"] == 1
+    assert evidence["external_input"]["matched_files"] == ["tests/a.yml"]
+    assert evidence["external_input"]["scan_budget_hit"] is True
+
+
+def test_collect_non_authoritative_test_variable_evidence_saturates_counts(tmp_path):
+    role = tmp_path / "role"
+    tests_dir = role / "tests"
+    tests_dir.mkdir(parents=True)
+    (tests_dir / "many.yml").write_text(
+        "---\n" + "\n".join(["external_input: true"] * 50) + "\n",
+        encoding="utf-8",
+    )
+
+    evidence = scanner._collect_non_authoritative_test_variable_evidence(
+        role_path=str(role),
+        unresolved_names={"external_input"},
+        exclude_paths=None,
+    )
+
+    assert (
+        evidence["external_input"]["match_count"]
+        == scanner.NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT
+    )
+    assert evidence["external_input"]["matched_files"] == ["tests/many.yml"]
+
+
+def test_build_variable_insights_marks_test_evidence_saturation_metadata(tmp_path):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tests_dir = role / "tests"
+    tasks.mkdir(parents=True)
+    tests_dir.mkdir(parents=True)
+
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Runtime input\n"
+        "  ansible.builtin.debug:\n"
+        '    msg: "{{ external_input }}"\n',
+        encoding="utf-8",
+    )
+    (tests_dir / "test.yml").write_text(
+        "---\n" + "\n".join(["external_input: one"] * 20) + "\n",
+        encoding="utf-8",
+    )
+
+    rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    unresolved = next(item for item in rows if item["name"] == "external_input")
+    evidence = unresolved["non_authoritative_test_evidence"]
+
+    assert (
+        evidence["match_count"]
+        == scanner.NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT
+    )
+    assert evidence["saturation_applied"] is True
+    assert (
+        evidence["saturation_threshold"]
+        == scanner.NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT
+    )
+    assert "saturated at threshold" in unresolved["uncertainty_reason"]
+
+
 def test_run_scan_redacts_secret_like_default_filter_values(tmp_path):
     role = tmp_path / "role"
     (role / "tasks").mkdir(parents=True)
@@ -1152,6 +1403,88 @@ def test_collect_task_handler_catalog_attaches_annotation_metadata(tmp_path):
     assert handler_catalog[0]["anchor"].startswith("task-main-yml-restart-app")
 
 
+def test_comment_driven_demo_role_fixture_has_rich_annotations():
+    role = ROLE_FIXTURES / "comment_driven_demo_role"
+
+    notes = scanner._extract_role_notes_from_comments(str(role))
+    task_catalog, handler_catalog = scanner._collect_task_handler_catalog(str(role))
+    features = scanner.extract_role_features(str(role))
+
+    assert any("maintenance window" in item for item in notes["warnings"])
+    assert any(
+        "review the rollback path quarterly capture the agreed rollback owner" in item
+        for item in notes["notes"]
+    )
+    assert any("legacy_release_marker" in item for item in notes["deprecations"])
+    assert any("documentation density" in item for item in notes["additionals"])
+
+    assert len(task_catalog) >= 25
+    assert len(handler_catalog) == 3
+    assert features["disabled_task_annotations"] == 0
+    assert features["yaml_like_task_annotations"] == 0
+
+    by_name = {entry["name"]: entry for entry in task_catalog}
+
+    assert "Run data backfill after deploy" not in by_name
+    assert [
+        note["kind"]
+        for note in by_name["Stop application service for full deploy"]["annotations"]
+    ] == [
+        "runbook",
+        "warning",
+    ]
+    assert by_name["Stop application service for full deploy"]["annotations"][1][
+        "text"
+    ] == (
+        "confirm no active migrations are running before stopping the service\n"
+        "capture active worker counts before the stop for incident comparison"
+    )
+    assert by_name["Include preflight workflow"]["annotations"] == [
+        {
+            "kind": "note",
+            "text": "preflight tasks may be safely re-run during incident response",
+        }
+    ]
+    assert by_name["Link current release into place"]["annotations"] == [
+        {
+            "kind": "runbook",
+            "text": (
+                "if the symlink update fails, verify the previous target and "
+                "restore it before retrying"
+            ),
+        }
+    ]
+    assert by_name["Warm application cache"]["annotations"] == [
+        {
+            "kind": "additional",
+            "text": (
+                "warming cache is optional in development but useful in "
+                "production-like examples\n"
+                "it helps generated runbooks show optional but valuable "
+                "post-deploy steps"
+            ),
+        }
+    ]
+    assert by_name["Publish deployment summary"]["annotations"] == [
+        {
+            "kind": "runbook",
+            "text": (
+                "capture the final deployment summary in the change ticket "
+                "before closing the window"
+            ),
+        }
+    ]
+    assert by_name["Verify health endpoint returns success"]["annotations"] == [
+        {
+            "kind": "warning",
+            "text": (
+                "capture the failing payload in the incident ticket before "
+                "rolling back"
+            ),
+        }
+    ]
+
+
 def test_extract_scanner_counters_groups_by_confidence_and_status():
     counters = scanner._extract_scanner_counters(
         [
@@ -1266,6 +1599,44 @@ def test_extract_scanner_counters_includes_role_include_observability():
     assert counters["disabled_task_annotations"] == 4
     assert counters["yaml_like_task_annotations"] == 1
     assert counters["unresolved_noise_variables"] == 0
+
+
+def test_extract_scanner_counters_tracks_test_evidence_telemetry():
+    counters = scanner._extract_scanner_counters(
+        [
+            {
+                "documented": False,
+                "is_unresolved": True,
+                "is_ambiguous": False,
+                "secret": False,
+                "required": True,
+                "provenance_confidence": 0.4,
+                "non_authoritative_test_evidence": {
+                    "match_count": 2,
+                    "saturation_applied": False,
+                    "scan_budget_hit": False,
+                },
+            },
+            {
+                "documented": False,
+                "is_unresolved": True,
+                "is_ambiguous": False,
+                "secret": False,
+                "required": True,
+                "provenance_confidence": 0.4,
+                "non_authoritative_test_evidence": {
+                    "match_count": 4,
+                    "saturation_applied": True,
+                    "scan_budget_hit": True,
+                },
+            },
+        ],
+        [],
+    )
+
+    assert counters["non_authoritative_test_evidence_variables"] == 2
+    assert counters["non_authoritative_test_evidence_saturation_hits"] == 1
+    assert counters["non_authoritative_test_evidence_budget_hits"] == 1
 
 
 def test_collect_yaml_parse_failures_reports_file_and_line(tmp_path):
@@ -3125,6 +3496,134 @@ def test_build_scanner_report_markdown_renders_ambiguous_after_parse_failures():
     assert "Ambiguous variables:" in report
     assert "ambig_var" in report
     assert "May come from include_vars." in report
+
+
+def test_build_scanner_report_markdown_issue_list_rows_keep_parity_with_fallbacks():
+    """Issue-list row rendering keeps unresolved/ambiguous markdown output stable."""
+    report = scanner._build_scanner_report_markdown(
+        role_name="test_role",
+        description="Test description",
+        variables={},
+        requirements=[],
+        default_filters=[],
+        metadata={
+            "yaml_parse_failures": [
+                {
+                    "file": "tasks/bad.yml",
+                    "line": 1,
+                    "column": 2,
+                    "error": "broken",
+                }
+            ],
+            "variable_insights": [
+                {
+                    "name": "unresolved_with_reason",
+                    "is_unresolved": True,
+                    "is_ambiguous": False,
+                    "uncertainty_reason": "No static definition found.",
+                },
+                {
+                    "name": "unresolved_fallback",
+                    "is_unresolved": True,
+                    "is_ambiguous": False,
+                    "uncertainty_reason": "",
+                },
+                {
+                    "name": "ambig_fallback",
+                    "is_unresolved": False,
+                    "is_ambiguous": True,
+                    "uncertainty_reason": "",
+                },
+            ],
+            "scanner_counters": {
+                "total_variables": 3,
+                "documented_variables": 0,
+                "undocumented_variables": 3,
+                "unresolved_variables": 2,
+                "ambiguous_variables": 1,
+                "secret_variables": 0,
+                "required_variables": 0,
+                "high_confidence_variables": 0,
+                "medium_confidence_variables": 0,
+                "low_confidence_variables": 3,
+                "total_default_filters": 0,
+                "undocumented_default_filters": 0,
+                "included_role_calls": 0,
+                "dynamic_included_role_calls": 0,
+                "yaml_parse_failures": 1,
+                "provenance_issue_categories": {
+                    "unresolved_readme_documented_only": 0,
+                    "unresolved_dynamic_include_vars": 0,
+                    "unresolved_no_static_definition": 1,
+                    "unresolved_other": 1,
+                    "precedence_defaults_overridden_by_vars": 0,
+                    "ambiguous_include_vars_sources": 1,
+                    "ambiguous_set_fact_runtime": 0,
+                    "ambiguous_other": 0,
+                },
+            },
+        },
+    )
+
+    assert "- `unresolved_with_reason`: No static definition found." in report
+    assert "- `unresolved_fallback`: Unknown source." in report
+    assert "- `ambig_fallback`: Multiple possible sources." in report
+
+
+def test_build_scanner_report_markdown_yaml_parse_failure_rows_keep_parity():
+    """YAML parse-failure row rendering keeps markdown output stable."""
+    report = scanner._build_scanner_report_markdown(
+        role_name="test_role",
+        description="Test description",
+        variables={},
+        requirements=[],
+        default_filters=[],
+        metadata={
+            "yaml_parse_failures": [
+                {
+                    "file": "tasks/bad.yml",
+                    "line": 5,
+                    "column": 10,
+                    "error": "expected ',', found EOF",
+                },
+                {
+                    "file": "defaults/main.yml",
+                    "error": "",
+                },
+            ],
+            "variable_insights": [],
+            "scanner_counters": {
+                "total_variables": 0,
+                "documented_variables": 0,
+                "undocumented_variables": 0,
+                "unresolved_variables": 0,
+                "ambiguous_variables": 0,
+                "secret_variables": 0,
+                "required_variables": 0,
+                "high_confidence_variables": 0,
+                "medium_confidence_variables": 0,
+                "low_confidence_variables": 0,
+                "total_default_filters": 0,
+                "undocumented_default_filters": 0,
+                "included_role_calls": 0,
+                "dynamic_included_role_calls": 0,
+                "yaml_parse_failures": 2,
+                "provenance_issue_categories": {
+                    "unresolved_readme_documented_only": 0,
+                    "unresolved_dynamic_include_vars": 0,
+                    "unresolved_no_static_definition": 0,
+                    "unresolved_other": 0,
+                    "precedence_defaults_overridden_by_vars": 0,
+                    "ambiguous_include_vars_sources": 0,
+                    "ambiguous_set_fact_runtime": 0,
+                    "ambiguous_other": 0,
+                },
+            },
+        },
+    )
+
+    assert "- `tasks/bad.yml:5:10`: expected ',', found EOF" in report
+    assert "- `defaults/main.yml`: parse error" in report
 
 
 def test_classify_provenance_issue_unresolved_with_dynamic_include_vars_reason():

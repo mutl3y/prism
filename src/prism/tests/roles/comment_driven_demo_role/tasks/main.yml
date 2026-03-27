@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: MIT-0
+---
+# prism~note: this role is a documentation-heavy sample intended for README and runbook generation demos
+# prism~task: Summarize requested deployment | runbook:
+# precheck verify deployment inputs and release naming
+# confirm the maintenance window is active before a full deploy
+
+- name: Summarize requested deployment
+  ansible.builtin.debug:
+    msg:
+      service: "{{ comment_demo_service_name }}"
+      release: "{{ comment_demo_release_version }}"
+      full_deploy: "{{ comment_demo_full_deploy }}"
+
+# prism~task: Assert release path looks sane | warning: release identifiers should remain immutable once published
+- name: Assert release path looks sane
+  ansible.builtin.assert:
+    that:
+      - comment_demo_release_version is match('^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$')
+      - comment_demo_release_path.startswith(comment_demo_release_root)
+    fail_msg: Release naming must remain predictable for rollback documentation.
+
+# prism~task: Include preflight workflow | note: preflight tasks may be safely re-run during incident response
+- name: Include preflight workflow
+  ansible.builtin.import_tasks: preflight.yml
+
+# prism~task: Include deployment workflow | runbook: deploy release assets and notify handlers if configuration changes
+- name: Include deployment workflow
+  ansible.builtin.include_tasks: deploy.yml
+
+# prism~task: Include operations workflow | additional: these steps model surrounding operational choreography, not just file changes
+- name: Include operations workflow
+  ansible.builtin.include_tasks: operations.yml
+
+# prism~task: Include validation workflow | note: validation is enabled by default to make generated runbooks more complete
+- name: Include validation workflow
+  ansible.builtin.include_tasks: validate.yml
+  when: comment_demo_enable_validation
+
+- name: Flush handlers after deployment
+  ansible.builtin.meta: flush_handlers
+
+# prism~task: Include rollback workflow | warning: rollback steps should stay documented even when disabled by default
+- name: Include rollback workflow
+  ansible.builtin.include_tasks: rollback.yml
+  when: comment_demo_enable_rollback
+
+# prism~task: Publish deployment summary | runbook: capture the final deployment summary in the change ticket before closing the window
+- name: Publish deployment summary
+  ansible.builtin.debug:
+    msg: "Deployment for {{ comment_demo_release_version }} completed."

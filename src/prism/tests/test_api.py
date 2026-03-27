@@ -4,7 +4,7 @@ import shutil
 
 import pytest
 
-from prism import api, cli
+from prism import api, cli, repo_services
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -38,6 +38,127 @@ def test_scan_role_returns_payload_dict(tmp_path):
     assert "metadata" in payload
 
 
+def test_api_and_cli_share_repo_service_helper_bindings(monkeypatch):
+    monkeypatch.setattr(
+        api,
+        "_fetch_repo_directory_names",
+        repo_services._fetch_repo_directory_names,
+    )
+    monkeypatch.setattr(api, "_fetch_repo_file", repo_services._fetch_repo_file)
+
+    assert api._clone_repo is repo_services._clone_repo
+    assert api._fetch_repo_directory_names is repo_services._fetch_repo_directory_names
+    assert api._fetch_repo_file is repo_services._fetch_repo_file
+
+    assert api._repo_scan_workspace is repo_services._repo_scan_workspace
+    assert api._repo_path_looks_like_role is repo_services._repo_path_looks_like_role
+    assert api._repo_name_from_url is repo_services._repo_name_from_url
+    assert (
+        api._build_repo_style_readme_candidates
+        is repo_services._build_repo_style_readme_candidates
+    )
+    assert api._build_sparse_clone_paths is repo_services._build_sparse_clone_paths
+    assert api._prepare_repo_scan_inputs is repo_services._prepare_repo_scan_inputs
+    assert (
+        api._resolve_style_readme_candidate
+        is repo_services._resolve_style_readme_candidate
+    )
+    assert api._checkout_repo_scan_role is repo_services._checkout_repo_scan_role
+    assert (
+        api._build_lightweight_sparse_clone_paths
+        is repo_services._build_lightweight_sparse_clone_paths
+    )
+    assert (
+        api._checkout_repo_lightweight_style_readme
+        is repo_services._checkout_repo_lightweight_style_readme
+    )
+
+    assert cli._repo_scan_workspace is repo_services._repo_scan_workspace
+    assert cli._repo_path_looks_like_role is repo_services._repo_path_looks_like_role
+    assert cli._repo_name_from_url is repo_services._repo_name_from_url
+    assert (
+        cli._build_repo_style_readme_candidates
+        is repo_services._build_repo_style_readme_candidates
+    )
+    assert cli._build_sparse_clone_paths is repo_services._build_sparse_clone_paths
+    assert cli._prepare_repo_scan_inputs is repo_services._prepare_repo_scan_inputs
+    assert (
+        cli._resolve_style_readme_candidate
+        is repo_services._resolve_style_readme_candidate
+    )
+    assert cli._checkout_repo_scan_role is repo_services._checkout_repo_scan_role
+    assert (
+        cli._checkout_repo_lightweight_style_readme
+        is repo_services._checkout_repo_lightweight_style_readme
+    )
+
+
+def test_scan_repo_uses_shared_checkout_orchestration(monkeypatch, tmp_path):
+    calls: dict = {}
+    role_path = tmp_path / "repo" / "roles" / "demo"
+    role_path.mkdir(parents=True)
+
+    def fake_checkout_repo_scan_role(
+        repo_url,
+        *,
+        workspace,
+        repo_role_path,
+        repo_style_readme_path,
+        style_readme_path,
+        repo_ref,
+        repo_timeout,
+        prepare_repo_scan_inputs,
+        fetch_repo_directory_names,
+        repo_path_looks_like_role,
+        fetch_repo_file,
+        clone_repo,
+        build_sparse_clone_paths,
+        resolve_style_readme_candidate,
+    ):
+        calls["repo_url"] = repo_url
+        calls["repo_role_path"] = repo_role_path
+        calls["repo_style_readme_path"] = repo_style_readme_path
+        calls["style_readme_path"] = style_readme_path
+        calls["repo_ref"] = repo_ref
+        calls["repo_timeout"] = repo_timeout
+        return repo_services._RepoCheckoutResult(
+            checkout_dir=tmp_path / "repo",
+            role_path=role_path,
+            effective_style_readme_path=None,
+            resolved_repo_style_readme_path="README.md",
+            style_candidates=["README.md"],
+            fetched_repo_style_readme_path=None,
+        )
+
+    def fake_scan_role(scanned_role_path, **kwargs):
+        calls["scanned_role_path"] = scanned_role_path
+        calls["scanned_style_readme_path"] = kwargs.get("style_readme_path")
+        return {
+            "role_name": "demo",
+            "metadata": {"style_guide": {"path": kwargs.get("style_readme_path")}},
+        }
+
+    monkeypatch.setattr(api, "_checkout_repo_scan_role", fake_checkout_repo_scan_role)
+    monkeypatch.setattr(api, "scan_role", fake_scan_role)
+
+    payload = api.scan_repo(
+        "https://github.com/example/demo-role.git",
+        repo_ref="main",
+        repo_role_path="roles/demo",
+        repo_timeout=12,
+        repo_style_readme_path="README.md",
+    )
+
+    assert payload["role_name"] == "demo"
+    assert calls["repo_url"] == "https://github.com/example/demo-role.git"
+    assert calls["repo_role_path"] == "roles/demo"
+    assert calls["repo_style_readme_path"] == "README.md"
+    assert calls["repo_ref"] == "main"
+    assert calls["repo_timeout"] == 12
+    assert calls["scanned_role_path"] == str(role_path)
+    assert calls["scanned_style_readme_path"] is None
+
+
 def test_scan_role_forwards_library_options(monkeypatch):
     calls: dict = {}
 
@@ -54,6 +175,7 @@ def test_scan_role_forwards_library_options(monkeypatch):
         style_source_path="/tmp/style.md",
         policy_config_path="/tmp/policy.yml",
         fail_on_unconstrained_dynamic_includes=True,
+        ignore_unresolved_internal_underscore_references=False,
         keep_unknown_style_sections=False,
     )
 
@@ -66,6 +188,7 @@ def test_scan_role_forwards_library_options(monkeypatch):
     assert calls["style_source_path"] == "/tmp/style.md"
     assert calls["policy_config_path"] == "/tmp/policy.yml"
     assert calls["fail_on_unconstrained_dynamic_includes"] is True
+    assert calls["ignore_unresolved_internal_underscore_references"] is False
     assert calls["keep_unknown_style_sections"] is False
 
 
@@ -258,6 +381,81 @@ def test_scan_repo_lightweight_readme_only_skips_clone(monkeypatch, tmp_path):
     assert scan_calls["role_name_override"] == "demo-role"
 
 
+def test_scan_repo_lightweight_uses_shared_checkout_orchestration(
+    monkeypatch, tmp_path
+):
+    calls: dict = {}
+    role_stub = tmp_path / "role-stub"
+    role_stub.mkdir(parents=True)
+    fetched_style = tmp_path / "style.md"
+    _write_guide_file(fetched_style)
+
+    def fake_checkout_repo_lightweight_style_readme(
+        repo_url,
+        *,
+        workspace,
+        repo_role_path,
+        repo_style_readme_path,
+        repo_ref,
+        repo_timeout,
+        prepare_repo_scan_inputs,
+        fetch_repo_directory_names,
+        repo_path_looks_like_role,
+        fetch_repo_file,
+        clone_repo,
+        build_lightweight_sparse_clone_paths,
+        resolve_style_readme_candidate,
+    ):
+        calls["repo_url"] = repo_url
+        calls["repo_role_path"] = repo_role_path
+        calls["repo_style_readme_path"] = repo_style_readme_path
+        calls["repo_ref"] = repo_ref
+        calls["repo_timeout"] = repo_timeout
+        return repo_services._RepoLightweightCheckoutResult(
+            role_stub_dir=role_stub,
+            effective_style_readme_path=str(fetched_style.resolve()),
+            resolved_repo_style_readme_path="README.md",
+        )
+
+    def fake_scan_role(role_path, **kwargs):
+        calls["scanned_role_path"] = role_path
+        calls["scanned_style_readme_path"] = kwargs.get("style_readme_path")
+        return {
+            "role_name": "demo-role",
+            "metadata": {
+                "style_guide": {
+                    "path": kwargs.get("style_readme_path"),
+                }
+            },
+        }
+
+    monkeypatch.setattr(
+        api,
+        "_checkout_repo_lightweight_style_readme",
+        fake_checkout_repo_lightweight_style_readme,
+    )
+    monkeypatch.setattr(api, "scan_role", fake_scan_role)
+
+    payload = api.scan_repo(
+        "https://github.com/example/demo-role.git",
+        repo_ref="main",
+        repo_role_path="roles/demo",
+        repo_timeout=7,
+        repo_style_readme_path="README.md",
+        lightweight_readme_only=True,
+    )
+
+    assert payload["role_name"] == "demo-role"
+    assert calls["repo_url"] == "https://github.com/example/demo-role.git"
+    assert calls["repo_role_path"] == "roles/demo"
+    assert calls["repo_style_readme_path"] == "README.md"
+    assert calls["repo_ref"] == "main"
+    assert calls["repo_timeout"] == 7
+    assert calls["scanned_role_path"] == str(role_stub)
+    assert calls["scanned_style_readme_path"] == str(fetched_style.resolve())
+    assert payload["metadata"]["style_guide"]["path"] == "README.md"
+
+
 def test_scan_repo_uses_shared_temp_root_and_normalizes_style_path(
     monkeypatch, tmp_path
 ):
@@ -342,6 +540,143 @@ def test_scan_repo_resolves_case_variant_repo_style_readme(monkeypatch, tmp_path
     assert calls["requested_paths"] == ["README.md", "Readme.md", "readme.md"]
     assert calls["sparse_paths"] == ["roles/demo"]
     assert payload["metadata"]["style_guide"]["path"] == "readme.md"
+
+
+def test_scan_repo_sets_logical_scanner_report_relpath(monkeypatch, tmp_path):
+    role_path = tmp_path / "repo" / "roles" / "demo"
+    role_path.mkdir(parents=True)
+
+    def fake_checkout_repo_scan_role(*args, **kwargs):
+        return repo_services._RepoCheckoutResult(
+            checkout_dir=tmp_path / "repo",
+            role_path=role_path,
+            effective_style_readme_path=str((tmp_path / "STYLE.md").resolve()),
+            resolved_repo_style_readme_path="readme.md",
+            style_candidates=["README.md", "Readme.md", "readme.md"],
+            fetched_repo_style_readme_path=None,
+        )
+
+    def fake_scan_role(role_path, **kwargs):
+        return {
+            "role_name": "demo-role",
+            "metadata": {
+                "style_guide": {
+                    "path": kwargs.get("style_readme_path"),
+                }
+            },
+        }
+
+    monkeypatch.setattr(api, "_checkout_repo_scan_role", fake_checkout_repo_scan_role)
+    monkeypatch.setattr(api, "scan_role", fake_scan_role)
+
+    payload = api.scan_repo(
+        "https://github.com/example/demo-role.git",
+        repo_role_path="roles/demo",
+        repo_style_readme_path="README.md",
+        concise_readme=True,
+        scanner_report_output="reports/repo.scan.md",
+    )
+
+    assert payload["metadata"]["style_guide"]["path"] == "readme.md"
+    assert payload["metadata"]["scanner_report_relpath"] == "reports/repo.scan.md"
+
+
+def test_scan_repo_normalizes_windows_scanner_report_relpath(monkeypatch, tmp_path):
+    role_path = tmp_path / "repo" / "roles" / "demo"
+    role_path.mkdir(parents=True)
+
+    def fake_checkout_repo_scan_role(*args, **kwargs):
+        return repo_services._RepoCheckoutResult(
+            checkout_dir=tmp_path / "repo",
+            role_path=role_path,
+            effective_style_readme_path=str((tmp_path / "STYLE.md").resolve()),
+            resolved_repo_style_readme_path="readme.md",
+            style_candidates=["README.md", "Readme.md", "readme.md"],
+            fetched_repo_style_readme_path=None,
+        )
+
+    def fake_scan_role(role_path, **kwargs):
+        return {
+            "role_name": "demo-role",
+            "metadata": {
+                "style_guide": {
+                    "path": kwargs.get("style_readme_path"),
+                }
+            },
+        }
+
+    monkeypatch.setattr(api, "_checkout_repo_scan_role", fake_checkout_repo_scan_role)
+    monkeypatch.setattr(api, "scan_role", fake_scan_role)
+    monkeypatch.setattr(
+        repo_services.os.path,
+        "relpath",
+        lambda *args, **kwargs: r"..\reports\nested\repo.scan.md",
+    )
+
+    payload = api.scan_repo(
+        "https://github.com/example/demo-role.git",
+        repo_role_path="roles/demo",
+        repo_style_readme_path="README.md",
+        concise_readme=True,
+        scanner_report_output=r"reports\nested\repo.scan.md",
+    )
+
+    assert payload["metadata"]["style_guide"]["path"] == "readme.md"
+    assert (
+        payload["metadata"]["scanner_report_relpath"]
+        == "../reports/nested/repo.scan.md"
+    )
+
+
+def test_scan_repo_lightweight_normalizes_windows_scanner_report_relpath(
+    monkeypatch, tmp_path
+):
+    role_stub = tmp_path / "role-stub"
+    role_stub.mkdir(parents=True)
+
+    def fake_checkout_repo_lightweight_style_readme(*args, **kwargs):
+        return repo_services._RepoLightweightCheckoutResult(
+            role_stub_dir=role_stub,
+            effective_style_readme_path=str((tmp_path / "STYLE.md").resolve()),
+            resolved_repo_style_readme_path="readme.md",
+        )
+
+    def fake_scan_role(role_path, **kwargs):
+        return {
+            "role_name": "demo-role",
+            "metadata": {
+                "style_guide": {
+                    "path": kwargs.get("style_readme_path"),
+                }
+            },
+        }
+
+    monkeypatch.setattr(
+        api,
+        "_checkout_repo_lightweight_style_readme",
+        fake_checkout_repo_lightweight_style_readme,
+    )
+    monkeypatch.setattr(api, "scan_role", fake_scan_role)
+    monkeypatch.setattr(
+        repo_services.os.path,
+        "relpath",
+        lambda *args, **kwargs: r"..\reports\nested\repo.scan.md",
+    )
+
+    payload = api.scan_repo(
+        "https://github.com/example/demo-role.git",
+        repo_role_path="roles/demo",
+        repo_style_readme_path="README.md",
+        concise_readme=True,
+        scanner_report_output=r"reports\nested\repo.scan.md",
+        lightweight_readme_only=True,
+    )
+
+    assert payload["metadata"]["style_guide"]["path"] == "readme.md"
+    assert (
+        payload["metadata"]["scanner_report_relpath"]
+        == "../reports/nested/repo.scan.md"
+    )
 
 
 def test_scan_repo_lightweight_requires_readme_when_missing(monkeypatch):

@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: MIT-0
+---
+# prism~note: handlers are included in role-note extraction, so operational caveats can live here too
+# prism~additional: reload is preferred after config-only changes, restart is reserved for release swaps
+
+- name: Restart comment demo service
+  ansible.builtin.service:
+    name: "{{ comment_demo_service_name }}"
+    state: restarted
+
+- name: Reload comment demo service
+  ansible.builtin.service:
+    name: "{{ comment_demo_service_name }}"
+    state: reloaded
+
+- name: Clear comment demo cache
+  ansible.builtin.command:
+    cmd: /usr/local/bin/comment-demo-cache-clear
+  changed_when: true

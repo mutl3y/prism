@@ -7,6 +7,9 @@ This folder provides stable role fixture entry points used by tests.
 - `enhanced_mock_role` is the production-like fixture for realism tests and broader
   scenario coverage.
   It points to `../enhanced_mock_role`.
+- `comment_driven_demo_role` is a documentation-heavy fixture that demonstrates
+  dense use of comment-driven notes, warnings, runbooks, and task annotations
+  across a fuller role workflow.
 - `inrole_config_role` is a dedicated fixture for in-role readme config behavior.
 
 Source directories:

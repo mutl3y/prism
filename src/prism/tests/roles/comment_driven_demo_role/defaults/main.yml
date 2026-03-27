@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: MIT-0
+---
+# prism~warning: review the maintenance window before enabling full-deploy mode
+# prism~note: service owners should review the rollback path quarterly
+# capture the agreed rollback owner in the change request
+# prism~additional: this fixture intentionally favors documentation density over task minimalism
+
+comment_demo_service_name: comment-demo
+comment_demo_service_user: commentdemo
+comment_demo_config_path: /etc/comment-demo/config.yml
+comment_demo_release_root: /opt/comment-demo/releases
+comment_demo_release_version: "2026.03.25"
+comment_demo_release_path: "{{ comment_demo_release_root }}/{{ comment_demo_release_version }}"
+comment_demo_current_path: /opt/comment-demo/current
+comment_demo_healthcheck_url: http://127.0.0.1:8080/healthz
+comment_demo_http_port: 8080
+comment_demo_enable_validation: true
+comment_demo_enable_rollback: false
+comment_demo_full_deploy: true
+comment_demo_expected_version: "{{ comment_demo_release_version }}"
+comment_demo_maintenance_message: "Deployment in progress. Expect short interruptions."
+comment_demo_env:
+  APP_ENV: production
+  APP_LOG_LEVEL: info

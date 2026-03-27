@@ -21,3 +21,39 @@ repos:
         entry: ruff check --fix
         language: system
         types: [python]
+
+      - id: mypy-seams
+        name: mypy (modernized seam modules)
+        entry: mypy
+        args:
+          - --ignore-missing-imports
+          - --disable-error-code=import-untyped
+          - --follow-imports=silent
+          - src/prism/scanner_submodules/scan_context.py
+          - src/prism/scanner_submodules/scan_request.py
+          - src/prism/scanner_submodules/scan_output_emission.py
+          - src/prism/scanner_submodules/scan_output_primary.py
+          - src/prism/scanner_submodules/scan_metrics.py
+          - src/prism/scanner_submodules/scan_discovery.py
+          - src/prism/scanner_submodules/scanner_report.py
+          - src/prism/scanner_submodules/output.py
+          - src/prism/scanner_submodules/runbook.py
+          - src/prism/scanner_submodules/readme_config.py
+          - src/prism/scanner_submodules/style_vars.py
+          - src/prism/scanner_submodules/requirements.py
+          - src/prism/scanner_submodules/doc_insights.py
+          - src/prism/scanner_submodules/style_guide.py
+          - src/prism/scanner_submodules/task_parser.py
+          - src/prism/scanner_submodules/variable_extractor.py
+          - src/prism/scanner.py
+          - src/prism/api.py
+          - src/prism/cli.py
+          - src/prism/pattern_config.py
+          - src/prism/collection_plugins.py
+          - src/prism/feedback.py
+          - src/prism/init.py
+          - src/prism/_jinja_analyzer.py
+          - src/prism/repo_services.py
+        language: system
+        pass_filenames: false
+        types: [python]

@@ -6,7 +6,6 @@ Provides a small CLI wrapper around :func:`prism.scanner.run_scan`.
 from __future__ import annotations
 import base64
 import argparse
-from contextlib import contextmanager
 from datetime import datetime, UTC
 import json
 import os
@@ -15,11 +14,26 @@ import re
 import shutil
 import subprocess
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import urlopen
 import sys
-import tempfile
 import yaml
+from .repo_services import (
+    _build_sparse_clone_paths,
+    _checkout_repo_scan_role,
+    _clone_repo as _repo_clone_repo,
+    _fetch_repo_directory_names as _repo_fetch_repo_directory_names,
+    _fetch_repo_file as _repo_fetch_repo_file,
+    _fetch_repo_contents_payload as _repo_fetch_repo_contents_payload,
+    _github_repo_from_url as _repo_github_repo_from_url,
+    _normalize_repo_scan_result_payload,
+    _normalize_repo_path as _repo_normalize_repo_path,
+    _prepare_repo_scan_inputs,
+    _repo_name_from_url,
+    _repo_path_looks_like_role,
+    _repo_scan_workspace,
+    _resolve_repo_scan_scanner_report_relpath,
+    _resolve_style_readme_candidate,
+)
 from .scanner import (
     SECTION_CONFIG_FILENAMES,
     parse_style_readme,
@@ -59,30 +73,6 @@ _REDACTION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
         r"\\1 <redacted>",
     ),
 )
-
-_ROLE_MARKER_DIRS = frozenset(
-    {"defaults", "files", "handlers", "meta", "tasks", "templates", "tests", "vars"}
-)
-_MIN_ROLE_MARKER_DIRS = 3
-_REQUIRED_ROLE_DIRS = frozenset({"defaults", "tasks", "meta"})
-_SHARED_TMP_ROOT_NAME = "prism"
-
-
-@contextmanager
-def _repo_scan_workspace():
-    """Yield a repo-scan workspace under a shared temp root and clean it up."""
-    shared_root = Path(tempfile.gettempdir()) / _SHARED_TMP_ROOT_NAME
-    shared_root.mkdir(parents=True, exist_ok=True)
-    workspace = Path(tempfile.mkdtemp(prefix="scan-", dir=shared_root))
-    try:
-        yield workspace
-    finally:
-        shutil.rmtree(workspace, ignore_errors=True)
-        try:
-            if shared_root.exists() and not any(shared_root.iterdir()):
-                shared_root.rmdir()
-        except OSError:
-            pass
 
 
 def _sanitize_captured_content(text: str) -> str:
@@ -412,6 +402,17 @@ def _add_shared_scan_arguments(parser: argparse.ArgumentParser) -> None:
             "Fail scan when YAML-like marker comment payloads are detected "
             "(for example key: value). Overrides "
             "scan.fail_on_yaml_like_task_annotations from .prism.yml "
+            "when explicitly set."
+        ),
+    )
+    parser.add_argument(
+        "--ignore-unresolved-internal-underscore-references",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Suppress unresolved variable findings for underscore-prefixed "
+            "internal names (for example _tmp, __state). Overrides "
+            "scan.ignore_unresolved_internal_underscore_references from .prism.yml "
             "when explicitly set."
         ),
     )
@@ -784,69 +785,47 @@ def _resolve_include_collection_checks(
     return bool(applied["include_collection_checks"])
 
 
+def _normalize_repo_json_payload(
+    rendered_payload: str,
+    *,
+    repo_style_readme_path: str | None,
+    scanner_report_relpath: str | None,
+) -> str:
+    """Normalize repo-backed JSON payload metadata paths when parseable."""
+    normalized_payload = _normalize_repo_scan_result_payload(
+        rendered_payload,
+        repo_style_readme_path=repo_style_readme_path,
+        scanner_report_relpath=scanner_report_relpath,
+    )
+    if isinstance(normalized_payload, str):
+        return normalized_payload
+    return rendered_payload
+
+
 def _handle_repo_command(args: argparse.Namespace) -> int:
     """Handle repository-backed role documentation."""
     vars_context_paths = _resolve_vars_context_paths(args)
 
     with _repo_scan_workspace() as workspace:
-        checkout_dir = workspace / "repo"
-        repo_dir_names = _fetch_repo_directory_names(
-            args.repo_url,
-            repo_path=args.repo_role_path,
-            ref=args.repo_ref,
-            timeout=args.repo_timeout,
-        )
-        if repo_dir_names is not None and not _repo_path_looks_like_role(
-            repo_dir_names
-        ):
-            raise FileNotFoundError(
-                "repository path does not look like an Ansible role: "
-                f"{args.repo_role_path}"
-            )
-        style_candidates = _build_repo_style_readme_candidates(
-            args.repo_style_readme_path
-        )
-        fetched_repo_style_readme_path = None
-        for style_candidate in style_candidates:
-            fetched_repo_style_readme_path = _fetch_repo_file(
-                args.repo_url,
-                style_candidate,
-                workspace / "repo-style-readme" / Path(style_candidate).name,
-                ref=args.repo_ref,
-                timeout=args.repo_timeout,
-            )
-            if fetched_repo_style_readme_path is not None:
-                break
         if args.verbose:
             print(f"Cloning: {args.repo_url}")
-        _clone_repo(
+        checkout = _checkout_repo_scan_role(
             args.repo_url,
-            checkout_dir,
-            args.repo_ref,
-            args.repo_timeout,
-            sparse_paths=_build_sparse_clone_paths(
-                args.repo_role_path,
-                (
-                    None
-                    if fetched_repo_style_readme_path is not None
-                    else style_candidates
-                ),
-            ),
+            workspace=workspace,
+            repo_role_path=args.repo_role_path,
+            repo_style_readme_path=args.repo_style_readme_path,
+            style_readme_path=args.style_readme,
+            repo_ref=args.repo_ref,
+            repo_timeout=args.repo_timeout,
+            prepare_repo_scan_inputs=_prepare_repo_scan_inputs,
+            fetch_repo_directory_names=_fetch_repo_directory_names,
+            repo_path_looks_like_role=_repo_path_looks_like_role,
+            fetch_repo_file=_fetch_repo_file,
+            clone_repo=_clone_repo,
+            build_sparse_clone_paths=_build_sparse_clone_paths,
+            resolve_style_readme_candidate=_resolve_style_readme_candidate,
         )
-        role_path = (checkout_dir / args.repo_role_path).resolve()
-        if not role_path.exists() or not role_path.is_dir():
-            raise FileNotFoundError(
-                f"role path not found in cloned repository: {args.repo_role_path}"
-            )
-        style_readme_path = args.style_readme
-        if fetched_repo_style_readme_path is not None:
-            style_readme_path = str(fetched_repo_style_readme_path.resolve())
-        elif style_candidates:
-            for style_candidate in style_candidates:
-                candidate_path = (checkout_dir / style_candidate).resolve()
-                if candidate_path.is_file():
-                    style_readme_path = str(candidate_path)
-                    break
+        style_readme_path = checkout.effective_style_readme_path
         if args.create_style_guide and not style_readme_path:
             style_readme_path = (
                 args.style_source or resolve_default_style_guide_source()
@@ -860,7 +839,7 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
             return 1
 
         outpath = run_scan(
-            str(role_path),
+            str(checkout.role_path),
             output=args.output,
             template=args.template,
             output_format=args.format,
@@ -881,6 +860,7 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
             policy_config_path=args.policy_config,
             fail_on_unconstrained_dynamic_includes=args.fail_on_unconstrained_dynamic_includes,
             fail_on_yaml_like_task_annotations=args.fail_on_yaml_like_task_annotations,
+            ignore_unresolved_internal_underscore_references=args.ignore_unresolved_internal_underscore_references,
             detailed_catalog=args.detailed_catalog,
             include_collection_checks=include_collection_checks,
             include_task_parameters=args.task_parameters,
@@ -890,12 +870,38 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
             runbook_csv_output=args.runbook_csv_output,
             dry_run=args.dry_run,
         )
+        if args.format == "json":
+            scanner_report_relpath = _resolve_repo_scan_scanner_report_relpath(
+                concise_readme=args.concise_readme,
+                scanner_report_output=args.scanner_report_output,
+                primary_output_path=args.output,
+            )
+            if args.dry_run:
+                outpath = _normalize_repo_json_payload(
+                    outpath,
+                    repo_style_readme_path=checkout.resolved_repo_style_readme_path,
+                    scanner_report_relpath=scanner_report_relpath,
+                )
+            else:
+                output_path = Path(outpath)
+                try:
+                    raw_payload = output_path.read_text(encoding="utf-8")
+                except OSError:
+                    raw_payload = ""
+                normalized_payload = _normalize_repo_json_payload(
+                    raw_payload,
+                    repo_style_readme_path=checkout.resolved_repo_style_readme_path,
+                    scanner_report_relpath=scanner_report_relpath,
+                )
+                if normalized_payload and normalized_payload != raw_payload:
+                    output_path.write_text(normalized_payload, encoding="utf-8")
+
         if args.dry_run:
             print(outpath, end="")
             return _emit_success(args, outpath)
 
         effective_readme_config_path = _resolve_effective_readme_config(
-            role_path,
+            checkout.role_path,
             args.readme_config,
         )
         style_source_path, style_demo_path = _save_style_comparison_artifacts(
@@ -939,6 +945,7 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
         policy_config_path=args.policy_config,
         fail_on_unconstrained_dynamic_includes=args.fail_on_unconstrained_dynamic_includes,
         fail_on_yaml_like_task_annotations=args.fail_on_yaml_like_task_annotations,
+        ignore_unresolved_internal_underscore_references=args.ignore_unresolved_internal_underscore_references,
         detailed_catalog=args.detailed_catalog,
         include_collection_checks=include_collection_checks,
         include_task_parameters=args.task_parameters,
@@ -1018,6 +1025,7 @@ def _handle_role_command(args: argparse.Namespace) -> int:
         policy_config_path=args.policy_config,
         fail_on_unconstrained_dynamic_includes=args.fail_on_unconstrained_dynamic_includes,
         fail_on_yaml_like_task_annotations=args.fail_on_yaml_like_task_annotations,
+        ignore_unresolved_internal_underscore_references=args.ignore_unresolved_internal_underscore_references,
         detailed_catalog=args.detailed_catalog,
         include_collection_checks=include_collection_checks,
         include_task_parameters=args.task_parameters,
@@ -1064,137 +1072,28 @@ def _clone_repo(
     sparse_paths: list[str] | None = None,
     allow_sparse_fallback_to_full: bool = True,
 ) -> None:
-    """Clone a git repository into ``destination`` with shallow history.
-
-    When ``sparse_paths`` is provided, first attempt a sparse/partial checkout to
-    reduce downloaded content. If sparse setup fails, behavior depends on
-    ``allow_sparse_fallback_to_full``.
-    """
-    parsed = urlparse(repo_url)
-    clone_url = repo_url
-    if parsed.scheme in {"http", "https"} and parsed.netloc == "github.com":
-        repo_path = parsed.path.strip("/")
-        if repo_path and repo_path.count("/") >= 1:
-            if not repo_path.endswith(".git"):
-                repo_path = f"{repo_path}.git"
-            clone_url = f"git@github.com:{repo_path}"
-
-    clone_cmd = ["git", "clone", "--depth", "1"]
-    if ref:
-        clone_cmd.extend(["--branch", ref, "--single-branch"])
-
-    requested_sparse_paths = [
-        path.strip() for path in (sparse_paths or []) if path and path.strip()
-    ]
-    use_sparse_clone = bool(requested_sparse_paths)
-    if use_sparse_clone:
-        clone_cmd.extend(["--filter=blob:none", "--sparse"])
-
-    clone_cmd.extend([clone_url, str(destination)])
-
-    env = os.environ.copy()
-    env["GIT_TERMINAL_PROMPT"] = "0"
-    env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
-
-    def _run_clone(cmd: list[str]) -> None:
-        subprocess.run(
-            cmd,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=timeout,
-            env=env,
-        )
-
-    def _run_sparse_checkout(paths: list[str]) -> None:
-        sparse_cmd = [
-            "git",
-            "-C",
-            str(destination),
-            "sparse-checkout",
-            "set",
-            "--no-cone",
-            *paths,
-        ]
-        subprocess.run(
-            sparse_cmd,
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=timeout,
-            env=env,
-        )
-
-    try:
-        if use_sparse_clone:
-            try:
-                _run_clone(clone_cmd)
-                _run_sparse_checkout(requested_sparse_paths)
-                return
-            except subprocess.CalledProcessError as sparse_exc:
-                shutil.rmtree(destination, ignore_errors=True)
-                if not allow_sparse_fallback_to_full:
-                    sparse_stderr = (sparse_exc.stderr or "").strip()
-                    raise RuntimeError(
-                        "repository sparse checkout failed"
-                        + (f": {sparse_stderr}" if sparse_stderr else "")
-                    ) from sparse_exc
-
-        fallback_cmd = ["git", "clone", "--depth", "1"]
-        if ref:
-            fallback_cmd.extend(["--branch", ref, "--single-branch"])
-        fallback_cmd.extend([clone_url, str(destination)])
-        _run_clone(fallback_cmd)
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(
-            f"repository clone timed out after {timeout}s: {repo_url}"
-        ) from exc
-    except subprocess.CalledProcessError as exc:
-        stderr = (exc.stderr or "").strip()
-        raise RuntimeError(f"repository clone failed: {stderr or repo_url}") from exc
-
-
-def _repo_name_from_url(repo_url: str) -> str | None:
-    """Extract a best-effort repository name from a URL or SSH git URL."""
-    parsed = urlparse(repo_url)
-    if parsed.scheme in {"http", "https", "ssh"} and parsed.path:
-        name = Path(parsed.path).name
-        return name.removesuffix(".git") or None
-    if repo_url.startswith("git@") and ":" in repo_url:
-        path = repo_url.split(":", 1)[1]
-        name = Path(path).name
-        return name.removesuffix(".git") or None
-    return None
+    """Compatibility shim backed by ``repo_services._clone_repo``."""
+    _repo_clone_repo(
+        repo_url,
+        destination,
+        ref,
+        timeout,
+        sparse_paths=sparse_paths,
+        allow_sparse_fallback_to_full=allow_sparse_fallback_to_full,
+        run_command=subprocess.run,
+        environment=os.environ,
+        remove_tree=shutil.rmtree,
+    )
 
 
 def _github_repo_from_url(repo_url: str) -> tuple[str, str] | None:
-    """Return ``(owner, repo)`` for GitHub repo URLs when parseable."""
-    parsed = urlparse(repo_url)
-    repo_path = ""
-    if parsed.scheme in {"http", "https", "ssh"} and parsed.netloc == "github.com":
-        repo_path = parsed.path.strip("/")
-    elif repo_url.startswith("git@github.com:"):
-        repo_path = repo_url.split(":", 1)[1].strip("/")
-
-    parts = [segment for segment in repo_path.split("/") if segment]
-    if len(parts) < 2:
-        return None
-
-    owner = parts[0]
-    repo = parts[1].removesuffix(".git")
-    if not owner or not repo:
-        return None
-    return owner, repo
+    """Compatibility shim backed by ``repo_services._github_repo_from_url``."""
+    return _repo_github_repo_from_url(repo_url)
 
 
 def _normalize_repo_path(repo_path: str | None) -> str:
-    """Normalize repository-relative paths used for remote GitHub probes."""
-    normalized_repo_path = (repo_path or "").strip().strip("/")
-    if normalized_repo_path in {"", "."}:
-        return ""
-    return normalized_repo_path
+    """Compatibility shim backed by ``repo_services._normalize_repo_path``."""
+    return _repo_normalize_repo_path(repo_path)
 
 
 def _fetch_repo_contents_payload(
@@ -1202,40 +1101,17 @@ def _fetch_repo_contents_payload(
     repo_path: str | None = None,
     ref: str | None = None,
     timeout: int = 60,
+    *,
+    opener=urlopen,
 ) -> dict | list | None:
-    """Fetch GitHub contents API payload for a repo path when possible."""
-    repo_coords = _github_repo_from_url(repo_url)
-    if repo_coords is None:
-        return None
-
-    normalized_repo_path = _normalize_repo_path(repo_path)
-    owner, repo = repo_coords
-    api_url = f"https://api.github.com/repos/{owner}/{repo}/contents"
-    if normalized_repo_path:
-        api_url = f"{api_url}/{quote(normalized_repo_path, safe='/')}"
-    if ref:
-        api_url = f"{api_url}?ref={quote(ref, safe='')}"
-
-    request = Request(
-        api_url,
-        headers={
-            "Accept": "application/vnd.github.object",
-            "User-Agent": "prism",
-        },
+    """Compatibility shim backed by ``repo_services._fetch_repo_contents_payload``."""
+    return _repo_fetch_repo_contents_payload(
+        repo_url,
+        repo_path=repo_path,
+        ref=ref,
+        timeout=timeout,
+        opener=opener,
     )
-
-    try:
-        with urlopen(request, timeout=timeout) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except (
-        HTTPError,
-        URLError,
-        OSError,
-        TimeoutError,
-        ValueError,
-        json.JSONDecodeError,
-    ):
-        return None
 
 
 def _fetch_repo_directory_names(
@@ -1244,59 +1120,15 @@ def _fetch_repo_directory_names(
     ref: str | None = None,
     timeout: int = 60,
 ) -> set[str] | None:
-    """Fetch directory names for a GitHub repo path when possible."""
-    payload = _fetch_repo_contents_payload(
+    """Compatibility shim backed by ``repo_services._fetch_repo_directory_names``."""
+    return _repo_fetch_repo_directory_names(
         repo_url,
         repo_path=repo_path,
         ref=ref,
         timeout=timeout,
+        opener=urlopen,
+        fetch_payload=_fetch_repo_contents_payload,
     )
-    if not isinstance(payload, list):
-        return None
-
-    dir_names: set[str] = set()
-    for entry in payload:
-        if not isinstance(entry, dict) or entry.get("type") != "dir":
-            continue
-        name = entry.get("name")
-        if isinstance(name, str) and name:
-            dir_names.add(name)
-    return dir_names
-
-
-def _repo_path_looks_like_role(dir_names: set[str] | None) -> bool:
-    """Return True when a directory listing looks like a useful role source."""
-    if not dir_names:
-        return False
-
-    role_markers = _ROLE_MARKER_DIRS & dir_names
-    if _REQUIRED_ROLE_DIRS <= role_markers:
-        return True
-    return False
-
-
-def _build_repo_style_readme_candidates(
-    repo_style_readme_path: str | None,
-) -> list[str]:
-    """Build deterministic README path candidates for case-variant fallback."""
-    normalized = _normalize_repo_path(repo_style_readme_path)
-    if not normalized:
-        return []
-
-    candidates: list[str] = [normalized]
-    path_obj = Path(normalized)
-    file_name = path_obj.name
-    parent = path_obj.parent.as_posix()
-    if parent == ".":
-        parent = ""
-
-    if file_name.lower() == "readme.md":
-        for variant in ("README.md", "Readme.md", "readme.md"):
-            candidate = f"{parent}/{variant}" if parent else variant
-            if candidate not in candidates:
-                candidates.append(candidate)
-
-    return candidates
 
 
 def _fetch_repo_file(
@@ -1306,69 +1138,17 @@ def _fetch_repo_file(
     ref: str | None = None,
     timeout: int = 60,
 ) -> Path | None:
-    """Fetch a single file from GitHub into ``destination`` when possible.
-
-    Returns ``None`` for unsupported hosts or when the remote fetch fails so
-    callers can fall back to clone-based resolution.
-    """
-    normalized_repo_path = _normalize_repo_path(repo_path)
-    if not normalized_repo_path:
-        return None
-
-    payload = _fetch_repo_contents_payload(
+    """Compatibility shim backed by ``repo_services._fetch_repo_file``."""
+    return _repo_fetch_repo_file(
         repo_url,
-        repo_path=normalized_repo_path,
+        repo_path,
+        destination,
         ref=ref,
         timeout=timeout,
+        opener=urlopen,
+        fetch_payload=_fetch_repo_contents_payload,
+        decode_base64=base64.b64decode,
     )
-    if not isinstance(payload, dict):
-        return None
-
-    if payload.get("type") != "file":
-        return None
-
-    content = payload.get("content")
-    encoding = payload.get("encoding")
-    if not isinstance(content, str) or encoding != "base64":
-        return None
-
-    try:
-        decoded = base64.b64decode(content)
-    except ValueError:
-        return None
-
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(decoded)
-    return destination
-
-
-def _build_sparse_clone_paths(
-    repo_role_path: str,
-    repo_style_readme_path: str | list[str] | None,
-) -> list[str]:
-    """Build sparse checkout targets for repo-based scans.
-
-    Returns an empty list when sparse checkout would not reduce scope.
-    """
-    role_path = (repo_role_path or ".").strip()
-    if role_path in {"", "."}:
-        return []
-
-    paths = [role_path]
-    if isinstance(repo_style_readme_path, list):
-        paths.extend(
-            path.strip() for path in repo_style_readme_path if path and path.strip()
-        )
-    elif repo_style_readme_path and repo_style_readme_path.strip():
-        paths.append(repo_style_readme_path.strip())
-
-    deduped: list[str] = []
-    seen: set[str] = set()
-    for path in paths:
-        if path not in seen:
-            deduped.append(path)
-            seen.add(path)
-    return deduped
 
 
 def _save_style_comparison_artifacts(
@@ -1520,7 +1300,7 @@ def main(argv=None) -> int:
     try:
         args = parser.parse_args(argv)
     except SystemExit as exc:
-        return int(exc.code)
+        return int(exc.code) if exc.code is not None else 0
 
     try:
         if args.command == "repo":
