@@ -14,6 +14,7 @@ import yaml
 from .collection_plugins import scan_collection_plugins
 from .repo_services import (
     _build_lightweight_sparse_clone_paths,
+    _build_repo_style_readme_candidates,
     _build_sparse_clone_paths,
     _checkout_repo_lightweight_style_readme,
     _checkout_repo_scan_role,
