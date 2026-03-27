@@ -2538,10 +2538,15 @@ def test_collect_yaml_parse_failures_read_and_problem_fallback_paths(
         return original_read_text(self, encoding=encoding)
 
     def fake_safe_load(text):
-        raise scanner.yaml.YAMLError("plain parser failure")
+        from prism.scanner_submodules import scanner_dataload as sd
+
+        raise sd.yaml.YAMLError("plain parser failure")
 
     monkeypatch.setattr(Path, "read_text", fake_read_text)
-    monkeypatch.setattr(scanner.yaml, "safe_load", fake_safe_load)
+    # Patch yaml in the scanner_dataload module where it's used
+    from prism.scanner_submodules import scanner_dataload as sd
+
+    monkeypatch.setattr(sd.yaml, "safe_load", fake_safe_load)
 
     failures = scanner._collect_yaml_parse_failures(str(role))
     by_file = {row["file"]: row for row in failures}

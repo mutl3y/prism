@@ -12,7 +12,6 @@ import os
 from pathlib import Path
 import re
 from typing import TypedDict
-import yaml
 import jinja2
 
 from .scanner_submodules.doc_insights import build_doc_insights, parse_comma_values
@@ -35,13 +34,6 @@ from .scanner_submodules.readme_config import (
 )
 from .scanner_submodules.requirements import (
     build_collection_compliance_notes as _requirements_build_collection_compliance_notes,
-    build_requirements_display as _requirements_build_display,
-    extract_declared_collections_from_meta as _requirements_extract_declared_meta,
-    extract_declared_collections_from_requirements as _requirements_extract_declared_requirements,
-    format_requirement_line as _requirements_format_line,
-    normalize_included_role_dependencies as _requirements_normalize_included_roles,
-    normalize_meta_role_dependencies as _requirements_normalize_meta_deps,
-    normalize_requirements as _requirements_normalize,
 )
 from .scanner_submodules.scan_request import (
     build_run_scan_options as _scan_request_build_run_scan_options,
@@ -83,6 +75,30 @@ from .scanner_submodules.scanner_errorhandling import (
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED as _ERRORHANDLING_MAX_FILES_SCANNED,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES as _ERRORHANDLING_MAX_TOTAL_BYTES,
     NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT as _ERRORHANDLING_SATURATION_MATCH_COUNT,
+)
+from .scanner_submodules.scanner_config import (
+    resolve_default_style_guide_source as _config_resolve_default_style_guide_source,
+    default_style_guide_user_paths as _config_default_style_guide_user_paths,
+    load_section_display_titles as _config_load_section_display_titles,
+    resolve_section_selector as _config_resolve_section_selector,
+)
+from .scanner_submodules.scanner_dataload import (
+    iter_role_yaml_candidates as _dataload_iter_role_yaml_candidates,
+    parse_yaml_candidate as _dataload_parse_yaml_candidate,
+    collect_yaml_parse_failures as _dataload_collect_yaml_parse_failures,
+    map_argument_spec_type as _dataload_map_argument_spec_type,
+    load_role_variable_maps as _dataload_load_role_variable_maps,
+    iter_role_argument_spec_entries as _dataload_iter_role_argument_spec_entries,
+)
+from .scanner_submodules.scanner_requirements import (
+    format_requirement_line as _requirements_format_requirement_line,
+    normalize_requirements as _requirements_normalize_requirements,
+    normalize_meta_role_dependencies as _requirements_normalize_meta_role_dependencies,
+    normalize_included_role_dependencies as _requirements_normalize_included_role_dependencies,
+    extract_declared_collections_from_meta as _requirements_extract_declared_collections_from_meta,
+    extract_declared_collections_from_requirements as _requirements_extract_declared_collections_from_requirements,
+    build_collection_compliance_notes as _requirements_build_collection_compliance_notes,
+    build_requirements_display as _requirements_build_requirements_display,
 )
 from .scanner_submodules.scan_discovery import (
     iter_role_variable_map_candidates as _scan_discovery_iter_role_variable_map_candidates,
@@ -409,17 +425,12 @@ def _format_heading(text: str, level: int, style: str) -> str:
 
 def _default_style_guide_user_paths() -> list[Path]:
     """Return user-level style guide paths honoring XDG conventions."""
-    xdg_data_home = os.environ.get(XDG_DATA_HOME_ENV)
-    if xdg_data_home:
-        data_home = Path(xdg_data_home).expanduser()
-    else:
-        data_home = (Path.home() / ".local" / "share").expanduser()
-    return [
-        data_home / STYLE_GUIDE_DATA_DIRNAME / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME,
-        data_home
-        / LEGACY_STYLE_GUIDE_DATA_DIRNAME
-        / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME,
-    ]
+    return _config_default_style_guide_user_paths(
+        xdg_data_home_env=XDG_DATA_HOME_ENV,
+        style_guide_data_dirname=STYLE_GUIDE_DATA_DIRNAME,
+        legacy_style_guide_data_dirname=LEGACY_STYLE_GUIDE_DATA_DIRNAME,
+        style_guide_source_filename=DEFAULT_STYLE_GUIDE_SOURCE_FILENAME,
+    )
 
 
 def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:
@@ -437,33 +448,18 @@ def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:
      7. ``/var/lib/ansible_role_doc/STYLE_GUIDE_SOURCE.md`` (legacy)
      8. bundled package template path
     """
-    if explicit_path:
-        explicit_candidate = Path(explicit_path).expanduser()
-        if explicit_candidate.is_file():
-            return str(explicit_candidate.resolve())
-        raise FileNotFoundError(f"style source path not found: {explicit_path}")
-
-    candidates: list[Path] = []
-
-    env_style_source = os.environ.get(ENV_STYLE_GUIDE_SOURCE_PATH)
-    if env_style_source:
-        candidates.append(Path(env_style_source).expanduser())
-
-    legacy_env_style_source = os.environ.get(LEGACY_ENV_STYLE_GUIDE_SOURCE_PATH)
-    if legacy_env_style_source:
-        candidates.append(Path(legacy_env_style_source).expanduser())
-
-    candidates.append(Path.cwd() / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME)
-    candidates.extend(_default_style_guide_user_paths())
-    candidates.append(SYSTEM_STYLE_GUIDE_SOURCE_PATH)
-    candidates.append(LEGACY_SYSTEM_STYLE_GUIDE_SOURCE_PATH)
-    candidates.append(DEFAULT_STYLE_GUIDE_SOURCE_PATH)
-
-    for candidate in candidates:
-        if candidate.is_file():
-            return str(candidate.resolve())
-
-    return str(DEFAULT_STYLE_GUIDE_SOURCE_PATH.resolve())
+    return _config_resolve_default_style_guide_source(
+        explicit_path=explicit_path,
+        env_style_guide_source_path=ENV_STYLE_GUIDE_SOURCE_PATH,
+        legacy_env_style_guide_source_path=LEGACY_ENV_STYLE_GUIDE_SOURCE_PATH,
+        xdg_data_home_env=XDG_DATA_HOME_ENV,
+        style_guide_data_dirname=STYLE_GUIDE_DATA_DIRNAME,
+        legacy_style_guide_data_dirname=LEGACY_STYLE_GUIDE_DATA_DIRNAME,
+        style_guide_source_filename=DEFAULT_STYLE_GUIDE_SOURCE_FILENAME,
+        system_style_guide_source_path=SYSTEM_STYLE_GUIDE_SOURCE_PATH,
+        legacy_system_style_guide_source_path=LEGACY_SYSTEM_STYLE_GUIDE_SOURCE_PATH,
+        default_style_guide_source_path=DEFAULT_STYLE_GUIDE_SOURCE_PATH,
+    )
 
 
 def scan_for_default_filters(
@@ -638,18 +634,17 @@ def _collect_yaml_parse_failures(
     exclude_paths: list[str] | None = None,
 ) -> list[dict[str, object]]:
     """Collect YAML parse failures with file/line context across a role tree."""
-    role_root = Path(role_path).resolve()
-    failures: list[dict[str, object]] = []
-
-    for candidate in _iter_role_yaml_candidates(
-        role_root,
-        exclude_paths=exclude_paths,
-    ):
-        failure = _parse_yaml_candidate(candidate, role_root)
-        if failure is not None:
-            failures.append(failure)
-
-    return failures
+    return _dataload_collect_yaml_parse_failures(
+        role_path,
+        exclude_paths,
+        iter_yaml_candidates_fn=lambda role_root, exclude_paths: _dataload_iter_role_yaml_candidates(
+            role_root,
+            exclude_paths=exclude_paths,
+            ignored_dirs=IGNORED_DIRS,
+            is_relpath_excluded_fn=_is_relpath_excluded,
+            is_path_excluded_fn=_is_path_excluded,
+        ),
+    )
 
 
 def _iter_role_yaml_candidates(
@@ -658,51 +653,18 @@ def _iter_role_yaml_candidates(
     exclude_paths: list[str] | None,
 ):
     """Yield role-local YAML files while honoring ignored and excluded paths."""
-    for root, dirs, files in os.walk(str(role_root)):
-        dirs[:] = [
-            d
-            for d in dirs
-            if d not in IGNORED_DIRS
-            and not _is_relpath_excluded(
-                str((Path(root) / d).resolve().relative_to(role_root)),
-                exclude_paths,
-            )
-        ]
-        for fname in sorted(files):
-            candidate = Path(root) / fname
-            if candidate.suffix.lower() not in {".yml", ".yaml"}:
-                continue
-            if _is_path_excluded(candidate, role_root, exclude_paths):
-                continue
-            yield candidate
+    yield from _dataload_iter_role_yaml_candidates(
+        role_root,
+        exclude_paths=exclude_paths,
+        ignored_dirs=IGNORED_DIRS,
+        is_relpath_excluded_fn=_is_relpath_excluded,
+        is_path_excluded_fn=_is_path_excluded,
+    )
 
 
 def _parse_yaml_candidate(candidate: Path, role_root: Path) -> dict[str, object] | None:
     """Parse one YAML candidate and return a failure payload when parsing fails."""
-    try:
-        text = candidate.read_text(encoding="utf-8")
-        yaml.safe_load(text)
-        return None
-    except (OSError, UnicodeDecodeError) as exc:
-        return {
-            "file": str(candidate.resolve().relative_to(role_root)),
-            "line": None,
-            "column": None,
-            "error": f"read_error: {exc}",
-        }
-    except (yaml.YAMLError, ValueError) as exc:
-        mark = getattr(exc, "problem_mark", None)
-        line = int(mark.line) + 1 if mark is not None else None
-        column = int(mark.column) + 1 if mark is not None else None
-        problem = str(getattr(exc, "problem", "") or "").strip()
-        if not problem:
-            problem = str(exc).splitlines()[0].strip()
-        return {
-            "file": str(candidate.resolve().relative_to(role_root)),
-            "line": line,
-            "column": column,
-            "error": problem,
-        }
+    return _dataload_parse_yaml_candidate(candidate, role_root)
 
 
 def _is_readme_variable_section_heading(title: str) -> bool:
@@ -881,55 +843,16 @@ def _iter_role_argument_spec_entries(role_path: str):
     - ``meta/argument_specs.yml`` with top-level ``argument_specs`` mapping
     - ``meta/main.yml`` with embedded ``argument_specs`` mapping
     """
-    role_root = Path(role_path)
-    arg_specs_file = role_root / "meta" / "argument_specs.yml"
-    sources: list[tuple[str, dict]] = []
-
-    if arg_specs_file.is_file():
-        loaded = _load_yaml_file(arg_specs_file)
-        if isinstance(loaded, dict):
-            sources.append(("meta/argument_specs.yml", loaded))
-
-    meta_main = load_meta(role_path)
-    if isinstance(meta_main, dict):
-        sources.append(("meta/main.yml", meta_main))
-
-    for source_file, payload in sources:
-        argument_specs = payload.get("argument_specs")
-        if not isinstance(argument_specs, dict):
-            continue
-        for task_spec in argument_specs.values():
-            if not isinstance(task_spec, dict):
-                continue
-            options = task_spec.get("options")
-            if not isinstance(options, dict):
-                continue
-            for var_name, spec in options.items():
-                if not isinstance(var_name, str) or not isinstance(spec, dict):
-                    continue
-                if "{{" in var_name or "{%" in var_name:
-                    continue
-                yield source_file, var_name, spec
+    yield from _dataload_iter_role_argument_spec_entries(
+        role_path,
+        load_yaml_file_fn=_load_yaml_file,
+        load_meta_fn=load_meta,
+    )
 
 
 def _map_argument_spec_type(spec_type: object) -> str:
     """Map argument-spec type labels into scanner variable type labels."""
-    if not isinstance(spec_type, str):
-        return "documented"
-    normalized = spec_type.strip().lower()
-    if normalized in {"str", "raw", "path", "bytes", "bits"}:
-        return "string"
-    if normalized in {"int"}:
-        return "int"
-    if normalized in {"bool"}:
-        return "bool"
-    if normalized in {"dict"}:
-        return "dict"
-    if normalized in {"list"}:
-        return "list"
-    if normalized in {"float"}:
-        return "string"
-    return "documented"
+    return _dataload_map_argument_spec_type(spec_type)
 
 
 def _iter_role_variable_map_candidates(role_root: Path, subdir: str) -> list[Path]:
@@ -972,32 +895,32 @@ def load_requirements(role_path: str) -> list:
 
 def _format_requirement_line(item: object) -> str:
     """Format one requirement entry into a markdown-safe display line."""
-    return _requirements_format_line(item)
+    return _requirements_format_requirement_line(item)
 
 
 def normalize_requirements(requirements: list) -> list[str]:
     """Normalize requirements entries to display strings."""
-    return _requirements_normalize(requirements)
+    return _requirements_normalize_requirements(requirements)
 
 
 def _normalize_meta_role_dependencies(meta: dict) -> list[str]:
     """Normalize role dependencies from ``meta/main.yml`` for README output."""
-    return _requirements_normalize_meta_deps(meta)
+    return _requirements_normalize_meta_role_dependencies(meta)
 
 
 def _normalize_included_role_dependencies(features: dict) -> list[str]:
     """Normalize static role includes detected from task parsing features."""
-    return _requirements_normalize_included_roles(features)
+    return _requirements_normalize_included_role_dependencies(features)
 
 
 def _extract_declared_collections_from_meta(meta: dict) -> set[str]:
     """Extract declared non-ansible collections from ``meta/main.yml`` content."""
-    return _requirements_extract_declared_meta(meta)
+    return _requirements_extract_declared_collections_from_meta(meta)
 
 
 def _extract_declared_collections_from_requirements(requirements: list) -> set[str]:
     """Extract declared non-ansible collections from ``meta/requirements.yml``."""
-    return _requirements_extract_declared_requirements(requirements)
+    return _requirements_extract_declared_collections_from_requirements(requirements)
 
 
 def _build_collection_compliance_notes(
@@ -1157,25 +1080,12 @@ def _load_role_variable_maps(
     include_vars_main: bool,
 ) -> tuple[dict, dict, dict[str, Path], dict[str, Path]]:
     """Load defaults/vars variable maps from conventional role paths."""
-    defaults_data: dict = {}
-    vars_data: dict = {}
-    defaults_sources: dict[str, Path] = {}
-    vars_sources: dict[str, Path] = {}
-    role_root = Path(role_path)
-    for candidate in _iter_role_variable_map_candidates(role_root, "defaults"):
-        loaded = _load_yaml_file(candidate)
-        if isinstance(loaded, dict):
-            for name in loaded:
-                defaults_sources[name] = candidate
-            defaults_data.update(loaded)
-    if include_vars_main:
-        for candidate in _iter_role_variable_map_candidates(role_root, "vars"):
-            loaded = _load_yaml_file(candidate)
-            if isinstance(loaded, dict):
-                for name in loaded:
-                    vars_sources[name] = candidate
-                vars_data.update(loaded)
-    return defaults_data, vars_data, defaults_sources, vars_sources
+    return _dataload_load_role_variable_maps(
+        role_path,
+        include_vars_main,
+        iter_variable_map_candidates_fn=_iter_role_variable_map_candidates,
+        load_yaml_file_fn=_load_yaml_file,
+    )
 
 
 def _collect_dynamic_task_include_tokens(
@@ -1871,41 +1781,17 @@ def _redact_secret_defaults(rows: list[dict]) -> None:
 
 def _resolve_section_selector(selector: str) -> str | None:
     """Resolve a section selector to a canonical section id."""
-    value = selector.strip()
-    if not value:
-        return None
-    if value in ALL_SECTION_IDS:
-        return value
-    normalized = normalize_style_heading(value)
-    if normalized in ALL_SECTION_IDS:
-        return normalized
-    return STYLE_SECTION_ALIASES.get(normalized)
+    return _config_resolve_section_selector(
+        selector=selector,
+        all_section_ids=ALL_SECTION_IDS,
+        style_section_aliases=STYLE_SECTION_ALIASES,
+        normalize_heading_fn=normalize_style_heading,
+    )
 
 
 def _load_section_display_titles() -> dict[str, str]:
     """Load optional section display-title overrides from bundled data YAML."""
-    path = DEFAULT_SECTION_DISPLAY_TITLES_PATH
-    if not path.is_file():
-        return {}
-    try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return {}
-    if not isinstance(raw, dict):
-        return {}
-    payload = raw.get("display_titles")
-    if not isinstance(payload, dict):
-        return {}
-
-    parsed: dict[str, str] = {}
-    for section_id, display_title in payload.items():
-        if not isinstance(section_id, str) or not isinstance(display_title, str):
-            continue
-        sid = section_id.strip()
-        label = display_title.strip()
-        if sid and label:
-            parsed[sid] = label
-    return parsed
+    return _config_load_section_display_titles(DEFAULT_SECTION_DISPLAY_TITLES_PATH)
 
 
 def load_readme_marker_prefix(
@@ -3073,7 +2959,7 @@ def _build_requirements_display(
     include_collection_checks: bool = True,
 ) -> tuple[list[str], list[str]]:
     """Build rendered requirements lines and collection compliance notes."""
-    return _requirements_build_display(
+    return _requirements_build_requirements_display(
         requirements=requirements,
         meta=meta,
         features=features,
