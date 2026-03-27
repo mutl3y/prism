@@ -44,6 +44,7 @@ from .scanner_submodules.scan_context import (
     EmitScanOutputsArgs as _scan_context_EmitScanOutputsArgs,
     ScanReportSidecarArgs as _scan_context_ScanReportSidecarArgs,
     ScanBaseContext as _scan_context_ScanBaseContext,
+    ScanMetadata as _scan_context_ScanMetadata,
     finalize_scan_context_payload as _scan_context_finalize_scan_context_payload,
     build_scan_output_payload as _scan_context_build_scan_output_payload,
     prepare_run_scan_payload as _scan_context_prepare_run_scan_payload,
@@ -3081,7 +3082,7 @@ def _write_optional_runbook_outputs(
 
 
 def _apply_readme_section_config(
-    metadata: dict, readme_section_config: dict | None
+    metadata: _scan_context_ScanMetadata, readme_section_config: dict | None
 ) -> None:
     """Apply resolved README section configuration into scan metadata."""
     if readme_section_config is None:
@@ -3160,7 +3161,7 @@ def _collect_variable_insights_and_default_filter_findings(
 
 
 def _attach_external_vars_context(
-    metadata: dict, vars_seed_paths: list[str] | None
+    metadata: _scan_context_ScanMetadata, vars_seed_paths: list[str] | None
 ) -> None:
     """Attach non-authoritative external variable context metadata when provided."""
     if not vars_seed_paths:
@@ -3571,7 +3572,7 @@ def _apply_scan_metadata_configuration(
     keep_unknown_style_sections: bool,
     meta: dict,
     requirements: list,
-    metadata: dict,
+    metadata: _scan_context_ScanMetadata,
 ) -> list:
     """Apply scan options that shape metadata and requirements rendering."""
     metadata["include_task_parameters"] = bool(include_task_parameters)
@@ -3604,7 +3605,7 @@ def _enrich_scan_context_with_insights(
     marker_prefix: str,
     found: list,
     variables: dict,
-    metadata: dict,
+    metadata: _scan_context_ScanMetadata,
     style_readme_path: str | None,
     style_source_path: str | None,
     style_guide_skeleton: bool,

@@ -3,14 +3,143 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, NotRequired, TypedDict
+
+if TYPE_CHECKING:
+    from .scanner_report import ScannerCounters
+
+
+class ScanMetadata(TypedDict, total=False):
+    """Comprehensive metadata contract flowing through scanner orchestration.
+
+    This TypedDict captures all scan-related metadata that flows through the
+    scanner pipeline, from initial artifact collection through output emission.
+
+    **Core Identity & Configuration (always present):**
+    - molecule_scenarios: Detected Molecule test scenarios in role
+    - marker_prefix: Prefix for documentation markers (e.g., 'ansible_doc')
+    - detailed_catalog: Whether to include detailed file catalogs
+    - include_task_parameters: Include task module parameter documentation
+    - include_task_runbooks: Include generated runbook content
+    - inline_task_runbooks: Inline runbooks in role content (vs. separate)
+    - keep_unknown_style_sections: Preserve unrecognized style guide sections
+
+    **Role Contents (always present after discovery):**
+    - handlers: List of handler file paths relative to role root
+    - tasks: List of task file paths
+    - templates: List of template file paths
+    - files: List of static file paths
+    - tests: List of test file paths
+    - defaults: List of default variable file paths
+    - vars: List of variable file paths
+    - meta: Parsed role metadata (meta/main.yml as dict)
+    - features: Extracted role features (tasks_scanned, unique_modules, etc.)
+
+    **Dynamic Includes (always present):**
+    - unconstrained_dynamic_task_includes: Tasks with dynamic includes
+    - unconstrained_dynamic_role_includes: Roles with dynamic includes
+
+    **README Section Configuration (always present):**
+    - enabled_sections: List of enabled README section identifiers
+    - section_title_overrides: Custom section title overrides (dict)
+    - section_content_modes: Section rendering mode overrides (dict)
+
+    **Variable & Issue Analysis (always present):**
+    - variable_insights: Analyzed variable metadata (list of dicts)
+    - yaml_parse_failures: YAML parsing error details
+    - role_notes: Extracted role notes from comments
+    - scanner_counters: Comprehensive scanning metrics (ScannerCounters dict)
+    - external_vars_context: Non-authoritative external variable context
+
+    **Output & Emission Control (set during output phase):**
+    - concise_readme: Emit concise README mode
+    - include_scanner_report_link: Link to scanner report from README
+    - scanner_report_relpath: Relative path to emitted scanner report
+
+    **Compliance & Styling (conditionally present):**
+    - collection_compliance_notes: Notes on collection requirement compliance
+    - style_guide: Parsed style guide documentation
+    - style_guide_skeleton: Whether style guide is minimal skeleton
+    - comparison: Comparison report against baseline role
+
+    **Annotation & Error Policy (always present):**
+    - fail_on_unconstrained_dynamic_includes: Strict enforcement mode
+    - fail_on_yaml_like_task_annotations: Strict YAML-like annotation mode
+    - ignore_unresolved_internal_underscore_references: Ignore pattern mode
+
+    **Optional Detailed Catalogs (only if detailed_catalog=True):**
+    - task_catalog: Detailed task-by-task catalog
+    - handler_catalog: Detailed handler-by-handler catalog
+
+    **Documentation Insights (always present):**
+    - doc_insights: Aggregated documentation quality insights
+    """
+
+    # Core identity & configuration (runtime setters)
+    molecule_scenarios: list[Any]
+    marker_prefix: str
+    detailed_catalog: bool
+    include_task_parameters: bool
+    include_task_runbooks: bool
+    inline_task_runbooks: bool
+    keep_unknown_style_sections: bool
+
+    # Role contents (always present after discovery)
+    handlers: list[str]
+    tasks: list[str]
+    templates: list[str]
+    files: list[str]
+    tests: list[str]
+    defaults: list[str]
+    vars: list[str]
+    meta: dict[str, Any]
+    features: dict[str, Any]
+
+    # Dynamic includes (always present after discovery)
+    unconstrained_dynamic_task_includes: list[Any]
+    unconstrained_dynamic_role_includes: list[Any]
+
+    # README section configuration (always present after config load)
+    enabled_sections: list[str]
+    section_title_overrides: NotRequired[dict[str, str]]
+    section_content_modes: NotRequired[dict[str, str]]
+
+    # Variable & issue analysis (always present after enrichment)
+    variable_insights: list[dict[str, Any]]
+    yaml_parse_failures: list[dict[str, object]]
+    role_notes: list[dict[str, Any]]
+    scanner_counters: dict[str, Any] | None  # ScannerCounters (use dict for backward compat)
+    external_vars_context: NotRequired[dict[str, Any]]
+
+    # Output & emission control (set during output phase)
+    concise_readme: NotRequired[bool]
+    include_scanner_report_link: NotRequired[bool]
+    scanner_report_relpath: NotRequired[str]
+
+    # Compliance & styling (conditionally present)
+    collection_compliance_notes: NotRequired[Any]
+    style_guide: NotRequired[dict[str, Any]]
+    style_guide_skeleton: NotRequired[bool]
+    comparison: NotRequired[dict[str, Any]]
+
+    # Annotation & error policy (always present after policy load)
+    fail_on_unconstrained_dynamic_includes: bool
+    fail_on_yaml_like_task_annotations: bool
+    ignore_unresolved_internal_underscore_references: bool
+
+    # Optional detailed catalogs (only if detailed_catalog=True)
+    task_catalog: NotRequired[list[Any]]
+    handler_catalog: NotRequired[list[Any]]
+
+    # Documentation insights (always present after enrichment)
+    doc_insights: dict[str, Any]
 
 
 class ScanContext(TypedDict):
     """Internal scan context consumed by output payload shaping."""
 
     display_variables: dict[str, Any]
-    metadata: dict[str, Any]
+    metadata: ScanMetadata
 
 
 class ScanBaseContext(TypedDict):
@@ -26,7 +155,7 @@ class ScanBaseContext(TypedDict):
     marker_prefix: str
     variables: dict[str, Any]
     found: list[Any]
-    metadata: dict[str, Any]
+    metadata: ScanMetadata
     requirements_display: list[Any]
 
 
@@ -38,7 +167,7 @@ class RunScanOutputPayload(TypedDict):
     display_variables: dict[str, Any]
     requirements_display: list[Any]
     undocumented_default_filters: list[Any]
-    metadata: dict[str, Any]
+    metadata: ScanMetadata
 
 
 class EmitScanOutputsArgs(TypedDict):
@@ -54,7 +183,7 @@ class EmitScanOutputsArgs(TypedDict):
     display_variables: dict[str, Any]
     requirements_display: list[Any]
     undocumented_default_filters: list[Any]
-    metadata: dict[str, Any]
+    metadata: ScanMetadata
     template: str | None
     dry_run: bool
     runbook_output: str | None
@@ -77,7 +206,7 @@ class ScanReportSidecarArgs(TypedDict):
     display_variables: dict[str, Any]
     requirements_display: list[Any]
     undocumented_default_filters: list[Any]
-    metadata: dict[str, Any]
+    metadata: ScanMetadata
     dry_run: bool
 
 
@@ -91,7 +220,7 @@ class RunbookSidecarArgs(TypedDict):
     runbook_output: str | None
     runbook_csv_output: str | None
     role_name: str
-    metadata: dict[str, Any]
+    metadata: ScanMetadata
 
 
 type PreparedScanContext = tuple[
@@ -112,7 +241,7 @@ def finalize_scan_context_payload(
     requirements_display: list[Any],
     undocumented_default_filters: list[dict[str, Any]],
     display_variables: dict[str, Any],
-    metadata: dict[str, Any],
+    metadata: ScanMetadata,
 ) -> PreparedScanContext:
     """Return normalized context payload used by run_scan output emission."""
     return (
@@ -135,7 +264,7 @@ def build_scan_output_payload(
     display_variables: dict[str, Any],
     requirements_display: list[Any],
     undocumented_default_filters: list[Any],
-    metadata: dict[str, Any],
+    metadata: ScanMetadata,
 ) -> RunScanOutputPayload:
     """Build the shared payload used for scanner report and primary output rendering."""
     return {
