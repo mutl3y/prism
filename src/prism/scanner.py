@@ -45,25 +45,20 @@ from .scanner_submodules.scan_context import (
     ScanReportSidecarArgs as _scan_context_ScanReportSidecarArgs,
     ScanBaseContext as _scan_context_ScanBaseContext,
     ScanMetadata as _scan_context_ScanMetadata,
+    ReferenceContext as _scan_context_ReferenceContext,
     finalize_scan_context_payload as _scan_context_finalize_scan_context_payload,
     build_scan_output_payload as _scan_context_build_scan_output_payload,
     prepare_run_scan_payload as _scan_context_prepare_run_scan_payload,
     build_emit_scan_outputs_args as _scan_context_build_emit_scan_outputs_args,
-    build_scan_report_sidecar_args as _scan_context_build_scan_report_sidecar_args,
     RunbookSidecarArgs as _scan_context_RunbookSidecarArgs,
-    build_runbook_sidecar_args as _scan_context_build_runbook_sidecar_args,
 )
 from .scanner_submodules.scan_output_emission import (
-    write_concise_scanner_report_if_enabled as _scan_output_write_concise_scanner_report_if_enabled,
     write_optional_runbook_outputs as _scan_output_write_optional_runbook_outputs,
     emit_scan_outputs as _scan_output_emit_scan_outputs,
 )
 from .scanner_submodules.scan_output_primary import (
     render_and_write_scan_output as _scan_output_primary_render_and_write_scan_output,
     render_primary_scan_output as _scan_output_primary_render_primary_scan_output,
-)
-from .scanner_submodules.scan_metrics import (
-    extract_scanner_counters as _scan_metrics_extract_scanner_counters,
 )
 from .scanner_submodules.scanner_errorhandling import (
     should_suppress_internal_unresolved_reference as _errorhandling_should_suppress_internal_unresolved_reference,
@@ -99,7 +94,6 @@ from .scanner_submodules.scanner_requirements import (
     extract_declared_collections_from_meta as _requirements_extract_declared_collections_from_meta,
     extract_declared_collections_from_requirements as _requirements_extract_declared_collections_from_requirements,
     build_collection_compliance_notes as _requirements_build_collection_compliance_notes,
-    build_requirements_display as _requirements_build_requirements_display,
 )
 from .scanner_submodules.scan_discovery import (
     iter_role_variable_map_candidates as _scan_discovery_iter_role_variable_map_candidates,
@@ -1673,7 +1667,7 @@ def _collect_variable_reference_context(
     role_path: str,
     seed_paths: list[str] | None,
     exclude_paths: list[str] | None,
-) -> dict:
+) -> _scan_context_ReferenceContext:
     """Collect seed and dynamic-reference context for inferred variable rows."""
     seed_values, seed_secrets, seed_sources = load_seed_variables(seed_paths)
     dynamic_include_vars_refs = _collect_dynamic_include_vars_refs(
@@ -1703,7 +1697,7 @@ def _populate_variable_rows(
     rows: list[dict],
     rows_by_name: dict,
     exclude_paths: list[str] | None,
-    reference_context: dict,
+    reference_context: _scan_context_ReferenceContext,
     style_readme_path: str | None = None,
     ignore_unresolved_internal_underscore_references: bool = True,
     non_authoritative_test_evidence_max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
@@ -2942,7 +2936,9 @@ def render_runbook(
     template: str | None = None,
 ) -> str:
     """Render a standalone runbook markdown document for a role."""
-    return _runbook_report_render_runbook(role_name=role_name, metadata=metadata, template=template)
+    return _runbook_report_render_runbook(
+        role_name=role_name, metadata=metadata, template=template
+    )
 
 
 def _build_runbook_rows(metadata: dict | None) -> list[tuple[str, str, str]]:

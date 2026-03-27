@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NotRequired, TypedDict
 
 if TYPE_CHECKING:
-    from .scanner_report import ScannerCounters
+    pass
 
 
 class ScanMetadata(TypedDict, total=False):
@@ -108,7 +108,9 @@ class ScanMetadata(TypedDict, total=False):
     variable_insights: list[dict[str, Any]]
     yaml_parse_failures: list[dict[str, object]]
     role_notes: list[dict[str, Any]]
-    scanner_counters: dict[str, Any] | None  # ScannerCounters (use dict for backward compat)
+    scanner_counters: (
+        dict[str, Any] | None
+    )  # ScannerCounters (use dict for backward compat)
     external_vars_context: NotRequired[dict[str, Any]]
 
     # Output & emission control (set during output phase)
@@ -133,6 +135,49 @@ class ScanMetadata(TypedDict, total=False):
 
     # Documentation insights (always present after enrichment)
     doc_insights: dict[str, Any]
+
+
+class ReferenceContext(TypedDict):
+    """Typed contract for variable reference context tracking and enrichment.
+
+    Captures seed and dynamic variable reference data flowing through variable
+    analysis pipelines, enabling type-safe access to reference metadata and
+    uncertainty tracking.
+
+    **Seed Variables (external/authoritative):**
+    - seed_values: Dict mapping variable names to resolved default values,
+      loaded from external seed variable files (e.g., defaults/main.yml).
+    - seed_secrets: Set of variable names flagged as sensitive/vaulted based
+      on name tokens or detected value markers (e.g., vault_ prefix).
+    - seed_sources: Dict mapping variable names to their source file paths
+      for provenance tracking and confidence scoring.
+
+    **Dynamic Variable References (inferred from tasks/handlers/templates):**
+    - dynamic_include_vars_refs: List of raw dynamic include variable
+      references (e.g., "vars: var_name" lines extracted from include_vars tasks).
+    - dynamic_include_var_tokens: Set of normalized variable name tokens
+      extracted from dynamic_include_vars_refs for uncertainty suppression.
+    - dynamic_task_include_tokens: Set of normalized variable name tokens
+      referenced in dynamic task/role includes, used for uncertainty reasoning.
+
+    Flow:
+    1. _collect_variable_reference_context() builds this dict from role paths
+    2. _populate_variable_rows() uses all fields for variable enrichment
+    3. _build_referenced_variable_uncertainty_reason() consumes dynamic fields
+       for uncertainty text generation
+
+    Type guarantees:
+    - seed_values: arbitrary JSON-serializable defaults (str, int, dict, etc.)
+    - seed_secrets & dynamic_*_tokens: lowercase normalized identifiers
+    - seed_sources & dynamic_include_vars_refs: non-empty strings when present
+    """
+
+    seed_values: dict[str, Any]
+    seed_secrets: set[str]
+    seed_sources: dict[str, str]
+    dynamic_include_vars_refs: list[str]
+    dynamic_include_var_tokens: set[str]
+    dynamic_task_include_tokens: set[str]
 
 
 class ScanContext(TypedDict):

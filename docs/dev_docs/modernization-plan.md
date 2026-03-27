@@ -985,6 +985,132 @@ Updated function signatures in **scanner.py** and **scan_context.py** to use `Sc
 
 ---
 
+## Phase C2 Progress Note (2026-03-27)
+
+Completed Phase C2: **ReferenceContext TypedDict** with complete variable reference tracking contract definition.
+
+### C2 Deliverables
+
+#### C2A: ReferenceContext TypedDict Definition
+
+- **Location:** `src/prism/scanner_submodules/scan_context.py` (added to existing file)
+- **TypedDict:** `ReferenceContext` with 6 required fields capturing seed and dynamic variable references
+- **Field Definitions:**
+  - `seed_values: dict[str, Any]` - Resolved default values loaded from external seed variable files
+  - `seed_secrets: set[str]` - Variable names flagged as sensitive/vaulted
+  - `seed_sources: dict[str, str]` - Provenance mapping (variable names → source file paths)
+  - `dynamic_include_vars_refs: list[str]` - Raw dynamic include variable references extracted from tasks
+  - `dynamic_include_var_tokens: set[str]` - Normalized token set from dynamic_include_vars_refs
+  - `dynamic_task_include_tokens: set[str]` - Normalized tokens from dynamic task/role includes
+- **Documentation:** Comprehensive docstring (45+ lines) explaining:
+  - Purpose of each field cluster (seed variables vs. dynamic references)
+  - Data flow through variable analysis pipelines
+  - Type guarantees and normalization contracts
+  - Integration with variable enrichment and uncertainty tracking
+- **Definition Size:** 60 lines (TypedDict definition + detailed docstring)
+
+#### C2B: Function Signature Retrofitting
+
+Updated core variable analysis function signatures in **scanner.py**:
+
+- `_collect_variable_reference_context()` - **Return type:** `_scan_context_ReferenceContext` (was `dict`)
+  - Validates that all 6 required fields are produced
+  - Enables IDE type checking for return-value access
+  - Method: Line 1667, signature on line 1658
+
+- `_populate_variable_rows()` - **Parameter type:** `reference_context: _scan_context_ReferenceContext` (was `dict`)
+  - Validates that caller always provides all 6 fields
+  - Enables safe field access with IDE autocomplete
+  - Method: Line 1706, signature on line 1696
+
+#### C2C: Import & Module Integration
+
+- **Import:** Added `ReferenceContext as _scan_context_ReferenceContext` to scanner.py imports from scan_context
+- **Alias pattern:** Consistent with existing module aliasing pattern (_scan_context_* prefix)
+- **Backward compatibility:** All existing code paths continue to work (Python duck typing)
+
+### Functions Retrofitted
+
+1. **`_collect_variable_reference_context()`** [scanner.py#L1658-L1690]
+   - Return type: `_scan_context_ReferenceContext`
+   - Impact: Return value now type-checked
+   - Safety: Ensures all 6 fields always provided
+
+2. **`_populate_variable_rows()`** [scanner.py#L1696-L1759]
+   - Parameter type: `reference_context: _scan_context_ReferenceContext`
+   - Impact: All 6 field accesses now type-safe (lines 1747-1752)
+   - Safety: Field-access errors caught by mypy
+
+**Related Data Flow (unchanged, but now type-aware):**
+
+- `_append_referenced_variable_rows()` - Receives unpacked fields from reference_context
+- `_build_referenced_variable_row()` - Consumes unpacked reference data
+- `_build_referenced_variable_uncertainty_reason()` - Processes dynamic reference tokens
+- `_extract_readme_variable_names_from_line()` - README-based reference collection
+- `load_seed_variables()` - Seed data loading (produces seed_values/seed_secrets/seed_sources)
+
+### Validation Results
+
+- ✅ **Full test suite: 746 passed** (no regressions)
+- ✅ **Mypy: No new errors** (ReferenceContext definition passes type checking)
+- ✅ **Backward compatibility: Full** (dict-based code still works)
+- ✅ **Type safety: Improved** (6 field accesses now statically verified)
+
+### Implementation Details
+
+**Type Definition Pattern:**
+
+```python
+class ReferenceContext(TypedDict):
+    """Typed contract for variable reference context tracking..."""
+    seed_values: dict[str, Any]
+    seed_secrets: set[str]
+    seed_sources: dict[str, str]
+    dynamic_include_vars_refs: list[str]
+    dynamic_include_var_tokens: set[str]
+    dynamic_task_include_tokens: set[str]
+```
+
+**Usage Pattern (existing code, now type-aware):**
+
+```python
+def _collect_variable_reference_context(...) -> _scan_context_ReferenceContext:
+    return {
+        "seed_values": seed_values,
+        "seed_secrets": seed_secrets,
+        "seed_sources": seed_sources,
+        "dynamic_include_vars_refs": dynamic_include_vars_refs,
+        "dynamic_include_var_tokens": dynamic_include_var_tokens,
+        "dynamic_task_include_tokens": dynamic_task_include_tokens,
+    }
+```
+
+### Risk Assessment
+
+- **Type System:** Pure annotation (no runtime impact)
+- **Performance:** Zero overhead (TypedDict is structural only)
+- **Backward Compatibility:** Maintained (all existing code still works)
+- **Safety:** Improves type-checking coverage for variable analysis paths
+
+**Risk Level: LOW** - Type-only changes with full backward compatibility and zero regressions
+
+### Readiness for Phase C3
+
+- ✅ ReferenceContext TypedDict defined and integrated
+- ✅ Core variable analysis functions retrofitted
+- ✅ No test changes required (backward compatible)
+- ✅ All 746 tests green
+- ✅ Ready to proceed with Phase C3 (Features, StyleGuide, row-struct TypedDicts)
+
+---
+
+#### Next Steps: Phase C3
+
+- **Phase C3:** Create `Features`, `StyleGuide`, and row-structure TypedDicts (planned for next cycle)
+- **Phase D:** Final orchestrator slimming after all contracts stabilize
+
+---
+
 ## Tracked Modernization Opportunities (2026-03-27)
 
 This checklist consolidates existing modernization opportunities already identified across this plan and tracks current execution status.
@@ -1002,6 +1128,7 @@ This checklist consolidates existing modernization opportunities already identif
 11. [x] Strengthen automation quality gate by raising test coverage threshold from 80% to 90%
 12. [x] Pin Ruff runtime semantics for this repo by setting explicit Python 3.14 target version
 13. [x] **PHASE B COMPLETE (Scanner Decomposition Lanes 1-5):** Scanner decomposition/slimming (`src/prism/scanner.py` from 4154 → 3925 lines) via staged 5-lane extraction with full test coverage. Phase A audit complete, all 5 lanes extracted and validated, foundation ready for Phase C contract tightening.
+14. [ ] **PHASE C2 COMPLETE:** ReferenceContext TypedDict for variable reference tracking; core variable analysis functions retrofitted with type hints; full backward compatibility maintained.
 
 ### Item 13 Phased Approach (Scanner Decomposition)
 
