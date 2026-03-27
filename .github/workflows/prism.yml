@@ -41,7 +41,7 @@ jobs:
 
       - name: Run tests
         run: |
-          python -m pytest -q
+          python -m pytest -q --cov=src/prism --cov-report=xml:debug_readmes/coverage.xml --cov-fail-under=90
 
   docs:
     runs-on: ubuntu-latest

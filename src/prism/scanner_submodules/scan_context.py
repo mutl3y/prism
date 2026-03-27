@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, TypeAlias, TypedDict
+from typing import Any, TypedDict
 
 
 class ScanContext(TypedDict):
@@ -94,7 +94,7 @@ class RunbookSidecarArgs(TypedDict):
     metadata: dict[str, Any]
 
 
-PreparedScanContext: TypeAlias = tuple[
+type PreparedScanContext = tuple[
     str,
     str,
     str,

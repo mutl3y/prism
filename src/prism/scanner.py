@@ -545,7 +545,7 @@ def _scan_file_for_default_filters(file_path: Path, role_root: Path) -> list[dic
             if key in seen:
                 continue
             seen.add(key)
-            row["file"] = os.path.relpath(file_path, role_root)
+            row["file"] = str(file_path.relative_to(role_root))
             occurrences.append(row)
 
         for idx, line in enumerate(lines, start=1):
@@ -560,7 +560,7 @@ def _scan_file_for_default_filters(file_path: Path, role_root: Path) -> list[dic
                 seen.add(key)
                 occurrences.append(
                     {
-                        "file": os.path.relpath(file_path, role_root),
+                        "file": str(file_path.relative_to(role_root)),
                         "line_no": idx,
                         "line": line,
                         "match": excerpt,
@@ -588,7 +588,7 @@ def _scan_file_for_all_filters(file_path: Path, role_root: Path) -> list[dict]:
             if key in seen:
                 continue
             seen.add(key)
-            row["file"] = os.path.relpath(file_path, role_root)
+            row["file"] = str(file_path.relative_to(role_root))
             occurrences.append(row)
 
         # Fallback for malformed templates where AST parsing fails.
@@ -606,7 +606,7 @@ def _scan_file_for_all_filters(file_path: Path, role_root: Path) -> list[dict]:
                 seen.add(key)
                 occurrences.append(
                     {
-                        "file": os.path.relpath(file_path, role_root),
+                        "file": str(file_path.relative_to(role_root)),
                         "line_no": idx,
                         "line": line,
                         "match": excerpt,

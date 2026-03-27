@@ -900,3 +900,35 @@ Initial target files:
 ## Tracking
 
 Update this plan when a phase starts, when scope changes materially, or when a phase is complete and ready to move into the completed plans archive.
+
+## Tracked Modernization Opportunities (2026-03-27)
+
+This checklist consolidates existing modernization opportunities already identified across this plan and tracks current execution status.
+
+1. [x] API/CLI service-boundary hardening (shared repo service flows; remove API dependence on CLI-private internals)
+2. [x] Scan-request normalization extraction and wrapper seam stabilization
+3. [x] Scan-context and payload-shaping extraction into dedicated submodules
+4. [x] Scan output emission and primary output rendering decomposition into focused modules
+5. [x] Typed seam contracts for run-scan output payloads and sidecar argument bundles
+6. [x] Scanner-report typed rendering contracts and metadata normalization helpers
+7. [x] Incremental mypy gate expansion to full Prism package and CI integration (`tox -e typecheck`)
+8. [ ] **DEFERRED:** Tighten residual `dict[str, Any]` payload usage in `scanner.py` to narrower internal contracts (high-risk rewrite; deferred for future major refactor phase)
+9. [ ] **IN PROGRESS (Tranche 4):** Refactor `os.path.relpath` → `Path.relative_to` in repo_services, scanner, and scan_output_emission (6 occurrences; safe conversions)
+10. [x] Expand type-check strictness/import-following strategy to detect more cross-module type drift (mypy tool.mypy config added; files list established)
+11. [x] Strengthen automation quality gate by raising test coverage threshold from 80% to 90%
+12. [x] Pin Ruff runtime semantics for this repo by setting explicit Python 3.14 target version
+13. [ ] **IN PROGRESS (Scanner Decomposition):** Scanner decomposition/slimming (`src/prism/scanner.py` currently >4000 lines) via staged extraction (5 slices completed; role/collection and primary rendering lanes queued)
+
+### Item 13 Phased Approach (Scanner Decomposition)
+
+- Phase A (Inventory and slicing): quantify `scanner.py` responsibility clusters and pick one behavior-preserving extraction lane at a time.
+- Phase B (Extraction lanes): move cohesive clusters (normalization, orchestration, rendering, error/result shaping) into `scanner_submodules` with wrapper parity maintained in `scanner.py`.
+- Phase C (Contract tightening): replace remaining large dict payloads crossing `scanner.py` boundaries with typed contracts to reduce coupling.
+- Phase D (Coordinator slimming): keep `scanner.py` as a thin orchestrator and remove dead/internal-only helpers after parity tests are stable.
+
+### Item 13 Success Criteria
+
+- `scanner.py` line count is materially reduced from current >4000 lines in staged, behavior-preserving slices.
+- Newly added logic lands in focused submodules by default instead of `scanner.py`.
+- Focused seam tests plus full-suite runs remain green for each slice.
+- Public scanner behavior and output schemas remain unchanged unless explicitly planned.

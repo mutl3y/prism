@@ -4,7 +4,7 @@ name: CI
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
 # Controls when the workflow will run
 on:
@@ -29,6 +29,8 @@ jobs:
   build:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     # No temporary Node allow flags; using updated action versions instead
 
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -57,7 +59,7 @@ jobs:
         if: ${{ always() && github.event_name == 'pull_request' }}
         uses: reviewdog/action-setup@v1
         with:
-          reviewdog_version: latest
+          reviewdog_version: v0.20.3
 
       - name: Run ruff and post annotations via reviewdog
         if: ${{ always() && github.event_name == 'pull_request' }}
