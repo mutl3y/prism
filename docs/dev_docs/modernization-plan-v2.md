@@ -50,11 +50,11 @@ This document is the only active operating plan for Prism modernization.
 
 ### Mandatory Acceptance Gates (Every Slice)
 
-- [ ] focused failing tests added first for the slice
-- [ ] focused tests pass
-- [ ] full tests pass
-- [ ] typecheck passes
-- [ ] architecture cycle check clean: `rg -n "from prism\.scanner import|import prism\.scanner" src/prism/scanner_submodules/` returns no results; verify callback injection sites (`render_section_body`, `render_readme`, `render_runbook`, `render_runbook_csv`) manually in `scan_output_emission.py` and `scanner_runbook_report.py`
+- [x] focused failing tests added first for the slice
+- [x] focused tests pass
+- [x] full tests pass
+- [x] typecheck passes
+- [x] architecture cycle check clean: `rg -n "from prism\.scanner import|import prism\.scanner" src/prism/scanner_submodules/` returns no results; verify callback injection sites (`render_section_body`, `render_readme`, `render_runbook`, `render_runbook_csv`) manually in `scan_output_emission.py` and `scanner_runbook_report.py`
 
 ### Slice Plan
 
