@@ -485,7 +485,7 @@ def build_scanner_report_markdown(
         row for row in normalized["variable_insights"] if row.get("is_ambiguous")
     ]
     if unresolved_rows or ambiguous_rows:
-        lines.extend(["Variable provenance issues", "-------------------------", ""])
+        lines.extend(["Variable provenance issues", "--------------------------", ""])
         if unresolved_rows:
             lines.append("Unresolved variables:")
             for row in unresolved_rows:

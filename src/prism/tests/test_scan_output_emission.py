@@ -3,7 +3,10 @@
 from pathlib import Path
 
 from prism import scanner
-from prism.scanner_submodules import scan_output_emission, scanner_runbook_report
+from prism.scanner_submodules import (
+    render_reports,
+    scan_output_emission,
+)
 
 
 def test_build_scanner_report_output_path_uses_default_suffix(tmp_path):
@@ -113,7 +116,7 @@ def test_scanner_wrapper_write_concise_scanner_report_if_enabled_delegates(monke
         return Path("/tmp/report.md")
 
     monkeypatch.setattr(
-        scanner_runbook_report,
+        render_reports,
         "_scan_output_write_concise_scanner_report_if_enabled",
         fake_write,
     )

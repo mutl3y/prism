@@ -3,8 +3,7 @@
 from typing import get_type_hints
 
 from prism import scanner
-from prism.scanner_submodules import scan_context
-from prism.scanner_submodules import scanner_runbook_report
+from prism.scanner_submodules import render_reports, scan_context
 
 
 def test_finalize_scan_context_payload_shapes_expected_tuple():
@@ -369,7 +368,7 @@ def test_scanner_wrapper_build_scan_report_sidecar_args_delegates():
         return {"delegated": True}
 
     with mock.patch.object(
-        scanner_runbook_report,
+        render_reports,
         "_scan_context_build_scan_report_sidecar_args",
         side_effect=fake_build,
     ):
@@ -463,7 +462,7 @@ def test_scanner_wrapper_build_runbook_sidecar_args_delegates():
         return {"delegated": True}
 
     with mock.patch.object(
-        scanner_runbook_report,
+        render_reports,
         "_scan_context_build_runbook_sidecar_args",
         side_effect=fake_build,
     ):

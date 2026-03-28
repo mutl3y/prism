@@ -100,7 +100,7 @@ from .scanner_submodules.scan_discovery import (
     load_variables as _scan_discovery_load_variables,
     resolve_scan_identity as _scan_discovery_resolve_scan_identity,
 )
-from .scanner_submodules.scanner_runbook_report import (
+from .scanner_submodules.render_reports import (
     build_scanner_report_markdown as _runbook_report_build_scanner_report_markdown,
     extract_scanner_counters as _runbook_report_extract_scanner_counters,
     classify_provenance_issue as _runbook_report_classify_provenance_issue,

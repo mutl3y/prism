@@ -3,7 +3,11 @@
 from typing import get_type_hints
 
 from prism import scanner
-from prism.scanner_submodules import scan_metrics, scanner_report, scanner_runbook_report
+from prism.scanner_submodules import (
+    render_reports,
+    scan_metrics,
+    scanner_report,
+)
 
 
 def test_build_referenced_variable_uncertainty_reason_shapes_expected_messages():
@@ -58,7 +62,7 @@ def test_scanner_wrapper_extract_scanner_counters_delegates(monkeypatch):
         return {"ok": 1}
 
     monkeypatch.setattr(
-        scanner_runbook_report,
+        render_reports,
         "_scan_metrics_extract_scanner_counters",
         fake_extract_scanner_counters,
     )
