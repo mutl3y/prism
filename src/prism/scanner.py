@@ -58,6 +58,9 @@ from .scanner_submodules.scan_output_primary import (
     render_and_write_scan_output as _scan_output_primary_render_and_write_scan_output,
     render_primary_scan_output as _scan_output_primary_render_primary_scan_output,
 )
+from .scanner_submodules.emit_output import (
+    orchestrate_output_emission as _emit_output_orchestrate_output_emission,
+)
 from .scanner_submodules.scanner_errorhandling import (
     should_suppress_internal_unresolved_reference as _errorhandling_should_suppress_internal_unresolved_reference,
     build_referenced_variable_uncertainty_reason as _errorhandling_build_referenced_variable_uncertainty_reason,
@@ -2283,6 +2286,17 @@ def _write_optional_runbook_outputs(
         runbook_csv_output=runbook_csv_output,
         role_name=role_name,
         metadata=metadata,
+        render_runbook=render_runbook,
+        render_runbook_csv=render_runbook_csv,
+    )
+
+
+def _emit_output_orchestration(args: dict) -> str:
+    """Orchestrate output emission (primary + sidecars) for a scanner run."""
+    return _emit_output_orchestrate_output_emission(
+        args=args,
+        render_and_write=_render_and_write_scan_output,
+        render_scanner_report=_build_scanner_report_markdown,
         render_runbook=render_runbook,
         render_runbook_csv=render_runbook_csv,
     )
