@@ -1,3 +1,4 @@
+import importlib
 from pathlib import Path
 import shutil
 import subprocess
@@ -10,6 +11,93 @@ ROLE_FIXTURES = HERE / "roles"
 BASE_ROLE_FIXTURE = ROLE_FIXTURES / "base_mock_role"
 ENHANCED_ROLE_FIXTURE = ROLE_FIXTURES / "enhanced_mock_role"
 INROLE_CONFIG_ROLE_FIXTURE = ROLE_FIXTURES / "inrole_config_role"
+
+
+def test_render_readme_module_compose_section_body_merges_requirements_content():
+    render_readme_module = importlib.import_module(
+        "prism.scanner_submodules.render_readme"
+    )
+
+    composed = render_readme_module._compose_section_body(
+        {
+            "id": "requirements",
+            "body": "Install collections first.",
+        },
+        "- acme.collection",
+        "merge",
+    )
+
+    assert "Install collections first." in composed
+    assert "Detected requirements from scanner:" in composed
+    assert "- acme.collection" in composed
+    assert "<!-- prism:generated:start:requirements -->" in composed
+
+
+def test_render_readme_module_renders_style_guide_and_scanner_report_link():
+    render_readme_module = importlib.import_module(
+        "prism.scanner_submodules.render_readme"
+    )
+
+    rendered = render_readme_module.render_readme(
+        output="/tmp/README.md",
+        role_name="demo_role",
+        description="Demo description",
+        variables={},
+        requirements=[],
+        default_filters=[],
+        metadata={
+            "style_guide": {
+                "title_style": "setext",
+                "section_style": "setext",
+                "section_level": 2,
+                "sections": [{"id": "purpose", "title": "Purpose"}],
+            },
+            "scanner_report_relpath": "reports/scan.md",
+            "include_scanner_report_link": True,
+        },
+        write=False,
+    )
+
+    assert "demo_role" in rendered
+    assert "Purpose" in rendered
+    assert "Demo description" in rendered
+    assert "Scanner report" in rendered
+    assert "reports/scan.md" in rendered
+
+
+def test_scanner_render_readme_wrapper_delegates_to_extracted_module(monkeypatch):
+    captured = {}
+
+    def fake_render_readme(**kwargs):
+        captured.update(kwargs)
+        return "delegated"
+
+    monkeypatch.setattr(scanner, "_render_readme_mod_render_readme", fake_render_readme)
+
+    result = scanner.render_readme(
+        output="/tmp/README.md",
+        role_name="demo_role",
+        description="Demo description",
+        variables={"demo": {"required": False}},
+        requirements=["dep"],
+        default_filters=[{"match": "demo | default('x')"}],
+        template="custom.md.j2",
+        metadata={"feature": True},
+        write=False,
+    )
+
+    assert result == "delegated"
+    assert captured == {
+        "output": "/tmp/README.md",
+        "role_name": "demo_role",
+        "description": "Demo description",
+        "variables": {"demo": {"required": False}},
+        "requirements": ["dep"],
+        "default_filters": [{"match": "demo | default('x')"}],
+        "template": "custom.md.j2",
+        "metadata": {"feature": True},
+        "write": False,
+    }
 
 
 def test_render_readme_for_mock_role(tmp_path):
