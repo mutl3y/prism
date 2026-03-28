@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from .doc_insights import parse_comma_values
-from ..scanner_config.patterns import load_pattern_config
-from .scanner_requirements import normalize_requirements
-from .style_vars import (
+from .style import (
     _render_role_notes_section,
     _render_role_variables_for_style,
     _render_template_overrides_section,
     _render_variable_summary_section,
 )
+from ..scanner_config.patterns import load_pattern_config
+from ..scanner_submodules.scanner_requirements import normalize_requirements
+from ..scanner_submodules.doc_insights import parse_comma_values
 
 _POLICY = load_pattern_config()
 _VARIABLE_GUIDANCE_KEYWORDS: tuple[str, ...] = tuple(

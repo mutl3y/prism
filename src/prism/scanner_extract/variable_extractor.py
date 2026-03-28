@@ -36,7 +36,7 @@ from .._jinja_analyzer import (
     _collect_jinja_local_bindings_from_text,
     _collect_undeclared_jinja_variables,
 )
-from .task_parser import (
+from . import (
     TASK_BLOCK_KEYS,
     TASK_INCLUDE_KEYS,
     TASK_META_KEYS,
@@ -380,7 +380,7 @@ def _collect_dynamic_task_include_refs(
     exclude_paths: list[str] | None = None,
 ) -> list[str]:
     """Return templated include/import task references from task files."""
-    from .task_parser import _iter_task_include_targets
+    from . import _iter_task_include_targets
 
     role_root = Path(role_path).resolve()
     refs: list[str] = []

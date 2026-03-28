@@ -27,7 +27,7 @@ def _load_section_display_titles_from_fixture(
 
     When ``config_text`` is omitted, the file is intentionally left missing.
     """
-    from prism.scanner_submodules.readme_config import _load_section_display_titles
+    from prism.scanner_config.readme import _load_section_display_titles
 
     fixture = tmp_path / filename
     if config_text is not None:
@@ -37,7 +37,7 @@ def _load_section_display_titles_from_fixture(
 
 def test_resolve_role_config_file_uses_explicit_config_path(tmp_path):
     """resolve_role_config_file returns Path(config_path) when provided."""
-    from prism.scanner_submodules.readme_config import resolve_role_config_file
+    from prism.scanner_config.readme import resolve_role_config_file
 
     role = tmp_path / "role"
     role.mkdir()

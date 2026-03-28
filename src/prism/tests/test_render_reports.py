@@ -1,6 +1,6 @@
 """Focused tests for scanner-report and runbook rendering helpers."""
 
-from prism.scanner_submodules import render_reports, scanner_runbook_report
+from prism.scanner_submodules import render_reports
 
 
 def _scanner_counters(**overrides):
@@ -252,14 +252,3 @@ def test_render_reports_module_renders_runbook_csv_with_stable_header_and_rows()
         "tasks/main.yml,Deploy app,copy /tmp/app to /opt/app then restart",
         "tasks/main.yml,Deploy app,Warning: requires sudo",
     ]
-
-
-def test_scanner_runbook_report_shim_reexports_render_report_helpers():
-    assert scanner_runbook_report.render_runbook is render_reports.render_runbook
-    assert (
-        scanner_runbook_report.render_runbook_csv is render_reports.render_runbook_csv
-    )
-    assert (
-        scanner_runbook_report.build_scanner_report_markdown
-        is render_reports.build_scanner_report_markdown
-    )

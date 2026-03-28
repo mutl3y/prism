@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 from typing import TypedDict
 
-from ..pattern_config import load_pattern_config
+from ..scanner_config.patterns import load_pattern_config
 
 _POLICY = load_pattern_config()
 STYLE_SECTION_ALIASES: dict[str, str] = _POLICY["section_aliases"]
