@@ -127,12 +127,16 @@ def _render_guide_variable_sections(
     section_id: str,
     variables: dict,
     metadata: dict,
+    variable_guidance_keywords: tuple[str, ...] | None = None,
 ) -> str | None:
     """Render style-guide sections focused on variable inventory and guidance."""
     if section_id == "variable_summary":
         return _render_variable_summary_section(metadata)
     if section_id == "variable_guidance":
-        return _render_variable_guidance_section(metadata)
+        return _render_variable_guidance_section(
+            metadata,
+            variable_guidance_keywords=variable_guidance_keywords,
+        )
     if section_id == "template_overrides":
         return _render_template_overrides_section(metadata)
     if section_id == "role_variables":
@@ -140,16 +144,18 @@ def _render_guide_variable_sections(
     return None
 
 
-def _render_variable_guidance_section(metadata: dict) -> str:
+def _render_variable_guidance_section(
+    metadata: dict,
+    variable_guidance_keywords: tuple[str, ...] | None = None,
+) -> str:
     """Render recommended variable override candidates."""
     rows = metadata.get("variable_insights") or []
     if not rows:
         return "No variable guidance available because no variable defaults were discovered."
 
+    keywords = variable_guidance_keywords or _VARIABLE_GUIDANCE_KEYWORDS
     priority = [
-        row
-        for row in rows
-        if any(keyword in row["name"] for keyword in _VARIABLE_GUIDANCE_KEYWORDS)
+        row for row in rows if any(keyword in row["name"] for keyword in keywords)
     ]
     if not priority:
         priority = rows[:5]
@@ -416,6 +422,8 @@ def _render_guide_section_body(
     requirements: list,
     default_filters: list,
     metadata: dict,
+    *,
+    variable_guidance_keywords: tuple[str, ...] | None = None,
 ) -> str:
     """Render one canonical section body for guided README output."""
     galaxy = (
@@ -433,7 +441,12 @@ def _render_guide_section_body(
     if rendered is not None:
         return rendered
 
-    rendered = _render_guide_variable_sections(section_id, variables, metadata)
+    rendered = _render_guide_variable_sections(
+        section_id,
+        variables,
+        metadata,
+        variable_guidance_keywords=variable_guidance_keywords,
+    )
     if rendered is not None:
         return rendered
 

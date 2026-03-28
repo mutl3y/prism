@@ -1992,6 +1992,7 @@ def _render_guide_section_body(
         requirements,
         default_filters,
         metadata,
+        variable_guidance_keywords=_VARIABLE_GUIDANCE_KEYWORDS,
     )
 
 
