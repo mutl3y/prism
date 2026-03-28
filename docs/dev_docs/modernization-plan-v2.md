@@ -74,7 +74,7 @@ Scope:
 - `src/prism/scanner_submodules/scan_request.py`
 - wrapper parity tests under `src/prism/tests/`
 
-#### Slice 2a: Guide/Body Rendering Extraction **(Current)**
+#### Slice 2a: Guide/Body Rendering Extraction **(Complete)**
 
 Scope:
 
@@ -91,7 +91,7 @@ Target submodule(s): `src/prism/scanner_submodules/render_guide.py`
 
 These tests must fail (AttributeError or ImportError) before extraction and pass after. Slice 2a may not proceed without this file.
 
-#### Slice 2b: README Composition Extraction
+#### Slice 2b: README Composition Extraction **(Complete)**
 
 Scope:
 
@@ -109,7 +109,7 @@ Scope note: this slice covers README rendering helpers that generate markdown co
 
 These tests must fail (AttributeError or ImportError) before extraction and pass after. Slice 2b may not proceed without this file.
 
-#### Slice 2c: Scanner-Report and Runbook Rendering Extraction
+#### Slice 2c: Scanner-Report and Runbook Rendering Extraction **(Complete)**
 
 Scope:
 
@@ -126,7 +126,7 @@ Target submodule(s): `src/prism/scanner_submodules/render_reports.py`
 
 These tests must fail (AttributeError or ImportError) before extraction and pass after. **Slice 2c may not proceed without this file. A format change in scanner-report markdown output is a cross-repo breaking change — stop-the-line applies.**
 
-#### Slice 2d: Output Orchestration Extraction
+#### Slice 2d: Output Orchestration Extraction **(Current - Pre-Work)**
 
 Scope:
 
