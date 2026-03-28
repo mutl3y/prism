@@ -519,6 +519,13 @@ Optional cautious type-gate expansion (kept):
 
 ## Progress Note (2026-03-27, Phase 3 style_guide.py type-annotation fixes + gate expansion slice)
 
+## Progress Note (2026-03-28, Phase D guard unblock prework in scanner_orchestration)
+
+- [x] fixed imported-helper name collisions that caused recursive self-calls in `scanner_orchestration.py` (`resolve_scan_identity`, `build_requirements_display`) via explicit aliasing
+- [x] aligned `load_readme_section_config` callsite in `scanner_orchestration.py` with current helper signature to remove typecheck call-arg failures
+- [x] removed fragile `__defaults__` indexing for non-authoritative evidence defaults and replaced with explicit constants
+- [ ] keep `scanner_orchestration.py` disconnected from scanner runtime wiring in this pass (no integration changes)
+
 Completed the next Phase 3 typing slice focused on expanding the gate to `style_guide.py`:
 
 - added `TypedDict` import and `_SectionTitleBucket` TypedDict in `src/prism/scanner_submodules/style_guide.py` to replace the `dict[str, object]` bucket annotation in `_build_section_title_stats`, resolving 7 type errors
@@ -689,6 +696,89 @@ Attempted Phase D orchestration extraction but identified implementation risk:
 - ✅ Phase A-C: Scanner decomposition with TypedDict contracts COMPLETE (5 extraction modules, 3 TypedDict phases)
 - ⏸️ Phase D: Deferred to future cycle (implementation complexity outweighs current benefit)
 - 📊 Final metrics: scanner.py 3926 lines (reduced from 4154), 17 extraction modules, 746 tests passing, mypy clean
+
+## Phase D Restart Plan (Guarded)
+
+Known defects to keep front-and-center before any restart work:
+
+- `src/prism/scanner_submodules/scanner_orchestration.py` contains recursive shadowing of `resolve_scan_identity`
+- `src/prism/scanner_submodules/scanner_orchestration.py` contains recursive shadowing of `build_requirements_display`
+
+### Stage 1: Pre-code safety gates
+
+- [x] confirm import graph is acyclic for the proposed extraction path (scanner + scan_discovery + scan_context + scanner_orchestration)
+- [x] confirm call graph has no self-recursive delegation loops for orchestration wrappers and extracted helpers
+- [x] map wrapper-to-helper delegation targets explicitly before editing (source symbol -> target symbol table)
+- [x] block code writing until all above checks are complete and reviewed
+
+### Stage 2: Naming and collision controls
+
+- [x] apply explicit aliasing for imported helpers to avoid same-name shadowing (`scan_discovery_resolve_scan_identity`, `scan_context_build_requirements_display` style)
+- [x] enforce naming convention: wrapper names stay scanner-prefixed and delegatee names stay module-qualified
+- [ ] add or update a focused regression that fails if wrapper/helper symbol names collide in orchestration module scope
+
+### Stage 3: Implementation slices
+
+- [ ] extract one helper at a time only (single-helper slice; no bundled orchestration moves)
+- [x] keep each slice behavior-preserving with unchanged public scanner interfaces
+- [ ] land each slice as a narrow, reversible commit before starting the next helper
+
+### Stage 4: Validation gates per slice
+
+- [x] run focused pytest subset for the touched seam first
+- [x] run full suite (`tests: full`) after focused pass
+- [x] run mypy gate (`tox -e typecheck`) before slice is considered complete
+- [ ] do not proceed to next slice unless all three gates pass
+
+### Stage 5: Rollback criteria
+
+- [ ] immediate rollback if any new recursion/circular-call path is detected in wrapper delegation
+- [ ] immediate rollback if focused tests fail on orchestration wrappers or payload-building seams
+- [ ] immediate rollback if full suite or mypy introduces unresolved regressions not fixed within the same slice
+
+### First safe slice recommendation
+
+Start with policy-enforcement helper extraction only (for example, `_refresh_policy`-adjacent policy wiring) and explicitly avoid touching `scanner_orchestration.py` in the first restart slice.
+
+## Progress Note (2026-03-28 00:45:06Z, Phase D rollback to Phase C baseline)
+
+Rollback executed to restore the stable Phase C baseline anchored at commit `e3cec3f` ("docs: Phase C complete - document Phase D deferral decision").
+
+### Rationale
+
+- Phase D prework reintroduced orchestration extraction drift that had already been deferred in the prior decision note.
+- Wrapper contract regressions and orchestration-only type errors were observed in local validation (`AttributeError` on scanner wrappers and mypy failures in a new orchestration module).
+- Risk/benefit remained unfavorable compared with the stable Phase C baseline, so rollback criteria were applied.
+
+### Reverted In This Rollback
+
+- restored `src/prism/scanner.py` to the Phase C anchor state from commit `e3cec3f`
+- removed Phase D-only implementation artifacts:
+  - `src/prism/scanner_submodules/scanner_orchestration.py`
+  - `src/prism/scanner_submodules/phase_d_policy_enforcement.py`
+  - `docs/dev_docs/PHASE_D_AUDIT.md`
+
+### Validation Results After Rollback
+
+- focused wrapper/delegation tests: `46 passed`
+  command: `.venv/bin/python -m pytest -q src/prism/tests/test_scan_context.py src/prism/tests/test_scan_discovery.py src/prism/tests/test_scan_output_emission.py src/prism/tests/test_scan_output_primary.py src/prism/tests/test_scan_request.py`
+- full test suite: `746 passed`
+  command: task `tests: full`
+- type gate: `Success: no issues found in 53 source files`
+  command: `tox -e typecheck -q`
+
+### Current Status
+
+- active baseline: **Phase C complete and stable**
+- Phase D remains **deferred** pending a safer restart slice design
+- scanner wrapper contracts are back to expected behavior for current tests
+
+### Restart Conditions For Any Future Phase D Attempt
+
+- require explicit wrapper-to-helper symbol map before coding
+- prohibit helper/module names that can shadow scanner wrappers
+- permit only one-helper extraction slices with full gate pass per slice
+- enforce immediate rollback on any wrapper API break, recursion risk, full-test failure, or mypy regression
 
 ## Phase 4 Completion Note (2026-03-27)
 
