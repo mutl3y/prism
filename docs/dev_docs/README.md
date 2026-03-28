@@ -24,8 +24,9 @@ Reference index for engineering, maintenance, and governance.
 
 - [Developer Changelog](./changelog.md): internal evolution history
 - [Roadmap and Backlog](./roadmap.md): active initiatives and priorities
-- [Modernization Plan](./modernization-plan.md): phased execution plan for reducing core complexity and strengthening internal boundaries
-- [Annotation Quality Workoff](./annotation-quality-workoff.md): quality policy implementation plan
+- [Modernization Plan v2](./modernization-plan-v2.md): phased extraction program for rendering and output logic (operating plan, COMPLETE)
+- [Modernization v2 Completion & Sign-Off](./modernization-v2-completion-signoff.md): formal sign-off document, metrics, and next steps
+- [Annotation Quality Workoff](./annotation-quality-workoff.md): quality policy implementation plan (complete)
 - [Completed Plans Archive](./completed-plans.md): closed planning artifacts
 - [Style Guide Sources](./style-guide-sources.md): external standards references
 
