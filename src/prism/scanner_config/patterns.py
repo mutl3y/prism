@@ -1,33 +1,7 @@
 """Pattern policy loader for prism.
 
-Loads the built-in token lists and alias mappings from the YAML files in
-``data/``.  Each file contributes its top-level keys to the policy dict
-and is loaded in filename order so the merge is deterministic:
-
-* ``data/ignored_identifiers.yml``
-* ``data/section_aliases.yml``
-* ``data/sensitivity.yml``
-* ``data/variable_guidance.yml``
-* ``data/ansible_builtin_variables.yml``
-
-Typical usage in scanner.py::
-
-    from .pattern_config import load_pattern_config
-    _POLICY = load_pattern_config()
-    STYLE_SECTION_ALIASES = _POLICY["section_aliases"]
-
-Override file (e.g. ``.prism_patterns.yml`` in the role repo)
-should be a YAML file with the same top-level keys as the above files.
-Only the keys you include are replaced; omitted keys keep the built-in value.
-Dicts are merged recursively; lists replace wholesale (no partial merge).
-
-Remote patterns repo
---------------------
-When internet access is available the ``fetch_remote_policy`` helper can
-pull a merged ``pattern_policy.yml`` from a remote URL (e.g. the raw
-GitHub URL of ``prism_patterns``) and cache it locally.  This
-is intentionally *not* called automatically at scan time; invoke it
-explicitly via ``prism update-patterns``.
+Loads the built-in token lists and alias mappings from YAML files in ``data/``.
+Supports override files and remote pattern repositories.
 """
 
 from __future__ import annotations
@@ -35,29 +9,25 @@ from __future__ import annotations
 import copy
 import json
 import os
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 # Directory containing the built-in per-topic YAML files shipped with the package
-_BUILTIN_DATA_DIR = Path(__file__).parent / "data"
+_BUILTIN_DATA_DIR = Path(__file__).parent.parent / "data"
 
-# Default name for a repo-level override sitting next to the role being scanned
+# Override filename constants
 REPO_OVERRIDE_FILENAME = ".prism_patterns.yml"
 LEGACY_REPO_OVERRIDE_FILENAME = ".ansible_role_doc_patterns.yml"
-
-# Optional current-working-directory override name
 CWD_OVERRIDE_FILENAME = ".prism_patterns.yml"
 LEGACY_CWD_OVERRIDE_FILENAME = ".ansible_role_doc_patterns.yml"
-
-# Optional environment-variable override file path
 ENV_PATTERNS_OVERRIDE_PATH = "PRISM_PATTERNS_PATH"
 LEGACY_ENV_PATTERNS_OVERRIDE_PATH = "ANSIBLE_ROLE_DOC_PATTERNS_PATH"
 
-# Linux user/system mutable-data locations
+# System mutable-data locations
 XDG_DATA_HOME_ENV = "XDG_DATA_HOME"
 APP_DATA_DIRNAME = "prism"
 LEGACY_APP_DATA_DIRNAME = "ansible_role_doc"
@@ -74,11 +44,6 @@ DEFAULT_REMOTE_URL = (
 )
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-
 def _load_yaml(path: Path) -> dict[str, Any]:
     """Load a YAML file, returning an empty dict on any failure."""
     try:
@@ -90,13 +55,7 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """Recursively merge *override* into a copy of *base*.
-
-    - Dicts are merged recursively.
-    - All other types (lists, scalars) are replaced wholesale by the override
-      value.  This means a list in the override fully replaces the base list
-      rather than extending it.
-    """
+    """Recursively merge *override* into a copy of *base*."""
     result = copy.deepcopy(base)
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
@@ -107,7 +66,7 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
 
 
 def _normalise(policy: dict[str, Any]) -> dict[str, Any]:
-    """Ensure expected keys exist and convert ``ignored_identifiers`` to a set."""
+    """Ensure expected keys exist and convert sets."""
     policy.setdefault("section_aliases", {})
     policy.setdefault("sensitivity", {})
     policy["sensitivity"].setdefault("name_tokens", [])
@@ -118,15 +77,9 @@ def _normalise(policy: dict[str, Any]) -> dict[str, Any]:
     policy["variable_guidance"].setdefault("priority_keywords", [])
     policy.setdefault("ansible_builtin_variables", [])
     policy.setdefault("ignored_identifiers", [])
-    # Return a mutable set so callers can use ``in`` without converting
     policy["ansible_builtin_variables"] = set(policy["ansible_builtin_variables"])
     policy["ignored_identifiers"] = set(policy["ignored_identifiers"])
     return policy
-
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 
 def _load_builtin_policy() -> dict[str, Any]:
@@ -149,72 +102,53 @@ def _default_user_data_home() -> Path:
 def _iter_default_override_paths() -> list[Path]:
     """Return default mutable override paths in merge order.
 
-    Returned order is low -> high precedence.
+    Returned in low -> high precedence order (later ones override earlier ones).
     """
-    candidates: list[Path] = []
+    paths = []
 
-    # system-level mutable defaults
-    candidates.append(SYSTEM_PATTERN_OVERRIDE_PATH)
-    candidates.append(LEGACY_SYSTEM_PATTERN_OVERRIDE_PATH)
+    # system-level mutable defaults (lowest precedence)
+    paths.append(SYSTEM_PATTERN_OVERRIDE_PATH)
+    paths.append(LEGACY_SYSTEM_PATTERN_OVERRIDE_PATH)
 
     # user-level mutable defaults (XDG)
     user_data_home = _default_user_data_home()
-    candidates.append(user_data_home / APP_DATA_DIRNAME / CWD_OVERRIDE_FILENAME)
-    candidates.append(
+    paths.append(user_data_home / APP_DATA_DIRNAME / CWD_OVERRIDE_FILENAME)
+    paths.append(
         user_data_home / LEGACY_APP_DATA_DIRNAME / LEGACY_CWD_OVERRIDE_FILENAME
     )
 
     # repo-local/cwd override
-    candidates.append(Path.cwd() / CWD_OVERRIDE_FILENAME)
-    candidates.append(Path.cwd() / LEGACY_CWD_OVERRIDE_FILENAME)
+    paths.append(Path.cwd() / CWD_OVERRIDE_FILENAME)
+    paths.append(Path.cwd() / LEGACY_CWD_OVERRIDE_FILENAME)
 
-    # optional env var override (highest among implicit defaults)
-    env_override_raw = os.environ.get(ENV_PATTERNS_OVERRIDE_PATH)
-    if env_override_raw:
-        candidates.append(Path(env_override_raw).expanduser())
+    # optional env var override (highest precedence among implicit defaults)
+    env_override = os.environ.get(ENV_PATTERNS_OVERRIDE_PATH)
+    if env_override:
+        paths.append(Path(env_override).expanduser())
 
-    legacy_env_override_raw = os.environ.get(LEGACY_ENV_PATTERNS_OVERRIDE_PATH)
-    if legacy_env_override_raw:
-        candidates.append(Path(legacy_env_override_raw).expanduser())
+    legacy_env_override = os.environ.get(LEGACY_ENV_PATTERNS_OVERRIDE_PATH)
+    if legacy_env_override:
+        paths.append(Path(legacy_env_override).expanduser())
 
-    return candidates
+    return paths
 
 
-def load_pattern_config(
-    override_path: str | Path | None = None,
-) -> dict[str, Any]:
-    """Return the merged pattern policy.
+def load_pattern_config(override_path: str | None = None) -> dict[str, Any]:
+    """Load pattern configuration policy from built-in and override sources.
 
-    Load order (later wins):
-
-    1. Built-in per-topic YAML files from ``data/`` (always present, ship with package)
-     2. ``/var/lib/prism/.prism_patterns.yml`` (system mutable data)
-     3. ``/var/lib/ansible_role_doc/.ansible_role_doc_patterns.yml`` (legacy)
-     4. ``$XDG_DATA_HOME/prism/.prism_patterns.yml``
-         or ``~/.local/share/prism/.prism_patterns.yml``
-     5. ``$XDG_DATA_HOME/ansible_role_doc/.ansible_role_doc_patterns.yml`` (legacy)
-     6. ``./.prism_patterns.yml`` in current working directory
-     7. ``./.ansible_role_doc_patterns.yml`` (legacy)
-     8. ``$PRISM_PATTERNS_PATH`` if set
-     9. ``$ANSIBLE_ROLE_DOC_PATTERNS_PATH`` if set (legacy)
-    10. *override_path* if supplied (explicit highest precedence)
+    Loads all built-in policy YAML files, then applies overrides in precedence
+    order. Returns all state needed for pattern detection and policy queries.
 
     Parameters
     ----------
     override_path:
-        Path to a YAML override file.  Non-existent paths are silently ignored
-        so callers can always pass the default repo filename without checking
-        for its existence.
+        Path to a YAML override file. Non-existent paths are ignored.
 
     Returns
     -------
     dict with keys:
-        ``section_aliases`` – dict[str, str]
-        ``sensitivity``     – dict with ``name_tokens``, ``vault_markers``,
-                              ``credential_prefixes``, ``url_prefixes``
-        ``variable_guidance`` – dict with ``priority_keywords``
-        ``ansible_builtin_variables`` – set[str]
-        ``ignored_identifiers`` – set[str]
+        ``section_aliases``, ``sensitivity``, ``variable_guidance``,
+        ``ansible_builtin_variables``, ``ignored_identifiers``
     """
     policy = _load_builtin_policy()
 
@@ -241,8 +175,7 @@ def fetch_remote_policy(
 ) -> dict[str, Any]:
     """Fetch a ``pattern_policy.yml`` from *url* and return the parsed policy.
 
-    If *cache_path* is provided the raw YAML bytes are written there so
-    subsequent calls can work offline.
+    If *cache_path* is provided the raw YAML bytes are written there.
 
     Raises ``RuntimeError`` if the fetch fails and no cached copy exists.
     """
@@ -262,7 +195,6 @@ def fetch_remote_policy(
         cache_file.write_bytes(raw_bytes)
 
     if raw_bytes is None:
-        # Fetch failed but we have a cache path to fall back on
         if cache_path is not None:
             cache_file = Path(cache_path)
             if cache_file.exists():
@@ -289,20 +221,17 @@ def write_unknown_headings_log(
     unknown: dict[str, int],
     output_path: str | Path,
 ) -> None:
-    """Write a JSON log of *unknown* heading counts to *output_path*.
-
-    This is the input consumed by the ``generate-aliases`` curator command.
-
-    Parameters
-    ----------
-    unknown:
-        Mapping of normalised heading text -> occurrence count.
-    output_path:
-        File path to write (created/overwritten).
-    """
+    """Write a JSON log of *unknown* heading counts to *output_path*."""
     out = Path(output_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
         json.dumps({"unknown_headings": unknown}, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
+
+
+__all__ = [
+    "load_pattern_config",
+    "fetch_remote_policy",
+    "write_unknown_headings_log",
+]

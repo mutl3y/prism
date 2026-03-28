@@ -3,7 +3,8 @@
 # prism~runbook:
 # stop the service only for full deploys or incompatible schema changes
 # if the stop hangs, inspect systemd and active connections before forcing termination
-# prism~task: Stop application service for full deploy | warning: confirm no active migrations are running before stopping the service
+#
+# prism~warning: confirm no active migrations are running before stopping the service
 # capture active worker counts before the stop for incident comparison
 - name: Stop application service for full deploy
   ansible.builtin.service:

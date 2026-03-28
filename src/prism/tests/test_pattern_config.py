@@ -7,13 +7,14 @@ import urllib.request
 
 import pytest
 
-from prism import pattern_config
-from prism.pattern_config import (
+from prism.scanner_config import patterns as pattern_config
+from prism.scanner_config.patterns import (
     _load_yaml,
     fetch_remote_policy,
     load_pattern_config,
     write_unknown_headings_log,
 )
+from prism import scanner_config
 
 
 class _FakeHTTPResponse:
@@ -110,7 +111,9 @@ def test_load_pattern_config_reads_system_override(monkeypatch, tmp_path):
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(pattern_config, "SYSTEM_PATTERN_OVERRIDE_PATH", system_override)
+    monkeypatch.setattr(
+        scanner_config.patterns, "SYSTEM_PATTERN_OVERRIDE_PATH", system_override
+    )
     monkeypatch.chdir(tmp_path)
     config = load_pattern_config()
 
@@ -138,7 +141,9 @@ def test_load_pattern_config_precedence_later_overrides_earlier(monkeypatch, tmp
     write_name_tokens(env_override, "from_env")
     write_name_tokens(explicit_override, "from_explicit")
 
-    monkeypatch.setattr(pattern_config, "SYSTEM_PATTERN_OVERRIDE_PATH", system_override)
+    monkeypatch.setattr(
+        scanner_config.patterns, "SYSTEM_PATTERN_OVERRIDE_PATH", system_override
+    )
     monkeypatch.setenv(pattern_config.XDG_DATA_HOME_ENV, str(xdg_home))
     monkeypatch.setenv(pattern_config.ENV_PATTERNS_OVERRIDE_PATH, str(env_override))
     monkeypatch.chdir(tmp_path)

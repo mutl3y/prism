@@ -494,3 +494,561 @@ def test_scan_base_context_typed_seam_keys():
         "requirements_display",
     }
     assert expected_keys == set(hints.keys())
+
+
+def test_execute_scan_with_context_invokes_scanner_context_once(monkeypatch, tmp_path):
+    role_path = str(tmp_path / "role")
+    (tmp_path / "role").mkdir()
+    scan_options = {"role_path": role_path, "include_vars_main": True}
+    context_payload = {
+        "role_name": "demo_role",
+        "description": "desc",
+        "display_variables": {},
+        "requirements_display": [],
+        "undocumented_default_filters": [],
+        "metadata": {},
+    }
+
+    calls = {
+        "orchestrate": 0,
+        "build_emit_args": 0,
+        "emit": 0,
+    }
+
+    class FakeContext:
+        def __init__(self, *, di, role_path, scan_options):
+            assert role_path == role_path_ref
+            assert scan_options is scan_options_ref
+
+        def orchestrate_scan(self):
+            calls["orchestrate"] += 1
+            return context_payload
+
+    scan_options_ref = scan_options
+    role_path_ref = role_path
+
+    def fake_build_emit_args(**kwargs):
+        calls["build_emit_args"] += 1
+        assert kwargs["payload"] is context_payload
+        return {"emit_args": True, "payload": kwargs["payload"]}
+
+    def fake_emit(args):
+        calls["emit"] += 1
+        assert args["emit_args"] is True
+        return "rendered"
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("_prepare_run_scan_payload should not be called")
+
+    monkeypatch.setattr(
+        scanner, "DIContainer", lambda role_path, scan_options: object()
+    )
+    monkeypatch.setattr(scanner, "ScannerContext", FakeContext)
+    monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
+    monkeypatch.setattr(scanner, "_emit_scan_outputs", fake_emit)
+    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fail_if_called)
+
+    result = scanner._execute_scan_with_context(
+        role_path=role_path,
+        scan_options=scan_options,
+        output="README.md",
+        output_format="md",
+        concise_readme=False,
+        scanner_report_output=None,
+        include_scanner_report_link=True,
+        template=None,
+        dry_run=False,
+        runbook_output=None,
+        runbook_csv_output=None,
+    )
+
+    assert result == "rendered"
+    assert calls == {
+        "orchestrate": 1,
+        "build_emit_args": 1,
+        "emit": 1,
+    }
+
+
+def test_execute_scan_with_context_falls_back_when_orchestrated_payload_incomplete(
+    monkeypatch,
+):
+    scan_options = {"role_path": "/tmp/role", "include_vars_main": True}
+    fallback_payload = {
+        "role_name": "fallback_role",
+        "description": "fallback_desc",
+        "display_variables": {"x": {"required": False}},
+        "requirements_display": ["dep"],
+        "undocumented_default_filters": [],
+        "metadata": {"features": {}},
+    }
+
+    class FakeContext:
+        def __init__(self, *, di, role_path, scan_options):
+            pass
+
+        def orchestrate_scan(self):
+            return {
+                "role_name": "",
+                "description": "",
+                "display_variables": {},
+                "requirements_display": [],
+                "undocumented_default_filters": [],
+                "metadata": {},
+            }
+
+    captured = {}
+
+    def fake_prepare(options):
+        assert options is scan_options
+        return fallback_payload
+
+    def fake_build_emit_args(**kwargs):
+        captured["payload"] = kwargs["payload"]
+        return {"emit_args": True}
+
+    monkeypatch.setattr(
+        scanner, "DIContainer", lambda role_path, scan_options: object()
+    )
+    monkeypatch.setattr(scanner, "ScannerContext", FakeContext)
+    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fake_prepare)
+    monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
+    monkeypatch.setattr(scanner, "_emit_scan_outputs", lambda args: "rendered")
+
+    result = scanner._execute_scan_with_context(
+        role_path="/tmp/role",
+        scan_options=scan_options,
+        output="README.md",
+        output_format="md",
+        concise_readme=False,
+        scanner_report_output=None,
+        include_scanner_report_link=True,
+        template=None,
+        dry_run=False,
+        runbook_output=None,
+        runbook_csv_output=None,
+    )
+
+    assert result == "rendered"
+    assert captured["payload"] is fallback_payload
+
+
+def test_execute_scan_with_context_uses_real_scanner_context_without_fallback(
+    monkeypatch, tmp_path
+):
+    role_path = str(tmp_path / "demo_role")
+    (tmp_path / "demo_role").mkdir()
+    scan_options = {"role_path": role_path, "include_vars_main": True}
+    captured = {}
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("_prepare_run_scan_payload should not be called")
+
+    def fake_build_emit_args(**kwargs):
+        captured["payload"] = kwargs["payload"]
+        return {"emit_args": True}
+
+    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fail_if_called)
+    monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
+    monkeypatch.setattr(scanner, "_emit_scan_outputs", lambda args: "rendered")
+
+    result = scanner._execute_scan_with_context(
+        role_path=role_path,
+        scan_options=scan_options,
+        output="README.md",
+        output_format="md",
+        concise_readme=False,
+        scanner_report_output=None,
+        include_scanner_report_link=True,
+        template=None,
+        dry_run=False,
+        runbook_output=None,
+        runbook_csv_output=None,
+    )
+
+    assert result == "rendered"
+    assert scanner._is_complete_scan_output_payload(captured["payload"])
+    assert captured["payload"]["role_name"] == "demo_role"
+
+
+def test_execute_scan_with_context_falls_back_when_vars_seed_paths_present(
+    monkeypatch,
+    tmp_path,
+):
+    role_path = str(tmp_path / "role")
+    (tmp_path / "role").mkdir()
+    scan_options = {
+        "role_path": role_path,
+        "include_vars_main": True,
+        "vars_seed_paths": ["/tmp/group_vars/all.yml"],
+    }
+    fallback_payload = {
+        "role_name": "fallback_role",
+        "description": "fallback_desc",
+        "display_variables": {},
+        "requirements_display": [],
+        "undocumented_default_filters": [],
+        "metadata": {"external_vars_context": {"sources": []}},
+    }
+
+    captured = {}
+
+    def fake_prepare(options):
+        assert options is scan_options
+        return fallback_payload
+
+    def fake_build_emit_args(**kwargs):
+        captured["payload"] = kwargs["payload"]
+        return {"emit_args": True}
+
+    def fail_if_container_called(*_args, **_kwargs):
+        raise AssertionError(
+            "DIContainer should not be called for deterministic fallback"
+        )
+
+    class FailIfScannerContextConstructed:
+        def __init__(self, **_kwargs):
+            raise AssertionError(
+                "ScannerContext should not be constructed for deterministic fallback"
+            )
+
+    monkeypatch.setattr(scanner, "DIContainer", fail_if_container_called)
+    monkeypatch.setattr(scanner, "ScannerContext", FailIfScannerContextConstructed)
+    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fake_prepare)
+    monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
+    monkeypatch.setattr(scanner, "_emit_scan_outputs", lambda args: "rendered")
+
+    result = scanner._execute_scan_with_context(
+        role_path=role_path,
+        scan_options=scan_options,
+        output="README.md",
+        output_format="md",
+        concise_readme=False,
+        scanner_report_output=None,
+        include_scanner_report_link=True,
+        template=None,
+        dry_run=False,
+        runbook_output=None,
+        runbook_csv_output=None,
+    )
+
+    assert result == "rendered"
+    assert captured["payload"] is fallback_payload
+    assert (
+        captured["payload"]["metadata"]["scanner_context_fallback_reason"]
+        == "vars_seed_paths_present"
+    )
+
+
+def test_execute_scan_with_context_falls_back_when_style_readme_path_missing(
+    monkeypatch,
+    tmp_path,
+):
+    role_path = str(tmp_path / "role")
+    (tmp_path / "role").mkdir()
+    scan_options = {
+        "role_path": role_path,
+        "include_vars_main": True,
+        "style_readme_path": str(tmp_path / "missing-style.md"),
+    }
+    fallback_payload = {
+        "role_name": "fallback_role",
+        "description": "fallback_desc",
+        "display_variables": {},
+        "requirements_display": [],
+        "undocumented_default_filters": [],
+        "metadata": {},
+    }
+    captured = {}
+
+    def fake_prepare(options):
+        assert options is scan_options
+        return fallback_payload
+
+    def fake_build_emit_args(**kwargs):
+        captured["payload"] = kwargs["payload"]
+        return {"emit_args": True}
+
+    def fail_if_container_called(*_args, **_kwargs):
+        raise AssertionError(
+            "DIContainer should not be called for deterministic fallback"
+        )
+
+    class FailIfScannerContextConstructed:
+        def __init__(self, **_kwargs):
+            raise AssertionError(
+                "ScannerContext should not be constructed for deterministic fallback"
+            )
+
+    monkeypatch.setattr(scanner, "DIContainer", fail_if_container_called)
+    monkeypatch.setattr(scanner, "ScannerContext", FailIfScannerContextConstructed)
+    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fake_prepare)
+    monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
+    monkeypatch.setattr(scanner, "_emit_scan_outputs", lambda args: "rendered")
+
+    result = scanner._execute_scan_with_context(
+        role_path=role_path,
+        scan_options=scan_options,
+        output="README.md",
+        output_format="md",
+        concise_readme=False,
+        scanner_report_output=None,
+        include_scanner_report_link=True,
+        template=None,
+        dry_run=False,
+        runbook_output=None,
+        runbook_csv_output=None,
+    )
+
+    assert result == "rendered"
+    assert captured["payload"] is fallback_payload
+    assert (
+        captured["payload"]["metadata"]["scanner_context_fallback_reason"]
+        == "style_readme_path_missing"
+    )
+
+
+def test_execute_scan_with_context_falls_back_when_compare_role_path_missing(
+    monkeypatch,
+    tmp_path,
+):
+    role_path = str(tmp_path / "role")
+    (tmp_path / "role").mkdir()
+    scan_options = {
+        "role_path": role_path,
+        "include_vars_main": True,
+        "compare_role_path": str(tmp_path / "missing-compare-role"),
+    }
+    fallback_payload = {
+        "role_name": "fallback_role",
+        "description": "fallback_desc",
+        "display_variables": {},
+        "requirements_display": [],
+        "undocumented_default_filters": [],
+        "metadata": {},
+    }
+    captured = {}
+
+    def fake_prepare(options):
+        assert options is scan_options
+        return fallback_payload
+
+    def fake_build_emit_args(**kwargs):
+        captured["payload"] = kwargs["payload"]
+        return {"emit_args": True}
+
+    def fail_if_container_called(*_args, **_kwargs):
+        raise AssertionError(
+            "DIContainer should not be called for deterministic fallback"
+        )
+
+    class FailIfScannerContextConstructed:
+        def __init__(self, **_kwargs):
+            raise AssertionError(
+                "ScannerContext should not be constructed for deterministic fallback"
+            )
+
+    monkeypatch.setattr(scanner, "DIContainer", fail_if_container_called)
+    monkeypatch.setattr(scanner, "ScannerContext", FailIfScannerContextConstructed)
+    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fake_prepare)
+    monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
+    monkeypatch.setattr(scanner, "_emit_scan_outputs", lambda args: "rendered")
+
+    result = scanner._execute_scan_with_context(
+        role_path=role_path,
+        scan_options=scan_options,
+        output="README.md",
+        output_format="md",
+        concise_readme=False,
+        scanner_report_output=None,
+        include_scanner_report_link=True,
+        template=None,
+        dry_run=False,
+        runbook_output=None,
+        runbook_csv_output=None,
+    )
+
+    assert result == "rendered"
+    assert captured["payload"] is fallback_payload
+    assert (
+        captured["payload"]["metadata"]["scanner_context_fallback_reason"]
+        == "compare_role_path_missing"
+    )
+
+
+def test_execute_scan_with_context_falls_back_when_role_path_missing_reason_is_recorded(
+    monkeypatch,
+):
+    scan_options = {
+        "role_path": "/tmp/missing-role",
+        "include_vars_main": True,
+    }
+    fallback_payload = {
+        "role_name": "fallback_role",
+        "description": "fallback_desc",
+        "display_variables": {},
+        "requirements_display": [],
+        "undocumented_default_filters": [],
+        "metadata": {},
+    }
+
+    captured = {}
+
+    def fake_prepare(options):
+        assert options is scan_options
+        return fallback_payload
+
+    def fake_build_emit_args(**kwargs):
+        captured["payload"] = kwargs["payload"]
+        return {"emit_args": True}
+
+    def fail_if_container_called(*_args, **_kwargs):
+        raise AssertionError(
+            "DIContainer should not be called for deterministic fallback"
+        )
+
+    class FailIfScannerContextConstructed:
+        def __init__(self, **_kwargs):
+            raise AssertionError(
+                "ScannerContext should not be constructed for deterministic fallback"
+            )
+
+    monkeypatch.setattr(scanner, "DIContainer", fail_if_container_called)
+    monkeypatch.setattr(scanner, "ScannerContext", FailIfScannerContextConstructed)
+    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fake_prepare)
+    monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
+    monkeypatch.setattr(scanner, "_emit_scan_outputs", lambda args: "rendered")
+
+    result = scanner._execute_scan_with_context(
+        role_path="/tmp/missing-role",
+        scan_options=scan_options,
+        output="README.md",
+        output_format="md",
+        concise_readme=False,
+        scanner_report_output=None,
+        include_scanner_report_link=True,
+        template=None,
+        dry_run=False,
+        runbook_output=None,
+        runbook_csv_output=None,
+    )
+
+    assert result == "rendered"
+    assert captured["payload"] is fallback_payload
+    assert (
+        captured["payload"]["metadata"]["scanner_context_fallback_reason"]
+        == "role_path_missing"
+    )
+
+
+def test_execute_scan_with_context_does_not_set_fallback_reason_when_context_path_used(
+    monkeypatch, tmp_path
+):
+    role_path = str(tmp_path / "demo_role")
+    (tmp_path / "demo_role").mkdir()
+    scan_options = {"role_path": role_path, "include_vars_main": True}
+    captured = {}
+
+    def fake_build_emit_args(**kwargs):
+        captured["payload"] = kwargs["payload"]
+        return {"emit_args": True}
+
+    monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
+    monkeypatch.setattr(scanner, "_emit_scan_outputs", lambda args: "rendered")
+
+    result = scanner._execute_scan_with_context(
+        role_path=role_path,
+        scan_options=scan_options,
+        output="README.md",
+        output_format="md",
+        concise_readme=False,
+        scanner_report_output=None,
+        include_scanner_report_link=True,
+        template=None,
+        dry_run=False,
+        runbook_output=None,
+        runbook_csv_output=None,
+    )
+
+    assert result == "rendered"
+    assert scanner._is_complete_scan_output_payload(captured["payload"])
+    assert "scanner_context_fallback_reason" not in captured["payload"]["metadata"]
+
+
+def test_execute_scan_with_context_emitted_args_keep_canonical_keyset_across_paths(
+    monkeypatch, tmp_path
+):
+    role_path = str(tmp_path / "role")
+    (tmp_path / "role").mkdir()
+
+    canonical_keys: set[str] | None = None
+    captured_paths: dict[str, set[str]] = {}
+
+    def fake_emit(args):
+        nonlocal canonical_keys
+        current_keys = set(args.keys())
+        path_label = (
+            "fallback" if args["role_name"].startswith("fallback") else "context"
+        )
+        captured_paths[path_label] = current_keys
+        if canonical_keys is None:
+            canonical_keys = current_keys
+        else:
+            assert current_keys == canonical_keys
+        return "rendered"
+
+    monkeypatch.setattr(scanner, "_emit_scan_outputs", fake_emit)
+
+    context_scan_options = {
+        "role_path": role_path,
+        "include_vars_main": True,
+    }
+    result_context = scanner._execute_scan_with_context(
+        role_path=role_path,
+        scan_options=context_scan_options,
+        output="README.md",
+        output_format="md",
+        concise_readme=False,
+        scanner_report_output=None,
+        include_scanner_report_link=True,
+        template=None,
+        dry_run=False,
+        runbook_output=None,
+        runbook_csv_output=None,
+    )
+
+    fallback_scan_options = {
+        "role_path": role_path,
+        "include_vars_main": True,
+        "vars_seed_paths": ["/tmp/group_vars/all.yml"],
+    }
+
+    def fake_prepare(options):
+        return {
+            "role_name": "fallback_role",
+            "description": "fallback_desc",
+            "display_variables": {},
+            "requirements_display": [],
+            "undocumented_default_filters": [],
+            "metadata": {},
+        }
+
+    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fake_prepare)
+
+    result_fallback = scanner._execute_scan_with_context(
+        role_path=role_path,
+        scan_options=fallback_scan_options,
+        output="README.md",
+        output_format="md",
+        concise_readme=False,
+        scanner_report_output=None,
+        include_scanner_report_link=True,
+        template=None,
+        dry_run=False,
+        runbook_output=None,
+        runbook_csv_output=None,
+    )
+
+    assert result_context == "rendered"
+    assert result_fallback == "rendered"
+    assert captured_paths["context"] == captured_paths["fallback"]

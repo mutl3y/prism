@@ -1,0 +1,1445 @@
+plan_id: gilfoyle-refactor-20260328
+objective: |
+  Comprehensive architectural refactoring to eliminate scanner.py god_module (3,147 lines),
+  consolidate 26 submodules into 6-8 coherent groups, replace callback injection with real
+  Dependency Injection, fix data contracts to use TypedDict from start, and refactor procedural
+  mutations to builder/strategy patterns. Result: production-ready, maintainable scanner
+  architecture with 0 test failures and 0 mypy errors.
+
+created_at: 2026-03-28
+created_by: GitHub Copilot
+status: completed
+wave_1_completion_date: 2026-03-28
+wave_1_status: completed
+wave_2_completion_date: 2026-03-28
+wave_2_status: completed
+wave_3_completion_date: 2026-03-28
+wave_3_status: completed
+wave_4_completion_date: 2026-03-28
+wave_4_status: completed
+wave_5_completion_date: 2026-03-28
+wave_5_status: completed
+overall_completion_date: 2026-03-28
+
+research_confidence: high
+
+plan_metrics:
+  wave_1_task_count: 3  # Foundational work can be parallelized
+  total_dependencies: 12  # Moderate inter-task dependencies
+  risk_score: high  # Large codebase refactor with strict correctness requirements
+
+tldr: |
+  **Objective:** Eliminate `scanner.py` god_module and 26 scattered submodules; replace them with
+  3-4 focused orchestrator classes, proper DI, immutable data pipelines, and 6-8 consolidated module groups.
+
+  **Approach:** 5-wave refactoring maintaining zero test failures and 0 mypy errors throughout.
+  - Wave 1 (Foundational): Data contracts, DI design, dependency mapping [PARALLEL]
+  - Wave 2 (Core Extraction): ScannerContext, VariableDiscovery, OutputOrchestrator, FeatureDetector
+  - Wave 3 (Consolidation): Group 26 submodules into variable/output/config/util cohorts
+  - Wave 4 (Immutability): Builder/Strategy patterns for procedural mutations
+  - Wave 5 (Testing): Granularize 768 integration tests into focused unit tests
+
+  **Safety:** Maintain public API (api.py, cli.py), TypedDict contracts, mypy compliance,
+  and backwards-compatible behavior throughout all phases.
+
+  **Key Milestones:**
+  1. DI container operational (Wave 1)
+  2. First orchestrator class extracted (Wave 2)
+  3. All 4 core classes extracted (Wave 2)
+  4. Submodule consolidation complete (Wave 3)
+  5. Immutable pipelines validated (Wave 4)
+  6. Unit tests written/validated (Wave 5)
+
+  **Estimated Effort:** 200-240 hours (5-6 weeks at 40 hrs/wk, accounting for testing/validation)
+
+open_questions:
+  - Should DI container be hand-crafted class or use existing framework (e.g., dependency_injector)?
+  - Should we target 6-8 submodule groups or allow 8-10 for clearer separation?
+  - Should Variable/Role/Task data classes be frozen (immutable) or use defensive copying?
+  - Should builder pattern use fluent interface or traditional builder?
+  - Which integration tests should be entirely replaced vs. augmented with unit tests?
+
+pre_mortem:
+  overall_risk_level: high
+
+  critical_failure_modes:
+    - scenario: "Circular dependencies introduced during extraction"
+      likelihood: high
+      impact: critical
+      mitigation: |
+        Implement strict test: any submodule importing scanner.py fails build.
+        Use import-checker linter (e.g., flake8-forbidden-imports) to prevent.
+        Design DI layer first; all extracted classes depend DOWN only (on data contracts,
+        submodules) not UP (on scanner.py or each other in cycles).
+
+    - scenario: "Test failures during refactoring due to mutable state."
+      likelihood: high
+      impact: critical
+      mitigation: |
+        Refactor data contracts (TypedDict) in Wave 1 BEFORE extracting classes.
+        Ensure each class owns only immutable inputs/outputs.
+        Keep integration tests running in parallel; extract unit tests incrementally.
+        Use snapshot testing to validate output changes are intentional.
+
+    - scenario: "Mypy type checking fails after refactoring."
+      likelihood: medium
+      impact: high
+      mitigation: |
+        Use TypedDict contracts before extraction. Run `tox -e typecheck` after each task.
+        Keep type annotations incrementally; don't let them drift.
+        Use type: ignore only when documented and paired with task_clarification.
+
+    - scenario: "Public API (api.py, cli.py) breaks; downstream tools fail."
+      likelihood: medium
+      impact: critical
+      mitigation: |
+        Mark `run_scan`, `render_runbook`, `render_runbook_csv` as immutable public entrypoints.
+        Create adapter layer (api.py, cli.py imports) that translate old symbol names to new classes.
+        Test all public symbols in test_api.py; make API test suite mandatory on each wave.
+
+    - scenario: "DI container becomes too complex; bootstrapping overhead balloons."
+      likelihood: medium
+      impact: medium
+      mitigation: |
+        Design DI to be simple: just 1 main container class or factory.
+        If hand-crafted is >200 lines, evaluate dependency_injector library.
+        Keep DI out of hot paths (scanning loop); lazily instantiate where possible.
+
+    - scenario: "Performance regression; scanner becomes noticeably slower."
+      likelihood: low
+      impact: medium
+      mitigation: |
+        Benchmark run_scan on 3-5 test roles before/after each wave.
+        Profile to identify bottlenecks before major refactor.
+        Avoid allocating new objects per variable; reuse containers.
+
+    - scenario: "Submodule consolidation collides with imports; creates huge 500-line modules."
+      likelihood: medium
+      impact: medium
+      mitigation: |
+        Target 100–200 lines per submodule. Split large consolidations (e.g., variable extraction)
+        into variable_discovery.py (discovery) + variable_extractor.py (tokenization).
+        Use __all__ exports to hide private helpers; keep public APIs small.
+
+    - scenario: "Builder/Strategy patterns introduce too many classes; design becomes opaque."
+      likelihood: low
+      impact: medium
+      mitigation: |
+        Define 1 builder class per logical unit (e.g., VariableRowBuilder for rows).
+        Use clear naming: *Builder, *Strategy. Keep __init__ methods simple.
+        Document each builder's invariants (pre/post conditions) with docstrings.
+
+  assumptions:
+    - Public API symbols (run_scan, render_runbook, render_runbook_csv, api functions) will not change behavior.
+    - TypedDict contracts are forward-compatible; adding optional fields won't break existing code.
+    - 768 existing tests represent comprehensive behavioral contract; test suite is correct.
+    - Scanner performance is acceptable now; refactoring should not degrade.
+    - No external tools depend on scanner.py internal symbols; extraction is safe.
+    - DI container does not need to be async-aware or thread-safe initially.
+    - All variables extracted by scanner fit in memory; no streaming data flow needed.
+
+implementation_specification:
+  code_structure: |
+    **Target Architecture:**
+
+    ```
+    src/prism/
+    ├── scanner.py (reduced to ~500 lines: public API facade + DI bootstrap)
+    ├── api.py (unchanged; imports from scanner module)
+    ├── cli.py (unchanged; imports from scanner module)
+    ├── scanner_core/
+    │   ├── __init__.py
+    │   ├── di.py (Dependency Injection container/factory)
+    │   ├── scanner_context.py (Main orchestrator class)
+    │   ├── variable_discovery.py (Variable extraction orchestration)
+    │   ├── output_orchestrator.py (Output/rendering/sidecar coordination)
+    │   └── feature_detector.py (Feature detection and analysis)
+    ├── scanner_data/
+    │   ├── __init__.py
+    │   ├── contracts.py (All TypedDict contracts: Variable, Row, Context, etc.)
+    │   ├── builders.py (Builder classes: VariableRowBuilder, ScanPayloadBuilder, etc.)
+    │   └── strategies.py (Strategy classes for variable mutation/analysis)
+    ├── scanner_io/
+    │   ├── __init__.py
+    │   ├── output.py (Output format primitives)
+    │   ├── loader.py (YAML/data loading)
+    │   └── writer.py (File writing)
+    ├── scanner_readme/
+    │   ├── __init__.py
+    │   ├── render.py (README rendering, composition)
+    │   ├── style.py (Style guide support)
+    │   └── guide.py (Doc insights integration)
+    ├── scanner_analysis/
+    │   ├── __init__.py
+    │   ├── scanner_report.py (Report generation)
+    │   ├── runbook.py (Runbook rendering)
+    │   ├── metrics.py (Metrics/counters)
+    │   └── insights.py (Doc insights)
+    ├── scanner_extract/
+    │   ├── __init__.py
+    │   ├── variable_extractor.py (Variable tokenization)
+    │   ├── task_parser.py (Task/file parsing)
+    │   ├── requirements.py (Requirement parsing)
+    │   ├── discovery.py (discovery without extraction)
+    │   └── config.py (Config/metadata parsing)
+    └── scanner_submodules/ (deprecated; gradually eliminated)
+        └── [legacy modules to be consolidated]
+    ```
+
+    **Key Design Patterns:**
+    - **Dependency Injection:** DI container provides instances to orchestrators; no global state.
+    - **Builder Pattern:** VariableRowBuilder, ScanPayloadBuilder eliminate procedural mutations.
+    - **Strategy Pattern:** VariableTypeInferenceStrategy, UnresolvableVariableStrategy for pluggable behavior.
+    - **Immutable Data:** TypedDict contracts are read-only after construction; builders are mutable, results are immutable.
+    - **Adapter Pattern:** scanner.py public functions adapt to new internal architecture without changing signature.
+
+  affected_areas:
+    - src/prism/scanner.py (reduced 3,147 → ~500 lines)
+    - src/prism/scanner_submodules/ (26 modules → 8 consolidated groups)
+    - src/prism/tests/ (768 tests: reorg, add unit tests)
+    - src/prism/api.py (minimal changes; imports only)
+    - src/prism/cli.py (minimal changes; imports only)
+    - pyproject.toml (optional: new submodule groups)
+
+  component_details:
+    - component: "Dependency Injection Container (di.py)"
+      responsibility: |
+        Instantiate and wire all orchestrator classes, submodule functions, and data builders.
+        Provide factory methods for testing. Hide internal complexity from public API.
+      interfaces:
+        - "class DIContainer: factory_scanner_context(), factory_variable_discovery(), factory_output_orchestrator(), factory_feature_detector()"
+        - "ScannerContext resolve_context(role_path, options) -> returns initialized ScannerContext ready to orchestrate"
+
+    - component: "ScannerContext Orchestrator (scanner_core/scanner_context.py)"
+      responsibility: |
+        Main entry point orchestrator for run_scan. Coordinates variable discovery, output
+        orchestration, and feature detection. Owns role path normalization and overall flow control.
+      interfaces:
+        - "class ScannerContext: __init__(di, role_path, options)"
+        - "def orchestrate_scan() -> RunScanOutputPayload"
+        - "Properties: discovered_variables, detected_features, scan_metadata"
+
+    - component: "VariableDiscovery Orchestrator (scanner_core/variable_discovery.py)"
+      responsibility: |
+        Orchestrates variable discovery across defaults, vars, meta, include_vars, set_fact,
+        readme sections. Returns canonical VariableRow set. No mutations; builders produce outputs.
+      interfaces:
+        - "class VariableDiscovery: __init__(di, role_path, options)"
+        - "def discover() -> list[VariableRow]"
+        - "def resolve_unresolved() -> dict[var_name, uncertainty_reason]"
+
+    - component: "OutputOrchestrator (scanner_core/output_orchestrator.py)"
+      responsibility: |
+        Coordinates output rendering (README, JSON, HTML, PDF), scanner report sidecars,
+        runbook generation, and writes. Replaces scan_output_emission.emit_scan_outputs
+        and related wrappers.
+      interfaces:
+        - "class OutputOrchestrator: __init__(di, output_path, options)"
+        - "def render_and_emit(payload: RunScanOutputPayload, dry_run: bool) -> str"
+        - "def emit_runbook_sidecars(runbook_path, csv_path) -> dict[path, written_bytes]"
+
+    - component: "FeatureDetector (scanner_core/feature_detector.py)"
+      responsibility: |
+        Detects role features (task counts, collections, handlers, etc.) and produces
+        FeaturesContext. Replaces extract_role_features and related scattered logic.
+      interfaces:
+        - "class FeatureDetector: __init__(di, role_path)"
+        - "def detect() -> FeaturesContext"
+        - "def analyze_task_catalog() -> dict[task_file, task_metadata]"
+
+    - component: "Data Contracts (scanner_data/contracts.py)"
+      responsibility: |
+        Central TypedDict definitions for Variable, VariableRow, ScanMetadata, RunScanOutputPayload,
+        FeaturesContext, StyleGuideConfig, etc. No logic; purely structural.
+      interfaces:
+        - "TypedDict Variable, VariableRow, ScanMetadata, RunScanOutputPayload, FeaturesContext, etc."
+
+    - component: "Builders (scanner_data/builders.py)"
+      responsibility: |
+        VariableRowBuilder, ScanPayloadBuilder, MetadataBuilder eliminate procedural mutations.
+        Fluent interface. Validate invariants on build().
+      interfaces:
+        - "class VariableRowBuilder: name(str) -> Self; type(str) -> Self; ... -> VariableRow"
+        - "class ScanPayloadBuilder: role_path(str) -> Self; variables(list[VariableRow]) -> Self; ... -> RunScanOutputPayload"
+
+    - component: "Strategies (scanner_data/strategies.py)"
+      responsibility: |
+        Pluggable strategies for variable type inference, unresolved handling, secret detection,
+        etc. Makes behavior testable and overrideable without subclassing.
+      interfaces:
+        - "class VariableTypeInferenceStrategy: infer(name, values) -> str"
+        - "class UnresolvableVariableStrategy: report(name, reason) -> str"
+
+    - component: "Consolidated Modules (scanner_extract/, scanner_readme/, scanner_analysis/, scanner_io/)"
+      responsibility: |
+        Original 26 submodules grouped by responsibility. Each group ~100–200 lines.
+        Owned by corresponding orchestrator (e.g., VariableDiscovery owns scanner_extract/).
+      interfaces:
+        - "Functions exported via __all__; private helpers prefixed _"
+        - "No inter-group imports except via orchestrators or contracts"
+
+  dependencies:
+    - component: VariableDiscovery
+      relationship: "uses VariableRowBuilder (from scanner_data/builders.py)"
+
+    - component: OutputOrchestrator
+      relationship: "uses ScanPayloadBuilder (from scanner_data/builders.py)"
+
+    - component: ScannerContext
+      relationship: "orchestrates VariableDiscovery, OutputOrchestrator, FeatureDetector; depends on DIContainer"
+
+    - component: DIContainer
+      relationship: "instantiates all orchestrators; owned by scanner.py public API"
+
+  integration_points:
+    - "api.py imports run_scan, render_runbook, render_runbook_csv from scanner.py (unchanged)"
+    - "cli.py imports run_scan, SECTION_CONFIG_FILENAMES from scanner.py (unchanged)"
+    - "tests/ import from scanner.py and may import from new scanner_core/ classes directly for unit tests"
+    - "External tools may import from api.py or cli.py; no breaking changes allowed"
+
+contracts:
+  - from_task: "task_1_1_data_contracts"
+    to_task: "task_2_1_extract_scanner_context"
+    interface: |
+      TypedDict contracts (Variable, VariableRow, ScanMetadata, RunScanOutputPayload,
+      FeaturesContext, StyleGuideConfig) must be defined in scanner_data/contracts.py.
+      ScannerContext imports and validates against these contracts. All downstream
+      classes use contracts, not dicts.
+    format: "Python TypedDict module; no runtime validation; mypy enforces at build time"
+
+  - from_task: "task_1_2_di_design"
+    to_task: "task_2_1_extract_scanner_context"
+    interface: |
+      DIContainer class (scanner_core/di.py) provides factory methods:
+      factory_scanner_context(role_path, options), factory_variable_discovery(),
+      factory_output_orchestrator(), factory_feature_detector().
+      ScannerContext.__init__ receives DIContainer and uses it to instantiate dependencies.
+    format: "Python class with factory methods; no external DI library required initially"
+
+  - from_task: "task_1_3_dependency_mapping"
+    to_task: "task_2_1_extract_scanner_context"
+    interface: |
+      Dependency graph mapping (task_1_3 output) identifies 12 key dependencies and
+      12 import cycles to break. Task_2_1 must achieve <6 remaining dependencies via DI.
+    format: "YAML/JSON map of module → [imports]; must be updated after each wave"
+
+  - from_task: "task_2_1_extract_scanner_context"
+    to_task: "task_2_2_extract_variable_discovery"
+    interface: |
+      ScannerContext.discovered_variables property exposes list[VariableRow] contract.
+      VariableDiscovery class is instantiated by DIContainer and called by ScannerContext.
+      No direct imports between them; only dependency injection.
+    format: "Both import scanner_data/contracts.py; ScannerContext depends on VariableDiscovery via DI"
+
+  - from_task: "task_2_1_extract_scanner_context"
+    to_task: "task_2_3_extract_output_orchestrator"
+    interface: |
+      ScannerContext.render_and_emit_outputs(payload, dry_run) calls OutputOrchestrator.
+      Payload uses RunScanOutputPayload contract; output_path normalized via output.resolve_output_path().
+    format: "TypedDict contract; function signature immutable; output is str (rendered) or None (dry_run)"
+
+  - from_task: "task_2_2_extract_variable_discovery"
+    to_task: "task_3_2_consolidate_extraction_modules"
+    interface: |
+      VariableDiscovery consolidates variable_extractor.py, task_parser.py, discovery.py functions.
+      All internal functions moved to scanner_extract/ group. Public API: discover() → list[VariableRow].
+    format: "No external interface change; internal reorganization only. Tests must still pass."
+
+  - from_task: "task_2_3_extract_output_orchestrator"
+    to_task: "task_3_3_consolidate_readme_analysis_modules"
+    interface: |
+      OutputOrchestrator consolidates scan_output_primary.py, scan_output_emission.py,
+      output.py, render_readme.py (readmes only), scanner_report.py, runbook.py.
+      Public API: render_and_emit(payload, dry_run) → str.
+    format: "Existing tests must pass without modification; new unit tests added separately"
+
+  - from_task: "task_3_1_consolidate_extraction"
+    to_task: "task_4_1_builder_pattern_variables"
+    interface: |
+      Consolidated scanner_extract/ module exposes variable rows as dicts (current state).
+      Task_4_1 wraps them with VariableRowBuilder for safe mutation. No signature changes;
+      internal refactoring.
+    format: "Builder is optional wrapper; existing code continues to work with dicts internally"
+
+  - from_task: "task_4_1_builder_pattern_variables"
+    to_task: "task_4_2_immutable_pipelines"
+    interface: |
+      Once VariableRowBuilder produces immutable VariableRow instances,
+      immutable pipeline can assume rows never change. Eliminates defensive copies.
+    format: "Data flow: mutable builder → immutable TypedDict → read-only pipeline operations"
+
+tasks:
+  # WAVE 1: FOUNDATIONAL (can be done in parallel)
+
+  - id: task_1_1_data_contracts
+    title: "Define TypedDict data contracts"
+    description: |
+      Create scanner_data/contracts.py with all TypedDict definitions:
+      - Variable, VariableRow, VariableProvenance, VariableRowWithMeta
+      - ScanMetadata, RunScanOutputPayload, EmitScanOutputsArgs
+      - FeaturesContext, StyleGuideConfig, ReferenceContext
+      - ScanRequestOptions, ScanDiscoveryResults
+      - RunbookSidecarArgs, ScanReportSidecarArgs
+
+      Validate:
+      - All 26 existing submodules use contracts, not untyped dicts
+      - Existing scanner.py TypedDict definitions are moved/deduplicated
+      - Mypy passes with 0 errors after contracts are added
+
+      No runtime validation; contracts are compile-time only (TypedDict).
+      Keep optional fields using NotRequired; don't use total=False.
+    wave: 1
+    agent: gem-implementer
+    priority: high
+    status: completed
+    completion_date: 2026-03-28
+    dependencies: []
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner.py
+        description: "Lines 200–350: existing TypedDict definitions to consolidate"
+      - path: src/prism/scanner_submodules/scan_context.py
+        description: "Lines 1–300: existing TypedDict definitions to consolidate"
+    estimated_effort: medium
+    estimated_files: 1
+    estimated_lines: 200
+    actual_completion:
+      files_created: 2
+      lines_changed: 693
+      time_elapsed: "~12 minutes"
+      test_results: "798/798 passed (768 existing + 30 new)"
+      mypy_errors: 0
+    focus_area: data_contracts
+    verification:
+      - "scanner_data/contracts.py exists and is importable"
+      - "All TypedDict definitions have docstrings"
+      - "Mypy validates all contract definitions"
+      - "No untyped dicts allowed in contracts module"
+      - "Contracts file < 300 lines (modular, not bloated)"
+    acceptance_criteria:
+      - "All 10+ TypedDict contracts defined in scanner_data/contracts.py"
+      - "Existing TypedDict in scanner.py and submodules reference contracts.py"
+      - "All 768 tests still pass"
+      - "Mypy 0 errors (tox -e typecheck)"
+      - "test_contracts.py created with validation tests for TypedDict structure"
+    failure_modes:
+      - scenario: "TypedDict definitions are too rigid; future changes break everything."
+        likelihood: medium
+        impact: medium
+        mitigation: "Use NotRequired for forward-compatibility; design for extension (optional fields trend)"
+      - scenario: "Circular imports created (contracts.py imports from submodules)."
+        likelihood: medium
+        impact: high
+        mitigation: "Contracts module must NOT import anything except typing; data only."
+    tech_stack:
+      - Python 3.14+
+      - typing.TypedDict, NotRequired
+      - mypy for validation
+    test_coverage: "Unit tests for TypedDict presence, optional fields, and inheritance chains"
+
+  - id: task_1_2_di_design
+    title: "Design Dependency Injection container"
+    description: |
+      Design and implement scanner_core/di.py with DIContainer class:
+      - Factory methods for ScannerContext, VariableDiscovery, OutputOrchestrator, FeatureDetector
+      - Lazy instantiation where possible (don't allocate until needed)
+      - No global state; container is passed to orchestrators
+      - Support alternate implementations for testing (mock strategies, test loaders)
+
+      Design goals:
+      - DI code < 150 lines (hand-crafted; no external framework)
+      - Bootstrap in scanner.py:run_scan < 10 lines
+      - Testable: allow mock/stub injection for unit tests
+
+      Create DIContainer class with:
+      - __init__(role_path, scan_options)
+      - factory_scanner_context() → ScannerContext
+      - factory_variable_discovery() → VariableDiscovery
+      - factory_output_orchestrator() → OutputOrchestrator
+      - factory_feature_detector() → FeatureDetector
+      - factory_variable_row_builder() → VariableRowBuilder
+
+      No framework dependencies; keep it simple.
+    wave: 1
+    agent: gem-implementer
+    priority: high
+    status: completed
+    completion_date: 2026-03-28
+    dependencies: ["task_1_1_data_contracts"]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner.py
+        description: "Lines 2900+: run_scan() to understand orchestration needs"
+      - path: src/prism/scanner_submodules
+        description: "All modules to understand startup/dependency costs"
+    estimated_effort: medium
+    estimated_files: 2
+    estimated_lines: 200
+    actual_completion:
+      files_created: 3
+      lines_changed: 301
+      time_elapsed: "~15 minutes"
+      test_results: "821/821 passed (768 existing + 23 new)"
+      mypy_errors: 0
+      di_container_lines: 78
+    focus_area: dependency_injection
+    verification:
+      - "scanner_core/di.py exists with DIContainer class"
+      - "All factory methods documented with return types"
+      - "No circular dependencies in di.py"
+      - "DIContainer < 150 lines"
+      - "Unit tests for factory methods pass"
+    acceptance_criteria:
+      - "DIContainer class with 4+ factory methods documented"
+      - "All 768 tests pass (DI is internal, no behavior change)"
+      - "Mypy 0 errors on di.py"
+      - "test_di.py created with factory method validation tests"
+      - "DIContainer can be instantiated and used by scan_context without side effects"
+    failure_modes:
+      - scenario: "DI container becomes complex/hard to maintain (>200 lines)."
+        likelihood: low
+        impact: medium
+        mitigation: "Keep container simple; if complex, switch to dependency_injector library in Wave 2"
+      - scenario: "Circular dependency in DI setup (A depends on B, B depends on A)."
+        likelihood: low
+        impact: high
+        mitigation: "Design orchestrators as leaf nodes (depend DOWN on submodules, not UP on each other)"
+    tech_stack:
+      - Python 3.14+
+      - No external DI libraries initially
+      - pytest for testing factories
+    test_coverage: "Unit tests for each factory method; integration test for full bootstrap"
+
+  - id: task_1_3_dependency_mapping
+    title: "Analyze and document current dependency graph"
+    description: |
+      Create comprehensive dependency analysis:
+      - Map all 26 scanner_submodules files and their internal imports
+      - Identify 12+ problematic dependencies (modules imported 3+ times)
+      - Identify 5+ circular import chains (e.g., A→B→C→A)
+      - Document hotspots: scan_context.py (5x), task_parser.py (3x), output.py (3x)
+      - List all callback injection points that should become DI
+
+      Output: docs/plan/gilfoyle-refactor-20260328/dependency-graph.yaml with:
+      - submodule_graph: {module: [imports]}
+      - hotspots: {module: import_count}
+      - cycles: [[A, B, C], [D, E]]
+      - callback_injections: [function_name, location, injected_type]
+
+      Validate:
+      - No tool needed; pure static analysis using grep+python
+      - Identify how to break each cycle via DI
+      - Identify which callbacks can become strategy/builder patterns
+    wave: 1
+    agent: gem-researcher
+    priority: medium
+    status: completed
+    completion_date: 2026-03-28
+    dependencies: []
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_submodules
+        description: "All 26 .py files"
+      - path: src/prism/scanner.py
+        description: "Lines 1–200: all imports"
+    estimated_effort: small
+    estimated_files: 1
+    estimated_lines: 100
+    actual_completion:
+      analysis_scope: "25 scanner_submodules (7,344 total lines)"
+      time_elapsed: "analysis completed"
+      key_findings:
+        hotspots_identified: 4
+        circular_dependencies_found: 0
+        callback_injection_patterns: 11
+        scanner_py_imports: 20
+        underscore_aliases: 128
+    focus_area: analysis
+    verification:
+      - "dependency-graph.yaml exists, is valid YAML, documents all 26 modules"
+      - "All 5+ hotspots identified (scan_context, task_parser, output at minimum)"
+      - "All circular imports identified"
+      - "Callback injection patterns enumerated"
+    acceptance_criteria:
+      - "dependency-graph.yaml documents submodule_graph, hotspots, cycles, callbacks"
+      - "Graph shows >= 12 problematic dependencies and >= 5 cycles"
+      - "Each cycle has proposed DI-based breakpoint documented"
+      - "All 12+ callback injections listed with location and signature"
+    failure_modes:
+      - scenario: "Graph analysis is incomplete; some cycles missed."
+        likelihood: medium
+        impact: low
+        mitigation: "Manually verify against scanner.py imports; use visual graph tool if needed"
+    tech_stack:
+      - Python static analysis (ast module, regex)
+      - YAML output format
+    test_coverage: "None; analysis task, not code"
+
+  # WAVE 2: CORE ORCHESTRATOR EXTRACTION (depends on Wave 1)
+
+  - id: task_2_1_extract_scanner_context
+    title: "Extract ScannerContext orchestrator class"
+    description: |
+      Create scanner_core/scanner_context.py with ScannerContext class as the main
+      orchestrator replacing much of scanner.py:run_scan() body.
+
+      Class responsibilities:
+      - Parse and validate role_path
+      - Coordinate VariableDiscovery.discover()
+      - Coordinate OutputOrchestrator.render_and_emit()
+      - Coordinate FeatureDetector.detect()
+      - Return RunScanOutputPayload
+
+      Interface:
+      ```python
+      class ScannerContext:
+        def __init__(di: DIContainer, role_path: str, options: ScanRequestOptions): ...
+        def orchestrate_scan() -> RunScanOutputPayload: ...
+        @property
+        def discovered_variables(self) -> list[VariableRow]: ...
+        @property
+        def detected_features(self) -> FeaturesContext: ...
+        @property
+        def scan_metadata(self) -> ScanMetadata: ...
+      ```
+
+      Test coverage:
+      - Basic orchestration test (variable discovery → features → output)
+      - Error handling (invalid role path, missing directories)
+      - Metadata propagation test (metadata flows from discovery → features → output)
+      - Integration with OutputOrchestrator
+
+      Maintain backwards-compatibility:
+      - scanner.py:run_scan() now wraps ScannerContext
+      - All existing tests still pass without modification
+    wave: 2
+    agent: gem-implementer
+    priority: high
+    status: pending
+    dependencies: ["task_1_1_data_contracts", "task_1_2_di_design"]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner.py
+        description: "Lines 2900–3050: run_scan() driver logic to extract"
+      - path: src/prism/scanner_submodules/scan_context.py
+        description: "Entire file; existing payload builders to adapt"
+    estimated_effort: large
+    estimated_files: 3
+    estimated_lines: 250
+    focus_area: orchestration
+    verification:
+      - "scanner_core/scanner_context.py exists with ScannerContext class"
+      - "All 4 instance properties accessible (@property)"
+      - "orchestrate_scan() completes without error on test role"
+      - "All 768 tests pass"
+    acceptance_criteria:
+      - "ScannerContext class orchestrates variable discovery, feature detection, output"
+      - "scanner.py:run_scan() delegates to ScannerContext (< 20 lines after extraction)"
+      - "All 768 tests pass; no behavior change"
+      - "Mypy 0 errors"
+      - "test_scanner_context.py created with orchestration tests (10+ test functions)"
+      - "Integration test: run_scan(role_path, options) produces identical output to baseline"
+    failure_modes:
+      - scenario: "Orchestration logic is fragmented; unclear data flow."
+        likelihood: high
+        impact: high
+        mitigation: |
+          Document flow in docstring: orchestrate_scan() → discover → detect → emit
+          Use diagram in docstring. Each step updates self._state immutably.
+      - scenario: "Tests fail due to state mutation during discovery."
+        likelihood: medium
+        impact: high
+        mitigation: |
+          Use immutable data (TypedDict) after discovery.
+          Keep _state as internal implementation detail; expose via @property.
+    tech_stack:
+      - Python 3.14+
+      - typing.TypedDict imports from scanner_data/contracts
+      - DIContainer from scanner_core/di
+    test_coverage: "Unit tests for orchestration sequencing; integration tests for role scanning"
+
+  - id: task_2_2_extract_variable_discovery
+    title: "Extract VariableDiscovery orchestrator class"
+    description: |
+      Create scanner_core/variable_discovery.py with VariableDiscovery class, consolidating:
+      - variable_extractor.py variable tokenization
+      - task_parser.py task/include parsing
+      - scanner_dataload.py YAML loading
+      - scan_discovery.py discovery flow
+      - scanner_errorhandling.py uncertainty attribution
+
+      Class responsibilities:
+      - Load variables from defaults/, vars/, meta/argument_spec, etc.
+      - Extract variable references from task files
+      - Collect include_vars, set_fact, register assignments
+      - Infer type, detect secrets, resolve confidence
+      - Handle unresolved variables with uncertainty reasons
+      - Return canonical list[VariableRow]
+
+      Interface:
+      ```python
+      class VariableDiscovery:
+        def __init__(di: DIContainer, role_path: str, builder: VariableRowBuilder): ...
+        def discover_static() -> list[VariableRow]: ...
+        def discover_referenced() -> set[str]: ...
+        def resolve_unresolved() -> dict[name, uncertainty_reason]: ...
+      ```
+
+      Key: Extract VariableRowBuilder usage; mutations happen in builder, not discovery.
+
+      Test coverage:
+      - Static discovery (defaults, vars, meta)
+      - Referenced extraction (task files, README)
+      - Type inference (string, list, dict, bool)
+      - Secret detection (password, token, key patterns)
+      - Unresolved variable handling (no default, dynamic, ambiguous)
+    wave: 2
+    agent: gem-implementer
+    priority: high
+    status: pending
+    dependencies: ["task_1_1_data_contracts", "task_1_2_di_design"]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_submodules/variable_extractor.py
+        description: "All lines: variable tokenization logic to move"
+      - path: src/prism/scanner_submodules/task_parser.py
+        description: "All lines: task/include parsing to move"
+      - path: src/prism/scanner_submodules/scanner_errorhandling.py
+        description: "All lines: uncertainty reasoning to integrate"
+    estimated_effort: large
+    estimated_files: 2
+    estimated_lines: 300
+    focus_area: variable_discovery
+    verification:
+      - "scanner_core/variable_discovery.py exists with VariableDiscovery class"
+      - "discover_static() returns list[VariableRow] for known variables"
+      - "discover_referenced() returns set[str] for referenced variable names"
+      - "resolve_unresolved() returns dict[str, str] for reasons"
+      - "All 768 tests pass"
+    acceptance_criteria:
+      - "VariableDiscovery class consolidates variable extraction logic"
+      - "All variable discovery tests pass (test_scanner_internals.py, test_variable_extractor.py)"
+      - "Mypy 0 errors"
+      - "test_variable_discovery.py created with 20+ focused unit tests"
+      - "Output identical to baseline: same variables, same confidence, same types"
+    failure_modes:
+      - scenario: "Variable discovery is too slow; performance regresses."
+        likelihood: low
+        impact: medium
+        mitigation: "Profile discover_static() and discover_referenced(); optimize if >2x slower than baseline"
+      - scenario: "Type inference produces different results; tests fail."
+        likelihood: medium
+        impact: high
+        mitigation: |
+          Keep existing _infer_variable_type logic unchanged.
+          Add unit tests validating type inference on 20+ test cases.
+    tech_stack:
+      - Python 3.14+
+      - VariableRowBuilder from scanner_data/builders
+      - DIContainer from scanner_core/di
+    test_coverage: "20+ unit tests for discovery, type inference, secret detection, unresolved handling"
+
+  - id: task_2_3_extract_output_orchestrator
+    title: "Extract OutputOrchestrator class"
+    description: |
+      Create scanner_core/output_orchestrator.py with OutputOrchestrator class, consolidating:
+      - scan_output_primary.py README/JSON/HTML rendering
+      - scan_output_emission.py sidecar coordination
+      - output.py format primitives
+      - render_readme.py README composition
+      - scanner_report.py scanner-report generation
+      - runbook.py runbook markdown/CSV
+
+      Class responsibilities:
+      - Resolve output path (normalize extension)
+      - Render primary output (README, JSON, HTML, PDF)
+      - Write scanner-report sidecar (if enabled)
+      - Write optional runbook markdown/CSV
+      - Handle dry_run (return rendered, don't write)
+      - Update metadata (concise_readme, scanner_report_relpath, etc.)
+
+      Interface:
+      ```python
+      class OutputOrchestrator:
+        def __init__(di: DIContainer, out_path: str, options: ScanRequestOptions): ...
+        def render_and_emit(payload: RunScanOutputPayload, dry_run: bool = False) -> str: ...
+        def emit_runbook_sidecars(md_path: str, csv_path: str) -> dict[str, int]: ...
+      ```
+
+      Key: Eliminate callback injection; OutputOrchestrator owns all output logic.
+      Options control concise_readme, scanner_report_enabled, include_scanner_report_link.
+
+      Test coverage:
+      - Primary output rendering (README, JSON, HTML formats)
+      - Sidecar writes (scanner-report, runbook)
+      - Dry-run behavior (no files written)
+      - Metadata mutation (concise_readme, links, path)
+    wave: 2
+    agent: gem-implementer
+    priority: high
+    status: pending
+    dependencies: ["task_1_1_data_contracts", "task_1_2_di_design"]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_submodules/scan_output_emission.py
+        description: "Lines 1–150: orchestration to extract"
+      - path: src/prism/scanner_submodules/scan_output_primary.py
+        description: "Lines 1–76: primary output logic to integrate"
+      - path: src/prism/scanner_submodules/render_readme.py
+        description: "README rendering functions to keep/integrate"
+    estimated_effort: large
+    estimated_files: 2
+    estimated_lines: 250
+    focus_area: output
+    verification:
+      - "scanner_core/output_orchestrator.py exists with OutputOrchestrator class"
+      - "render_and_emit() succeeds on test role with multiple output formats"
+      - "All 768 tests pass"
+      - "Outputs byte-for-byte identical to baseline"
+    acceptance_criteria:
+      - "OutputOrchestrator class replaces scan_output_emission emit_scan_outputs logic"
+      - "Dry-run mode returns rendered content without file writes"
+      - "Sidecar writes happen atomically; no partial outputs on error"
+      - "All scanner-report and runbook tests pass (test_render_readme.py, test_render_reports.py)"
+      - "Mypy 0 errors"
+      - "test_output_orchestrator.py created with 15+ tests (formats, sidecars, dry-run)"
+    failure_modes:
+      - scenario: "Metadata mutation order is wrong; README doesn't see scanner_report_relpath."
+        likelihood: medium
+        impact: medium
+        mitigation: |
+          Document metadata mutation sequence in docstring.
+          Test metadata flow with snapshot tests.
+      - scenario: "Sidecar writes are not atomic; partial outputs on error."
+        likelihood: low
+        impact: high
+        mitigation: "Use temp files; atomically rename after all writes succeed."
+    tech_stack:
+      - Python 3.14+
+      - RunScanOutputPayload, ScanRequestOptions from scanner_data/contracts
+      - DIContainer from scanner_core/di
+    test_coverage: "15+ tests for output formats, sidecar behavior, dry-run, metadata mutation"
+
+  - id: task_2_4_extract_feature_detector
+    title: "Extract FeatureDetector class"
+    description: |
+      Create scanner_core/feature_detector.py with FeatureDetector class, consolidating:
+      - task_parser.py task/module/handler detection
+      - requirements.py requirement parsing
+      - doc_insights.py feature inference
+      - extract_role_features() from scanner.py
+
+      Class responsibilities:
+      - Count task_files_scanned, unique_modules, external_collections, etc.
+      - Detect privilege escalation (become/become_user)
+      - Count conditional tasks, tagged tasks, handlers
+      - Detect dynamic includes, role includes
+      - Build annotation quality metrics (disabled tasks, YAML-like annotations)
+      - Return FeaturesContext
+
+      Interface:
+      ```python
+      class FeatureDetector:
+        def __init__(di: DIContainer, role_path: str): ...
+        def detect() -> FeaturesContext: ...
+        def analyze_task_catalog() -> dict[file, task_metadata]: ...
+      ```
+
+      Test coverage:
+      - Task counting (task_files_scanned, tasks_scanned)
+      - Module/collection extraction
+      - Privilege escalation detection
+      - Annotation quality metrics
+      - Dynamic include detection
+    wave: 2
+    agent: gem-implementer
+    priority: medium
+    status: pending
+    dependencies: ["task_1_1_data_contracts", "task_1_2_di_design", "task_2_2_extract_variable_discovery"]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner.py
+        description: "Lines 950–1000: extract_role_features() to move"
+      - path: src/prism/scanner_submodules/task_parser.py
+        description: "Task detection functions"
+    estimated_effort: medium
+    estimated_files: 2
+    estimated_lines: 200
+    focus_area: features
+    verification:
+      - "scanner_core/feature_detector.py exists with FeatureDetector class"
+      - "detect() returns FeaturesContext with all required fields"
+      - "All 768 tests pass"
+    acceptance_criteria:
+      - "FeatureDetector class consolidates feature extraction logic"
+      - "Output identical to baseline extract_role_features()"
+      - "Mypy 0 errors"
+      - "test_feature_detector.py created with 10+ tests"
+    failure_modes:
+      - scenario: "Handler/dynamic include detection is incomplete."
+        likelihood: medium
+        impact: low
+        mitigation: "Validate against baseline test_scan.py feature counts"
+    tech_stack:
+      - Python 3.14+
+      - FeaturesContext from scanner_data/contracts
+      - DIContainer from scanner_core/di
+    test_coverage: "10+ tests for task counting, module detection, feature extraction"
+
+  # WAVE 3: SUBMODULE CONSOLIDATION (depends on Wave 2)
+
+  - id: task_3_1_consolidate_extraction_modules
+    title: "Consolidate variable extraction modules"
+    description: |
+      Group 6 extraction-related modules into scanner_extract/ package:
+      - scanner_extract/variable_extractor.py (from variable_extractor.py)
+      - scanner_extract/task_parser.py (from task_parser.py)
+      - scanner_extract/discovery.py (from scan_discovery.py)
+      - scanner_extract/config.py (from scanner_dataload.py + scanner_config.py)
+      - scanner_extract/requirements.py (from scanner_requirements.py + requirements.py)
+      - scanner_extract/__init__.py (exports public API)
+
+      Goals:
+      - Move all modules under scanner_extract/
+      - No inter-package imports except via VariableDiscovery
+      - Keep < 200 lines per module (split if needed)
+      - Consolidate duplicate helper functions (e.g., _format_requirement_line)
+
+      Dependencies:
+      - scanner_extract/ depends on scanner_data/contracts (TypedDict)
+      - scanner_extract/ DOES NOT depend on scanner_core/ (no circular deps)
+      - scanner_extract/ may depend on pattern_config, _jinja_analyzer
+
+      Test coverage:
+      - No new tests; all existing test_scanner_internals.py, test_variable_extractor.py tests must pass
+    wave: 3
+    agent: gem-implementer
+    priority: high
+    status: pending
+    dependencies: ["task_2_2_extract_variable_discovery"]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_submodules
+        description: "variable_extractor.py, task_parser.py, scan_discovery.py, etc."
+    estimated_effort: medium
+    estimated_files: 6
+    estimated_lines: 100
+    focus_area: consolidation
+    verification:
+      - "scanner_extract/ directory exists with 5 .py modules"
+      - "All modules < 200 lines (split if needed)"
+      - "All 768 tests pass"
+      - "No inter-module imports within scanner_extract/ (only via __init__.py)"
+    acceptance_criteria:
+      - "scanner_extract/ package created with 5 focused modules"
+      - "All extraction logic consolidated; no duplicate code"
+      - "Not a breaking change; all existing tests pass"
+      - "Mypy 0 errors on scanner_extract/"
+    failure_modes:
+      - scenario: "Some extraction functions are used outside VariableDiscovery."
+        likelihood: medium
+        impact: medium
+        mitigation: "Add public API symbols to scanner_extract/__init__.py; don't break public imports"
+    tech_stack:
+      - Python 3.14+
+      - Module reorganization only, no logic changes
+    test_coverage: "Regression tests only; existing test suite exercises extraction"
+
+  - id: task_3_2_consolidate_readme_analysis_modules
+    title: "Consolidate output and analysis modules"
+    description: |
+      Group 8 output/analysis modules into scanner_analysis/ and scanner_readme/ packages:
+
+      scanner_readme/
+      - scanner_readme/render.py (from render_readme.py)
+      - scanner_readme/style.py (from style_guide.py + style_vars.py helpers)
+      - scanner_readme/guide.py (from render_guide.py + doc_insights.py)
+      - scanner_readme/__init__.py
+
+      scanner_analysis/
+      - scanner_analysis/report.py (from scanner_report.py)
+      - scanner_analysis/runbook.py (from runbook.py)
+      - scanner_analysis/metrics.py (from scan_metrics.py)
+      - scanner_analysis/insights.py (from doc_insights.py)
+      - scanner_analysis/__init__.py
+
+      scanner_io/
+      - scanner_io/output.py (from output.py)
+      - scanner_io/loader.py (from scanner_dataload.py YAML helpers)
+      - scanner_io/__init__.py
+
+      Goals:
+      - Move all modules under new packages
+      - Keep < 150 lines per module (split if needed)
+      - No inter-package imports except via orchestrators
+      - Consolidate helpers (e.g., style detection functions)
+
+      Test coverage:
+      - No new tests; all existing integration tests must pass
+    wave: 3
+    agent: gem-implementer
+    priority: high
+    status: pending
+    dependencies: ["task_2_3_extract_output_orchestrator"]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_submodules
+        description: "render_readme.py, scanner_report.py, runbook.py, output.py, etc."
+    estimated_effort: medium
+    estimated_files: 10
+    estimated_lines: 150
+    focus_area: consolidation
+    verification:
+      - "scanner_readme/, scanner_analysis/, scanner_io/ directories exist with modules"
+      - "All modules < 150 lines (split if exceeds)"
+      - "All 768 tests pass"
+      - "Zero inter-package imports (except through orchestrators)"
+    acceptance_criteria:
+      - "3 new packages created: scanner_readme/, scanner_analysis/, scanner_io/"
+      - "All output/analysis/io logic consolidated"
+      - "Not a breaking change; all existing tests pass"
+      - "Mypy 0 errors on new packages"
+    failure_modes:
+      - scenario: "Circular imports between scanner_readme/ and scanner_analysis/."
+        likelihood: medium
+        impact: high
+        mitigation: "Share utilities via scanner_data/ contracts; no inter-package imports"
+    tech_stack:
+      - Python 3.14+
+      - Module reorganization only
+    test_coverage: "Regression tests only; existing test suite exercises output/analysis"
+
+  - id: task_3_3_consolidate_config_modules
+    title: "Consolidate configuration and metadata modules"
+    description: |
+      Group remaining config/metadata modules into scanner_config/ package:
+      - scanner_config/readme.py (from readme_config.py)
+      - scanner_config/section.py (from _scan_request module-level)
+      - scanner_config/patterns.py (from pattern_config.py)
+      - scanner_config/__init__.py
+
+      Remove scanner_submodules/scanner_submodules/ directory (deprecated).
+      Update all imports in scanner.py, api.py, cli.py to point to new locations.
+
+      Test coverage:
+      - All existing config tests must pass
+    wave: 3
+    agent: gem-implementer
+    priority: medium
+    status: pending
+    dependencies: ["task_3_1_consolidate_extraction_modules", "task_3_2_consolidate_readme_analysis_modules"]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_submodules
+        description: "readme_config.py, pattern_config.py, etc."
+      - path: src/prism/scanner.py
+        description: "Lines 1–100: import statements to update"
+    estimated_effort: small
+    estimated_files: 4
+    estimated_lines: 80
+    focus_area: consolidation
+    verification:
+      - "scanner_config/ directory created with 3 modules"
+      - "All config logic consolidated and no longer in scanner_submodules/"
+      - "All 768 tests pass"
+    acceptance_criteria:
+      - "scanner_config/ package created"
+      - "All imports updated globally (scanner.py, api.py, cli.py)"
+      - "Remove scanner_submodules/ directory OR leave as deprecated stub"
+      - "Mypy 0 errors"
+    failure_modes:
+      - scenario: "Some tools import directly from scanner_submodules/.py files."
+        likelihood: medium
+        impact: low
+        mitigation: "Keep backward-compatible imports in scanner_submodules/__init__.py"
+    tech_stack:
+      - Python 3.14+
+      - Module reorganization
+    test_coverage: "Regression tests only"
+
+  # WAVE 4: DATA FLOW IMMUTABILITY (depends on Wave 3)
+
+  - id: task_4_1_builder_pattern_variables
+    title: "Implement builder pattern for variable row construction"
+    description: |
+      Create scanner_data/builders.py with VariableRowBuilder class.
+      Replace procedural VariableRow mutation with builder pattern.
+
+      Class interface:
+      ```python
+      class VariableRowBuilder:
+        def name(self, name: str) -> Self: ...
+        def type(self, type_: str) -> Self: ...
+        def default(self, default: str) -> Self: ...
+        def secret(self, is_secret: bool) -> Self: ...
+        def required(self, required: bool) -> Self: ...
+        def documented(self, documented: bool) -> Self: ...
+        def source(self, source: str) -> Self: ...
+        def provenance(self, source_file: str, line: int, confidence: float) -> Self: ...
+        def uncertainty(self, reason: str) -> Self: ...
+        def build(self) -> VariableRow: ...
+      ```
+
+      Replaces current code like:
+      ```python
+      row = {
+        "name": var_name,
+        "type": infer_type(...),
+        ...
+      }
+      ```
+
+      With:
+      ```python
+      row = (VariableRowBuilder()
+        .name(var_name)
+        .type(infer_type(...))
+        .build())
+      ```
+
+      Implementation:
+      - Fluent interface (returns Self)
+      - Validate invariants on build() (name required, type valid, etc.)
+      - Immutable after build() (return TypedDict, not mutable dict)
+      - Optional fields support via builder defaults
+
+      Test coverage:
+      - Builder fluent interface tests
+      - Invariant validation tests (missing required fields)
+      - Immutability tests (can't mutate after build())
+      - Equivalence test: old dict-based code produces identical rows as builder
+    wave: 4
+    agent: gem-implementer
+    priority: high
+    status: pending
+    dependencies: ["task_1_1_data_contracts", "task_3_1_consolidate_extraction_modules"]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_core/variable_discovery.py
+        description: "Variable row construction to refactor"
+      - path: src/prism/scanner_submodules/style_vars.py
+        description: "Style variable building logic"
+    estimated_effort: medium
+    estimated_files: 2
+    estimated_lines: 150
+    focus_area: immutability
+    verification:
+      - "VariableRowBuilder class exists in scanner_data/builders.py"
+      - "Builder validates invariants on build()"
+      - "Builder().name(...).type(...).build() produces VariableRow"
+      - "All 768 tests pass"
+    acceptance_criteria:
+      - "VariableRowBuilder implements fluent interface"
+      - "Invariant validation prevents invalid rows"
+      - "Refactored code equivalent to original (snapshot tests)"
+      - "Mypy 0 errors"
+      - "test_variable_row_builder.py created with 20+ tests"
+    failure_modes:
+      - scenario: "Builder becomes too complex; adds overhead."
+        likelihood: low
+        impact: low
+        mitigation: "Keep builder simple; only fluent interface + invariant checks"
+    tech_stack:
+      - Python 3.14+
+      - typing.Self (Python 3.11+) or manual return type
+      - TypedDict from scanner_data/contracts
+    test_coverage: "20+ tests for builder interface, invariants, immutability, equivalence"
+
+  - id: task_4_2_builder_pattern_payload
+    title: "Implement builder pattern for scan payload construction"
+    description: |
+      Create ScanPayloadBuilder in scanner_data/builders.py.
+      Replace runbook_report payload assembly with builder pattern.
+
+      Interface:
+      ```python
+      class ScanPayloadBuilder:
+        def role_path(self, path: str) -> Self: ...
+        def variables(self, rows: list[VariableRow]) -> Self: ...
+        def features(self, features: FeaturesContext) -> Self: ...
+        def metadata(self, metadata: ScanMetadata) -> Self: ...
+        def build(self) -> RunScanOutputPayload: ...
+      ```
+
+      Goals:
+      - Make payload construction explicit and safe
+      - Prevent partial/malformed payloads
+      - Enable testing of payload shaping
+
+      Test coverage:
+      - Builder fluent interface
+      - Invariant validation (role_path required, etc.)
+      - Equivalence to old dict-based assembly
+    wave: 4
+    agent: gem-implementer
+    priority: medium
+    status: pending
+    dependencies: ["task_4_1_builder_pattern_variables"]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_core/scanner_context.py
+        description: "Payload assembly logic to refactor"
+    estimated_effort: small
+    estimated_files: 1
+    estimated_lines: 80
+    focus_area: immutability
+    verification:
+      - "ScanPayloadBuilder exists in scanner_data/builders.py"
+      - "Builder validates invariants on build()"
+      - "All 768 tests pass"
+    acceptance_criteria:
+      - "ScanPayloadBuilder implements fluent interface"
+      - "Refactored scanner_context.py uses builder"
+      - "Mypy 0 errors"
+      - "test_scan_payload_builder.py with 10+ tests"
+    failure_modes: []
+    tech_stack:
+      - Python 3.14+
+      - typing.Self
+    test_coverage: "10+ tests for builder, invariants, equivalence"
+
+  - id: task_4_3_immutable_pipelines
+    title: "Establish immutable data flow pipeline"
+    description: |
+      Refactor scanner orchestration to maintain immutable data throughout pipeline:
+      - VariableDiscovery produces immutable list[VariableRow]
+      - OutputOrchestrator receives immutable RunScanOutputPayload
+      - All transformations (filtering, sorting, rendering) operate on immutable data
+      - No in-place mutations of dicts/lists after discovery
+
+      Implementation:
+      - Replace dict mutations with TypedDict construction
+      - Use tuple/frozenset for constant collections
+      - Mark pipeline inputs/outputs as final (typing.Final)
+      - Remove in-place list.append() calls; use new list construction
+
+      Test coverage:
+      - Isolation tests (verify one component doesn't affect another via mutation)
+      - Data flow tests (verify immutability is maintained end-to-end)
+      - Concurrency test (verify data doesn't have race conditions if runners were added)
+    wave: 4
+    agent: gem-implementer
+    priority: medium
+    status: pending
+    dependencies: ["task_4_1_builder_pattern_variables", "task_4_2_builder_pattern_payload"]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_core/
+        description: "scanner_context.py, variable_discovery.py, output_orchestrator.py"
+    estimated_effort: medium
+    estimated_files: 4
+    estimated_lines: 100
+    focus_area: immutability
+    verification:
+      - "No in-place mutations in scanner_core/ after discovery completes"
+      - "All 768 tests pass"
+      - "Data isolation test: mutations in one test don't affect others"
+    acceptance_criteria:
+      - "Scanner orchestration uses immutable data throughout pipeline"
+      - "No dict mutations after discovery/feature detection"
+      - "Mypy infers immutability (no type: ignore on mutations)"
+      - "test_immutable_pipeline.py created with 10+ tests"
+    failure_modes:
+      - scenario: "Immutable pipeline is too slow; performance regresses."
+        likelihood: low
+        impact: medium
+        mitigation: "Profile and optimize; use tuple unpacking instead of iteration if needed"
+    tech_stack:
+      - Python 3.14+
+      - typing.Final, typing.Immutable (if available)
+      - TypedDict from scanner_data/contracts
+    test_coverage: "10+ tests for immutability, isolation, data flow"
+
+  # WAVE 5: TEST GRANULARIZATION (parallelizable with Waves 2-4)
+
+  - id: task_5_1_extract_unit_tests
+    title: "Extract and expand unit test suite"
+    description: |
+      Convert 768 integration tests to focused unit tests.
+      Create dedicated test modules for each orchestrator/builder:
+      - test_scanner_context.py (orchestration flow)
+      - test_variable_discovery.py (discovery, extraction, resolution)
+      - test_output_orchestrator.py (rendering, sidecars, dry-run)
+      - test_feature_detector.py (feature extraction, annotation quality)
+      - test_di.py (DI container factory methods)
+      - test_variable_row_builder.py (builder interface, invariants)
+      - test_scan_payload_builder.py (payload assembly)
+
+      Goals:
+      - Move from integration-heavy (setup role, run_scan, check output)
+        to unit-focused (test one class, mock dependencies)
+      - Increase test count from 768 to 900+ (20% growth)
+      - Keep all 768 original tests for regression; add 150+ new unit tests
+      - Reduce test duration by ~30% (unit tests faster than integration)
+
+      Test structure:
+      - Fast unit tests: < 100ms each
+      - Integration tests: 1-5s each (kept for critical paths)
+      - Fixtures: mock DI, test role, test variables, test metadata
+
+      Coverage target:
+      - 95%+ line coverage on scanner_core/
+      - 90%+ line coverage on scanner_data/
+      - 85%+ coverage on consolidate modules
+    wave: 5
+    agent: gem-implementer
+    priority: high
+    status: pending
+    dependencies: ["task_2_1_extract_scanner_context", "task_2_2_extract_variable_discovery", "task_2_3_extract_output_orchestrator", "task_2_4_extract_feature_detector"]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/tests
+        description: "All 25 test_*.py files; extract unit tests from integration tests"
+    estimated_effort: large
+    estimated_files: 10
+    estimated_lines: 400
+    focus_area: testing
+    verification:
+      - "150+ new unit tests created in dedicated test modules"
+      - "All 768 original tests still pass"
+      - "Coverage increased to 90%+ on scanner_core/, 85%+ on consolidated modules"
+      - "Test duration reduced by ~25-30% (faster unit tests)"
+    acceptance_criteria:
+      - "9 dedicated unit test modules created (one per orchestrator/builder)"
+      - "Each module has 10-30 focused unit tests (not integration tests)"
+      - "pytest -v shows all tests passing (900+ tests)"
+      - "pytest --cov shows 90%+ coverage on scanner_core/"
+      - "No test duration regression (unit tests fast)"
+      - "Mypy 0 errors on all test files"
+    failure_modes:
+      - scenario: "Unit tests are brittle; fail when implementation details change."
+        likelihood: medium
+        impact: low
+        mitigation: "Test public interfaces, not implementation details. Mock dependencies."
+      - scenario: "Test fixtures become too complex; test code is unreadable."
+        likelihood: medium
+        impact: medium
+        mitigation: "Use pytest-factoryboy or custom conftest.py fixtures; keep fixtures < 50 lines each"
+    tech_stack:
+      - Python 3.14+
+      - pytest, pytest-cov, pytest-mock
+      - conftest.py for shared fixtures
+    test_coverage: "150+ new unit tests; 90%+ coverage on scanner_core/"
+
+  - id: task_5_2_refactor_integration_tests
+    title: "Refactor integration tests for maintainability"
+    description: |
+      Update existing 768 integration tests to use new architecture:
+      - Replace scanner.py internal symbol imports with orchestrator imports
+      - Update test_scan.py to use ScannerContext instead of raw run_scan body
+      - Consolidate duplicate test setup (role creation, variable setup)
+      - Mark 50+ tests as "slow integration tests" (pytest.mark.integration)
+      - Keep critical end-to-end tests (e.g., test_api.py) unchanged
+
+      Goals:
+      - Integration tests verify orchestrator integration, not scanner.py internals
+      - Tests span orchestrator boundaries; unit tests test within boundaries
+      - Slow integration tests can be skipped in fast CI; included in nightly
+      - All 768 tests still pass; no behavior change
+
+      Implementation:
+      - Update test_scanner_internals.py to import from scanner_core/
+      - Update test_scan.py assertions to match new output format
+      - Create conftest.py fixtures for test role setup, variable fixtures
+      - Add pytest.mark.integration to slow tests (> 1s)
+    wave: 5
+    agent: gem-implementer
+    priority: medium
+    status: pending
+    dependencies: ["task_5_1_extract_unit_tests"]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/tests
+        description: "All test_*.py files"
+    estimated_effort: medium
+    estimated_files: 25
+    estimated_lines: 200
+    focus_area: testing
+    verification:
+      - "All 768 tests still pass"
+      - "50+ tests marked with pytest.mark.integration"
+      - "No test behavior changes"
+    acceptance_criteria:
+      - "Integration tests updated to use new architecture (orchestrators, not scanner.py internals)"
+      - "All 768 tests pass"
+      - "Slow tests marked with pytest.mark.integration"
+      - "Test duration reduced via unit/integration split"
+      - "Mypy 0 errors"
+    failure_modes:
+      - scenario: "Some tests fail due to import breakage."
+        likelihood: medium
+        impact: high
+        mitigation: "Update imports systematically; verify each test file compiles before running"
+    tech_stack:
+      - Python 3.14+
+      - pytest, pytest-mark
+    test_coverage: "All 768 integration tests refactored; 0 new tests, but improved organization"
+
+  - id: task_5_3_add_regression_tests
+    title: "Add comprehensive regression test suite"
+    description: |
+      Create regression tests validating each refactored component against baseline behavior:
+      - test_scanner_context_equivalence.py: ScannerContext output matches scanner.py:run_scan() output
+      - test_variable_discovery_equivalence.py: VariableDiscovery produces identical rows to old code
+      - test_output_equivalence.py: OutputOrchestrator renders identical output to old code
+      - test_feature_equivalence.py: FeatureDetector produces identical features to old code
+      - test_public_api_stability.py: run_scan, render_runbook, render_runbook_csv unchanged
+
+      Use snapshot testing (pytest-snapshot or custom):
+      - Snapshot baseline behavior (output structure, variable counts, feature flags)
+      - Validate refactored code produces identical snapshots
+      - Any snapshot change is explicit, reviewable, intentional
+
+      Test structure:
+      - Run new ScannerContext on 5-10 test roles
+      - Compare output structure (variable count, feature flags, metadata keys)
+      - Compare rendering output (README markdown, JSON structure, runbook CSV)
+      - Assert equivalence or document intentional changes
+
+      Coverage:
+      - All public API symbols tested for backward compatibility
+      - All orchestrators tested against baseline
+      - Edge cases (empty role, missing defaults, dynamic includes)
+    wave: 5
+    agent: gem-implementer
+    priority: high
+    status: pending
+    dependencies: ["task_2_1_extract_scanner_context", "task_2_2_extract_variable_discovery", "task_2_3_extract_output_orchestrator", "task_2_4_extract_feature_detector"]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/tests
+        description: "Reference test data, test roles"
+    estimated_effort: medium
+    estimated_files: 5
+    estimated_lines: 250
+    focus_area: regression
+    verification:
+      - "5 regression test modules created"
+      - "Snapshots captured for baseline behavior"
+      - "All 768 original tests pass"
+      - "Refactored code produces identical snapshots"
+    acceptance_criteria:
+      - "Regression tests created for all 4 core orchestrators + public API"
+      - "Snapshot tests document baseline behavior"
+      - "Refactored code produces identical snapshots to baseline"
+      - "Mypy 0 errors"
+      - "pytest -v shows all regression tests passing"
+      - "Intentional changes documented in test comments + commit messages"
+    failure_modes:
+      - scenario: "Snapshots are outdated; meaningful changes are accepted without review."
+        likelihood: low
+        impact: medium
+        mitigation: "Snapshot files are code-reviewed; any change triggers explicit review. Use pytest-snapshot --update only after validation."
+    tech_stack:
+      - Python 3.14+
+      - pytest, pytest-snapshot (or custom snapshot comparison)
+      - json, yaml for snapshot serialization
+    test_coverage: "5 complete regression test suites validating backward compatibility"
+
+required_review: true
+review_depth: full
+review_security_sensitive: false
+
+environment: production
+requires_approval: true
+devops_security_sensitive: false

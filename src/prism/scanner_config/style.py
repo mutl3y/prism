@@ -1,7 +1,7 @@
-"""Scanner configuration and setup helpers.
+"""Style guide path resolution and configuration.
 
-This module contains configuration loading and policy-related functions
-extracted from scanner.py for improved maintainability and testability.
+Provides functions for locating style guide sources and resolving section
+metadata from configuration files.
 """
 
 from __future__ import annotations
@@ -10,47 +10,6 @@ import os
 from pathlib import Path
 
 import yaml
-
-from ..pattern_config import load_pattern_config
-
-
-def refresh_policy(
-    override_path: str | None = None,
-) -> tuple[dict, dict, tuple, tuple, tuple, tuple, tuple, dict]:
-    """Reload policy-derived globals and return their values.
-
-    This function loads the pattern configuration and extracts policy-derived
-    state that would normally be stored in scanner.py globals. Returns all
-    state needed for injection into scanner.py module globals.
-
-    Args:
-        override_path: Optional explicit path to pattern config to load
-
-    Returns:
-        Tuple of (policy, section_aliases, secret_name_tokens, vault_markers,
-                  credential_prefixes, url_prefixes, variable_guidance_keywords,
-                  ignored_identifiers)
-    """
-    policy = load_pattern_config(override_path=override_path)
-    section_aliases = policy["section_aliases"]
-    sensitivity = policy["sensitivity"]
-    secret_name_tokens = tuple(sensitivity["name_tokens"])
-    vault_markers = tuple(sensitivity["vault_markers"])
-    credential_prefixes = tuple(sensitivity["credential_prefixes"])
-    url_prefixes = tuple(sensitivity["url_prefixes"])
-    variable_guidance_keywords = tuple(policy["variable_guidance"]["priority_keywords"])
-    ignored_identifiers = policy["ignored_identifiers"]
-
-    return (
-        policy,
-        section_aliases,
-        secret_name_tokens,
-        vault_markers,
-        credential_prefixes,
-        url_prefixes,
-        variable_guidance_keywords,
-        ignored_identifiers,
-    )
 
 
 def default_style_guide_user_paths(
@@ -93,15 +52,13 @@ def resolve_default_style_guide_source(
     legacy_system_style_guide_source_path: Path | None = None,
     default_style_guide_source_path: Path | None = None,
 ) -> str:
-    """Resolve default style guide source path using Linux-aware precedence.
+    r"""Resolve default style guide source path using Linux-aware precedence.
 
     Precedence (first existing path wins):
-
      1. ``$PRISM_STYLE_SOURCE``
      2. ``$ANSIBLE_ROLE_DOC_STYLE_SOURCE`` (legacy compatibility)
      3. ``./STYLE_GUIDE_SOURCE.md``
-     4. ``$XDG_DATA_HOME/prism/STYLE_GUIDE_SOURCE.md``
-       (or ``~/.local/share/...`` fallback)
+     4. ``$XDG_DATA_HOME/prism/STYLE_GUIDE_SOURCE.md`` (or ``~/.local/share/...``)
      5. ``$XDG_DATA_HOME/ansible_role_doc/STYLE_GUIDE_SOURCE.md`` (legacy)
      6. ``/var/lib/prism/STYLE_GUIDE_SOURCE.md``
      7. ``/var/lib/ansible_role_doc/STYLE_GUIDE_SOURCE.md`` (legacy)
@@ -235,3 +192,53 @@ def load_section_display_titles(display_titles_path: Path) -> dict[str, str]:
         if sid and label:
             parsed[sid] = label
     return parsed
+
+
+def refresh_policy(
+    override_path: str | None = None,
+) -> tuple[dict, dict, tuple, tuple, tuple, tuple, tuple, dict]:
+    """Reload policy-derived globals and return their values.
+
+    This function loads the pattern configuration and extracts policy-derived
+    state that would normally be stored in scanner.py globals.
+
+    Args:
+        override_path: Optional explicit path to pattern config to load
+
+    Returns:
+        Tuple of (policy, section_aliases, secret_name_tokens, vault_markers,
+                  credential_prefixes, url_prefixes, variable_guidance_keywords,
+                  ignored_identifiers)
+    """
+    # Import here to avoid circular dependency
+    from .patterns import load_pattern_config
+
+    policy = load_pattern_config(override_path=override_path)
+    section_aliases = policy["section_aliases"]
+    sensitivity = policy["sensitivity"]
+    secret_name_tokens = tuple(sensitivity["name_tokens"])
+    vault_markers = tuple(sensitivity["vault_markers"])
+    credential_prefixes = tuple(sensitivity["credential_prefixes"])
+    url_prefixes = tuple(sensitivity["url_prefixes"])
+    variable_guidance_keywords = tuple(policy["variable_guidance"]["priority_keywords"])
+    ignored_identifiers = policy["ignored_identifiers"]
+
+    return (
+        policy,
+        section_aliases,
+        secret_name_tokens,
+        vault_markers,
+        credential_prefixes,
+        url_prefixes,
+        variable_guidance_keywords,
+        ignored_identifiers,
+    )
+
+
+__all__ = [
+    "default_style_guide_user_paths",
+    "resolve_default_style_guide_source",
+    "resolve_section_selector",
+    "load_section_display_titles",
+    "refresh_policy",
+]

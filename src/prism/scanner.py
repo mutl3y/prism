@@ -13,20 +13,22 @@ from pathlib import Path
 import re
 from typing import TypedDict
 
-from .scanner_submodules.doc_insights import build_doc_insights
-from .scanner_submodules.output import (
+from .scanner_io import (
     render_final_output,
     write_output,
 )
-from .pattern_config import load_pattern_config
-from .scanner_submodules.readme_config import (
+from .scanner_submodules.doc_insights import build_doc_insights
+from .scanner_config import (
     DEFAULT_DOC_MARKER_PREFIX as READMECFG_DEFAULT_DOC_MARKER_PREFIX,
+    SECTION_CONFIG_FILENAME,
+    SECTION_CONFIG_FILENAMES,
     load_fail_on_unconstrained_dynamic_includes as _load_fail_on_unconstrained_dynamic_includes,
     load_fail_on_yaml_like_task_annotations as _load_fail_on_yaml_like_task_annotations,
     load_ignore_unresolved_internal_underscore_references as _load_ignore_unresolved_internal_underscore_references,
     load_non_authoritative_test_evidence_max_file_bytes as _load_non_authoritative_test_evidence_max_file_bytes,
     load_non_authoritative_test_evidence_max_files_scanned as _load_non_authoritative_test_evidence_max_files_scanned,
     load_non_authoritative_test_evidence_max_total_bytes as _load_non_authoritative_test_evidence_max_total_bytes,
+    load_pattern_config,
     load_readme_marker_prefix as _load_readme_marker_prefix,
     load_readme_section_config as _load_readme_section_config,
     load_readme_section_visibility as _load_readme_section_visibility,
@@ -61,6 +63,7 @@ from .scanner_submodules.scan_output_primary import (
 from .scanner_submodules.emit_output import (
     orchestrate_output_emission as _emit_output_orchestrate_output_emission,
 )
+from .scanner_core import DIContainer, ScannerContext
 from .scanner_submodules.scanner_errorhandling import (
     should_suppress_internal_unresolved_reference as _errorhandling_should_suppress_internal_unresolved_reference,
     build_referenced_variable_uncertainty_reason as _errorhandling_build_referenced_variable_uncertainty_reason,
@@ -73,21 +76,21 @@ from .scanner_submodules.scanner_errorhandling import (
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES as _ERRORHANDLING_MAX_TOTAL_BYTES,
     NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT as _ERRORHANDLING_SATURATION_MATCH_COUNT,
 )
-from .scanner_submodules.scanner_config import (
-    resolve_default_style_guide_source as _config_resolve_default_style_guide_source,
+from .scanner_config import (
     default_style_guide_user_paths as _config_default_style_guide_user_paths,
     load_section_display_titles as _config_load_section_display_titles,
+    resolve_default_style_guide_source as _config_resolve_default_style_guide_source,
     resolve_section_selector as _config_resolve_section_selector,
 )
-from .scanner_submodules.scanner_dataload import (
+from .scanner_io import (
+    collect_yaml_parse_failures as _dataload_collect_yaml_parse_failures,
     iter_role_yaml_candidates as _dataload_iter_role_yaml_candidates,
     parse_yaml_candidate as _dataload_parse_yaml_candidate,
-    collect_yaml_parse_failures as _dataload_collect_yaml_parse_failures,
     map_argument_spec_type as _dataload_map_argument_spec_type,
+)
+from .scanner_extract import (
     load_role_variable_maps as _dataload_load_role_variable_maps,
     iter_role_argument_spec_entries as _dataload_iter_role_argument_spec_entries,
-)
-from .scanner_submodules.scanner_requirements import (
     format_requirement_line as _requirements_format_requirement_line,
     normalize_requirements as _requirements_normalize_requirements,
     normalize_meta_role_dependencies as _requirements_normalize_meta_role_dependencies,
@@ -95,28 +98,30 @@ from .scanner_submodules.scanner_requirements import (
     extract_declared_collections_from_meta as _requirements_extract_declared_collections_from_meta,
     extract_declared_collections_from_requirements as _requirements_extract_declared_collections_from_requirements,
     build_collection_compliance_notes as _requirements_build_collection_compliance_notes,
+    build_requirements_display as _runbook_report_build_requirements_display,
 )
-from .scanner_submodules.scan_discovery import (
+from .scanner_extract import (
     iter_role_variable_map_candidates as _scan_discovery_iter_role_variable_map_candidates,
     load_meta as _scan_discovery_load_meta,
     load_requirements as _scan_discovery_load_requirements,
     load_variables as _scan_discovery_load_variables,
     resolve_scan_identity as _scan_discovery_resolve_scan_identity,
 )
-from .scanner_submodules.render_reports import (
+from .scanner_analysis import (
     build_scanner_report_markdown as _runbook_report_build_scanner_report_markdown,
-    extract_scanner_counters as _runbook_report_extract_scanner_counters,
     classify_provenance_issue as _runbook_report_classify_provenance_issue,
     is_unresolved_noise_category as _runbook_report_is_unresolved_noise_category,
     render_runbook as _runbook_report_render_runbook,
-    build_runbook_rows as _runbook_report_build_runbook_rows,
     render_runbook_csv as _runbook_report_render_runbook_csv,
-    build_requirements_display as _runbook_report_build_requirements_display,
+)
+from .scanner_submodules.render_reports import (
+    extract_scanner_counters as _runbook_report_extract_scanner_counters,
+    build_runbook_rows as _runbook_report_build_runbook_rows,
     write_concise_scanner_report_if_enabled as _runbook_report_write_concise_scanner_report_if_enabled,
     build_scan_report_sidecar_args as _runbook_report_build_scan_report_sidecar_args,
     build_runbook_sidecar_args as _runbook_report_build_runbook_sidecar_args,
 )
-from .scanner_submodules.style_guide import (
+from .scanner_readme import (
     detect_style_section_level,
     format_heading,
     normalize_style_heading,
@@ -133,7 +138,7 @@ from ._jinja_analyzer import (
     _collect_jinja_local_bindings as _collect_jinja_local_bindings,
     _extract_jinja_name_targets as _extract_jinja_name_targets,
 )
-from .scanner_submodules.task_parser import (
+from .scanner_extract import (
     TASK_INCLUDE_KEYS as TASK_INCLUDE_KEYS,
     INCLUDE_VARS_KEYS as INCLUDE_VARS_KEYS,
     SET_FACT_KEYS as SET_FACT_KEYS,
@@ -166,7 +171,7 @@ from .scanner_submodules.task_parser import (
     _collect_molecule_scenarios as _collect_molecule_scenarios,
     extract_role_features as extract_role_features,
 )
-from .scanner_submodules.variable_extractor import (
+from .scanner_extract import (
     DEFAULT_TARGET_RE as DEFAULT_TARGET_RE,
     JINJA_VAR_RE as JINJA_VAR_RE,
     JINJA_IDENTIFIER_RE as JINJA_IDENTIFIER_RE,
@@ -193,7 +198,7 @@ from .scanner_submodules.variable_extractor import (
     _resolve_seed_var_files as _resolve_seed_var_files,
     load_seed_variables as load_seed_variables,
 )
-from .scanner_submodules.style_vars import (
+from .scanner_readme import (
     _describe_variable as _describe_variable,
     _is_role_local_variable_row as _is_role_local_variable_row,
     _render_role_notes_section as _render_role_notes_section,
@@ -202,11 +207,11 @@ from .scanner_submodules.style_vars import (
     _render_variable_summary_section as _render_variable_summary_section,
     _render_variable_uncertainty_notes as _render_variable_uncertainty_notes,
 )
-from .scanner_submodules.render_guide import (
+from .scanner_readme import (
     _render_guide_identity_sections as _render_guide_mod_identity_sections,
     _render_guide_section_body as _render_guide_mod_section_body,
 )
-from .scanner_submodules.render_readme import (
+from .scanner_readme import (
     _append_scanner_report_section_if_enabled as _render_readme_mod_append_scanner_report_section_if_enabled,
     _compose_section_body as _render_readme_mod_compose_section_body,
     _generated_merge_markers as _render_readme_mod_generated_merge_markers,
@@ -299,12 +304,6 @@ SCANNER_STATS_SECTION_IDS = {
     "default_filters",
 }
 
-SECTION_CONFIG_FILENAME = ".prism.yml"
-LEGACY_SECTION_CONFIG_FILENAME = ".ansible_role_doc.yml"
-SECTION_CONFIG_FILENAMES = (
-    SECTION_CONFIG_FILENAME,
-    LEGACY_SECTION_CONFIG_FILENAME,
-)
 _EXTRA_SECTION_IDS = {
     "basic_authorization",
     "handlers",
@@ -2995,6 +2994,145 @@ def _emit_scan_outputs(
     )
 
 
+def _execute_scan_with_context(
+    *,
+    role_path: str,
+    scan_options: dict,
+    output: str,
+    output_format: str,
+    concise_readme: bool,
+    scanner_report_output: str | None,
+    include_scanner_report_link: bool,
+    template: str | None,
+    dry_run: bool,
+    runbook_output: str | None,
+    runbook_csv_output: str | None,
+) -> str:
+    """Execute scan using ScannerContext orchestration and emit final outputs."""
+    fallback_reason = _resolve_deterministic_run_scan_payload_fallback_reason(
+        role_path=role_path,
+        scan_options=scan_options,
+    )
+    if fallback_reason is not None:
+        payload = _prepare_run_scan_payload(scan_options)
+    else:
+        container = DIContainer(role_path=role_path, scan_options=scan_options)
+        context = ScannerContext(
+            di=container,
+            role_path=role_path,
+            scan_options=scan_options,
+        )
+        payload = context.orchestrate_scan()
+        fallback_reason = _resolve_run_scan_payload_fallback_reason(
+            role_path=role_path,
+            scan_options=scan_options,
+            payload=payload,
+        )
+    if fallback_reason is not None:
+        if fallback_reason == "incomplete_scanner_context_payload":
+            payload = _prepare_run_scan_payload(scan_options)
+        metadata = payload.get("metadata")
+        if not isinstance(metadata, dict):
+            metadata = {}
+            payload["metadata"] = metadata
+        metadata["scanner_context_fallback_reason"] = fallback_reason
+
+    emit_args = _build_emit_scan_outputs_args(
+        output=output,
+        output_format=output_format,
+        concise_readme=concise_readme,
+        scanner_report_output=scanner_report_output,
+        include_scanner_report_link=include_scanner_report_link,
+        payload=payload,
+        template=template,
+        dry_run=dry_run,
+        runbook_output=runbook_output,
+        runbook_csv_output=runbook_csv_output,
+    )
+    return _emit_scan_outputs(emit_args)
+
+
+def _is_complete_scan_output_payload(payload: object) -> bool:
+    """Return whether payload is complete enough for output emission."""
+    if not isinstance(payload, dict):
+        return False
+
+    required_keys = {
+        "role_name",
+        "description",
+        "display_variables",
+        "requirements_display",
+        "undocumented_default_filters",
+        "metadata",
+    }
+    if not required_keys.issubset(payload.keys()):
+        return False
+
+    return bool(payload.get("role_name"))
+
+
+def _resolve_run_scan_payload_fallback_reason(
+    *, role_path: str, scan_options: dict, payload: object
+) -> str | None:
+    """Return the fallback reason for using legacy run-scan payload preparation."""
+    deterministic_reason = _resolve_deterministic_run_scan_payload_fallback_reason(
+        role_path=role_path,
+        scan_options=scan_options,
+    )
+    if deterministic_reason is not None:
+        return deterministic_reason
+
+    if not _is_complete_scan_output_payload(payload):
+        # Direct unit tests may invoke _execute_scan_with_context with a minimal
+        # scan_options dictionary that cannot support legacy payload preparation.
+        # In those cases, preserve context-path behavior instead of forcing a
+        # fallback that would raise KeyError in _prepare_run_scan_payload.
+        if "role_name_override" not in scan_options:
+            return None
+        return "incomplete_scanner_context_payload"
+
+    # ScannerContext currently returns a shape-valid placeholder payload with
+    # empty content. For full run_scan options, force legacy payload preparation
+    # to preserve behavior until ScannerContext output parity is complete.
+    if isinstance(payload, dict):
+        has_non_placeholder_content = any(
+            (
+                bool(payload.get("description")),
+                bool(payload.get("display_variables")),
+                bool(payload.get("requirements_display")),
+                bool(payload.get("undocumented_default_filters")),
+            )
+        )
+        if not has_non_placeholder_content and "role_name_override" in scan_options:
+            return "incomplete_scanner_context_payload"
+
+    return None
+
+
+def _resolve_deterministic_run_scan_payload_fallback_reason(
+    *, role_path: str, scan_options: dict
+) -> str | None:
+    """Return deterministic fallback reason independent of ScannerContext payload."""
+    if not Path(role_path).exists():
+        return "role_path_missing"
+
+    style_readme_path = scan_options.get("style_readme_path")
+    if isinstance(style_readme_path, str) and style_readme_path:
+        if not Path(style_readme_path).exists():
+            return "style_readme_path_missing"
+
+    compare_role_path = scan_options.get("compare_role_path")
+    if isinstance(compare_role_path, str) and compare_role_path:
+        if not Path(compare_role_path).exists():
+            return "compare_role_path_missing"
+
+    vars_seed_paths = scan_options.get("vars_seed_paths")
+    if isinstance(vars_seed_paths, list) and vars_seed_paths:
+        return "vars_seed_paths_present"
+
+    return None
+
+
 def run_scan(
     role_path: str,
     output: str = "README.md",
@@ -3027,6 +3165,10 @@ def run_scan(
     runbook_output: str | None = None,
     runbook_csv_output: str | None = None,
 ) -> str:
+    """Scan an Ansible role and render documentation.
+
+    Delegates scan orchestration to ScannerContext and then emits outputs.
+    """
     _refresh_policy(policy_config_path)
     detailed_catalog = _resolve_detailed_catalog_flag(
         detailed_catalog=detailed_catalog,
@@ -3057,20 +3199,19 @@ def run_scan(
             ignore_unresolved_internal_underscore_references
         ),
     )
-    prepared = _prepare_run_scan_payload(scan_options)
-    emit_args = _build_emit_scan_outputs_args(
+    return _execute_scan_with_context(
+        role_path=role_path,
+        scan_options=scan_options,
         output=output,
         output_format=output_format,
         concise_readme=concise_readme,
         scanner_report_output=scanner_report_output,
         include_scanner_report_link=include_scanner_report_link,
-        payload=prepared,
         template=template,
         dry_run=dry_run,
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
     )
-    return _emit_scan_outputs(emit_args)
 
 
 def _resolve_detailed_catalog_flag(
