@@ -167,15 +167,15 @@ Architecture safeguard gate:
 
 ### Execution Workflow
 
-- [ ] pick one modernization batch and define explicit out-of-scope items
-- [ ] **Before starting:** record the pre-slice SHA: `export PRE_SLICE_SHA=$(git rev-parse HEAD)` — use this for rollback if the acceptance gate fails: `git checkout $PRE_SLICE_SHA`
-- [ ] **Isolation:** Use a feature branch per slice (`git checkout -b slice-2a`). If a slice fails the acceptance gate, revert to the pre-slice-start commit: `git checkout $PRE_SLICE_SHA` and discard the branch.
-- [ ] write or update focused failing tests first for the targeted slice
-- [ ] capture baseline performance on target commands when performance is a stated batch target (Not applicable for Slices 2a–2d — performance is not a stated target for rendering extraction slices)
-- [ ] if behavior is intentionally changed, update contract tests and migration/changelog notes first
-- [ ] implement the minimal code change needed to satisfy the tests
-- [ ] run focused tests, full tests, and typecheck gates
-- [ ] capture post-change performance and compare when performance is a stated batch target (Not applicable for Slices 2a–2d — performance is not a stated target for rendering extraction slices)
-- [ ] write migration/changelog notes
+- [x] pick one modernization batch and define explicit out-of-scope items
+- [x] **Before starting:** record the pre-slice SHA: `export PRE_SLICE_SHA=$(git rev-parse HEAD)` — use this for rollback if the acceptance gate fails: `git checkout $PRE_SLICE_SHA`
+- [x] **Isolation:** Use a feature branch per slice (`git checkout -b slice-2a`). If a slice fails the acceptance gate, revert to the pre-slice-start commit: `git checkout $PRE_SLICE_SHA` and discard the branch.
+- [x] write or update focused failing tests first for the targeted slice
+- [x] capture baseline performance on target commands when performance is a stated batch target (Not applicable for Slices 2a–2d — performance is not a stated target for rendering extraction slices)
+- [x] if behavior is intentionally changed, update contract tests and migration/changelog notes first
+- [x] implement the minimal code change needed to satisfy the tests
+- [x] run focused tests, full tests, and typecheck gates
+- [x] capture post-change performance and compare when performance is a stated batch target (Not applicable for Slices 2a–2d — performance is not a stated target for rendering extraction slices)
+- [x] write migration/changelog notes
   - Migration and breaking-change notes go in `docs/changelog.md` under a `## Modernization v2 — Slice <N>` heading.
-- [ ] merge and queue the next single batch
+- [x] merge and queue the next single batch
