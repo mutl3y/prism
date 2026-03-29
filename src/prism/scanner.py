@@ -885,44 +885,6 @@ _attach_non_authoritative_test_evidence = (
 )
 
 
-def build_variable_insights(
-    role_path: str,
-    seed_paths: list[str] | None = None,
-    include_vars_main: bool = True,
-    exclude_paths: list[str] | None = None,
-    style_readme_path: str | None = None,
-    ignore_unresolved_internal_underscore_references: bool = True,
-    non_authoritative_test_evidence_max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
-    non_authoritative_test_evidence_max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
-    non_authoritative_test_evidence_max_total_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
-) -> list[dict]:
-    """Build variable rows with inferred type/default/source details."""
-    return _variable_insights.build_variable_insights(
-        role_path,
-        seed_paths=seed_paths,
-        include_vars_main=include_vars_main,
-        exclude_paths=exclude_paths,
-        style_readme_path=style_readme_path,
-        ignore_unresolved_internal_underscore_references=(
-            ignore_unresolved_internal_underscore_references
-        ),
-        non_authoritative_test_evidence_max_file_bytes=(
-            non_authoritative_test_evidence_max_file_bytes
-        ),
-        non_authoritative_test_evidence_max_files_scanned=(
-            non_authoritative_test_evidence_max_files_scanned
-        ),
-        non_authoritative_test_evidence_max_total_bytes=(
-            non_authoritative_test_evidence_max_total_bytes
-        ),
-        load_role_variable_maps=_load_role_variable_maps,
-        collect_variable_reference_context=_collect_variable_reference_context,
-        build_static_variable_rows=_build_static_variable_rows,
-        populate_variable_rows=_populate_variable_rows,
-        redact_secret_defaults=_redact_secret_defaults,
-    )
-
-
 def _collect_variable_reference_context(
     *,
     role_path: str,
@@ -983,6 +945,44 @@ def _refresh_known_names(rows: list[dict]) -> set[str]:
 def _redact_secret_defaults(rows: list[dict]) -> None:
     """Mask secret defaults in-place before rendering/output."""
     _variable_pipeline.redact_secret_defaults(rows)
+
+
+def build_variable_insights(
+    role_path: str,
+    seed_paths: list[str] | None = None,
+    include_vars_main: bool = True,
+    exclude_paths: list[str] | None = None,
+    style_readme_path: str | None = None,
+    ignore_unresolved_internal_underscore_references: bool = True,
+    non_authoritative_test_evidence_max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
+    non_authoritative_test_evidence_max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
+    non_authoritative_test_evidence_max_total_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
+) -> list[dict]:
+    """Build variable rows with inferred type/default/source details."""
+    return _variable_insights.build_variable_insights(
+        role_path,
+        seed_paths=seed_paths,
+        include_vars_main=include_vars_main,
+        exclude_paths=exclude_paths,
+        style_readme_path=style_readme_path,
+        ignore_unresolved_internal_underscore_references=(
+            ignore_unresolved_internal_underscore_references
+        ),
+        non_authoritative_test_evidence_max_file_bytes=(
+            non_authoritative_test_evidence_max_file_bytes
+        ),
+        non_authoritative_test_evidence_max_files_scanned=(
+            non_authoritative_test_evidence_max_files_scanned
+        ),
+        non_authoritative_test_evidence_max_total_bytes=(
+            non_authoritative_test_evidence_max_total_bytes
+        ),
+        load_role_variable_maps=_load_role_variable_maps,
+        collect_variable_reference_context=_collect_variable_reference_context,
+        build_static_variable_rows=_build_static_variable_rows,
+        populate_variable_rows=_populate_variable_rows,
+        redact_secret_defaults=_redact_secret_defaults,
+    )
 
 
 _resolve_section_selector = partial(
@@ -1279,6 +1279,19 @@ def _emit_output_orchestration(args: dict) -> str:
     )
 
 
+_write_concise_scanner_report_if_enabled = partial(
+    _scan_output_write_concise_scanner_report_if_enabled,
+    build_scanner_report_markdown=_build_scanner_report_markdown,
+)
+
+
+_write_optional_runbook_outputs = partial(
+    _scan_output_write_optional_runbook_outputs,
+    render_runbook=render_runbook,
+    render_runbook_csv=render_runbook_csv,
+)
+
+
 def _apply_readme_section_config(
     metadata: _scan_context_ScanMetadata, readme_section_config: dict | None
 ) -> None:
@@ -1296,55 +1309,6 @@ def _apply_readme_section_config(
         )
 
 
-def _collect_variable_insights_and_default_filter_findings(
-    *,
-    role_path: str,
-    vars_seed_paths: list[str] | None,
-    include_vars_main: bool,
-    exclude_path_patterns: list[str] | None,
-    found_default_filters: list[dict],
-    variables: dict,
-    metadata: dict,
-    marker_prefix: str,
-    style_readme_path: str | None = None,
-    ignore_unresolved_internal_underscore_references: bool = True,
-    non_authoritative_test_evidence_max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
-    non_authoritative_test_evidence_max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
-    non_authoritative_test_evidence_max_total_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
-) -> tuple[list[dict], list[dict], dict]:
-    """Collect variable insights, scanner counters, and secret-masked defaults."""
-    return _variable_insights.collect_variable_insights_and_default_filter_findings(
-        role_path=role_path,
-        vars_seed_paths=vars_seed_paths,
-        include_vars_main=include_vars_main,
-        exclude_path_patterns=exclude_path_patterns,
-        found_default_filters=found_default_filters,
-        variables=variables,
-        metadata=metadata,
-        marker_prefix=marker_prefix,
-        style_readme_path=style_readme_path,
-        ignore_unresolved_internal_underscore_references=(
-            ignore_unresolved_internal_underscore_references
-        ),
-        non_authoritative_test_evidence_max_file_bytes=(
-            non_authoritative_test_evidence_max_file_bytes
-        ),
-        non_authoritative_test_evidence_max_files_scanned=(
-            non_authoritative_test_evidence_max_files_scanned
-        ),
-        non_authoritative_test_evidence_max_total_bytes=(
-            non_authoritative_test_evidence_max_total_bytes
-        ),
-        build_variable_insights=build_variable_insights,
-        attach_external_vars_context=_attach_external_vars_context,
-        collect_yaml_parse_failures=_collect_yaml_parse_failures,
-        extract_role_notes_from_comments=_extract_role_notes_from_comments,
-        build_undocumented_default_filters=_build_undocumented_default_filters,
-        extract_scanner_counters=_extract_scanner_counters,
-        build_display_variables=_build_display_variables,
-    )
-
-
 _attach_external_vars_context = _variable_insights.attach_external_vars_context
 
 
@@ -1357,6 +1321,18 @@ _build_undocumented_default_filters = partial(
 
 
 _build_display_variables = _variable_insights.build_display_variables
+
+
+_collect_variable_insights_and_default_filter_findings = partial(
+    _variable_insights.collect_variable_insights_and_default_filter_findings,
+    build_variable_insights=build_variable_insights,
+    attach_external_vars_context=_attach_external_vars_context,
+    collect_yaml_parse_failures=_collect_yaml_parse_failures,
+    extract_role_notes_from_comments=_extract_role_notes_from_comments,
+    build_undocumented_default_filters=_build_undocumented_default_filters,
+    extract_scanner_counters=_extract_scanner_counters,
+    build_display_variables=_build_display_variables,
+)
 
 
 _apply_style_and_comparison_metadata = partial(
@@ -1445,42 +1421,18 @@ def _collect_scan_base_context(scan_options: dict) -> _scan_context_ScanBaseCont
     )
 
 
-def _apply_unconstrained_dynamic_include_policy(
-    *,
-    role_path: str,
-    readme_config_path: str | None,
-    fail_on_unconstrained_dynamic_includes: bool | None,
-    metadata: dict,
-) -> None:
-    """Apply and enforce unconstrained dynamic include scan policy."""
-    _scan_runtime.apply_unconstrained_dynamic_include_policy(
-        role_path=role_path,
-        readme_config_path=readme_config_path,
-        fail_on_unconstrained_dynamic_includes=(fail_on_unconstrained_dynamic_includes),
-        metadata=metadata,
-        load_fail_on_unconstrained_dynamic_includes=(
-            load_fail_on_unconstrained_dynamic_includes
-        ),
-    )
+_apply_unconstrained_dynamic_include_policy = partial(
+    _scan_runtime.apply_unconstrained_dynamic_include_policy,
+    load_fail_on_unconstrained_dynamic_includes=(
+        load_fail_on_unconstrained_dynamic_includes
+    ),
+)
 
 
-def _apply_yaml_like_task_annotation_policy(
-    *,
-    role_path: str,
-    readme_config_path: str | None,
-    fail_on_yaml_like_task_annotations: bool | None,
-    metadata: dict,
-) -> None:
-    """Apply and enforce YAML-like task annotation strict-fail policy."""
-    _scan_runtime.apply_yaml_like_task_annotation_policy(
-        role_path=role_path,
-        readme_config_path=readme_config_path,
-        fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
-        metadata=metadata,
-        load_fail_on_yaml_like_task_annotations=(
-            load_fail_on_yaml_like_task_annotations
-        ),
-    )
+_apply_yaml_like_task_annotation_policy = partial(
+    _scan_runtime.apply_yaml_like_task_annotation_policy,
+    load_fail_on_yaml_like_task_annotations=(load_fail_on_yaml_like_task_annotations),
+)
 
 
 _finalize_scan_context_payload = _scan_runtime.finalize_scan_context_payload
@@ -1594,6 +1546,71 @@ def _enrich_scan_context_with_insights(
         build_doc_insights=build_doc_insights,
         apply_style_and_comparison_metadata=_apply_style_and_comparison_metadata,
     )
+
+
+_collect_scan_identity_and_artifacts = partial(
+    _scan_runtime.collect_scan_identity_and_artifacts,
+    resolve_scan_identity=_resolve_scan_identity,
+    load_readme_marker_prefix=load_readme_marker_prefix,
+    collect_scan_artifacts=_collect_scan_artifacts,
+)
+
+
+_apply_scan_metadata_configuration = partial(
+    _scan_runtime.apply_scan_metadata_configuration,
+    build_requirements_display=_build_requirements_display,
+    load_readme_section_config=load_readme_section_config,
+    apply_readme_section_config=_apply_readme_section_config,
+)
+
+
+_collect_scan_base_context = partial(
+    _scan_runtime.collect_scan_base_context,
+    collect_scan_identity_and_artifacts=_collect_scan_identity_and_artifacts,
+    apply_scan_metadata_configuration=_apply_scan_metadata_configuration,
+    apply_unconstrained_dynamic_include_policy=_apply_unconstrained_dynamic_include_policy,
+    apply_yaml_like_task_annotation_policy=_apply_yaml_like_task_annotation_policy,
+)
+
+
+_enrich_scan_context_with_insights = partial(
+    _scan_runtime.enrich_scan_context_with_insights,
+    collect_variable_insights_and_default_filter_findings=(
+        _collect_variable_insights_and_default_filter_findings
+    ),
+    build_doc_insights=build_doc_insights,
+    apply_style_and_comparison_metadata=_apply_style_and_comparison_metadata,
+)
+
+
+_prepare_scan_context = partial(
+    _scan_runtime.prepare_scan_context,
+    scan_context_builder_cls=ScanContextBuilder,
+    collect_scan_base_context=_collect_scan_base_context,
+    load_ignore_unresolved_internal_underscore_references=(
+        load_ignore_unresolved_internal_underscore_references
+    ),
+    load_non_authoritative_test_evidence_max_file_bytes=(
+        load_non_authoritative_test_evidence_max_file_bytes
+    ),
+    load_non_authoritative_test_evidence_max_files_scanned=(
+        load_non_authoritative_test_evidence_max_files_scanned
+    ),
+    load_non_authoritative_test_evidence_max_total_bytes=(
+        load_non_authoritative_test_evidence_max_total_bytes
+    ),
+    enrich_scan_context_with_insights=_enrich_scan_context_with_insights,
+    finalize_scan_context_payload=_finalize_scan_context_payload,
+    non_authoritative_test_evidence_max_file_bytes=(
+        NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES
+    ),
+    non_authoritative_test_evidence_max_files_scanned=(
+        NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED
+    ),
+    non_authoritative_test_evidence_max_total_bytes=(
+        NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES
+    ),
+)
 
 
 _build_scan_output_payload = _scan_runtime.build_scan_output_payload

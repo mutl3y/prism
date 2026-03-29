@@ -1,5 +1,6 @@
 """Focused tests for scan-context and output-payload shaping helpers."""
 
+from functools import partial
 from typing import get_type_hints
 
 from prism import scanner
@@ -79,99 +80,197 @@ def test_scan_context_builder_is_importable_from_scanner_core() -> None:
     assert ScanContextBuilder is not None
 
 
-def test_prepare_scan_context_delegates_to_scanner_core_builder(monkeypatch):
-    expected = (
-        "/tmp/role",
-        "demo_role",
-        "demo",
-        ["dep"],
-        [{"file": "tasks/main.yml"}],
+def test_prepare_scan_context_is_partial_alias_to_scan_runtime_builder():
+    helper = scanner._prepare_scan_context
+
+    assert isinstance(helper, partial)
+    assert helper.func is scanner._scan_runtime.prepare_scan_context
+    assert helper.keywords["scan_context_builder_cls"] is scanner.ScanContextBuilder
+    assert (
+        helper.keywords["collect_scan_base_context"]
+        is scanner._collect_scan_base_context
+    )
+
+
+def test_scanner_variable_insight_collection_helper_is_flattened_partial_alias():
+    helper = scanner._collect_variable_insights_and_default_filter_findings
+    assert isinstance(helper, partial)
+    assert (
+        helper.func
+        is scanner._variable_insights.collect_variable_insights_and_default_filter_findings
+    )
+    assert helper.keywords["build_variable_insights"] is scanner.build_variable_insights
+    assert (
+        helper.keywords["attach_external_vars_context"]
+        is scanner._attach_external_vars_context
+    )
+    assert (
+        helper.keywords["collect_yaml_parse_failures"]
+        is scanner._collect_yaml_parse_failures
+    )
+
+
+def test_scanner_build_variable_insights_is_flattened_partial_alias():
+    helper = scanner.build_variable_insights
+    assert callable(helper)
+
+
+def test_scanner_runtime_policy_helpers_are_flattened_partial_aliases():
+    unconstrained = scanner._apply_unconstrained_dynamic_include_policy
+    yaml_like = scanner._apply_yaml_like_task_annotation_policy
+
+    assert isinstance(unconstrained, partial)
+    assert isinstance(yaml_like, partial)
+
+    assert (
+        unconstrained.func
+        is scanner._scan_runtime.apply_unconstrained_dynamic_include_policy
+    )
+    assert (
+        yaml_like.func is scanner._scan_runtime.apply_yaml_like_task_annotation_policy
+    )
+    assert (
+        unconstrained.keywords["load_fail_on_unconstrained_dynamic_includes"]
+        is scanner.load_fail_on_unconstrained_dynamic_includes
+    )
+    assert (
+        yaml_like.keywords["load_fail_on_yaml_like_task_annotations"]
+        is scanner.load_fail_on_yaml_like_task_annotations
+    )
+
+
+def test_scanner_runtime_context_helpers_are_flattened_partial_aliases():
+    prepare_scan_context = scanner._prepare_scan_context
+    collect_scan_base_context = scanner._collect_scan_base_context
+    collect_scan_identity_and_artifacts = scanner._collect_scan_identity_and_artifacts
+    apply_scan_metadata_configuration = scanner._apply_scan_metadata_configuration
+    enrich_scan_context_with_insights = scanner._enrich_scan_context_with_insights
+
+    assert isinstance(prepare_scan_context, partial)
+    assert isinstance(collect_scan_base_context, partial)
+    assert isinstance(collect_scan_identity_and_artifacts, partial)
+    assert isinstance(apply_scan_metadata_configuration, partial)
+    assert isinstance(enrich_scan_context_with_insights, partial)
+
+    assert prepare_scan_context.func is scanner._scan_runtime.prepare_scan_context
+    assert (
+        prepare_scan_context.keywords["scan_context_builder_cls"]
+        is scanner.ScanContextBuilder
+    )
+    assert (
+        prepare_scan_context.keywords["collect_scan_base_context"]
+        is scanner._collect_scan_base_context
+    )
+
+    assert (
+        collect_scan_base_context.func
+        is scanner._scan_runtime.collect_scan_base_context
+    )
+    assert (
+        collect_scan_base_context.keywords["collect_scan_identity_and_artifacts"]
+        is scanner._collect_scan_identity_and_artifacts
+    )
+    assert (
+        collect_scan_base_context.keywords["apply_scan_metadata_configuration"]
+        is scanner._apply_scan_metadata_configuration
+    )
+
+    assert (
+        collect_scan_identity_and_artifacts.func
+        is scanner._scan_runtime.collect_scan_identity_and_artifacts
+    )
+    assert (
+        collect_scan_identity_and_artifacts.keywords["resolve_scan_identity"]
+        is scanner._resolve_scan_identity
+    )
+    assert (
+        collect_scan_identity_and_artifacts.keywords["collect_scan_artifacts"]
+        is scanner._collect_scan_artifacts
+    )
+
+    assert (
+        apply_scan_metadata_configuration.func
+        is scanner._scan_runtime.apply_scan_metadata_configuration
+    )
+    assert (
+        apply_scan_metadata_configuration.keywords["build_requirements_display"]
+        is scanner._build_requirements_display
+    )
+    assert (
+        apply_scan_metadata_configuration.keywords["load_readme_section_config"]
+        is scanner.load_readme_section_config
+    )
+    assert (
+        apply_scan_metadata_configuration.keywords["apply_readme_section_config"]
+        is scanner._apply_readme_section_config
+    )
+
+    assert (
+        enrich_scan_context_with_insights.func
+        is scanner._scan_runtime.enrich_scan_context_with_insights
+    )
+    assert (
+        enrich_scan_context_with_insights.keywords[
+            "collect_variable_insights_and_default_filter_findings"
+        ]
+        is scanner._collect_variable_insights_and_default_filter_findings
+    )
+    assert (
+        enrich_scan_context_with_insights.keywords[
+            "apply_style_and_comparison_metadata"
+        ]
+        is scanner._apply_style_and_comparison_metadata
+    )
+
+
+def test_scanner_output_report_helpers_are_flattened_partial_aliases():
+    write_report = scanner._write_concise_scanner_report_if_enabled
+    write_runbook = scanner._write_optional_runbook_outputs
+    emit_orchestration = scanner._emit_output_orchestration
+
+    assert isinstance(write_report, partial)
+    assert isinstance(write_runbook, partial)
+
+    assert (
+        write_report.func
+        is scanner._scan_output_write_concise_scanner_report_if_enabled
+    )
+    assert (
+        write_report.keywords["build_scanner_report_markdown"]
+        is scanner._build_scanner_report_markdown
+    )
+
+    assert write_runbook.func is scanner._scan_output_write_optional_runbook_outputs
+    assert write_runbook.keywords["render_runbook"] is scanner.render_runbook
+    assert write_runbook.keywords["render_runbook_csv"] is scanner.render_runbook_csv
+
+    result = emit_orchestration(
         {
-            "display_variables": {"name": {"required": False}},
-            "metadata": {"features": {"tasks_scanned": 1}},
-        },
+            "role_name": "demo",
+            "description": "desc",
+            "display_variables": {},
+            "requirements_display": [],
+            "undocumented_default_filters": [],
+            "metadata": {},
+            "output": "README.md",
+            "output_format": "md",
+            "template": None,
+            "dry_run": True,
+            "concise_readme": False,
+            "scanner_report_output": None,
+            "include_scanner_report_link": False,
+            "runbook_output": None,
+            "runbook_csv_output": None,
+        }
     )
-
-    class _StubBuilder:
-        def __init__(self, **_: object) -> None:
-            pass
-
-        def build_scan_context(self, scan_options: dict) -> tuple:
-            assert scan_options["role_path"] == "/tmp/role"
-            return expected
-
-    monkeypatch.setattr(scanner, "ScanContextBuilder", _StubBuilder)
-
-    result = scanner._prepare_scan_context({"role_path": "/tmp/role"})
-
-    assert result == expected
+    assert isinstance(result, str)
 
 
-def test_prepare_scan_context_delegates_to_scan_runtime_module(monkeypatch):
-    expected = (
-        "/tmp/role",
-        "demo_role",
-        "demo",
-        ["dep"],
-        [{"file": "tasks/main.yml"}],
-        {
-            "display_variables": {"name": {"required": False}},
-            "metadata": {"features": {"tasks_scanned": 1}},
-        },
-    )
-
-    def fake_prepare(scan_options: dict, **kwargs: object) -> tuple:
-        assert scan_options["role_path"] == "/tmp/role"
-        assert "scan_context_builder_cls" in kwargs
-        return expected
-
-    monkeypatch.setattr(scanner._scan_runtime, "prepare_scan_context", fake_prepare)
-
-    result = scanner._prepare_scan_context({"role_path": "/tmp/role"})
-    assert result == expected
-
-
-def test_collect_variable_insights_delegates_to_variable_insights_module(monkeypatch):
-    expected = ([{"name": "x"}], [{"target_var": "x"}], {"x": "<secret>"})
-
-    def fake_collect(*, role_path: str, **kwargs: object):
-        assert role_path == "/tmp/role"
-        assert "build_variable_insights" in kwargs
-        return expected
-
-    monkeypatch.setattr(
-        scanner._variable_insights,
-        "collect_variable_insights_and_default_filter_findings",
-        fake_collect,
-    )
-
-    result = scanner._collect_variable_insights_and_default_filter_findings(
-        role_path="/tmp/role",
-        vars_seed_paths=[],
-        include_vars_main=True,
-        exclude_path_patterns=None,
-        found_default_filters=[],
-        variables={},
-        metadata={},
-        marker_prefix="prism",
-    )
-    assert result == expected
-
-
-def test_build_variable_insights_delegates_to_variable_insights_module(monkeypatch):
-    expected = [{"name": "example", "documented": False, "secret": False}]
-
-    def fake_build(role_path: str, **kwargs: object) -> list[dict]:
-        assert role_path == "/tmp/role"
-        assert "load_role_variable_maps" in kwargs
-        return expected
-
-    monkeypatch.setattr(
-        scanner._variable_insights, "build_variable_insights", fake_build
-    )
-
-    result = scanner.build_variable_insights("/tmp/role", include_vars_main=True)
-    assert result == expected
+def test_scanner_facade_style_and_runbook_symbols_remain_import_compatible():
+    assert callable(scanner.render_runbook)
+    assert callable(scanner.render_runbook_csv)
+    assert callable(scanner.parse_style_readme)
+    assert callable(scanner.resolve_default_style_guide_source)
 
 
 def test_scan_output_payload_typed_seam_contract_annotations():

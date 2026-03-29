@@ -1,7 +1,7 @@
 """Focused tests for scan output sidecar orchestration helpers."""
 
 import importlib
-from pathlib import Path
+from functools import partial
 
 import pytest
 
@@ -108,65 +108,24 @@ def test_write_optional_runbook_outputs_writes_requested_sidecars(tmp_path):
     assert runbook_csv_out.read_text(encoding="utf-8") == "csv::1\n"
 
 
-def test_scanner_wrapper_write_concise_scanner_report_if_enabled_delegates(monkeypatch):
-    captured = {}
+def test_scanner_wrapper_write_concise_scanner_report_if_enabled_is_flattened_partial_alias():
+    helper = scanner._write_concise_scanner_report_if_enabled
 
-    def fake_write(**kwargs):
-        captured.update(kwargs)
-        return Path("/tmp/report.md")
-
-    monkeypatch.setattr(
-        scanner, "_scan_output_write_concise_scanner_report_if_enabled", fake_write
-    )
-
-    result = scanner._write_concise_scanner_report_if_enabled(
-        concise_readme=True,
-        scanner_report_output="scan.md",
-        out_path=Path("/tmp/README.md"),
-        include_scanner_report_link=True,
-        role_name="demo",
-        description="desc",
-        display_variables={"x": 1},
-        requirements_display=["dep"],
-        undocumented_default_filters=[],
-        metadata={},
-        dry_run=False,
-    )
-
-    assert result == Path("/tmp/report.md")
-    assert captured["concise_readme"] is True
-    assert captured["scanner_report_output"] == "scan.md"
+    assert isinstance(helper, partial)
+    assert helper.func is scanner._scan_output_write_concise_scanner_report_if_enabled
     assert (
-        captured["build_scanner_report_markdown"]
+        helper.keywords["build_scanner_report_markdown"]
         is scanner._build_scanner_report_markdown
     )
 
 
-def test_scanner_wrapper_write_optional_runbook_outputs_delegates(monkeypatch):
-    captured = {}
+def test_scanner_wrapper_write_optional_runbook_outputs_is_flattened_partial_alias():
+    helper = scanner._write_optional_runbook_outputs
 
-    def fake_write(**kwargs):
-        captured.update(kwargs)
-
-    monkeypatch.setattr(
-        scanner,
-        "_scan_output_write_optional_runbook_outputs",
-        fake_write,
-    )
-
-    scanner._write_optional_runbook_outputs(
-        runbook_output="RUNBOOK.md",
-        runbook_csv_output="RUNBOOK.csv",
-        role_name="demo",
-        metadata={"x": 1},
-    )
-
-    assert captured["runbook_output"] == "RUNBOOK.md"
-    assert captured["runbook_csv_output"] == "RUNBOOK.csv"
-    assert captured["role_name"] == "demo"
-    assert captured["metadata"] == {"x": 1}
-    assert captured["render_runbook"] is scanner.render_runbook
-    assert captured["render_runbook_csv"] is scanner.render_runbook_csv
+    assert isinstance(helper, partial)
+    assert helper.func is scanner._scan_output_write_optional_runbook_outputs
+    assert helper.keywords["render_runbook"] is scanner.render_runbook
+    assert helper.keywords["render_runbook_csv"] is scanner.render_runbook_csv
 
 
 def test_emit_scan_outputs_dry_run_returns_rendered_result(tmp_path):
