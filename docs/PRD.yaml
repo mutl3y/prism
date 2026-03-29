@@ -1,5 +1,5 @@
 prd_id: legacy-ansible-role-doc-retirement-20260329
-version: 5.7.0
+version: 5.8.0
 status: final
 
 user_stories:
@@ -31,7 +31,7 @@ acceptance_criteria:
   - criterion: Canonical behavior remains unchanged
     verification: full regression gate evidence (pytest, lint, mypy/typecheck) and focused behavioral checks where applicable show no functional regressions in canonical flows
   - criterion: Legacy section config fallback is removed
-    verification: `src/prism/scanner_config/section.py` no longer exposes `LEGACY_SECTION_CONFIG_FILENAME` or includes it in `SECTION_CONFIG_FILENAMES`
+    verification: "`src/prism/scanner_config/section.py` no longer exposes `LEGACY_SECTION_CONFIG_FILENAME` or includes it in `SECTION_CONFIG_FILENAMES`"
   - criterion: Retirement tests are only removed when redundant
     verification: removed tests are mapped to equivalent canonical coverage and full regression gate remains green
   - criterion: Public UX remains clear after retirement
@@ -69,6 +69,9 @@ features:
   - name: Scanner godfile decomposition wave 8 closure
     overview: Completed wave-8 seam migration closure with primary criteria met (seam migration complete, rollback-boundary behavior parity verified, and full closure gates green) while scanner.py size is captured as non-blocking telemetry (2035 to 2035, 0.00%).
     status: complete
+  - name: Scanner godfile decomposition wave 9 fast-track closure
+    overview: Completed wave-9 fast-track closure with seam-first primary criteria met (targeted seam migration complete, rollback-boundary parity verified across RB1/RB2/RB3, and full closure gates green with pytest, lint [ruff + black --check], and mypy typecheck) while scanner.py size remains non-blocking telemetry.
+    status: complete
 
 errors:
   - code: LEGACY_SECTION_CONFIG_UNSUPPORTED
@@ -86,24 +89,28 @@ decisions:
   - decision: Redundant retirement assertion tests may be removed
     rationale: Keep only behavior-oriented tests where canonical coverage already proves correctness.
   - decision: Existing legacy signal in section config constants must be treated as an active retirement target
-    rationale: `LEGACY_SECTION_CONFIG_FILENAME = '.ansible_role_doc.yml'` indicates an explicit remaining legacy support path.
+    rationale: "`LEGACY_SECTION_CONFIG_FILENAME = '.ansible_role_doc.yml'` indicates an explicit remaining legacy support path."
   - decision: Wave 8 closure evaluates seam completion and parity as primary, with scanner size as telemetry-only evidence
     rationale: Wave-8 closure contract defines seam migration completion plus parity and green gates as blocking criteria; scanner size capture is explicitly non-blocking reporting telemetry.
+  - decision: Wave 9 fast-track closure keeps seam-first blocking criteria and size telemetry as non-blocking
+    rationale: "Wave-9 closure contract and progress evidence preserve the same policy: seam migration completeness, parity stability, and full closure gates are required for completion; scanner size is recorded as telemetry only."
 
 changes:
+  - version: 5.8.0
+    change: "2026-03-29 - Recorded closure for scanner-godfile-decomposition-wave9-fasttrack-20260329: fast-track tasks w9_f_01 through w9_f_04 completed; seam-first primary criteria passed (targeted seam migration complete, RB1/RB2/RB3 parity PASS, and full closure gates PASS for pytest, lint [ruff + black --check], and mypy typecheck); scanner.py size retained as non-blocking telemetry."
   - version: 5.7.0
-    change: 2026-03-29 - Recorded closure for scanner-godfile-decomposition-wave8-20260329: primary closure criteria met (seam migration complete, rollback-boundary behavior parity verified, and full gates green with pytest, lint [ruff + black --check], and mypy typecheck); scanner.py size capture recorded as non-blocking telemetry (2035 to 2035, 0.00%).
+    change: "2026-03-29 - Recorded closure for scanner-godfile-decomposition-wave8-20260329: primary closure criteria met (seam migration complete, rollback-boundary behavior parity verified, and full gates green with pytest, lint [ruff + black --check], and mypy typecheck); scanner.py size capture recorded as non-blocking telemetry (2035 to 2035, 0.00%)."
   - version: 5.6.0
-    change: 2026-03-29 - Recorded closure for scanner-godfile-decomposition-wave7-20260329: scanner.py reduced from 2310 to 2035 lines (11.90%), deterministic wrapper-usage audit gate passed with zero hits, and unified closure gate passed (full pytest, lint with ruff + black --check, mypy typecheck).
+    change: "2026-03-29 - Recorded closure for scanner-godfile-decomposition-wave7-20260329: scanner.py reduced from 2310 to 2035 lines (11.90%), deterministic wrapper-usage audit gate passed with zero hits, and unified closure gate passed (full pytest, lint with ruff + black --check, mypy typecheck)."
   - version: 5.5.0
-    change: 2026-03-29 - Recorded closure for scanner-godfile-decomposition-wave6-20260329: scanner.py reduced from 2603 to 2303 lines (11.53%), deterministic wrapper-usage audit gate passed, and unified closure gate passed (full pytest, lint with ruff + black --check, mypy typecheck).
+    change: "2026-03-29 - Recorded closure for scanner-godfile-decomposition-wave6-20260329: scanner.py reduced from 2603 to 2303 lines (11.53%), deterministic wrapper-usage audit gate passed, and unified closure gate passed (full pytest, lint with ruff + black --check, mypy typecheck)."
   - version: 5.4.0
-    change: 2026-03-29 - Recorded closure for scanner-godfile-decomposition-wave5-20260329: scanner.py reduced from 3079 to 2603 lines (15.46%), compatibility wrappers moved to dedicated scanner_compat module seams, and unified closure gate passed (full pytest, lint with ruff + black --check, mypy typecheck).
+    change: "2026-03-29 - Recorded closure for scanner-godfile-decomposition-wave5-20260329: scanner.py reduced from 3079 to 2603 lines (15.46%), compatibility wrappers moved to dedicated scanner_compat module seams, and unified closure gate passed (full pytest, lint with ruff + black --check, mypy typecheck)."
   - version: 5.3.0
-    change: 2026-03-29 - Recorded closure for scanner-readme-input-parser-extract-20260329: wave tasks srip_01 through srip_04 completed, canonical parser moved to src/prism/scanner_readme/input_parser.py with scanner.py delegation, and unified closure gate passed (full pytest, lint with ruff + black --check, mypy typecheck).
+    change: "2026-03-29 - Recorded closure for scanner-readme-input-parser-extract-20260329: wave tasks srip_01 through srip_04 completed, canonical parser moved to src/prism/scanner_readme/input_parser.py with scanner.py delegation, and unified closure gate passed (full pytest, lint with ruff + black --check, mypy typecheck)."
   - version: 5.2.0
-    change: 2026-03-29 - Marked legacy ansible_role_doc retirement complete with closure evidence: deterministic legacy scan enforcement (zero disallowed active runtime/export hits), full pytest gate passing, lint gate passing (ruff + black --check), and mypy typecheck passing; see plan closure artifacts under docs/plan/legacy-ansible-role-doc-retire-20260329/.
+    change: "2026-03-29 - Marked legacy ansible_role_doc retirement complete with closure evidence: deterministic legacy scan enforcement (zero disallowed active runtime/export hits), full pytest gate passing, lint gate passing (ruff + black --check), and mypy typecheck passing; see plan closure artifacts under docs/plan/legacy-ansible-role-doc-retire-20260329/."
   - version: 5.1.0
-    change: 2026-03-29 - Relaxed acceptance evidence for canonical-behavior verification to rely on full regression gate results (pytest, lint, mypy/typecheck) plus focused behavioral checks where applicable; baseline/candidate comparison evidence is no longer required.
+    change: "2026-03-29 - Relaxed acceptance evidence for canonical-behavior verification to rely on full regression gate results (pytest, lint, mypy/typecheck) plus focused behavioral checks where applicable; baseline/candidate comparison evidence is no longer required."
   - version: 5.0.0
-    change: 2026-03-29 - Reframed PRD from wave-4 closure to ansible_role_doc legacy-path retirement program with aggressive scope, canonical-preservation guardrails, and explicit legacy-config removal target.
+    change: "2026-03-29 - Reframed PRD from wave-4 closure to ansible_role_doc legacy-path retirement program with aggressive scope, canonical-preservation guardrails, and explicit legacy-config removal target."

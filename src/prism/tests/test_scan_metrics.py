@@ -43,95 +43,28 @@ def test_append_non_authoritative_test_evidence_uncertainty_reason_shapes_suffix
     assert "Evidence scan budget limit was reached." in reason
 
 
-def test_scanner_wrapper_extract_scanner_counters_delegates(monkeypatch):
-    captured = {}
-
-    def fake_extract_scanner_counters(
-        variable_insights,
-        default_filters,
-        features,
-        parse_failures,
-    ):
-        captured["variable_insights"] = variable_insights
-        captured["default_filters"] = default_filters
-        captured["features"] = features
-        captured["parse_failures"] = parse_failures
-        return {"ok": 1}
-
-    monkeypatch.setattr(
-        scanner,
-        "_analysis_extract_scanner_counters",
-        fake_extract_scanner_counters,
+def test_scanner_wrapper_extract_scanner_counters_re_exports_canonical_implementation():
+    assert (
+        scanner._extract_scanner_counters is scanner._analysis_extract_scanner_counters
     )
 
-    result = scanner._extract_scanner_counters(
-        [{"name": "a"}],
-        [{"match": "b"}],
-        {"included_role_calls": 1},
-        [{"file": "tasks/main.yml"}],
+
+def test_scanner_wrapper_uncertainty_helpers_re_export_canonical_implementations():
+    assert (
+        scanner._build_referenced_variable_uncertainty_reason
+        is scanner._analysis_build_referenced_variable_uncertainty_reason
+    )
+    assert (
+        scanner._append_non_authoritative_test_evidence_uncertainty_reason
+        is scanner._analysis_append_non_authoritative_test_evidence_uncertainty_reason
     )
 
-    assert result == {"ok": 1}
-    assert captured["variable_insights"] == [{"name": "a"}]
-    assert captured["default_filters"] == [{"match": "b"}]
-    assert captured["features"] == {"included_role_calls": 1}
-    assert captured["parse_failures"] == [{"file": "tasks/main.yml"}]
 
-
-def test_scanner_wrapper_uncertainty_helpers_delegate(monkeypatch):
-    # Patch canonical analysis seam functions imported in scanner module
-    monkeypatch.setattr(
-        scanner,
-        "_analysis_build_referenced_variable_uncertainty_reason",
-        lambda **kwargs: f"build::{kwargs['name']}",
+def test_scanner_wrapper_attach_non_authoritative_test_evidence_re_exports_canonical():
+    assert (
+        scanner._attach_non_authoritative_test_evidence
+        is scanner._analysis_attach_non_authoritative_test_evidence
     )
-    monkeypatch.setattr(
-        scanner,
-        "_analysis_append_non_authoritative_test_evidence_uncertainty_reason",
-        lambda **kwargs: (f"append::{kwargs['prior_reason']}::{kwargs['match_count']}"),
-    )
-
-    reason = scanner._build_referenced_variable_uncertainty_reason(
-        name="MY_ENV",
-        seeded=False,
-        dynamic_include_vars_refs=[],
-        dynamic_include_var_tokens=set(),
-        dynamic_task_include_tokens=set(),
-    )
-    merged = scanner._append_non_authoritative_test_evidence_uncertainty_reason(
-        prior_reason="base",
-        match_count=2,
-        matched_file_count=1,
-        saturation_threshold=4,
-        scan_budget_hit=False,
-    )
-
-    assert reason == "build::MY_ENV"
-    assert merged == "append::base::2"
-
-
-def test_scanner_wrapper_attach_non_authoritative_test_evidence_delegates(monkeypatch):
-    captured = {}
-
-    def fake_attach_non_authoritative_test_evidence(**kwargs):
-        captured.update(kwargs)
-
-    monkeypatch.setattr(
-        scanner,
-        "_analysis_attach_non_authoritative_test_evidence",
-        fake_attach_non_authoritative_test_evidence,
-    )
-
-    rows = [{"name": "external_input", "is_unresolved": True}]
-    scanner._attach_non_authoritative_test_evidence(
-        role_path="/tmp/role",
-        rows=rows,
-        exclude_paths=["tests/fixtures/**"],
-    )
-
-    assert captured["role_path"] == "/tmp/role"
-    assert captured["rows"] == rows
-    assert captured["exclude_paths"] == ["tests/fixtures/**"]
 
 
 def test_should_suppress_internal_unresolved_reference_matches_policy_shape():

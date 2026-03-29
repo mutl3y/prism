@@ -66,3 +66,9 @@
 - Wave 8 closure validated a seam-first policy with scanner-size tracked as non-blocking telemetry rather than a closure gate.
 - Closure gates were green together at completion: full pytest, lint (ruff + black --check), and mypy typecheck.
 - Key technical outcome: the `scanner_core` reverse bridge to `scanner.py` was removed, eliminating that compatibility seam from canonical runtime flow.
+
+## Notable Findings (Plan Closure: scanner-godfile-decomposition-wave9-fasttrack-20260329)
+
+- Wave 9 fast-track closure is complete (2026-03-29): large-batch seam migrations with rollback-boundary checks and one final full closure gate passed together.
+- Seam-first blocking criteria remained the closure contract, and scanner-size stayed non-blocking telemetry for decision-making continuity.
+- Current telemetry from wave 9 artifacts records `scanner.py` at 1856 lines.

@@ -860,94 +860,29 @@ def _append_referenced_variable_rows(
     )
 
 
-def _should_suppress_internal_unresolved_reference(
-    *,
-    name: str,
-    seed_values: dict,
-    ignore_unresolved_internal_underscore_references: bool,
-) -> bool:
-    """Return whether an unresolved internal temp-style name should be skipped."""
-    return _analysis_should_suppress_internal_unresolved_reference(
-        name=name,
-        seed_values=seed_values,
-        ignore_unresolved_internal_underscore_references=ignore_unresolved_internal_underscore_references,
-    )
+_should_suppress_internal_unresolved_reference = (
+    _analysis_should_suppress_internal_unresolved_reference
+)
 
 
-def _build_referenced_variable_uncertainty_reason(
-    *,
-    name: str,
-    seeded: bool,
-    dynamic_include_vars_refs: list[str],
-    dynamic_include_var_tokens: set[str],
-    dynamic_task_include_tokens: set[str],
-) -> str:
-    """Return uncertainty reason text for inferred referenced variables."""
-    return _analysis_build_referenced_variable_uncertainty_reason(
-        name=name,
-        seeded=seeded,
-        dynamic_include_vars_refs=dynamic_include_vars_refs,
-        dynamic_include_var_tokens=dynamic_include_var_tokens,
-        dynamic_task_include_tokens=dynamic_task_include_tokens,
-    )
+_build_referenced_variable_uncertainty_reason = (
+    _analysis_build_referenced_variable_uncertainty_reason
+)
 
 
-def _append_non_authoritative_test_evidence_uncertainty_reason(
-    *,
-    prior_reason: str,
-    match_count: int,
-    matched_file_count: int,
-    saturation_threshold: int,
-    scan_budget_hit: bool,
-) -> str:
-    """Append non-authoritative test-evidence telemetry to uncertainty notes."""
-    return _analysis_append_non_authoritative_test_evidence_uncertainty_reason(
-        prior_reason=prior_reason,
-        match_count=match_count,
-        matched_file_count=matched_file_count,
-        saturation_threshold=saturation_threshold,
-        scan_budget_hit=scan_budget_hit,
-    )
+_append_non_authoritative_test_evidence_uncertainty_reason = (
+    _analysis_append_non_authoritative_test_evidence_uncertainty_reason
+)
 
 
-def _collect_non_authoritative_test_variable_evidence(
-    *,
-    role_path: str,
-    unresolved_names: set[str],
-    exclude_paths: list[str] | None,
-    max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
-    max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
-    max_total_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
-) -> dict[str, dict]:
-    """Collect non-authoritative unresolved-name evidence from tests/molecule files."""
-    return _analysis_collect_non_authoritative_test_variable_evidence(
-        role_path=role_path,
-        unresolved_names=unresolved_names,
-        exclude_paths=exclude_paths,
-        max_file_bytes=max_file_bytes,
-        max_files_scanned=max_files_scanned,
-        max_total_bytes=max_total_bytes,
-    )
+_collect_non_authoritative_test_variable_evidence = (
+    _analysis_collect_non_authoritative_test_variable_evidence
+)
 
 
-def _attach_non_authoritative_test_evidence(
-    *,
-    role_path: str,
-    rows: list[dict],
-    exclude_paths: list[str] | None,
-    max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
-    max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
-    max_total_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
-) -> None:
-    """Enrich unresolved rows with non-authoritative evidence from tests files."""
-    return _analysis_attach_non_authoritative_test_evidence(
-        role_path=role_path,
-        rows=rows,
-        exclude_paths=exclude_paths,
-        max_file_bytes=max_file_bytes,
-        max_files_scanned=max_files_scanned,
-        max_total_bytes=max_total_bytes,
-    )
+_attach_non_authoritative_test_evidence = (
+    _analysis_attach_non_authoritative_test_evidence
+)
 
 
 def build_variable_insights(
@@ -1215,18 +1150,7 @@ _build_scanner_report_markdown = partial(
 )
 
 
-def _extract_scanner_counters(
-    variable_insights: list[dict],
-    default_filters: list[dict],
-    features: dict | None = None,
-    parse_failures: list[dict[str, object]] | None = None,
-) -> dict[str, int | dict[str, int]]:
-    return _analysis_extract_scanner_counters(
-        variable_insights,
-        default_filters,
-        features,
-        parse_failures,
-    )
+_extract_scanner_counters = _analysis_extract_scanner_counters
 
 
 _classify_provenance_issue = _runbook_report_classify_provenance_issue
@@ -1303,15 +1227,10 @@ def _write_concise_scanner_report_if_enabled(
     )
 
 
-def _resolve_scan_identity(
-    role_path: str,
-    role_name_override: str | None,
-) -> tuple[Path, dict, str, str]:
-    return _scan_discovery_resolve_scan_identity(
-        role_path,
-        role_name_override,
-        load_meta_fn=load_meta,
-    )
+_resolve_scan_identity = partial(
+    _scan_discovery_resolve_scan_identity,
+    load_meta_fn=load_meta,
+)
 
 
 _collect_scan_artifacts = partial(
@@ -1429,19 +1348,12 @@ def _collect_variable_insights_and_default_filter_findings(
 _attach_external_vars_context = _variable_insights.attach_external_vars_context
 
 
-def _build_undocumented_default_filters(
-    *,
-    variable_insights: list[dict],
-    found_default_filters: list[dict],
-) -> list[dict]:
-    """Return undocumented default() occurrences enriched with variable metadata."""
-    return _variable_insights.build_undocumented_default_filters(
-        variable_insights=variable_insights,
-        found_default_filters=found_default_filters,
-        extract_default_target_var=_extract_default_target_var,
-        looks_secret_name=_looks_secret_name,
-        resembles_password_like=_resembles_password_like,
-    )
+_build_undocumented_default_filters = partial(
+    _variable_insights.build_undocumented_default_filters,
+    extract_default_target_var=_extract_default_target_var,
+    looks_secret_name=_looks_secret_name,
+    resembles_password_like=_resembles_password_like,
+)
 
 
 _build_display_variables = _variable_insights.build_display_variables

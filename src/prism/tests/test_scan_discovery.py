@@ -1,7 +1,5 @@
 """Focused tests for scan discovery/path extraction and scanner wrappers."""
 
-from pathlib import Path
-
 import pytest
 
 from prism import scanner
@@ -105,24 +103,11 @@ def test_scanner_wrapper_load_variables_delegates(monkeypatch):
     assert callable(captured["include_vars_callback"])
 
 
-def test_scanner_wrapper_resolve_scan_identity_delegates(monkeypatch):
-    captured = {}
-
-    def fake_resolve_scan_identity(role_path, role_name_override, *, load_meta_fn):
-        captured["role_path"] = role_path
-        captured["role_name_override"] = role_name_override
-        captured["load_meta_fn"] = load_meta_fn
-        return Path("/tmp/demo"), {"galaxy_info": {}}, "demo", "desc"
-
-    monkeypatch.setattr(
-        scanner,
-        "_scan_discovery_resolve_scan_identity",
-        fake_resolve_scan_identity,
+def test_scanner_wrapper_resolve_scan_identity_re_exports_canonical_with_load_meta():
+    assert (
+        scanner._resolve_scan_identity.func
+        is scanner._scan_discovery_resolve_scan_identity
     )
-
-    result = scanner._resolve_scan_identity("/tmp/demo", "override")
-
-    assert result == (Path("/tmp/demo"), {"galaxy_info": {}}, "demo", "desc")
-    assert captured["role_path"] == "/tmp/demo"
-    assert captured["role_name_override"] == "override"
-    assert captured["load_meta_fn"] is scanner.load_meta
+    assert scanner._resolve_scan_identity.keywords == {
+        "load_meta_fn": scanner.load_meta
+    }
