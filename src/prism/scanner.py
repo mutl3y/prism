@@ -33,8 +33,8 @@ from .scanner_config import (
     load_readme_section_visibility as _load_readme_section_visibility,
 )
 from .scanner_data.contracts import (
-    VariableProvenance,
-    VariableRow,
+    VariableProvenance as _contracts_VariableProvenance,
+    VariableRow as _contracts_VariableRow,
     EmitScanOutputsArgs as _scan_context_EmitScanOutputsArgs,
     ReferenceContext as _scan_context_ReferenceContext,
     RunScanOutputPayload as _scan_context_RunScanOutputPayload,
@@ -215,10 +215,13 @@ from .scanner_readme import (
 )
 from .scanner_readme import render_readme as _render_readme_mod_render_readme
 
-
 # Load pattern policy (built-in defaults, optionally merged with a repo override).
 # Pass override_path to load_pattern_config() if you want to merge a local file.
 _POLICY = load_pattern_config()
+
+# Backward-compatible public contract exports now alias scanner_data definitions.
+VariableProvenance = _contracts_VariableProvenance
+VariableRow = _contracts_VariableRow
 
 STYLE_SECTION_ALIASES: dict[str, str] = _POLICY["section_aliases"]
 
