@@ -12,11 +12,10 @@ specialized orchestrators (VariableDiscovery, OutputOrchestrator, FeatureDetecto
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
-from . import scan_request, scan_runtime
+from . import scan_request
 from .di import DIContainer
-from .scan_context_builder import ScanContextBuilder
 
 
 class ScannerContext:
@@ -43,6 +42,8 @@ class ScannerContext:
         di: DIContainer,
         role_path: str,
         scan_options: dict[str, Any],
+        build_run_scan_options_fn: Callable[..., dict[str, Any]] | None = None,
+        prepare_scan_context_fn: Callable[..., Any] | None = None,
     ) -> None:
         """Initialize context with DI container and scan options.
 
@@ -65,6 +66,10 @@ class ScannerContext:
         self._di = di
         self._role_path = role_path
         self._scan_options = scan_options
+        self._build_run_scan_options_fn = (
+            build_run_scan_options_fn or scan_request.build_run_scan_options
+        )
+        self._prepare_scan_context_fn = prepare_scan_context_fn
 
         # Internal state: discovered variables and features stored as immutable tuples/dicts
         self._discovered_variables: tuple[Any, ...] = ()
@@ -254,10 +259,7 @@ class ScannerContext:
                 "metadata": metadata,
             }
 
-        # Import lazily to avoid import cycles at module load time.
-        from prism import scanner as scanner_module
-
-        normalized_scan_options = scan_request.build_run_scan_options(
+        normalized_scan_options = self._build_run_scan_options_fn(
             role_path=str(self._scan_options.get("role_path") or self._role_path),
             role_name_override=self._scan_options.get("role_name_override"),
             readme_config_path=self._scan_options.get("readme_config_path"),
@@ -298,6 +300,11 @@ class ScannerContext:
             ),
         )
 
+        if self._prepare_scan_context_fn is None:
+            raise RuntimeError(
+                "prepare_scan_context_fn must be provided when using normalized scan options"
+            )
+
         (
             _rp,
             role_name,
@@ -305,36 +312,7 @@ class ScannerContext:
             requirements_display,
             undocumented_default_filters,
             scan_context,
-        ) = scan_runtime.prepare_scan_context(
-            normalized_scan_options,
-            scan_context_builder_cls=ScanContextBuilder,
-            collect_scan_base_context=scanner_module._collect_scan_base_context,
-            load_ignore_unresolved_internal_underscore_references=(
-                scanner_module.load_ignore_unresolved_internal_underscore_references
-            ),
-            load_non_authoritative_test_evidence_max_file_bytes=(
-                scanner_module.load_non_authoritative_test_evidence_max_file_bytes
-            ),
-            load_non_authoritative_test_evidence_max_files_scanned=(
-                scanner_module.load_non_authoritative_test_evidence_max_files_scanned
-            ),
-            load_non_authoritative_test_evidence_max_total_bytes=(
-                scanner_module.load_non_authoritative_test_evidence_max_total_bytes
-            ),
-            enrich_scan_context_with_insights=(
-                scanner_module._enrich_scan_context_with_insights
-            ),
-            finalize_scan_context_payload=scanner_module._finalize_scan_context_payload,
-            non_authoritative_test_evidence_max_file_bytes=(
-                scanner_module.NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES
-            ),
-            non_authoritative_test_evidence_max_files_scanned=(
-                scanner_module.NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED
-            ),
-            non_authoritative_test_evidence_max_total_bytes=(
-                scanner_module.NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES
-            ),
-        )
+        ) = self._prepare_scan_context_fn(normalized_scan_options)
 
         metadata = dict(scan_context.get("metadata") or {})
         if "features" not in metadata and self._detected_features:
