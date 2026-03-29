@@ -1128,16 +1128,26 @@ def test_variable_insights_wrappers_re_export_canonical_implementations():
 
 
 def test_runbook_bridge_wrappers_re_export_canonical_implementations():
-    """Runbook bridge scanner helpers should be canonical scanner_analysis aliases."""
+    """Runbook bridge scanner helpers should match canonical runbook behavior."""
     from prism.scanner_analysis import (
         build_runbook_rows,
         render_runbook,
         render_runbook_csv,
     )
 
-    assert scanner.render_runbook is render_runbook
-    assert scanner.render_runbook_csv is render_runbook_csv
-    assert scanner._build_runbook_rows is build_runbook_rows
+    metadata = {
+        "task_catalog": [
+            {
+                "file": "tasks/main.yml",
+                "name": "Install package",
+                "module": "ansible.builtin.package",
+            }
+        ]
+    }
+
+    assert scanner._build_runbook_rows(metadata) == build_runbook_rows(metadata)
+    assert scanner.render_runbook("demo", metadata) == render_runbook("demo", metadata)
+    assert scanner.render_runbook_csv(metadata) == render_runbook_csv(metadata)
 
 
 def test_scanner_refresh_policy_keeps_wrapper_and_canonical_ignored_in_sync(

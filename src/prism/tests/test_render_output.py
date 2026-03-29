@@ -3,8 +3,6 @@
 from pathlib import Path
 from unittest import mock
 
-
-from prism import scanner
 from prism.scanner_io import emit_output
 
 
@@ -46,34 +44,6 @@ def test_orchestrate_output_emission_coordinates_primary_and_sidecars(tmp_path):
     )
 
     assert result is not None
-
-
-def test_emit_output_wrapper_delegates_to_submodule():
-    """Test that scanner._emit_output_orchestration delegates correctly."""
-    orchestration_args = {
-        "role_name": "test",
-        "description": "desc",
-        "display_variables": {},
-        "requirements_display": [],
-        "undocumented_default_filters": [],
-        "metadata": {},
-        "output": "README.md",
-        "output_format": "md",
-        "template": None,
-        "dry_run": True,
-        "concise_readme": False,
-        "scanner_report_output": None,
-        "include_scanner_report_link": False,
-        "runbook_output": None,
-        "runbook_csv_output": None,
-    }
-
-    # The result should be a string when called with dry_run=True
-    result = scanner._emit_output_orchestration(orchestration_args)
-
-    assert isinstance(result, str)
-    # Verify it's not empty
-    assert len(result) > 0
 
 
 def test_build_output_emission_context_captures_all_params():
@@ -233,8 +203,5 @@ def test_resolve_scanner_report_path_respects_explicit():
     assert report_path == explicit
 
 
-def test_scanner_emit_output_alias_targets_canonical_scanner_io_module():
-    assert (
-        scanner._emit_output_orchestrate_output_emission.__module__
-        == "prism.scanner_io.emit_output"
-    )
+def test_emit_output_module_exposes_orchestration_entrypoint():
+    assert callable(emit_output.orchestrate_output_emission)

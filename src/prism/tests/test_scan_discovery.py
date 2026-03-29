@@ -64,12 +64,31 @@ def test_scan_discovery_resolve_scan_identity_raises_for_missing_role_path(tmp_p
         )
 
 
-def test_scanner_wrapper_load_meta_re_exports_canonical_implementation():
-    assert scanner.load_meta is scanner._scan_discovery_load_meta
+def test_scanner_load_meta_reads_role_metadata_file(tmp_path):
+    role = tmp_path / "role"
+    (role / "meta").mkdir(parents=True)
+    (role / "meta" / "main.yml").write_text(
+        "galaxy_info:\n  role_name: demo\n  description: Demo role\n",
+        encoding="utf-8",
+    )
+
+    result = scanner.load_meta(str(role))
+
+    assert result["galaxy_info"]["role_name"] == "demo"
+    assert result["galaxy_info"]["description"] == "Demo role"
 
 
-def test_scanner_wrapper_load_requirements_re_exports_canonical_implementation():
-    assert scanner.load_requirements is scanner._scan_discovery_load_requirements
+def test_scanner_load_requirements_reads_meta_requirements_file(tmp_path):
+    role = tmp_path / "role"
+    (role / "meta").mkdir(parents=True)
+    (role / "meta" / "requirements.yml").write_text(
+        "- ansible.posix\n- community.general\n",
+        encoding="utf-8",
+    )
+
+    result = scanner.load_requirements(str(role))
+
+    assert result == ["ansible.posix", "community.general"]
 
 
 def test_scanner_wrapper_load_variables_delegates(monkeypatch):
@@ -103,11 +122,20 @@ def test_scanner_wrapper_load_variables_delegates(monkeypatch):
     assert callable(captured["include_vars_callback"])
 
 
-def test_scanner_wrapper_resolve_scan_identity_re_exports_canonical_with_load_meta():
-    assert (
-        scanner._resolve_scan_identity.func
-        is scanner._scan_discovery_resolve_scan_identity
+def test_scanner_wrapper_resolve_scan_identity_applies_override_when_meta_role_is_repo(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    role.mkdir(parents=True)
+    (role / "meta").mkdir(parents=True)
+    (role / "meta" / "main.yml").write_text(
+        "galaxy_info:\n  role_name: repo\n  description: meta description\n",
+        encoding="utf-8",
     )
-    assert scanner._resolve_scan_identity.keywords == {
-        "load_meta_fn": scanner.load_meta
-    }
+
+    resolved = scanner._resolve_scan_identity(str(role), "override_name")
+
+    assert resolved[0] == role
+    assert resolved[1]["galaxy_info"]["role_name"] == "repo"
+    assert resolved[2] == "override_name"
+    assert resolved[3] == "meta description"

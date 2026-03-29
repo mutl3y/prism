@@ -223,36 +223,12 @@ def test_scanner_runtime_context_helpers_are_flattened_partial_aliases():
     )
 
 
-def test_scanner_output_report_helpers_are_scanner_owned_functions():
-    write_report = scanner._write_concise_scanner_report_if_enabled
-    write_runbook = scanner._write_optional_runbook_outputs
-    emit_orchestration = scanner._emit_output_orchestration
-
-    assert callable(write_report)
-    assert callable(write_runbook)
-    assert write_report.__module__ == "prism.scanner"
-    assert write_runbook.__module__ == "prism.scanner"
-
-    result = emit_orchestration(
-        {
-            "role_name": "demo",
-            "description": "desc",
-            "display_variables": {},
-            "requirements_display": [],
-            "undocumented_default_filters": [],
-            "metadata": {},
-            "output": "README.md",
-            "output_format": "md",
-            "template": None,
-            "dry_run": True,
-            "concise_readme": False,
-            "scanner_report_output": None,
-            "include_scanner_report_link": False,
-            "runbook_output": None,
-            "runbook_csv_output": None,
-        }
+def test_scanner_output_helpers_route_through_runtime_and_canonical_emission():
+    assert callable(scanner._emit_scan_outputs)
+    assert (
+        scanner._scan_output_emit_scan_outputs.__module__
+        == "prism.scanner_io.scan_output_emission"
     )
-    assert isinstance(result, str)
 
 
 def test_scanner_facade_style_and_runbook_symbols_remain_import_compatible():

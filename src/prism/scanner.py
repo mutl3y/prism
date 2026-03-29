@@ -11,7 +11,6 @@ import os
 from functools import partial
 from pathlib import Path
 import re
-from typing import TypedDict
 
 from .scanner_io import (
     render_final_output,
@@ -34,22 +33,19 @@ from .scanner_config import (
     load_readme_section_visibility as _load_readme_section_visibility,
 )
 from .scanner_data.contracts import (
+    VariableProvenance,
+    VariableRow,
     EmitScanOutputsArgs as _scan_context_EmitScanOutputsArgs,
     ReferenceContext as _scan_context_ReferenceContext,
     RunScanOutputPayload as _scan_context_RunScanOutputPayload,
     ScanMetadata as _scan_context_ScanMetadata,
 )
 from .scanner_io.scan_output_emission import (
-    write_optional_runbook_outputs as _scan_output_write_optional_runbook_outputs,
-    write_concise_scanner_report_if_enabled as _scan_output_write_concise_scanner_report_if_enabled,
     emit_scan_outputs as _scan_output_emit_scan_outputs,
 )
 from .scanner_io.scan_output_primary import (
     render_and_write_scan_output as _scan_output_primary_render_and_write_scan_output,
     render_primary_scan_output as _scan_output_primary_render_primary_scan_output,
-)
-from .scanner_io.emit_output import (
-    orchestrate_output_emission as _emit_output_orchestrate_output_emission,
 )
 from .scanner_core import DIContainer, ScanContextBuilder, ScannerContext
 from .scanner_core import scan_request
@@ -116,6 +112,15 @@ from .scanner_analysis import (
     render_runbook_csv as _runbook_report_render_runbook_csv,
 )
 from .scanner_readme import (
+    _append_scanner_report_section_if_enabled as _readme_append_scanner_report_section_if_enabled,
+    _compose_section_body as _readme_compose_section_body,
+    _generated_merge_markers as _readme_generated_merge_markers,
+    _render_guide_identity_sections as _readme_render_guide_identity_sections,
+    _render_guide_section_body as _readme_render_guide_section_body,
+    _render_readme_with_style_guide as _readme_render_readme_with_style_guide,
+    _resolve_ordered_style_sections as _readme_resolve_ordered_style_sections,
+    _resolve_section_content_mode as _readme_resolve_section_content_mode,
+    _strip_prior_generated_merge_block as _readme_strip_prior_generated_merge_block,
     detect_style_section_level,
     format_heading,
     normalize_style_heading,
@@ -209,61 +214,6 @@ from .scanner_readme import (
     _render_variable_uncertainty_notes as _render_variable_uncertainty_notes,
 )
 from .scanner_readme import render_readme as _render_readme_mod_render_readme
-from .scanner_compat import (
-    append_scanner_report_section_if_enabled as _compat_append_scanner_report_section_if_enabled,
-    compose_section_body as _compat_compose_section_body,
-    generated_merge_markers as _compat_generated_merge_markers,
-    render_guide_identity_sections as _compat_render_guide_identity_sections,
-    render_guide_section_body as _compat_render_guide_section_body,
-    render_readme_with_style_guide as _compat_render_readme_with_style_guide,
-    resolve_ordered_style_sections as _compat_resolve_ordered_style_sections,
-    resolve_section_content_mode as _compat_resolve_section_content_mode,
-    strip_prior_generated_merge_block as _compat_strip_prior_generated_merge_block,
-)
-
-
-class VariableProvenance(TypedDict, total=False):
-    """Metadata tracking the source and confidence of a variable."""
-
-    source_file: str
-    """Relative path to source file (e.g. 'defaults/main.yml')."""
-    line: int | None
-    """Line number in source file, if determinable."""
-    confidence: float
-    """Confidence level (0.0-1.0): explicit=0.95, inferred=0.5-0.7, dynamic_unknown=0.4."""
-    source_type: str
-    """Source type: defaults, vars, meta, include_vars, set_fact, readme."""
-
-
-class VariableRow(TypedDict, total=False):
-    """A variable discovered during role scanning with provenance metadata."""
-
-    name: str
-    """Variable name."""
-    type: str
-    """Inferred type: string, list, dict, int, bool, computed, documented, required."""
-    default: str
-    """Formatted default value or placeholder."""
-    source: str
-    """Human-readable source description."""
-    documented: bool
-    """True if variable is explicitly documented somewhere."""
-    required: bool
-    """True if variable appears required (no default found)."""
-    secret: bool
-    """True if variable looks like a credential or sensitive value."""
-    provenance_source_file: str
-    """Relative path to source file (e.g. 'defaults/main.yml')."""
-    provenance_line: int | None
-    """Line number in source file, if determinable."""
-    provenance_confidence: float
-    """Confidence level (0.0-1.0) for this variable's accuracy."""
-    uncertainty_reason: str | None
-    """Explanation if confidence is below 1.0 or variable is ambiguous."""
-    is_unresolved: bool
-    """True if variable cannot be resolved to a static definition."""
-    is_ambiguous: bool
-    """True if variable has multiple possible sources or values."""
 
 
 # Load pattern policy (built-in defaults, optionally merged with a repo override).
@@ -1123,24 +1073,24 @@ def load_readme_section_config(
     )
 
 
-_render_guide_identity_sections = _compat_render_guide_identity_sections
+_render_guide_identity_sections = _readme_render_guide_identity_sections
 
 
 _render_guide_section_body = partial(
-    _compat_render_guide_section_body,
+    _readme_render_guide_section_body,
     variable_guidance_keywords=_VARIABLE_GUIDANCE_KEYWORDS,
 )
 
 
-_generated_merge_markers = _compat_generated_merge_markers
-_strip_prior_generated_merge_block = _compat_strip_prior_generated_merge_block
-_resolve_section_content_mode = _compat_resolve_section_content_mode
-_compose_section_body = _compat_compose_section_body
-_resolve_ordered_style_sections = _compat_resolve_ordered_style_sections
+_generated_merge_markers = _readme_generated_merge_markers
+_strip_prior_generated_merge_block = _readme_strip_prior_generated_merge_block
+_resolve_section_content_mode = _readme_resolve_section_content_mode
+_compose_section_body = _readme_compose_section_body
+_resolve_ordered_style_sections = _readme_resolve_ordered_style_sections
 _append_scanner_report_section_if_enabled = (
-    _compat_append_scanner_report_section_if_enabled
+    _readme_append_scanner_report_section_if_enabled
 )
-_render_readme_with_style_guide = _compat_render_readme_with_style_guide
+_render_readme_with_style_guide = _readme_render_readme_with_style_guide
 
 
 _build_scanner_report_markdown = partial(
@@ -1195,37 +1145,6 @@ render_runbook_csv = _runbook_report_render_runbook_csv
 _build_requirements_display = _runbook_report_build_requirements_display
 
 
-def _write_concise_scanner_report_if_enabled(
-    *,
-    concise_readme: bool,
-    scanner_report_output: str | None,
-    out_path: Path,
-    include_scanner_report_link: bool,
-    role_name: str,
-    description: str,
-    display_variables: dict,
-    requirements_display: list,
-    undocumented_default_filters: list,
-    metadata: dict,
-    dry_run: bool,
-) -> Path | None:
-    """Write scanner sidecar report when concise mode is enabled."""
-    return _scan_output_write_concise_scanner_report_if_enabled(
-        concise_readme=concise_readme,
-        scanner_report_output=scanner_report_output,
-        out_path=out_path,
-        include_scanner_report_link=include_scanner_report_link,
-        role_name=role_name,
-        description=description,
-        display_variables=display_variables,
-        requirements_display=requirements_display,
-        undocumented_default_filters=undocumented_default_filters,
-        metadata=metadata,
-        dry_run=dry_run,
-        build_scanner_report_markdown=_build_scanner_report_markdown,
-    )
-
-
 _resolve_scan_identity = partial(
     _scan_discovery_resolve_scan_identity,
     load_meta_fn=load_meta,
@@ -1247,35 +1166,6 @@ _collect_scan_artifacts = partial(
     ),
     collect_task_handler_catalog=_collect_task_handler_catalog,
 )
-
-
-def _write_optional_runbook_outputs(
-    *,
-    runbook_output: str | None,
-    runbook_csv_output: str | None,
-    role_name: str,
-    metadata: dict,
-) -> None:
-    """Write standalone runbook outputs when requested."""
-    _scan_output_write_optional_runbook_outputs(
-        runbook_output=runbook_output,
-        runbook_csv_output=runbook_csv_output,
-        role_name=role_name,
-        metadata=metadata,
-        render_runbook=render_runbook,
-        render_runbook_csv=render_runbook_csv,
-    )
-
-
-def _emit_output_orchestration(args: dict) -> str:
-    """Orchestrate output emission (primary + sidecars) for a scanner run."""
-    return _emit_output_orchestrate_output_emission(
-        args=args,
-        render_and_write=_render_and_write_scan_output,
-        render_scanner_report=_build_scanner_report_markdown,
-        render_runbook=render_runbook,
-        render_runbook_csv=render_runbook_csv,
-    )
 
 
 def _apply_readme_section_config(

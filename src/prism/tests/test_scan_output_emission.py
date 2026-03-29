@@ -1,7 +1,6 @@
 """Focused tests for scan output sidecar orchestration helpers."""
 
 import importlib
-import types
 
 import pytest
 
@@ -106,20 +105,6 @@ def test_write_optional_runbook_outputs_writes_requested_sidecars(tmp_path):
 
     assert runbook_out.read_text(encoding="utf-8") == "runbook::demo::1\n"
     assert runbook_csv_out.read_text(encoding="utf-8") == "csv::1\n"
-
-
-def test_scanner_wrapper_write_concise_scanner_report_if_enabled_is_scanner_owned_function():
-    helper = scanner._write_concise_scanner_report_if_enabled
-
-    assert isinstance(helper, types.FunctionType)
-    assert helper.__module__ == "prism.scanner"
-
-
-def test_scanner_wrapper_write_optional_runbook_outputs_is_scanner_owned_function():
-    helper = scanner._write_optional_runbook_outputs
-
-    assert isinstance(helper, types.FunctionType)
-    assert helper.__module__ == "prism.scanner"
 
 
 def test_emit_scan_outputs_dry_run_returns_rendered_result(tmp_path):
@@ -232,13 +217,26 @@ def test_scanner_wrapper_emit_scan_outputs_delegates(monkeypatch):
 
     assert result == "delegated-result"
     assert captured["args"] is fake_args
-    assert (
-        captured["build_scanner_report_markdown"]
-        is scanner._build_scanner_report_markdown
+    assert callable(captured["build_scanner_report_markdown"])
+    assert callable(captured["render_and_write_output"])
+    assert callable(captured["render_runbook_fn"])
+    assert callable(captured["render_runbook_csv_fn"])
+
+    metadata = {
+        "task_catalog": [
+            {
+                "file": "tasks/main.yml",
+                "name": "Task",
+                "module": "ansible.builtin.debug",
+            }
+        ]
+    }
+    assert captured["render_runbook_fn"]("demo", metadata) == scanner.render_runbook(
+        "demo", metadata
     )
-    assert captured["render_and_write_output"] is scanner._render_and_write_scan_output
-    assert captured["render_runbook_fn"] is scanner.render_runbook
-    assert captured["render_runbook_csv_fn"] is scanner.render_runbook_csv
+    assert captured["render_runbook_csv_fn"](metadata) == scanner.render_runbook_csv(
+        metadata
+    )
 
 
 def test_scanner_emit_scan_outputs_alias_targets_canonical_scanner_io_module():
