@@ -27,7 +27,6 @@ from prism.scanner_core.variable_discovery import VariableDiscovery
 from prism.scanner_core.output_orchestrator import OutputOrchestrator
 from prism.scanner_data.contracts import RunScanOutputPayload
 
-
 # ============================================================================
 # Data Isolation Tests (4)
 # ============================================================================

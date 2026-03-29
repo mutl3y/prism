@@ -11,6 +11,12 @@ from typing import Callable
 
 import yaml
 
+from .legacy_retirement import (
+    LEGACY_SECTION_CONFIG_FILENAME,
+    LEGACY_SECTION_CONFIG_UNSUPPORTED,
+    LEGACY_SECTION_CONFIG_UNSUPPORTED_MESSAGE,
+    format_legacy_retirement_error,
+)
 from .section import SECTION_CONFIG_FILENAME, SECTION_CONFIG_FILENAMES
 
 
@@ -22,8 +28,24 @@ def resolve_role_config_file(
 ) -> Path:
     """Resolve role config path from explicit or auto-discovered location."""
     if config_path:
-        return Path(config_path)
+        explicit_path = Path(config_path)
+        if explicit_path.name == LEGACY_SECTION_CONFIG_FILENAME:
+            raise RuntimeError(
+                format_legacy_retirement_error(
+                    LEGACY_SECTION_CONFIG_UNSUPPORTED,
+                    LEGACY_SECTION_CONFIG_UNSUPPORTED_MESSAGE,
+                )
+            )
+        return explicit_path
     role_root = Path(role_path)
+    legacy_cfg = role_root / LEGACY_SECTION_CONFIG_FILENAME
+    if legacy_cfg.is_file():
+        raise RuntimeError(
+            format_legacy_retirement_error(
+                LEGACY_SECTION_CONFIG_UNSUPPORTED,
+                LEGACY_SECTION_CONFIG_UNSUPPORTED_MESSAGE,
+            )
+        )
     for filename in config_filenames:
         candidate = role_root / filename
         if candidate.is_file():

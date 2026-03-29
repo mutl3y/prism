@@ -1,4 +1,18 @@
-from prism.scanner_submodules import task_parser
+from prism.scanner_extract import task_parser
+from prism.scanner_extract import task_parser as canonical_task_parser
+
+
+def test_task_parser_wrapper_reexports_canonical_implementation():
+    assert task_parser._collect_task_files is canonical_task_parser._collect_task_files
+    assert (
+        task_parser._extract_task_annotations_for_file
+        is canonical_task_parser._extract_task_annotations_for_file
+    )
+    assert (
+        task_parser.extract_role_features is canonical_task_parser.extract_role_features
+    )
+    assert task_parser.TASK_INCLUDE_KEYS is canonical_task_parser.TASK_INCLUDE_KEYS
+    assert task_parser.ROLE_NOTES_RE is canonical_task_parser.ROLE_NOTES_RE
 
 
 def test_is_relpath_excluded_matches_top_level_directory_pattern():

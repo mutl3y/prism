@@ -46,19 +46,6 @@ def test_load_pattern_config_reads_cwd_override(monkeypatch, tmp_path):
     assert "from_cwd_override" in config["sensitivity"]["name_tokens"]
 
 
-def test_load_pattern_config_reads_legacy_cwd_override(monkeypatch, tmp_path):
-    override = tmp_path / ".ansible_role_doc_patterns.yml"
-    override.write_text(
-        "sensitivity:\n  name_tokens:\n    - from_legacy_cwd_override\n",
-        encoding="utf-8",
-    )
-
-    monkeypatch.chdir(tmp_path)
-    config = load_pattern_config()
-
-    assert "from_legacy_cwd_override" in config["sensitivity"]["name_tokens"]
-
-
 def test_load_pattern_config_reads_xdg_user_override(monkeypatch, tmp_path):
     xdg_home = tmp_path / "xdg-home"
     override = xdg_home / "prism" / pattern_config.CWD_OVERRIDE_FILENAME
@@ -87,20 +74,6 @@ def test_load_pattern_config_reads_env_override(monkeypatch, tmp_path):
     config = load_pattern_config()
 
     assert "from_env_override" in config["sensitivity"]["name_tokens"]
-
-
-def test_load_pattern_config_reads_legacy_env_override(monkeypatch, tmp_path):
-    override = tmp_path / "patterns-legacy-env.yml"
-    override.write_text(
-        "sensitivity:\n  name_tokens:\n    - from_legacy_env_override\n",
-        encoding="utf-8",
-    )
-
-    monkeypatch.setenv(pattern_config.LEGACY_ENV_PATTERNS_OVERRIDE_PATH, str(override))
-    monkeypatch.chdir(tmp_path)
-    config = load_pattern_config()
-
-    assert "from_legacy_env_override" in config["sensitivity"]["name_tokens"]
 
 
 def test_load_pattern_config_reads_system_override(monkeypatch, tmp_path):

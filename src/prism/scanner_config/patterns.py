@@ -21,21 +21,14 @@ _BUILTIN_DATA_DIR = Path(__file__).parent.parent / "data"
 
 # Override filename constants
 REPO_OVERRIDE_FILENAME = ".prism_patterns.yml"
-LEGACY_REPO_OVERRIDE_FILENAME = ".ansible_role_doc_patterns.yml"
 CWD_OVERRIDE_FILENAME = ".prism_patterns.yml"
-LEGACY_CWD_OVERRIDE_FILENAME = ".ansible_role_doc_patterns.yml"
 ENV_PATTERNS_OVERRIDE_PATH = "PRISM_PATTERNS_PATH"
-LEGACY_ENV_PATTERNS_OVERRIDE_PATH = "ANSIBLE_ROLE_DOC_PATTERNS_PATH"
 
 # System mutable-data locations
 XDG_DATA_HOME_ENV = "XDG_DATA_HOME"
 APP_DATA_DIRNAME = "prism"
-LEGACY_APP_DATA_DIRNAME = "ansible_role_doc"
 SYSTEM_PATTERN_OVERRIDE_PATH = (
     Path("/var/lib") / APP_DATA_DIRNAME / CWD_OVERRIDE_FILENAME
-)
-LEGACY_SYSTEM_PATTERN_OVERRIDE_PATH = (
-    Path("/var/lib") / LEGACY_APP_DATA_DIRNAME / LEGACY_CWD_OVERRIDE_FILENAME
 )
 
 # Default remote source (community-curated patterns repo)
@@ -108,27 +101,18 @@ def _iter_default_override_paths() -> list[Path]:
 
     # system-level mutable defaults (lowest precedence)
     paths.append(SYSTEM_PATTERN_OVERRIDE_PATH)
-    paths.append(LEGACY_SYSTEM_PATTERN_OVERRIDE_PATH)
 
     # user-level mutable defaults (XDG)
     user_data_home = _default_user_data_home()
     paths.append(user_data_home / APP_DATA_DIRNAME / CWD_OVERRIDE_FILENAME)
-    paths.append(
-        user_data_home / LEGACY_APP_DATA_DIRNAME / LEGACY_CWD_OVERRIDE_FILENAME
-    )
 
     # repo-local/cwd override
     paths.append(Path.cwd() / CWD_OVERRIDE_FILENAME)
-    paths.append(Path.cwd() / LEGACY_CWD_OVERRIDE_FILENAME)
 
     # optional env var override (highest precedence among implicit defaults)
     env_override = os.environ.get(ENV_PATTERNS_OVERRIDE_PATH)
     if env_override:
         paths.append(Path(env_override).expanduser())
-
-    legacy_env_override = os.environ.get(LEGACY_ENV_PATTERNS_OVERRIDE_PATH)
-    if legacy_env_override:
-        paths.append(Path(legacy_env_override).expanduser())
 
     return paths
 

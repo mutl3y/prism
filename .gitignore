@@ -20,3 +20,5 @@ debug_readmes/
 # Stray files
 et *
 .local/
+
+docs/plan

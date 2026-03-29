@@ -32,6 +32,10 @@ from .guide import (
     _render_guide_section_body,
     _render_guide_identity_sections,
 )
+from .doc_insights import (
+    build_doc_insights,
+    parse_comma_values,
+)
 
 __all__ = [
     "DEFAULT_SECTION_SPECS",
@@ -58,4 +62,6 @@ __all__ = [
     "_render_variable_uncertainty_notes",
     "_render_guide_section_body",
     "_render_guide_identity_sections",
+    "build_doc_insights",
+    "parse_comma_values",
 ]

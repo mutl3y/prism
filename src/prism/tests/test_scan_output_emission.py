@@ -1,12 +1,12 @@
 """Focused tests for scan output sidecar orchestration helpers."""
 
+import importlib
 from pathlib import Path
 
+import pytest
+
 from prism import scanner
-from prism.scanner_submodules import (
-    render_reports,
-    scan_output_emission,
-)
+from prism.scanner_io import scan_output_emission
 
 
 def test_build_scanner_report_output_path_uses_default_suffix(tmp_path):
@@ -116,9 +116,7 @@ def test_scanner_wrapper_write_concise_scanner_report_if_enabled_delegates(monke
         return Path("/tmp/report.md")
 
     monkeypatch.setattr(
-        render_reports,
-        "_scan_output_write_concise_scanner_report_if_enabled",
-        fake_write,
+        scanner, "_scan_output_write_concise_scanner_report_if_enabled", fake_write
     )
 
     result = scanner._write_concise_scanner_report_if_enabled(
@@ -288,3 +286,50 @@ def test_scanner_wrapper_emit_scan_outputs_delegates(monkeypatch):
     assert captured["render_and_write_output"] is scanner._render_and_write_scan_output
     assert captured["render_runbook_fn"] is scanner.render_runbook
     assert captured["render_runbook_csv_fn"] is scanner.render_runbook_csv
+
+
+def test_scanner_emit_scan_outputs_alias_targets_canonical_scanner_io_module():
+    assert (
+        scanner._scan_output_emit_scan_outputs.__module__
+        == "prism.scanner_io.scan_output_emission"
+    )
+
+
+def test_scanner_emit_scan_outputs_delegates_to_scan_runtime_module(monkeypatch):
+    fake_args = {
+        "output": "README.md",
+        "output_format": "md",
+        "concise_readme": False,
+        "scanner_report_output": None,
+        "include_scanner_report_link": False,
+        "role_name": "r",
+        "description": "d",
+        "display_variables": {},
+        "requirements_display": [],
+        "undocumented_default_filters": [],
+        "metadata": {},
+        "template": None,
+        "dry_run": True,
+        "runbook_output": None,
+        "runbook_csv_output": None,
+    }
+
+    captured = {}
+
+    def fake_emit(args: dict, **kwargs: object) -> str:
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return "runtime-delegated"
+
+    monkeypatch.setattr(scanner._scan_runtime, "emit_scan_outputs", fake_emit)
+
+    result = scanner._emit_scan_outputs(fake_args)
+
+    assert result == "runtime-delegated"
+    assert captured["args"] is fake_args
+    assert "emit_scan_outputs_fn" in captured["kwargs"]
+
+
+def test_scan_output_emission_compat_module_retired():
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("prism.scanner_submodules.scan_output_emission")

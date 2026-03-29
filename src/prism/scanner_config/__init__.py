@@ -9,7 +9,6 @@ from __future__ import annotations
 # Section constants
 from .section import (
     DEFAULT_DOC_MARKER_PREFIX,
-    LEGACY_SECTION_CONFIG_FILENAME,
     SECTION_CONFIG_FILENAME,
     SECTION_CONFIG_FILENAMES,
 )
@@ -55,7 +54,6 @@ from .style import (
 __all__ = [
     # Section constants
     "DEFAULT_DOC_MARKER_PREFIX",
-    "LEGACY_SECTION_CONFIG_FILENAME",
     "SECTION_CONFIG_FILENAME",
     "SECTION_CONFIG_FILENAMES",
     # Marker loading

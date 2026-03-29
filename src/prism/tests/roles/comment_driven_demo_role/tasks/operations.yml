@@ -5,13 +5,13 @@
   ansible.builtin.debug:
     msg: "Entering maintenance mode for {{ comment_demo_service_name }}"
 
-# prism~task: Mark node out of rotation | note: in real roles this often maps to a load balancer API or service registry update
+# prism~note: in real roles this often maps to a load balancer API or service registry update
 - name: Mark node out of rotation
   ansible.builtin.command:
     cmd: /usr/local/bin/comment-demo-lb drain
   changed_when: true
 
-# prism~task: Record change window metadata | note: explicit comments are useful here because task names like this tend to get copy-edited over time
+# prism~note: explicit comments are useful here because task names like this tend to get copy-edited over time
 - name: Record change window metadata
   ansible.builtin.copy:
     dest: /var/tmp/comment-demo-change-window.txt
@@ -20,7 +20,7 @@
       expected_version={{ comment_demo_expected_version }}
     mode: "0644"
 
-# prism~task: Mark node back in rotation | runbook: place the node back in rotation only after validation tasks report success
+# prism~runbook: place the node back in rotation only after validation tasks report success
 - name: Mark node back in rotation
   ansible.builtin.command:
     cmd: /usr/local/bin/comment-demo-lb undrain

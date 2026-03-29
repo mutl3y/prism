@@ -1,4 +1,4 @@
-from prism.scanner_submodules import output
+from prism.scanner_io import output
 
 
 def test_render_final_output_falls_back_to_html_for_unknown_format():

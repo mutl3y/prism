@@ -5,7 +5,7 @@ from unittest import mock
 
 
 from prism import scanner
-from prism.scanner_submodules import emit_output
+from prism.scanner_io import emit_output
 
 
 def test_orchestrate_output_emission_coordinates_primary_and_sidecars(tmp_path):
@@ -231,3 +231,10 @@ def test_resolve_scanner_report_path_respects_explicit():
         out_path=out_path,
     )
     assert report_path == explicit
+
+
+def test_scanner_emit_output_alias_targets_canonical_scanner_io_module():
+    assert (
+        scanner._emit_output_orchestrate_output_emission.__module__
+        == "prism.scanner_io.emit_output"
+    )

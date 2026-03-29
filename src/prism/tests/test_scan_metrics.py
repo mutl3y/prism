@@ -3,22 +3,19 @@
 from typing import get_type_hints
 
 from prism import scanner
-from prism.scanner_submodules import (
-    render_reports,
-    scan_metrics,
-    scanner_report,
-)
+from prism.scanner_analysis import metrics as analysis_metrics
+from prism.scanner_analysis import report as scanner_report
 
 
 def test_build_referenced_variable_uncertainty_reason_shapes_expected_messages():
-    unresolved = scan_metrics.build_referenced_variable_uncertainty_reason(
+    unresolved = analysis_metrics.build_referenced_variable_uncertainty_reason(
         name="env",
         seeded=False,
         dynamic_include_vars_refs=["{{ env }}.yml"],
         dynamic_include_var_tokens={"env"},
         dynamic_task_include_tokens={"env"},
     )
-    seeded = scan_metrics.build_referenced_variable_uncertainty_reason(
+    seeded = analysis_metrics.build_referenced_variable_uncertainty_reason(
         name="seeded_var",
         seeded=True,
         dynamic_include_vars_refs=[],
@@ -32,7 +29,7 @@ def test_build_referenced_variable_uncertainty_reason_shapes_expected_messages()
 
 
 def test_append_non_authoritative_test_evidence_uncertainty_reason_shapes_suffix():
-    reason = scan_metrics.append_non_authoritative_test_evidence_uncertainty_reason(
+    reason = analysis_metrics.append_non_authoritative_test_evidence_uncertainty_reason(
         prior_reason="Referenced in role but no static definition found.",
         match_count=4,
         matched_file_count=2,
@@ -62,8 +59,8 @@ def test_scanner_wrapper_extract_scanner_counters_delegates(monkeypatch):
         return {"ok": 1}
 
     monkeypatch.setattr(
-        render_reports,
-        "_scan_metrics_extract_scanner_counters",
+        scanner,
+        "_analysis_extract_scanner_counters",
         fake_extract_scanner_counters,
     )
 
@@ -82,15 +79,15 @@ def test_scanner_wrapper_extract_scanner_counters_delegates(monkeypatch):
 
 
 def test_scanner_wrapper_uncertainty_helpers_delegate(monkeypatch):
-    # Patch the imported errorhandling functions in the scanner module
+    # Patch canonical analysis seam functions imported in scanner module
     monkeypatch.setattr(
         scanner,
-        "_errorhandling_build_referenced_variable_uncertainty_reason",
+        "_analysis_build_referenced_variable_uncertainty_reason",
         lambda **kwargs: f"build::{kwargs['name']}",
     )
     monkeypatch.setattr(
         scanner,
-        "_errorhandling_append_non_authoritative_test_evidence_uncertainty_reason",
+        "_analysis_append_non_authoritative_test_evidence_uncertainty_reason",
         lambda **kwargs: (f"append::{kwargs['prior_reason']}::{kwargs['match_count']}"),
     )
 
@@ -111,6 +108,76 @@ def test_scanner_wrapper_uncertainty_helpers_delegate(monkeypatch):
 
     assert reason == "build::MY_ENV"
     assert merged == "append::base::2"
+
+
+def test_scanner_wrapper_attach_non_authoritative_test_evidence_delegates(monkeypatch):
+    captured = {}
+
+    def fake_attach_non_authoritative_test_evidence(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(
+        scanner,
+        "_analysis_attach_non_authoritative_test_evidence",
+        fake_attach_non_authoritative_test_evidence,
+    )
+
+    rows = [{"name": "external_input", "is_unresolved": True}]
+    scanner._attach_non_authoritative_test_evidence(
+        role_path="/tmp/role",
+        rows=rows,
+        exclude_paths=["tests/fixtures/**"],
+    )
+
+    assert captured["role_path"] == "/tmp/role"
+    assert captured["rows"] == rows
+    assert captured["exclude_paths"] == ["tests/fixtures/**"]
+
+
+def test_should_suppress_internal_unresolved_reference_matches_policy_shape():
+    assert (
+        analysis_metrics.should_suppress_internal_unresolved_reference(
+            name="_temp_value",
+            seed_values={},
+            ignore_unresolved_internal_underscore_references=True,
+        )
+        is True
+    )
+    assert (
+        analysis_metrics.should_suppress_internal_unresolved_reference(
+            name="_seeded",
+            seed_values={"_seeded": "ok"},
+            ignore_unresolved_internal_underscore_references=True,
+        )
+        is False
+    )
+    assert (
+        analysis_metrics.should_suppress_internal_unresolved_reference(
+            name="external",
+            seed_values={},
+            ignore_unresolved_internal_underscore_references=True,
+        )
+        is False
+    )
+
+
+def test_scanner_wrapper_should_suppress_internal_unresolved_reference_delegates(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        scanner,
+        "_analysis_should_suppress_internal_unresolved_reference",
+        lambda **kwargs: kwargs["name"] == "_temp",
+    )
+
+    assert (
+        scanner._should_suppress_internal_unresolved_reference(
+            name="_temp",
+            seed_values={},
+            ignore_unresolved_internal_underscore_references=True,
+        )
+        is True
+    )
 
 
 def test_extract_scanner_counters_keeps_provenance_categories_mapping_shape():

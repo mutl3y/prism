@@ -13,6 +13,7 @@ from __future__ import annotations
 from .di import DIContainer
 from .feature_detector import FeatureDetector
 from .output_orchestrator import OutputOrchestrator
+from .scan_context_builder import ScanContextBuilder
 from .scanner_context import ScannerContext
 from .variable_discovery import VariableDiscovery
 
@@ -20,6 +21,7 @@ __all__ = [
     "DIContainer",
     "FeatureDetector",
     "OutputOrchestrator",
+    "ScanContextBuilder",
     "ScannerContext",
     "VariableDiscovery",
 ]

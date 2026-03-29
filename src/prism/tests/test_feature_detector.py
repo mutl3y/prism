@@ -10,10 +10,19 @@ Validates core feature detection logic:
 
 from __future__ import annotations
 
+import inspect
 import pytest
 from pathlib import Path
 
 from prism.scanner_core import DIContainer, FeatureDetector
+from prism.scanner_core import feature_detector
+
+
+def test_feature_detector_imports_task_parser_from_canonical_module() -> None:
+    """FeatureDetector should import task helpers from scanner_extract, not shim."""
+    source = inspect.getsource(feature_detector)
+    assert "from ..scanner_submodules.task_parser import" not in source
+    assert "from ..scanner_extract.task_parser import" in source
 
 
 class TestFeatureDetectorInit:

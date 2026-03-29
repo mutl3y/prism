@@ -1,7 +1,7 @@
 """Focused tests for guide/body rendering extraction (modernization slice 2a)."""
 
 from prism import scanner
-from prism.scanner_submodules import render_guide
+from prism.scanner_readme import guide as render_guide
 
 
 def test_render_guide_identity_sections_matches_scanner_wrapper_for_license_author():

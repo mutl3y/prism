@@ -3,7 +3,10 @@ from pathlib import Path
 import pytest
 
 from prism import scanner
-
+from prism.scanner_config.legacy_retirement import (
+    LEGACY_SECTION_CONFIG_UNSUPPORTED,
+    LEGACY_SECTION_CONFIG_UNSUPPORTED_MESSAGE,
+)
 
 # ---------------------------------------------------------------------------
 # readme_config branch coverage
@@ -45,6 +48,50 @@ def test_resolve_role_config_file_uses_explicit_config_path(tmp_path):
     cfg.write_text("{}", encoding="utf-8")
     result = resolve_role_config_file(str(role), config_path=str(cfg))
     assert result == cfg
+
+
+def test_resolve_role_config_file_rejects_explicit_legacy_section_config_path(tmp_path):
+    """Explicit legacy config path must fail with exact public code/message contract."""
+    from prism.scanner_config.readme import resolve_role_config_file
+
+    role = tmp_path / "role"
+    role.mkdir()
+    legacy_cfg = tmp_path / ".ansible_role_doc.yml"
+    legacy_cfg.write_text(
+        "readme:\n  include_sections:\n    - requirements\n", encoding="utf-8"
+    )
+
+    with pytest.raises(RuntimeError) as excinfo:
+        resolve_role_config_file(str(role), config_path=str(legacy_cfg))
+
+    assert excinfo.value.args
+    error_text = str(excinfo.value)
+    code, message = error_text.split(": ", 1)
+    assert code == LEGACY_SECTION_CONFIG_UNSUPPORTED
+    assert message == LEGACY_SECTION_CONFIG_UNSUPPORTED_MESSAGE
+
+
+def test_resolve_role_config_file_rejects_discovered_legacy_section_config_file(
+    tmp_path,
+):
+    """Auto-detected legacy config file must fail with exact public code/message contract."""
+    from prism.scanner_config.readme import resolve_role_config_file
+
+    role = tmp_path / "role"
+    role.mkdir()
+    legacy_cfg = role / ".ansible_role_doc.yml"
+    legacy_cfg.write_text(
+        "readme:\n  include_sections:\n    - requirements\n", encoding="utf-8"
+    )
+
+    with pytest.raises(RuntimeError) as excinfo:
+        resolve_role_config_file(str(role), config_path=None)
+
+    assert excinfo.value.args
+    error_text = str(excinfo.value)
+    code, message = error_text.split(": ", 1)
+    assert code == LEGACY_SECTION_CONFIG_UNSUPPORTED
+    assert message == LEGACY_SECTION_CONFIG_UNSUPPORTED_MESSAGE
 
 
 @pytest.mark.parametrize(

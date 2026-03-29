@@ -1,10 +1,14 @@
 """Focused tests for primary scan output orchestration helpers."""
 
+import importlib
 from pathlib import Path
 from typing import get_type_hints
 
+import pytest
+
 from prism import scanner
-from prism.scanner_submodules import output, scan_output_primary
+from prism.scanner_io import output
+from prism.scanner_io import scan_output_primary
 
 
 def test_render_and_write_scan_output_json_dry_run_skips_markdown_render(tmp_path):
@@ -225,3 +229,15 @@ def test_scanner_wrapper_render_primary_scan_output_delegates(monkeypatch):
         captured["render_and_write_scan_output"]
         is scanner._render_and_write_scan_output
     )
+
+
+def test_scanner_render_primary_alias_targets_canonical_scanner_io_module():
+    assert (
+        scanner._scan_output_primary_render_primary_scan_output.__module__
+        == "prism.scanner_io.scan_output_primary"
+    )
+
+
+def test_scan_output_primary_compat_module_retired():
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("prism.scanner_submodules.scan_output_primary")
