@@ -677,7 +677,7 @@ def test_execute_scan_with_context_invokes_scanner_context_once(monkeypatch, tmp
     }
 
     class FakeContext:
-        def __init__(self, *, di, role_path, scan_options):
+        def __init__(self, *, di, role_path, scan_options, **_kwargs):
             assert role_path == role_path_ref
             assert scan_options is scan_options_ref
 
@@ -739,7 +739,7 @@ def test_execute_scan_with_context_does_not_fall_back_for_orchestrated_payload_s
     scan_options = {"role_path": role_path, "include_vars_main": True}
 
     class FakeContext:
-        def __init__(self, *, di, role_path, scan_options):
+        def __init__(self, *, di, role_path, scan_options, **_kwargs):
             pass
 
         def orchestrate_scan(self):
@@ -825,7 +825,7 @@ def test_execute_scan_with_context_normalized_options_do_not_emit_runtime_fallba
     captured = {}
 
     class FakeContext:
-        def __init__(self, *, di, role_path, scan_options):
+        def __init__(self, *, di, role_path, scan_options, **_kwargs):
             pass
 
         def orchestrate_scan(self):
@@ -967,7 +967,7 @@ def test_execute_scan_with_context_uses_scanner_context_when_vars_seed_paths_pre
         raise AssertionError("_prepare_run_scan_payload should not be called")
 
     class FakeContext:
-        def __init__(self, *, di, role_path, scan_options):
+        def __init__(self, *, di, role_path, scan_options, **_kwargs):
             captured["scan_options"] = scan_options
 
         def orchestrate_scan(self):
@@ -1029,7 +1029,7 @@ def test_execute_scan_with_context_uses_scanner_context_when_style_readme_path_m
         raise AssertionError("_prepare_run_scan_payload should not be called")
 
     class FakeContext:
-        def __init__(self, *, di, role_path, scan_options):
+        def __init__(self, *, di, role_path, scan_options, **_kwargs):
             captured["scan_options"] = scan_options
 
         def orchestrate_scan(self):
@@ -1091,7 +1091,7 @@ def test_execute_scan_with_context_uses_scanner_context_when_compare_role_path_m
         raise AssertionError("_prepare_run_scan_payload should not be called")
 
     class FakeContext:
-        def __init__(self, *, di, role_path, scan_options):
+        def __init__(self, *, di, role_path, scan_options, **_kwargs):
             captured["scan_options"] = scan_options
 
         def orchestrate_scan(self):
@@ -1153,7 +1153,7 @@ def test_execute_scan_with_context_uses_scanner_context_when_role_name_override_
         raise AssertionError("_prepare_run_scan_payload should not be called")
 
     class FakeContext:
-        def __init__(self, *, di, role_path, scan_options):
+        def __init__(self, *, di, role_path, scan_options, **_kwargs):
             captured["scan_options"] = scan_options
 
         def orchestrate_scan(self):

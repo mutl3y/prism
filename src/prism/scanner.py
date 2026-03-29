@@ -37,7 +37,6 @@ from .scanner_data.contracts import (
     EmitScanOutputsArgs as _scan_context_EmitScanOutputsArgs,
     ReferenceContext as _scan_context_ReferenceContext,
     RunScanOutputPayload as _scan_context_RunScanOutputPayload,
-    ScanBaseContext as _scan_context_ScanBaseContext,
     ScanMetadata as _scan_context_ScanMetadata,
 )
 from .scanner_io.scan_output_emission import (
@@ -1374,53 +1373,6 @@ def _render_and_write_scan_output(
     )
 
 
-def _prepare_scan_context(scan_options: dict) -> tuple[str, str, str, list, list, dict]:
-    """Collect role metadata and scanner context required for rendering outputs."""
-    return _scan_runtime.prepare_scan_context(
-        scan_options,
-        scan_context_builder_cls=ScanContextBuilder,
-        collect_scan_base_context=_collect_scan_base_context,
-        load_ignore_unresolved_internal_underscore_references=(
-            load_ignore_unresolved_internal_underscore_references
-        ),
-        load_non_authoritative_test_evidence_max_file_bytes=(
-            load_non_authoritative_test_evidence_max_file_bytes
-        ),
-        load_non_authoritative_test_evidence_max_files_scanned=(
-            load_non_authoritative_test_evidence_max_files_scanned
-        ),
-        load_non_authoritative_test_evidence_max_total_bytes=(
-            load_non_authoritative_test_evidence_max_total_bytes
-        ),
-        enrich_scan_context_with_insights=_enrich_scan_context_with_insights,
-        finalize_scan_context_payload=_finalize_scan_context_payload,
-        non_authoritative_test_evidence_max_file_bytes=(
-            NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES
-        ),
-        non_authoritative_test_evidence_max_files_scanned=(
-            NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED
-        ),
-        non_authoritative_test_evidence_max_total_bytes=(
-            NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES
-        ),
-    )
-
-
-def _collect_scan_base_context(scan_options: dict) -> _scan_context_ScanBaseContext:
-    """Collect baseline scan artifacts and configured metadata state."""
-    return _scan_runtime.collect_scan_base_context(
-        scan_options,
-        collect_scan_identity_and_artifacts=_collect_scan_identity_and_artifacts,
-        apply_scan_metadata_configuration=_apply_scan_metadata_configuration,
-        apply_unconstrained_dynamic_include_policy=(
-            _apply_unconstrained_dynamic_include_policy
-        ),
-        apply_yaml_like_task_annotation_policy=(
-            _apply_yaml_like_task_annotation_policy
-        ),
-    )
-
-
 _apply_unconstrained_dynamic_include_policy = partial(
     _scan_runtime.apply_unconstrained_dynamic_include_policy,
     load_fail_on_unconstrained_dynamic_includes=(
@@ -1436,116 +1388,6 @@ _apply_yaml_like_task_annotation_policy = partial(
 
 
 _finalize_scan_context_payload = _scan_runtime.finalize_scan_context_payload
-
-
-def _collect_scan_identity_and_artifacts(
-    role_path: str,
-    role_name_override: str | None,
-    readme_config_path: str | None,
-    include_vars_main: bool,
-    exclude_path_patterns: list[str] | None,
-    detailed_catalog: bool,
-) -> tuple[Path, dict, str, str, str, dict, list, list, dict]:
-    """Resolve scan identity and collect core role artifacts."""
-    return _scan_runtime.collect_scan_identity_and_artifacts(
-        role_path=role_path,
-        role_name_override=role_name_override,
-        readme_config_path=readme_config_path,
-        include_vars_main=include_vars_main,
-        exclude_path_patterns=exclude_path_patterns,
-        detailed_catalog=detailed_catalog,
-        resolve_scan_identity=_resolve_scan_identity,
-        load_readme_marker_prefix=load_readme_marker_prefix,
-        collect_scan_artifacts=_collect_scan_artifacts,
-    )
-
-
-def _apply_scan_metadata_configuration(
-    role_path: str,
-    readme_config_path: str | None,
-    adopt_heading_mode: str | None,
-    include_task_parameters: bool,
-    include_task_runbooks: bool,
-    inline_task_runbooks: bool,
-    include_collection_checks: bool,
-    keep_unknown_style_sections: bool,
-    meta: dict,
-    requirements: list,
-    metadata: _scan_context_ScanMetadata,
-) -> list:
-    """Apply scan options that shape metadata and requirements rendering."""
-    return _scan_runtime.apply_scan_metadata_configuration(
-        role_path=role_path,
-        readme_config_path=readme_config_path,
-        adopt_heading_mode=adopt_heading_mode,
-        include_task_parameters=include_task_parameters,
-        include_task_runbooks=include_task_runbooks,
-        inline_task_runbooks=inline_task_runbooks,
-        include_collection_checks=include_collection_checks,
-        keep_unknown_style_sections=keep_unknown_style_sections,
-        meta=meta,
-        requirements=requirements,
-        metadata=metadata,
-        build_requirements_display=_build_requirements_display,
-        load_readme_section_config=load_readme_section_config,
-        apply_readme_section_config=_apply_readme_section_config,
-    )
-
-
-def _enrich_scan_context_with_insights(
-    role_path: str,
-    role_name: str,
-    description: str,
-    vars_seed_paths: list[str] | None,
-    include_vars_main: bool,
-    exclude_path_patterns: list[str] | None,
-    marker_prefix: str,
-    found: list,
-    variables: dict,
-    metadata: _scan_context_ScanMetadata,
-    style_readme_path: str | None,
-    style_source_path: str | None,
-    style_guide_skeleton: bool,
-    compare_role_path: str | None,
-    ignore_unresolved_internal_underscore_references: bool,
-    non_authoritative_test_evidence_max_file_bytes: int,
-    non_authoritative_test_evidence_max_files_scanned: int,
-    non_authoritative_test_evidence_max_total_bytes: int,
-) -> tuple[list[dict], dict]:
-    """Add variable/doc/style insights to scan metadata and display payloads."""
-    return _scan_runtime.enrich_scan_context_with_insights(
-        role_path=role_path,
-        role_name=role_name,
-        description=description,
-        vars_seed_paths=vars_seed_paths,
-        include_vars_main=include_vars_main,
-        exclude_path_patterns=exclude_path_patterns,
-        marker_prefix=marker_prefix,
-        found=found,
-        variables=variables,
-        metadata=metadata,
-        style_readme_path=style_readme_path,
-        style_source_path=style_source_path,
-        style_guide_skeleton=style_guide_skeleton,
-        compare_role_path=compare_role_path,
-        ignore_unresolved_internal_underscore_references=(
-            ignore_unresolved_internal_underscore_references
-        ),
-        non_authoritative_test_evidence_max_file_bytes=(
-            non_authoritative_test_evidence_max_file_bytes
-        ),
-        non_authoritative_test_evidence_max_files_scanned=(
-            non_authoritative_test_evidence_max_files_scanned
-        ),
-        non_authoritative_test_evidence_max_total_bytes=(
-            non_authoritative_test_evidence_max_total_bytes
-        ),
-        collect_variable_insights_and_default_filter_findings=(
-            _collect_variable_insights_and_default_filter_findings
-        ),
-        build_doc_insights=build_doc_insights,
-        apply_style_and_comparison_metadata=_apply_style_and_comparison_metadata,
-    )
 
 
 _collect_scan_identity_and_artifacts = partial(
@@ -1679,6 +1521,8 @@ def _execute_scan_with_context(
         di=container,
         role_path=role_path,
         scan_options=scan_options,
+        build_run_scan_options_fn=_build_run_scan_options,
+        prepare_scan_context_fn=_prepare_scan_context,
     )
     payload = context.orchestrate_scan()
 

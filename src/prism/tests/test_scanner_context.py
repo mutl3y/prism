@@ -7,13 +7,10 @@ scanner.py infrastructure.
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 
 from prism import scanner
 from prism.scanner_core import DIContainer, ScannerContext
-from prism.scanner_core import scanner_context as scanner_context_module
 
 
 class TestScannerContextInstantiation:
@@ -415,20 +412,13 @@ def test_scanner_context_runtime_path_uses_canonical_modules(monkeypatch):
         "fail_on_yaml_like_task_annotations": None,
         "ignore_unresolved_internal_underscore_references": None,
     }
-    di = DIContainer(role_path="/tmp/role", scan_options=required_scan_options)
-    context = ScannerContext(
-        di=di,
-        role_path="/tmp/role",
-        scan_options=required_scan_options,
-    )
-
     canonical_options = {"role_path": "/tmp/role", "normalized": True}
 
     def fake_build_run_scan_options(**kwargs: object) -> dict[str, object]:
         assert kwargs["role_path"] == "/tmp/role"
         return canonical_options
 
-    def fake_prepare_scan_context(scan_options: dict[str, object], **_: object):
+    def fake_prepare_scan_context(scan_options: dict[str, object]):
         assert scan_options is canonical_options
         return (
             "/tmp/role",
@@ -442,17 +432,13 @@ def test_scanner_context_runtime_path_uses_canonical_modules(monkeypatch):
             },
         )
 
-    monkeypatch.setattr(
-        scanner_context_module,
-        "scan_request",
-        SimpleNamespace(build_run_scan_options=fake_build_run_scan_options),
-        raising=False,
-    )
-    monkeypatch.setattr(
-        scanner_context_module,
-        "scan_runtime",
-        SimpleNamespace(prepare_scan_context=fake_prepare_scan_context),
-        raising=False,
+    di = DIContainer(role_path="/tmp/role", scan_options=required_scan_options)
+    context = ScannerContext(
+        di=di,
+        role_path="/tmp/role",
+        scan_options=required_scan_options,
+        build_run_scan_options_fn=fake_build_run_scan_options,
+        prepare_scan_context_fn=fake_prepare_scan_context,
     )
 
     def should_not_call_scanner_wrapper(**_: object):
