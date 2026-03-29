@@ -223,26 +223,15 @@ def test_scanner_runtime_context_helpers_are_flattened_partial_aliases():
     )
 
 
-def test_scanner_output_report_helpers_are_flattened_partial_aliases():
+def test_scanner_output_report_helpers_are_scanner_owned_functions():
     write_report = scanner._write_concise_scanner_report_if_enabled
     write_runbook = scanner._write_optional_runbook_outputs
     emit_orchestration = scanner._emit_output_orchestration
 
-    assert isinstance(write_report, partial)
-    assert isinstance(write_runbook, partial)
-
-    assert (
-        write_report.func
-        is scanner._scan_output_write_concise_scanner_report_if_enabled
-    )
-    assert (
-        write_report.keywords["build_scanner_report_markdown"]
-        is scanner._build_scanner_report_markdown
-    )
-
-    assert write_runbook.func is scanner._scan_output_write_optional_runbook_outputs
-    assert write_runbook.keywords["render_runbook"] is scanner.render_runbook
-    assert write_runbook.keywords["render_runbook_csv"] is scanner.render_runbook_csv
+    assert callable(write_report)
+    assert callable(write_runbook)
+    assert write_report.__module__ == "prism.scanner"
+    assert write_runbook.__module__ == "prism.scanner"
 
     result = emit_orchestration(
         {

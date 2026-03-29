@@ -1,7 +1,7 @@
 """Focused tests for scan output sidecar orchestration helpers."""
 
 import importlib
-from functools import partial
+import types
 
 import pytest
 
@@ -108,24 +108,18 @@ def test_write_optional_runbook_outputs_writes_requested_sidecars(tmp_path):
     assert runbook_csv_out.read_text(encoding="utf-8") == "csv::1\n"
 
 
-def test_scanner_wrapper_write_concise_scanner_report_if_enabled_is_flattened_partial_alias():
+def test_scanner_wrapper_write_concise_scanner_report_if_enabled_is_scanner_owned_function():
     helper = scanner._write_concise_scanner_report_if_enabled
 
-    assert isinstance(helper, partial)
-    assert helper.func is scanner._scan_output_write_concise_scanner_report_if_enabled
-    assert (
-        helper.keywords["build_scanner_report_markdown"]
-        is scanner._build_scanner_report_markdown
-    )
+    assert isinstance(helper, types.FunctionType)
+    assert helper.__module__ == "prism.scanner"
 
 
-def test_scanner_wrapper_write_optional_runbook_outputs_is_flattened_partial_alias():
+def test_scanner_wrapper_write_optional_runbook_outputs_is_scanner_owned_function():
     helper = scanner._write_optional_runbook_outputs
 
-    assert isinstance(helper, partial)
-    assert helper.func is scanner._scan_output_write_optional_runbook_outputs
-    assert helper.keywords["render_runbook"] is scanner.render_runbook
-    assert helper.keywords["render_runbook_csv"] is scanner.render_runbook_csv
+    assert isinstance(helper, types.FunctionType)
+    assert helper.__module__ == "prism.scanner"
 
 
 def test_emit_scan_outputs_dry_run_returns_rendered_result(tmp_path):

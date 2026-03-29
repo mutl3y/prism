@@ -1278,19 +1278,6 @@ def _emit_output_orchestration(args: dict) -> str:
     )
 
 
-_write_concise_scanner_report_if_enabled = partial(
-    _scan_output_write_concise_scanner_report_if_enabled,
-    build_scanner_report_markdown=_build_scanner_report_markdown,
-)
-
-
-_write_optional_runbook_outputs = partial(
-    _scan_output_write_optional_runbook_outputs,
-    render_runbook=render_runbook,
-    render_runbook_csv=render_runbook_csv,
-)
-
-
 def _apply_readme_section_config(
     metadata: _scan_context_ScanMetadata, readme_section_config: dict | None
 ) -> None:
