@@ -5,6 +5,9 @@ title: Prism-Friendly Role Authoring
 
 Write roles so scanner output stays stable, complete, and review-friendly.
 
+## VS Code Plugin
+https://marketplace.visualstudio.com/items?itemName=Prism.prism-comment-highlighter
+
 ## Lane Notes
 
 Average user lane:

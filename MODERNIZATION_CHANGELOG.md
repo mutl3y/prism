@@ -1,5 +1,17 @@
 # Prism Modernization Program v2 — Changelog
 
+## 2026-03-29 — Legacy Retirement Migration Guidance
+
+- Published a primary migration guide in `docs/user-guide.md` for post-retirement legacy support changes.
+- Documented legacy names removed and canonical replacements:
+  - `.ansible_role_doc.yml` -> `.prism.yml`
+  - `ANSIBLE_ROLE_DOC_STYLE_SOURCE` -> `PRISM_STYLE_SOURCE`
+  - `ansible_role_doc` style-guide data paths -> `prism` data paths
+- Documented expected retirement error contracts and meanings:
+  - `LEGACY_SECTION_CONFIG_UNSUPPORTED`
+  - `LEGACY_RUNTIME_PATH_UNAVAILABLE`
+- Added an ordered migration checklist with a post-migration validation command for users.
+
 ## Program Overview
 
 **Status:** COMPLETE
@@ -7,6 +19,44 @@
 **Main Baseline Commit:** d7e619b
 
 The Prism Modernization Program v2 executed a complete architectural refactoring of the scanner module, extracting rendering and output orchestration logic from the monolithic `scanner.py` into dedicated, testable submodules.
+
+---
+
+## Wave 1 Seam Migration Notes (2026-03-28)
+
+Canonical seam ownership is now documented and enforced for parser, variable extractor, and requirements/readme touchpoints.
+
+### Completed Migrations
+
+- `task_parser` seam: canonical owner is `src/prism/scanner_extract/task_parser.py`.
+- `variable_extractor` seam: canonical owner is `src/prism/scanner_extract/variable_extractor.py`.
+- `requirements` seam: canonical owner is `src/prism/scanner_extract/requirements.py`.
+- Runtime wiring in `src/prism/scanner.py` resolves migrated parser/extractor/requirements symbols from canonical `scanner_extract` exports.
+- README touchpoints now consume canonical imports in `src/prism/scanner_readme/guide.py` and `src/prism/scanner_readme/style.py`.
+
+### Retained Compatibility Wrappers
+
+These wrappers are intentionally retained in Wave 1 to preserve legacy import paths:
+
+- `src/prism/scanner_submodules/task_parser.py`
+- `src/prism/scanner_submodules/variable_extractor.py`
+- `src/prism/scanner_submodules/scanner_requirements.py`
+
+### Deferred Wrapper Retirement Criteria (Later Waves)
+
+Wrapper retirement remains deferred until all criteria are met:
+
+1. Internal runtime/core/readme imports for migrated seams are fully canonicalized.
+2. Legacy import parity tests pass for wrapper and canonical paths.
+3. Migration/removal is approved in a dedicated follow-up task to avoid broad accidental removals.
+
+### Validation Gate Outcomes
+
+- Full pytest gate: `1010 passed, 1 skipped`.
+- Typecheck gate: `mypy` clean (no issues found).
+- Lint gate recorded unrelated pre-existing unused-import findings in `api.py` and `cli.py`; no seam-migration behavior regressions were observed.
+
+Detailed Wave 1 migration notes are tracked in `docs/plan/scanner-migration-wave1-20260328/wave1-migration-notes.md`.
 
 ---
 

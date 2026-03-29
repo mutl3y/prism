@@ -139,6 +139,46 @@ marker line.
 
 Avoid YAML-like marker payloads (`key: value`).
 
+## Migration Guide: Legacy Support Removal
+
+This is the primary migration reference for users moving from retired
+`ansible_role_doc` legacy names to canonical Prism names.
+
+### Legacy Names Removed and Canonical Replacements
+
+| Legacy name/path | Canonical replacement | Notes |
+| --- | --- | --- |
+| `.ansible_role_doc.yml` | `.prism.yml` | Role section configuration filename |
+| `ANSIBLE_ROLE_DOC_STYLE_SOURCE` | `PRISM_STYLE_SOURCE` | Style guide source environment variable |
+| `$XDG_DATA_HOME/ansible_role_doc/STYLE_GUIDE_SOURCE.md` | `$XDG_DATA_HOME/prism/STYLE_GUIDE_SOURCE.md` | XDG user style guide location |
+| `/var/lib/ansible_role_doc/STYLE_GUIDE_SOURCE.md` | `/var/lib/prism/STYLE_GUIDE_SOURCE.md` | System style guide location |
+
+### Expected Retirement Errors and Meanings
+
+| Error code | Meaning | What to do |
+| --- | --- | --- |
+| `LEGACY_SECTION_CONFIG_UNSUPPORTED` | The legacy role config file `.ansible_role_doc.yml` is no longer accepted. | Rename/migrate the file to `.prism.yml`. |
+| `LEGACY_RUNTIME_PATH_UNAVAILABLE` | A retired runtime compatibility path was requested (for example, the legacy style-source env var). | Remove legacy runtime settings and use canonical Prism behavior. |
+
+### Migration Checklist
+
+1. Rename role config files from `.ansible_role_doc.yml` to `.prism.yml`.
+2. Replace `ANSIBLE_ROLE_DOC_STYLE_SOURCE` with `PRISM_STYLE_SOURCE` in shell profiles, CI, and container/runtime env files.
+3. Update style guide file locations from `ansible_role_doc` directories to `prism` directories for both XDG and system paths.
+4. Search your role/tooling repos for legacy names and update references:
+
+```bash
+rg -n "\.ansible_role_doc\.yml|ANSIBLE_ROLE_DOC_STYLE_SOURCE|ansible_role_doc/STYLE_GUIDE_SOURCE\.md"
+```
+
+1. Run a post-migration scan and confirm it completes without legacy-retirement errors:
+
+```bash
+prism role <role_path> -o README.md
+```
+
+1. If an error appears, match its code to the table above and apply the listed corrective action.
+
 ## Troubleshooting
 
 | Problem | Likely Cause | Action |

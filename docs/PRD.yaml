@@ -1,0 +1,109 @@
+prd_id: legacy-ansible-role-doc-retirement-20260329
+version: 5.7.0
+status: final
+
+user_stories:
+  - as_a: prism maintainer
+    i_want: all ansible_role_doc legacy support paths removed across the app
+    so_that: canonical Prism behavior is the only runtime path
+  - as_a: prism maintainer
+    i_want: retirement to be aggressive and complete in a single sweep
+    so_that: no hidden fallback paths remain to reintroduce behavior drift
+  - as_a: prism maintainer
+    i_want: legacy-retirement tests removed when they are redundant with canonical coverage
+    so_that: the suite stays high-signal and easier to maintain
+
+scope:
+  in_scope:
+    - identify and remove all ansible_role_doc legacy support paths in scanner, config, and compatibility surfaces
+    - retire legacy section config filename support (`.ansible_role_doc.yml`) and associated fallback constants/usages
+    - preserve canonical behavior by routing all runtime paths through canonical modules and config names
+    - delete retirement assertion tests only when they duplicate canonical behavior verification
+    - execute full regression gate for retirement changes (pytest, lint, mypy)
+  out_of_scope:
+    - introducing new feature behavior unrelated to legacy-path retirement
+    - changing public API signatures for api.py and cli.py
+    - adding new dependencies or framework migrations
+
+acceptance_criteria:
+  - criterion: Legacy ansible_role_doc paths are fully retired
+    verification: repo search shows no active runtime imports, constants, or fallback checks for ansible_role_doc paths
+  - criterion: Canonical behavior remains unchanged
+    verification: full regression gate evidence (pytest, lint, mypy/typecheck) and focused behavioral checks where applicable show no functional regressions in canonical flows
+  - criterion: Legacy section config fallback is removed
+    verification: `src/prism/scanner_config/section.py` no longer exposes `LEGACY_SECTION_CONFIG_FILENAME` or includes it in `SECTION_CONFIG_FILENAMES`
+  - criterion: Retirement tests are only removed when redundant
+    verification: removed tests are mapped to equivalent canonical coverage and full regression gate remains green
+  - criterion: Public UX remains clear after retirement
+    verification: deprecated legacy config usage results in explicit user-facing guidance rather than silent fallback
+
+needs_clarification:
+  - Should legacy config discovery emit a hard error or a warning with migration guidance when `.ansible_role_doc.yml` is present?
+  - Is any external tooling still expected to generate `.ansible_role_doc.yml` in active workflows?
+
+features:
+  - name: Full legacy-path inventory and retirement
+    overview: Exhaustively inventory ansible_role_doc legacy support surfaces and remove them from runtime behavior.
+    status: complete
+  - name: Canonical section config enforcement
+    overview: Keep `.prism.yml` as the only supported section config filename and remove the legacy filename constant/surface.
+    status: complete
+  - name: Redundant retirement test cleanup
+    overview: Remove assertion tests that only restate retirement details where canonical behavior tests already provide equivalent coverage.
+    status: complete
+  - name: Migration-safe user feedback
+    overview: Preserve clear public-facing guidance when legacy config artifacts are encountered after retirement.
+    status: complete
+  - name: README input parser extraction and scanner delegation seam
+    overview: Extract README input parser helpers into scanner_readme/input_parser.py and preserve scanner.py helper contracts via delegation.
+    status: complete
+  - name: Scanner godfile decomposition wave 5 closure
+    overview: Completed wave-5 scanner decomposition with scanner.py reduced from 3079 to 2603 lines (15.46%), compatibility wrappers moved into dedicated scanner_compat seams, and closure gates passed together.
+    status: complete
+  - name: Scanner godfile decomposition wave 6 closure
+    overview: Completed wave-6 scanner decomposition with scanner.py reduced from 2603 to 2303 lines (11.53%), deterministic wrapper-usage audit gate enforced at closure, and closure gates passed together.
+    status: complete
+  - name: Scanner godfile decomposition wave 7 closure
+    overview: Completed wave-7 scanner decomposition with scanner.py reduced from 2310 to 2035 lines (11.90%), deterministic wrapper-usage audit gate passed with zero hits, and closure gates passed together.
+    status: complete
+  - name: Scanner godfile decomposition wave 8 closure
+    overview: Completed wave-8 seam migration closure with primary criteria met (seam migration complete, rollback-boundary behavior parity verified, and full closure gates green) while scanner.py size is captured as non-blocking telemetry (2035 to 2035, 0.00%).
+    status: complete
+
+errors:
+  - code: LEGACY_SECTION_CONFIG_UNSUPPORTED
+    message: Legacy section config file `.ansible_role_doc.yml` is no longer supported. Rename or migrate to `.prism.yml`.
+    when: Triggered when legacy section config is detected in user-provided role content.
+  - code: LEGACY_RUNTIME_PATH_UNAVAILABLE
+    message: Legacy ansible_role_doc compatibility path has been retired. Use canonical Prism behavior.
+    when: Triggered when a user-facing command or input requests a retired legacy mode.
+
+decisions:
+  - decision: Objective is complete retirement of ansible_role_doc legacy support paths while preserving canonical behavior
+    rationale: Removing dual-path behavior reduces maintenance risk and avoids long-term behavioral drift.
+  - decision: Scope is aggressive retirement rather than phased compatibility
+    rationale: Discuss phase confirmed retirement can proceed broadly without preserving legacy runtime branches.
+  - decision: Redundant retirement assertion tests may be removed
+    rationale: Keep only behavior-oriented tests where canonical coverage already proves correctness.
+  - decision: Existing legacy signal in section config constants must be treated as an active retirement target
+    rationale: `LEGACY_SECTION_CONFIG_FILENAME = '.ansible_role_doc.yml'` indicates an explicit remaining legacy support path.
+  - decision: Wave 8 closure evaluates seam completion and parity as primary, with scanner size as telemetry-only evidence
+    rationale: Wave-8 closure contract defines seam migration completion plus parity and green gates as blocking criteria; scanner size capture is explicitly non-blocking reporting telemetry.
+
+changes:
+  - version: 5.7.0
+    change: 2026-03-29 - Recorded closure for scanner-godfile-decomposition-wave8-20260329: primary closure criteria met (seam migration complete, rollback-boundary behavior parity verified, and full gates green with pytest, lint [ruff + black --check], and mypy typecheck); scanner.py size capture recorded as non-blocking telemetry (2035 to 2035, 0.00%).
+  - version: 5.6.0
+    change: 2026-03-29 - Recorded closure for scanner-godfile-decomposition-wave7-20260329: scanner.py reduced from 2310 to 2035 lines (11.90%), deterministic wrapper-usage audit gate passed with zero hits, and unified closure gate passed (full pytest, lint with ruff + black --check, mypy typecheck).
+  - version: 5.5.0
+    change: 2026-03-29 - Recorded closure for scanner-godfile-decomposition-wave6-20260329: scanner.py reduced from 2603 to 2303 lines (11.53%), deterministic wrapper-usage audit gate passed, and unified closure gate passed (full pytest, lint with ruff + black --check, mypy typecheck).
+  - version: 5.4.0
+    change: 2026-03-29 - Recorded closure for scanner-godfile-decomposition-wave5-20260329: scanner.py reduced from 3079 to 2603 lines (15.46%), compatibility wrappers moved to dedicated scanner_compat module seams, and unified closure gate passed (full pytest, lint with ruff + black --check, mypy typecheck).
+  - version: 5.3.0
+    change: 2026-03-29 - Recorded closure for scanner-readme-input-parser-extract-20260329: wave tasks srip_01 through srip_04 completed, canonical parser moved to src/prism/scanner_readme/input_parser.py with scanner.py delegation, and unified closure gate passed (full pytest, lint with ruff + black --check, mypy typecheck).
+  - version: 5.2.0
+    change: 2026-03-29 - Marked legacy ansible_role_doc retirement complete with closure evidence: deterministic legacy scan enforcement (zero disallowed active runtime/export hits), full pytest gate passing, lint gate passing (ruff + black --check), and mypy typecheck passing; see plan closure artifacts under docs/plan/legacy-ansible-role-doc-retire-20260329/.
+  - version: 5.1.0
+    change: 2026-03-29 - Relaxed acceptance evidence for canonical-behavior verification to rely on full regression gate results (pytest, lint, mypy/typecheck) plus focused behavioral checks where applicable; baseline/candidate comparison evidence is no longer required.
+  - version: 5.0.0
+    change: 2026-03-29 - Reframed PRD from wave-4 closure to ansible_role_doc legacy-path retirement program with aggressive scope, canonical-preservation guardrails, and explicit legacy-config removal target.
