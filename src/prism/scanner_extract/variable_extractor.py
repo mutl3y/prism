@@ -411,7 +411,7 @@ def _collect_referenced_variable_names(
                 continue
             try:
                 text = file_path.read_text(encoding="utf-8")
-            except (UnicodeDecodeError, OSError):
+            except UnicodeDecodeError, OSError:
                 continue
             local_bindings = _collect_jinja_local_bindings_from_text(text)
             for name in _collect_undeclared_jinja_variables(text):

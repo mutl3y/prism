@@ -1,6 +1,10 @@
 """Focused tests for scanner-report and runbook rendering helpers."""
 
-from prism.scanner_submodules import render_reports
+import importlib
+import pytest
+
+from prism.scanner_analysis import report as scanner_report
+from prism.scanner_analysis import runbook as scanner_runbook
 
 
 def _scanner_counters(**overrides):
@@ -63,7 +67,7 @@ def test_render_reports_module_builds_scanner_report_markdown_with_stable_contra
         del role_name, description, variables, requirements, default_filters, metadata
         return section_bodies.get(section_id, "")
 
-    report = render_reports.build_scanner_report_markdown(
+    report = scanner_report.build_scanner_report_markdown(
         role_name="demo_role",
         description="Demo description",
         variables={},
@@ -177,7 +181,7 @@ def test_render_reports_module_renders_runbook_markdown_with_stable_sections():
         },
     }
 
-    content = render_reports.render_runbook("my_role", metadata)
+    content = scanner_runbook.render_runbook("my_role", metadata)
 
     assert "# RUNBOOK: my_role" in content
     assert "## Role Notes" in content
@@ -193,7 +197,7 @@ def test_render_reports_module_renders_runbook_markdown_with_stable_sections():
 
 
 def test_render_reports_module_builds_runbook_rows_with_stable_value_shaping():
-    rows = render_reports.build_runbook_rows(
+    rows = scanner_runbook.build_runbook_rows(
         {
             "task_catalog": [
                 {
@@ -229,7 +233,7 @@ def test_render_reports_module_builds_runbook_rows_with_stable_value_shaping():
 
 
 def test_render_reports_module_renders_runbook_csv_with_stable_header_and_rows():
-    content = render_reports.render_runbook_csv(
+    content = scanner_runbook.render_runbook_csv(
         {
             "task_catalog": [
                 {
@@ -252,3 +256,8 @@ def test_render_reports_module_renders_runbook_csv_with_stable_header_and_rows()
         "tasks/main.yml,Deploy app,copy /tmp/app to /opt/app then restart",
         "tasks/main.yml,Deploy app,Warning: requires sudo",
     ]
+
+
+def test_render_reports_compatibility_module_is_retired():
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("prism.scanner_submodules.render_reports")

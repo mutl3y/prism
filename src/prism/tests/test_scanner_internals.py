@@ -1090,7 +1090,7 @@ def test_reload_pattern_config_synchronizes_ansible_builtin_variables_into_ignor
     patched_policy["ansible_builtin_variables"] = existing_builtins + [sentinel]
 
     # Drive _refresh_policy_derived_state directly via the variable_extractor
-    from prism.scanner_submodules import variable_extractor as _ve
+    from prism.scanner_extract import variable_extractor as _ve
 
     _ve._refresh_policy_derived_state(patched_policy)
 
@@ -1103,6 +1103,94 @@ def test_reload_pattern_config_synchronizes_ansible_builtin_variables_into_ignor
         # Always restore original state
         _ve._refresh_policy_derived_state(original_policy)
         assert sentinel not in _ve.IGNORED_IDENTIFIERS
+
+
+def test_variable_extractor_wrapper_re_exports_canonical_implementation():
+    """Compatibility wrapper should expose canonical scanner_extract functions."""
+    from prism.scanner_extract import variable_extractor as canonical
+    from prism.scanner_extract import variable_extractor as compat
+
+    assert (
+        compat._collect_referenced_variable_names
+        is canonical._collect_referenced_variable_names
+    )
+    assert compat._infer_variable_type is canonical._infer_variable_type
+
+
+def test_variable_insights_wrappers_re_export_canonical_implementations():
+    """Variable-insights scanner helpers should be canonical scanner_core aliases."""
+    from prism.scanner_core import variable_insights as canonical
+
+    assert (
+        scanner._attach_external_vars_context is canonical.attach_external_vars_context
+    )
+    assert scanner._build_display_variables is canonical.build_display_variables
+
+
+def test_runbook_bridge_wrappers_re_export_canonical_implementations():
+    """Runbook bridge scanner helpers should be canonical scanner_analysis aliases."""
+    from prism.scanner_analysis import (
+        build_runbook_rows,
+        render_runbook,
+        render_runbook_csv,
+    )
+
+    assert scanner.render_runbook is render_runbook
+    assert scanner.render_runbook_csv is render_runbook_csv
+    assert scanner._build_runbook_rows is build_runbook_rows
+
+
+def test_scanner_refresh_policy_keeps_wrapper_and_canonical_ignored_in_sync(
+    monkeypatch,
+):
+    """scanner._refresh_policy must keep scanner, wrapper, and canonical states aligned."""
+    from prism.scanner_extract import variable_extractor as canonical
+    from prism.scanner_extract import variable_extractor as compat
+
+    sentinel = "ansible_prism_sync_test_sentinel"
+    base_policy = dict(scanner._POLICY)
+    patched_policy = dict(base_policy)
+    builtins = list(patched_policy.get("ansible_builtin_variables", []))
+    patched_policy["ansible_builtin_variables"] = builtins + [sentinel]
+
+    def _fake_refresh_policy(override_path=None):
+        sensitivity = patched_policy["sensitivity"]
+        return (
+            patched_policy,
+            patched_policy["section_aliases"],
+            tuple(sensitivity["name_tokens"]),
+            tuple(sensitivity["vault_markers"]),
+            tuple(sensitivity["credential_prefixes"]),
+            tuple(sensitivity["url_prefixes"]),
+            tuple(patched_policy["variable_guidance"]["priority_keywords"]),
+            patched_policy["ignored_identifiers"],
+        )
+
+    monkeypatch.setattr(scanner, "_config_refresh_policy", _fake_refresh_policy)
+
+    scanner._refresh_policy()
+
+    try:
+        assert sentinel in scanner.IGNORED_IDENTIFIERS
+        assert scanner.IGNORED_IDENTIFIERS == canonical.IGNORED_IDENTIFIERS
+        assert compat.IGNORED_IDENTIFIERS == canonical.IGNORED_IDENTIFIERS
+    finally:
+
+        def _restore_refresh_policy(override_path=None):
+            sensitivity = base_policy["sensitivity"]
+            return (
+                base_policy,
+                base_policy["section_aliases"],
+                tuple(sensitivity["name_tokens"]),
+                tuple(sensitivity["vault_markers"]),
+                tuple(sensitivity["credential_prefixes"]),
+                tuple(sensitivity["url_prefixes"]),
+                tuple(base_policy["variable_guidance"]["priority_keywords"]),
+                base_policy["ignored_identifiers"],
+            )
+
+        monkeypatch.setattr(scanner, "_config_refresh_policy", _restore_refresh_policy)
+        scanner._refresh_policy()
 
 
 def test_collect_referenced_variable_names_ignores_explicit_ansible_connection_vars(

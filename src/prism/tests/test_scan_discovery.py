@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from prism import scanner
-from prism.scanner_submodules import scan_discovery
+from prism.scanner_extract import discovery as scan_discovery
 
 
 def test_scan_discovery_iter_role_variable_map_candidates_prefers_main_then_fragments(
@@ -66,38 +66,12 @@ def test_scan_discovery_resolve_scan_identity_raises_for_missing_role_path(tmp_p
         )
 
 
-def test_scanner_wrapper_load_meta_delegates(monkeypatch):
-    captured = {}
-
-    def fake_load_meta(role_path):
-        captured["role_path"] = role_path
-        return {"galaxy_info": {"role_name": "demo"}}
-
-    monkeypatch.setattr(scanner, "_scan_discovery_load_meta", fake_load_meta)
-
-    result = scanner.load_meta("/tmp/demo-role")
-
-    assert result == {"galaxy_info": {"role_name": "demo"}}
-    assert captured["role_path"] == "/tmp/demo-role"
+def test_scanner_wrapper_load_meta_re_exports_canonical_implementation():
+    assert scanner.load_meta is scanner._scan_discovery_load_meta
 
 
-def test_scanner_wrapper_load_requirements_delegates(monkeypatch):
-    captured = {}
-
-    def fake_load_requirements(role_path):
-        captured["role_path"] = role_path
-        return [{"name": "acme.example"}]
-
-    monkeypatch.setattr(
-        scanner,
-        "_scan_discovery_load_requirements",
-        fake_load_requirements,
-    )
-
-    result = scanner.load_requirements("/tmp/demo-role")
-
-    assert result == [{"name": "acme.example"}]
-    assert captured["role_path"] == "/tmp/demo-role"
+def test_scanner_wrapper_load_requirements_re_exports_canonical_implementation():
+    assert scanner.load_requirements is scanner._scan_discovery_load_requirements
 
 
 def test_scanner_wrapper_load_variables_delegates(monkeypatch):

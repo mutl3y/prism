@@ -9,7 +9,7 @@ from typing import TypedDict
 import yaml
 
 from ..scanner_config.patterns import load_pattern_config
-from ..scanner_submodules.task_parser import _format_inline_yaml
+from ..scanner_extract.task_parser import _format_inline_yaml
 
 _POLICY = load_pattern_config()
 STYLE_SECTION_ALIASES: dict[str, str] = _POLICY["section_aliases"]

@@ -1,4 +1,15 @@
-from prism.scanner_submodules.doc_insights import build_doc_insights, parse_comma_values
+import inspect
+
+from prism.scanner_readme import doc_insights
+
+build_doc_insights = doc_insights.build_doc_insights
+parse_comma_values = doc_insights.parse_comma_values
+
+
+def test_canonical_doc_insights_module_has_no_scanner_submodules_dependency():
+    source = inspect.getsource(doc_insights)
+
+    assert "scanner_submodules" not in source
 
 
 def test_parse_comma_values_normal():

@@ -62,6 +62,11 @@ def _build_runbook_rows(metadata: dict | None) -> list[tuple[str, str, str]]:
     return rows
 
 
+def build_runbook_rows(metadata: dict | None) -> list[tuple[str, str, str]]:
+    """Build normalized runbook rows: (file, task_name, step)."""
+    return _build_runbook_rows(metadata)
+
+
 def render_runbook_csv(metadata: dict | None = None) -> str:
     """Render runbook rows to CSV with columns: file, task_name, step."""
     output = io.StringIO()

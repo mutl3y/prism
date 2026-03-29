@@ -41,7 +41,7 @@ def load_meta(role_path: str) -> dict:
     if meta_file.exists():
         try:
             return yaml.safe_load(meta_file.read_text(encoding="utf-8")) or {}
-        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
+        except OSError, UnicodeDecodeError, yaml.YAMLError, ValueError:
             return {}
     return {}
 
@@ -52,7 +52,7 @@ def load_requirements(role_path: str) -> list:
     if path.exists():
         try:
             return yaml.safe_load(path.read_text(encoding="utf-8")) or []
-        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
+        except OSError, UnicodeDecodeError, yaml.YAMLError, ValueError:
             return []
     return []
 
@@ -77,7 +77,7 @@ def load_variables(
                 data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
                 if isinstance(data, dict):
                     vars_out.update(data)
-            except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
+            except OSError, UnicodeDecodeError, yaml.YAMLError, ValueError:
                 continue
 
     for extra_path in collect_include_vars_files(role_path, exclude_paths):
@@ -85,7 +85,7 @@ def load_variables(
             data = yaml.safe_load(extra_path.read_text(encoding="utf-8")) or {}
             if isinstance(data, dict):
                 vars_out.update(data)
-        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
+        except OSError, UnicodeDecodeError, yaml.YAMLError, ValueError:
             continue
 
     return vars_out

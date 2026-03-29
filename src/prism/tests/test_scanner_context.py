@@ -7,9 +7,13 @@ scanner.py infrastructure.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
+from prism import scanner
 from prism.scanner_core import DIContainer, ScannerContext
+from prism.scanner_core import scanner_context as scanner_context_module
 
 
 class TestScannerContextInstantiation:
@@ -385,3 +389,88 @@ class TestScannerContextIntegration:
         payload = context.orchestrate_scan()
         assert payload is not None
         assert "role_name" in payload
+
+
+def test_scanner_context_runtime_path_uses_canonical_modules(monkeypatch):
+    """Runtime payload building must use scanner_core modules, not scanner private wrappers."""
+    required_scan_options = {
+        "role_path": "/tmp/role",
+        "role_name_override": None,
+        "readme_config_path": None,
+        "include_vars_main": True,
+        "exclude_path_patterns": None,
+        "detailed_catalog": False,
+        "include_task_parameters": True,
+        "include_task_runbooks": True,
+        "inline_task_runbooks": True,
+        "include_collection_checks": True,
+        "keep_unknown_style_sections": True,
+        "adopt_heading_mode": None,
+        "vars_seed_paths": None,
+        "style_readme_path": None,
+        "style_source_path": None,
+        "style_guide_skeleton": False,
+        "compare_role_path": None,
+        "fail_on_unconstrained_dynamic_includes": None,
+        "fail_on_yaml_like_task_annotations": None,
+        "ignore_unresolved_internal_underscore_references": None,
+    }
+    di = DIContainer(role_path="/tmp/role", scan_options=required_scan_options)
+    context = ScannerContext(
+        di=di,
+        role_path="/tmp/role",
+        scan_options=required_scan_options,
+    )
+
+    canonical_options = {"role_path": "/tmp/role", "normalized": True}
+
+    def fake_build_run_scan_options(**kwargs: object) -> dict[str, object]:
+        assert kwargs["role_path"] == "/tmp/role"
+        return canonical_options
+
+    def fake_prepare_scan_context(scan_options: dict[str, object], **_: object):
+        assert scan_options is canonical_options
+        return (
+            "/tmp/role",
+            "role",
+            "desc",
+            ["dep"],
+            [{"target_var": "x"}],
+            {
+                "display_variables": {"x": {"required": False}},
+                "metadata": {"features": {"tasks_scanned": 1}},
+            },
+        )
+
+    monkeypatch.setattr(
+        scanner_context_module,
+        "scan_request",
+        SimpleNamespace(build_run_scan_options=fake_build_run_scan_options),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        scanner_context_module,
+        "scan_runtime",
+        SimpleNamespace(prepare_scan_context=fake_prepare_scan_context),
+        raising=False,
+    )
+
+    def should_not_call_scanner_wrapper(**_: object):
+        raise AssertionError("scanner private wrapper bridge should not be used")
+
+    monkeypatch.setattr(
+        scanner,
+        "_build_run_scan_options",
+        should_not_call_scanner_wrapper,
+    )
+    monkeypatch.setattr(
+        scanner,
+        "_prepare_scan_context",
+        should_not_call_scanner_wrapper,
+    )
+
+    payload = context._build_output_payload()
+
+    assert payload["role_name"] == "role"
+    assert payload["display_variables"] == {"x": {"required": False}}
+    assert payload["requirements_display"] == ["dep"]

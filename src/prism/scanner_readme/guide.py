@@ -8,9 +8,9 @@ from .style import (
     _render_template_overrides_section,
     _render_variable_summary_section,
 )
+from .doc_insights import parse_comma_values
+from ..scanner_extract.requirements import normalize_requirements
 from ..scanner_config.patterns import load_pattern_config
-from ..scanner_submodules.scanner_requirements import normalize_requirements
-from ..scanner_submodules.doc_insights import parse_comma_values
 
 _POLICY = load_pattern_config()
 _VARIABLE_GUIDANCE_KEYWORDS: tuple[str, ...] = tuple(

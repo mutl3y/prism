@@ -15,7 +15,6 @@ import yaml
 def default_style_guide_user_paths(
     xdg_data_home_env: str = "XDG_DATA_HOME",
     style_guide_data_dirname: str = "prism",
-    legacy_style_guide_data_dirname: str = "ansible_role_doc",
     style_guide_source_filename: str = "STYLE_GUIDE_SOURCE.md",
 ) -> list[Path]:
     """Return user-level style guide paths honoring XDG conventions.
@@ -23,7 +22,6 @@ def default_style_guide_user_paths(
     Args:
         xdg_data_home_env: Environment variable name for XDG_DATA_HOME
         style_guide_data_dirname: Prism style guide directory name
-        legacy_style_guide_data_dirname: Legacy style guide directory name
         style_guide_source_filename: Style guide filename
 
     Returns:
@@ -36,44 +34,34 @@ def default_style_guide_user_paths(
         data_home = (Path.home() / ".local" / "share").expanduser()
     return [
         data_home / style_guide_data_dirname / style_guide_source_filename,
-        data_home / legacy_style_guide_data_dirname / style_guide_source_filename,
     ]
 
 
 def resolve_default_style_guide_source(
     explicit_path: str | None = None,
     env_style_guide_source_path: str = "PRISM_STYLE_SOURCE",
-    legacy_env_style_guide_source_path: str = "ANSIBLE_ROLE_DOC_STYLE_SOURCE",
     xdg_data_home_env: str = "XDG_DATA_HOME",
     style_guide_data_dirname: str = "prism",
-    legacy_style_guide_data_dirname: str = "ansible_role_doc",
     style_guide_source_filename: str = "STYLE_GUIDE_SOURCE.md",
     system_style_guide_source_path: Path | None = None,
-    legacy_system_style_guide_source_path: Path | None = None,
     default_style_guide_source_path: Path | None = None,
 ) -> str:
     r"""Resolve default style guide source path using Linux-aware precedence.
 
     Precedence (first existing path wins):
      1. ``$PRISM_STYLE_SOURCE``
-     2. ``$ANSIBLE_ROLE_DOC_STYLE_SOURCE`` (legacy compatibility)
-     3. ``./STYLE_GUIDE_SOURCE.md``
-     4. ``$XDG_DATA_HOME/prism/STYLE_GUIDE_SOURCE.md`` (or ``~/.local/share/...``)
-     5. ``$XDG_DATA_HOME/ansible_role_doc/STYLE_GUIDE_SOURCE.md`` (legacy)
-     6. ``/var/lib/prism/STYLE_GUIDE_SOURCE.md``
-     7. ``/var/lib/ansible_role_doc/STYLE_GUIDE_SOURCE.md`` (legacy)
-     8. bundled package template path
+        2. ``./STYLE_GUIDE_SOURCE.md``
+        3. ``$XDG_DATA_HOME/prism/STYLE_GUIDE_SOURCE.md`` (or ``~/.local/share/...``)
+        4. ``/var/lib/prism/STYLE_GUIDE_SOURCE.md``
+        5. bundled package template path
 
     Args:
         explicit_path: Explicit path override (must be a file)
         env_style_guide_source_path: Env var name for primary style source
-        legacy_env_style_guide_source_path: Env var name for legacy style source
         xdg_data_home_env: Env var name for XDG_DATA_HOME
         style_guide_data_dirname: Prism style guide directory name
-        legacy_style_guide_data_dirname: Legacy style guide directory name
         style_guide_source_filename: Style guide filename
         system_style_guide_source_path: System path for style guide
-        legacy_system_style_guide_source_path: Legacy system path for style guide
         default_style_guide_source_path: Bundled default style guide path
 
     Returns:
@@ -86,12 +74,6 @@ def resolve_default_style_guide_source(
     if system_style_guide_source_path is None:
         system_style_guide_source_path = (
             Path("/var/lib") / style_guide_data_dirname / style_guide_source_filename
-        )
-    if legacy_system_style_guide_source_path is None:
-        legacy_system_style_guide_source_path = (
-            Path("/var/lib")
-            / legacy_style_guide_data_dirname
-            / style_guide_source_filename
         )
     if default_style_guide_source_path is None:
         default_style_guide_source_path = (
@@ -110,21 +92,15 @@ def resolve_default_style_guide_source(
     if env_style_source:
         candidates.append(Path(env_style_source).expanduser())
 
-    legacy_env_style_source = os.environ.get(legacy_env_style_guide_source_path)
-    if legacy_env_style_source:
-        candidates.append(Path(legacy_env_style_source).expanduser())
-
     candidates.append(Path.cwd() / style_guide_source_filename)
     candidates.extend(
         default_style_guide_user_paths(
             xdg_data_home_env=xdg_data_home_env,
             style_guide_data_dirname=style_guide_data_dirname,
-            legacy_style_guide_data_dirname=legacy_style_guide_data_dirname,
             style_guide_source_filename=style_guide_source_filename,
         )
     )
     candidates.append(system_style_guide_source_path)
-    candidates.append(legacy_system_style_guide_source_path)
     candidates.append(default_style_guide_source_path)
 
     for candidate in candidates:

@@ -1,7 +1,7 @@
 """FeatureDetector orchestrator for role feature analysis.
 
 This module consolidates feature-extraction logic currently scattered in:
-- task_parser.py — task/handler catalog, included roles, executed modules
+- scanner_extract.task_parser — task/handler catalog, included roles, executed modules
 - scanner_submodules — feature counting and pattern analysis
 
 The FeatureDetector class provides a cohesive interface for detecting,
@@ -25,7 +25,7 @@ from typing import Any
 
 from .di import DIContainer
 from ..scanner_data.contracts import FeaturesContext
-from ..scanner_submodules.task_parser import (
+from ..scanner_extract.task_parser import (
     _collect_task_files,
     _load_yaml_file,
     _iter_task_include_targets,

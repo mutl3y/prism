@@ -1325,27 +1325,6 @@ def test_extract_role_notes_honors_configured_marker_prefix(tmp_path):
     assert notes["notes"] == ["custom marker note"]
 
 
-def test_extract_role_notes_ignores_legacy_aliases(tmp_path):
-    role = tmp_path / "role"
-    tasks = role / "tasks"
-    tasks.mkdir(parents=True)
-    (tasks / "main.yml").write_text(
-        "---\n"
-        "#w# package is unhealthy\n"
-        "#d# old parameter is deprecated\n"
-        "#n# run with --check first\n"
-        "#a# keep inventory in sync\n",
-        encoding="utf-8",
-    )
-
-    notes = scanner._extract_role_notes_from_comments(str(role))
-
-    assert notes["warnings"] == []
-    assert notes["deprecations"] == []
-    assert notes["notes"] == []
-    assert notes["additionals"] == []
-
-
 def test_extract_task_annotations_for_file_supports_short_and_explicit():
     lines = [
         "---",
@@ -1793,10 +1772,8 @@ def test_default_style_guide_user_paths_respects_xdg(monkeypatch):
 
     paths = scanner._default_style_guide_user_paths()
 
+    assert len(paths) == 1
     assert str(paths[0]).endswith("/tmp/xdg-data/prism/STYLE_GUIDE_SOURCE.md")
-    assert str(paths[1]).endswith(
-        "/tmp/xdg-data/ansible_role_doc/STYLE_GUIDE_SOURCE.md"
-    )
 
 
 def test_default_style_guide_user_paths_falls_back_to_local_share(monkeypatch):
@@ -1804,10 +1781,8 @@ def test_default_style_guide_user_paths_falls_back_to_local_share(monkeypatch):
 
     paths = scanner._default_style_guide_user_paths()
 
+    assert len(paths) == 1
     assert str(paths[0]).endswith("/.local/share/prism/STYLE_GUIDE_SOURCE.md")
-    assert str(paths[1]).endswith(
-        "/.local/share/ansible_role_doc/STYLE_GUIDE_SOURCE.md"
-    )
 
 
 def test_resolve_default_style_guide_source_explicit_path_branches(tmp_path):
@@ -1964,7 +1939,6 @@ def test_extract_declared_collections_from_meta_and_requirements_helpers():
 
 def test_resolve_default_style_guide_source_falls_back_when_no_candidates(monkeypatch):
     monkeypatch.setenv(scanner.ENV_STYLE_GUIDE_SOURCE_PATH, "")
-    monkeypatch.setenv(scanner.LEGACY_ENV_STYLE_GUIDE_SOURCE_PATH, "")
     monkeypatch.setattr(Path, "is_file", lambda self: False)
 
     resolved = scanner.resolve_default_style_guide_source()
@@ -2538,13 +2512,13 @@ def test_collect_yaml_parse_failures_read_and_problem_fallback_paths(
         return original_read_text(self, encoding=encoding)
 
     def fake_safe_load(text):
-        from prism.scanner_submodules import scanner_dataload as sd
+        from prism.scanner_extract import dataload as sd
 
         raise sd.yaml.YAMLError("plain parser failure")
 
     monkeypatch.setattr(Path, "read_text", fake_read_text)
     # Patch yaml in the scanner_dataload module where it's used
-    from prism.scanner_submodules import scanner_dataload as sd
+    from prism.scanner_extract import dataload as sd
 
     monkeypatch.setattr(sd.yaml, "safe_load", fake_safe_load)
 

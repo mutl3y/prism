@@ -14,7 +14,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from . import scan_request, scan_runtime
 from .di import DIContainer
+from .scan_context_builder import ScanContextBuilder
 
 
 class ScannerContext:
@@ -209,22 +211,142 @@ class ScannerContext:
         Returns:
             dict[str, Any]: Payload ready for output emission (immutable from perspective of caller).
         """
-        role_name = str(self._scan_options.get("role_name_override") or "").strip()
-        if not role_name:
-            role_name = Path(self._role_path).name or self._role_path
+        required_scan_option_keys = {
+            "role_path",
+            "role_name_override",
+            "readme_config_path",
+            "include_vars_main",
+            "exclude_path_patterns",
+            "detailed_catalog",
+            "include_task_parameters",
+            "include_task_runbooks",
+            "inline_task_runbooks",
+            "include_collection_checks",
+            "keep_unknown_style_sections",
+            "adopt_heading_mode",
+            "vars_seed_paths",
+            "style_readme_path",
+            "style_source_path",
+            "style_guide_skeleton",
+            "compare_role_path",
+            "fail_on_unconstrained_dynamic_includes",
+            "fail_on_yaml_like_task_annotations",
+            "ignore_unresolved_internal_underscore_references",
+        }
 
-        metadata = dict(self._scan_metadata)
+        # Preserve sparse-option compatibility for ScannerContext unit/integration usage.
+        if not required_scan_option_keys.issubset(self._scan_options):
+            role_name = str(self._scan_options.get("role_name_override") or "").strip()
+            if not role_name:
+                role_name = Path(self._role_path).name or self._role_path
+
+            metadata = dict(self._scan_metadata)
+            if "features" not in metadata and self._detected_features:
+                metadata["features"] = dict(self._detected_features)
+            self._scan_metadata = metadata
+
+            return {
+                "role_name": role_name,
+                "description": "",
+                "display_variables": {},
+                "requirements_display": [],
+                "undocumented_default_filters": [],
+                "metadata": metadata,
+            }
+
+        # Import lazily to avoid import cycles at module load time.
+        from prism import scanner as scanner_module
+
+        normalized_scan_options = scan_request.build_run_scan_options(
+            role_path=str(self._scan_options.get("role_path") or self._role_path),
+            role_name_override=self._scan_options.get("role_name_override"),
+            readme_config_path=self._scan_options.get("readme_config_path"),
+            include_vars_main=bool(self._scan_options.get("include_vars_main", True)),
+            exclude_path_patterns=self._scan_options.get("exclude_path_patterns"),
+            detailed_catalog=bool(self._scan_options.get("detailed_catalog", False)),
+            include_task_parameters=bool(
+                self._scan_options.get("include_task_parameters", True)
+            ),
+            include_task_runbooks=bool(
+                self._scan_options.get("include_task_runbooks", True)
+            ),
+            inline_task_runbooks=bool(
+                self._scan_options.get("inline_task_runbooks", True)
+            ),
+            include_collection_checks=bool(
+                self._scan_options.get("include_collection_checks", True)
+            ),
+            keep_unknown_style_sections=bool(
+                self._scan_options.get("keep_unknown_style_sections", True)
+            ),
+            adopt_heading_mode=self._scan_options.get("adopt_heading_mode"),
+            vars_seed_paths=self._scan_options.get("vars_seed_paths"),
+            style_readme_path=self._scan_options.get("style_readme_path"),
+            style_source_path=self._scan_options.get("style_source_path"),
+            style_guide_skeleton=bool(
+                self._scan_options.get("style_guide_skeleton", False)
+            ),
+            compare_role_path=self._scan_options.get("compare_role_path"),
+            fail_on_unconstrained_dynamic_includes=self._scan_options.get(
+                "fail_on_unconstrained_dynamic_includes"
+            ),
+            fail_on_yaml_like_task_annotations=self._scan_options.get(
+                "fail_on_yaml_like_task_annotations"
+            ),
+            ignore_unresolved_internal_underscore_references=self._scan_options.get(
+                "ignore_unresolved_internal_underscore_references"
+            ),
+        )
+
+        (
+            _rp,
+            role_name,
+            description,
+            requirements_display,
+            undocumented_default_filters,
+            scan_context,
+        ) = scan_runtime.prepare_scan_context(
+            normalized_scan_options,
+            scan_context_builder_cls=ScanContextBuilder,
+            collect_scan_base_context=scanner_module._collect_scan_base_context,
+            load_ignore_unresolved_internal_underscore_references=(
+                scanner_module.load_ignore_unresolved_internal_underscore_references
+            ),
+            load_non_authoritative_test_evidence_max_file_bytes=(
+                scanner_module.load_non_authoritative_test_evidence_max_file_bytes
+            ),
+            load_non_authoritative_test_evidence_max_files_scanned=(
+                scanner_module.load_non_authoritative_test_evidence_max_files_scanned
+            ),
+            load_non_authoritative_test_evidence_max_total_bytes=(
+                scanner_module.load_non_authoritative_test_evidence_max_total_bytes
+            ),
+            enrich_scan_context_with_insights=(
+                scanner_module._enrich_scan_context_with_insights
+            ),
+            finalize_scan_context_payload=scanner_module._finalize_scan_context_payload,
+            non_authoritative_test_evidence_max_file_bytes=(
+                scanner_module.NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES
+            ),
+            non_authoritative_test_evidence_max_files_scanned=(
+                scanner_module.NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED
+            ),
+            non_authoritative_test_evidence_max_total_bytes=(
+                scanner_module.NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES
+            ),
+        )
+
+        metadata = dict(scan_context.get("metadata") or {})
         if "features" not in metadata and self._detected_features:
             metadata["features"] = dict(self._detected_features)
         self._scan_metadata = metadata
 
-        # Build canonical payload shape consumed by scanner output helpers.
         return {
             "role_name": role_name,
-            "description": "",
-            "display_variables": {},
-            "requirements_display": [],
-            "undocumented_default_filters": [],
+            "description": description,
+            "display_variables": dict(scan_context.get("display_variables") or {}),
+            "requirements_display": list(requirements_display),
+            "undocumented_default_filters": list(undocumented_default_filters),
             "metadata": metadata,
         }
 

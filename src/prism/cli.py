@@ -14,16 +14,15 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
+import tempfile as _tempfile
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 import yaml
 from .repo_services import (
-    _build_lightweight_sparse_clone_paths,
-    _build_repo_style_readme_candidates,
+    _build_repo_style_readme_candidates as _repo_build_repo_style_readme_candidates,
     _build_sparse_clone_paths,
-    _checkout_repo_lightweight_style_readme,
+    _checkout_repo_lightweight_style_readme as _repo_checkout_repo_lightweight_style_readme,
     _checkout_repo_scan_role,
     _clone_repo as _repo_clone_repo,
     _fetch_repo_directory_names as _repo_fetch_repo_directory_names,
@@ -46,6 +45,12 @@ from .scanner import (
     run_scan,
 )
 from .feedback import load_feedback, apply_feedback_recommendations
+
+# Compatibility exports for downstream imports and parity checks with API/helpers.
+_build_repo_style_readme_candidates = _repo_build_repo_style_readme_candidates
+_checkout_repo_lightweight_style_readme = _repo_checkout_repo_lightweight_style_readme
+# Re-export the same tempfile module object used in repo_services.
+tempfile = _tempfile
 
 
 class _ReadableYamlDumper(yaml.SafeDumper):

@@ -8,17 +8,15 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from .output import resolve_output_path
-from .scan_context import (
-    EmitScanOutputsArgs,
-    ScanMetadata,
-    build_scan_output_payload,
-    build_scan_report_sidecar_args,
-    build_runbook_sidecar_args,
-)
 from .scan_output_primary import render_primary_scan_output
+from ..scanner_data.contracts import (
+    EmitScanOutputsArgs,
+    RunScanOutputPayload,
+    ScanMetadata,
+)
 
 
 def build_scanner_report_output_path(
@@ -40,9 +38,9 @@ def write_concise_scanner_report_if_enabled(
     include_scanner_report_link: bool,
     role_name: str,
     description: str,
-    display_variables: dict,
-    requirements_display: list,
-    undocumented_default_filters: list,
+    display_variables: dict[str, Any],
+    requirements_display: list[Any],
+    undocumented_default_filters: list[Any],
     metadata: ScanMetadata,
     dry_run: bool,
     build_scanner_report_markdown: Callable[..., str],
@@ -84,56 +82,60 @@ def write_optional_runbook_outputs(
     runbook_csv_output: str | None,
     role_name: str,
     metadata: ScanMetadata,
-    render_runbook: Callable[[str, dict | None], str],
-    render_runbook_csv: Callable[[dict | None], str],
+    render_runbook: Callable[[str, dict[str, Any] | None], str],
+    render_runbook_csv: Callable[[dict[str, Any] | None], str],
 ) -> None:
     """Write standalone runbook outputs when requested."""
     if runbook_output:
         rb_path = Path(runbook_output)
         rb_path.parent.mkdir(parents=True, exist_ok=True)
-        rb_content = render_runbook(role_name, metadata)  # type: ignore
+        rb_content = render_runbook(role_name, metadata)
         rb_path.write_text(rb_content, encoding="utf-8")
     if runbook_csv_output:
         rb_csv_path = Path(runbook_csv_output)
         rb_csv_path.parent.mkdir(parents=True, exist_ok=True)
-        rb_csv_content = render_runbook_csv(metadata)  # type: ignore
+        rb_csv_content = render_runbook_csv(metadata)
         rb_csv_path.write_text(rb_csv_content, encoding="utf-8")
+
+
+def _build_scan_output_payload(args: EmitScanOutputsArgs) -> RunScanOutputPayload:
+    return {
+        "role_name": args["role_name"],
+        "description": args["description"],
+        "display_variables": args["display_variables"],
+        "requirements_display": args["requirements_display"],
+        "undocumented_default_filters": args["undocumented_default_filters"],
+        "metadata": args["metadata"],
+    }
 
 
 def emit_scan_outputs(
     args: EmitScanOutputsArgs,
     *,
-    build_scanner_report_markdown: Callable,
-    render_and_write_output: Callable,
-    render_runbook_fn: Callable,
-    render_runbook_csv_fn: Callable,
+    build_scanner_report_markdown: Callable[..., str],
+    render_and_write_output: Callable[..., str | bytes],
+    render_runbook_fn: Callable[[str, dict[str, Any] | None], str],
+    render_runbook_csv_fn: Callable[[dict[str, Any] | None], str],
 ) -> str:
-    """Orchestrate primary output rendering with optional scanner-report and runbook sidecars.
-
-    This coordinator is extracted from scanner.py to make the orchestration
-    independently testable.  All scanner-specific callables are injected so
-    scan_output_emission.py remains free of scanner.py imports.
-    """
+    """Orchestrate primary output rendering with optional scanner-report and runbook sidecars."""
     out_path = resolve_output_path(args["output"], args["output_format"])
-    output_payload = build_scan_output_payload(
-        role_name=args["role_name"],
-        description=args["description"],
-        display_variables=args["display_variables"],
-        requirements_display=args["requirements_display"],
-        undocumented_default_filters=args["undocumented_default_filters"],
-        metadata=args["metadata"],
-    )
+    output_payload = _build_scan_output_payload(args)
+
     write_concise_scanner_report_if_enabled(
-        **build_scan_report_sidecar_args(
-            concise_readme=args["concise_readme"],
-            scanner_report_output=args["scanner_report_output"],
-            out_path=out_path,
-            include_scanner_report_link=args["include_scanner_report_link"],
-            payload=output_payload,
-            dry_run=args["dry_run"],
-        ),
+        concise_readme=args["concise_readme"],
+        scanner_report_output=args["scanner_report_output"],
+        out_path=out_path,
+        include_scanner_report_link=args["include_scanner_report_link"],
+        role_name=output_payload["role_name"],
+        description=output_payload["description"],
+        display_variables=output_payload["display_variables"],
+        requirements_display=output_payload["requirements_display"],
+        undocumented_default_filters=output_payload["undocumented_default_filters"],
+        metadata=output_payload["metadata"],
+        dry_run=args["dry_run"],
         build_scanner_report_markdown=build_scanner_report_markdown,
     )
+
     result = render_primary_scan_output(
         out_path=out_path,
         output_format=args["output_format"],
@@ -144,14 +146,15 @@ def emit_scan_outputs(
     )
     if isinstance(result, bytes):
         result = result.decode("utf-8", errors="replace")
+
     if args["dry_run"]:
         return result
+
     write_optional_runbook_outputs(
-        **build_runbook_sidecar_args(
-            runbook_output=args["runbook_output"],
-            runbook_csv_output=args["runbook_csv_output"],
-            payload=output_payload,
-        ),
+        runbook_output=args["runbook_output"],
+        runbook_csv_output=args["runbook_csv_output"],
+        role_name=output_payload["role_name"],
+        metadata=output_payload["metadata"],
         render_runbook=render_runbook_fn,
         render_runbook_csv=render_runbook_csv_fn,
     )

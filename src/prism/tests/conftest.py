@@ -15,7 +15,6 @@ import pytest
 from prism.scanner_core import DIContainer, FeatureDetector, VariableDiscovery
 from prism.scanner_data.contracts import FeaturesContext, VariableRow
 
-
 # ============================================================================
 # Mock Fixtures
 # ============================================================================

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any, Callable, TypedDict, cast
 
-
 PRECEDENCE_DEFAULTS_OVERRIDDEN_BY_VARS = "precedence_defaults_overridden_by_vars"
 LEGACY_AMBIGUOUS_DEFAULTS_VARS_OVERRIDE = "ambiguous_defaults_vars_override"
 

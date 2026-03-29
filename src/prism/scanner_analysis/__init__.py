@@ -34,6 +34,7 @@ from .report import (
     render_scanner_report_yaml_parse_failure_row,
 )
 from .runbook import (
+    build_runbook_rows,
     render_runbook,
     render_runbook_csv,
 )
@@ -66,6 +67,7 @@ __all__ = [
     "render_scanner_report_issue_list_row",
     "render_scanner_report_section",
     "render_scanner_report_yaml_parse_failure_row",
+    "build_runbook_rows",
     "render_runbook",
     "render_runbook_csv",
 ]

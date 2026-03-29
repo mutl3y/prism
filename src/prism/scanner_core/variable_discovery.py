@@ -5,7 +5,7 @@ This module consolidates variable-extraction logic currently spread across:
 - task_parser.py — task/include file parsing
 - scanner_dataload.py — YAML loading and preparation
 - scan_discovery.py — variable discovery orchestration
-- scanner_errorhandling.py — uncertainty tracking and error reasoning
+- scanner_analysis/metrics.py — uncertainty tracking and error reasoning
 
 The VariableDiscovery class provides a cohesive interface for discovering,
 extracting, typing, and resolving all variables in a role.
@@ -273,7 +273,7 @@ class VariableDiscovery:
                 pattern = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)")
                 for match in pattern.finditer(readme_text):
                     referenced.add(match.group(1))
-            except (OSError, UnicodeDecodeError):
+            except OSError, UnicodeDecodeError:
                 pass
 
         return frozenset(referenced)

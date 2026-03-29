@@ -4,7 +4,13 @@ import shutil
 import subprocess
 import sys
 
+import pytest
+
 from prism import scanner
+from prism.scanner_config.legacy_retirement import (
+    LEGACY_RUNTIME_PATH_UNAVAILABLE,
+    LEGACY_RUNTIME_PATH_UNAVAILABLE_MESSAGE,
+)
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -13,10 +19,19 @@ ENHANCED_ROLE_FIXTURE = ROLE_FIXTURES / "enhanced_mock_role"
 INROLE_CONFIG_ROLE_FIXTURE = ROLE_FIXTURES / "inrole_config_role"
 
 
-def test_render_readme_module_compose_section_body_merges_requirements_content():
-    render_readme_module = importlib.import_module(
-        "prism.scanner_submodules.render_readme"
+def test_readme_render_uses_canonical_styleguide_contract_import():
+    render_module_path = HERE.parent / "scanner_readme" / "render.py"
+    module_source = render_module_path.read_text(encoding="utf-8")
+
+    assert "from ..scanner_data.contracts import StyleGuideConfig" in module_source
+    assert (
+        "from ..scanner_submodules.scan_context import StyleGuideConfig"
+        not in module_source
     )
+
+
+def test_render_readme_module_compose_section_body_merges_requirements_content():
+    render_readme_module = importlib.import_module("prism.scanner_readme.render")
 
     composed = render_readme_module._compose_section_body(
         {
@@ -34,9 +49,7 @@ def test_render_readme_module_compose_section_body_merges_requirements_content()
 
 
 def test_render_readme_module_renders_style_guide_and_scanner_report_link():
-    render_readme_module = importlib.import_module(
-        "prism.scanner_submodules.render_readme"
-    )
+    render_readme_module = importlib.import_module("prism.scanner_readme.render")
 
     rendered = render_readme_module.render_readme(
         output="/tmp/README.md",
@@ -690,6 +703,11 @@ def test_run_scan_uses_inrole_readme_config_fixture(tmp_path):
     target = tmp_path / "inrole_config_role"
     shutil.copytree(role_src, target)
 
+    legacy_cfg = target / ".ansible_role_doc.yml"
+    modern_cfg = target / ".prism.yml"
+    modern_cfg.write_text(legacy_cfg.read_text(encoding="utf-8"), encoding="utf-8")
+    legacy_cfg.unlink()
+
     out = tmp_path / "README_CONFIG_FROM_ROLE.md"
     scanner.run_scan(str(target), output=str(out))
 
@@ -701,28 +719,14 @@ def test_run_scan_uses_inrole_readme_config_fixture(tmp_path):
     assert "Task/module usage summary" not in content
 
 
-def test_run_scan_uses_legacy_inrole_readme_config_filename(tmp_path):
-    role_src = INROLE_CONFIG_ROLE_FIXTURE
-    target = tmp_path / "inrole_config_role"
-    shutil.copytree(role_src, target)
-
-    legacy_cfg = target / ".ansible_role_doc.yml"
-    modern_cfg = target / ".prism.yml"
-    modern_cfg.write_text(legacy_cfg.read_text(encoding="utf-8"), encoding="utf-8")
-    legacy_cfg.unlink()
-
-    out = tmp_path / "README_CONFIG_FROM_LEGACY_ROLE.md"
-    scanner.run_scan(str(target), output=str(out))
-
-    content = out.read_text(encoding="utf-8")
-    assert "Capabilities" in content
-    assert "Galaxy Info" not in content
-
-
 def test_run_scan_inrole_config_heading_mode_can_be_set_to_canonical(tmp_path):
     role_src = INROLE_CONFIG_ROLE_FIXTURE
     target = tmp_path / "inrole_config_role"
     shutil.copytree(role_src, target)
+    legacy_cfg = target / ".ansible_role_doc.yml"
+    modern_cfg = target / ".prism.yml"
+    modern_cfg.write_text(legacy_cfg.read_text(encoding="utf-8"), encoding="utf-8")
+    legacy_cfg.unlink()
 
     out = tmp_path / "README_CONFIG_CANONICAL_HEADINGS.md"
     scanner.run_scan(
@@ -735,6 +739,23 @@ def test_run_scan_inrole_config_heading_mode_can_be_set_to_canonical(tmp_path):
     assert "Capabilities\n------------" not in content
     assert "Role purpose and capabilities\n-----------------------------" in content
     assert "Inputs / variables summary" in content
+
+
+def test_run_scan_rejects_legacy_runtime_style_source_env(monkeypatch, tmp_path):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    monkeypatch.setenv("ANSIBLE_ROLE_DOC_STYLE_SOURCE", str(tmp_path / "legacy.md"))
+
+    with pytest.raises(RuntimeError) as excinfo:
+        scanner.run_scan(str(target), output=str(tmp_path / "README.md"))
+
+    assert excinfo.value.args
+    error_text = str(excinfo.value)
+    code, message = error_text.split(": ", 1)
+    assert code == LEGACY_RUNTIME_PATH_UNAVAILABLE
+    assert message == LEGACY_RUNTIME_PATH_UNAVAILABLE_MESSAGE
 
 
 def test_run_scan_style_guide_skeleton_renders_sections_only(tmp_path):
@@ -779,34 +800,6 @@ def test_run_scan_style_guide_skeleton_uses_xdg_style_source(monkeypatch, tmp_pa
     monkeypatch.setenv("XDG_DATA_HOME", str(xdg_home))
 
     out = tmp_path / "STYLE_GUIDE_SKELETON_XDG.md"
-    scanner.run_scan(
-        str(target),
-        output=str(out),
-        style_guide_skeleton=True,
-    )
-
-    content = out.read_text(encoding="utf-8")
-    assert "## Requirements" in content
-    assert "## Role Variables" in content
-
-
-def test_run_scan_style_guide_skeleton_uses_legacy_env_style_source(
-    monkeypatch, tmp_path
-):
-    role_src = BASE_ROLE_FIXTURE
-    target = tmp_path / "mock_role"
-    shutil.copytree(role_src, target)
-
-    legacy_style = tmp_path / "legacy-style.md"
-    legacy_style.write_text(
-        "# Legacy Style\n\n## Requirements\n\n## Role Variables\n",
-        encoding="utf-8",
-    )
-
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("ANSIBLE_ROLE_DOC_STYLE_SOURCE", str(legacy_style))
-
-    out = tmp_path / "STYLE_GUIDE_SKELETON_LEGACY_ENV.md"
     scanner.run_scan(
         str(target),
         output=str(out),

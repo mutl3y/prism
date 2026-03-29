@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from .output import build_final_output_payload
-from .scan_context import RunScanOutputPayload
+from ..scanner_data.contracts import RunScanOutputPayload
 
 
 def render_and_write_scan_output(
@@ -15,10 +15,10 @@ def render_and_write_scan_output(
     output_format: str,
     role_name: str,
     description: str,
-    display_variables: dict,
-    requirements_display: list,
-    undocumented_default_filters: list[dict],
-    metadata: dict,
+    display_variables: dict[str, Any],
+    requirements_display: list[Any],
+    undocumented_default_filters: list[dict[str, Any]],
+    metadata: dict[str, Any],
     template: str | None,
     dry_run: bool,
     render_readme: Callable[..., str],
@@ -65,7 +65,7 @@ def render_primary_scan_output(
     template: str | None,
     dry_run: bool,
     output_payload: RunScanOutputPayload,
-    render_and_write_scan_output: Callable[..., str],
+    render_and_write_scan_output: Callable[..., str | bytes],
 ) -> str | bytes:
     """Render and optionally write the primary scan output."""
     return render_and_write_scan_output(
