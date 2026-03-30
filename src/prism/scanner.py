@@ -861,17 +861,57 @@ load_readme_marker_prefix = partial(
 )
 
 
+_load_fail_on_unconstrained_dynamic_includes_from_section_config = partial(
+    _load_fail_on_unconstrained_dynamic_includes,
+    config_filenames=SECTION_CONFIG_FILENAMES,
+    default_filename=SECTION_CONFIG_FILENAME,
+)
+
+
+_load_fail_on_yaml_like_task_annotations_from_section_config = partial(
+    _load_fail_on_yaml_like_task_annotations,
+    config_filenames=SECTION_CONFIG_FILENAMES,
+    default_filename=SECTION_CONFIG_FILENAME,
+)
+
+
+_load_ignore_unresolved_internal_underscore_references_from_section_config = partial(
+    _load_ignore_unresolved_internal_underscore_references,
+    config_filenames=SECTION_CONFIG_FILENAMES,
+    default_filename=SECTION_CONFIG_FILENAME,
+)
+
+
+_load_non_authoritative_test_evidence_max_file_bytes_from_section_config = partial(
+    _load_non_authoritative_test_evidence_max_file_bytes,
+    config_filenames=SECTION_CONFIG_FILENAMES,
+    default_filename=SECTION_CONFIG_FILENAME,
+)
+
+
+_load_non_authoritative_test_evidence_max_files_scanned_from_section_config = partial(
+    _load_non_authoritative_test_evidence_max_files_scanned,
+    config_filenames=SECTION_CONFIG_FILENAMES,
+    default_filename=SECTION_CONFIG_FILENAME,
+)
+
+
+_load_non_authoritative_test_evidence_max_total_bytes_from_section_config = partial(
+    _load_non_authoritative_test_evidence_max_total_bytes,
+    config_filenames=SECTION_CONFIG_FILENAMES,
+    default_filename=SECTION_CONFIG_FILENAME,
+)
+
+
 def load_fail_on_unconstrained_dynamic_includes(
     role_path: str,
     config_path: str | None = None,
     default: bool = False,
 ) -> bool:
-    return _load_fail_on_unconstrained_dynamic_includes(
+    return _load_fail_on_unconstrained_dynamic_includes_from_section_config(
         role_path,
         config_path=config_path,
         default=default,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
     )
 
 
@@ -880,12 +920,10 @@ def load_fail_on_yaml_like_task_annotations(
     config_path: str | None = None,
     default: bool = False,
 ) -> bool:
-    return _load_fail_on_yaml_like_task_annotations(
+    return _load_fail_on_yaml_like_task_annotations_from_section_config(
         role_path,
         config_path=config_path,
         default=default,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
     )
 
 
@@ -894,12 +932,10 @@ def load_ignore_unresolved_internal_underscore_references(
     config_path: str | None = None,
     default: bool = True,
 ) -> bool:
-    return _load_ignore_unresolved_internal_underscore_references(
+    return _load_ignore_unresolved_internal_underscore_references_from_section_config(
         role_path,
         config_path=config_path,
         default=default,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
     )
 
 
@@ -908,12 +944,10 @@ def load_non_authoritative_test_evidence_max_file_bytes(
     config_path: str | None = None,
     default: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
 ) -> int:
-    return _load_non_authoritative_test_evidence_max_file_bytes(
+    return _load_non_authoritative_test_evidence_max_file_bytes_from_section_config(
         role_path,
         config_path=config_path,
         default=default,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
     )
 
 
@@ -922,12 +956,10 @@ def load_non_authoritative_test_evidence_max_files_scanned(
     config_path: str | None = None,
     default: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
 ) -> int:
-    return _load_non_authoritative_test_evidence_max_files_scanned(
+    return _load_non_authoritative_test_evidence_max_files_scanned_from_section_config(
         role_path,
         config_path=config_path,
         default=default,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
     )
 
 
@@ -936,12 +968,10 @@ def load_non_authoritative_test_evidence_max_total_bytes(
     config_path: str | None = None,
     default: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
 ) -> int:
-    return _load_non_authoritative_test_evidence_max_total_bytes(
+    return _load_non_authoritative_test_evidence_max_total_bytes_from_section_config(
         role_path,
         config_path=config_path,
         default=default,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
     )
 
 
@@ -1131,14 +1161,16 @@ _render_and_write_scan_output = partial(
 _apply_unconstrained_dynamic_include_policy = partial(
     _scan_runtime.apply_unconstrained_dynamic_include_policy,
     load_fail_on_unconstrained_dynamic_includes=(
-        load_fail_on_unconstrained_dynamic_includes
+        _load_fail_on_unconstrained_dynamic_includes_from_section_config
     ),
 )
 
 
 _apply_yaml_like_task_annotation_policy = partial(
     _scan_runtime.apply_yaml_like_task_annotation_policy,
-    load_fail_on_yaml_like_task_annotations=(load_fail_on_yaml_like_task_annotations),
+    load_fail_on_yaml_like_task_annotations=(
+        _load_fail_on_yaml_like_task_annotations_from_section_config
+    ),
 )
 
 
@@ -1185,16 +1217,16 @@ _prepare_scan_context = partial(
     scan_context_builder_cls=ScanContextBuilder,
     collect_scan_base_context=_collect_scan_base_context,
     load_ignore_unresolved_internal_underscore_references=(
-        load_ignore_unresolved_internal_underscore_references
+        _load_ignore_unresolved_internal_underscore_references_from_section_config
     ),
     load_non_authoritative_test_evidence_max_file_bytes=(
-        load_non_authoritative_test_evidence_max_file_bytes
+        _load_non_authoritative_test_evidence_max_file_bytes_from_section_config
     ),
     load_non_authoritative_test_evidence_max_files_scanned=(
-        load_non_authoritative_test_evidence_max_files_scanned
+        _load_non_authoritative_test_evidence_max_files_scanned_from_section_config
     ),
     load_non_authoritative_test_evidence_max_total_bytes=(
-        load_non_authoritative_test_evidence_max_total_bytes
+        _load_non_authoritative_test_evidence_max_total_bytes_from_section_config
     ),
     enrich_scan_context_with_insights=_enrich_scan_context_with_insights,
     finalize_scan_context_payload=_finalize_scan_context_payload,
