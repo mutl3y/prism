@@ -1417,18 +1417,17 @@ def run_scan(
         )
 
     _refresh_policy(policy_config_path)
-    detailed_catalog = _resolve_detailed_catalog_flag(
-        detailed_catalog=detailed_catalog,
-        runbook_output=runbook_output,
-        runbook_csv_output=runbook_csv_output,
-    )
     scan_options = _build_run_scan_options(
         role_path=role_path,
         role_name_override=role_name_override,
         readme_config_path=readme_config_path,
         include_vars_main=include_vars_main,
         exclude_path_patterns=exclude_path_patterns,
-        detailed_catalog=detailed_catalog,
+        detailed_catalog=_resolve_detailed_catalog_flag(
+            detailed_catalog=detailed_catalog,
+            runbook_output=runbook_output,
+            runbook_csv_output=runbook_csv_output,
+        ),
         include_task_parameters=include_task_parameters,
         include_task_runbooks=include_task_runbooks,
         inline_task_runbooks=inline_task_runbooks,

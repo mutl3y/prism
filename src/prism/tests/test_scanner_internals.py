@@ -12,6 +12,7 @@ Test groups mirror the planned submodule boundaries:
   - Task parsing helpers
 """
 
+from prism import _jinja_analyzer as jinja_analyzer
 from prism import scanner
 from types import SimpleNamespace
 
@@ -48,45 +49,45 @@ class TestStringifyJinjaNode:
         return list(output.nodes)[0]
 
     def test_none_returns_empty_string(self):
-        assert scanner._stringify_jinja_node(None) == ""
+        assert jinja_analyzer._stringify_jinja_node(None) == ""
 
     def test_name_node_returns_name(self):
         node = self._parse_expr("my_var")
-        assert scanner._stringify_jinja_node(node) == "my_var"
+        assert jinja_analyzer._stringify_jinja_node(node) == "my_var"
 
     def test_const_string_returns_value(self):
         node = self._parse_expr("'hello'")
-        assert scanner._stringify_jinja_node(node) == "hello"
+        assert jinja_analyzer._stringify_jinja_node(node) == "hello"
 
     def test_const_int_returns_value(self):
         node = self._parse_expr("42")
-        assert scanner._stringify_jinja_node(node) == "42"
+        assert jinja_analyzer._stringify_jinja_node(node) == "42"
 
     def test_getattr_returns_dotted_path(self):
         node = self._parse_expr("foo.bar")
-        assert scanner._stringify_jinja_node(node) == "foo.bar"
+        assert jinja_analyzer._stringify_jinja_node(node) == "foo.bar"
 
     def test_getitem_returns_bracket_notation(self):
         node = self._parse_expr("foo['key']")
-        result = scanner._stringify_jinja_node(node)
+        result = jinja_analyzer._stringify_jinja_node(node)
         assert "foo" in result
         assert "key" in result
 
     def test_filter_node_returns_pipe_form(self):
         node = self._parse_expr("x | upper")
-        assert "x" in scanner._stringify_jinja_node(node)
-        assert "upper" in scanner._stringify_jinja_node(node)
+        assert "x" in jinja_analyzer._stringify_jinja_node(node)
+        assert "upper" in jinja_analyzer._stringify_jinja_node(node)
 
     def test_filter_with_args_includes_args(self):
         node = self._parse_expr("x | default('fallback')")
-        result = scanner._stringify_jinja_node(node)
+        result = jinja_analyzer._stringify_jinja_node(node)
         assert "x" in result
         assert "default" in result
         assert "fallback" in result
 
     def test_conditional_expression_is_rendered(self):
         node = self._parse_expr("foo if is_primary else bar")
-        result = scanner._stringify_jinja_node(node)
+        result = jinja_analyzer._stringify_jinja_node(node)
         assert "foo" in result
         assert "if" in result
         assert "is_primary" in result
@@ -95,62 +96,62 @@ class TestStringifyJinjaNode:
 
     def test_compare_expression_is_rendered(self):
         node = self._parse_expr("retry_count > 3")
-        result = scanner._stringify_jinja_node(node)
+        result = jinja_analyzer._stringify_jinja_node(node)
         assert "retry_count" in result
         assert ">" in result
         assert "3" in result
 
     def test_list_literal_is_rendered(self):
         node = self._parse_expr("['a', item]")
-        result = scanner._stringify_jinja_node(node)
+        result = jinja_analyzer._stringify_jinja_node(node)
         assert "[" in result and "]" in result
         assert "a" in result
         assert "item" in result
 
     def test_tuple_literal_is_rendered(self):
         node = self._parse_expr("(left, right)")
-        result = scanner._stringify_jinja_node(node)
+        result = jinja_analyzer._stringify_jinja_node(node)
         assert "(" in result and ")" in result
         assert "left" in result
         assert "right" in result
 
     def test_dict_literal_is_rendered(self):
         node = self._parse_expr("{'key': value}")
-        result = scanner._stringify_jinja_node(node)
+        result = jinja_analyzer._stringify_jinja_node(node)
         assert "{" in result and "}" in result
         assert "key" in result
         assert "value" in result
 
     def test_call_with_keyword_args_is_rendered(self):
         node = self._parse_expr("lookup('env', name='HOME')")
-        result = scanner._stringify_jinja_node(node)
+        result = jinja_analyzer._stringify_jinja_node(node)
         assert "lookup" in result
         assert "env" in result
         assert "name=HOME" in result
 
     def test_test_expression_with_args_is_rendered(self):
         node = self._parse_expr("value is match('^ok')")
-        result = scanner._stringify_jinja_node(node)
+        result = jinja_analyzer._stringify_jinja_node(node)
         assert "value" in result
         assert "is match" in result
         assert "^ok" in result
 
     def test_default_filter_with_empty_target_falls_back_to_source_line(self):
         text = "{{ '' | default('fallback') }}"
-        result = scanner._scan_text_for_default_filters_with_ast(text, [text])
+        result = jinja_analyzer._scan_text_for_default_filters_with_ast(text, [text])
         assert len(result) == 1
         assert result[0]["match"] == text
 
     def test_test_expression_without_args_is_rendered(self):
         node = self._parse_expr("value is odd")
-        result = scanner._stringify_jinja_node(node)
+        result = jinja_analyzer._stringify_jinja_node(node)
         assert result == "value is odd"
 
     def test_binary_and_unary_expressions_are_rendered(self):
         add_node = self._parse_expr("left + right")
         not_node = self._parse_expr("not enabled")
-        assert scanner._stringify_jinja_node(add_node) == "left + right"
-        assert scanner._stringify_jinja_node(not_node) == "not enabled"
+        assert jinja_analyzer._stringify_jinja_node(add_node) == "left + right"
+        assert jinja_analyzer._stringify_jinja_node(not_node) == "not enabled"
 
     def test_pair_and_keyword_fallback_paths_return_available_side(self):
         import jinja2
@@ -159,16 +160,16 @@ class TestStringifyJinjaNode:
         pair_only_value = jinja2.nodes.Pair(None, jinja2.nodes.Const("v"))
         keyword_value_only = jinja2.nodes.Keyword("", jinja2.nodes.Const("home"))
 
-        assert scanner._stringify_jinja_node(pair_only_key) == "k"
-        assert scanner._stringify_jinja_node(pair_only_value) == "v"
-        assert scanner._stringify_jinja_node(keyword_value_only) == "home"
+        assert jinja_analyzer._stringify_jinja_node(pair_only_key) == "k"
+        assert jinja_analyzer._stringify_jinja_node(pair_only_value) == "v"
+        assert jinja_analyzer._stringify_jinja_node(keyword_value_only) == "home"
 
     def test_keyword_key_and_value_render_as_assignment(self):
         import jinja2
 
         keyword = jinja2.nodes.Keyword("name", jinja2.nodes.Const("HOME"))
 
-        assert scanner._stringify_jinja_node(keyword) == "name=HOME"
+        assert jinja_analyzer._stringify_jinja_node(keyword) == "name=HOME"
 
     def test_template_data_and_unknown_node_fallbacks(self):
         import jinja2
@@ -176,8 +177,8 @@ class TestStringifyJinjaNode:
         template_data = jinja2.nodes.TemplateData("  hello  ")
         unknown = jinja2.nodes.Template([])
 
-        assert scanner._stringify_jinja_node(template_data) == "hello"
-        assert scanner._stringify_jinja_node(unknown) == ""
+        assert jinja_analyzer._stringify_jinja_node(template_data) == "hello"
+        assert jinja_analyzer._stringify_jinja_node(unknown) == ""
 
     def test_condexpr_and_binary_unary_partial_fallback_paths(self):
         import jinja2
@@ -191,8 +192,8 @@ class TestStringifyJinjaNode:
         # left missing -> fallback to right
         add_partial = jinja2.nodes.Add(None, jinja2.nodes.Const("r"))
 
-        assert scanner._stringify_jinja_node(cond_partial) == "A"
-        assert scanner._stringify_jinja_node(add_partial) == "r"
+        assert jinja_analyzer._stringify_jinja_node(cond_partial) == "A"
+        assert jinja_analyzer._stringify_jinja_node(add_partial) == "r"
 
     def test_call_compare_and_unary_edge_fallback_paths(self):
         call_node = self._parse_expr("lookup(name='HOME')")
@@ -205,22 +206,27 @@ class TestStringifyJinjaNode:
 
         unary_missing_target = jinja2.nodes.Neg(None)
 
-        assert scanner._stringify_jinja_node(call_node) == "lookup(HOME)"
-        assert scanner._stringify_jinja_node(compare_node) == "attempts max_attempts"
-        assert scanner._stringify_jinja_node(unary_missing_target) == ""
+        assert jinja_analyzer._stringify_jinja_node(call_node) == "lookup(HOME)"
+        assert (
+            jinja_analyzer._stringify_jinja_node(compare_node)
+            == "attempts max_attempts"
+        )
+        assert jinja_analyzer._stringify_jinja_node(unary_missing_target) == ""
 
 
 class TestScanTextForDefaultFiltersWithAst:
     """_scan_text_for_default_filters_with_ast: extract | default(...) via AST."""
 
     def test_returns_empty_for_plain_text(self):
-        result = scanner._scan_text_for_default_filters_with_ast("no jinja here", [])
+        result = jinja_analyzer._scan_text_for_default_filters_with_ast(
+            "no jinja here", []
+        )
         assert result == []
 
     def test_detects_simple_default_filter(self):
         text = "{{ my_var | default('fallback') }}"
         lines = [text]
-        result = scanner._scan_text_for_default_filters_with_ast(text, lines)
+        result = jinja_analyzer._scan_text_for_default_filters_with_ast(text, lines)
         assert len(result) == 1
         assert result[0]["match"] == "my_var | default(fallback)"
         assert result[0]["args"] == "fallback"
@@ -228,38 +234,38 @@ class TestScanTextForDefaultFiltersWithAst:
     def test_result_includes_line_no_and_line(self):
         text = "{{ my_var | default('x') }}"
         lines = [text]
-        result = scanner._scan_text_for_default_filters_with_ast(text, lines)
+        result = jinja_analyzer._scan_text_for_default_filters_with_ast(text, lines)
         assert result[0]["line_no"] == 1
         assert result[0]["line"] == text
 
     def test_skips_non_default_filters(self):
         text = "{{ my_var | upper }}"
         lines = [text]
-        result = scanner._scan_text_for_default_filters_with_ast(text, lines)
+        result = jinja_analyzer._scan_text_for_default_filters_with_ast(text, lines)
         assert result == []
 
     def test_handles_invalid_jinja_gracefully(self):
         text = "{{ invalid jinja {{ }}"
-        result = scanner._scan_text_for_default_filters_with_ast(text, [text])
+        result = jinja_analyzer._scan_text_for_default_filters_with_ast(text, [text])
         assert isinstance(result, list)
 
     def test_detects_multiple_defaults_in_one_text(self):
         text = "{{ a | default('x') }} {{ b | default('y') }}"
         lines = [text]
-        result = scanner._scan_text_for_default_filters_with_ast(text, lines)
+        result = jinja_analyzer._scan_text_for_default_filters_with_ast(text, lines)
         assert len(result) == 2
 
     def test_default_without_args_records_empty_args(self):
         text = "{{ my_var | default() }}"
         lines = [text]
-        result = scanner._scan_text_for_default_filters_with_ast(text, lines)
+        result = jinja_analyzer._scan_text_for_default_filters_with_ast(text, lines)
         assert len(result) == 1
         assert result[0]["args"] == ""
 
     def test_default_target_with_conditional_expression_is_rendered(self):
         text = "{{ (foo if is_primary else bar) | default('fallback') }}"
         lines = [text]
-        result = scanner._scan_text_for_default_filters_with_ast(text, lines)
+        result = jinja_analyzer._scan_text_for_default_filters_with_ast(text, lines)
         assert len(result) == 1
         assert "foo if is_primary else bar" in result[0]["match"]
         assert result[0]["args"] == "fallback"
@@ -270,19 +276,21 @@ class TestScanTextForAllFiltersWithAst:
 
     def test_detects_non_default_filters(self):
         text = "{{ my_var | upper }}"
-        result = scanner._scan_text_for_all_filters_with_ast(text, [text])
+        result = jinja_analyzer._scan_text_for_all_filters_with_ast(text, [text])
         assert len(result) == 1
         assert result[0]["filter_name"] == "upper"
         assert result[0]["match"] == "my_var | upper()"
 
     def test_detects_filter_chains(self):
         text = "{{ app_name | default('x') | trim | lower }}"
-        result = scanner._scan_text_for_all_filters_with_ast(text, [text])
+        result = jinja_analyzer._scan_text_for_all_filters_with_ast(text, [text])
         names = {row["filter_name"] for row in result}
         assert names == {"default", "trim", "lower"}
 
     def test_invalid_template_returns_empty(self):
-        result = scanner._scan_text_for_all_filters_with_ast("{{ bad {{", ["{{ bad {{"])
+        result = jinja_analyzer._scan_text_for_all_filters_with_ast(
+            "{{ bad {{", ["{{ bad {{"]
+        )
         assert result == []
 
 
