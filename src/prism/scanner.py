@@ -107,14 +107,8 @@ from .scanner_readme import (
     _resolve_ordered_style_sections as _readme_resolve_ordered_style_sections,
     _resolve_section_content_mode as _readme_resolve_section_content_mode,
     _strip_prior_generated_merge_block as _readme_strip_prior_generated_merge_block,
-    detect_style_section_level,
-    format_heading,
     normalize_style_heading,
     parse_style_readme,
-)
-from .scanner_readme.input_parser import (
-    collect_readme_input_variables as _readme_input_collect,
-    extract_readme_variable_names_from_line as _readme_input_extract_names_from_line,
 )
 from ._jinja_analyzer import (  # noqa: F401
     _JINJA_AST_ENV,
@@ -335,15 +329,6 @@ def _refresh_policy(override_path: str | None = None) -> None:
     IGNORED_IDENTIFIERS = _ve.IGNORED_IDENTIFIERS
 
 
-_normalize_style_heading = normalize_style_heading
-
-
-_detect_style_section_level = detect_style_section_level
-
-
-_format_heading = format_heading
-
-
 def _default_style_guide_user_paths() -> list[Path]:
     """Return user-level style guide paths honoring XDG conventions."""
     return _config_default_style_guide_user_paths(
@@ -474,10 +459,6 @@ def _parse_yaml_candidate(candidate: Path, role_root: Path) -> dict[str, object]
     return _dataload_parse_yaml_candidate(candidate, role_root)
 
 
-_extract_readme_variable_names_from_line = _readme_input_extract_names_from_line
-_collect_readme_input_variables = _readme_input_collect
-
-
 load_meta = _scan_discovery_load_meta
 
 
@@ -493,12 +474,6 @@ def _iter_role_argument_spec_entries(role_path: str):
         load_yaml_file_fn=_load_yaml_file,
         load_meta_fn=load_meta,
     )
-
-
-_map_argument_spec_type = _dataload_map_argument_spec_type
-
-
-_iter_role_variable_map_candidates = _scan_discovery_iter_role_variable_map_candidates
 
 
 def load_variables(
@@ -581,7 +556,7 @@ def _load_role_variable_maps(
     return _dataload_load_role_variable_maps(
         role_path,
         include_vars_main,
-        iter_variable_map_candidates_fn=_iter_role_variable_map_candidates,
+        iter_variable_map_candidates_fn=_scan_discovery_iter_role_variable_map_candidates,
         load_yaml_file_fn=_load_yaml_file,
     )
 
@@ -730,7 +705,7 @@ def _append_argument_spec_rows(
         role_path=role_path,
         rows=rows,
         known_names=known_names,
-        map_argument_spec_type=_map_argument_spec_type,
+        map_argument_spec_type=_dataload_map_argument_spec_type,
     )
 
 
@@ -801,7 +776,7 @@ def _populate_variable_rows(
         rows_by_name=rows_by_name,
         exclude_paths=exclude_paths,
         reference_context=reference_context,
-        map_argument_spec_type=_map_argument_spec_type,
+        map_argument_spec_type=_dataload_map_argument_spec_type,
         style_readme_path=style_readme_path,
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
