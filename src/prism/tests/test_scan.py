@@ -12,6 +12,8 @@ import sys
 
 from prism import scanner
 from prism.scanner import scan_for_all_filters, scan_for_default_filters
+from prism.scanner_extract import requirements as requirements_helpers
+from prism.scanner_extract import task_parser
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -491,7 +493,7 @@ def test_collect_task_files_falls_back_without_main_yml(tmp_path):
         encoding="utf-8",
     )
 
-    discovered = scanner._collect_task_files(role)
+    discovered = task_parser._collect_task_files(role)
     found = scan_for_default_filters(str(role))
 
     assert discovered == [alt.resolve()]
@@ -506,7 +508,7 @@ def test_iter_task_include_targets_supports_dict_forms_and_nested_blocks():
         {"name": "No include here", "debug": {"msg": "ok"}},
     ]
 
-    targets = scanner._iter_task_include_targets(data)
+    targets = task_parser._iter_task_include_targets(data)
 
     assert targets == ["nested/from-file.yml", "nested/from-raw.yml"]
 
@@ -520,19 +522,23 @@ def test_resolve_task_include_ignores_dynamic_or_outside_paths(tmp_path):
     outside = tmp_path / "outside.yml"
     outside.write_text("---\n", encoding="utf-8")
 
-    assert scanner._resolve_task_include(role, current, "{{ dynamic_target }}") is None
     assert (
-        scanner._resolve_task_include(role, current, "{% if cond %}x.yml{% endif %}")
+        task_parser._resolve_task_include(role, current, "{{ dynamic_target }}") is None
+    )
+    assert (
+        task_parser._resolve_task_include(
+            role, current, "{% if cond %}x.yml{% endif %}"
+        )
         is None
     )
-    assert scanner._resolve_task_include(role, current, str(outside)) is None
+    assert task_parser._resolve_task_include(role, current, str(outside)) is None
 
 
 def test_load_yaml_file_returns_none_for_malformed_yaml(tmp_path):
     broken = tmp_path / "broken.yml"
     broken.write_text("---\nfoo: [unterminated\n", encoding="utf-8")
 
-    assert scanner._load_yaml_file(broken) is None
+    assert task_parser._load_yaml_file(broken) is None
 
 
 def test_load_meta_and_requirements_ignore_malformed_yaml(tmp_path):
@@ -1881,8 +1887,14 @@ def test_map_argument_spec_type_variants(spec_type, expected):
 
 def test_requirement_format_and_normalization_helpers():
     requirement = {"src": "acme.role", "version": "1.2.3"}
-    assert scanner._format_requirement_line(requirement) == "acme.role (version: 1.2.3)"
-    assert scanner._format_requirement_line("community.general") == "community.general"
+    assert (
+        requirements_helpers.format_requirement_line(requirement)
+        == "acme.role (version: 1.2.3)"
+    )
+    assert (
+        requirements_helpers.format_requirement_line("community.general")
+        == "community.general"
+    )
 
     normalized = scanner.normalize_requirements(
         [
@@ -1897,21 +1909,27 @@ def test_requirement_format_and_normalization_helpers():
 
 
 def test_normalize_meta_and_included_role_dependencies_helpers():
-    assert scanner._normalize_meta_role_dependencies(
+    assert requirements_helpers.normalize_meta_role_dependencies(
         {"dependencies": [{"name": "acme.dep"}, "other.dep"]}
     ) == ["acme.dep", "other.dep"]
-    assert scanner._normalize_meta_role_dependencies({"dependencies": "bad"}) == []
+    assert (
+        requirements_helpers.normalize_meta_role_dependencies({"dependencies": "bad"})
+        == []
+    )
 
-    assert scanner._normalize_included_role_dependencies(
+    assert requirements_helpers.normalize_included_role_dependencies(
         {"included_roles": "acme.one, acme.two, acme.one"}
     ) == ["acme.one", "acme.two"]
     assert (
-        scanner._normalize_included_role_dependencies({"included_roles": "none"}) == []
+        requirements_helpers.normalize_included_role_dependencies(
+            {"included_roles": "none"}
+        )
+        == []
     )
 
 
 def test_extract_declared_collections_from_meta_and_requirements_helpers():
-    meta_declared = scanner._extract_declared_collections_from_meta(
+    meta_declared = requirements_helpers.extract_declared_collections_from_meta(
         {
             "galaxy_info": {
                 "collections": [
@@ -1923,7 +1941,7 @@ def test_extract_declared_collections_from_meta_and_requirements_helpers():
             }
         }
     )
-    req_declared = scanner._extract_declared_collections_from_requirements(
+    req_declared = requirements_helpers.extract_declared_collections_from_requirements(
         [
             {"src": "community.mysql"},
             {"name": "community.general"},
@@ -2798,7 +2816,7 @@ def test_collect_task_files_ignores_dynamic_include_targets(tmp_path):
         encoding="utf-8",
     )
 
-    discovered = scanner._collect_task_files(role)
+    discovered = task_parser._collect_task_files(role)
     rel_paths = [str(path.relative_to(role)) for path in discovered]
 
     assert "tasks/main.yml" in rel_paths
@@ -2822,7 +2840,7 @@ def test_collect_task_files_follows_static_conditional_includes(tmp_path):
         encoding="utf-8",
     )
 
-    discovered = scanner._collect_task_files(role)
+    discovered = task_parser._collect_task_files(role)
     rel_paths = [str(path.relative_to(role)) for path in discovered]
 
     assert "tasks/main.yml" in rel_paths
@@ -2891,7 +2909,7 @@ def test_collect_task_files_resolves_parent_relative_indirection(tmp_path):
         encoding="utf-8",
     )
 
-    discovered = scanner._collect_task_files(role)
+    discovered = task_parser._collect_task_files(role)
     rel_paths = [str(path.relative_to(role)) for path in discovered]
 
     assert "tasks/main.yml" in rel_paths

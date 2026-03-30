@@ -14,6 +14,7 @@ Test groups mirror the planned submodule boundaries:
 
 from prism import _jinja_analyzer as jinja_analyzer
 from prism import scanner
+from prism.scanner_extract.variable_extractor import _extract_default_target_var
 from types import SimpleNamespace
 
 
@@ -298,41 +299,41 @@ class TestCollectUndeclaredJinjaVariables:
     """_collect_undeclared_jinja_variables: find externally required names."""
 
     def test_returns_empty_for_plain_text(self):
-        result = scanner._collect_undeclared_jinja_variables("no template here")
+        result = jinja_analyzer._collect_undeclared_jinja_variables("no template here")
         assert result == set()
 
     def test_detects_simple_variable_reference(self):
-        result = scanner._collect_undeclared_jinja_variables("{{ my_var }}")
+        result = jinja_analyzer._collect_undeclared_jinja_variables("{{ my_var }}")
         assert "my_var" in result
 
     def test_excludes_loop_variable_from_for_body(self):
         text = "{% for item in items %}{{ item }}{% endfor %}"
-        result = scanner._collect_undeclared_jinja_variables(text)
+        result = jinja_analyzer._collect_undeclared_jinja_variables(text)
         assert "item" not in result
         assert "items" in result
 
     def test_excludes_macro_parameter(self):
         text = "{% macro greet(name) %}Hello {{ name }}{% endmacro %}"
-        result = scanner._collect_undeclared_jinja_variables(text)
+        result = jinja_analyzer._collect_undeclared_jinja_variables(text)
         assert "name" not in result
 
     def test_excludes_set_assigned_name(self):
         text = "{% set computed = 42 %}{{ computed }}"
-        result = scanner._collect_undeclared_jinja_variables(text)
+        result = jinja_analyzer._collect_undeclared_jinja_variables(text)
         assert "computed" not in result
 
     def test_multiple_variables_detected(self):
-        result = scanner._collect_undeclared_jinja_variables("{{ a }} {{ b }}")
+        result = jinja_analyzer._collect_undeclared_jinja_variables("{{ a }} {{ b }}")
         assert "a" in result
         assert "b" in result
 
     def test_handles_parse_error_gracefully(self):
-        result = scanner._collect_undeclared_jinja_variables("{{ bad syntax !!!")
+        result = jinja_analyzer._collect_undeclared_jinja_variables("{{ bad syntax !!!")
         assert isinstance(result, set)
 
     def test_excludes_with_block_local_binding(self):
         text = "{% with temp_user = users[0] %}{{ temp_user.name }}{% endwith %}"
-        result = scanner._collect_undeclared_jinja_variables(text)
+        result = jinja_analyzer._collect_undeclared_jinja_variables(text)
         assert "temp_user" not in result
         assert "users" in result
 
@@ -341,7 +342,7 @@ class TestCollectUndeclaredJinjaVariables:
             "{% macro wrapper() %}<x>{{ caller('result') }}</x>{% endmacro %}"
             "{% call(value) wrapper() %}{{ value }} {{ service_name }}{% endcall %}"
         )
-        result = scanner._collect_undeclared_jinja_variables(text)
+        result = jinja_analyzer._collect_undeclared_jinja_variables(text)
         assert "value" not in result
         assert "service_name" in result
 
@@ -350,57 +351,57 @@ class TestCollectJinjaLocalBindings:
     """_collect_jinja_local_bindings_from_text: identify locally bound names."""
 
     def test_empty_text_returns_empty_set(self):
-        result = scanner._collect_jinja_local_bindings_from_text("no jinja")
+        result = jinja_analyzer._collect_jinja_local_bindings_from_text("no jinja")
         assert result == set()
 
     def test_for_loop_variable_is_local(self):
         text = "{% for item in items %}{% endfor %}"
-        result = scanner._collect_jinja_local_bindings_from_text(text)
+        result = jinja_analyzer._collect_jinja_local_bindings_from_text(text)
         assert "item" in result
 
     def test_macro_parameter_is_local(self):
         text = "{% macro render(title) %}{% endmacro %}"
-        result = scanner._collect_jinja_local_bindings_from_text(text)
+        result = jinja_analyzer._collect_jinja_local_bindings_from_text(text)
         assert "title" in result
 
     def test_set_target_is_local(self):
         text = "{% set result = 'x' %}"
-        result = scanner._collect_jinja_local_bindings_from_text(text)
+        result = jinja_analyzer._collect_jinja_local_bindings_from_text(text)
         assert "result" in result
 
     def test_unpacked_for_tuple_both_names_are_local(self):
         text = "{% for key, val in pairs %}{% endfor %}"
-        result = scanner._collect_jinja_local_bindings_from_text(text)
+        result = jinja_analyzer._collect_jinja_local_bindings_from_text(text)
         assert "key" in result
         assert "val" in result
 
     def test_invalid_jinja_returns_empty_set(self):
-        result = scanner._collect_jinja_local_bindings_from_text("{{ bad !!!")
+        result = jinja_analyzer._collect_jinja_local_bindings_from_text("{{ bad !!!")
         assert result == set()
 
     def test_with_target_is_local(self):
         text = "{% with local_name = name %}{{ local_name }}{% endwith %}"
-        result = scanner._collect_jinja_local_bindings_from_text(text)
+        result = jinja_analyzer._collect_jinja_local_bindings_from_text(text)
         assert "local_name" in result
 
     def test_import_alias_is_local(self):
         text = "{% import 'helpers.j2' as helpers %}{{ helpers.render('x') }}"
-        result = scanner._collect_jinja_local_bindings_from_text(text)
+        result = jinja_analyzer._collect_jinja_local_bindings_from_text(text)
         assert "helpers" in result
 
     def test_from_import_names_are_local(self):
         text = "{% from 'helpers.j2' import render as draw %}{{ draw('x') }}"
-        result = scanner._collect_jinja_local_bindings_from_text(text)
+        result = jinja_analyzer._collect_jinja_local_bindings_from_text(text)
         assert "draw" in result
 
     def test_from_import_name_without_alias_is_local(self):
         text = "{% from 'helpers.j2' import render %}{{ render('x') }}"
-        result = scanner._collect_jinja_local_bindings_from_text(text)
+        result = jinja_analyzer._collect_jinja_local_bindings_from_text(text)
         assert "render" in result
 
     def test_assign_block_target_is_local(self):
         text = "{% set body %}hello{% endset %}{{ body }}"
-        result = scanner._collect_jinja_local_bindings_from_text(text)
+        result = jinja_analyzer._collect_jinja_local_bindings_from_text(text)
         assert "body" in result
 
     def test_call_block_args_are_local(self):
@@ -408,7 +409,7 @@ class TestCollectJinjaLocalBindings:
             "{% macro wrap() %}{{ caller('ok') }}{% endmacro %}"
             "{% call(result) wrap() %}{{ result }}{% endcall %}"
         )
-        result = scanner._collect_jinja_local_bindings_from_text(text)
+        result = jinja_analyzer._collect_jinja_local_bindings_from_text(text)
         assert "result" in result
 
     def test_collect_local_bindings_handles_sparse_node_shapes(self):
@@ -435,7 +436,7 @@ class TestCollectJinjaLocalBindings:
             }
         )
 
-        result = scanner._collect_jinja_local_bindings(fake)
+        result = jinja_analyzer._collect_jinja_local_bindings(fake)
 
         assert "render" in result
         assert "helper_fn" in result
@@ -445,14 +446,14 @@ class TestExtractJinjaNameTargets:
     """_extract_jinja_name_targets: pull identifier names from assignment targets."""
 
     def test_none_returns_empty_set(self):
-        result = scanner._extract_jinja_name_targets(None)
+        result = jinja_analyzer._extract_jinja_name_targets(None)
         assert result == set()
 
     def test_name_node_returns_single_name(self):
         import jinja2
 
         node = jinja2.nodes.Name("my_name", "store")
-        result = scanner._extract_jinja_name_targets(node)
+        result = jinja_analyzer._extract_jinja_name_targets(node)
         assert result == {"my_name"}
 
     def test_tuple_target_returns_all_names(self):
@@ -462,7 +463,7 @@ class TestExtractJinjaNameTargets:
         b = jinja2.nodes.Name("b", "store")
         # Simulate a Tuple node (has .items attribute)
         tuple_node = jinja2.nodes.Tuple([a, b], "store")
-        result = scanner._extract_jinja_name_targets(tuple_node)
+        result = jinja_analyzer._extract_jinja_name_targets(tuple_node)
         assert result == {"a", "b"}
 
 
@@ -476,21 +477,21 @@ class TestExtractDefaultTargetVar:
 
     def test_extracts_simple_var_name(self):
         occ = {"line": "{{ my_var | default('x') }}", "match": "my_var | default(x)"}
-        result = scanner._extract_default_target_var(occ)
+        result = _extract_default_target_var(occ)
         assert result == "my_var"
 
     def test_returns_none_when_no_variable_found(self):
         occ = {"line": "no default here", "match": "no default here"}
-        result = scanner._extract_default_target_var(occ)
+        result = _extract_default_target_var(occ)
         assert result is None
 
     def test_uses_match_when_line_is_empty(self):
         occ = {"line": "", "match": "some_var | default(fallback)"}
-        result = scanner._extract_default_target_var(occ)
+        result = _extract_default_target_var(occ)
         assert result == "some_var"
 
     def test_empty_occurrence_returns_none(self):
-        result = scanner._extract_default_target_var({})
+        result = _extract_default_target_var({})
         assert result is None
 
 

@@ -7,6 +7,7 @@ import sys
 import pytest
 
 from prism import scanner
+from prism.scanner_readme.style import _render_role_variables_for_style
 from prism.scanner_config.legacy_retirement import (
     LEGACY_RUNTIME_PATH_UNAVAILABLE,
     LEGACY_RUNTIME_PATH_UNAVAILABLE_MESSAGE,
@@ -1596,7 +1597,7 @@ def test_render_guide_section_body_handles_empty_variables_and_license_defaults(
 
 
 def test_render_role_variables_uses_simple_list_when_no_special_style():
-    rendered = scanner._render_role_variables_for_style(
+    rendered = _render_role_variables_for_style(
         {"demo_var": "value", "other_var": 2},
         {"style_guide": {"variable_style": "simple_list"}, "variable_insights": []},
     )
@@ -1607,7 +1608,7 @@ def test_render_role_variables_uses_simple_list_when_no_special_style():
 
 
 def test_render_role_variables_simple_list_uses_guide_intro_when_present():
-    rendered = scanner._render_role_variables_for_style(
+    rendered = _render_role_variables_for_style(
         {"demo_var": "value"},
         {
             "style_guide": {
@@ -1623,7 +1624,7 @@ def test_render_role_variables_simple_list_uses_guide_intro_when_present():
 
 
 def test_render_role_variables_renders_markdown_table_style():
-    rendered = scanner._render_role_variables_for_style(
+    rendered = _render_role_variables_for_style(
         {"role_port": 8080},
         {
             "style_guide": {
@@ -1646,7 +1647,7 @@ def test_render_role_variables_renders_markdown_table_style():
 
 
 def test_render_role_variables_simple_list_normalizes_multiline_markdown_values():
-    rendered = scanner._render_role_variables_for_style(
+    rendered = _render_role_variables_for_style(
         {
             "nginx_log_format": '$remote_addr\\n$status $body_bytes_sent "$http_referer"',
         },
