@@ -52,11 +52,6 @@ from .scanner_core import scan_runtime as _scan_runtime
 from .scanner_core import variable_insights as _variable_insights
 from .scanner_core import variable_pipeline as _variable_pipeline
 from .scanner_analysis.metrics import (
-    should_suppress_internal_unresolved_reference as _analysis_should_suppress_internal_unresolved_reference,
-    build_referenced_variable_uncertainty_reason as _analysis_build_referenced_variable_uncertainty_reason,
-    append_non_authoritative_test_evidence_uncertainty_reason as _analysis_append_non_authoritative_test_evidence_uncertainty_reason,
-    collect_non_authoritative_test_variable_evidence as _analysis_collect_non_authoritative_test_variable_evidence,
-    attach_non_authoritative_test_evidence as _analysis_attach_non_authoritative_test_evidence,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES as _ANALYSIS_MAX_FILE_BYTES,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED as _ANALYSIS_MAX_FILES_SCANNED,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES as _ANALYSIS_MAX_TOTAL_BYTES,
@@ -84,12 +79,7 @@ from .scanner_io import (
 from .scanner_extract import (
     load_role_variable_maps as _dataload_load_role_variable_maps,
     iter_role_argument_spec_entries as _dataload_iter_role_argument_spec_entries,
-    format_requirement_line as _requirements_format_requirement_line,
     normalize_requirements as _requirements_normalize_requirements,
-    normalize_meta_role_dependencies as _requirements_normalize_meta_role_dependencies,
-    normalize_included_role_dependencies as _requirements_normalize_included_role_dependencies,
-    extract_declared_collections_from_meta as _requirements_extract_declared_collections_from_meta,
-    extract_declared_collections_from_requirements as _requirements_extract_declared_collections_from_requirements,
     build_collection_compliance_notes as _requirements_build_collection_compliance_notes,
     build_requirements_display as _runbook_report_build_requirements_display,
 )
@@ -104,8 +94,6 @@ from .scanner_analysis import (
     build_scanner_report_markdown as _runbook_report_build_scanner_report_markdown,
     extract_scanner_counters as _analysis_extract_scanner_counters,
     build_runbook_rows as _analysis_build_runbook_rows,
-    classify_provenance_issue as _runbook_report_classify_provenance_issue,
-    is_unresolved_noise_category as _runbook_report_is_unresolved_noise_category,
     render_runbook as _runbook_report_render_runbook,
     render_runbook_csv as _runbook_report_render_runbook_csv,
 )
@@ -126,9 +114,7 @@ from .scanner_readme import (
 )
 from .scanner_readme.input_parser import (
     collect_readme_input_variables as _readme_input_collect,
-    extract_readme_input_variables as _readme_input_extract,
     extract_readme_variable_names_from_line as _readme_input_extract_names_from_line,
-    is_readme_variable_section_heading_with as _readme_input_is_section_heading_with,
 )
 from ._jinja_analyzer import (
     _JINJA_AST_ENV as _JINJA_AST_ENV,
@@ -494,15 +480,6 @@ def _parse_yaml_candidate(candidate: Path, role_root: Path) -> dict[str, object]
     return _dataload_parse_yaml_candidate(candidate, role_root)
 
 
-def _is_readme_variable_section_heading(title: str) -> bool:
-    return _readme_input_is_section_heading_with(
-        title,
-        normalize_heading=normalize_style_heading,
-        section_aliases=STYLE_SECTION_ALIASES,
-    )
-
-
-_extract_readme_input_variables = _readme_input_extract
 _extract_readme_variable_names_from_line = _readme_input_extract_names_from_line
 _collect_readme_input_variables = _readme_input_collect
 
@@ -558,22 +535,9 @@ def load_variables(
 load_requirements = _scan_discovery_load_requirements
 
 
-_format_requirement_line = _requirements_format_requirement_line
-
-
 normalize_requirements = _requirements_normalize_requirements
 
 
-_normalize_meta_role_dependencies = _requirements_normalize_meta_role_dependencies
-_normalize_included_role_dependencies = (
-    _requirements_normalize_included_role_dependencies
-)
-_extract_declared_collections_from_meta = (
-    _requirements_extract_declared_collections_from_meta
-)
-_extract_declared_collections_from_requirements = (
-    _requirements_extract_declared_collections_from_requirements
-)
 _build_collection_compliance_notes = _requirements_build_collection_compliance_notes
 
 
@@ -808,31 +772,6 @@ def _append_referenced_variable_rows(
         ),
         exclude_paths=exclude_paths,
     )
-
-
-_should_suppress_internal_unresolved_reference = (
-    _analysis_should_suppress_internal_unresolved_reference
-)
-
-
-_build_referenced_variable_uncertainty_reason = (
-    _analysis_build_referenced_variable_uncertainty_reason
-)
-
-
-_append_non_authoritative_test_evidence_uncertainty_reason = (
-    _analysis_append_non_authoritative_test_evidence_uncertainty_reason
-)
-
-
-_collect_non_authoritative_test_variable_evidence = (
-    _analysis_collect_non_authoritative_test_variable_evidence
-)
-
-
-_attach_non_authoritative_test_evidence = (
-    _analysis_attach_non_authoritative_test_evidence
-)
 
 
 def _collect_variable_reference_context(
@@ -1101,12 +1040,6 @@ _build_scanner_report_markdown = partial(
 
 
 _extract_scanner_counters = _analysis_extract_scanner_counters
-
-
-_classify_provenance_issue = _runbook_report_classify_provenance_issue
-
-
-_is_unresolved_noise_category = _runbook_report_is_unresolved_noise_category
 
 
 def render_readme(
