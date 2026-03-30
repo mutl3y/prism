@@ -82,20 +82,12 @@ from .scanner_extract import (
 from .scanner_analysis import (
     build_scanner_report_markdown as _runbook_report_build_scanner_report_markdown,
     extract_scanner_counters as _analysis_extract_scanner_counters,
-    build_runbook_rows as _analysis_build_runbook_rows,
     render_runbook as _runbook_report_render_runbook,
     render_runbook_csv as _runbook_report_render_runbook_csv,
 )
 from .scanner_readme import (
     _append_scanner_report_section_if_enabled as _readme_append_scanner_report_section_if_enabled,
-    _compose_section_body as _readme_compose_section_body,
-    _generated_merge_markers as _readme_generated_merge_markers,
-    _render_guide_identity_sections as _readme_render_guide_identity_sections,
     _render_guide_section_body as _readme_render_guide_section_body,
-    _render_readme_with_style_guide as _readme_render_readme_with_style_guide,
-    _resolve_ordered_style_sections as _readme_resolve_ordered_style_sections,
-    _resolve_section_content_mode as _readme_resolve_section_content_mode,
-    _strip_prior_generated_merge_block as _readme_strip_prior_generated_merge_block,
     normalize_style_heading,
     parse_style_readme,
 )
@@ -899,39 +891,21 @@ def load_readme_section_config(
     )
 
 
-_render_guide_identity_sections = _readme_render_guide_identity_sections
-
-
 _render_guide_section_body = partial(
     _readme_render_guide_section_body,
     variable_guidance_keywords=_VARIABLE_GUIDANCE_KEYWORDS,
 )
 
 
-_generated_merge_markers = _readme_generated_merge_markers
-_strip_prior_generated_merge_block = _readme_strip_prior_generated_merge_block
-_resolve_section_content_mode = _readme_resolve_section_content_mode
-_compose_section_body = _readme_compose_section_body
-_resolve_ordered_style_sections = _readme_resolve_ordered_style_sections
 _append_scanner_report_section_if_enabled = (
     _readme_append_scanner_report_section_if_enabled
 )
-_render_readme_with_style_guide = _readme_render_readme_with_style_guide
 
 
 _build_scanner_report_markdown = partial(
     _runbook_report_build_scanner_report_markdown,
     render_section_body=_render_guide_section_body,
 )
-
-
-_extract_scanner_counters = _analysis_extract_scanner_counters
-
-
-_build_runbook_rows = _analysis_build_runbook_rows
-
-
-_build_requirements_display = _runbook_report_build_requirements_display
 
 
 _resolve_scan_identity = partial(
@@ -974,9 +948,6 @@ def _apply_readme_section_config(
         )
 
 
-_attach_external_vars_context = _variable_insights.attach_external_vars_context
-
-
 _build_undocumented_default_filters = partial(
     _variable_insights.build_undocumented_default_filters,
     extract_default_target_var=_extract_default_target_var,
@@ -984,19 +955,15 @@ _build_undocumented_default_filters = partial(
     resembles_password_like=_resembles_password_like,
 )
 
-
-_build_display_variables = _variable_insights.build_display_variables
-
-
 _collect_variable_insights_and_default_filter_findings = partial(
     _variable_insights.collect_variable_insights_and_default_filter_findings,
     build_variable_insights=build_variable_insights,
-    attach_external_vars_context=_attach_external_vars_context,
+    attach_external_vars_context=_variable_insights.attach_external_vars_context,
     collect_yaml_parse_failures=_collect_yaml_parse_failures,
     extract_role_notes_from_comments=_extract_role_notes_from_comments,
     build_undocumented_default_filters=_build_undocumented_default_filters,
-    extract_scanner_counters=_extract_scanner_counters,
-    build_display_variables=_build_display_variables,
+    extract_scanner_counters=_analysis_extract_scanner_counters,
+    build_display_variables=_variable_insights.build_display_variables,
 )
 
 
@@ -1043,7 +1010,7 @@ _collect_scan_identity_and_artifacts = partial(
 
 _apply_scan_metadata_configuration = partial(
     _scan_runtime.apply_scan_metadata_configuration,
-    build_requirements_display=_build_requirements_display,
+    build_requirements_display=_runbook_report_build_requirements_display,
     load_readme_section_config=load_readme_section_config,
     apply_readme_section_config=_apply_readme_section_config,
 )
