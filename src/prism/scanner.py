@@ -335,19 +335,13 @@ def _refresh_policy(override_path: str | None = None) -> None:
     IGNORED_IDENTIFIERS = _ve.IGNORED_IDENTIFIERS
 
 
-def _normalize_style_heading(heading: str) -> str:
-    """Backward-compatible alias for style heading normalization."""
-    return normalize_style_heading(heading)
+_normalize_style_heading = normalize_style_heading
 
 
-def _detect_style_section_level(lines: list[str]) -> int:
-    """Backward-compatible alias for style section-level detection."""
-    return detect_style_section_level(lines)
+_detect_style_section_level = detect_style_section_level
 
 
-def _format_heading(text: str, level: int, style: str) -> str:
-    """Backward-compatible alias for heading formatting."""
-    return format_heading(text, level, style)
+_format_heading = format_heading
 
 
 def _default_style_guide_user_paths() -> list[Path]:
