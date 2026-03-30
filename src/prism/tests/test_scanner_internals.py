@@ -1182,7 +1182,7 @@ def test_runbook_bridge_wrappers_re_export_canonical_implementations():
 def test_scanner_refresh_policy_keeps_wrapper_and_canonical_ignored_in_sync(
     monkeypatch,
 ):
-    """scanner._refresh_policy must keep scanner, wrapper, and canonical states aligned."""
+    """scanner._refresh_policy must keep wrapper and canonical states aligned."""
     from prism.scanner_extract import variable_extractor as canonical
     from prism.scanner_extract import variable_extractor as compat
 
@@ -1210,8 +1210,7 @@ def test_scanner_refresh_policy_keeps_wrapper_and_canonical_ignored_in_sync(
     scanner._refresh_policy()
 
     try:
-        assert sentinel in scanner.IGNORED_IDENTIFIERS
-        assert scanner.IGNORED_IDENTIFIERS == canonical.IGNORED_IDENTIFIERS
+        assert sentinel in canonical.IGNORED_IDENTIFIERS
         assert compat.IGNORED_IDENTIFIERS == canonical.IGNORED_IDENTIFIERS
     finally:
 
@@ -1270,7 +1269,7 @@ def test_custom_ansible_prefixed_var_not_filtered_by_ignored_identifiers():
     """A custom `ansible_`-prefixed token must pass through IGNORED_IDENTIFIERS
     filtering unchanged — the prefix alone is not sufficient for suppression."""
     sentinel = "ansible_my_role_specific_setting"
-    assert sentinel not in scanner.IGNORED_IDENTIFIERS, (
+    assert sentinel not in variable_extractor.IGNORED_IDENTIFIERS, (
         f"{sentinel!r} should NOT be in IGNORED_IDENTIFIERS; "
         "only known builtins belong there"
     )

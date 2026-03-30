@@ -24,6 +24,7 @@ from prism.scanner_extract import (
     collect_yaml_parse_failures as extract_collect_yaml_parse_failures,
 )
 from prism.scanner_extract import (
+    IGNORED_IDENTIFIERS,
     map_argument_spec_type as extract_map_argument_spec_type,
 )
 from prism.scanner_readme import guide as readme_guide
@@ -453,7 +454,7 @@ def test_ignored_identifiers_include_task_parser_keywords_and_builtin_vars():
         "playbook_dir",
         "inventory_hostname",
         "ansible_play_hosts_all",
-    }.issubset(scanner.IGNORED_IDENTIFIERS)
+    }.issubset(IGNORED_IDENTIFIERS)
 
 
 def test_custom_ansible_prefixed_variable_is_not_ignored(tmp_path):
