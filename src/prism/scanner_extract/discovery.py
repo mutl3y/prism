@@ -51,7 +51,8 @@ def load_requirements(role_path: str) -> list:
     path = Path(role_path) / "meta" / "requirements.yml"
     if path.exists():
         try:
-            return yaml.safe_load(path.read_text(encoding="utf-8")) or []
+            payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+            return payload if isinstance(payload, list) else []
         except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
             return []
     return []

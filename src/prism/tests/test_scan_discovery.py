@@ -91,6 +91,32 @@ def test_scanner_load_requirements_reads_meta_requirements_file(tmp_path):
     assert result == ["ansible.posix", "community.general"]
 
 
+def test_scanner_load_requirements_normalizes_mapping_payload_to_empty_list(tmp_path):
+    role = tmp_path / "role"
+    (role / "meta").mkdir(parents=True)
+    (role / "meta" / "requirements.yml").write_text(
+        "collections:\n  - ansible.posix\n",
+        encoding="utf-8",
+    )
+
+    result = scanner.load_requirements(str(role))
+
+    assert result == []
+
+
+def test_scanner_load_requirements_normalizes_scalar_payload_to_empty_list(tmp_path):
+    role = tmp_path / "role"
+    (role / "meta").mkdir(parents=True)
+    (role / "meta" / "requirements.yml").write_text(
+        "community.general\n",
+        encoding="utf-8",
+    )
+
+    result = scanner.load_requirements(str(role))
+
+    assert result == []
+
+
 def test_scanner_wrapper_load_variables_delegates(monkeypatch):
     captured = {}
 
