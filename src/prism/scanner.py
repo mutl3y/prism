@@ -158,7 +158,7 @@ from .scanner_extract import (
     _collect_unconstrained_dynamic_task_includes as _collect_unconstrained_dynamic_task_includes,
     _collect_task_handler_catalog as _collect_task_handler_catalog,
     _collect_molecule_scenarios as _collect_molecule_scenarios,
-    extract_role_features as extract_role_features,
+    extract_role_features,
 )
 from .scanner_extract import (
     DEFAULT_TARGET_RE as DEFAULT_TARGET_RE,
@@ -185,7 +185,7 @@ from .scanner_extract import (
     _infer_variable_type as _infer_variable_type,
     _read_seed_yaml as _read_seed_yaml,
     _resolve_seed_var_files as _resolve_seed_var_files,
-    load_seed_variables as load_seed_variables,
+    load_seed_variables,
 )
 from .scanner_extract import filter_scanner as _filter_scanner
 from .scanner_readme import (
