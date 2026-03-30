@@ -1538,11 +1538,11 @@ def _prepare_run_scan_payload(
         undocumented_default_filters,
         scan_context,
     ) = prepared_scan_context
-    return {
-        "role_name": role_name,
-        "description": description,
-        "requirements_display": requirements_display,
-        "undocumented_default_filters": undocumented_default_filters,
-        "display_variables": scan_context["display_variables"],
-        "metadata": scan_context["metadata"],
-    }
+    return _build_scan_output_payload(
+        role_name=role_name,
+        description=description,
+        display_variables=scan_context["display_variables"],
+        requirements_display=requirements_display,
+        undocumented_default_filters=undocumented_default_filters,
+        metadata=scan_context["metadata"],
+    )
