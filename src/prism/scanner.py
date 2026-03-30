@@ -54,20 +54,15 @@ from .scanner_analysis.metrics import (
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES as _ANALYSIS_MAX_TOTAL_BYTES,
 )
 from .scanner_config import (
-    default_style_guide_user_paths as _config_default_style_guide_user_paths,
-    load_section_display_titles as _config_load_section_display_titles,
     refresh_policy as _config_refresh_policy,
     resolve_default_style_guide_source as _config_resolve_default_style_guide_source,
-    resolve_section_selector as _config_resolve_section_selector,
 )
 from .scanner_io import (
     collect_yaml_parse_failures as _dataload_collect_yaml_parse_failures,
     iter_role_yaml_candidates as _dataload_iter_role_yaml_candidates,
-    parse_yaml_candidate as _dataload_parse_yaml_candidate,
     map_argument_spec_type as _dataload_map_argument_spec_type,
 )
 from .scanner_extract import (
-    build_collection_compliance_notes as _requirements_build_collection_compliance_notes,
     build_requirements_display as _runbook_report_build_requirements_display,
     iter_role_argument_spec_entries as _dataload_iter_role_argument_spec_entries,
     iter_role_variable_map_candidates as _scan_discovery_iter_role_variable_map_candidates,
@@ -240,15 +235,6 @@ def _refresh_policy(override_path: str | None = None) -> None:
     _ve._refresh_policy_derived_state(_POLICY)
 
 
-def _default_style_guide_user_paths() -> list[Path]:
-    """Return user-level style guide paths honoring XDG conventions."""
-    return _config_default_style_guide_user_paths(
-        xdg_data_home_env=XDG_DATA_HOME_ENV,
-        style_guide_data_dirname=STYLE_GUIDE_DATA_DIRNAME,
-        style_guide_source_filename=DEFAULT_STYLE_GUIDE_SOURCE_FILENAME,
-    )
-
-
 def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:
     """Resolve default style guide source path using Linux-aware precedence.
 
@@ -350,26 +336,6 @@ def _collect_yaml_parse_failures(
     )
 
 
-def _iter_role_yaml_candidates(
-    role_root: Path,
-    *,
-    exclude_paths: list[str] | None,
-):
-    """Yield role-local YAML files while honoring ignored and excluded paths."""
-    yield from _dataload_iter_role_yaml_candidates(
-        role_root,
-        exclude_paths=exclude_paths,
-        ignored_dirs=IGNORED_DIRS,
-        is_relpath_excluded_fn=_is_relpath_excluded,
-        is_path_excluded_fn=_is_path_excluded,
-    )
-
-
-def _parse_yaml_candidate(candidate: Path, role_root: Path) -> dict[str, object] | None:
-    """Parse one YAML candidate and return a failure payload when parsing fails."""
-    return _dataload_parse_yaml_candidate(candidate, role_root)
-
-
 load_meta = _scan_discovery_load_meta
 
 
@@ -414,9 +380,6 @@ load_requirements = _scan_discovery_load_requirements
 
 
 normalize_requirements = _requirements_normalize_requirements
-
-
-_build_collection_compliance_notes = _requirements_build_collection_compliance_notes
 
 
 def collect_role_contents(
@@ -472,26 +435,6 @@ def _load_role_variable_maps(
     )
 
 
-def _collect_dynamic_task_include_tokens(
-    role_path: str,
-    exclude_paths: list[str] | None,
-) -> set[str]:
-    """Collect unresolved Jinja identifier tokens from dynamic task includes."""
-    return _variable_pipeline.collect_dynamic_task_include_tokens(
-        role_path=role_path,
-        exclude_paths=exclude_paths,
-    )
-
-
-def _collect_dynamic_include_var_tokens(
-    dynamic_include_vars_refs: list[str],
-) -> set[str]:
-    """Collect unresolved Jinja identifier tokens from dynamic include_vars refs."""
-    return _variable_pipeline.collect_dynamic_include_var_tokens(
-        dynamic_include_vars_refs=dynamic_include_vars_refs,
-    )
-
-
 def _build_static_variable_rows(
     *,
     role_root: Path,
@@ -507,148 +450,6 @@ def _build_static_variable_rows(
         vars_data=vars_data,
         defaults_sources=defaults_sources,
         vars_sources=vars_sources,
-    )
-
-
-def _append_include_vars_rows(
-    *,
-    role_path: str,
-    role_root: Path,
-    rows: list[dict],
-    rows_by_name: dict[str, dict],
-    exclude_paths: list[str] | None,
-) -> set[str]:
-    """Merge include_vars-derived values into variable insight rows."""
-    return _variable_pipeline.append_include_vars_rows(
-        role_path=role_path,
-        role_root=role_root,
-        rows=rows,
-        rows_by_name=rows_by_name,
-        exclude_paths=exclude_paths,
-    )
-
-
-def _collect_include_var_sources(
-    *,
-    role_path: str,
-    role_root: Path,
-    exclude_paths: list[str] | None,
-) -> dict[str, list[dict]]:
-    """Collect include_vars value sources keyed by variable name."""
-    return _variable_pipeline.collect_include_var_sources(
-        role_path=role_path,
-        role_root=role_root,
-        exclude_paths=exclude_paths,
-    )
-
-
-def _mark_existing_row_as_include_vars_ambiguous(
-    row: dict, entries: list[dict]
-) -> None:
-    """Downgrade confidence for rows that can be overridden by include_vars."""
-    _variable_pipeline.mark_existing_row_as_include_vars_ambiguous(row, entries)
-
-
-def _build_include_vars_row(name: str, entries: list[dict]) -> dict:
-    """Build a variable insight row for include_vars-discovered variables."""
-    return _variable_pipeline.build_include_vars_row(name=name, entries=entries)
-
-
-def _append_set_fact_rows(
-    *,
-    role_path: str,
-    rows: list[dict],
-    known_names: set[str],
-    exclude_paths: list[str] | None,
-) -> None:
-    """Append computed variable placeholders discovered from set_fact usage."""
-    _variable_pipeline.append_set_fact_rows(
-        role_path=role_path,
-        rows=rows,
-        known_names=known_names,
-        exclude_paths=exclude_paths,
-    )
-
-
-def _append_register_rows(
-    *,
-    role_path: str,
-    rows: list[dict],
-    known_names: set[str],
-    exclude_paths: list[str] | None,
-) -> None:
-    """Append runtime placeholders for task-level register variables."""
-    _variable_pipeline.append_register_rows(
-        role_path=role_path,
-        rows=rows,
-        known_names=known_names,
-        exclude_paths=exclude_paths,
-    )
-
-
-def _append_readme_documented_rows(
-    *,
-    role_path: str,
-    rows: list[dict],
-    known_names: set[str],
-    style_readme_path: str | None = None,
-) -> None:
-    """Enrich existing variable rows with README documentation.
-
-    README is used for enrichment only - it does NOT create new variable rows.
-    Variables must exist in defaults/vars/meta/references to be tracked.
-    """
-    _variable_pipeline.append_readme_documented_rows(
-        role_path=role_path,
-        rows=rows,
-        style_readme_path=style_readme_path,
-    )
-
-
-def _append_argument_spec_rows(
-    *,
-    role_path: str,
-    rows: list[dict],
-    known_names: set[str],
-) -> set[str]:
-    """Append argument_specs-declared inputs not yet present in row set."""
-    return _variable_pipeline.append_argument_spec_rows(
-        role_path=role_path,
-        rows=rows,
-        known_names=known_names,
-        map_argument_spec_type=_dataload_map_argument_spec_type,
-    )
-
-
-def _append_referenced_variable_rows(
-    *,
-    role_path: str,
-    rows: list[dict],
-    known_names: set[str],
-    seed_values: dict,
-    seed_secrets: set[str],
-    seed_sources: dict,
-    dynamic_include_vars_refs: list[str],
-    dynamic_include_var_tokens: set[str],
-    dynamic_task_include_tokens: set[str],
-    ignore_unresolved_internal_underscore_references: bool,
-    exclude_paths: list[str] | None,
-) -> None:
-    """Append rows for referenced-but-undefined variable names."""
-    _variable_pipeline.append_referenced_variable_rows(
-        role_path=role_path,
-        rows=rows,
-        known_names=known_names,
-        seed_values=seed_values,
-        seed_secrets=seed_secrets,
-        seed_sources=seed_sources,
-        dynamic_include_vars_refs=dynamic_include_vars_refs,
-        dynamic_include_var_tokens=dynamic_include_var_tokens,
-        dynamic_task_include_tokens=dynamic_task_include_tokens,
-        ignore_unresolved_internal_underscore_references=(
-            ignore_unresolved_internal_underscore_references
-        ),
-        exclude_paths=exclude_paths,
     )
 
 
@@ -704,11 +505,6 @@ def _populate_variable_rows(
     )
 
 
-def _refresh_known_names(rows: list[dict]) -> set[str]:
-    """Return a set of known variable names from row payloads."""
-    return _variable_pipeline.refresh_known_names(rows)
-
-
 def _redact_secret_defaults(rows: list[dict]) -> None:
     """Mask secret defaults in-place before rendering/output."""
     _variable_pipeline.redact_secret_defaults(rows)
@@ -750,18 +546,6 @@ def build_variable_insights(
         populate_variable_rows=_populate_variable_rows,
         redact_secret_defaults=_redact_secret_defaults,
     )
-
-
-_resolve_section_selector = partial(
-    _config_resolve_section_selector,
-    all_section_ids=ALL_SECTION_IDS,
-    style_section_aliases=STYLE_SECTION_ALIASES,
-    normalize_heading_fn=normalize_style_heading,
-)
-
-
-def _load_section_display_titles() -> dict[str, str]:
-    return _config_load_section_display_titles(DEFAULT_SECTION_DISPLAY_TITLES_PATH)
 
 
 load_readme_marker_prefix = partial(
