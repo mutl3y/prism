@@ -132,7 +132,7 @@ def scan_file_for_default_filters(
                         "args": args,
                     }
                 )
-    except UnicodeDecodeError, PermissionError, OSError:
+    except (UnicodeDecodeError, PermissionError, OSError):
         return []
     return occurrences
 
@@ -184,6 +184,6 @@ def scan_file_for_all_filters(
                         "filter_name": filter_name,
                     }
                 )
-    except UnicodeDecodeError, PermissionError, OSError:
+    except (UnicodeDecodeError, PermissionError, OSError):
         return []
     return occurrences

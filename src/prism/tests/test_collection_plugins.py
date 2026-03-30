@@ -8,11 +8,13 @@ def _parse_module(src: str) -> ast.Module:
 
 
 def test_extract_filter_symbols_from_direct_return_dict():
-    parsed = _parse_module("""
+    parsed = _parse_module(
+        """
 class FilterModule:
     def filters(self):
         return {'to_upper': to_upper, 'normalize': helper.normalize}
-""")
+"""
+    )
 
     symbols, mapping, confidence, method = plugins._extract_filter_symbols(parsed, "")
 
@@ -24,12 +26,14 @@ class FilterModule:
 
 
 def test_extract_filter_symbols_from_named_dict_return():
-    parsed = _parse_module("""
+    parsed = _parse_module(
+        """
 class FilterModule:
     def filters(self):
         mapping = {'alpha': alpha_impl}
         return mapping
-""")
+"""
+    )
 
     symbols, mapping, confidence, method = plugins._extract_filter_symbols(parsed, "")
 
@@ -52,10 +56,12 @@ def test_extract_filter_symbols_falls_back_to_regex_when_no_filtermodule():
 
 
 def test_extract_direct_return_dict_keys_returns_empty_when_return_not_dict():
-    parsed = _parse_module("""
+    parsed = _parse_module(
+        """
 def filters():
     return mapping
-""")
+"""
+    )
     func = parsed.body[0]
 
     result = plugins._extract_direct_return_dict_keys(func)
@@ -64,11 +70,13 @@ def filters():
 
 
 def test_extract_named_dict_return_keys_returns_empty_for_non_name_return():
-    parsed = _parse_module("""
+    parsed = _parse_module(
+        """
 def filters():
     mapping = {'x': fn}
     return {'x': fn}
-""")
+"""
+    )
     func = parsed.body[0]
 
     result = plugins._extract_named_dict_return_keys(func)
@@ -77,10 +85,12 @@ def filters():
 
 
 def test_extract_documentation_literals_ignores_multi_target_assignments():
-    parsed = _parse_module("""
+    parsed = _parse_module(
+        """
 a = DOCUMENTATION = 'ignored'
 DOCUMENTATION = 'short_description: useful plugin'
-""")
+"""
+    )
 
     blocks = plugins._extract_documentation_literals(parsed)
 
@@ -96,14 +106,16 @@ def test_extract_short_description_strips_quotes():
 
 
 def test_extract_class_method_capability_hints_ignores_dunder_methods():
-    parsed = _parse_module("""
+    parsed = _parse_module(
+        """
 class LookupModule:
     def run(self):
         return []
 
     def __repr__(self):
         return 'x'
-""")
+"""
+    )
 
     hints = plugins._extract_class_method_capability_hints(parsed, "lookup")
 
@@ -160,12 +172,14 @@ def test_resolve_filter_summary_falls_back_when_no_docs():
 
 
 def test_module_function_docstrings_collects_class_method_docs():
-    parsed = _parse_module("""
+    parsed = _parse_module(
+        """
 class Demo:
     def run(self):
         \"\"\"Run docs.\"\"\"
         return None
-""")
+"""
+    )
 
     docs = plugins._module_function_docstrings(parsed)
 
@@ -195,12 +209,14 @@ def test_extract_python_plugin_summary_returns_none_for_syntax_error(tmp_path):
 
 
 def test_extract_class_method_capability_hints_skips_non_functions():
-    parsed = _parse_module("""
+    parsed = _parse_module(
+        """
 class LookupModule:
     value = 1
     def run(self):
         return []
-""")
+"""
+    )
 
     hints = plugins._extract_class_method_capability_hints(parsed, "lookup")
 

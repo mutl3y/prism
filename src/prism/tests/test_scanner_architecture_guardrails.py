@@ -5,7 +5,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SCANNER_CORE_DIR = PROJECT_ROOT / "src" / "prism" / "scanner_core"
 
