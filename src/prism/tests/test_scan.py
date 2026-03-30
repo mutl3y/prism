@@ -2186,7 +2186,7 @@ def test_render_role_notes_section_with_and_without_entries():
 
 
 def test_render_variable_uncertainty_notes_with_defaults_and_sections():
-    rendered = scanner._render_variable_uncertainty_notes(
+    rendered = readme_style._render_variable_uncertainty_notes(
         [
             {
                 "name": "missing_var",
@@ -2208,7 +2208,7 @@ def test_render_variable_uncertainty_notes_with_defaults_and_sections():
     assert "`missing_var`: Unknown source." in rendered
     assert "Ambiguous variables:" in rendered
     assert "`shared_var`: Multiple possible sources." in rendered
-    assert scanner._render_variable_uncertainty_notes([]) == ""
+    assert readme_style._render_variable_uncertainty_notes([]) == ""
 
 
 def test_render_guide_section_body_purpose_and_variable_summary_branches():
