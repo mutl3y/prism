@@ -99,83 +99,31 @@ from .scanner_readme import (
     normalize_style_heading,
     parse_style_readme,
 )
-from ._jinja_analyzer import (  # noqa: F401
-    _JINJA_AST_ENV,
-    _stringify_jinja_node,
+from ._jinja_analyzer import (
     _scan_text_for_all_filters_with_ast,
     _scan_text_for_default_filters_with_ast,
-    _collect_undeclared_jinja_variables,
-    _collect_undeclared_jinja_variables_from_ast,
-    _collect_jinja_local_bindings_from_text,
-    _collect_jinja_local_bindings,
-    _extract_jinja_name_targets,
 )
-from .scanner_extract import (  # noqa: F401
-    TASK_INCLUDE_KEYS,
-    INCLUDE_VARS_KEYS,
-    SET_FACT_KEYS,
-    TASK_BLOCK_KEYS,
-    TASK_META_KEYS,
-    ROLE_NOTES_RE,
-    ROLE_NOTES_SHORT_RE,
-    TASK_NOTES_LONG_RE,
-    TASK_NOTES_SHORT_RE,
-    COMMENT_CONTINUATION_RE,
-    _normalize_exclude_patterns,
+from .scanner_extract import (
     _is_relpath_excluded,
     _is_path_excluded,
-    _format_inline_yaml,
-    _load_yaml_file,
-    _iter_task_include_targets,
-    _iter_task_mappings,
-    _resolve_task_include,
-    _collect_task_files,
-    _extract_role_notes_from_comments,
-    _split_task_annotation_label,
-    _extract_task_annotations_for_file,
-    _task_anchor,
-    _detect_task_module,
-    _extract_collection_from_module_name,
-    _compact_task_parameters,
+    _extract_default_target_var,
+    _collect_include_vars_files,
     _collect_unconstrained_dynamic_role_includes,
     _collect_unconstrained_dynamic_task_includes,
     _collect_task_handler_catalog,
     _collect_molecule_scenarios,
-    extract_role_features,
-    DEFAULT_TARGET_RE,
-    JINJA_VAR_RE,
-    JINJA_IDENTIFIER_RE,
-    VAULT_KEY_RE,
-    IGNORED_IDENTIFIERS,
-    _SECRET_NAME_TOKENS,
-    _VAULT_MARKERS,
-    _CREDENTIAL_PREFIXES,
-    _URL_PREFIXES,
-    _extract_default_target_var,
-    _collect_include_vars_files,
-    _collect_set_fact_names,
-    _collect_register_names,
-    _find_variable_line_in_yaml,
-    _collect_dynamic_include_vars_refs,
-    _collect_dynamic_task_include_refs,
-    _collect_referenced_variable_names,
+    _extract_role_notes_from_comments,
     _looks_secret_name,
     _resembles_password_like,
-    _is_sensitive_variable,
-    _looks_secret_value,
-    _infer_variable_type,
-    _read_seed_yaml,
-    _resolve_seed_var_files,
+    _load_yaml_file,
+    _collect_task_files,
+    extract_role_features,
     load_seed_variables,
 )
-from .scanner_readme import (  # noqa: F401
-    _describe_variable,
-    _is_role_local_variable_row,
-    _render_role_notes_section,
-    _render_role_variables_for_style,
-    _render_template_overrides_section,
-    _render_variable_summary_section,
-    _render_variable_uncertainty_notes,
+from .scanner_extract import (  # noqa: F401
+    _split_task_annotation_label,
+    _task_anchor,
+    IGNORED_IDENTIFIERS,
 )
 from .scanner_readme import render_readme as _readme_render_readme
 
@@ -187,6 +135,10 @@ STYLE_SECTION_ALIASES: dict[str, str] = _POLICY["section_aliases"]
 
 # Sensitivity detection tokens extracted from policy for fast tuple lookup
 _SENSITIVITY = _POLICY["sensitivity"]
+_SECRET_NAME_TOKENS: tuple[str, ...] = tuple(_SENSITIVITY["name_tokens"])
+_VAULT_MARKERS: tuple[str, ...] = tuple(_SENSITIVITY["vault_markers"])
+_CREDENTIAL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["credential_prefixes"])
+_URL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["url_prefixes"])
 
 # Variable guidance priority keywords
 _VARIABLE_GUIDANCE_KEYWORDS: tuple[str, ...] = tuple(
