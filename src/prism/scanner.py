@@ -77,18 +77,17 @@ from .scanner_io import (
     map_argument_spec_type as _dataload_map_argument_spec_type,
 )
 from .scanner_extract import (
-    load_role_variable_maps as _dataload_load_role_variable_maps,
-    iter_role_argument_spec_entries as _dataload_iter_role_argument_spec_entries,
-    normalize_requirements as _requirements_normalize_requirements,
     build_collection_compliance_notes as _requirements_build_collection_compliance_notes,
     build_requirements_display as _runbook_report_build_requirements_display,
-)
-from .scanner_extract import (
+    iter_role_argument_spec_entries as _dataload_iter_role_argument_spec_entries,
     iter_role_variable_map_candidates as _scan_discovery_iter_role_variable_map_candidates,
     load_meta as _scan_discovery_load_meta,
     load_requirements as _scan_discovery_load_requirements,
+    load_role_variable_maps as _dataload_load_role_variable_maps,
     load_variables as _scan_discovery_load_variables,
+    normalize_requirements as _requirements_normalize_requirements,
     resolve_scan_identity as _scan_discovery_resolve_scan_identity,
+    filter_scanner as _filter_scanner,
 )
 from .scanner_analysis import (
     build_scanner_report_markdown as _runbook_report_build_scanner_report_markdown,
@@ -153,8 +152,6 @@ from .scanner_extract import (  # noqa: F401
     _collect_task_handler_catalog,
     _collect_molecule_scenarios,
     extract_role_features,
-)
-from .scanner_extract import (  # noqa: F401
     DEFAULT_TARGET_RE,
     JINJA_VAR_RE,
     JINJA_IDENTIFIER_RE,
@@ -181,7 +178,6 @@ from .scanner_extract import (  # noqa: F401
     _resolve_seed_var_files,
     load_seed_variables,
 )
-from .scanner_extract import filter_scanner as _filter_scanner
 from .scanner_readme import (  # noqa: F401
     _describe_variable,
     _is_role_local_variable_row,
