@@ -12,12 +12,26 @@ import sys
 
 from prism import scanner
 from prism.scanner import scan_for_all_filters, scan_for_default_filters
+from prism.scanner_analysis import report as scanner_report
+from prism.scanner_analysis.report import (
+    classify_provenance_issue,
+    is_unresolved_noise_category,
+)
 from prism.scanner_extract import requirements as requirements_helpers
 from prism.scanner_extract import task_parser
+from prism.scanner_readme import guide as readme_guide
+from prism.scanner_readme import input_parser as readme_input_parser
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
 BASE_ROLE_FIXTURE = ROLE_FIXTURES / "base_mock_role"
+
+
+def build_scanner_report_markdown(**kwargs):
+    return scanner_report.build_scanner_report_markdown(
+        render_section_body=readme_guide._render_guide_section_body,
+        **kwargs,
+    )
 
 
 def test_scan_detects_defaults(tmp_path):
@@ -822,7 +836,7 @@ def test_collect_task_handler_catalog_follows_dict_style_task_includes(tmp_path)
         encoding="utf-8",
     )
 
-    task_catalog, _ = scanner._collect_task_handler_catalog(str(role))
+    task_catalog, _ = task_parser._collect_task_handler_catalog(str(role))
 
     assert [entry["name"] for entry in task_catalog] == [
         "include nested by dict",
@@ -848,7 +862,7 @@ def test_collect_task_handler_catalog_normalizes_role_include_module_and_paramet
         encoding="utf-8",
     )
 
-    task_catalog, _ = scanner._collect_task_handler_catalog(str(role))
+    task_catalog, _ = task_parser._collect_task_handler_catalog(str(role))
 
     by_name = {entry["name"]: entry for entry in task_catalog}
     assert by_name["include common role"]["module"] == "include_role"
@@ -1342,7 +1356,7 @@ def test_extract_task_annotations_for_file_supports_short_and_explicit():
         "# prism~note: check service health",
     ]
 
-    implicit, explicit = scanner._extract_task_annotations_for_file(lines)
+    implicit, explicit = task_parser._extract_task_annotations_for_file(lines)
 
     assert implicit == [
         {"kind": "runbook", "text": "verify template syntax"},
@@ -1378,7 +1392,7 @@ def test_collect_task_handler_catalog_attaches_annotation_metadata(tmp_path):
         encoding="utf-8",
     )
 
-    task_catalog, handler_catalog = scanner._collect_task_handler_catalog(str(role))
+    task_catalog, handler_catalog = task_parser._collect_task_handler_catalog(str(role))
 
     assert task_catalog[0]["runbook"] == "fallback to manual copy if automation fails"
     assert task_catalog[0]["annotations"] == [
@@ -1392,7 +1406,7 @@ def test_comment_driven_demo_role_fixture_has_rich_annotations():
     role = ROLE_FIXTURES / "comment_driven_demo_role"
 
     notes = scanner._extract_role_notes_from_comments(str(role))
-    task_catalog, handler_catalog = scanner._collect_task_handler_catalog(str(role))
+    task_catalog, handler_catalog = task_parser._collect_task_handler_catalog(str(role))
     features = scanner.extract_role_features(str(role))
 
     assert any("maintenance window" in item for item in notes["warnings"])
@@ -2237,7 +2251,7 @@ def test_render_guide_section_body_purpose_and_variable_summary_branches():
         "external_vars_context": {"paths": ["group_vars"]},
     }
 
-    purpose = scanner._render_guide_section_body(
+    purpose = readme_guide._render_guide_section_body(
         "purpose",
         "demo",
         "desc",
@@ -2246,7 +2260,7 @@ def test_render_guide_section_body_purpose_and_variable_summary_branches():
         [],
         metadata,
     )
-    summary = scanner._render_guide_section_body(
+    summary = readme_guide._render_guide_section_body(
         "variable_summary",
         "demo",
         "desc",
@@ -2266,7 +2280,7 @@ def test_render_guide_section_body_purpose_and_variable_summary_branches():
 
 
 def test_render_guide_section_body_variable_guidance_priority_and_fallbacks():
-    no_rows = scanner._render_guide_section_body(
+    no_rows = readme_guide._render_guide_section_body(
         "variable_guidance",
         "demo",
         "desc",
@@ -2275,7 +2289,7 @@ def test_render_guide_section_body_variable_guidance_priority_and_fallbacks():
         [],
         {"variable_insights": []},
     )
-    with_rows = scanner._render_guide_section_body(
+    with_rows = readme_guide._render_guide_section_body(
         "variable_guidance",
         "demo",
         "desc",
@@ -2324,7 +2338,7 @@ def test_render_guide_section_body_task_summary_handles_parse_overflow_and_catal
         ],
     }
 
-    rendered = scanner._render_guide_section_body(
+    rendered = readme_guide._render_guide_section_body(
         "task_summary",
         "demo",
         "desc",
@@ -2341,7 +2355,7 @@ def test_render_guide_section_body_task_summary_handles_parse_overflow_and_catal
 
 
 def test_render_guide_section_body_local_testing_fallback_and_unspecified_platforms():
-    with_tests = scanner._render_guide_section_body(
+    with_tests = readme_guide._render_guide_section_body(
         "local_testing",
         "demo",
         "desc",
@@ -2356,7 +2370,7 @@ def test_render_guide_section_body_local_testing_fallback_and_unspecified_platfo
             ],
         },
     )
-    fallback = scanner._render_guide_section_body(
+    fallback = readme_guide._render_guide_section_body(
         "local_testing",
         "demo",
         "desc",
@@ -2376,7 +2390,7 @@ def test_render_guide_section_body_local_testing_fallback_and_unspecified_platfo
 
 
 def test_render_guide_section_body_handlers_empty_and_catalog_non_dict():
-    empty = scanner._render_guide_section_body(
+    empty = readme_guide._render_guide_section_body(
         "handlers",
         "demo",
         "desc",
@@ -2385,7 +2399,7 @@ def test_render_guide_section_body_handlers_empty_and_catalog_non_dict():
         [],
         {"features": {}, "handlers": [], "doc_insights": {}},
     )
-    catalog = scanner._render_guide_section_body(
+    catalog = readme_guide._render_guide_section_body(
         "handlers",
         "demo",
         "desc",
@@ -2551,8 +2565,8 @@ def test_collect_yaml_parse_failures_read_and_problem_fallback_paths(
 
 def test_readme_variable_heading_and_blank_text_helpers(monkeypatch):
     monkeypatch.setattr(scanner, "normalize_style_heading", lambda title: "")
-    assert scanner._is_readme_variable_section_heading("Variables") is False
-    assert scanner._extract_readme_input_variables("   \n\n") == set()
+    assert readme_input_parser.is_readme_variable_section_heading("Variables") is False
+    assert readme_input_parser.extract_readme_input_variables("   \n\n") == set()
 
 
 def test_collect_task_handler_catalog_handles_empty_or_non_task_docs(tmp_path):
@@ -2565,7 +2579,7 @@ def test_collect_task_handler_catalog_handles_empty_or_non_task_docs(tmp_path):
     # Non-list handler file should also be ignored.
     (role / "handlers" / "main.yml").write_text("handler: true\n", encoding="utf-8")
 
-    task_catalog, handler_catalog = scanner._collect_task_handler_catalog(str(role))
+    task_catalog, handler_catalog = task_parser._collect_task_handler_catalog(str(role))
 
     assert task_catalog == []
     assert handler_catalog == []
@@ -2582,7 +2596,7 @@ def test_compact_task_parameters_formats_dict_values():
         }
     }
 
-    rendered = scanner._compact_task_parameters(task, "ansible.builtin.service")
+    rendered = task_parser._compact_task_parameters(task, "ansible.builtin.service")
 
     assert "state=started" in rendered
     assert "enabled=true" in rendered
@@ -2591,11 +2605,11 @@ def test_compact_task_parameters_formats_dict_values():
 
 def test_detect_task_module_normalizes_role_include_keys():
     assert (
-        scanner._detect_task_module({"include_role": {"name": "acme.common"}})
+        task_parser._detect_task_module({"include_role": {"name": "acme.common"}})
         == "include_role"
     )
     assert (
-        scanner._detect_task_module(
+        task_parser._detect_task_module(
             {"ansible.builtin.import_role": {"name": "acme.web"}}
         )
         == "import_role"
@@ -2606,8 +2620,8 @@ def test_compact_task_parameters_handles_role_include_string_and_raw_params():
     short_task = {"include_role": "acme.common"}
     fqcn_task = {"ansible.builtin.import_role": {"_raw_params": "acme.web"}}
 
-    short_rendered = scanner._compact_task_parameters(short_task, "include_role")
-    fqcn_rendered = scanner._compact_task_parameters(fqcn_task, "import_role")
+    short_rendered = task_parser._compact_task_parameters(short_task, "include_role")
+    fqcn_rendered = task_parser._compact_task_parameters(fqcn_task, "import_role")
 
     assert short_rendered == "name=acme.common"
     assert fqcn_rendered == "name=acme.web"
@@ -2636,7 +2650,7 @@ def test_collect_task_handler_catalog_skips_dynamic_dict_include_path(tmp_path):
         encoding="utf-8",
     )
 
-    task_catalog, _ = scanner._collect_task_handler_catalog(str(role))
+    task_catalog, _ = task_parser._collect_task_handler_catalog(str(role))
 
     assert [entry["name"] for entry in task_catalog] == [
         "include dynamic path",
@@ -2660,7 +2674,7 @@ def test_collect_task_handler_catalog_skips_missing_static_include_file(tmp_path
         encoding="utf-8",
     )
 
-    task_catalog, _ = scanner._collect_task_handler_catalog(str(role))
+    task_catalog, _ = task_parser._collect_task_handler_catalog(str(role))
 
     assert [entry["name"] for entry in task_catalog] == [
         "include missing file",
@@ -2677,7 +2691,7 @@ def test_compact_task_parameters_role_include_dict_falls_back_to_non_name_keys()
         }
     }
 
-    rendered = scanner._compact_task_parameters(task, "include_role")
+    rendered = task_parser._compact_task_parameters(task, "include_role")
 
     assert "tasks_from=install.yml" in rendered
     assert "vars_from=main.yml" in rendered
@@ -3235,7 +3249,7 @@ def test_extract_readme_input_variables_handles_mixed_styles(tmp_path):
         "Set variable `db_user` and variable `db_password` when required.\n"
     )
 
-    names = scanner._extract_readme_input_variables(readme_text)
+    names = readme_input_parser.extract_readme_input_variables(readme_text)
 
     assert "db_name" in names
     assert "db_schema" in names
@@ -3255,7 +3269,7 @@ def test_extract_readme_input_variables_skips_nested_key_prose_backticks(tmp_pat
         "Set `sat_timeout` to override the default.\n"
     )
 
-    names = scanner._extract_readme_input_variables(readme_text)
+    names = readme_input_parser.extract_readme_input_variables(readme_text)
 
     assert "sat_users" in names
     assert "sat_timeout" in names
@@ -3288,7 +3302,7 @@ def test_build_variable_insights_readme_with_special_characters(tmp_path):
 
 def test_build_scanner_report_markdown_includes_annotation_quality_counters():
     """_build_scanner_report_markdown renders annotation quality counters."""
-    report = scanner._build_scanner_report_markdown(
+    report = build_scanner_report_markdown(
         role_name="test_role",
         description="Test description",
         variables={},
@@ -3334,7 +3348,7 @@ def test_build_scanner_report_markdown_includes_annotation_quality_counters():
 
 def test_build_scanner_report_markdown_renders_unresolved_variables():
     """_build_scanner_report_markdown renders unresolved variables section."""
-    report = scanner._build_scanner_report_markdown(
+    report = build_scanner_report_markdown(
         role_name="test_role",
         description="Test description",
         variables={},
@@ -3387,7 +3401,7 @@ def test_build_scanner_report_markdown_renders_unresolved_variables():
 
 def test_build_scanner_report_markdown_renders_yaml_parse_failures_without_ambiguous():
     """_build_scanner_report_markdown renders parse failures without ambiguous vars."""
-    report = scanner._build_scanner_report_markdown(
+    report = build_scanner_report_markdown(
         role_name="test_role",
         description="Test description",
         variables={},
@@ -3440,7 +3454,7 @@ def test_build_scanner_report_markdown_renders_yaml_parse_failures_without_ambig
 
 def test_build_scanner_report_markdown_renders_ambiguous_after_parse_failures():
     """_build_scanner_report_markdown renders ambiguous variables after parse failures."""
-    report = scanner._build_scanner_report_markdown(
+    report = build_scanner_report_markdown(
         role_name="test_role",
         description="Test description",
         variables={},
@@ -3497,7 +3511,7 @@ def test_build_scanner_report_markdown_renders_ambiguous_after_parse_failures():
 
 def test_build_scanner_report_markdown_issue_list_rows_keep_parity_with_fallbacks():
     """Issue-list row rendering keeps unresolved/ambiguous markdown output stable."""
-    report = scanner._build_scanner_report_markdown(
+    report = build_scanner_report_markdown(
         role_name="test_role",
         description="Test description",
         variables={},
@@ -3569,7 +3583,7 @@ def test_build_scanner_report_markdown_issue_list_rows_keep_parity_with_fallback
 
 def test_build_scanner_report_markdown_yaml_parse_failure_rows_keep_parity():
     """YAML parse-failure row rendering keeps markdown output stable."""
-    report = scanner._build_scanner_report_markdown(
+    report = build_scanner_report_markdown(
         role_name="test_role",
         description="Test description",
         variables={},
@@ -3625,7 +3639,7 @@ def test_build_scanner_report_markdown_yaml_parse_failure_rows_keep_parity():
 
 def test_classify_provenance_issue_unresolved_with_dynamic_include_vars_reason():
     """_classify_provenance_issue classifies 'dynamic include_vars' unresolved issues."""
-    result = scanner._classify_provenance_issue(
+    result = classify_provenance_issue(
         {
             "is_unresolved": True,
             "is_ambiguous": False,
@@ -3637,7 +3651,7 @@ def test_classify_provenance_issue_unresolved_with_dynamic_include_vars_reason()
 
 def test_classify_provenance_issue_unresolved_with_other_reason():
     """_classify_provenance_issue classifies unresolved with unrecognized reason."""
-    result = scanner._classify_provenance_issue(
+    result = classify_provenance_issue(
         {
             "is_unresolved": True,
             "is_ambiguous": False,
@@ -3649,7 +3663,7 @@ def test_classify_provenance_issue_unresolved_with_other_reason():
 
 def test_classify_provenance_issue_precedence_defaults_overridden_by_vars():
     """Vars precedence is classified as informational precedence, not unresolved."""
-    result = scanner._classify_provenance_issue(
+    result = classify_provenance_issue(
         {
             "is_unresolved": False,
             "is_ambiguous": True,
@@ -3662,19 +3676,15 @@ def test_classify_provenance_issue_precedence_defaults_overridden_by_vars():
 def test_is_unresolved_noise_category_excludes_precedence_informational_category():
     """Precedence informational category must not be counted as unresolved noise."""
     assert (
-        scanner._is_unresolved_noise_category("precedence_defaults_overridden_by_vars")
-        is False
+        is_unresolved_noise_category("precedence_defaults_overridden_by_vars") is False
     )
-    assert (
-        scanner._is_unresolved_noise_category("ambiguous_defaults_vars_override")
-        is False
-    )
-    assert scanner._is_unresolved_noise_category("unresolved_other") is True
+    assert is_unresolved_noise_category("ambiguous_defaults_vars_override") is False
+    assert is_unresolved_noise_category("unresolved_other") is True
 
 
 def test_classify_provenance_issue_ambiguous_with_runtime_reason():
     """_classify_provenance_issue classifies set_fact runtime ambiguous issues."""
-    result = scanner._classify_provenance_issue(
+    result = classify_provenance_issue(
         {
             "is_unresolved": False,
             "is_ambiguous": True,
@@ -3686,7 +3696,7 @@ def test_classify_provenance_issue_ambiguous_with_runtime_reason():
 
 def test_classify_provenance_issue_ambiguous_with_non_set_fact_runtime_reason():
     """Generic runtime ambiguity does not get attributed to set_fact bucket."""
-    result = scanner._classify_provenance_issue(
+    result = classify_provenance_issue(
         {
             "is_unresolved": False,
             "is_ambiguous": True,
@@ -3720,7 +3730,7 @@ def test_build_referenced_variable_uncertainty_reason_marks_matching_dynamic_inc
 
 def test_classify_provenance_issue_ambiguous_with_other_reason():
     """_classify_provenance_issue classifies ambiguous with unrecognized reason."""
-    result = scanner._classify_provenance_issue(
+    result = classify_provenance_issue(
         {
             "is_unresolved": False,
             "is_ambiguous": True,
@@ -3732,7 +3742,7 @@ def test_classify_provenance_issue_ambiguous_with_other_reason():
 
 def test_classify_provenance_issue_returns_none_for_resolved_unambiguous():
     """_classify_provenance_issue returns None for resolved, unambiguous rows."""
-    result = scanner._classify_provenance_issue(
+    result = classify_provenance_issue(
         {
             "is_unresolved": False,
             "is_ambiguous": False,

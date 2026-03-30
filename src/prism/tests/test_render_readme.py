@@ -7,6 +7,8 @@ import sys
 import pytest
 
 from prism import scanner
+from prism.scanner_extract import task_parser
+from prism.scanner_readme import guide as readme_guide
 from prism.scanner_readme.style import _render_role_variables_for_style
 from prism.scanner_config.legacy_retirement import (
     LEGACY_RUNTIME_PATH_UNAVAILABLE,
@@ -485,7 +487,7 @@ def test_render_task_summary_includes_yaml_parse_failure_details():
         ],
     }
 
-    content = scanner._render_guide_section_body(
+    content = readme_guide._render_guide_section_body(
         "task_summary",
         "role",
         "",
@@ -1540,28 +1542,30 @@ def test_render_guide_section_body_handles_license_author_sponsors_and_faq():
     }
 
     assert (
-        scanner._render_guide_section_body("license", "demo", "", {}, [], [], metadata)
+        readme_guide._render_guide_section_body(
+            "license", "demo", "", {}, [], [], metadata
+        )
         == "BSD-3-Clause"
     )
     assert (
-        scanner._render_guide_section_body(
+        readme_guide._render_guide_section_body(
             "author_information", "demo", "", {}, [], [], metadata
         )
         == "Example Author"
     )
 
-    license_author = scanner._render_guide_section_body(
+    license_author = readme_guide._render_guide_section_body(
         "license_author", "demo", "", {}, [], [], metadata
     )
     assert "License: BSD-3-Clause" in license_author
     assert "Author: Example Author" in license_author
 
-    sponsors = scanner._render_guide_section_body(
+    sponsors = readme_guide._render_guide_section_body(
         "sponsors", "demo", "", {}, [], [], metadata
     )
     assert sponsors == "No sponsorship metadata detected for this role."
 
-    faq = scanner._render_guide_section_body(
+    faq = readme_guide._render_guide_section_body(
         "faq_pitfalls",
         "demo",
         "",
@@ -1579,17 +1583,19 @@ def test_render_guide_section_body_handles_empty_variables_and_license_defaults(
     metadata = {"meta": {}, "features": {}, "variable_insights": []}
 
     assert (
-        scanner._render_guide_section_body("license", "demo", "", {}, [], [], metadata)
+        readme_guide._render_guide_section_body(
+            "license", "demo", "", {}, [], [], metadata
+        )
         == "N/A"
     )
     assert (
-        scanner._render_guide_section_body(
+        readme_guide._render_guide_section_body(
             "author_information", "demo", "", {}, [], [], metadata
         )
         == "N/A"
     )
     assert (
-        scanner._render_guide_section_body(
+        readme_guide._render_guide_section_body(
             "role_variables", "demo", "", {}, [], [], metadata
         )
         == "No variables found."
@@ -1693,43 +1699,43 @@ def test_render_guide_section_body_covers_remaining_fallbacks():
     }
 
     assert (
-        scanner._render_guide_section_body(
+        readme_guide._render_guide_section_body(
             "requirements", "demo", "", {}, [], [], metadata
         )
         == "No additional requirements."
     )
     assert (
-        scanner._render_guide_section_body(
+        readme_guide._render_guide_section_body(
             "task_summary", "demo", "", {}, [], [], metadata
         )
         == "No task summary available."
     )
     assert (
-        scanner._render_guide_section_body(
+        readme_guide._render_guide_section_body(
             "example_usage", "demo", "", {}, [], [], metadata
         )
         == "No inferred example available."
     )
     assert (
-        scanner._render_guide_section_body(
+        readme_guide._render_guide_section_body(
             "comparison", "demo", "", {}, [], [], metadata
         )
         == "No comparison baseline provided."
     )
     assert (
-        scanner._render_guide_section_body(
+        readme_guide._render_guide_section_body(
             "default_filters", "demo", "", {}, [], [], metadata
         )
         == "No undocumented variables using `default()` were detected."
     )
 
-    role_contents = scanner._render_guide_section_body(
+    role_contents = readme_guide._render_guide_section_body(
         "role_contents", "demo", "", {}, [], [], metadata
     )
     assert "**files**: 1 files" in role_contents
     assert "**tests**: 1 files" in role_contents
 
-    features = scanner._render_guide_section_body(
+    features = readme_guide._render_guide_section_body(
         "features", "demo", "", {}, [], [], metadata
     )
     assert "**task_files_scanned**: 1" in features
@@ -1756,14 +1762,14 @@ def test_render_guide_section_body_renders_comparison_and_default_filters():
         }
     ]
 
-    comparison_text = scanner._render_guide_section_body(
+    comparison_text = readme_guide._render_guide_section_body(
         "comparison", "demo", "", {}, [], [], metadata
     )
     assert "**Baseline path**: /tmp/baseline" in comparison_text
     assert "**Score delta**: 40" in comparison_text
     assert "**task_count**: target=3, baseline=1, delta=2" in comparison_text
 
-    defaults_text = scanner._render_guide_section_body(
+    defaults_text = readme_guide._render_guide_section_body(
         "default_filters", "demo", "", {}, [], default_filters, metadata
     )
     assert "tasks/main.yml:5" in defaults_text
@@ -1912,13 +1918,13 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
         "features": {"recursive_task_includes": 0},
     }
 
-    galaxy = scanner._render_guide_section_body(
+    galaxy = readme_guide._render_guide_section_body(
         "galaxy_info", "demo", "desc", {}, [], [], metadata
     )
     assert "**Role name**: demo-role" in galaxy
     assert "**Tags**: demo, test" in galaxy
 
-    requirements = scanner._render_guide_section_body(
+    requirements = readme_guide._render_guide_section_body(
         "requirements",
         "demo",
         "",
@@ -1933,13 +1939,13 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
     assert "example.role_dependency (version: 1.0.0)" in requirements
     assert "example.collection_dependency" in requirements
 
-    installation = scanner._render_guide_section_body(
+    installation = readme_guide._render_guide_section_body(
         "installation", "demo", "", {}, [], [], metadata
     )
     assert "ansible-galaxy install demo-role" in installation
     assert "- src: demo-role" in installation
 
-    variable_summary = scanner._render_guide_section_body(
+    variable_summary = readme_guide._render_guide_section_body(
         "variable_summary",
         "demo",
         "",
@@ -1974,7 +1980,7 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
     assert "seed_only" not in variable_summary
     assert "non-authoritative hints" in variable_summary
 
-    task_summary = scanner._render_guide_section_body(
+    task_summary = readme_guide._render_guide_section_body(
         "task_summary",
         "demo",
         "",
@@ -2001,12 +2007,12 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
         in task_summary
     )
 
-    example = scanner._render_guide_section_body(
+    example = readme_guide._render_guide_section_body(
         "example_usage", "demo", "", {}, [], [], metadata
     )
     assert "```yaml" in example
 
-    testing = scanner._render_guide_section_body(
+    testing = readme_guide._render_guide_section_body(
         "local_testing",
         "demo",
         "",
@@ -2029,7 +2035,7 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
     assert "Molecule scenarios detected" in testing
     assert "driver: `podman`" in testing
 
-    handlers = scanner._render_guide_section_body(
+    handlers = readme_guide._render_guide_section_body(
         "handlers",
         "demo",
         "",
@@ -2059,7 +2065,7 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
         in handlers
     )
 
-    template_overrides = scanner._render_guide_section_body(
+    template_overrides = readme_guide._render_guide_section_body(
         "template_overrides",
         "demo",
         "",
@@ -2082,20 +2088,23 @@ def test_render_guide_sections_for_galaxy_requirements_and_testing_paths():
     assert "nginx_conf_template" in template_overrides
     assert "templates/example.conf.j2" in template_overrides
 
-    basic_auth = scanner._render_guide_section_body(
+    basic_auth = readme_guide._render_guide_section_body(
         "basic_authorization", "demo", "", {}, [], [], metadata
     )
     assert ".htpasswd" in basic_auth
 
-    contributing = scanner._render_guide_section_body(
+    contributing = readme_guide._render_guide_section_body(
         "contributing", "demo", "", {}, [], [], metadata
     )
     assert "Contributions are welcome." in contributing
 
 
 def test_detect_task_module_edge_cases_and_heading_fallback():
-    assert scanner._detect_task_module({"with_items": [1], "name": "x"}) is None
-    assert scanner._detect_task_module({"name": "x", "debug": {"msg": "ok"}}) == "debug"
+    assert task_parser._detect_task_module({"with_items": [1], "name": "x"}) is None
+    assert (
+        task_parser._detect_task_module({"name": "x", "debug": {"msg": "ok"}})
+        == "debug"
+    )
     assert scanner._format_heading("Deep", 3, "other") == "### Deep"
 
 
