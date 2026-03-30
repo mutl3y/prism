@@ -1149,17 +1149,25 @@ def test_variable_extractor_wrapper_re_exports_canonical_implementation():
 
 
 def test_variable_insights_wrappers_re_export_canonical_implementations():
-    """Variable-insights scanner helpers should be canonical scanner_core aliases."""
+    """Variable-insights helpers resolve directly from canonical scanner_core."""
     from prism.scanner_core import variable_insights as canonical
 
     assert (
-        scanner._attach_external_vars_context is canonical.attach_external_vars_context
+        scanner._collect_variable_insights_and_default_filter_findings.keywords[
+            "attach_external_vars_context"
+        ]
+        is canonical.attach_external_vars_context
     )
-    assert scanner._build_display_variables is canonical.build_display_variables
+    assert (
+        scanner._collect_variable_insights_and_default_filter_findings.keywords[
+            "build_display_variables"
+        ]
+        is canonical.build_display_variables
+    )
 
 
 def test_runbook_bridge_wrappers_re_export_canonical_implementations():
-    """Runbook helper bridge keeps only canonical row helper on scanner module."""
+    """Runbook helper bridge keeps canonical module behavior and no facade wrappers."""
     from prism.scanner_analysis import (
         build_runbook_rows,
     )
@@ -1174,7 +1182,8 @@ def test_runbook_bridge_wrappers_re_export_canonical_implementations():
         ]
     }
 
-    assert scanner._build_runbook_rows(metadata) == build_runbook_rows(metadata)
+    rows = build_runbook_rows(metadata)
+    assert isinstance(rows, list)
     assert not hasattr(scanner, "render_runbook")
     assert not hasattr(scanner, "render_runbook_csv")
 

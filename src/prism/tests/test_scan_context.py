@@ -102,7 +102,7 @@ def test_scanner_variable_insight_collection_helper_is_flattened_partial_alias()
     assert helper.keywords["build_variable_insights"] is scanner.build_variable_insights
     assert (
         helper.keywords["attach_external_vars_context"]
-        is scanner._attach_external_vars_context
+        is scanner._variable_insights.attach_external_vars_context
     )
     assert (
         helper.keywords["collect_yaml_parse_failures"]
