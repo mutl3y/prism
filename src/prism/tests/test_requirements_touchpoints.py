@@ -1,6 +1,8 @@
 """Ownership and compatibility tests for requirements/readme touchpoints."""
 
 import inspect
+import re
+from pathlib import Path
 
 from prism import scanner
 from prism.scanner_extract import requirements as canonical_requirements
@@ -50,3 +52,31 @@ def test_scanner_output_glue_remains_flattened_without_local_wrapper_defs():
     assert "scanner_submodules.scan_output" not in scanner_source
     assert "def _render_and_write_scan_output(" not in scanner_source
     assert "def _emit_scan_outputs(" not in scanner_source
+
+
+def test_canonical_scanner_packages_do_not_reverse_import_scanner_facade():
+    package_root = Path(__file__).resolve().parents[1]
+    canonical_packages = (
+        "scanner_core",
+        "scanner_extract",
+        "scanner_io",
+        "scanner_analysis",
+        "scanner_readme",
+        "scanner_config",
+    )
+    forbidden_import_pattern = re.compile(
+        r"^\s*(from\s+prism\s+import\s+scanner|import\s+prism\.scanner|from\s+\.\.\s+import\s+scanner|from\s+\.\.scanner\s+import\s+)",
+        re.MULTILINE,
+    )
+
+    offenders: list[str] = []
+    for package_name in canonical_packages:
+        for py_file in (package_root / package_name).rglob("*.py"):
+            source = py_file.read_text(encoding="utf-8")
+            if forbidden_import_pattern.search(source):
+                offenders.append(str(py_file.relative_to(package_root)))
+
+    assert not offenders, (
+        "Canonical scanner packages must not reverse-import prism.scanner facade: "
+        + ", ".join(sorted(offenders))
+    )

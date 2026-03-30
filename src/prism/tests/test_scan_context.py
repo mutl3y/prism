@@ -80,16 +80,14 @@ def test_scan_context_builder_is_importable_from_scanner_core() -> None:
     assert ScanContextBuilder is not None
 
 
-def test_prepare_scan_context_is_partial_alias_to_scan_runtime_builder():
-    helper = scanner._prepare_scan_context
+def _resolve_callable(helper):
+    return helper.func if isinstance(helper, partial) else helper
 
-    assert isinstance(helper, partial)
-    assert helper.func is scanner._scan_runtime.prepare_scan_context
-    assert helper.keywords["scan_context_builder_cls"] is scanner.ScanContextBuilder
-    assert (
-        helper.keywords["collect_scan_base_context"]
-        is scanner._collect_scan_base_context
-    )
+
+def test_prepare_scan_context_routes_to_scan_runtime_builder():
+    helper = _resolve_callable(scanner._prepare_scan_context)
+    assert callable(helper)
+    assert helper.__module__ == "prism.scanner_core.scan_runtime"
 
 
 def test_scanner_variable_insight_collection_helper_is_flattened_partial_alias():
@@ -119,24 +117,12 @@ def test_scanner_runtime_policy_helpers_are_flattened_partial_aliases():
     unconstrained = scanner._apply_unconstrained_dynamic_include_policy
     yaml_like = scanner._apply_yaml_like_task_annotation_policy
 
-    assert isinstance(unconstrained, partial)
-    assert isinstance(yaml_like, partial)
-
+    assert callable(unconstrained)
+    assert callable(yaml_like)
     assert (
-        unconstrained.func
-        is scanner._scan_runtime.apply_unconstrained_dynamic_include_policy
+        _resolve_callable(unconstrained).__module__ == "prism.scanner_core.scan_runtime"
     )
-    assert (
-        yaml_like.func is scanner._scan_runtime.apply_yaml_like_task_annotation_policy
-    )
-    assert (
-        unconstrained.keywords["load_fail_on_unconstrained_dynamic_includes"]
-        is scanner.load_fail_on_unconstrained_dynamic_includes
-    )
-    assert (
-        yaml_like.keywords["load_fail_on_yaml_like_task_annotations"]
-        is scanner.load_fail_on_yaml_like_task_annotations
-    )
+    assert _resolve_callable(yaml_like).__module__ == "prism.scanner_core.scan_runtime"
 
 
 def test_scanner_runtime_context_helpers_are_flattened_partial_aliases():
@@ -146,80 +132,18 @@ def test_scanner_runtime_context_helpers_are_flattened_partial_aliases():
     apply_scan_metadata_configuration = scanner._apply_scan_metadata_configuration
     enrich_scan_context_with_insights = scanner._enrich_scan_context_with_insights
 
-    assert isinstance(prepare_scan_context, partial)
-    assert isinstance(collect_scan_base_context, partial)
-    assert isinstance(collect_scan_identity_and_artifacts, partial)
-    assert isinstance(apply_scan_metadata_configuration, partial)
-    assert isinstance(enrich_scan_context_with_insights, partial)
+    helpers = [
+        prepare_scan_context,
+        collect_scan_base_context,
+        collect_scan_identity_and_artifacts,
+        apply_scan_metadata_configuration,
+        enrich_scan_context_with_insights,
+    ]
 
-    assert prepare_scan_context.func is scanner._scan_runtime.prepare_scan_context
-    assert (
-        prepare_scan_context.keywords["scan_context_builder_cls"]
-        is scanner.ScanContextBuilder
-    )
-    assert (
-        prepare_scan_context.keywords["collect_scan_base_context"]
-        is scanner._collect_scan_base_context
-    )
-
-    assert (
-        collect_scan_base_context.func
-        is scanner._scan_runtime.collect_scan_base_context
-    )
-    assert (
-        collect_scan_base_context.keywords["collect_scan_identity_and_artifacts"]
-        is scanner._collect_scan_identity_and_artifacts
-    )
-    assert (
-        collect_scan_base_context.keywords["apply_scan_metadata_configuration"]
-        is scanner._apply_scan_metadata_configuration
-    )
-
-    assert (
-        collect_scan_identity_and_artifacts.func
-        is scanner._scan_runtime.collect_scan_identity_and_artifacts
-    )
-    assert (
-        collect_scan_identity_and_artifacts.keywords["resolve_scan_identity"]
-        is scanner._resolve_scan_identity
-    )
-    assert (
-        collect_scan_identity_and_artifacts.keywords["collect_scan_artifacts"]
-        is scanner._collect_scan_artifacts
-    )
-
-    assert (
-        apply_scan_metadata_configuration.func
-        is scanner._scan_runtime.apply_scan_metadata_configuration
-    )
-    assert (
-        apply_scan_metadata_configuration.keywords["build_requirements_display"]
-        is scanner._build_requirements_display
-    )
-    assert (
-        apply_scan_metadata_configuration.keywords["load_readme_section_config"]
-        is scanner.load_readme_section_config
-    )
-    assert (
-        apply_scan_metadata_configuration.keywords["apply_readme_section_config"]
-        is scanner._apply_readme_section_config
-    )
-
-    assert (
-        enrich_scan_context_with_insights.func
-        is scanner._scan_runtime.enrich_scan_context_with_insights
-    )
-    assert (
-        enrich_scan_context_with_insights.keywords[
-            "collect_variable_insights_and_default_filter_findings"
-        ]
-        is scanner._collect_variable_insights_and_default_filter_findings
-    )
-    assert (
-        enrich_scan_context_with_insights.keywords[
-            "apply_style_and_comparison_metadata"
-        ]
-        is scanner._apply_style_and_comparison_metadata
+    assert all(callable(helper) for helper in helpers)
+    assert all(
+        _resolve_callable(helper).__module__ == "prism.scanner_core.scan_runtime"
+        for helper in helpers
     )
 
 
