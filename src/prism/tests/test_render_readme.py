@@ -7,8 +7,10 @@ import sys
 import pytest
 
 from prism import scanner
+from prism.scanner_extract import variable_extractor
 from prism.scanner_extract import task_parser
 from prism.scanner_readme import guide as readme_guide
+from prism.scanner_readme import style as readme_style
 from prism.scanner_readme.style import _render_role_variables_for_style
 from prism.scanner_config.legacy_retirement import (
     LEGACY_RUNTIME_PATH_UNAVAILABLE,
@@ -1854,16 +1856,16 @@ def test_run_scan_applies_role_name_override_for_sparse_role(tmp_path):
 
 
 def test_infer_variable_type_and_describe_variable_branches():
-    assert scanner._infer_variable_type(1) == "int"
-    assert scanner._infer_variable_type(1.5) == "float"
-    assert scanner._infer_variable_type([1]) == "list"
-    assert scanner._infer_variable_type({"k": "v"}) == "dict"
-    assert scanner._infer_variable_type(None) == "null"
+    assert variable_extractor._infer_variable_type(1) == "int"
+    assert variable_extractor._infer_variable_type(1.5) == "float"
+    assert variable_extractor._infer_variable_type([1]) == "list"
+    assert variable_extractor._infer_variable_type({"k": "v"}) == "dict"
+    assert variable_extractor._infer_variable_type(None) == "null"
 
-    assert scanner._describe_variable("my_path", "defaults/main.yml").startswith(
+    assert readme_style._describe_variable("my_path", "defaults/main.yml").startswith(
         "Override the file or path"
     )
-    assert scanner._describe_variable("my_user", "defaults/main.yml").startswith(
+    assert readme_style._describe_variable("my_user", "defaults/main.yml").startswith(
         "Set the user or group"
     )
 
@@ -2105,7 +2107,7 @@ def test_detect_task_module_edge_cases_and_heading_fallback():
         task_parser._detect_task_module({"name": "x", "debug": {"msg": "ok"}})
         == "debug"
     )
-    assert scanner._format_heading("Deep", 3, "other") == "### Deep"
+    assert readme_style.format_heading("Deep", 3, "other") == "### Deep"
 
 
 def test_render_readme_style_write_true_and_empty_section_body_skip(tmp_path):

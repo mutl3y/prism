@@ -14,6 +14,7 @@ Test groups mirror the planned submodule boundaries:
 
 from prism import _jinja_analyzer as jinja_analyzer
 from prism import scanner
+from prism.scanner_extract import variable_extractor
 from prism.scanner_extract.variable_extractor import _extract_default_target_var
 from types import SimpleNamespace
 
@@ -506,7 +507,7 @@ class TestCollectIncludeVarsFiles:
         (role / "tasks" / "main.yml").write_text(
             "---\n- include_vars: extra.yml\n", encoding="utf-8"
         )
-        result = scanner._collect_include_vars_files(str(role))
+        result = variable_extractor._collect_include_vars_files(str(role))
         assert extra_vars.resolve() in result
 
     def test_ignores_dynamic_include_vars(self, tmp_path):
@@ -514,12 +515,12 @@ class TestCollectIncludeVarsFiles:
         (role / "tasks" / "main.yml").write_text(
             "---\n- include_vars: '{{ dynamic_path }}'\n", encoding="utf-8"
         )
-        result = scanner._collect_include_vars_files(str(role))
+        result = variable_extractor._collect_include_vars_files(str(role))
         assert result == []
 
     def test_returns_empty_for_role_without_tasks(self, tmp_path):
         role = _make_role(tmp_path)
-        result = scanner._collect_include_vars_files(str(role))
+        result = variable_extractor._collect_include_vars_files(str(role))
         assert result == []
 
     def test_does_not_include_files_outside_role(self, tmp_path):
@@ -529,7 +530,7 @@ class TestCollectIncludeVarsFiles:
         (role / "tasks" / "main.yml").write_text(
             f"---\n- include_vars: {outside}\n", encoding="utf-8"
         )
-        result = scanner._collect_include_vars_files(str(role))
+        result = variable_extractor._collect_include_vars_files(str(role))
         assert outside.resolve() not in result
 
 
@@ -541,7 +542,7 @@ class TestCollectSetFactNames:
         (role / "tasks" / "main.yml").write_text(
             "---\n- set_fact:\n    computed_value: hello\n", encoding="utf-8"
         )
-        result = scanner._collect_set_fact_names(str(role))
+        result = variable_extractor._collect_set_fact_names(str(role))
         assert "computed_value" in result
 
     def test_ignores_dynamic_set_fact_keys(self, tmp_path):
@@ -549,7 +550,7 @@ class TestCollectSetFactNames:
         (role / "tasks" / "main.yml").write_text(
             "---\n- set_fact:\n    '{{ dynamic_key }}': value\n", encoding="utf-8"
         )
-        result = scanner._collect_set_fact_names(str(role))
+        result = variable_extractor._collect_set_fact_names(str(role))
         assert not any("{{" in name for name in result)
 
     def test_returns_empty_for_role_with_no_set_fact(self, tmp_path):
@@ -557,7 +558,7 @@ class TestCollectSetFactNames:
         (role / "tasks" / "main.yml").write_text(
             "---\n- name: do something\n  debug:\n    msg: hi\n", encoding="utf-8"
         )
-        result = scanner._collect_set_fact_names(str(role))
+        result = variable_extractor._collect_set_fact_names(str(role))
         assert result == set()
 
 
@@ -570,7 +571,7 @@ class TestCollectRegisterNames:
             "---\n- command: /bin/true\n  register: cmd_result\n",
             encoding="utf-8",
         )
-        result = scanner._collect_register_names(str(role))
+        result = variable_extractor._collect_register_names(str(role))
         assert "cmd_result" in result
 
     def test_ignores_dynamic_register_name(self, tmp_path):
@@ -579,7 +580,7 @@ class TestCollectRegisterNames:
             "---\n- command: /bin/true\n  register: '{{ runtime_name }}'\n",
             encoding="utf-8",
         )
-        result = scanner._collect_register_names(str(role))
+        result = variable_extractor._collect_register_names(str(role))
         assert result == set()
 
     def test_ignores_non_identifier_register_name(self, tmp_path):
@@ -588,7 +589,7 @@ class TestCollectRegisterNames:
             "---\n- command: /bin/true\n  register: cmd-result\n",
             encoding="utf-8",
         )
-        result = scanner._collect_register_names(str(role))
+        result = variable_extractor._collect_register_names(str(role))
         assert result == set()
 
 
@@ -598,21 +599,21 @@ class TestFindVariableLineInYaml:
     def test_finds_variable_on_first_line(self, tmp_path):
         f = tmp_path / "vars.yml"
         f.write_text("my_var: value\nother_var: 2\n", encoding="utf-8")
-        assert scanner._find_variable_line_in_yaml(f, "my_var") == 1
+        assert variable_extractor._find_variable_line_in_yaml(f, "my_var") == 1
 
     def test_finds_variable_on_later_line(self, tmp_path):
         f = tmp_path / "vars.yml"
         f.write_text("first: 1\nsecond: 2\nthird: 3\n", encoding="utf-8")
-        assert scanner._find_variable_line_in_yaml(f, "third") == 3
+        assert variable_extractor._find_variable_line_in_yaml(f, "third") == 3
 
     def test_returns_none_when_variable_not_present(self, tmp_path):
         f = tmp_path / "vars.yml"
         f.write_text("a: 1\nb: 2\n", encoding="utf-8")
-        assert scanner._find_variable_line_in_yaml(f, "missing") is None
+        assert variable_extractor._find_variable_line_in_yaml(f, "missing") is None
 
     def test_returns_none_on_io_error(self, tmp_path):
         missing = tmp_path / "nonexistent.yml"
-        assert scanner._find_variable_line_in_yaml(missing, "any") is None
+        assert variable_extractor._find_variable_line_in_yaml(missing, "any") is None
 
 
 class TestCollectDynamicIncludeVarsRefs:
@@ -623,7 +624,7 @@ class TestCollectDynamicIncludeVarsRefs:
         (role / "tasks" / "main.yml").write_text(
             "---\n- include_vars: '{{ env_specific_file }}'\n", encoding="utf-8"
         )
-        result = scanner._collect_dynamic_include_vars_refs(str(role))
+        result = variable_extractor._collect_dynamic_include_vars_refs(str(role))
         assert len(result) == 1
         assert "{{" in result[0]
 
@@ -634,12 +635,12 @@ class TestCollectDynamicIncludeVarsRefs:
         (role / "tasks" / "main.yml").write_text(
             "---\n- include_vars: extra.yml\n", encoding="utf-8"
         )
-        result = scanner._collect_dynamic_include_vars_refs(str(role))
+        result = variable_extractor._collect_dynamic_include_vars_refs(str(role))
         assert result == []
 
     def test_empty_for_role_without_tasks(self, tmp_path):
         role = _make_role(tmp_path)
-        result = scanner._collect_dynamic_include_vars_refs(str(role))
+        result = variable_extractor._collect_dynamic_include_vars_refs(str(role))
         assert result == []
 
 
