@@ -44,8 +44,19 @@ def test_append_non_authoritative_test_evidence_uncertainty_reason_shapes_suffix
 
 
 def test_scanner_wrapper_extract_scanner_counters_re_exports_canonical_implementation():
-    assert (
-        scanner._extract_scanner_counters is scanner._analysis_extract_scanner_counters
+    variable_rows = [
+        {
+            "documented": False,
+            "is_unresolved": True,
+            "is_ambiguous": False,
+            "secret": False,
+            "required": True,
+            "provenance_confidence": 0.3,
+            "uncertainty_reason": "Referenced in role but no static definition found.",
+        }
+    ]
+    assert analysis_metrics.extract_scanner_counters(variable_rows, []) == (
+        scanner_report.extract_scanner_counters(variable_rows, [])
     )
 
 

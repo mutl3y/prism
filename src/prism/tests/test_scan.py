@@ -1487,7 +1487,7 @@ def test_comment_driven_demo_role_fixture_has_rich_annotations():
 
 
 def test_extract_scanner_counters_groups_by_confidence_and_status():
-    counters = scanner._extract_scanner_counters(
+    counters = scanner_report.extract_scanner_counters(
         [
             {
                 "documented": True,
@@ -1527,7 +1527,7 @@ def test_extract_scanner_counters_groups_by_confidence_and_status():
 
 
 def test_extract_scanner_counters_categorizes_provenance_issues():
-    counters = scanner._extract_scanner_counters(
+    counters = scanner_report.extract_scanner_counters(
         [
             {
                 "documented": True,
@@ -1584,7 +1584,7 @@ def test_extract_scanner_counters_categorizes_provenance_issues():
 
 
 def test_extract_scanner_counters_includes_role_include_observability():
-    counters = scanner._extract_scanner_counters(
+    counters = scanner_report.extract_scanner_counters(
         [],
         [],
         {
@@ -1603,7 +1603,7 @@ def test_extract_scanner_counters_includes_role_include_observability():
 
 
 def test_extract_scanner_counters_tracks_test_evidence_telemetry():
-    counters = scanner._extract_scanner_counters(
+    counters = scanner_report.extract_scanner_counters(
         [
             {
                 "documented": False,
@@ -1657,7 +1657,7 @@ def test_collect_yaml_parse_failures_reports_file_and_line(tmp_path):
 
 
 def test_extract_scanner_counters_includes_yaml_parse_failure_count():
-    counters = scanner._extract_scanner_counters(
+    counters = scanner_report.extract_scanner_counters(
         [],
         [],
         {},

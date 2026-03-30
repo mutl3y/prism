@@ -14,6 +14,8 @@ Test groups mirror the planned submodule boundaries:
 
 from prism import _jinja_analyzer as jinja_analyzer
 from prism import scanner
+from prism.scanner_readme import input_parser as readme_input_parser
+from prism.scanner_extract import task_parser
 from prism.scanner_extract import variable_extractor
 from prism.scanner_extract.variable_extractor import _extract_default_target_var
 from types import SimpleNamespace
@@ -815,13 +817,13 @@ class TestIterTaskMappings:
 
     def test_yields_tasks_from_flat_list(self):
         data = [{"name": "task1", "debug": {}}, {"name": "task2", "debug": {}}]
-        result = list(scanner._iter_task_mappings(data))
+        result = list(task_parser._iter_task_mappings(data))
         assert len(result) == 2
         assert result[0]["name"] == "task1"
 
     def test_yields_tasks_from_block_body(self):
         data = [{"block": [{"name": "inner", "debug": {}}]}]
-        result = list(scanner._iter_task_mappings(data))
+        result = list(task_parser._iter_task_mappings(data))
         names = [r.get("name") for r in result]
         assert "inner" in names
 
@@ -833,22 +835,22 @@ class TestIterTaskMappings:
                 "always": [{"name": "always_task", "debug": {}}],
             }
         ]
-        result = list(scanner._iter_task_mappings(data))
+        result = list(task_parser._iter_task_mappings(data))
         names = [r.get("name") for r in result]
         assert "rescue_task" in names
         assert "always_task" in names
 
     def test_ignores_non_dict_items(self):
         data = ["not a dict", 42, None, {"name": "valid", "debug": {}}]
-        result = list(scanner._iter_task_mappings(data))
+        result = list(task_parser._iter_task_mappings(data))
         assert len(result) == 1
 
     def test_empty_list_yields_nothing(self):
-        result = list(scanner._iter_task_mappings([]))
+        result = list(task_parser._iter_task_mappings([]))
         assert result == []
 
     def test_none_input_yields_nothing(self):
-        result = list(scanner._iter_task_mappings(None))
+        result = list(task_parser._iter_task_mappings(None))
         assert result == []
 
 
@@ -856,45 +858,47 @@ class TestSplitTaskAnnotationLabel:
     """_split_task_annotation_label: parse annotation kind and body from comment payload."""
 
     def test_empty_text_returns_note_with_empty_body(self):
-        kind, body = scanner._split_task_annotation_label("")
+        kind, body = task_parser._split_task_annotation_label("")
         assert kind == "note"
         assert body == ""
 
     def test_text_without_colon_is_note_with_full_text_as_body(self):
-        kind, body = scanner._split_task_annotation_label("check network connectivity")
+        kind, body = task_parser._split_task_annotation_label(
+            "check network connectivity"
+        )
         assert kind == "note"
         assert body == "check network connectivity"
 
     def test_valid_runbook_label(self):
-        kind, body = scanner._split_task_annotation_label(
+        kind, body = task_parser._split_task_annotation_label(
             "runbook: restart nginx manually"
         )
         assert kind == "runbook"
         assert body == "restart nginx manually"
 
     def test_valid_warning_label(self):
-        kind, body = scanner._split_task_annotation_label(
+        kind, body = task_parser._split_task_annotation_label(
             "warning: service will restart"
         )
         assert kind == "warning"
         assert body == "service will restart"
 
     def test_valid_deprecated_label(self):
-        kind, body = scanner._split_task_annotation_label(
+        kind, body = task_parser._split_task_annotation_label(
             "deprecated: use new_task instead"
         )
         assert kind == "deprecated"
         assert body == "use new_task instead"
 
     def test_valid_additional_label(self):
-        kind, body = scanner._split_task_annotation_label(
+        kind, body = task_parser._split_task_annotation_label(
             "additional: see runbook https://wiki"
         )
         assert kind == "additional"
         assert body == "see runbook https://wiki"
 
     def test_valid_note_label_explicit(self):
-        kind, body = scanner._split_task_annotation_label(
+        kind, body = task_parser._split_task_annotation_label(
             "note: remember to check logs"
         )
         assert kind == "note"
@@ -902,12 +906,12 @@ class TestSplitTaskAnnotationLabel:
 
     def test_unknown_label_falls_back_to_note_with_full_text(self):
         raw = "custom: some body"
-        kind, body = scanner._split_task_annotation_label(raw)
+        kind, body = task_parser._split_task_annotation_label(raw)
         assert kind == "note"
         assert body == raw
 
     def test_label_is_case_insensitive(self):
-        kind, body = scanner._split_task_annotation_label("Warning: check firewall")
+        kind, body = task_parser._split_task_annotation_label("Warning: check firewall")
         assert kind == "warning"
         assert body == "check firewall"
 
@@ -916,26 +920,26 @@ class TestTaskAnchor:
     """_task_anchor: build stable markdown anchor slugs for task links."""
 
     def test_basic_slug_format(self):
-        result = scanner._task_anchor("main.yml", "Install package", 1)
+        result = task_parser._task_anchor("main.yml", "Install package", 1)
         assert result == "task-main-yml-install-package-1"
 
     def test_special_characters_are_stripped(self):
-        result = scanner._task_anchor("main.yml", "Task: do something!", 2)
+        result = task_parser._task_anchor("main.yml", "Task: do something!", 2)
         assert " " not in result
         assert "!" not in result
         assert ":" not in result
 
     def test_path_separators_are_normalized(self):
-        result = scanner._task_anchor("tasks/sub.yml", "run step", 3)
+        result = task_parser._task_anchor("tasks/sub.yml", "run step", 3)
         assert "/" not in result
 
     def test_fallback_for_empty_slug(self):
         # Highly artificial but must not crash
-        result = scanner._task_anchor("", "", 5)
+        result = task_parser._task_anchor("", "", 5)
         assert result.startswith("task-")
 
     def test_index_appears_at_end(self):
-        result = scanner._task_anchor("main.yml", "do thing", 10)
+        result = task_parser._task_anchor("main.yml", "do thing", 10)
         assert result.endswith("-10")
 
 
@@ -1060,16 +1064,16 @@ class TestCollectDynamicTaskIncludeRefs:
 
 def test_extract_readme_variable_names_from_line_gates_prose_backticks():
     """Backtick prose extraction should require variable-guidance context."""
-    assert scanner._extract_readme_variable_names_from_line("Or use `db_user`.") == {
-        "db_user"
-    }
+    assert readme_input_parser.extract_readme_variable_names_from_line(
+        "Or use `db_user`."
+    ) == {"db_user"}
     assert (
-        scanner._extract_readme_variable_names_from_line(
+        readme_input_parser.extract_readme_variable_names_from_line(
             "Only required attributes include `login`."
         )
         == set()
     )
-    assert scanner._extract_readme_variable_names_from_line(
+    assert readme_input_parser.extract_readme_variable_names_from_line(
         "- `login` - nested key"
     ) == {"login"}
 

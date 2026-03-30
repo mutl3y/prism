@@ -1,10 +1,9 @@
 """Focused tests for guide/body rendering extraction (modernization slice 2a)."""
 
-from prism import scanner
 from prism.scanner_readme import guide as render_guide
 
 
-def test_render_guide_identity_sections_matches_scanner_wrapper_for_license_author():
+def test_render_guide_identity_sections_renders_license_author():
     metadata = {
         "meta": {
             "galaxy_info": {
@@ -15,14 +14,6 @@ def test_render_guide_identity_sections_matches_scanner_wrapper_for_license_auth
     }
     galaxy = metadata["meta"]["galaxy_info"]
 
-    wrapped = scanner._render_guide_identity_sections(
-        "license_author",
-        "demo",
-        "desc",
-        [],
-        galaxy,
-        metadata,
-    )
     extracted = render_guide._render_guide_identity_sections(
         "license_author",
         "demo",
@@ -32,11 +23,10 @@ def test_render_guide_identity_sections_matches_scanner_wrapper_for_license_auth
         metadata,
     )
 
-    assert extracted == wrapped
     assert extracted == "License: BSD-3-Clause\n\nAuthor: Example Author"
 
 
-def test_render_guide_section_body_matches_scanner_wrapper_for_faq_pitfalls():
+def test_render_guide_section_body_renders_faq_pitfalls():
     metadata = {
         "meta": {"galaxy_info": {}},
         "features": {"recursive_task_includes": 2},
@@ -48,15 +38,6 @@ def test_render_guide_section_body_matches_scanner_wrapper_for_faq_pitfalls():
         {"file": "tasks/main.yml", "line_no": 1, "match": "x", "args": "y"}
     ]
 
-    wrapped = scanner._render_guide_section_body(
-        "faq_pitfalls",
-        "demo",
-        "desc",
-        {},
-        [],
-        default_filters,
-        metadata,
-    )
     extracted = render_guide._render_guide_section_body(
         "faq_pitfalls",
         "demo",
@@ -67,7 +48,6 @@ def test_render_guide_section_body_matches_scanner_wrapper_for_faq_pitfalls():
         metadata,
     )
 
-    assert extracted == wrapped
     assert "Ensure default values are defined" in extracted
     assert "Nested include chains are detected" in extracted
     assert "`default()` usages are captured" in extracted
