@@ -5,11 +5,13 @@ from typing import get_type_hints
 
 from prism import scanner
 from prism.scanner_core import ScanContextBuilder
+from prism.scanner_core import scan_request
+from prism.scanner_core import scan_runtime
 from prism.scanner_data import contracts
 
 
 def test_finalize_scan_context_payload_shapes_expected_tuple():
-    payload = scanner._finalize_scan_context_payload(
+    payload = scan_runtime.finalize_scan_context_payload(
         rp="/tmp/role",
         role_name="demo_role",
         description="demo",
@@ -29,7 +31,7 @@ def test_finalize_scan_context_payload_shapes_expected_tuple():
 
 
 def test_build_scan_output_payload_shapes_expected_map():
-    payload = scanner._build_scan_output_payload(
+    payload = scan_runtime.build_scan_output_payload(
         role_name="demo_role",
         description="demo",
         display_variables={"name": {"required": False}},
@@ -172,7 +174,7 @@ def test_scan_output_payload_typed_seam_contract_annotations():
         "metadata",
     }
 
-    build_hints = get_type_hints(scanner._build_scan_output_payload)
+    build_hints = get_type_hints(scan_runtime.build_scan_output_payload)
     prepare_hints = get_type_hints(scanner._prepare_run_scan_payload)
 
     assert build_hints["return"] is contracts.RunScanOutputPayload
@@ -293,7 +295,7 @@ def test_build_emit_scan_outputs_args_flattens_payload_fields():
         "undocumented_default_filters": [{"file": "tasks/main.yml"}],
         "metadata": {"features": {"tasks_scanned": 2}},
     }
-    args = scanner._build_emit_scan_outputs_args(
+    args = scan_runtime.build_emit_scan_outputs_args(
         output="README.md",
         output_format="md",
         concise_readme=False,
@@ -365,7 +367,7 @@ def test_scan_report_sidecar_args_typed_seam_contract_annotations():
         "dry_run",
     }
 
-    build_hints = get_type_hints(scanner._build_scan_report_sidecar_args)
+    build_hints = get_type_hints(scan_runtime.build_scan_report_sidecar_args)
     assert build_hints["return"] is contracts.ScanReportSidecarArgs
 
 
@@ -382,7 +384,7 @@ def test_build_scan_report_sidecar_args_flattens_payload_fields():
     }
     out_path = Path("/tmp/docs/README.md")
 
-    args = scanner._build_scan_report_sidecar_args(
+    args = scan_runtime.build_scan_report_sidecar_args(
         concise_readme=True,
         scanner_report_output=None,
         out_path=out_path,
@@ -442,7 +444,7 @@ def test_runbook_sidecar_args_typed_seam_contract_annotations():
         "metadata",
     }
 
-    build_hints = get_type_hints(scanner._build_runbook_sidecar_args)
+    build_hints = get_type_hints(scan_runtime.build_runbook_sidecar_args)
     assert build_hints["return"] is contracts.RunbookSidecarArgs
 
 
@@ -455,7 +457,7 @@ def test_build_runbook_sidecar_args_from_payload():
         "undocumented_default_filters": [],
         "metadata": {"key": "val"},
     }
-    args = scanner._build_runbook_sidecar_args(
+    args = scan_runtime.build_runbook_sidecar_args(
         runbook_output="/tmp/runbook.md",
         runbook_csv_output="/tmp/runbook.csv",
         payload=payload,
@@ -475,7 +477,7 @@ def test_build_runbook_sidecar_args_none_paths():
         "undocumented_default_filters": [],
         "metadata": {},
     }
-    args = scanner._build_runbook_sidecar_args(
+    args = scan_runtime.build_runbook_sidecar_args(
         runbook_output=None,
         runbook_csv_output=None,
         payload=payload,
@@ -689,7 +691,7 @@ def test_execute_scan_with_context_normalized_options_do_not_emit_runtime_fallba
 ):
     role_path = str(tmp_path / "role")
     (tmp_path / "role").mkdir()
-    scan_options = scanner._build_run_scan_options(
+    scan_options = scan_request.build_run_scan_options(
         role_path=role_path,
         role_name_override=None,
         readme_config_path=None,
@@ -774,7 +776,7 @@ def test_execute_scan_with_context_uses_real_scanner_context_without_fallback(
 ):
     role_path = str(tmp_path / "demo_role")
     (tmp_path / "demo_role").mkdir()
-    scan_options = scanner._build_run_scan_options(
+    scan_options = scan_request.build_run_scan_options(
         role_path=role_path,
         role_name_override=None,
         readme_config_path=None,
@@ -1088,7 +1090,7 @@ def test_execute_scan_with_context_does_not_set_fallback_reason_when_context_pat
 ):
     role_path = str(tmp_path / "demo_role")
     (tmp_path / "demo_role").mkdir()
-    scan_options = scanner._build_run_scan_options(
+    scan_options = scan_request.build_run_scan_options(
         role_path=role_path,
         role_name_override=None,
         readme_config_path=None,
@@ -1166,7 +1168,7 @@ def test_execute_scan_with_context_emitted_args_keep_canonical_keyset_across_pat
 
     monkeypatch.setattr(scanner, "_emit_scan_outputs", fake_emit)
 
-    context_scan_options = scanner._build_run_scan_options(
+    context_scan_options = scan_request.build_run_scan_options(
         role_path=role_path,
         role_name_override=None,
         readme_config_path=None,
@@ -1202,7 +1204,7 @@ def test_execute_scan_with_context_emitted_args_keep_canonical_keyset_across_pat
         runbook_csv_output=None,
     )
 
-    second_scan_options = scanner._build_run_scan_options(
+    second_scan_options = scan_request.build_run_scan_options(
         role_path=role_path,
         role_name_override="role_override",
         readme_config_path=None,

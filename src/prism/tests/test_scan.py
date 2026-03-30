@@ -12,6 +12,7 @@ import sys
 
 from prism import scanner
 from prism.scanner import scan_for_all_filters, scan_for_default_filters
+from prism.scanner_analysis import metrics as analysis_metrics
 from prism.scanner_analysis import report as scanner_report
 from prism.scanner_analysis.report import (
     classify_provenance_issue,
@@ -3707,7 +3708,7 @@ def test_classify_provenance_issue_ambiguous_with_non_set_fact_runtime_reason():
 
 
 def test_build_referenced_variable_uncertainty_reason_targets_dynamic_include_var_tokens():
-    reason = scanner._build_referenced_variable_uncertainty_reason(
+    reason = analysis_metrics.build_referenced_variable_uncertainty_reason(
         name="foo_var",
         seeded=False,
         dynamic_include_vars_refs=["{{ env }}.yml"],
@@ -3718,7 +3719,7 @@ def test_build_referenced_variable_uncertainty_reason_targets_dynamic_include_va
 
 
 def test_build_referenced_variable_uncertainty_reason_marks_matching_dynamic_include_var_tokens():
-    reason = scanner._build_referenced_variable_uncertainty_reason(
+    reason = analysis_metrics.build_referenced_variable_uncertainty_reason(
         name="env",
         seeded=False,
         dynamic_include_vars_refs=["{{ env }}.yml"],
