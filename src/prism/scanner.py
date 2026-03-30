@@ -495,9 +495,7 @@ def _iter_role_argument_spec_entries(role_path: str):
     )
 
 
-def _map_argument_spec_type(spec_type: object) -> str:
-    """Map argument-spec type labels into scanner variable type labels."""
-    return _dataload_map_argument_spec_type(spec_type)
+_map_argument_spec_type = _dataload_map_argument_spec_type
 
 
 _iter_role_variable_map_candidates = _scan_discovery_iter_role_variable_map_candidates
