@@ -22,6 +22,7 @@ from prism.scanner_extract import requirements as requirements_helpers
 from prism.scanner_extract import task_parser
 from prism.scanner_readme import guide as readme_guide
 from prism.scanner_readme import input_parser as readme_input_parser
+from prism.scanner_readme import style as readme_style
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -1050,7 +1051,7 @@ def test_collect_non_authoritative_test_variable_evidence_uses_token_boundaries(
         encoding="utf-8",
     )
 
-    evidence = scanner._collect_non_authoritative_test_variable_evidence(
+    evidence = analysis_metrics.collect_non_authoritative_test_variable_evidence(
         role_path=str(role),
         unresolved_names={"external_input", "external_input_extra", "missing_value"},
         exclude_paths=None,
@@ -1071,7 +1072,7 @@ def test_collect_non_authoritative_test_variable_evidence_honors_max_files(tmp_p
             "external_input: true\n", encoding="utf-8"
         )
 
-    evidence = scanner._collect_non_authoritative_test_variable_evidence(
+    evidence = analysis_metrics.collect_non_authoritative_test_variable_evidence(
         role_path=str(role),
         unresolved_names={"external_input"},
         exclude_paths=None,
@@ -1093,7 +1094,7 @@ def test_collect_non_authoritative_test_variable_evidence_honors_max_total_bytes
     (tests_dir / "a.yml").write_text(content, encoding="utf-8")
     (tests_dir / "b.yml").write_text(content, encoding="utf-8")
 
-    evidence = scanner._collect_non_authoritative_test_variable_evidence(
+    evidence = analysis_metrics.collect_non_authoritative_test_variable_evidence(
         role_path=str(role),
         unresolved_names={"external_input"},
         exclude_paths=None,
@@ -1114,7 +1115,7 @@ def test_collect_non_authoritative_test_variable_evidence_saturates_counts(tmp_p
         encoding="utf-8",
     )
 
-    evidence = scanner._collect_non_authoritative_test_variable_evidence(
+    evidence = analysis_metrics.collect_non_authoritative_test_variable_evidence(
         role_path=str(role),
         unresolved_names={"external_input"},
         exclude_paths=None,
@@ -1770,22 +1771,12 @@ def test_scan_file_for_default_filters_returns_empty_on_oserror(tmp_path, monkey
     assert rows == []
 
 
-def test_scanner_style_heading_alias_helpers_delegate(monkeypatch):
-    monkeypatch.setattr(scanner, "normalize_style_heading", lambda value: f"n:{value}")
-    monkeypatch.setattr(
-        scanner,
-        "detect_style_section_level",
-        lambda lines: 3 if lines else 2,
+def test_style_heading_helpers_cover_canonical_paths():
+    assert readme_style.normalize_style_heading("Role Variables") == "role variables"
+    assert readme_style.detect_style_section_level(["## Title"]) == 2
+    assert (
+        readme_style.format_heading("Role Variables", 2, "atx") == "## Role Variables"
     )
-    monkeypatch.setattr(
-        scanner,
-        "format_heading",
-        lambda text, level, style: f"{style}:{level}:{text}",
-    )
-
-    assert scanner._normalize_style_heading("Role Variables") == "n:Role Variables"
-    assert scanner._detect_style_section_level(["## Title"]) == 3
-    assert scanner._format_heading("Role Variables", 2, "atx") == "atx:2:Role Variables"
 
 
 def test_default_style_guide_user_paths_respects_xdg(monkeypatch):
@@ -1911,7 +1902,7 @@ def test_requirement_format_and_normalization_helpers():
         == "community.general"
     )
 
-    normalized = scanner.normalize_requirements(
+    normalized = requirements_helpers.normalize_requirements(
         [
             {"src": "acme.role", "version": "1.2.3"},
             " community.mysql ",
@@ -2564,9 +2555,15 @@ def test_collect_yaml_parse_failures_read_and_problem_fallback_paths(
     assert by_file["tasks/parse_fail.yml"]["error"] == "plain parser failure"
 
 
-def test_readme_variable_heading_and_blank_text_helpers(monkeypatch):
-    monkeypatch.setattr(scanner, "normalize_style_heading", lambda title: "")
-    assert readme_input_parser.is_readme_variable_section_heading("Variables") is False
+def test_readme_variable_heading_and_blank_text_helpers():
+    assert (
+        readme_input_parser.is_readme_variable_section_heading_with(
+            "Variables",
+            normalize_heading=lambda title: "",
+            section_aliases=scanner.STYLE_SECTION_ALIASES,
+        )
+        is False
+    )
     assert readme_input_parser.extract_readme_input_variables("   \n\n") == set()
 
 
