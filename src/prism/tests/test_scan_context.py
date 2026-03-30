@@ -194,75 +194,6 @@ def test_scan_context_contracts_use_canonical_scanner_data_symbols():
     }
 
 
-def test_scanner_wrapper_finalize_scan_context_payload_matches_helper():
-    wrapped = scanner._finalize_scan_context_payload(
-        rp="/tmp/role",
-        role_name="demo_role",
-        description="demo",
-        requirements_display=["dep"],
-        undocumented_default_filters=[{"file": "tasks/main.yml"}],
-        display_variables={"name": {"required": False}},
-        metadata={"features": {"tasks_scanned": 1}},
-    )
-    assert wrapped == (
-        "/tmp/role",
-        "demo_role",
-        "demo",
-        ["dep"],
-        [{"file": "tasks/main.yml"}],
-        {
-            "display_variables": {"name": {"required": False}},
-            "metadata": {"features": {"tasks_scanned": 1}},
-        },
-    )
-
-
-def test_scanner_wrapper_build_scan_output_payload_matches_helper():
-    wrapped = scanner._build_scan_output_payload(
-        role_name="demo_role",
-        description="demo",
-        display_variables={"name": {"required": False}},
-        requirements_display=["dep"],
-        undocumented_default_filters=[{"file": "tasks/main.yml"}],
-        metadata={"features": {"tasks_scanned": 1}},
-    )
-    assert wrapped == {
-        "role_name": "demo_role",
-        "description": "demo",
-        "display_variables": {"name": {"required": False}},
-        "requirements_display": ["dep"],
-        "undocumented_default_filters": [{"file": "tasks/main.yml"}],
-        "metadata": {"features": {"tasks_scanned": 1}},
-    }
-
-
-def test_scanner_wrapper_prepare_run_scan_payload_delegates(monkeypatch):
-    prepared_context = (
-        "/tmp/role",
-        "demo_role",
-        "demo",
-        ["dep"],
-        [{"file": "tasks/main.yml"}],
-        {
-            "display_variables": {"name": {"required": False}},
-            "metadata": {"features": {"tasks_scanned": 1}},
-        },
-    )
-    monkeypatch.setattr(
-        scanner, "_prepare_scan_context", lambda options: prepared_context
-    )
-
-    result = scanner._prepare_run_scan_payload({"role_path": "/tmp/role"})
-    assert result == {
-        "role_name": "demo_role",
-        "description": "demo",
-        "requirements_display": ["dep"],
-        "undocumented_default_filters": [{"file": "tasks/main.yml"}],
-        "display_variables": {"name": {"required": False}},
-        "metadata": {"features": {"tasks_scanned": 1}},
-    }
-
-
 def test_emit_scan_outputs_args_typed_seam_contract_annotations():
     assert set(contracts.EmitScanOutputsArgs.__annotations__) == {
         "output",
@@ -325,33 +256,6 @@ def test_build_emit_scan_outputs_args_flattens_payload_fields():
     assert args["runbook_csv_output"] is None
 
 
-def test_scanner_wrapper_build_emit_scan_outputs_args_shapes_expected_map():
-    payload = {
-        "role_name": "wrap_role",
-        "description": "wrap_desc",
-        "display_variables": {},
-        "requirements_display": [],
-        "undocumented_default_filters": [],
-        "metadata": {},
-    }
-    result = scanner._build_emit_scan_outputs_args(
-        output="README.md",
-        output_format="md",
-        concise_readme=False,
-        scanner_report_output=None,
-        include_scanner_report_link=True,
-        payload=payload,
-        template=None,
-        dry_run=True,
-        runbook_output=None,
-        runbook_csv_output=None,
-    )
-
-    assert result["output"] == "README.md"
-    assert result["role_name"] == "wrap_role"
-    assert result["dry_run"] is True
-
-
 def test_scan_report_sidecar_args_typed_seam_contract_annotations():
     assert set(contracts.ScanReportSidecarArgs.__annotations__) == {
         "concise_readme",
@@ -406,33 +310,6 @@ def test_build_scan_report_sidecar_args_flattens_payload_fields():
     assert args["dry_run"] is True
 
 
-def test_scanner_wrapper_build_scan_report_sidecar_args_shapes_expected_map():
-    from pathlib import Path
-
-    payload = {
-        "role_name": "wrap_role",
-        "description": "wrap_desc",
-        "display_variables": {},
-        "requirements_display": [],
-        "undocumented_default_filters": [],
-        "metadata": {},
-    }
-    out_path = Path("/tmp/README.md")
-    result = scanner._build_scan_report_sidecar_args(
-        concise_readme=True,
-        scanner_report_output=None,
-        out_path=out_path,
-        include_scanner_report_link=False,
-        payload=payload,
-        dry_run=True,
-    )
-
-    assert result["concise_readme"] is True
-    assert result["out_path"] is out_path
-    assert result["role_name"] == "wrap_role"
-    assert result["dry_run"] is True
-
-
 def test_runbook_sidecar_args_typed_seam_contract_annotations():
     """Verify RunbookSidecarArgs TypedDict annotations match build_runbook_sidecar_args return."""
     from typing import get_type_hints
@@ -484,27 +361,6 @@ def test_build_runbook_sidecar_args_none_paths():
     )
     assert args["runbook_output"] is None
     assert args["runbook_csv_output"] is None
-
-
-def test_scanner_wrapper_build_runbook_sidecar_args_shapes_expected_map():
-    payload = {
-        "role_name": "wrap_r",
-        "description": "wrap_d",
-        "display_variables": {},
-        "requirements_display": [],
-        "undocumented_default_filters": [],
-        "metadata": {},
-    }
-    result = scanner._build_runbook_sidecar_args(
-        runbook_output="/out/runbook.md",
-        runbook_csv_output=None,
-        payload=payload,
-    )
-
-    assert result["runbook_output"] == "/out/runbook.md"
-    assert result["runbook_csv_output"] is None
-    assert result["role_name"] == "wrap_r"
-    assert result["metadata"] == {}
 
 
 def test_scanner_runtime_output_helpers_alias_scan_runtime_canonical_functions():
