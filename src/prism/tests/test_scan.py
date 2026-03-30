@@ -1138,7 +1138,7 @@ def test_collect_non_authoritative_test_variable_evidence_saturates_counts(tmp_p
 
     assert (
         evidence["external_input"]["match_count"]
-        == scanner.NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT
+        == analysis_metrics.NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT
     )
     assert evidence["external_input"]["matched_files"] == ["tests/many.yml"]
 
@@ -1168,12 +1168,12 @@ def test_build_variable_insights_marks_test_evidence_saturation_metadata(tmp_pat
 
     assert (
         evidence["match_count"]
-        == scanner.NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT
+        == analysis_metrics.NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT
     )
     assert evidence["saturation_applied"] is True
     assert (
         evidence["saturation_threshold"]
-        == scanner.NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT
+        == analysis_metrics.NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT
     )
     assert "saturated at threshold" in unresolved["uncertainty_reason"]
 

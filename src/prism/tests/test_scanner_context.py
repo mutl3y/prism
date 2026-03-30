@@ -444,11 +444,7 @@ def test_scanner_context_runtime_path_uses_canonical_modules(monkeypatch):
     def should_not_call_scanner_wrapper(**_: object):
         raise AssertionError("scanner private wrapper bridge should not be used")
 
-    monkeypatch.setattr(
-        scanner,
-        "_build_run_scan_options",
-        should_not_call_scanner_wrapper,
-    )
+    assert not hasattr(scanner, "_build_run_scan_options")
     monkeypatch.setattr(
         scanner,
         "_prepare_scan_context",

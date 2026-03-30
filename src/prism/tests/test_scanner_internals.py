@@ -1159,11 +1159,9 @@ def test_variable_insights_wrappers_re_export_canonical_implementations():
 
 
 def test_runbook_bridge_wrappers_re_export_canonical_implementations():
-    """Runbook bridge scanner helpers should match canonical runbook behavior."""
+    """Runbook helper bridge keeps only canonical row helper on scanner module."""
     from prism.scanner_analysis import (
         build_runbook_rows,
-        render_runbook,
-        render_runbook_csv,
     )
 
     metadata = {
@@ -1177,8 +1175,8 @@ def test_runbook_bridge_wrappers_re_export_canonical_implementations():
     }
 
     assert scanner._build_runbook_rows(metadata) == build_runbook_rows(metadata)
-    assert scanner.render_runbook("demo", metadata) == render_runbook("demo", metadata)
-    assert scanner.render_runbook_csv(metadata) == render_runbook_csv(metadata)
+    assert not hasattr(scanner, "render_runbook")
+    assert not hasattr(scanner, "render_runbook_csv")
 
 
 def test_scanner_refresh_policy_keeps_wrapper_and_canonical_ignored_in_sync(

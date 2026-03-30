@@ -183,76 +183,8 @@ def test_scanner_core_build_run_scan_options_shapes_expected_option_map():
     assert options["ignore_unresolved_internal_underscore_references"] is False
 
 
-def test_scanner_resolve_detailed_catalog_flag_delegates_to_scanner_core(monkeypatch):
-    calls: list[dict[str, object]] = []
-
-    def _fake_resolve(**kwargs: object) -> bool:
-        calls.append(kwargs)
-        return True
-
-    monkeypatch.setattr(
-        scanner.scan_request,
-        "resolve_scan_request_for_runtime",
-        _fake_resolve,
-    )
-
-    result = scanner._resolve_detailed_catalog_flag(
-        detailed_catalog=False,
-        runbook_output="runbook.md",
-        runbook_csv_output=None,
-    )
-
-    assert result is True
-    assert calls == [
-        {
-            "detailed_catalog": False,
-            "runbook_output": "runbook.md",
-            "runbook_csv_output": None,
-        }
-    ]
-
-
-def test_scanner_build_run_scan_options_delegates_to_scanner_core(monkeypatch):
-    calls: list[dict[str, object]] = []
-
-    def _fake_build(**kwargs: object) -> dict:
-        calls.append(kwargs)
-        return {"role_path": "delegated"}
-
-    monkeypatch.setattr(
-        scanner.scan_request,
-        "build_run_scan_options",
-        _fake_build,
-    )
-
-    result = scanner._build_run_scan_options(
-        role_path="/tmp/role",
-        role_name_override=None,
-        readme_config_path=None,
-        include_vars_main=True,
-        exclude_path_patterns=None,
-        detailed_catalog=False,
-        include_task_parameters=True,
-        include_task_runbooks=True,
-        inline_task_runbooks=True,
-        include_collection_checks=True,
-        keep_unknown_style_sections=True,
-        adopt_heading_mode=None,
-        vars_seed_paths=None,
-        style_readme_path=None,
-        style_source_path=None,
-        style_guide_skeleton=False,
-        compare_role_path=None,
-        fail_on_unconstrained_dynamic_includes=None,
-        fail_on_yaml_like_task_annotations=None,
-        ignore_unresolved_internal_underscore_references=None,
-    )
-
-    assert result == {"role_path": "delegated"}
-    assert calls[0]["role_path"] == "/tmp/role"
-    assert calls[0]["include_task_runbooks"] is True
-
-
 def test_scanner_no_longer_exports_run_scan_canonical_alias_helpers():
+    assert not hasattr(scanner, "_build_run_scan_options")
+    assert not hasattr(scanner, "_resolve_detailed_catalog_flag")
     assert not hasattr(scanner, "_build_run_scan_options_canonical")
     assert not hasattr(scanner, "_resolve_detailed_catalog_flag_canonical")

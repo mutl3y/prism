@@ -30,7 +30,8 @@ from .repo_services import (
     _resolve_repo_scan_scanner_report_relpath,
     _resolve_style_readme_candidate,
 )
-from .scanner import render_runbook, render_runbook_csv, run_scan
+from .scanner import run_scan
+from .scanner_analysis import render_runbook, render_runbook_csv
 
 # Compatibility export for downstream imports and parity checks with CLI/helpers.
 _build_repo_style_readme_candidates = _repo_build_repo_style_readme_candidates

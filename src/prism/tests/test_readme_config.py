@@ -3,6 +3,11 @@ from pathlib import Path
 import pytest
 
 from prism import scanner
+from prism.scanner_analysis.metrics import (
+    NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
+    NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
+    NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
+)
 from prism.scanner_config.legacy_retirement import (
     LEGACY_SECTION_CONFIG_UNSUPPORTED,
     LEGACY_SECTION_CONFIG_UNSUPPORTED_MESSAGE,
@@ -237,15 +242,15 @@ def test_load_non_authoritative_test_evidence_limits_fallback_on_invalid_values(
 
     assert (
         scanner.load_non_authoritative_test_evidence_max_file_bytes(str(role))
-        == scanner.NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES
+        == NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES
     )
     assert (
         scanner.load_non_authoritative_test_evidence_max_files_scanned(str(role))
-        == scanner.NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED
+        == NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED
     )
     assert (
         scanner.load_non_authoritative_test_evidence_max_total_bytes(str(role))
-        == scanner.NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES
+        == NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES
     )
 
 

@@ -158,8 +158,8 @@ def test_scanner_output_helpers_route_through_runtime_and_canonical_emission():
 
 
 def test_scanner_facade_style_and_runbook_symbols_remain_import_compatible():
-    assert callable(scanner.render_runbook)
-    assert callable(scanner.render_runbook_csv)
+    assert not hasattr(scanner, "render_runbook")
+    assert not hasattr(scanner, "render_runbook_csv")
     assert callable(scanner.parse_style_readme)
     assert callable(scanner.resolve_default_style_guide_source)
 

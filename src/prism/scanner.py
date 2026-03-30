@@ -7,7 +7,6 @@ metadata and variables, and render a README using a Jinja2 template.
 
 from __future__ import annotations
 
-import os
 from functools import partial
 from pathlib import Path
 import re
@@ -33,8 +32,6 @@ from .scanner_config import (
     load_readme_section_visibility as _load_readme_section_visibility,
 )
 from .scanner_data.contracts import (
-    VariableProvenance as _contracts_VariableProvenance,
-    VariableRow as _contracts_VariableRow,
     ReferenceContext as _scan_context_ReferenceContext,
     RunScanOutputPayload as _scan_context_RunScanOutputPayload,
     ScanMetadata as _scan_context_ScanMetadata,
@@ -55,7 +52,6 @@ from .scanner_analysis.metrics import (
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES as _ANALYSIS_MAX_FILE_BYTES,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED as _ANALYSIS_MAX_FILES_SCANNED,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES as _ANALYSIS_MAX_TOTAL_BYTES,
-    NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT as _ANALYSIS_SATURATION_MATCH_COUNT,
 )
 from .scanner_config import (
     default_style_guide_user_paths as _config_default_style_guide_user_paths,
@@ -63,12 +59,6 @@ from .scanner_config import (
     refresh_policy as _config_refresh_policy,
     resolve_default_style_guide_source as _config_resolve_default_style_guide_source,
     resolve_section_selector as _config_resolve_section_selector,
-)
-from .scanner_config.legacy_retirement import (
-    LEGACY_RUNTIME_PATH_UNAVAILABLE as _RETIRED_RUNTIME_PATH_CODE,
-    LEGACY_RUNTIME_PATH_UNAVAILABLE_MESSAGE as _RETIRED_RUNTIME_PATH_MESSAGE,
-    LEGACY_RUNTIME_STYLE_SOURCE_ENV as _RETIRED_RUNTIME_STYLE_SOURCE_ENV,
-    format_legacy_retirement_error as _format_retired_runtime_error,
 )
 from .scanner_io import (
     collect_yaml_parse_failures as _dataload_collect_yaml_parse_failures,
@@ -187,15 +177,11 @@ from .scanner_readme import (  # noqa: F401
     _render_variable_summary_section,
     _render_variable_uncertainty_notes,
 )
-from .scanner_readme import render_readme as _render_readme_mod_render_readme
+from .scanner_readme import render_readme as _readme_render_readme
 
 # Load pattern policy (built-in defaults, optionally merged with a repo override).
 # Pass override_path to load_pattern_config() if you want to merge a local file.
 _POLICY = load_pattern_config()
-
-# Backward-compatible public contract exports now alias scanner_data definitions.
-VariableProvenance = _contracts_VariableProvenance
-VariableRow = _contracts_VariableRow
 
 STYLE_SECTION_ALIASES: dict[str, str] = _POLICY["section_aliases"]
 
@@ -285,14 +271,6 @@ NON_AUTHORITATIVE_TEST_EVIDENCE_ALLOWED_SUFFIXES = {
     ".md",
     ".txt",
 }
-# Note: these constants are now defined in scanner_analysis/metrics.py
-# and re-exported here for backward compatibility.
-NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES = _ANALYSIS_MAX_FILE_BYTES
-NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED = _ANALYSIS_MAX_FILES_SCANNED
-NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES = _ANALYSIS_MAX_TOTAL_BYTES
-NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT = (
-    _ANALYSIS_SATURATION_MATCH_COUNT
-)
 
 
 def _refresh_policy(override_path: str | None = None) -> None:
@@ -761,9 +739,9 @@ def _populate_variable_rows(
     reference_context: _scan_context_ReferenceContext,
     style_readme_path: str | None = None,
     ignore_unresolved_internal_underscore_references: bool = True,
-    non_authoritative_test_evidence_max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
-    non_authoritative_test_evidence_max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
-    non_authoritative_test_evidence_max_total_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
+    non_authoritative_test_evidence_max_file_bytes: int = _ANALYSIS_MAX_FILE_BYTES,
+    non_authoritative_test_evidence_max_files_scanned: int = _ANALYSIS_MAX_FILES_SCANNED,
+    non_authoritative_test_evidence_max_total_bytes: int = _ANALYSIS_MAX_TOTAL_BYTES,
 ) -> None:
     """Populate dynamic, documented, and inferred variable rows in-place."""
     _variable_pipeline.populate_variable_rows(
@@ -806,9 +784,9 @@ def build_variable_insights(
     exclude_paths: list[str] | None = None,
     style_readme_path: str | None = None,
     ignore_unresolved_internal_underscore_references: bool = True,
-    non_authoritative_test_evidence_max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
-    non_authoritative_test_evidence_max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
-    non_authoritative_test_evidence_max_total_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
+    non_authoritative_test_evidence_max_file_bytes: int = _ANALYSIS_MAX_FILE_BYTES,
+    non_authoritative_test_evidence_max_files_scanned: int = _ANALYSIS_MAX_FILES_SCANNED,
+    non_authoritative_test_evidence_max_total_bytes: int = _ANALYSIS_MAX_TOTAL_BYTES,
 ) -> list[dict]:
     """Build variable rows with inferred type/default/source details."""
     return _variable_insights.build_variable_insights(
@@ -902,7 +880,7 @@ def load_ignore_unresolved_internal_underscore_references(
 def load_non_authoritative_test_evidence_max_file_bytes(
     role_path: str,
     config_path: str | None = None,
-    default: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
+    default: int = _ANALYSIS_MAX_FILE_BYTES,
 ) -> int:
     return _load_non_authoritative_test_evidence_max_file_bytes(
         role_path,
@@ -916,7 +894,7 @@ def load_non_authoritative_test_evidence_max_file_bytes(
 def load_non_authoritative_test_evidence_max_files_scanned(
     role_path: str,
     config_path: str | None = None,
-    default: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
+    default: int = _ANALYSIS_MAX_FILES_SCANNED,
 ) -> int:
     return _load_non_authoritative_test_evidence_max_files_scanned(
         role_path,
@@ -930,7 +908,7 @@ def load_non_authoritative_test_evidence_max_files_scanned(
 def load_non_authoritative_test_evidence_max_total_bytes(
     role_path: str,
     config_path: str | None = None,
-    default: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
+    default: int = _ANALYSIS_MAX_TOTAL_BYTES,
 ) -> int:
     return _load_non_authoritative_test_evidence_max_total_bytes(
         role_path,
@@ -1005,38 +983,7 @@ _build_scanner_report_markdown = partial(
 _extract_scanner_counters = _analysis_extract_scanner_counters
 
 
-def render_readme(
-    output: str,
-    role_name: str,
-    description: str,
-    variables: dict,
-    requirements: list,
-    default_filters: list,
-    template: str | None = None,
-    metadata: dict | None = None,
-    write: bool = True,
-) -> str:
-    """Compatibility wrapper for extracted README rendering helpers."""
-    return _render_readme_mod_render_readme(
-        output=output,
-        role_name=role_name,
-        description=description,
-        variables=variables,
-        requirements=requirements,
-        default_filters=default_filters,
-        template=template,
-        metadata=metadata,
-        write=write,
-    )
-
-
-render_runbook = _runbook_report_render_runbook
-
-
 _build_runbook_rows = _analysis_build_runbook_rows
-
-
-render_runbook_csv = _runbook_report_render_runbook_csv
 
 
 _build_requirements_display = _runbook_report_build_requirements_display
@@ -1118,7 +1065,7 @@ _apply_style_and_comparison_metadata = partial(
 
 _render_and_write_scan_output = partial(
     _scan_output_primary_render_and_write_scan_output,
-    render_readme=render_readme,
+    render_readme=_readme_render_readme,
     render_final_output=render_final_output,
     write_output=write_output,
 )
@@ -1194,15 +1141,9 @@ _prepare_scan_context = partial(
     ),
     enrich_scan_context_with_insights=_enrich_scan_context_with_insights,
     finalize_scan_context_payload=_finalize_scan_context_payload,
-    non_authoritative_test_evidence_max_file_bytes=(
-        NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES
-    ),
-    non_authoritative_test_evidence_max_files_scanned=(
-        NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED
-    ),
-    non_authoritative_test_evidence_max_total_bytes=(
-        NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES
-    ),
+    non_authoritative_test_evidence_max_file_bytes=(_ANALYSIS_MAX_FILE_BYTES),
+    non_authoritative_test_evidence_max_files_scanned=(_ANALYSIS_MAX_FILES_SCANNED),
+    non_authoritative_test_evidence_max_total_bytes=(_ANALYSIS_MAX_TOTAL_BYTES),
 )
 
 
@@ -1223,8 +1164,8 @@ _emit_scan_outputs = partial(
     emit_scan_outputs_fn=_scan_output_emit_scan_outputs,
     build_scanner_report_markdown=_build_scanner_report_markdown,
     render_and_write_scan_output=_render_and_write_scan_output,
-    render_runbook=render_runbook,
-    render_runbook_csv=render_runbook_csv,
+    render_runbook=_runbook_report_render_runbook,
+    render_runbook_csv=_runbook_report_render_runbook_csv,
 )
 
 
@@ -1248,7 +1189,7 @@ def _execute_scan_with_context(
         di=container,
         role_path=role_path,
         scan_options=scan_options,
-        build_run_scan_options_fn=_build_run_scan_options,
+        build_run_scan_options_fn=scan_request.build_run_scan_options,
         prepare_scan_context_fn=_prepare_scan_context,
     )
     payload = context.orchestrate_scan()
@@ -1304,22 +1245,14 @@ def run_scan(
 
     Delegates scan orchestration to ScannerContext and then emits outputs.
     """
-    if os.environ.get(_RETIRED_RUNTIME_STYLE_SOURCE_ENV):
-        raise RuntimeError(
-            _format_retired_runtime_error(
-                _RETIRED_RUNTIME_PATH_CODE,
-                _RETIRED_RUNTIME_PATH_MESSAGE,
-            )
-        )
-
     _refresh_policy(policy_config_path)
-    scan_options = _build_run_scan_options(
+    scan_options = scan_request.build_run_scan_options(
         role_path=role_path,
         role_name_override=role_name_override,
         readme_config_path=readme_config_path,
         include_vars_main=include_vars_main,
         exclude_path_patterns=exclude_path_patterns,
-        detailed_catalog=_resolve_detailed_catalog_flag(
+        detailed_catalog=scan_request.resolve_scan_request_for_runtime(
             detailed_catalog=detailed_catalog,
             runbook_output=runbook_output,
             runbook_csv_output=runbook_csv_output,
@@ -1353,70 +1286,6 @@ def run_scan(
         dry_run=dry_run,
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
-    )
-
-
-def _resolve_detailed_catalog_flag(
-    *,
-    detailed_catalog: bool,
-    runbook_output: str | None,
-    runbook_csv_output: str | None,
-) -> bool:
-    """Ensure task catalog collection is enabled when standalone runbooks are requested."""
-    return scan_request.resolve_scan_request_for_runtime(
-        detailed_catalog=detailed_catalog,
-        runbook_output=runbook_output,
-        runbook_csv_output=runbook_csv_output,
-    )
-
-
-def _build_run_scan_options(
-    *,
-    role_path: str,
-    role_name_override: str | None,
-    readme_config_path: str | None,
-    include_vars_main: bool,
-    exclude_path_patterns: list[str] | None,
-    detailed_catalog: bool,
-    include_task_parameters: bool,
-    include_task_runbooks: bool,
-    inline_task_runbooks: bool,
-    include_collection_checks: bool,
-    keep_unknown_style_sections: bool,
-    adopt_heading_mode: str | None,
-    vars_seed_paths: list[str] | None,
-    style_readme_path: str | None,
-    style_source_path: str | None,
-    style_guide_skeleton: bool,
-    compare_role_path: str | None,
-    fail_on_unconstrained_dynamic_includes: bool | None,
-    fail_on_yaml_like_task_annotations: bool | None,
-    ignore_unresolved_internal_underscore_references: bool | None,
-) -> dict:
-    """Build normalized scan options consumed by scan orchestration helpers."""
-    return scan_request.build_run_scan_options(
-        role_path=role_path,
-        role_name_override=role_name_override,
-        readme_config_path=readme_config_path,
-        include_vars_main=include_vars_main,
-        exclude_path_patterns=exclude_path_patterns,
-        detailed_catalog=detailed_catalog,
-        include_task_parameters=include_task_parameters,
-        include_task_runbooks=include_task_runbooks,
-        inline_task_runbooks=inline_task_runbooks,
-        include_collection_checks=include_collection_checks,
-        keep_unknown_style_sections=keep_unknown_style_sections,
-        adopt_heading_mode=adopt_heading_mode,
-        vars_seed_paths=vars_seed_paths,
-        style_readme_path=style_readme_path,
-        style_source_path=style_source_path,
-        style_guide_skeleton=style_guide_skeleton,
-        compare_role_path=compare_role_path,
-        fail_on_unconstrained_dynamic_includes=(fail_on_unconstrained_dynamic_includes),
-        fail_on_yaml_like_task_annotations=(fail_on_yaml_like_task_annotations),
-        ignore_unresolved_internal_underscore_references=(
-            ignore_unresolved_internal_underscore_references
-        ),
     )
 
 

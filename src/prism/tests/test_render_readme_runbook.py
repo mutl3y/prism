@@ -1,6 +1,7 @@
 """Focused tests for README and runbook render helpers."""
 
-from prism import scanner
+from prism.scanner_analysis import render_runbook
+from prism.scanner_readme.render import render_readme
 
 
 def test_strip_prior_generated_merge_block_with_both_prefix_and_suffix():
@@ -17,7 +18,7 @@ def test_strip_prior_generated_merge_block_with_both_prefix_and_suffix():
         }
     }
 
-    result = scanner.render_readme(
+    result = render_readme(
         output="/tmp/README.md",
         role_name=role_name,
         description=description,
@@ -34,7 +35,7 @@ def test_strip_prior_generated_merge_block_with_both_prefix_and_suffix():
 
 def test_render_readme_with_style_guide_renders_title_from_guide():
     """render_readme uses style guide title when provided."""
-    result = scanner.render_readme(
+    result = render_readme(
         output="/tmp/README.md",
         role_name="myapp_role",
         description="Setup myapp",
@@ -57,7 +58,7 @@ def test_render_readme_with_style_guide_renders_title_from_guide():
 
 def test_render_readme_with_style_guide_skeleton_renders_headings_only():
     """render_readme with style_guide_skeleton renders only headings without bodies."""
-    result = scanner.render_readme(
+    result = render_readme(
         output="/tmp/README.md",
         role_name="skeleton_role",
         description="Skeleton description",
@@ -84,7 +85,7 @@ def test_render_readme_with_style_guide_skeleton_renders_headings_only():
 
 def test_render_readme_with_scanner_report_link_when_enabled():
     """render_readme includes scanner report link when configured."""
-    result = scanner.render_readme(
+    result = render_readme(
         output="/tmp/README.md",
         role_name="test_role",
         description="Test",
@@ -107,7 +108,7 @@ def test_render_readme_with_scanner_report_link_when_enabled():
 
 def test_render_readme_respects_enabled_sections_filter():
     """render_readme filters sections when enabled_sections is provided."""
-    result = scanner.render_readme(
+    result = render_readme(
         output="/tmp/README.md",
         role_name="test_role",
         description="Test description",
@@ -134,7 +135,7 @@ def test_render_readme_respects_enabled_sections_filter():
 
 def test_render_readme_keeps_unknown_section_when_configured():
     """render_readme preserves unknown section when keep_unknown_style_sections is True."""
-    result = scanner.render_readme(
+    result = render_readme(
         output="/tmp/README.md",
         role_name="test_role",
         description="Test",
@@ -163,7 +164,7 @@ def test_render_readme_keeps_unknown_section_when_configured():
 
 def test_render_readme_without_style_guide_uses_template():
     """render_readme falls back to Jinja template when no style_guide in metadata."""
-    result = scanner.render_readme(
+    result = render_readme(
         output="/tmp/README.md",
         role_name="template_role",
         description="Template test",
@@ -180,7 +181,7 @@ def test_render_readme_without_style_guide_uses_template():
 
 def test_render_readme_with_custom_template_path():
     """render_readme uses custom template when template path is provided."""
-    result = scanner.render_readme(
+    result = render_readme(
         output="/tmp/README.md",
         role_name="custom_template_role",
         description="Custom template test",
@@ -197,7 +198,7 @@ def test_render_readme_with_custom_template_path():
 
 def test_render_readme_omits_stats_sections_in_concise_mode():
     """render_readme excludes stat sections when concise_readme is enabled."""
-    result = scanner.render_readme(
+    result = render_readme(
         output="/tmp/README.md",
         role_name="test_role",
         description="Test",
@@ -222,7 +223,7 @@ def test_render_readme_omits_stats_sections_in_concise_mode():
 
 def test_render_readme_write_false_returns_content():
     """render_readme returns content as string when write=False."""
-    result = scanner.render_readme(
+    result = render_readme(
         output="/tmp/README.md",
         role_name="test",
         description="desc",
@@ -239,7 +240,7 @@ def test_render_readme_write_false_returns_content():
 
 def test_render_runbook_renders_with_metadata():
     """render_runbook renders task catalog into runbook markdown."""
-    result = scanner.render_runbook(
+    result = render_runbook(
         role_name="app_role",
         metadata={
             "task_catalog": [
@@ -260,7 +261,7 @@ def test_render_runbook_renders_with_metadata():
 
 def test_render_runbook_with_empty_metadata():
     """render_runbook handles empty metadata gracefully."""
-    result = scanner.render_runbook(
+    result = render_runbook(
         role_name="minimal_role",
         metadata={},
     )
@@ -270,6 +271,6 @@ def test_render_runbook_with_empty_metadata():
 
 def test_render_runbook_with_no_metadata():
     """render_runbook handles None metadata gracefully."""
-    result = scanner.render_runbook(role_name="no_meta_role")
+    result = render_runbook(role_name="no_meta_role")
 
     assert "no_meta_role" in result

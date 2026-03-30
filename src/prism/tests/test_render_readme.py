@@ -4,19 +4,16 @@ import shutil
 import subprocess
 import sys
 
-import pytest
 
 from prism import scanner
+from prism.scanner_analysis import render_runbook
 from prism.scanner_extract import variable_extractor
 from prism.scanner_extract import task_parser
 from prism.scanner_core import scan_facade_helpers
 from prism.scanner_readme import guide as readme_guide
+from prism.scanner_readme import render as render_readme_module
 from prism.scanner_readme import style as readme_style
 from prism.scanner_readme.style import _render_role_variables_for_style
-from prism.scanner_config.legacy_retirement import (
-    LEGACY_RUNTIME_PATH_UNAVAILABLE,
-    LEGACY_RUNTIME_PATH_UNAVAILABLE_MESSAGE,
-)
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -84,39 +81,8 @@ def test_render_readme_module_renders_style_guide_and_scanner_report_link():
     assert "reports/scan.md" in rendered
 
 
-def test_scanner_render_readme_wrapper_delegates_to_extracted_module(monkeypatch):
-    captured = {}
-
-    def fake_render_readme(**kwargs):
-        captured.update(kwargs)
-        return "delegated"
-
-    monkeypatch.setattr(scanner, "_render_readme_mod_render_readme", fake_render_readme)
-
-    result = scanner.render_readme(
-        output="/tmp/README.md",
-        role_name="demo_role",
-        description="Demo description",
-        variables={"demo": {"required": False}},
-        requirements=["dep"],
-        default_filters=[{"match": "demo | default('x')"}],
-        template="custom.md.j2",
-        metadata={"feature": True},
-        write=False,
-    )
-
-    assert result == "delegated"
-    assert captured == {
-        "output": "/tmp/README.md",
-        "role_name": "demo_role",
-        "description": "Demo description",
-        "variables": {"demo": {"required": False}},
-        "requirements": ["dep"],
-        "default_filters": [{"match": "demo | default('x')"}],
-        "template": "custom.md.j2",
-        "metadata": {"feature": True},
-        "write": False,
-    }
+def test_scanner_no_longer_exports_render_readme_compat_wrapper():
+    assert not hasattr(scanner, "render_readme")
 
 
 def test_render_readme_for_mock_role(tmp_path):
@@ -335,7 +301,7 @@ def test_render_runbook_standalone_returns_role_name_and_sections(tmp_path):
             "additionals": [],
         },
     }
-    content = scanner.render_runbook("my_role", metadata)
+    content = render_runbook("my_role", metadata)
     assert "# RUNBOOK: my_role" in content
     assert "## Role Notes" in content
     assert "standard deploy role" in content
@@ -747,21 +713,16 @@ def test_run_scan_inrole_config_heading_mode_can_be_set_to_canonical(tmp_path):
     assert "Inputs / variables summary" in content
 
 
-def test_run_scan_rejects_legacy_runtime_style_source_env(monkeypatch, tmp_path):
+def test_run_scan_ignores_legacy_runtime_style_source_env(monkeypatch, tmp_path):
     role_src = BASE_ROLE_FIXTURE
     target = tmp_path / "mock_role"
     shutil.copytree(role_src, target)
 
     monkeypatch.setenv("ANSIBLE_ROLE_DOC_STYLE_SOURCE", str(tmp_path / "legacy.md"))
 
-    with pytest.raises(RuntimeError) as excinfo:
-        scanner.run_scan(str(target), output=str(tmp_path / "README.md"))
-
-    assert excinfo.value.args
-    error_text = str(excinfo.value)
-    code, message = error_text.split(": ", 1)
-    assert code == LEGACY_RUNTIME_PATH_UNAVAILABLE
-    assert message == LEGACY_RUNTIME_PATH_UNAVAILABLE_MESSAGE
+    out = tmp_path / "README.md"
+    scanner.run_scan(str(target), output=str(out))
+    assert out.exists()
 
 
 def test_run_scan_style_guide_skeleton_renders_sections_only(tmp_path):
@@ -1816,7 +1777,7 @@ def test_render_readme_direct_template_and_style_paths(tmp_path):
         "Role={{ role_name }}\nSummary={{ description }}\n", encoding="utf-8"
     )
 
-    rendered = scanner.render_readme(
+    rendered = render_readme_module.render_readme(
         str(output),
         "demo-role",
         "demo description",
@@ -1831,7 +1792,7 @@ def test_render_readme_direct_template_and_style_paths(tmp_path):
     assert rendered == "Role=demo-role\nSummary=demo description"
     assert not output.exists()
 
-    written = scanner.render_readme(
+    written = render_readme_module.render_readme(
         str(output),
         "demo-role",
         "demo description",
@@ -1847,7 +1808,7 @@ def test_render_readme_direct_template_and_style_paths(tmp_path):
         output.read_text(encoding="utf-8") == "Role=demo-role\nSummary=demo description"
     )
 
-    styled = scanner.render_readme(
+    styled = render_readme_module.render_readme(
         str(output),
         "demo-role",
         "demo description",
@@ -2156,7 +2117,7 @@ def test_render_readme_style_write_true_and_empty_section_body_skip(tmp_path):
         "keep_unknown_style_sections": True,
     }
 
-    written = scanner.render_readme(
+    written = render_readme_module.render_readme(
         str(output),
         "demo-role",
         "desc",
@@ -2213,7 +2174,7 @@ def test_detect_style_section_level_skips_headings_inside_fenced_blocks():
         "",
         "## Another Section",
     ]
-    level = scanner.detect_style_section_level(lines)
+    level = readme_style.detect_style_section_level(lines)
     assert level == 2
 
 
@@ -2296,5 +2257,5 @@ def test_detect_style_section_level_non_matching_fence_inside_fence():
         "",
         "## Outside Section",
     ]
-    level = scanner.detect_style_section_level(lines)
+    level = readme_style.detect_style_section_level(lines)
     assert level == 2
