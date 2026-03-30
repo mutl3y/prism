@@ -650,87 +650,104 @@ class TestSecretDetectionHelpers:
     """_looks_secret_name / _resembles_password_like / _is_sensitive_variable / _looks_secret_value."""
 
     def test_looks_secret_name_detects_password_keyword(self):
-        assert scanner._looks_secret_name("db_password") is True
+        assert variable_extractor._looks_secret_name("db_password") is True
 
     def test_looks_secret_name_detects_token_keyword(self):
-        assert scanner._looks_secret_name("api_token") is True
+        assert variable_extractor._looks_secret_name("api_token") is True
 
     def test_looks_secret_name_detects_secret_keyword(self):
-        assert scanner._looks_secret_name("my_secret_key") is True
+        assert variable_extractor._looks_secret_name("my_secret_key") is True
 
     def test_looks_secret_name_ignores_normal_name(self):
-        assert scanner._looks_secret_name("role_name") is False
+        assert variable_extractor._looks_secret_name("role_name") is False
 
     def test_resembles_password_like_detects_vault_encrypted(self):
-        assert scanner._resembles_password_like("!vault |encrypted_text") is True
+        assert (
+            variable_extractor._resembles_password_like("!vault |encrypted_text")
+            is True
+        )
 
     def test_resembles_password_like_approves_long_complex_string(self):
         # 24+ chars, mixed case + digit + symbol
-        assert scanner._resembles_password_like("Abc123!@#Xyz789LongSecret") is True
+        assert (
+            variable_extractor._resembles_password_like("Abc123!@#Xyz789LongSecret")
+            is True
+        )
 
     def test_resembles_password_like_ignores_plain_url(self):
-        assert scanner._resembles_password_like("https://example.com/path") is False
+        assert (
+            variable_extractor._resembles_password_like("https://example.com/path")
+            is False
+        )
 
     def test_resembles_password_like_ignores_template_value(self):
-        assert scanner._resembles_password_like("{{ my_var }}") is False
+        assert variable_extractor._resembles_password_like("{{ my_var }}") is False
 
     def test_resembles_password_like_ignores_non_string(self):
-        assert scanner._resembles_password_like(42) is False
-        assert scanner._resembles_password_like(None) is False
+        assert variable_extractor._resembles_password_like(42) is False
+        assert variable_extractor._resembles_password_like(None) is False
 
     def test_looks_secret_value_detects_vault_marker(self):
-        assert scanner._looks_secret_value("$ANSIBLE_VAULT;1.1;AES256\n...") is True
+        assert (
+            variable_extractor._looks_secret_value("$ANSIBLE_VAULT;1.1;AES256\n...")
+            is True
+        )
 
     def test_looks_secret_value_ignores_normal_string(self):
-        assert scanner._looks_secret_value("just a plain value") is False
+        assert variable_extractor._looks_secret_value("just a plain value") is False
 
     def test_is_sensitive_variable_with_secret_name_and_credential_value(self):
         assert (
-            scanner._is_sensitive_variable("db_password", "Abc123!@#Xyz789LongSecret")
+            variable_extractor._is_sensitive_variable(
+                "db_password", "Abc123!@#Xyz789LongSecret"
+            )
             is True
         )
 
     def test_is_sensitive_variable_with_vault_value(self):
-        assert scanner._is_sensitive_variable("any_name", "$ANSIBLE_VAULT;1.1") is True
+        assert (
+            variable_extractor._is_sensitive_variable("any_name", "$ANSIBLE_VAULT;1.1")
+            is True
+        )
 
     def test_is_sensitive_variable_plain_non_secret(self):
-        assert scanner._is_sensitive_variable("role_owner", "root") is False
+        assert variable_extractor._is_sensitive_variable("role_owner", "root") is False
 
 
 class TestInferVariableType:
     """_infer_variable_type: return lightweight type label from a Python value."""
 
     def test_bool_true(self):
-        assert scanner._infer_variable_type(True) == "bool"
+        assert variable_extractor._infer_variable_type(True) == "bool"
 
     def test_bool_false(self):
-        assert scanner._infer_variable_type(False) == "bool"
+        assert variable_extractor._infer_variable_type(False) == "bool"
 
     def test_int(self):
-        assert scanner._infer_variable_type(42) == "int"
+        assert variable_extractor._infer_variable_type(42) == "int"
 
     def test_float(self):
-        assert scanner._infer_variable_type(3.14) == "float"
+        assert variable_extractor._infer_variable_type(3.14) == "float"
 
     def test_list(self):
-        assert scanner._infer_variable_type([1, 2]) == "list"
+        assert variable_extractor._infer_variable_type([1, 2]) == "list"
 
     def test_dict(self):
-        assert scanner._infer_variable_type({"a": 1}) == "dict"
+        assert variable_extractor._infer_variable_type({"a": 1}) == "dict"
 
     def test_none(self):
-        assert scanner._infer_variable_type(None) == "null"
+        assert variable_extractor._infer_variable_type(None) == "null"
 
     def test_string(self):
-        assert scanner._infer_variable_type("hello") == "str"
+        assert variable_extractor._infer_variable_type("hello") == "str"
 
     def test_empty_string(self):
-        assert scanner._infer_variable_type("") == "str"
+        assert variable_extractor._infer_variable_type("") == "str"
 
     def test_bool_is_not_int(self):
         # bool must be checked before int since bool is a subclass of int
-        assert scanner._infer_variable_type(True) == "bool"
-        assert scanner._infer_variable_type(False) == "bool"
+        assert variable_extractor._infer_variable_type(True) == "bool"
+        assert variable_extractor._infer_variable_type(False) == "bool"
 
 
 class TestReadSeedYaml:
@@ -739,7 +756,7 @@ class TestReadSeedYaml:
     def test_reads_normal_variables(self, tmp_path):
         f = tmp_path / "seed.yml"
         f.write_text("user: admin\nport: 8080\n", encoding="utf-8")
-        data, secrets = scanner._read_seed_yaml(f)
+        data, secrets = variable_extractor._read_seed_yaml(f)
         assert data["user"] == "admin"
         assert data["port"] == 8080
 
@@ -749,25 +766,25 @@ class TestReadSeedYaml:
             "db_password: !vault |\n  $ANSIBLE_VAULT;1.1;AES256\n  abcdef\n",
             encoding="utf-8",
         )
-        data, secrets = scanner._read_seed_yaml(f)
+        data, secrets = variable_extractor._read_seed_yaml(f)
         assert "db_password" in secrets
 
     def test_returns_empty_for_empty_file(self, tmp_path):
         f = tmp_path / "seed.yml"
         f.write_text("", encoding="utf-8")
-        data, secrets = scanner._read_seed_yaml(f)
+        data, secrets = variable_extractor._read_seed_yaml(f)
         assert data == {}
 
     def test_returns_empty_for_non_mapping(self, tmp_path):
         f = tmp_path / "seed.yml"
         f.write_text("- item1\n- item2\n", encoding="utf-8")
-        data, secrets = scanner._read_seed_yaml(f)
+        data, secrets = variable_extractor._read_seed_yaml(f)
         assert data == {}
 
     def test_handles_plain_malformed_yaml(self, tmp_path):
         f = tmp_path / "seed.yml"
         f.write_text("key: !unknown_tag value\n", encoding="utf-8")
-        data, secrets = scanner._read_seed_yaml(f)
+        data, secrets = variable_extractor._read_seed_yaml(f)
         assert isinstance(data, dict)
 
 
@@ -777,7 +794,7 @@ class TestResolveSeedVarFiles:
     def test_resolves_single_yaml_file(self, tmp_path):
         f = tmp_path / "vars.yml"
         f.write_text("x: 1\n", encoding="utf-8")
-        result = scanner._resolve_seed_var_files([str(f)])
+        result = variable_extractor._resolve_seed_var_files([str(f)])
         assert f.resolve() in result
 
     def test_resolves_directory_to_yaml_files(self, tmp_path):
@@ -787,7 +804,7 @@ class TestResolveSeedVarFiles:
         b = d / "b.yaml"
         a.write_text("a: 1\n", encoding="utf-8")
         b.write_text("b: 2\n", encoding="utf-8")
-        result = scanner._resolve_seed_var_files([str(d)])
+        result = variable_extractor._resolve_seed_var_files([str(d)])
         resolved = [p.resolve() for p in result]
         assert a.resolve() in resolved
         assert b.resolve() in resolved
@@ -795,15 +812,15 @@ class TestResolveSeedVarFiles:
     def test_ignores_non_yaml_files(self, tmp_path):
         f = tmp_path / "notes.txt"
         f.write_text("not yaml\n", encoding="utf-8")
-        result = scanner._resolve_seed_var_files([str(f)])
+        result = variable_extractor._resolve_seed_var_files([str(f)])
         assert result == []
 
     def test_none_input_returns_empty(self):
-        result = scanner._resolve_seed_var_files(None)
+        result = variable_extractor._resolve_seed_var_files(None)
         assert result == []
 
     def test_empty_list_returns_empty(self):
-        result = scanner._resolve_seed_var_files([])
+        result = variable_extractor._resolve_seed_var_files([])
         assert result == []
 
 
@@ -1041,7 +1058,7 @@ class TestCollectDynamicTaskIncludeRefs:
         (role / "tasks" / "main.yml").write_text(
             "---\n- include_tasks: '{{ env }}_setup.yml'\n", encoding="utf-8"
         )
-        result = scanner._collect_dynamic_task_include_refs(str(role))
+        result = variable_extractor._collect_dynamic_task_include_refs(str(role))
         assert len(result) == 1
         assert "{{" in result[0]
 
@@ -1052,13 +1069,13 @@ class TestCollectDynamicTaskIncludeRefs:
         (role / "tasks" / "main.yml").write_text(
             "---\n- include_tasks: setup.yml\n", encoding="utf-8"
         )
-        result = scanner._collect_dynamic_task_include_refs(str(role))
+        result = variable_extractor._collect_dynamic_task_include_refs(str(role))
         assert result == []
 
     def test_empty_for_role_without_tasks(self, tmp_path):
         role = tmp_path / "role"
         role.mkdir()
-        result = scanner._collect_dynamic_task_include_refs(str(role))
+        result = variable_extractor._collect_dynamic_task_include_refs(str(role))
         assert result == []
 
 
@@ -1237,7 +1254,7 @@ def test_collect_referenced_variable_names_ignores_explicit_ansible_connection_v
         encoding="utf-8",
     )
 
-    names = scanner._collect_referenced_variable_names(str(role))
+    names = variable_extractor._collect_referenced_variable_names(str(role))
 
     assert "custom_input" in names
     assert {

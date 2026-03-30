@@ -20,9 +20,24 @@ from prism.scanner_analysis.report import (
 )
 from prism.scanner_extract import requirements as requirements_helpers
 from prism.scanner_extract import task_parser
+from prism.scanner_extract import (
+    collect_yaml_parse_failures as extract_collect_yaml_parse_failures,
+)
+from prism.scanner_extract import (
+    map_argument_spec_type as extract_map_argument_spec_type,
+)
 from prism.scanner_readme import guide as readme_guide
 from prism.scanner_readme import input_parser as readme_input_parser
 from prism.scanner_readme import style as readme_style
+from prism.scanner_config import (
+    default_style_guide_user_paths as config_default_style_guide_user_paths,
+)
+from prism.scanner_config import (
+    load_section_display_titles as config_load_section_display_titles,
+)
+from prism.scanner_config import (
+    resolve_section_selector as config_resolve_section_selector,
+)
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -1315,7 +1330,7 @@ def test_extract_role_notes_from_comments(tmp_path):
         encoding="utf-8",
     )
 
-    notes = scanner._extract_role_notes_from_comments(str(role))
+    notes = task_parser._extract_role_notes_from_comments(str(role))
 
     assert notes["warnings"] == ["This package is unhealthy"]
     assert notes["deprecations"] == ["old parameter is deprecated"]
@@ -1338,7 +1353,7 @@ def test_extract_role_notes_honors_configured_marker_prefix(tmp_path):
         encoding="utf-8",
     )
 
-    notes = scanner._extract_role_notes_from_comments(
+    notes = task_parser._extract_role_notes_from_comments(
         str(role),
         marker_prefix=scanner.load_readme_marker_prefix(str(role)),
     )
@@ -1407,7 +1422,7 @@ def test_collect_task_handler_catalog_attaches_annotation_metadata(tmp_path):
 def test_comment_driven_demo_role_fixture_has_rich_annotations():
     role = ROLE_FIXTURES / "comment_driven_demo_role"
 
-    notes = scanner._extract_role_notes_from_comments(str(role))
+    notes = task_parser._extract_role_notes_from_comments(str(role))
     task_catalog, handler_catalog = task_parser._collect_task_handler_catalog(str(role))
     features = scanner.extract_role_features(str(role))
 
@@ -1646,7 +1661,17 @@ def test_collect_yaml_parse_failures_reports_file_and_line(tmp_path):
     bad = role / "tasks" / "broken.yml"
     bad.write_text("---\nfoo: [unterminated\n", encoding="utf-8")
 
-    failures = scanner._collect_yaml_parse_failures(str(role))
+    failures = extract_collect_yaml_parse_failures(
+        str(role),
+        None,
+        lambda role_root, exclude_paths: scanner._dataload_iter_role_yaml_candidates(
+            role_root,
+            exclude_paths=exclude_paths,
+            ignored_dirs=scanner.IGNORED_DIRS,
+            is_relpath_excluded_fn=scanner._is_relpath_excluded,
+            is_path_excluded_fn=scanner._is_path_excluded,
+        ),
+    )
 
     assert len(failures) == 1
     assert failures[0]["file"] == "tasks/broken.yml"
@@ -1782,7 +1807,11 @@ def test_style_heading_helpers_cover_canonical_paths():
 def test_default_style_guide_user_paths_respects_xdg(monkeypatch):
     monkeypatch.setenv(scanner.XDG_DATA_HOME_ENV, "/tmp/xdg-data")
 
-    paths = scanner._default_style_guide_user_paths()
+    paths = config_default_style_guide_user_paths(
+        xdg_data_home_env=scanner.XDG_DATA_HOME_ENV,
+        style_guide_data_dirname=scanner.STYLE_GUIDE_DATA_DIRNAME,
+        style_guide_source_filename=scanner.DEFAULT_STYLE_GUIDE_SOURCE_FILENAME,
+    )
 
     assert len(paths) == 1
     assert str(paths[0]).endswith("/tmp/xdg-data/prism/STYLE_GUIDE_SOURCE.md")
@@ -1791,7 +1820,11 @@ def test_default_style_guide_user_paths_respects_xdg(monkeypatch):
 def test_default_style_guide_user_paths_falls_back_to_local_share(monkeypatch):
     monkeypatch.delenv(scanner.XDG_DATA_HOME_ENV, raising=False)
 
-    paths = scanner._default_style_guide_user_paths()
+    paths = config_default_style_guide_user_paths(
+        xdg_data_home_env=scanner.XDG_DATA_HOME_ENV,
+        style_guide_data_dirname=scanner.STYLE_GUIDE_DATA_DIRNAME,
+        style_guide_source_filename=scanner.DEFAULT_STYLE_GUIDE_SOURCE_FILENAME,
+    )
 
     assert len(paths) == 1
     assert str(paths[0]).endswith("/.local/share/prism/STYLE_GUIDE_SOURCE.md")
@@ -1888,7 +1921,7 @@ def test_iter_role_argument_spec_entries_skips_invalid_payload_shapes(
     ],
 )
 def test_map_argument_spec_type_variants(spec_type, expected):
-    assert scanner._map_argument_spec_type(spec_type) == expected
+    assert extract_map_argument_spec_type(spec_type) == expected
 
 
 def test_requirement_format_and_normalization_helpers():
@@ -1971,10 +2004,32 @@ def test_resolve_default_style_guide_source_falls_back_when_no_candidates(monkey
 
 
 def test_resolve_section_selector_handles_blank_canonical_and_alias():
-    assert scanner._resolve_section_selector("   ") is None
-    assert scanner._resolve_section_selector("requirements") == "requirements"
     assert (
-        scanner._resolve_section_selector("Role purpose and capabilities") == "purpose"
+        config_resolve_section_selector(
+            "   ",
+            all_section_ids=scanner.ALL_SECTION_IDS,
+            style_section_aliases=scanner.STYLE_SECTION_ALIASES,
+            normalize_heading_fn=readme_style.normalize_style_heading,
+        )
+        is None
+    )
+    assert (
+        config_resolve_section_selector(
+            "requirements",
+            all_section_ids=scanner.ALL_SECTION_IDS,
+            style_section_aliases=scanner.STYLE_SECTION_ALIASES,
+            normalize_heading_fn=readme_style.normalize_style_heading,
+        )
+        == "requirements"
+    )
+    assert (
+        config_resolve_section_selector(
+            "Role purpose and capabilities",
+            all_section_ids=scanner.ALL_SECTION_IDS,
+            style_section_aliases=scanner.STYLE_SECTION_ALIASES,
+            normalize_heading_fn=readme_style.normalize_style_heading,
+        )
+        == "purpose"
     )
 
 
@@ -2111,7 +2166,9 @@ def test_load_section_display_titles_parses_valid_entries_only(tmp_path, monkeyp
     )
     monkeypatch.setattr(scanner, "DEFAULT_SECTION_DISPLAY_TITLES_PATH", titles)
 
-    loaded = scanner._load_section_display_titles()
+    loaded = config_load_section_display_titles(
+        scanner.DEFAULT_SECTION_DISPLAY_TITLES_PATH
+    )
 
     assert loaded == {
         "purpose": "Purpose and Scope",
@@ -2120,32 +2177,41 @@ def test_load_section_display_titles_parses_valid_entries_only(tmp_path, monkeyp
 
 
 def test_describe_variable_and_role_local_row_helpers_cover_fallbacks():
-    assert scanner._describe_variable(
+    assert readme_style._describe_variable(
         "feature_enabled", "defaults/main.yml"
     ).startswith("Enable or disable")
-    assert "port value" in scanner._describe_variable("http_port", "defaults/main.yml")
-    assert "package name" in scanner._describe_variable(
+    assert "port value" in readme_style._describe_variable(
+        "http_port", "defaults/main.yml"
+    )
+    assert "package name" in readme_style._describe_variable(
         "app_package", "defaults/main.yml"
     )
-    assert "service name" in scanner._describe_variable(
+    assert "service name" in readme_style._describe_variable(
         "service_state", "defaults/main.yml"
     )
-    assert "file or path" in scanner._describe_variable(
+    assert "file or path" in readme_style._describe_variable(
         "config_path", "defaults/main.yml"
     )
-    assert "user or group" in scanner._describe_variable(
+    assert "user or group" in readme_style._describe_variable(
         "run_user", "defaults/main.yml"
     )
-    assert "`vars/main.yml`" in scanner._describe_variable("other", "vars/main.yml")
+    assert "`vars/main.yml`" in readme_style._describe_variable(
+        "other", "vars/main.yml"
+    )
 
-    assert scanner._is_role_local_variable_row({"source": "seed: ctx"}) is False
+    assert readme_style._is_role_local_variable_row({"source": "seed: ctx"}) is False
     assert (
-        scanner._is_role_local_variable_row({"source": "README.md (documented input)"})
+        readme_style._is_role_local_variable_row(
+            {"source": "README.md (documented input)"}
+        )
         is False
     )
-    assert scanner._is_role_local_variable_row({"source": "defaults/main.yml"}) is False
     assert (
-        scanner._is_role_local_variable_row(
+        readme_style._is_role_local_variable_row({"source": "defaults/main.yml"})
+        is False
+    )
+    assert (
+        readme_style._is_role_local_variable_row(
             {
                 "source": "defaults/main.yml",
                 "provenance_source_file": "/tmp/abs.yml",
@@ -2154,7 +2220,7 @@ def test_describe_variable_and_role_local_row_helpers_cover_fallbacks():
         is False
     )
     assert (
-        scanner._is_role_local_variable_row(
+        readme_style._is_role_local_variable_row(
             {
                 "source": "defaults/main.yml",
                 "provenance_source_file": "defaults/main.yml",
@@ -2166,11 +2232,11 @@ def test_describe_variable_and_role_local_row_helpers_cover_fallbacks():
 
 def test_render_role_notes_section_with_and_without_entries():
     assert (
-        scanner._render_role_notes_section(None)
+        readme_style._render_role_notes_section(None)
         == "No role notes were found in comment annotations."
     )
 
-    rendered = scanner._render_role_notes_section(
+    rendered = readme_style._render_role_notes_section(
         {
             "warnings": ["Do not run on prod first."],
             "deprecations": ["Legacy path will be removed."],
@@ -2446,7 +2512,7 @@ def test_collect_molecule_scenarios_ignores_malformed_and_excluded_files(tmp_pat
         encoding="utf-8",
     )
 
-    scenarios = scanner._collect_molecule_scenarios(
+    scenarios = task_parser._collect_molecule_scenarios(
         str(role),
         exclude_paths=["molecule/skipme/**"],
     )
@@ -2546,7 +2612,17 @@ def test_collect_yaml_parse_failures_read_and_problem_fallback_paths(
 
     monkeypatch.setattr(sd.yaml, "safe_load", fake_safe_load)
 
-    failures = scanner._collect_yaml_parse_failures(str(role))
+    failures = extract_collect_yaml_parse_failures(
+        str(role),
+        None,
+        lambda role_root, exclude_paths: scanner._dataload_iter_role_yaml_candidates(
+            role_root,
+            exclude_paths=exclude_paths,
+            ignored_dirs=scanner.IGNORED_DIRS,
+            is_relpath_excluded_fn=scanner._is_relpath_excluded,
+            is_path_excluded_fn=scanner._is_path_excluded,
+        ),
+    )
     by_file = {row["file"]: row for row in failures}
 
     assert "tasks/read_fail.yml" in by_file

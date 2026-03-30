@@ -9,6 +9,7 @@ import pytest
 from prism import scanner
 from prism.scanner_extract import variable_extractor
 from prism.scanner_extract import task_parser
+from prism.scanner_core import scan_facade_helpers
 from prism.scanner_readme import guide as readme_guide
 from prism.scanner_readme import style as readme_style
 from prism.scanner_readme.style import _render_role_variables_for_style
@@ -1679,8 +1680,38 @@ def test_quality_metrics_and_comparison_report_detect_deltas(tmp_path):
         encoding="utf-8",
     )
 
-    rich_metrics = scanner._compute_quality_metrics(str(rich_role))
-    sparse_metrics = scanner._compute_quality_metrics(str(sparse_role))
+    rich_metrics = scan_facade_helpers.compute_quality_metrics(
+        role_path=str(rich_role),
+        exclude_paths=None,
+        collect_role_contents=lambda role_path, exclude_paths: scanner.collect_role_contents(
+            role_path,
+            exclude_paths,
+        ),
+        load_variables=lambda role_path, exclude_paths: scanner.load_variables(
+            role_path,
+            exclude_paths=exclude_paths,
+        ),
+        scan_for_default_filters=lambda role_path, exclude_paths: scanner.scan_for_default_filters(
+            role_path,
+            exclude_paths=exclude_paths,
+        ),
+    )
+    sparse_metrics = scan_facade_helpers.compute_quality_metrics(
+        role_path=str(sparse_role),
+        exclude_paths=None,
+        collect_role_contents=lambda role_path, exclude_paths: scanner.collect_role_contents(
+            role_path,
+            exclude_paths,
+        ),
+        load_variables=lambda role_path, exclude_paths: scanner.load_variables(
+            role_path,
+            exclude_paths=exclude_paths,
+        ),
+        scan_for_default_filters=lambda role_path, exclude_paths: scanner.scan_for_default_filters(
+            role_path,
+            exclude_paths=exclude_paths,
+        ),
+    )
     comparison = scanner.build_comparison_report(str(rich_role), str(sparse_role))
 
     assert rich_metrics["score"] > sparse_metrics["score"]
