@@ -50,7 +50,7 @@ def test_build_scan_output_payload_shapes_expected_map():
     }
 
 
-def test_prepare_run_scan_payload_maps_prepared_context(monkeypatch):
+def test_build_scan_output_payload_maps_prepared_context_values():
     prepared_context = (
         "/tmp/role",
         "demo_role",
@@ -62,11 +62,14 @@ def test_prepare_run_scan_payload_maps_prepared_context(monkeypatch):
             "metadata": {"features": {"tasks_scanned": 1}},
         },
     )
-    monkeypatch.setattr(
-        scanner, "_prepare_scan_context", lambda _scan_options: prepared_context
+    payload = scan_runtime.build_scan_output_payload(
+        role_name=prepared_context[1],
+        description=prepared_context[2],
+        display_variables=prepared_context[5]["display_variables"],
+        requirements_display=prepared_context[3],
+        undocumented_default_filters=prepared_context[4],
+        metadata=prepared_context[5]["metadata"],
     )
-
-    payload = scanner._prepare_run_scan_payload({"role_path": "/tmp/role"})
 
     assert payload == {
         "role_name": "demo_role",
@@ -175,10 +178,8 @@ def test_scan_output_payload_typed_seam_contract_annotations():
     }
 
     build_hints = get_type_hints(scan_runtime.build_scan_output_payload)
-    prepare_hints = get_type_hints(scanner._prepare_run_scan_payload)
 
     assert build_hints["return"] is contracts.RunScanOutputPayload
-    assert prepare_hints["return"] is contracts.RunScanOutputPayload
 
 
 def test_scan_context_contracts_use_canonical_scanner_data_symbols():
@@ -376,14 +377,9 @@ def test_scanner_runtime_output_helpers_alias_scan_runtime_canonical_functions()
         scanner._build_emit_scan_outputs_args
         is scanner._scan_runtime.build_emit_scan_outputs_args
     )
-    assert (
-        scanner._build_scan_report_sidecar_args
-        is scanner._scan_runtime.build_scan_report_sidecar_args
-    )
-    assert (
-        scanner._build_runbook_sidecar_args
-        is scanner._scan_runtime.build_runbook_sidecar_args
-    )
+    assert not hasattr(scanner, "_build_scan_report_sidecar_args")
+    assert not hasattr(scanner, "_build_runbook_sidecar_args")
+    assert not hasattr(scanner, "_prepare_run_scan_payload")
 
 
 def test_scan_base_context_typed_seam_keys():
@@ -445,16 +441,12 @@ def test_execute_scan_with_context_invokes_scanner_context_once(monkeypatch, tmp
         assert args["emit_args"] is True
         return "rendered"
 
-    def fail_if_called(*_args, **_kwargs):
-        raise AssertionError("_prepare_run_scan_payload should not be called")
-
     monkeypatch.setattr(
         scanner, "DIContainer", lambda role_path, scan_options: object()
     )
     monkeypatch.setattr(scanner, "ScannerContext", FakeContext)
     monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
     monkeypatch.setattr(scanner, "_emit_scan_outputs", fake_emit)
-    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fail_if_called)
 
     result = scanner._execute_scan_with_context(
         role_path=role_path,
@@ -501,9 +493,6 @@ def test_execute_scan_with_context_does_not_fall_back_for_orchestrated_payload_s
 
     captured = {}
 
-    def fail_if_prepare_called(*_args, **_kwargs):
-        raise AssertionError("_prepare_run_scan_payload should not be called")
-
     def fake_build_emit_args(**kwargs):
         captured["payload"] = kwargs["payload"]
         return {"emit_args": True}
@@ -512,7 +501,6 @@ def test_execute_scan_with_context_does_not_fall_back_for_orchestrated_payload_s
         scanner, "DIContainer", lambda role_path, scan_options: object()
     )
     monkeypatch.setattr(scanner, "ScannerContext", FakeContext)
-    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fail_if_prepare_called)
     monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
     monkeypatch.setattr(scanner, "_emit_scan_outputs", lambda args: "rendered")
 
@@ -585,14 +573,10 @@ def test_execute_scan_with_context_normalized_options_do_not_emit_runtime_fallba
                 "metadata": {},
             }
 
-    def fail_if_prepare_called(*_args, **_kwargs):
-        raise AssertionError("_prepare_run_scan_payload should not be called")
-
     monkeypatch.setattr(
         scanner, "DIContainer", lambda role_path, scan_options: object()
     )
     monkeypatch.setattr(scanner, "ScannerContext", FakeContext)
-    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fail_if_prepare_called)
     monkeypatch.setattr(
         scanner,
         "_build_emit_scan_outputs_args",
@@ -656,14 +640,10 @@ def test_execute_scan_with_context_uses_real_scanner_context_without_fallback(
     )
     captured = {}
 
-    def fail_if_called(*_args, **_kwargs):
-        raise AssertionError("_prepare_run_scan_payload should not be called")
-
     def fake_build_emit_args(**kwargs):
         captured["payload"] = kwargs["payload"]
         return {"emit_args": True}
 
-    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fail_if_called)
     monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
     monkeypatch.setattr(scanner, "_emit_scan_outputs", lambda args: "rendered")
 
@@ -710,9 +690,6 @@ def test_execute_scan_with_context_uses_scanner_context_when_vars_seed_paths_pre
         captured["payload"] = kwargs["payload"]
         return {"emit_args": True}
 
-    def fail_if_prepare_called(*_args, **_kwargs):
-        raise AssertionError("_prepare_run_scan_payload should not be called")
-
     class FakeContext:
         def __init__(self, *, di, role_path, scan_options, **_kwargs):
             captured["scan_options"] = scan_options
@@ -731,7 +708,6 @@ def test_execute_scan_with_context_uses_scanner_context_when_vars_seed_paths_pre
         scanner, "DIContainer", lambda role_path, scan_options: object()
     )
     monkeypatch.setattr(scanner, "ScannerContext", FakeContext)
-    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fail_if_prepare_called)
     monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
     monkeypatch.setattr(scanner, "_emit_scan_outputs", lambda args: "rendered")
 
@@ -772,9 +748,6 @@ def test_execute_scan_with_context_uses_scanner_context_when_style_readme_path_m
         captured["payload"] = kwargs["payload"]
         return {"emit_args": True}
 
-    def fail_if_prepare_called(*_args, **_kwargs):
-        raise AssertionError("_prepare_run_scan_payload should not be called")
-
     class FakeContext:
         def __init__(self, *, di, role_path, scan_options, **_kwargs):
             captured["scan_options"] = scan_options
@@ -793,7 +766,6 @@ def test_execute_scan_with_context_uses_scanner_context_when_style_readme_path_m
         scanner, "DIContainer", lambda role_path, scan_options: object()
     )
     monkeypatch.setattr(scanner, "ScannerContext", FakeContext)
-    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fail_if_prepare_called)
     monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
     monkeypatch.setattr(scanner, "_emit_scan_outputs", lambda args: "rendered")
 
@@ -834,9 +806,6 @@ def test_execute_scan_with_context_uses_scanner_context_when_compare_role_path_m
         captured["payload"] = kwargs["payload"]
         return {"emit_args": True}
 
-    def fail_if_prepare_called(*_args, **_kwargs):
-        raise AssertionError("_prepare_run_scan_payload should not be called")
-
     class FakeContext:
         def __init__(self, *, di, role_path, scan_options, **_kwargs):
             captured["scan_options"] = scan_options
@@ -855,7 +824,6 @@ def test_execute_scan_with_context_uses_scanner_context_when_compare_role_path_m
         scanner, "DIContainer", lambda role_path, scan_options: object()
     )
     monkeypatch.setattr(scanner, "ScannerContext", FakeContext)
-    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fail_if_prepare_called)
     monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
     monkeypatch.setattr(scanner, "_emit_scan_outputs", lambda args: "rendered")
 
@@ -896,9 +864,6 @@ def test_execute_scan_with_context_uses_scanner_context_when_role_name_override_
         captured["payload"] = kwargs["payload"]
         return {"emit_args": True}
 
-    def fail_if_prepare_called(*_args, **_kwargs):
-        raise AssertionError("_prepare_run_scan_payload should not be called")
-
     class FakeContext:
         def __init__(self, *, di, role_path, scan_options, **_kwargs):
             captured["scan_options"] = scan_options
@@ -917,7 +882,6 @@ def test_execute_scan_with_context_uses_scanner_context_when_role_name_override_
         scanner, "DIContainer", lambda role_path, scan_options: object()
     )
     monkeypatch.setattr(scanner, "ScannerContext", FakeContext)
-    monkeypatch.setattr(scanner, "_prepare_run_scan_payload", fail_if_prepare_called)
     monkeypatch.setattr(scanner, "_build_emit_scan_outputs_args", fake_build_emit_args)
     monkeypatch.setattr(scanner, "_emit_scan_outputs", lambda args: "rendered")
 

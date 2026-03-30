@@ -33,7 +33,6 @@ from .scanner_config import (
 )
 from .scanner_data.contracts import (
     ReferenceContext as _scan_context_ReferenceContext,
-    RunScanOutputPayload as _scan_context_RunScanOutputPayload,
     ScanMetadata as _scan_context_ScanMetadata,
 )
 from .scanner_io.scan_output_emission import (
@@ -848,13 +847,6 @@ _build_scan_output_payload = _scan_runtime.build_scan_output_payload
 
 _build_emit_scan_outputs_args = _scan_runtime.build_emit_scan_outputs_args
 
-
-_build_scan_report_sidecar_args = _scan_runtime.build_scan_report_sidecar_args
-
-
-_build_runbook_sidecar_args = _scan_runtime.build_runbook_sidecar_args
-
-
 _emit_scan_outputs = partial(
     _scan_runtime.emit_scan_outputs,
     emit_scan_outputs_fn=_scan_output_emit_scan_outputs,
@@ -982,27 +974,4 @@ def run_scan(
         dry_run=dry_run,
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
-    )
-
-
-def _prepare_run_scan_payload(
-    scan_options: dict,
-) -> _scan_context_RunScanOutputPayload:
-    """Prepare role metadata and display payloads used by scan output emission."""
-    prepared_scan_context = _prepare_scan_context(scan_options)
-    (
-        _rp,
-        role_name,
-        description,
-        requirements_display,
-        undocumented_default_filters,
-        scan_context,
-    ) = prepared_scan_context
-    return _build_scan_output_payload(
-        role_name=role_name,
-        description=description,
-        display_variables=scan_context["display_variables"],
-        requirements_display=requirements_display,
-        undocumented_default_filters=undocumented_default_filters,
-        metadata=scan_context["metadata"],
     )
