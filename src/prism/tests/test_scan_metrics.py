@@ -49,22 +49,13 @@ def test_scanner_wrapper_extract_scanner_counters_re_exports_canonical_implement
     )
 
 
-def test_scanner_wrapper_uncertainty_helpers_re_export_canonical_implementations():
-    assert (
-        scanner._build_referenced_variable_uncertainty_reason
-        is scanner._analysis_build_referenced_variable_uncertainty_reason
+def test_scanner_uncertainty_wrapper_aliases_are_retired_from_facade():
+    assert not hasattr(scanner, "_build_referenced_variable_uncertainty_reason")
+    assert not hasattr(
+        scanner,
+        "_append_non_authoritative_test_evidence_uncertainty_reason",
     )
-    assert (
-        scanner._append_non_authoritative_test_evidence_uncertainty_reason
-        is scanner._analysis_append_non_authoritative_test_evidence_uncertainty_reason
-    )
-
-
-def test_scanner_wrapper_attach_non_authoritative_test_evidence_re_exports_canonical():
-    assert (
-        scanner._attach_non_authoritative_test_evidence
-        is scanner._analysis_attach_non_authoritative_test_evidence
-    )
+    assert not hasattr(scanner, "_attach_non_authoritative_test_evidence")
 
 
 def test_should_suppress_internal_unresolved_reference_matches_policy_shape():
@@ -94,23 +85,8 @@ def test_should_suppress_internal_unresolved_reference_matches_policy_shape():
     )
 
 
-def test_scanner_wrapper_should_suppress_internal_unresolved_reference_delegates(
-    monkeypatch,
-):
-    monkeypatch.setattr(
-        scanner,
-        "_analysis_should_suppress_internal_unresolved_reference",
-        lambda **kwargs: kwargs["name"] == "_temp",
-    )
-
-    assert (
-        scanner._should_suppress_internal_unresolved_reference(
-            name="_temp",
-            seed_values={},
-            ignore_unresolved_internal_underscore_references=True,
-        )
-        is True
-    )
+def test_scanner_should_suppress_wrapper_alias_is_retired_from_facade():
+    assert not hasattr(scanner, "_should_suppress_internal_unresolved_reference")
 
 
 def test_extract_scanner_counters_keeps_provenance_categories_mapping_shape():
