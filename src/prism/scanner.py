@@ -120,11 +120,6 @@ from .scanner_extract import (
     extract_role_features,
     load_seed_variables,
 )
-from .scanner_extract import (  # noqa: F401
-    _split_task_annotation_label,
-    _task_anchor,
-    IGNORED_IDENTIFIERS,
-)
 from .scanner_readme import render_readme as _readme_render_readme
 
 # Load pattern policy (built-in defaults, optionally merged with a repo override).
@@ -235,7 +230,6 @@ def _refresh_policy(override_path: str | None = None) -> None:
     global _CREDENTIAL_PREFIXES
     global _URL_PREFIXES
     global _VARIABLE_GUIDANCE_KEYWORDS
-    global IGNORED_IDENTIFIERS
 
     (
         _POLICY,
@@ -245,14 +239,13 @@ def _refresh_policy(override_path: str | None = None) -> None:
         _CREDENTIAL_PREFIXES,
         _URL_PREFIXES,
         _VARIABLE_GUIDANCE_KEYWORDS,
-        IGNORED_IDENTIFIERS,
+        _,
     ) = _config_refresh_policy(override_path=override_path)
     _SENSITIVITY = _POLICY["sensitivity"]
 
     from .scanner_extract import variable_extractor as _ve
 
     _ve._refresh_policy_derived_state(_POLICY)
-    IGNORED_IDENTIFIERS = _ve.IGNORED_IDENTIFIERS
 
 
 def _default_style_guide_user_paths() -> list[Path]:
