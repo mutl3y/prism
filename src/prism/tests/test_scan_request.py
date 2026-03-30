@@ -8,7 +8,7 @@ from prism.scanner_core import scan_request
 
 def test_resolve_detailed_catalog_flag_enables_catalog_for_runbook_outputs():
     assert (
-        scanner._resolve_detailed_catalog_flag(
+        scan_request.resolve_scan_request_for_runtime(
             detailed_catalog=False,
             runbook_output="runbook.md",
             runbook_csv_output=None,
@@ -16,7 +16,7 @@ def test_resolve_detailed_catalog_flag_enables_catalog_for_runbook_outputs():
         is True
     )
     assert (
-        scanner._resolve_detailed_catalog_flag(
+        scan_request.resolve_scan_request_for_runtime(
             detailed_catalog=False,
             runbook_output=None,
             runbook_csv_output="runbook.csv",
@@ -27,7 +27,7 @@ def test_resolve_detailed_catalog_flag_enables_catalog_for_runbook_outputs():
 
 def test_resolve_detailed_catalog_flag_preserves_explicit_flag_without_runbooks():
     assert (
-        scanner._resolve_detailed_catalog_flag(
+        scan_request.resolve_scan_request_for_runtime(
             detailed_catalog=True,
             runbook_output=None,
             runbook_csv_output=None,
@@ -35,7 +35,7 @@ def test_resolve_detailed_catalog_flag_preserves_explicit_flag_without_runbooks(
         is True
     )
     assert (
-        scanner._resolve_detailed_catalog_flag(
+        scan_request.resolve_scan_request_for_runtime(
             detailed_catalog=False,
             runbook_output=None,
             runbook_csv_output=None,
@@ -45,7 +45,7 @@ def test_resolve_detailed_catalog_flag_preserves_explicit_flag_without_runbooks(
 
 
 def test_build_run_scan_options_shapes_expected_option_map():
-    options = scanner._build_run_scan_options(
+    options = scan_request.build_run_scan_options(
         role_path="/tmp/role",
         role_name_override="demo_role",
         readme_config_path="/tmp/role/.prism.yml",
@@ -79,7 +79,7 @@ def test_build_run_scan_options_shapes_expected_option_map():
 
 
 def test_scanner_build_run_scan_options_is_deterministic_for_same_inputs():
-    first = scanner._build_run_scan_options(
+    first = scan_request.build_run_scan_options(
         role_path="/tmp/role",
         role_name_override=None,
         readme_config_path=None,
@@ -101,7 +101,7 @@ def test_scanner_build_run_scan_options_is_deterministic_for_same_inputs():
         fail_on_yaml_like_task_annotations=None,
         ignore_unresolved_internal_underscore_references=None,
     )
-    second = scanner._build_run_scan_options(
+    second = scan_request.build_run_scan_options(
         role_path="/tmp/role",
         role_name_override=None,
         readme_config_path=None,
@@ -128,12 +128,12 @@ def test_scanner_build_run_scan_options_is_deterministic_for_same_inputs():
 
 
 def test_scanner_resolve_detailed_catalog_flag_is_deterministic_for_same_inputs():
-    first = scanner._resolve_detailed_catalog_flag(
+    first = scan_request.resolve_scan_request_for_runtime(
         detailed_catalog=False,
         runbook_output="runbook.md",
         runbook_csv_output=None,
     )
-    second = scanner._resolve_detailed_catalog_flag(
+    second = scan_request.resolve_scan_request_for_runtime(
         detailed_catalog=False,
         runbook_output="runbook.md",
         runbook_csv_output=None,

@@ -6,7 +6,7 @@ from typing import get_type_hints
 
 import pytest
 
-from prism import scanner
+from prism.scanner_core import scan_runtime
 from prism.scanner_io import output
 from prism.scanner_io import scan_output_primary
 
@@ -162,53 +162,14 @@ def test_render_primary_scan_output_passes_payload_fields():
     assert captured["dry_run"] is True
 
 
-def test_scanner_wrapper_render_and_write_scan_output_delegates(monkeypatch):
-    captured = {}
-
-    def fake_render_and_write_scan_output(**kwargs):
-        captured.update(kwargs)
-        return "ok"
-
-    monkeypatch.setattr(
-        scanner,
-        "_scan_output_primary_render_and_write_scan_output",
-        fake_render_and_write_scan_output,
-    )
-
-    result = scanner._render_and_write_scan_output(
-        out_path=Path("/tmp/README.md"),
-        output_format="md",
-        role_name="demo",
-        description="desc",
-        display_variables={"x": 1},
-        requirements_display=["dep"],
-        undocumented_default_filters=[],
-        metadata={"features": {}},
-        template=None,
-        dry_run=False,
-    )
-
-    assert result == "ok"
-    assert captured["role_name"] == "demo"
-    assert captured["render_readme"] is scanner.render_readme
-    assert captured["render_final_output"] is scanner.render_final_output
-    assert captured["write_output"] is scanner.write_output
-
-
-def test_scanner_wrapper_render_primary_scan_output_delegates(monkeypatch):
+def test_scan_runtime_render_primary_scan_output_delegates_to_canonical_module():
     captured = {}
 
     def fake_render_primary_scan_output(**kwargs):
         captured.update(kwargs)
         return "ok"
 
-    monkeypatch.setattr(
-        scanner,
-        "_scan_output_primary_render_primary_scan_output",
-        fake_render_primary_scan_output,
-    )
-
-    result = scanner._render_primary_scan_output(
+    result = scan_runtime.render_primary_scan_output(
         out_path=Path("/tmp/README.md"),
         output_format="md",
         template=None,
@@ -221,21 +182,46 @@ def test_scanner_wrapper_render_primary_scan_output_delegates(monkeypatch):
             "undocumented_default_filters": [],
             "metadata": {},
         },
+        render_primary_scan_output_fn=fake_render_primary_scan_output,
+        render_and_write_scan_output=lambda **_kwargs: "rendered",
     )
 
     assert result == "ok"
     assert captured["output_payload"]["role_name"] == "demo"
-    assert (
-        captured["render_and_write_scan_output"]
-        is scanner._render_and_write_scan_output
-    )
+    assert callable(captured["render_and_write_scan_output"])
 
 
-def test_scanner_render_primary_alias_targets_canonical_scanner_io_module():
-    assert (
-        scanner._scan_output_primary_render_primary_scan_output.__module__
-        == "prism.scanner_io.scan_output_primary"
+def test_scan_runtime_render_primary_scan_output_keeps_render_writer_hook():
+    captured = {}
+
+    def fake_render_primary_scan_output(**kwargs):
+        captured.update(kwargs)
+        return "ok"
+
+    def fake_render_and_write(**kwargs):
+        return f"writer::{kwargs['role_name']}"
+
+    result = scan_runtime.render_primary_scan_output(
+        out_path=Path("/tmp/README.md"),
+        output_format="md",
+        template="template.md.j2",
+        dry_run=False,
+        output_payload={
+            "role_name": "demo",
+            "description": "desc",
+            "display_variables": {},
+            "requirements_display": [],
+            "undocumented_default_filters": [],
+            "metadata": {},
+        },
+        render_primary_scan_output_fn=fake_render_primary_scan_output,
+        render_and_write_scan_output=fake_render_and_write,
     )
+
+    assert result == "ok"
+    assert captured["template"] == "template.md.j2"
+    assert captured["dry_run"] is False
+    assert captured["render_and_write_scan_output"] is fake_render_and_write
 
 
 def test_scan_output_primary_compat_module_retired():

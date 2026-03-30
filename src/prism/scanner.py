@@ -35,7 +35,6 @@ from .scanner_config import (
 from .scanner_data.contracts import (
     VariableProvenance as _contracts_VariableProvenance,
     VariableRow as _contracts_VariableRow,
-    EmitScanOutputsArgs as _scan_context_EmitScanOutputsArgs,
     ReferenceContext as _scan_context_ReferenceContext,
     RunScanOutputPayload as _scan_context_RunScanOutputPayload,
     ScanMetadata as _scan_context_ScanMetadata,
@@ -45,7 +44,6 @@ from .scanner_io.scan_output_emission import (
 )
 from .scanner_io.scan_output_primary import (
     render_and_write_scan_output as _scan_output_primary_render_and_write_scan_output,
-    render_primary_scan_output as _scan_output_primary_render_primary_scan_output,
 )
 from .scanner_core import DIContainer, ScanContextBuilder, ScannerContext
 from .scanner_core import scan_request
@@ -1222,35 +1220,12 @@ _apply_style_and_comparison_metadata = partial(
 )
 
 
-def _render_and_write_scan_output(
-    *,
-    out_path: Path,
-    output_format: str,
-    role_name: str,
-    description: str,
-    display_variables: dict,
-    requirements_display: list,
-    undocumented_default_filters: list[dict],
-    metadata: dict,
-    template: str | None,
-    dry_run: bool,
-) -> str:
-    """Render final output payload and write it unless dry-run is enabled."""
-    return _scan_output_primary_render_and_write_scan_output(
-        out_path=out_path,
-        output_format=output_format,
-        role_name=role_name,
-        description=description,
-        display_variables=display_variables,
-        requirements_display=requirements_display,
-        undocumented_default_filters=undocumented_default_filters,
-        metadata=metadata,
-        template=template,
-        dry_run=dry_run,
-        render_readme=render_readme,
-        render_final_output=render_final_output,
-        write_output=write_output,
-    )
+_render_and_write_scan_output = partial(
+    _scan_output_primary_render_and_write_scan_output,
+    render_readme=render_readme,
+    render_final_output=render_final_output,
+    write_output=write_output,
+)
 
 
 _apply_unconstrained_dynamic_include_policy = partial(
@@ -1347,38 +1322,14 @@ _build_scan_report_sidecar_args = _scan_runtime.build_scan_report_sidecar_args
 _build_runbook_sidecar_args = _scan_runtime.build_runbook_sidecar_args
 
 
-def _render_primary_scan_output(
-    *,
-    out_path: Path,
-    output_format: str,
-    template: str | None,
-    dry_run: bool,
-    output_payload: _scan_context_RunScanOutputPayload,
-) -> str:
-    """Render and optionally write the primary scan output."""
-    return _scan_runtime.render_primary_scan_output(
-        out_path=out_path,
-        output_format=output_format,
-        template=template,
-        dry_run=dry_run,
-        output_payload=output_payload,
-        render_primary_scan_output_fn=_scan_output_primary_render_primary_scan_output,
-        render_and_write_scan_output=_render_and_write_scan_output,
-    )
-
-
-def _emit_scan_outputs(
-    args: _scan_context_EmitScanOutputsArgs,
-) -> str:
-    """Render primary outputs and optional sidecars for a scanner run."""
-    return _scan_runtime.emit_scan_outputs(
-        args,
-        emit_scan_outputs_fn=_scan_output_emit_scan_outputs,
-        build_scanner_report_markdown=_build_scanner_report_markdown,
-        render_and_write_scan_output=_render_and_write_scan_output,
-        render_runbook=render_runbook,
-        render_runbook_csv=render_runbook_csv,
-    )
+_emit_scan_outputs = partial(
+    _scan_runtime.emit_scan_outputs,
+    emit_scan_outputs_fn=_scan_output_emit_scan_outputs,
+    build_scanner_report_markdown=_build_scanner_report_markdown,
+    render_and_write_scan_output=_render_and_write_scan_output,
+    render_runbook=render_runbook,
+    render_runbook_csv=render_runbook_csv,
+)
 
 
 def _execute_scan_with_context(

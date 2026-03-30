@@ -42,3 +42,11 @@ def test_canonical_readme_modules_have_no_scanner_submodules_runtime_imports():
 
     assert "scanner_submodules" not in doc_insights_source
     assert "scanner_submodules" not in guide_source
+
+
+def test_scanner_output_glue_remains_flattened_without_local_wrapper_defs():
+    scanner_source = inspect.getsource(scanner)
+
+    assert "scanner_submodules.scan_output" not in scanner_source
+    assert "def _render_and_write_scan_output(" not in scanner_source
+    assert "def _emit_scan_outputs(" not in scanner_source

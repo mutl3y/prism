@@ -4,7 +4,7 @@ import importlib
 
 import pytest
 
-from prism import scanner
+from prism.scanner_core import scan_runtime
 from prism.scanner_io import scan_output_emission
 
 
@@ -174,8 +174,7 @@ def test_emit_scan_outputs_non_dry_run_writes_sidecars(tmp_path):
     assert runbook_out.read_text(encoding="utf-8") == "runbook::live_role\n"
 
 
-def test_scanner_wrapper_emit_scan_outputs_delegates(monkeypatch):
-    """_emit_scan_outputs scanner wrapper delegates to scan_output_emission.emit_scan_outputs."""
+def test_scan_runtime_emit_scan_outputs_delegates_to_emission_function():
     captured = {}
 
     def fake_emit(
@@ -192,8 +191,6 @@ def test_scanner_wrapper_emit_scan_outputs_delegates(monkeypatch):
         captured["render_runbook_fn"] = render_runbook_fn
         captured["render_runbook_csv_fn"] = render_runbook_csv_fn
         return "delegated-result"
-
-    monkeypatch.setattr(scanner, "_scan_output_emit_scan_outputs", fake_emit)
 
     fake_args = {
         "output": "README.md",
@@ -213,7 +210,14 @@ def test_scanner_wrapper_emit_scan_outputs_delegates(monkeypatch):
         "runbook_csv_output": None,
     }
 
-    result = scanner._emit_scan_outputs(fake_args)
+    result = scan_runtime.emit_scan_outputs(
+        fake_args,
+        emit_scan_outputs_fn=fake_emit,
+        build_scanner_report_markdown=lambda **_kwargs: "report",
+        render_and_write_scan_output=lambda **_kwargs: "ok",
+        render_runbook=lambda role_name, metadata: f"runbook::{role_name}::{len(metadata)}",
+        render_runbook_csv=lambda metadata: f"csv::{len(metadata)}",
+    )
 
     assert result == "delegated-result"
     assert captured["args"] is fake_args
@@ -222,31 +226,8 @@ def test_scanner_wrapper_emit_scan_outputs_delegates(monkeypatch):
     assert callable(captured["render_runbook_fn"])
     assert callable(captured["render_runbook_csv_fn"])
 
-    metadata = {
-        "task_catalog": [
-            {
-                "file": "tasks/main.yml",
-                "name": "Task",
-                "module": "ansible.builtin.debug",
-            }
-        ]
-    }
-    assert captured["render_runbook_fn"]("demo", metadata) == scanner.render_runbook(
-        "demo", metadata
-    )
-    assert captured["render_runbook_csv_fn"](metadata) == scanner.render_runbook_csv(
-        metadata
-    )
 
-
-def test_scanner_emit_scan_outputs_alias_targets_canonical_scanner_io_module():
-    assert (
-        scanner._scan_output_emit_scan_outputs.__module__
-        == "prism.scanner_io.scan_output_emission"
-    )
-
-
-def test_scanner_emit_scan_outputs_delegates_to_scan_runtime_module(monkeypatch):
+def test_scan_runtime_emit_scan_outputs_forwards_runtime_dependencies():
     fake_args = {
         "output": "README.md",
         "output_format": "md",
@@ -272,13 +253,18 @@ def test_scanner_emit_scan_outputs_delegates_to_scan_runtime_module(monkeypatch)
         captured["kwargs"] = kwargs
         return "runtime-delegated"
 
-    monkeypatch.setattr(scanner._scan_runtime, "emit_scan_outputs", fake_emit)
-
-    result = scanner._emit_scan_outputs(fake_args)
+    result = scan_runtime.emit_scan_outputs(
+        fake_args,
+        emit_scan_outputs_fn=fake_emit,
+        build_scanner_report_markdown=lambda **_kwargs: "report",
+        render_and_write_scan_output=lambda **_kwargs: "rendered",
+        render_runbook=lambda _role_name, _metadata: "runbook",
+        render_runbook_csv=lambda _metadata: "csv",
+    )
 
     assert result == "runtime-delegated"
     assert captured["args"] is fake_args
-    assert "emit_scan_outputs_fn" in captured["kwargs"]
+    assert "render_and_write_output" in captured["kwargs"]
 
 
 def test_scan_output_emission_compat_module_retired():
