@@ -8,6 +8,8 @@ from prism.scanner_analysis.metrics import (
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
 )
+from prism.scanner_config import policy as policy_config
+from prism.scanner_config.policy import POLICY_CONFIG_YAML_INVALID
 from prism.scanner_config.legacy_retirement import (
     LEGACY_SECTION_CONFIG_UNSUPPORTED,
     LEGACY_SECTION_CONFIG_UNSUPPORTED_MESSAGE,
@@ -250,6 +252,50 @@ def test_load_non_authoritative_test_evidence_limits_fallback_on_invalid_values(
         scanner.load_non_authoritative_test_evidence_max_total_bytes(str(role))
         == NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES
     )
+
+
+def test_load_non_authoritative_test_evidence_max_file_bytes_raises_on_parse_error(
+    tmp_path,
+):
+    """Malformed YAML should raise policy parse error for file-bytes loader."""
+    role = _write_role_prism_config(tmp_path, "scan: [\n  unclosed\n")
+
+    with pytest.raises(RuntimeError, match=POLICY_CONFIG_YAML_INVALID):
+        scanner.load_non_authoritative_test_evidence_max_file_bytes(
+            str(role),
+            default=NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
+        )
+
+
+def test_load_non_authoritative_test_evidence_max_files_scanned_raises_on_parse_error(
+    tmp_path,
+):
+    """Malformed YAML should raise policy parse error for files-scanned loader."""
+    role = _write_role_prism_config(tmp_path, "scan: [\n  unclosed\n")
+
+    with pytest.raises(RuntimeError, match=POLICY_CONFIG_YAML_INVALID):
+        scanner.load_non_authoritative_test_evidence_max_files_scanned(
+            str(role),
+            default=NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
+        )
+
+
+def test_load_non_authoritative_test_evidence_max_total_bytes_raises_on_parse_error(
+    tmp_path,
+):
+    """Malformed YAML should raise policy parse error for total-bytes loader."""
+    role = _write_role_prism_config(tmp_path, "scan: [\n  unclosed\n")
+
+    with pytest.raises(RuntimeError, match=POLICY_CONFIG_YAML_INVALID):
+        scanner.load_non_authoritative_test_evidence_max_total_bytes(
+            str(role),
+            default=NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
+        )
+
+
+def test_policy_config_yaml_invalid_public_symbol_is_exported():
+    """The policy parse-error code must remain in public module exports."""
+    assert POLICY_CONFIG_YAML_INVALID in policy_config.__all__
 
 
 def test_load_readme_section_visibility_returns_enabled_sections_set(tmp_path):

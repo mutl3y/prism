@@ -258,6 +258,7 @@ def load_non_authoritative_test_evidence_max_total_bytes(
 
 
 __all__ = [
+    "POLICY_CONFIG_YAML_INVALID",
     "load_fail_on_unconstrained_dynamic_includes",
     "load_fail_on_yaml_like_task_annotations",
     "load_ignore_unresolved_internal_underscore_references",
