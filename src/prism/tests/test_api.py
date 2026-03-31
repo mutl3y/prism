@@ -887,8 +887,10 @@ def test_scan_collection_records_role_failures(monkeypatch, tmp_path):
             "path": str((collection_root / "roles" / "role_b").resolve()),
             "error_type": "RuntimeError",
             "error": "boom",
+            "traceback": payload["failures"][0]["traceback"],
         }
     ]
+    assert "RuntimeError: boom" in payload["failures"][0]["traceback"]
     assert sorted(payload["plugin_catalog"]["by_type"].keys()) == [
         "callback",
         "connection",
@@ -914,19 +916,47 @@ def test_scan_collection_can_include_rendered_readme(monkeypatch, tmp_path):
     monkeypatch.setattr(
         api,
         "scan_role",
-        lambda role_path, **kwargs: {"role_name": Path(role_path).name, "metadata": {}},
+        lambda role_path, **kwargs: {
+            "role_name": Path(role_path).name,
+            "description": "",
+            "variables": {},
+            "requirements": [],
+            "default_filters": [],
+            "metadata": {},
+        },
     )
 
-    def fake_run_scan(role_path, output, output_format, **kwargs):
-        assert output == "README.md"
-        assert output_format == "md"
-        assert kwargs["dry_run"] is True
-        return f"# {Path(role_path).name}\n"
+    def fail_run_scan(*args, **kwargs):
+        raise AssertionError(
+            "run_scan should not be called for collection README rendering"
+        )
 
-    monkeypatch.setattr(api, "run_scan", fake_run_scan)
+    monkeypatch.setattr(api, "run_scan", fail_run_scan)
+
+    render_calls = {"count": 0}
+
+    def fake_render_readme(
+        output,
+        role_name,
+        description,
+        variables,
+        requirements,
+        default_filters,
+        template=None,
+        metadata=None,
+        write=True,
+    ):
+        render_calls["count"] += 1
+        assert output == "README.md"
+        assert role_name == "role_a"
+        assert write is False
+        return f"# {role_name}\n"
+
+    monkeypatch.setattr(api, "render_readme", fake_render_readme)
 
     payload = api.scan_collection(str(collection_root), include_rendered_readme=True)
 
+    assert render_calls["count"] == 1
     assert payload["roles"][0]["rendered_readme"] == "# role_a\n"
 
 
