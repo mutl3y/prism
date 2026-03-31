@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from prism.scanner_data.contracts import ScanBaseContext
+from prism.scanner_data.contracts import (
+    ScanBaseContext,
+    ScanContextPayload,
+    ScanOptionsDict,
+)
 
-ScanContextPayload = tuple[str, str, str, list, list, dict[str, Any]]
-CollectScanBaseContext = Callable[[dict[str, Any]], ScanBaseContext]
+CollectScanBaseContext = Callable[[ScanOptionsDict], ScanBaseContext]
 LoadIgnoreUnresolvedReferences = Callable[[str, str | None, bool], bool]
 LoadEvidenceBudget = Callable[[str, str | None, int], int]
 EnrichScanContextWithInsights = Callable[
@@ -58,7 +61,7 @@ class ScanContextBuilder:
             non_authoritative_test_evidence_max_total_bytes
         )
 
-    def build_scan_context(self, scan_options: dict[str, Any]) -> ScanContextPayload:
+    def build_scan_context(self, scan_options: ScanOptionsDict) -> ScanContextPayload:
         """Collect role metadata and scanner context required for rendering outputs."""
         base_context = self._collect_scan_base_context(scan_options)
         metadata = base_context["metadata"]
@@ -134,7 +137,7 @@ class ScanContextBuilder:
 
 
 def build_scan_context(
-    scan_options: dict[str, Any],
+    scan_options: ScanOptionsDict,
     *,
     collect_scan_base_context: CollectScanBaseContext,
     load_ignore_unresolved_internal_underscore_references: LoadIgnoreUnresolvedReferences,

@@ -14,22 +14,22 @@ import yaml
 
 from .collection_plugins import scan_collection_plugins
 from .repo_services import (
-    _build_lightweight_sparse_clone_paths,
-    _build_repo_style_readme_candidates as _repo_build_repo_style_readme_candidates,
-    _build_sparse_clone_paths,
-    _checkout_repo_lightweight_style_readme,
-    _checkout_repo_scan_role,
-    _clone_repo,
-    _fetch_repo_directory_names,
-    _fetch_repo_file,
-    _normalize_repo_scan_result_payload,
-    _normalize_repo_scan_metadata_paths,
-    _prepare_repo_scan_inputs,
-    _repo_name_from_url,
-    _repo_path_looks_like_role,
-    _repo_scan_workspace,
-    _resolve_repo_scan_scanner_report_relpath,
-    _resolve_style_readme_candidate,
+    build_lightweight_sparse_clone_paths as _build_lightweight_sparse_clone_paths,
+    build_repo_style_readme_candidates as _repo_build_repo_style_readme_candidates,
+    build_sparse_clone_paths as _build_sparse_clone_paths,
+    checkout_repo_lightweight_style_readme as _checkout_repo_lightweight_style_readme,
+    checkout_repo_scan_role as _checkout_repo_scan_role,
+    clone_repo as _clone_repo,
+    fetch_repo_directory_names as _fetch_repo_directory_names,
+    fetch_repo_file as _fetch_repo_file,
+    normalize_repo_scan_result_payload as _normalize_repo_scan_result_payload,
+    normalize_repo_scan_metadata_paths as _normalize_repo_scan_metadata_paths,
+    prepare_repo_scan_inputs as _prepare_repo_scan_inputs,
+    repo_name_from_url as _repo_name_from_url,
+    repo_path_looks_like_role as _repo_path_looks_like_role,
+    repo_scan_workspace as _repo_scan_workspace,
+    resolve_repo_scan_scanner_report_relpath as _resolve_repo_scan_scanner_report_relpath,
+    resolve_style_readme_candidate as _resolve_style_readme_candidate,
 )
 from .scanner import run_scan
 from .scanner_analysis import render_runbook, render_runbook_csv

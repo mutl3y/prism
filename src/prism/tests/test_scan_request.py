@@ -4,6 +4,7 @@ import inspect
 
 from prism import scanner
 from prism.scanner_core import scan_request
+from prism.scanner_data import ScanOptionsDict
 
 
 def test_resolve_detailed_catalog_flag_enables_catalog_for_runbook_outputs():
@@ -44,8 +45,8 @@ def test_resolve_detailed_catalog_flag_preserves_explicit_flag_without_runbooks(
     )
 
 
-def test_build_run_scan_options_shapes_expected_option_map():
-    options = scan_request.build_run_scan_options(
+def test_build_run_scan_options_canonical_shapes_expected_option_map():
+    options = scan_request.build_run_scan_options_canonical(
         role_path="/tmp/role",
         role_name_override="demo_role",
         readme_config_path="/tmp/role/.prism.yml",
@@ -68,6 +69,7 @@ def test_build_run_scan_options_shapes_expected_option_map():
         ignore_unresolved_internal_underscore_references=False,
     )
 
+    assert isinstance(options, dict)
     assert options["role_path"] == "/tmp/role"
     assert options["role_name_override"] == "demo_role"
     assert options["readme_config_path"] == "/tmp/role/.prism.yml"
@@ -78,8 +80,12 @@ def test_build_run_scan_options_shapes_expected_option_map():
     assert options["ignore_unresolved_internal_underscore_references"] is False
 
 
-def test_scanner_build_run_scan_options_is_deterministic_for_same_inputs():
-    first = scan_request.build_run_scan_options(
+def test_scan_options_dict_is_re_exported_from_scanner_data():
+    assert ScanOptionsDict is not None
+
+
+def test_scanner_build_run_scan_options_canonical_is_deterministic_for_same_inputs():
+    first = scan_request.build_run_scan_options_canonical(
         role_path="/tmp/role",
         role_name_override=None,
         readme_config_path=None,
@@ -101,7 +107,7 @@ def test_scanner_build_run_scan_options_is_deterministic_for_same_inputs():
         fail_on_yaml_like_task_annotations=None,
         ignore_unresolved_internal_underscore_references=None,
     )
-    second = scan_request.build_run_scan_options(
+    second = scan_request.build_run_scan_options_canonical(
         role_path="/tmp/role",
         role_name_override=None,
         readme_config_path=None,
@@ -149,8 +155,8 @@ def test_scanner_no_longer_keeps_scan_request_compatibility_imports():
     assert "scanner_submodules.scan_request" not in scanner_source
 
 
-def test_scanner_core_build_run_scan_options_shapes_expected_option_map():
-    options = scan_request.build_run_scan_options(
+def test_scanner_core_build_run_scan_options_canonical_shapes_expected_option_map():
+    options = scan_request.build_run_scan_options_canonical(
         role_path="/tmp/role",
         role_name_override="demo_role",
         readme_config_path="/tmp/role/.prism.yml",

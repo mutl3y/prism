@@ -771,3 +771,22 @@ def _fetch_repo_file(
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(decoded)
     return destination
+
+
+# Public surface for API consumers.
+build_lightweight_sparse_clone_paths = _build_lightweight_sparse_clone_paths
+build_repo_style_readme_candidates = _build_repo_style_readme_candidates
+build_sparse_clone_paths = _build_sparse_clone_paths
+checkout_repo_lightweight_style_readme = _checkout_repo_lightweight_style_readme
+checkout_repo_scan_role = _checkout_repo_scan_role
+clone_repo = _clone_repo
+fetch_repo_directory_names = _fetch_repo_directory_names
+fetch_repo_file = _fetch_repo_file
+normalize_repo_scan_result_payload = _normalize_repo_scan_result_payload
+normalize_repo_scan_metadata_paths = _normalize_repo_scan_metadata_paths
+prepare_repo_scan_inputs = _prepare_repo_scan_inputs
+repo_name_from_url = _repo_name_from_url
+repo_path_looks_like_role = _repo_path_looks_like_role
+repo_scan_workspace = _repo_scan_workspace
+resolve_repo_scan_scanner_report_relpath = _resolve_repo_scan_scanner_report_relpath
+resolve_style_readme_candidate = _resolve_style_readme_candidate

@@ -7,10 +7,10 @@ from prism import scanner
 from prism.scanner_core import ScanContextBuilder
 from prism.scanner_core import scan_request
 from prism.scanner_core import scan_runtime
-from prism.scanner_data import contracts
+from prism.scanner_data import ScanContextPayload, contracts
 
 
-def test_finalize_scan_context_payload_shapes_expected_tuple():
+def test_finalize_scan_context_payload_shapes_expected_mapping():
     payload = scan_runtime.finalize_scan_context_payload(
         rp="/tmp/role",
         role_name="demo_role",
@@ -21,13 +21,17 @@ def test_finalize_scan_context_payload_shapes_expected_tuple():
         metadata={"features": {"tasks_scanned": 1}},
     )
 
-    assert payload[0] == "/tmp/role"
-    assert payload[1] == "demo_role"
-    assert payload[2] == "demo"
-    assert payload[3] == ["dep"]
-    assert payload[4] == [{"file": "tasks/main.yml"}]
-    assert payload[5]["display_variables"] == {"name": {"required": False}}
-    assert payload[5]["metadata"] == {"features": {"tasks_scanned": 1}}
+    assert payload["rp"] == "/tmp/role"
+    assert payload["role_name"] == "demo_role"
+    assert payload["description"] == "demo"
+    assert payload["requirements_display"] == ["dep"]
+    assert payload["undocumented_default_filters"] == [{"file": "tasks/main.yml"}]
+    assert payload["display_variables"] == {"name": {"required": False}}
+    assert payload["metadata"] == {"features": {"tasks_scanned": 1}}
+
+
+def test_scan_context_payload_is_re_exported_from_scanner_data() -> None:
+    assert ScanContextPayload is not None
 
 
 def test_build_scan_output_payload_shapes_expected_map():
@@ -51,24 +55,22 @@ def test_build_scan_output_payload_shapes_expected_map():
 
 
 def test_build_scan_output_payload_maps_prepared_context_values():
-    prepared_context = (
-        "/tmp/role",
-        "demo_role",
-        "demo",
-        ["dep"],
-        [{"file": "tasks/main.yml"}],
-        {
-            "display_variables": {"name": {"required": False}},
-            "metadata": {"features": {"tasks_scanned": 1}},
-        },
-    )
+    prepared_context = {
+        "rp": "/tmp/role",
+        "role_name": "demo_role",
+        "description": "demo",
+        "requirements_display": ["dep"],
+        "undocumented_default_filters": [{"file": "tasks/main.yml"}],
+        "display_variables": {"name": {"required": False}},
+        "metadata": {"features": {"tasks_scanned": 1}},
+    }
     payload = scan_runtime.build_scan_output_payload(
-        role_name=prepared_context[1],
-        description=prepared_context[2],
-        display_variables=prepared_context[5]["display_variables"],
-        requirements_display=prepared_context[3],
-        undocumented_default_filters=prepared_context[4],
-        metadata=prepared_context[5]["metadata"],
+        role_name=prepared_context["role_name"],
+        description=prepared_context["description"],
+        display_variables=prepared_context["display_variables"],
+        requirements_display=prepared_context["requirements_display"],
+        undocumented_default_filters=prepared_context["undocumented_default_filters"],
+        metadata=prepared_context["metadata"],
     )
 
     assert payload == {
@@ -649,7 +651,7 @@ def test_execute_scan_with_context_normalized_options_do_not_emit_runtime_fallba
 ):
     role_path = str(tmp_path / "role")
     (tmp_path / "role").mkdir()
-    scan_options = scan_request.build_run_scan_options(
+    scan_options = scan_request.build_run_scan_options_canonical(
         role_path=role_path,
         role_name_override=None,
         readme_config_path=None,
@@ -730,7 +732,7 @@ def test_execute_scan_with_context_uses_real_scanner_context_without_fallback(
 ):
     role_path = str(tmp_path / "demo_role")
     (tmp_path / "demo_role").mkdir()
-    scan_options = scan_request.build_run_scan_options(
+    scan_options = scan_request.build_run_scan_options_canonical(
         role_path=role_path,
         role_name_override=None,
         readme_config_path=None,
@@ -1024,7 +1026,7 @@ def test_execute_scan_with_context_does_not_set_fallback_reason_when_context_pat
 ):
     role_path = str(tmp_path / "demo_role")
     (tmp_path / "demo_role").mkdir()
-    scan_options = scan_request.build_run_scan_options(
+    scan_options = scan_request.build_run_scan_options_canonical(
         role_path=role_path,
         role_name_override=None,
         readme_config_path=None,
@@ -1102,7 +1104,7 @@ def test_execute_scan_with_context_emitted_args_keep_canonical_keyset_across_pat
 
     monkeypatch.setattr(scanner, "_emit_scan_outputs", fake_emit)
 
-    context_scan_options = scan_request.build_run_scan_options(
+    context_scan_options = scan_request.build_run_scan_options_canonical(
         role_path=role_path,
         role_name_override=None,
         readme_config_path=None,
@@ -1138,7 +1140,7 @@ def test_execute_scan_with_context_emitted_args_keep_canonical_keyset_across_pat
         runbook_csv_output=None,
     )
 
-    second_scan_options = scan_request.build_run_scan_options(
+    second_scan_options = scan_request.build_run_scan_options_canonical(
         role_path=role_path,
         role_name_override="role_override",
         readme_config_path=None,

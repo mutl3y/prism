@@ -47,14 +47,15 @@ def _prepare_scan_context_stub(scan_options: dict[str, object]):
     role_name = str(scan_options.get("role_name_override") or "").strip()
     if not role_name:
         role_name = Path(role_path).name or role_path
-    return (
-        role_path,
-        role_name,
-        "",
-        [],
-        [],
-        {"display_variables": {}, "metadata": {}},
-    )
+    return {
+        "rp": role_path,
+        "role_name": role_name,
+        "description": "",
+        "requirements_display": [],
+        "undocumented_default_filters": [],
+        "display_variables": {},
+        "metadata": {},
+    }
 
 
 class TestScannerContextInstantiation:
@@ -645,17 +646,15 @@ def test_scanner_context_runtime_path_uses_canonical_modules(monkeypatch):
 
     def fake_prepare_scan_context(scan_options: dict[str, object]):
         assert scan_options is canonical_options
-        return (
-            "/tmp/role",
-            "role",
-            "desc",
-            ["dep"],
-            [{"target_var": "x"}],
-            {
-                "display_variables": {"x": {"required": False}},
-                "metadata": {"features": {"tasks_scanned": 1}},
-            },
-        )
+        return {
+            "rp": "/tmp/role",
+            "role_name": "role",
+            "description": "desc",
+            "requirements_display": ["dep"],
+            "undocumented_default_filters": [{"target_var": "x"}],
+            "display_variables": {"x": {"required": False}},
+            "metadata": {"features": {"tasks_scanned": 1}},
+        }
 
     di = DIContainer(role_path="/tmp/role", scan_options=required_scan_options)
     context = ScannerContext(

@@ -899,7 +899,7 @@ def _execute_scan_with_context(
         di=container,
         role_path=role_path,
         scan_options=scan_options,
-        build_run_scan_options_fn=scan_request.build_run_scan_options,
+        build_run_scan_options_fn=scan_request.build_run_scan_options_canonical,
         prepare_scan_context_fn=_prepare_scan_context,
     )
     payload = context.orchestrate_scan()
@@ -957,7 +957,7 @@ def run_scan(
     Delegates scan orchestration to ScannerContext and then emits outputs.
     """
     _refresh_policy(policy_config_path)
-    scan_options = scan_request.build_run_scan_options(
+    scan_options = scan_request.build_run_scan_options_canonical(
         role_path=role_path,
         role_name_override=role_name_override,
         readme_config_path=readme_config_path,

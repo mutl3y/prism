@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable
 
+from ..scanner_data.contracts import ScanContextPayload, ScanOptionsDict
 from . import scan_request
 from .di import DIContainer
 
@@ -65,16 +66,18 @@ class ScannerContext:
         self,
         di: DIContainer,
         role_path: str,
-        scan_options: dict[str, Any],
-        build_run_scan_options_fn: Callable[..., dict[str, Any]] | None = None,
-        prepare_scan_context_fn: Callable[..., Any] | None = None,
+        scan_options: ScanOptionsDict,
+        build_run_scan_options_fn: Callable[..., ScanOptionsDict] | None = None,
+        prepare_scan_context_fn: (
+            Callable[[ScanOptionsDict], ScanContextPayload] | None
+        ) = None,
     ) -> None:
         """Initialize context with DI container and scan options.
 
         Args:
             di: DIContainer instance providing orchestrator factories.
             role_path: Absolute or relative path to Ansible role directory.
-            scan_options: Normalized scan configuration dict from _build_run_scan_options().
+            scan_options: Normalized scan configuration dict from build_run_scan_options_canonical().
                          Must include keys like role_name_override, include_vars_main, etc.
 
         Raises:
@@ -91,7 +94,7 @@ class ScannerContext:
         self._role_path = role_path
         self._scan_options = scan_options
         self._build_run_scan_options_fn = (
-            build_run_scan_options_fn or scan_request.build_run_scan_options
+            build_run_scan_options_fn or scan_request.build_run_scan_options_canonical
         )
         self._prepare_scan_context_fn = prepare_scan_context_fn
         self._strict_phase_failures = bool(
@@ -325,16 +328,9 @@ class ScannerContext:
                 "prepare_scan_context_fn must be provided for canonical ScannerContext orchestration"
             )
 
-        (
-            _rp,
-            role_name,
-            description,
-            requirements_display,
-            undocumented_default_filters,
-            scan_context,
-        ) = self._prepare_scan_context_fn(normalized_scan_options)
+        context_payload = self._prepare_scan_context_fn(normalized_scan_options)
 
-        metadata = dict(scan_context.get("metadata") or {})
+        metadata = dict(context_payload.get("metadata") or {})
         if "features" not in metadata and self._detected_features:
             metadata["features"] = dict(self._detected_features)
         if self._scan_errors:
@@ -343,11 +339,13 @@ class ScannerContext:
         self._scan_metadata = metadata
 
         return {
-            "role_name": role_name,
-            "description": description,
-            "display_variables": dict(scan_context.get("display_variables") or {}),
-            "requirements_display": list(requirements_display),
-            "undocumented_default_filters": list(undocumented_default_filters),
+            "role_name": context_payload["role_name"],
+            "description": context_payload["description"],
+            "display_variables": dict(context_payload.get("display_variables") or {}),
+            "requirements_display": list(context_payload["requirements_display"]),
+            "undocumented_default_filters": list(
+                context_payload["undocumented_default_filters"]
+            ),
             "metadata": metadata,
         }
 

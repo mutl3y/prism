@@ -1,5 +1,6 @@
-from pathlib import Path
 import json
+import inspect
+from pathlib import Path
 import shutil
 
 import pytest
@@ -91,6 +92,12 @@ def test_api_and_cli_share_repo_service_helper_bindings(monkeypatch):
         cli._checkout_repo_lightweight_style_readme
         is repo_services._checkout_repo_lightweight_style_readme
     )
+
+
+def test_api_imports_repo_service_public_aliases_only() -> None:
+    api_source = inspect.getsource(api)
+
+    assert "from .repo_services import _" not in api_source
 
 
 def test_scan_repo_uses_shared_checkout_orchestration(monkeypatch, tmp_path):
