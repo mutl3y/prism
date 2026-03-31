@@ -315,11 +315,16 @@ def apply_scan_metadata_configuration(
     metadata["collection_compliance_notes"] = collection_compliance_notes
     metadata["keep_unknown_style_sections"] = keep_unknown_style_sections
 
+    readme_section_config_warnings: list[str] = []
     readme_section_config = load_readme_section_config(
         role_path,
         config_path=readme_config_path,
         adopt_heading_mode=adopt_heading_mode,
+        strict=False,
+        warning_collector=readme_section_config_warnings,
     )
+    if readme_section_config_warnings:
+        metadata["readme_section_config_warnings"] = readme_section_config_warnings
     apply_readme_section_config(metadata, readme_section_config)
     return requirements_display
 

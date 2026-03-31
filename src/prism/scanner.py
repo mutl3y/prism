@@ -672,6 +672,8 @@ def load_readme_section_config(
     role_path: str,
     config_path: str | None = None,
     adopt_heading_mode: str | None = None,
+    strict: bool = False,
+    warning_collector: list[str] | None = None,
 ) -> dict | None:
     return _load_readme_section_config(
         role_path=role_path,
@@ -681,6 +683,8 @@ def load_readme_section_config(
         section_aliases=STYLE_SECTION_ALIASES,
         normalize_heading=normalize_style_heading,
         display_titles_path=DEFAULT_SECTION_DISPLAY_TITLES_PATH,
+        strict=strict,
+        warning_collector=warning_collector,
         config_filenames=SECTION_CONFIG_FILENAMES,
         default_filename=SECTION_CONFIG_FILENAME,
     )
