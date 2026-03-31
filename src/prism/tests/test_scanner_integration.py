@@ -117,12 +117,13 @@ class TestScannerIntegrationEndToEnd:
         assert isinstance(metadata, dict)
 
     def test_scanner_context_handles_missing_role_gracefully(
-        self,
+        self, tmp_path: Path
     ) -> None:
         """ScannerContext raises explicitly when role path does not exist."""
-        missing_role = "/tmp/nonexistent_test_role_12345"
+        missing_role_path = tmp_path / "missing-role"
+        assert not missing_role_path.exists()
 
-        context = _build_context(missing_role)
+        context = _build_context(str(missing_role_path))
 
         with pytest.raises(FileNotFoundError, match="role path not found"):
             context.orchestrate_scan()
@@ -155,5 +156,19 @@ class TestScannerIntegrationEndToEnd:
 
         # Discovered variables should be identical (immutable)
         assert discovered1 == discovered2
-        # Payload variables should match
-        assert len(payload1.get("variables", [])) == len(payload2.get("variables", []))
+
+        # Payload contracts should remain stable across repeated orchestration.
+        assert isinstance(payload1["display_variables"], dict)
+        assert isinstance(payload2["display_variables"], dict)
+        assert isinstance(payload1["metadata"], dict)
+        assert isinstance(payload2["metadata"], dict)
+        assert payload1["display_variables"] == payload2["display_variables"]
+        assert payload1["metadata"] == payload2["metadata"]
+
+        # Mutations to one payload must not leak into a subsequent orchestration result.
+        payload1["display_variables"]["__test_mutation__"] = {"required": False}
+        payload1["metadata"]["__test_mutation__"] = True
+
+        payload3 = context.orchestrate_scan()
+        assert "__test_mutation__" not in payload3["display_variables"]
+        assert "__test_mutation__" not in payload3["metadata"]
