@@ -2078,6 +2078,31 @@ def test_load_readme_section_config_and_visibility_handle_invalid_shapes(tmp_pat
     assert scanner.load_readme_section_config(str(role)) is None
 
 
+def test_load_readme_section_config_collects_parse_warning_on_yaml_error(tmp_path):
+    role = tmp_path / "role"
+    role.mkdir(parents=True)
+    cfg = role / ".prism.yml"
+    cfg.write_text("not: [valid\n", encoding="utf-8")
+
+    warnings: list[str] = []
+    config = scanner.load_readme_section_config(str(role), warning_collector=warnings)
+
+    assert config is None
+    assert len(warnings) == 1
+    assert warnings[0].startswith("README_SECTION_CONFIG_YAML_INVALID:")
+    assert ".prism.yml" in warnings[0]
+
+
+def test_load_readme_section_config_raises_in_strict_mode_on_yaml_error(tmp_path):
+    role = tmp_path / "role"
+    role.mkdir(parents=True)
+    cfg = role / ".prism.yml"
+    cfg.write_text("not: [valid\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="README_SECTION_CONFIG_YAML_INVALID"):
+        scanner.load_readme_section_config(str(role), strict=True)
+
+
 def test_load_fail_on_unconstrained_dynamic_includes_reads_scan_toggle(tmp_path):
     role = tmp_path / "role"
     role.mkdir(parents=True)

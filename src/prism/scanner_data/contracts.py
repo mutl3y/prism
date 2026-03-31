@@ -322,6 +322,8 @@ class ScanMetadata(TypedDict, total=False):
     """Custom section title overrides."""
     section_content_modes: NotRequired[dict[str, str]]
     """Section rendering mode overrides."""
+    readme_section_config_warnings: NotRequired[list[str]]
+    """Non-strict README section config parse warnings."""
 
     # Variable & issue analysis
     variable_insights: list[dict[str, Any]]

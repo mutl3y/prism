@@ -20,6 +20,23 @@ from .legacy_retirement import (
 from .section import SECTION_CONFIG_FILENAME, SECTION_CONFIG_FILENAMES
 
 
+README_SECTION_CONFIG_YAML_INVALID = "README_SECTION_CONFIG_YAML_INVALID"
+README_SECTION_CONFIG_IO_ERROR = "README_SECTION_CONFIG_IO_ERROR"
+
+
+def _record_readme_config_warning(
+    warning_collector: list[str] | None,
+    *,
+    code: str,
+    cfg_file: Path,
+    error: Exception,
+) -> None:
+    """Append a stable warning string for non-strict config parsing failures."""
+    if warning_collector is None:
+        return
+    warning_collector.append(f"{code}: {cfg_file}: {error}")
+
+
 def resolve_role_config_file(
     role_path: str,
     config_path: str | None = None,
@@ -104,6 +121,8 @@ def load_readme_section_config(
     section_aliases: dict[str, str],
     normalize_heading: Callable[[str], str],
     display_titles_path: Path,
+    strict: bool = False,
+    warning_collector: list[str] | None = None,
     config_filenames: tuple[str, ...] = SECTION_CONFIG_FILENAMES,
     default_filename: str = SECTION_CONFIG_FILENAME,
 ) -> dict | None:
@@ -120,7 +139,29 @@ def load_readme_section_config(
 
     try:
         raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
-    except Exception:
+    except yaml.YAMLError as exc:
+        if strict:
+            raise RuntimeError(
+                f"{README_SECTION_CONFIG_YAML_INVALID}: {cfg_file}: {exc}"
+            ) from exc
+        _record_readme_config_warning(
+            warning_collector,
+            code=README_SECTION_CONFIG_YAML_INVALID,
+            cfg_file=cfg_file,
+            error=exc,
+        )
+        return None
+    except OSError as exc:
+        if strict:
+            raise RuntimeError(
+                f"{README_SECTION_CONFIG_IO_ERROR}: {cfg_file}: {exc}"
+            ) from exc
+        _record_readme_config_warning(
+            warning_collector,
+            code=README_SECTION_CONFIG_IO_ERROR,
+            cfg_file=cfg_file,
+            error=exc,
+        )
         return None
     if not isinstance(raw, dict):
         return None
@@ -241,6 +282,8 @@ def load_readme_section_visibility(
         section_aliases=section_aliases,
         normalize_heading=normalize_heading,
         display_titles_path=display_titles_path,
+        strict=False,
+        warning_collector=None,
         config_filenames=config_filenames,
         default_filename=default_filename,
     )
@@ -250,6 +293,8 @@ def load_readme_section_visibility(
 
 
 __all__ = [
+    "README_SECTION_CONFIG_YAML_INVALID",
+    "README_SECTION_CONFIG_IO_ERROR",
     "resolve_role_config_file",
     "load_readme_section_config",
     "load_readme_section_visibility",
