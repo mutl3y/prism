@@ -103,6 +103,11 @@ def _iter_scanner_private_cross_package_imports(module_path: Path) -> list[str]:
             continue
 
         for alias in node.names:
+            if alias.name != "*":
+                alias_name = alias.asname or alias.name
+                imported_boundary_aliases[alias_name] = (
+                    f"{resolved_module}.{alias.name}"
+                )
             if alias.name.startswith("_"):
                 offenders.append(f"{resolved_module}:{alias.name}")
 
@@ -143,3 +148,20 @@ def test_private_cross_package_attribute_access_is_detected(tmp_path: Path) -> N
     offenders = _iter_scanner_private_cross_package_imports(module_path)
 
     assert offenders == ["prism.scanner_readme.style:_render_variable_summary_section"]
+
+
+def test_from_import_alias_private_attribute_access_is_detected(tmp_path: Path) -> None:
+    module_path = tmp_path / "fake_scanner.py"
+    module_path.write_text(
+        "\n".join(
+            [
+                "from prism.scanner_readme import style as readme_style",
+                "readme_style._private_name",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    offenders = _iter_scanner_private_cross_package_imports(module_path)
+
+    assert offenders == ["prism.scanner_readme.style:_private_name"]
