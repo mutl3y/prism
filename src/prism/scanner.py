@@ -566,6 +566,7 @@ def load_fail_on_unconstrained_dynamic_includes(
     config_path: str | None = None,
     default: bool = False,
 ) -> bool:
+    """Compatibility wrapper that intentionally preserves loader exceptions."""
     return _load_fail_on_unconstrained_dynamic_includes(
         role_path,
         config_path=config_path,
@@ -580,6 +581,7 @@ def load_fail_on_yaml_like_task_annotations(
     config_path: str | None = None,
     default: bool = False,
 ) -> bool:
+    """Compatibility wrapper that intentionally preserves loader exceptions."""
     return _load_fail_on_yaml_like_task_annotations(
         role_path,
         config_path=config_path,
@@ -594,6 +596,7 @@ def load_ignore_unresolved_internal_underscore_references(
     config_path: str | None = None,
     default: bool = True,
 ) -> bool:
+    """Compatibility wrapper that intentionally preserves loader exceptions."""
     return _load_ignore_unresolved_internal_underscore_references(
         role_path,
         config_path=config_path,

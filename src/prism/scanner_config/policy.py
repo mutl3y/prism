@@ -11,6 +11,40 @@ import yaml
 from .section import SECTION_CONFIG_FILENAME, SECTION_CONFIG_FILENAMES
 from .readme import resolve_role_config_file
 
+POLICY_CONFIG_YAML_INVALID = "POLICY_CONFIG_YAML_INVALID"
+_POLICY_CONFIG_YAML_INVALID_MESSAGE = "policy config YAML is invalid"
+
+
+def _load_policy_config_dict(
+    role_path: str,
+    config_path: str | None,
+    config_filenames: tuple[str, ...],
+    default_filename: str,
+) -> dict | None:
+    """Load parsed policy config dict or return None when no config exists.
+
+    Raises RuntimeError with a stable public code when YAML parsing fails.
+    """
+    cfg_file = resolve_role_config_file(
+        role_path,
+        config_path=config_path,
+        config_filenames=config_filenames,
+        default_filename=default_filename,
+    )
+    if not cfg_file.is_file():
+        return None
+
+    try:
+        raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise RuntimeError(
+            f"{POLICY_CONFIG_YAML_INVALID}: {_POLICY_CONFIG_YAML_INVALID_MESSAGE}: {cfg_file}"
+        ) from exc
+
+    if not isinstance(raw, dict):
+        return {}
+    return raw
+
 
 def _coerce_bool(value: object) -> bool | None:
     """Return a normalized bool for common YAML-friendly truthy/falsey values."""
@@ -51,20 +85,13 @@ def load_fail_on_unconstrained_dynamic_includes(
     default_filename: str = SECTION_CONFIG_FILENAME,
 ) -> bool:
     """Load scan policy toggle for unconstrained dynamic include failures."""
-    cfg_file = resolve_role_config_file(
+    raw = _load_policy_config_dict(
         role_path,
-        config_path=config_path,
-        config_filenames=config_filenames,
-        default_filename=default_filename,
+        config_path,
+        config_filenames,
+        default_filename,
     )
-    if not cfg_file.is_file():
-        return default
-
-    try:
-        raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return default
-    if not isinstance(raw, dict):
+    if raw is None:
         return default
 
     value: object | None = None
@@ -88,20 +115,13 @@ def load_fail_on_yaml_like_task_annotations(
     default_filename: str = SECTION_CONFIG_FILENAME,
 ) -> bool:
     """Load scan policy toggle for YAML-like task annotation strict failures."""
-    cfg_file = resolve_role_config_file(
+    raw = _load_policy_config_dict(
         role_path,
-        config_path=config_path,
-        config_filenames=config_filenames,
-        default_filename=default_filename,
+        config_path,
+        config_filenames,
+        default_filename,
     )
-    if not cfg_file.is_file():
-        return default
-
-    try:
-        raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return default
-    if not isinstance(raw, dict):
+    if raw is None:
         return default
 
     value: object | None = None
@@ -125,20 +145,13 @@ def load_ignore_unresolved_internal_underscore_references(
     default_filename: str = SECTION_CONFIG_FILENAME,
 ) -> bool:
     """Load unresolved underscore-reference suppression toggle."""
-    cfg_file = resolve_role_config_file(
+    raw = _load_policy_config_dict(
         role_path,
-        config_path=config_path,
-        config_filenames=config_filenames,
-        default_filename=default_filename,
+        config_path,
+        config_filenames,
+        default_filename,
     )
-    if not cfg_file.is_file():
-        return default
-
-    try:
-        raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return default
-    if not isinstance(raw, dict):
+    if raw is None:
         return default
 
     value: object | None = None
@@ -162,20 +175,13 @@ def load_non_authoritative_test_evidence_max_file_bytes(
     default_filename: str = SECTION_CONFIG_FILENAME,
 ) -> int:
     """Load max bytes per evidence file for tests/molecule evidence scanning."""
-    cfg_file = resolve_role_config_file(
+    raw = _load_policy_config_dict(
         role_path,
-        config_path=config_path,
-        config_filenames=config_filenames,
-        default_filename=default_filename,
+        config_path,
+        config_filenames,
+        default_filename,
     )
-    if not cfg_file.is_file():
-        return default
-
-    try:
-        raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return default
-    if not isinstance(raw, dict):
+    if raw is None:
         return default
 
     value: object | None = None
@@ -199,20 +205,13 @@ def load_non_authoritative_test_evidence_max_files_scanned(
     default_filename: str = SECTION_CONFIG_FILENAME,
 ) -> int:
     """Load max number of files scanned for tests/molecule evidence."""
-    cfg_file = resolve_role_config_file(
+    raw = _load_policy_config_dict(
         role_path,
-        config_path=config_path,
-        config_filenames=config_filenames,
-        default_filename=default_filename,
+        config_path,
+        config_filenames,
+        default_filename,
     )
-    if not cfg_file.is_file():
-        return default
-
-    try:
-        raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return default
-    if not isinstance(raw, dict):
+    if raw is None:
         return default
 
     value: object | None = None
@@ -236,20 +235,13 @@ def load_non_authoritative_test_evidence_max_total_bytes(
     default_filename: str = SECTION_CONFIG_FILENAME,
 ) -> int:
     """Load max aggregate bytes scanned for tests/molecule evidence."""
-    cfg_file = resolve_role_config_file(
+    raw = _load_policy_config_dict(
         role_path,
-        config_path=config_path,
-        config_filenames=config_filenames,
-        default_filename=default_filename,
+        config_path,
+        config_filenames,
+        default_filename,
     )
-    if not cfg_file.is_file():
-        return default
-
-    try:
-        raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return default
-    if not isinstance(raw, dict):
+    if raw is None:
         return default
 
     value: object | None = None

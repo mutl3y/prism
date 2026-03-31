@@ -2155,6 +2155,47 @@ def test_run_scan_fails_on_yaml_like_task_annotations_when_enabled(tmp_path):
         )
 
 
+def test_run_scan_raises_when_policy_config_yaml_invalid(tmp_path):
+    role = tmp_path / "role"
+    tasks_dir = role / "tasks"
+    tasks_dir.mkdir(parents=True)
+    (tasks_dir / "main.yml").write_text(
+        "---\n" "- name: demo\n" "  debug:\n" '    msg: "ok"\n',
+        encoding="utf-8",
+    )
+    (role / ".prism.yml").write_text("scan: [\n  unclosed\n", encoding="utf-8")
+
+    out = tmp_path / "README.md"
+    with pytest.raises(RuntimeError, match="POLICY_CONFIG_YAML_INVALID"):
+        scanner.run_scan(str(role), output=str(out))
+
+
+def test_run_scan_uses_explicit_policy_override_when_config_is_valid(tmp_path):
+    role = tmp_path / "role"
+    tasks_dir = role / "tasks"
+    tasks_dir.mkdir(parents=True)
+    (tasks_dir / "main.yml").write_text(
+        "---\n"
+        "- name: dynamic include role\n"
+        "  include_role:\n"
+        '    name: "{{ target_role }}"\n',
+        encoding="utf-8",
+    )
+    (role / ".prism.yml").write_text(
+        "scan:\n" "  fail_on_unconstrained_dynamic_includes: true\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "README.md"
+    scanner.run_scan(
+        str(role),
+        output=str(out),
+        fail_on_unconstrained_dynamic_includes=False,
+    )
+
+    assert out.exists()
+
+
 def test_load_section_display_titles_parses_valid_entries_only(tmp_path, monkeypatch):
     titles = tmp_path / "titles.yml"
     titles.write_text(

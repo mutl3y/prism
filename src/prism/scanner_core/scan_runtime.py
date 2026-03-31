@@ -152,6 +152,7 @@ def apply_unconstrained_dynamic_include_policy(
     ],
 ) -> None:
     """Apply and enforce unconstrained dynamic include scan policy."""
+    # Intentionally allow malformed policy parsing RuntimeError to propagate.
     config_default = load_fail_on_unconstrained_dynamic_includes(
         role_path,
         readme_config_path,
@@ -193,6 +194,7 @@ def apply_yaml_like_task_annotation_policy(
     load_fail_on_yaml_like_task_annotations: Callable[[str, str | None, bool], bool],
 ) -> None:
     """Apply and enforce YAML-like task annotation strict-fail policy."""
+    # Intentionally allow malformed policy parsing RuntimeError to propagate.
     config_default = load_fail_on_yaml_like_task_annotations(
         role_path,
         readme_config_path,

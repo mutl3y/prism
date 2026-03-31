@@ -134,15 +134,13 @@ def test_load_fail_on_unconstrained_dynamic_includes_handles_falsey_string(tmp_p
     assert scanner.load_fail_on_unconstrained_dynamic_includes(str(role)) is False
 
 
-def test_load_fail_on_unconstrained_dynamic_includes_returns_default_on_parse_error(
+def test_load_fail_on_unconstrained_dynamic_includes_raises_on_parse_error(
     tmp_path,
 ):
-    """load_fail_on_unconstrained_dynamic_includes falls back on invalid YAML."""
+    """Malformed YAML should fail closed instead of silently using defaults."""
     role = _write_role_prism_config(tmp_path, "key: [\n  unclosed\n")
-    assert (
+    with pytest.raises(RuntimeError, match="POLICY_CONFIG_YAML_INVALID"):
         scanner.load_fail_on_unconstrained_dynamic_includes(str(role), default=True)
-        is True
-    )
 
 
 def test_load_fail_on_unconstrained_dynamic_includes_returns_default_when_not_dict(
@@ -162,12 +160,13 @@ def test_load_fail_on_yaml_like_task_annotations_reads_scan_toggle(tmp_path):
     assert scanner.load_fail_on_yaml_like_task_annotations(str(role)) is True
 
 
-def test_load_fail_on_yaml_like_task_annotations_returns_default_on_parse_error(
+def test_load_fail_on_yaml_like_task_annotations_raises_on_parse_error(
     tmp_path,
 ):
-    """load_fail_on_yaml_like_task_annotations falls back on invalid YAML."""
+    """Malformed YAML should fail closed instead of silently using defaults."""
     role = _write_role_prism_config(tmp_path, "scan: [\n  unclosed\n")
-    assert scanner.load_fail_on_yaml_like_task_annotations(str(role), default=True)
+    with pytest.raises(RuntimeError, match="POLICY_CONFIG_YAML_INVALID"):
+        scanner.load_fail_on_yaml_like_task_annotations(str(role), default=True)
 
 
 def test_load_ignore_unresolved_internal_underscore_references_reads_scan_toggle(
@@ -184,26 +183,25 @@ def test_load_ignore_unresolved_internal_underscore_references_reads_scan_toggle
     )
 
 
-def test_load_ignore_unresolved_internal_underscore_references_returns_default_on_parse_error(
+def test_load_ignore_unresolved_internal_underscore_references_raises_on_parse_error(
     tmp_path,
 ):
-    """load_ignore_unresolved_internal_underscore_references falls back on invalid YAML."""
+    """Malformed YAML should fail closed instead of silently using defaults."""
     role = _write_role_prism_config(tmp_path, "scan: [\n  unclosed\n")
-    assert (
+    with pytest.raises(RuntimeError, match="POLICY_CONFIG_YAML_INVALID"):
         scanner.load_ignore_unresolved_internal_underscore_references(
             str(role),
             default=False,
         )
-        is False
-    )
 
 
-def test_load_ignore_unresolved_internal_underscore_references_defaults_true_on_error(
+def test_load_ignore_unresolved_internal_underscore_references_raises_on_parse_error_default_true(
     tmp_path,
 ):
-    """Invalid config falls back to default suppression behavior (enabled)."""
+    """Malformed YAML should raise even when default=True would otherwise apply."""
     role = _write_role_prism_config(tmp_path, "scan: [\n  unclosed\n")
-    assert scanner.load_ignore_unresolved_internal_underscore_references(str(role))
+    with pytest.raises(RuntimeError, match="POLICY_CONFIG_YAML_INVALID"):
+        scanner.load_ignore_unresolved_internal_underscore_references(str(role))
 
 
 def test_load_non_authoritative_test_evidence_limits_reads_scan_values(tmp_path):
