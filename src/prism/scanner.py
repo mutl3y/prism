@@ -47,6 +47,7 @@ from .scanner_core import scan_facade_helpers as _scan_facade_helpers
 from .scanner_core import scan_runtime as _scan_runtime
 from .scanner_core import variable_insights as _variable_insights
 from .scanner_core import variable_pipeline as _variable_pipeline
+from .scanner_data.contracts import VariableRow as _VariableRow
 from .scanner_analysis.metrics import (
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES as _ANALYSIS_MAX_FILE_BYTES,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED as _ANALYSIS_MAX_FILES_SCANNED,
@@ -436,7 +437,7 @@ def _build_static_variable_rows(
     vars_data: dict,
     defaults_sources: dict[str, Path],
     vars_sources: dict[str, Path],
-) -> tuple[list[dict], dict[str, dict]]:
+) -> tuple[list[_VariableRow], dict[str, _VariableRow]]:
     """Build baseline rows from defaults/main.yml and vars/main.yml."""
     return _variable_pipeline.build_static_variable_rows(
         role_root=role_root,
@@ -465,8 +466,8 @@ def _collect_variable_reference_context(
 def _populate_variable_rows(
     *,
     role_path: str,
-    rows: list[dict],
-    rows_by_name: dict,
+    rows: list[_VariableRow],
+    rows_by_name: dict[str, _VariableRow],
     exclude_paths: list[str] | None,
     reference_context: _scan_context_ReferenceContext,
     style_readme_path: str | None = None,
@@ -499,7 +500,7 @@ def _populate_variable_rows(
     )
 
 
-def _redact_secret_defaults(rows: list[dict]) -> None:
+def _redact_secret_defaults(rows: list[_VariableRow]) -> None:
     """Mask secret defaults in-place before rendering/output."""
     _variable_pipeline.redact_secret_defaults(rows)
 

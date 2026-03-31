@@ -76,6 +76,10 @@ class VariableRow(TypedDict, total=False):
     """True if variable cannot be resolved to a static definition."""
     is_ambiguous: bool
     """True if variable has multiple possible sources or values."""
+    readme_documented: NotRequired[bool]
+    """True if variable is documented in the role README."""
+    non_authoritative_test_evidence: NotRequired[dict[str, Any]]
+    """Non-authoritative test evidence attached during pipeline enrichment."""
 
 
 class VariableRowWithMeta(TypedDict, total=False):
