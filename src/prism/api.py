@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import traceback
 from typing import Any
 import yaml
 
@@ -32,11 +33,20 @@ from .repo_services import (
 )
 from .scanner import run_scan
 from .scanner_analysis import render_runbook, render_runbook_csv
+from .scanner_readme import render_readme
 
 # Compatibility export for downstream imports and parity checks with CLI/helpers.
 _build_repo_style_readme_candidates = _repo_build_repo_style_readme_candidates
 
 _REQUIRED_ROLE_DIRS = ("defaults", "tasks", "meta")
+
+_COLLECTION_ROLE_SCAN_RECOVERABLE_ERRORS = (
+    FileNotFoundError,
+    OSError,
+    ValueError,
+    RuntimeError,
+    json.JSONDecodeError,
+)
 
 
 def _load_yaml_document(path: Path) -> dict[str, Any] | list[Any] | None:
@@ -292,74 +302,59 @@ def scan_collection(
                 include_task_runbooks=include_task_runbooks,
                 inline_task_runbooks=inline_task_runbooks,
             )
-            rendered_readme = None
-            if include_rendered_readme:
-                rendered_readme = run_scan(
-                    str(role_dir),
-                    output="README.md",
-                    output_format="md",
-                    compare_role_path=compare_role_path,
-                    style_readme_path=style_readme_path,
-                    role_name_override=role_dir.name,
-                    vars_seed_paths=vars_seed_paths,
-                    concise_readme=concise_readme,
-                    scanner_report_output=scanner_report_output,
-                    include_vars_main=include_vars_main,
-                    include_scanner_report_link=include_scanner_report_link,
-                    readme_config_path=readme_config_path,
-                    adopt_heading_mode=adopt_heading_mode,
-                    style_guide_skeleton=style_guide_skeleton,
-                    keep_unknown_style_sections=keep_unknown_style_sections,
-                    exclude_path_patterns=exclude_path_patterns,
-                    style_source_path=style_source_path,
-                    policy_config_path=policy_config_path,
-                    fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
-                    fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
-                    ignore_unresolved_internal_underscore_references=(
-                        ignore_unresolved_internal_underscore_references
-                    ),
-                    detailed_catalog=detailed_catalog,
-                    include_collection_checks=include_collection_checks,
-                    include_task_parameters=include_task_parameters,
-                    include_task_runbooks=include_task_runbooks,
-                    inline_task_runbooks=inline_task_runbooks,
-                    dry_run=True,
-                )
-            role_entries.append(
-                {
-                    "role": role_dir.name,
-                    "path": str(role_dir),
-                    "payload": payload,
-                    "rendered_readme": rendered_readme,
-                }
-            )
-            if runbook_output_dir:
-                rb_dir = Path(runbook_output_dir)
-                rb_dir.mkdir(parents=True, exist_ok=True)
-                rb_metadata = payload.get("metadata") or {}
-                rb_role_name = payload.get("role_name") or role_dir.name
-                rb_content = render_runbook(rb_role_name, rb_metadata)
-                (rb_dir / f"{role_dir.name}.runbook.md").write_text(
-                    rb_content,
-                    encoding="utf-8",
-                )
-            if runbook_csv_output_dir:
-                rb_csv_dir = Path(runbook_csv_output_dir)
-                rb_csv_dir.mkdir(parents=True, exist_ok=True)
-                rb_metadata = payload.get("metadata") or {}
-                rb_csv_content = render_runbook_csv(rb_metadata)
-                (rb_csv_dir / f"{role_dir.name}.runbook.csv").write_text(
-                    rb_csv_content,
-                    encoding="utf-8",
-                )
-        except Exception as exc:
+        except _COLLECTION_ROLE_SCAN_RECOVERABLE_ERRORS as exc:
             failures.append(
                 {
                     "role": role_dir.name,
                     "path": str(role_dir),
                     "error_type": type(exc).__name__,
                     "error": str(exc),
+                    "traceback": "".join(
+                        traceback.format_exception(type(exc), exc, exc.__traceback__)
+                    ),
                 }
+            )
+            continue
+
+        rendered_readme = None
+        if include_rendered_readme:
+            rendered_readme = render_readme(
+                output="README.md",
+                role_name=str(payload.get("role_name") or role_dir.name),
+                description=str(payload.get("description") or ""),
+                variables=(payload.get("variables") or {}),
+                requirements=(payload.get("requirements") or []),
+                default_filters=(payload.get("default_filters") or []),
+                metadata=(payload.get("metadata") or {}),
+                write=False,
+            )
+
+        role_entries.append(
+            {
+                "role": role_dir.name,
+                "path": str(role_dir),
+                "payload": payload,
+                "rendered_readme": rendered_readme,
+            }
+        )
+        if runbook_output_dir:
+            rb_dir = Path(runbook_output_dir)
+            rb_dir.mkdir(parents=True, exist_ok=True)
+            rb_metadata = payload.get("metadata") or {}
+            rb_role_name = payload.get("role_name") or role_dir.name
+            rb_content = render_runbook(rb_role_name, rb_metadata)
+            (rb_dir / f"{role_dir.name}.runbook.md").write_text(
+                rb_content,
+                encoding="utf-8",
+            )
+        if runbook_csv_output_dir:
+            rb_csv_dir = Path(runbook_csv_output_dir)
+            rb_csv_dir.mkdir(parents=True, exist_ok=True)
+            rb_metadata = payload.get("metadata") or {}
+            rb_csv_content = render_runbook_csv(rb_metadata)
+            (rb_csv_dir / f"{role_dir.name}.runbook.csv").write_text(
+                rb_csv_content,
+                encoding="utf-8",
             )
 
     dependencies = _aggregate_collection_dependencies(root)
