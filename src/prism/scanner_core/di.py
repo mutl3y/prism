@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from .output_orchestrator import OutputOrchestrator
     from .scanner_context import ScannerContext
     from .variable_discovery import VariableDiscovery
+    from ..scanner_data.builders import VariableRowBuilder
 
 
 class DIContainer:
@@ -38,9 +39,18 @@ class DIContainer:
         self._cache: dict[str, Any] = {}
         self._mocks: dict[str, Any] = {}
 
-    def factory_scanner_context(self) -> ScannerContext | None:
-        """Create ScannerContext orchestrator (Wave 2 placeholder)."""
-        return None
+    def factory_scanner_context(self) -> ScannerContext:
+        """Create ScannerContext orchestrator with lazy caching for reuse."""
+        key = "scanner_context"
+        if key not in self._cache:
+            from .scanner_context import ScannerContext
+
+            self._cache[key] = ScannerContext(
+                di=self,
+                role_path=self._role_path,
+                scan_options=self._scan_options,
+            )
+        return self._cache[key]
 
     def factory_variable_discovery(self) -> VariableDiscovery:
         """Create VariableDiscovery analyzer with caching for reuse.
@@ -62,12 +72,19 @@ class DIContainer:
 
         return self._cache[key]
 
-    def factory_output_orchestrator(
-        self, output_path: str
-    ) -> OutputOrchestrator | None:
-        """Create OutputOrchestrator (Wave 2 placeholder)."""
-        _ = output_path
-        return None
+    def factory_output_orchestrator(self, output_path: str) -> OutputOrchestrator:
+        """Create OutputOrchestrator for a specific output path."""
+        cache_key = f"output_orchestrator:{output_path}"
+        if cache_key not in self._cache:
+            from .output_orchestrator import OutputOrchestrator
+
+            self._cache[cache_key] = OutputOrchestrator(
+                di=self,
+                output_path=output_path,
+                options=self._scan_options,
+            )
+
+        return self._cache[cache_key]
 
     def factory_feature_detector(self) -> FeatureDetector:
         """Create FeatureDetector (Wave 2 implementation).
@@ -88,12 +105,14 @@ class DIContainer:
 
         return self._cache[key]
 
-    def factory_variable_row_builder(self) -> Any:
-        """Create VariableRowBuilder (cached; Wave 2 placeholder)."""
+    def factory_variable_row_builder(self) -> VariableRowBuilder:
+        """Create cached VariableRowBuilder for row construction helpers."""
         key = "variable_row_builder"
         if key not in self._cache:
-            pass  # self._cache[key] = VariableRowBuilder()
-        return self._cache.get(key)
+            from ..scanner_data.builders import VariableRowBuilder
+
+            self._cache[key] = VariableRowBuilder()
+        return self._cache[key]
 
     def inject_mock_variable_discovery(self, mock: Any) -> None:
         """Inject a mock VariableDiscovery for testing."""

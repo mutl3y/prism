@@ -289,6 +289,41 @@ class TestScannerContextPhaseCoordination:
         assert "metadata" in payload
         assert isinstance(payload["metadata"], dict)
 
+    def test_orchestrate_scan_uses_di_factories_for_phase_components(self) -> None:
+        """orchestrate_scan must consume DI-provided discovery and detector objects."""
+
+        class _Discovery:
+            def discover(self) -> tuple[object, ...]:
+                return ()
+
+        class _Detector:
+            def detect(self) -> dict[str, object]:
+                return {"tasks_scanned": 1}
+
+        di = DIContainer(role_path="/path/to/role", scan_options={})
+        calls = {"discovery": 0, "detector": 0}
+
+        discovery = _Discovery()
+        detector = _Detector()
+
+        def _factory_discovery() -> _Discovery:
+            calls["discovery"] += 1
+            return discovery
+
+        def _factory_detector() -> _Detector:
+            calls["detector"] += 1
+            return detector
+
+        di.factory_variable_discovery = _factory_discovery  # type: ignore[method-assign]
+        di.factory_feature_detector = _factory_detector  # type: ignore[method-assign]
+
+        context = ScannerContext(di=di, role_path="/path/to/role", scan_options={})
+
+        context.orchestrate_scan()
+
+        assert calls["discovery"] == 1
+        assert calls["detector"] == 1
+
 
 class TestScannerContextDataFlow:
     """Test immutable data flow through orchestration."""
@@ -386,6 +421,19 @@ class TestScannerContextIntegration:
         payload = context.orchestrate_scan()
         assert payload is not None
         assert "role_name" in payload
+
+    def test_scanner_context_from_di_factory_orchestrates(self) -> None:
+        """DI factory should provide canonical ScannerContext wiring."""
+        di = DIContainer(
+            role_path="/path/to/role",
+            scan_options={"include_vars_main": True},
+        )
+
+        context = di.factory_scanner_context()
+        payload = context.orchestrate_scan()
+
+        assert isinstance(context, ScannerContext)
+        assert payload["role_name"] == "role"
 
 
 def test_scanner_context_runtime_path_uses_canonical_modules(monkeypatch):
