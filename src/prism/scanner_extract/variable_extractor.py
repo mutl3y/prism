@@ -28,6 +28,7 @@ Exported names consumed by scanner.py:
 from __future__ import annotations
 
 import re
+import threading
 import yaml
 from pathlib import Path
 from typing import Any, Iterable
@@ -90,6 +91,9 @@ _SECRET_NAME_TOKENS: tuple[str, ...] = tuple(_SENSITIVITY["name_tokens"])
 _VAULT_MARKERS: tuple[str, ...] = tuple(_SENSITIVITY["vault_markers"])
 _CREDENTIAL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["credential_prefixes"])
 _URL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["url_prefixes"])
+
+# Re-entrant lock protecting policy-derived module-level globals during concurrent scans.
+_POLICY_DERIVED_STATE_LOCK = threading.RLock()
 
 
 def _coerce_identifier(value: object) -> str | None:
@@ -197,20 +201,21 @@ IGNORED_IDENTIFIERS: set[str] = _build_effective_ignored_identifiers(_POLICY)
 
 
 def _refresh_policy_derived_state(policy: dict[str, Any]) -> None:
-    """Refresh module-level policy state after scanner policy reloads."""
-    global _SENSITIVITY
-    global _SECRET_NAME_TOKENS
-    global _VAULT_MARKERS
-    global _CREDENTIAL_PREFIXES
-    global _URL_PREFIXES
-    global IGNORED_IDENTIFIERS
+    """Refresh module-level policy state after scanner policy reloads. Protected by _POLICY_DERIVED_STATE_LOCK."""
+    with _POLICY_DERIVED_STATE_LOCK:
+        global _SENSITIVITY
+        global _SECRET_NAME_TOKENS
+        global _VAULT_MARKERS
+        global _CREDENTIAL_PREFIXES
+        global _URL_PREFIXES
+        global IGNORED_IDENTIFIERS
 
-    _SENSITIVITY = policy["sensitivity"]
-    _SECRET_NAME_TOKENS = tuple(_SENSITIVITY["name_tokens"])
-    _VAULT_MARKERS = tuple(_SENSITIVITY["vault_markers"])
-    _CREDENTIAL_PREFIXES = tuple(_SENSITIVITY["credential_prefixes"])
-    _URL_PREFIXES = tuple(_SENSITIVITY["url_prefixes"])
-    IGNORED_IDENTIFIERS = _build_effective_ignored_identifiers(policy)
+        _SENSITIVITY = policy["sensitivity"]
+        _SECRET_NAME_TOKENS = tuple(_SENSITIVITY["name_tokens"])
+        _VAULT_MARKERS = tuple(_SENSITIVITY["vault_markers"])
+        _CREDENTIAL_PREFIXES = tuple(_SENSITIVITY["credential_prefixes"])
+        _URL_PREFIXES = tuple(_SENSITIVITY["url_prefixes"])
+        IGNORED_IDENTIFIERS = _build_effective_ignored_identifiers(policy)
 
 
 _REGISTERED_RESULT_ATTRS: frozenset[str] = frozenset(

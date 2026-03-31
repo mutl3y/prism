@@ -10,6 +10,7 @@ from __future__ import annotations
 from functools import partial
 from pathlib import Path
 import re
+import threading
 
 from .scanner_io import (
     render_final_output,
@@ -113,6 +114,9 @@ from .scanner_readme import render_readme as _readme_render_readme
 # Pass override_path to load_pattern_config() if you want to merge a local file.
 _POLICY = load_pattern_config()
 
+# Re-entrant lock protecting policy-derived module-level globals during concurrent scans.
+_POLICY_REFRESH_LOCK = threading.RLock()
+
 STYLE_SECTION_ALIASES: dict[str, str] = _POLICY["section_aliases"]
 
 # Sensitivity detection tokens extracted from policy for fast tuple lookup
@@ -194,37 +198,43 @@ DEFAULT_DOC_MARKER_PREFIX = READMECFG_DEFAULT_DOC_MARKER_PREFIX
 
 
 def _refresh_policy(override_path: str | None = None) -> None:
-    """Reload policy-derived globals with an optional explicit override path."""
-    global _POLICY
-    global STYLE_SECTION_ALIASES
-    global _SENSITIVITY
-    global _SECRET_NAME_TOKENS
-    global _VAULT_MARKERS
-    global _CREDENTIAL_PREFIXES
-    global _URL_PREFIXES
-    global _VARIABLE_GUIDANCE_KEYWORDS
+    """Reload policy-derived module globals. Protected by _POLICY_REFRESH_LOCK for thread safety.
 
-    (
-        _POLICY,
-        STYLE_SECTION_ALIASES,
-        _SECRET_NAME_TOKENS,
-        _VAULT_MARKERS,
-        _CREDENTIAL_PREFIXES,
-        _URL_PREFIXES,
-        _VARIABLE_GUIDANCE_KEYWORDS,
-        _,
-    ) = _config_refresh_policy(override_path=override_path)
-    _SENSITIVITY = _POLICY["sensitivity"]
+    Note: This function mutates module-level state. The lock prevents concurrent scans from
+    observing each other's mid-mutation policy state. Full per-scan encapsulation is a
+    longer-term goal; this lock is the interim thread-safety measure.
+    """
+    with _POLICY_REFRESH_LOCK:
+        global _POLICY
+        global STYLE_SECTION_ALIASES
+        global _SENSITIVITY
+        global _SECRET_NAME_TOKENS
+        global _VAULT_MARKERS
+        global _CREDENTIAL_PREFIXES
+        global _URL_PREFIXES
+        global _VARIABLE_GUIDANCE_KEYWORDS
 
-    from .scanner_extract import (
-        refresh_policy_derived_state as _extract_refresh_policy_derived_state,
-    )
-    from .scanner_readme import (
-        refresh_policy_derived_state as _readme_refresh_policy_derived_state,
-    )
+        (
+            _POLICY,
+            STYLE_SECTION_ALIASES,
+            _SECRET_NAME_TOKENS,
+            _VAULT_MARKERS,
+            _CREDENTIAL_PREFIXES,
+            _URL_PREFIXES,
+            _VARIABLE_GUIDANCE_KEYWORDS,
+            _,
+        ) = _config_refresh_policy(override_path=override_path)
+        _SENSITIVITY = _POLICY["sensitivity"]
 
-    _extract_refresh_policy_derived_state(_POLICY)
-    _readme_refresh_policy_derived_state(_POLICY)
+        from .scanner_extract import (
+            refresh_policy_derived_state as _extract_refresh_policy_derived_state,
+        )
+        from .scanner_readme import (
+            refresh_policy_derived_state as _readme_refresh_policy_derived_state,
+        )
+
+        _extract_refresh_policy_derived_state(_POLICY)
+        _readme_refresh_policy_derived_state(_POLICY)
 
 
 def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:
