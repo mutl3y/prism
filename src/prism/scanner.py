@@ -229,9 +229,15 @@ def _refresh_policy(override_path: str | None = None) -> None:
     ) = _config_refresh_policy(override_path=override_path)
     _SENSITIVITY = _POLICY["sensitivity"]
 
-    from .scanner_extract import refresh_policy_derived_state
+    from .scanner_extract import (
+        refresh_policy_derived_state as _extract_refresh_policy_derived_state,
+    )
+    from .scanner_readme import (
+        refresh_policy_derived_state as _readme_refresh_policy_derived_state,
+    )
 
-    refresh_policy_derived_state(_POLICY)
+    _extract_refresh_policy_derived_state(_POLICY)
+    _readme_refresh_policy_derived_state(_POLICY)
 
 
 def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:

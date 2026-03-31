@@ -70,6 +70,23 @@ def _iter_scanner_private_cross_package_imports(module_path: Path) -> list[str]:
     offenders: list[str] = []
     base = "prism.scanner"
     base_parts = base.split(".")
+    imported_boundary_aliases: dict[str, str] = {}
+
+    def _is_private_boundary_module(module: str) -> bool:
+        return any(
+            module == boundary or module.startswith(f"{boundary}.")
+            for boundary in SCANNER_PRIVATE_IMPORT_BOUNDARIES
+        )
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Import):
+            continue
+        for alias in node.names:
+            module_name = alias.name
+            if not _is_private_boundary_module(module_name):
+                continue
+            alias_name = alias.asname or module_name.rsplit(".", 1)[-1]
+            imported_boundary_aliases[alias_name] = module_name
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.ImportFrom) or node.module is None:
@@ -82,15 +99,24 @@ def _iter_scanner_private_cross_package_imports(module_path: Path) -> list[str]:
             prefix = ".".join(base_parts[:keep])
             resolved_module = f"{prefix}.{node.module}" if prefix else node.module
 
-        if not any(
-            resolved_module == boundary or resolved_module.startswith(f"{boundary}.")
-            for boundary in SCANNER_PRIVATE_IMPORT_BOUNDARIES
-        ):
+        if not _is_private_boundary_module(resolved_module):
             continue
 
         for alias in node.names:
             if alias.name.startswith("_"):
                 offenders.append(f"{resolved_module}:{alias.name}")
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Attribute):
+            continue
+        if not node.attr.startswith("_"):
+            continue
+        if not isinstance(node.value, ast.Name):
+            continue
+        imported_module = imported_boundary_aliases.get(node.value.id)
+        if not imported_module:
+            continue
+        offenders.append(f"{imported_module}:{node.attr}")
 
     return offenders
 
@@ -100,3 +126,20 @@ def test_scanner_facade_uses_public_cross_package_imports_only() -> None:
     assert (
         not offenders
     ), "scanner facade imports private cross-package names: " + ", ".join(offenders)
+
+
+def test_private_cross_package_attribute_access_is_detected(tmp_path: Path) -> None:
+    module_path = tmp_path / "fake_scanner.py"
+    module_path.write_text(
+        "\n".join(
+            [
+                "import prism.scanner_readme.style as readme_style",
+                "readme_style._render_variable_summary_section({}, {})",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    offenders = _iter_scanner_private_cross_package_imports(module_path)
+
+    assert offenders == ["prism.scanner_readme.style:_render_variable_summary_section"]

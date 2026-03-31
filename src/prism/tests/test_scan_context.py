@@ -197,6 +197,53 @@ def test_refresh_policy_updates_variable_guidance_rendering_in_process(monkeypat
         scanner._refresh_policy()
 
 
+def test_refresh_policy_updates_readme_section_aliases_in_process(
+    monkeypatch, tmp_path
+):
+    base_policy = dict(scanner._POLICY)
+    patched_policy = dict(base_policy)
+    patched_aliases = dict(base_policy["section_aliases"])
+    patched_aliases["runtime inputs"] = "role_variables"
+    patched_policy["section_aliases"] = patched_aliases
+
+    def _refresh_return_for(policy: dict):
+        sensitivity = policy["sensitivity"]
+        return (
+            policy,
+            policy["section_aliases"],
+            tuple(sensitivity["name_tokens"]),
+            tuple(sensitivity["vault_markers"]),
+            tuple(sensitivity["credential_prefixes"]),
+            tuple(sensitivity["url_prefixes"]),
+            tuple(policy["variable_guidance"]["priority_keywords"]),
+            policy["ignored_identifiers"],
+        )
+
+    style = tmp_path / "STYLE_GUIDE_SOURCE.md"
+    style.write_text("Runtime Inputs\n--------------\n\nBody\n", encoding="utf-8")
+
+    before = scanner.parse_style_readme(str(style))
+    assert before["sections"][0]["id"] == "unknown"
+
+    monkeypatch.setattr(
+        scanner,
+        "_config_refresh_policy",
+        lambda override_path=None: _refresh_return_for(patched_policy),
+    )
+    scanner._refresh_policy()
+
+    try:
+        after = scanner.parse_style_readme(str(style))
+        assert after["sections"][0]["id"] == "role_variables"
+    finally:
+        monkeypatch.setattr(
+            scanner,
+            "_config_refresh_policy",
+            lambda override_path=None: _refresh_return_for(base_policy),
+        )
+        scanner._refresh_policy()
+
+
 def test_scanner_runtime_context_helpers_are_flattened_partial_aliases():
     prepare_scan_context = scanner._prepare_scan_context
     collect_scan_base_context = scanner._collect_scan_base_context

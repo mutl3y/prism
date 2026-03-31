@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import yaml
 
@@ -13,6 +13,15 @@ from ..scanner_extract.task_parser import _format_inline_yaml
 
 _POLICY = load_pattern_config()
 STYLE_SECTION_ALIASES: dict[str, str] = _POLICY["section_aliases"]
+
+
+def _refresh_policy_derived_state(policy: dict[str, Any]) -> None:
+    """Refresh module-level policy state after scanner policy reloads."""
+    global _POLICY
+
+    _POLICY = policy
+    STYLE_SECTION_ALIASES.clear()
+    STYLE_SECTION_ALIASES.update(policy["section_aliases"])
 
 
 class _SectionTitleBucket(TypedDict):
