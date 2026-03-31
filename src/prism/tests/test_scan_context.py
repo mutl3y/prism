@@ -130,6 +130,73 @@ def test_scanner_runtime_policy_helpers_are_flattened_partial_aliases():
     assert _resolve_callable(yaml_like).__module__ == "prism.scanner_core.scan_runtime"
 
 
+def test_refresh_policy_updates_variable_guidance_rendering_in_process(monkeypatch):
+    base_policy = dict(scanner._POLICY)
+    patched_policy = dict(base_policy)
+    patched_guidance = dict(base_policy["variable_guidance"])
+    sentinel_keyword = "ansible_prism_runtime_keyword"
+    patched_guidance["priority_keywords"] = [sentinel_keyword]
+    patched_policy["variable_guidance"] = patched_guidance
+
+    def _refresh_return_for(policy: dict):
+        sensitivity = policy["sensitivity"]
+        return (
+            policy,
+            policy["section_aliases"],
+            tuple(sensitivity["name_tokens"]),
+            tuple(sensitivity["vault_markers"]),
+            tuple(sensitivity["credential_prefixes"]),
+            tuple(sensitivity["url_prefixes"]),
+            tuple(policy["variable_guidance"]["priority_keywords"]),
+            policy["ignored_identifiers"],
+        )
+
+    metadata = {
+        "variable_insights": [
+            {"name": "zzzz_nonpriority_alpha", "default": "keep"},
+            {"name": f"{sentinel_keyword}_choice", "default": "pick"},
+        ]
+    }
+
+    before = scanner._render_guide_section_body(
+        "variable_guidance",
+        "demo",
+        "",
+        {},
+        [],
+        [],
+        metadata,
+    )
+    assert "zzzz_nonpriority_alpha" in before
+
+    monkeypatch.setattr(
+        scanner,
+        "_config_refresh_policy",
+        lambda override_path=None: _refresh_return_for(patched_policy),
+    )
+    scanner._refresh_policy()
+
+    try:
+        after = scanner._render_guide_section_body(
+            "variable_guidance",
+            "demo",
+            "",
+            {},
+            [],
+            [],
+            metadata,
+        )
+        assert f"{sentinel_keyword}_choice" in after
+        assert "zzzz_nonpriority_alpha" not in after
+    finally:
+        monkeypatch.setattr(
+            scanner,
+            "_config_refresh_policy",
+            lambda override_path=None: _refresh_return_for(base_policy),
+        )
+        scanner._refresh_policy()
+
+
 def test_scanner_runtime_context_helpers_are_flattened_partial_aliases():
     prepare_scan_context = scanner._prepare_scan_context
     collect_scan_base_context = scanner._collect_scan_base_context

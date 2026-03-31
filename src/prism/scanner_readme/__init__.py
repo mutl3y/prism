@@ -37,10 +37,16 @@ from .doc_insights import (
     parse_comma_values,
 )
 
+# Public wrappers for scanner facade imports; avoid cross-package private imports.
+append_scanner_report_section_if_enabled = _append_scanner_report_section_if_enabled
+render_guide_section_body = _render_guide_section_body
+
 __all__ = [
     "DEFAULT_SECTION_SPECS",
     "SCANNER_STATS_SECTION_IDS",
     "render_readme",
+    "append_scanner_report_section_if_enabled",
+    "render_guide_section_body",
     "_append_scanner_report_section_if_enabled",
     "_compose_section_body",
     "_generated_merge_markers",

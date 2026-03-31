@@ -102,6 +102,26 @@ from .requirements import (
     build_requirements_display,
 )
 
+# Public wrappers for scanner facade imports; avoid cross-package private imports.
+is_relpath_excluded = _is_relpath_excluded
+is_path_excluded = _is_path_excluded
+extract_default_target_var = _extract_default_target_var
+collect_include_vars_files = _collect_include_vars_files
+collect_unconstrained_dynamic_role_includes = (
+    _collect_unconstrained_dynamic_role_includes
+)
+collect_unconstrained_dynamic_task_includes = (
+    _collect_unconstrained_dynamic_task_includes
+)
+collect_task_handler_catalog = _collect_task_handler_catalog
+collect_molecule_scenarios = _collect_molecule_scenarios
+extract_role_notes_from_comments = _extract_role_notes_from_comments
+looks_secret_name = _looks_secret_name
+resembles_password_like = _resembles_password_like
+load_yaml_file = _load_yaml_file
+collect_task_files = _collect_task_files
+refresh_policy_derived_state = _refresh_policy_derived_state
+
 __all__ = [
     # Task parsing
     "TASK_INCLUDE_KEYS",
@@ -118,13 +138,18 @@ __all__ = [
     "_iter_task_include_targets",
     "_iter_task_mappings",
     "_is_path_excluded",
+    "is_path_excluded",
     "_load_yaml_file",
+    "load_yaml_file",
     "_collect_task_files",
+    "collect_task_files",
     "_format_inline_yaml",
     "_normalize_exclude_patterns",
     "_is_relpath_excluded",
+    "is_relpath_excluded",
     "_resolve_task_include",
     "_extract_role_notes_from_comments",
+    "extract_role_notes_from_comments",
     "_split_task_annotation_label",
     "_extract_task_annotations_for_file",
     "_task_anchor",
@@ -132,9 +157,13 @@ __all__ = [
     "_extract_collection_from_module_name",
     "_compact_task_parameters",
     "_collect_unconstrained_dynamic_role_includes",
+    "collect_unconstrained_dynamic_role_includes",
     "_collect_unconstrained_dynamic_task_includes",
+    "collect_unconstrained_dynamic_task_includes",
     "_collect_task_handler_catalog",
+    "collect_task_handler_catalog",
     "_collect_molecule_scenarios",
+    "collect_molecule_scenarios",
     "extract_role_features",
     # Variables
     "DEFAULT_TARGET_RE",
@@ -154,14 +183,19 @@ __all__ = [
     "_infer_variable_type",
     "_is_sensitive_variable",
     "_looks_secret_name",
+    "looks_secret_name",
     "_looks_secret_value",
     "_resembles_password_like",
+    "resembles_password_like",
     "_extract_default_target_var",
+    "extract_default_target_var",
     "_collect_dynamic_include_vars_refs",
     "_collect_dynamic_task_include_refs",
     "_read_seed_yaml",
     "_resolve_seed_var_files",
     "load_seed_variables",
+    "collect_include_vars_files",
+    "refresh_policy_derived_state",
     "_refresh_policy_derived_state",
     # Discovery
     "iter_role_variable_map_candidates",

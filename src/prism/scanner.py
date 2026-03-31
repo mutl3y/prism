@@ -80,8 +80,8 @@ from .scanner_analysis import (
     render_runbook_csv as _runbook_report_render_runbook_csv,
 )
 from .scanner_readme import (
-    _append_scanner_report_section_if_enabled as _readme_append_scanner_report_section_if_enabled,
-    _render_guide_section_body as _readme_render_guide_section_body,
+    append_scanner_report_section_if_enabled as _readme_append_scanner_report_section_if_enabled,
+    render_guide_section_body as _readme_render_guide_section_body,
     normalize_style_heading,
     parse_style_readme,
 )
@@ -90,19 +90,19 @@ from ._jinja_analyzer import (
     _scan_text_for_default_filters_with_ast,
 )
 from .scanner_extract import (
-    _is_relpath_excluded,
-    _is_path_excluded,
-    _extract_default_target_var,
-    _collect_include_vars_files,
-    _collect_unconstrained_dynamic_role_includes,
-    _collect_unconstrained_dynamic_task_includes,
-    _collect_task_handler_catalog,
-    _collect_molecule_scenarios,
-    _extract_role_notes_from_comments,
-    _looks_secret_name,
-    _resembles_password_like,
-    _load_yaml_file,
-    _collect_task_files,
+    is_relpath_excluded as _is_relpath_excluded,
+    is_path_excluded as _is_path_excluded,
+    extract_default_target_var as _extract_default_target_var,
+    collect_include_vars_files as _collect_include_vars_files,
+    collect_unconstrained_dynamic_role_includes as _collect_unconstrained_dynamic_role_includes,
+    collect_unconstrained_dynamic_task_includes as _collect_unconstrained_dynamic_task_includes,
+    collect_task_handler_catalog as _collect_task_handler_catalog,
+    collect_molecule_scenarios as _collect_molecule_scenarios,
+    extract_role_notes_from_comments as _extract_role_notes_from_comments,
+    looks_secret_name as _looks_secret_name,
+    resembles_password_like as _resembles_password_like,
+    load_yaml_file as _load_yaml_file,
+    collect_task_files as _collect_task_files,
     extract_role_features,
     load_seed_variables,
 )
@@ -229,9 +229,9 @@ def _refresh_policy(override_path: str | None = None) -> None:
     ) = _config_refresh_policy(override_path=override_path)
     _SENSITIVITY = _POLICY["sensitivity"]
 
-    from .scanner_extract import variable_extractor as _ve
+    from .scanner_extract import refresh_policy_derived_state
 
-    _ve._refresh_policy_derived_state(_POLICY)
+    refresh_policy_derived_state(_POLICY)
 
 
 def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:
@@ -674,10 +674,30 @@ def load_readme_section_config(
     )
 
 
-_render_guide_section_body = partial(
-    _readme_render_guide_section_body,
-    variable_guidance_keywords=_VARIABLE_GUIDANCE_KEYWORDS,
-)
+def _render_guide_section_body(
+    section_id: str,
+    role_name: str,
+    description: str,
+    variables: dict,
+    requirements: list,
+    default_filters: list,
+    metadata: dict,
+    *,
+    variable_guidance_keywords: tuple[str, ...] | None = None,
+) -> str:
+    """Render README guide sections using the currently active policy keywords."""
+    return _readme_render_guide_section_body(
+        section_id,
+        role_name,
+        description,
+        variables,
+        requirements,
+        default_filters,
+        metadata,
+        variable_guidance_keywords=(
+            variable_guidance_keywords or _VARIABLE_GUIDANCE_KEYWORDS
+        ),
+    )
 
 
 _append_scanner_report_section_if_enabled = (
