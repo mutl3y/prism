@@ -952,6 +952,7 @@ def run_scan(
     include_task_parameters: bool = True,
     include_task_runbooks: bool = True,
     inline_task_runbooks: bool = True,
+    strict_phase_failures: bool = True,
     runbook_output: str | None = None,
     runbook_csv_output: str | None = None,
 ) -> str:
@@ -988,6 +989,7 @@ def run_scan(
             ignore_unresolved_internal_underscore_references
         ),
     )
+    scan_options["strict_phase_failures"] = bool(strict_phase_failures)
     return _execute_scan_with_context(
         role_path=role_path,
         scan_options=scan_options,

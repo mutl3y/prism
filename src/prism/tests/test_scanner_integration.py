@@ -14,6 +14,7 @@ These tests are kept for regression validation of critical paths:
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -172,3 +173,67 @@ class TestScannerIntegrationEndToEnd:
         payload3 = context.orchestrate_scan()
         assert "__test_mutation__" not in payload3["display_variables"]
         assert "__test_mutation__" not in payload3["metadata"]
+
+    def test_run_scan_raises_on_discovery_failure_by_default(
+        self,
+        basic_test_role: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """run_scan must surface discovery failures by default."""
+
+        class _FailingDiscovery:
+            def discover(self) -> tuple[object, ...]:
+                raise RuntimeError("discovery exploded")
+
+        monkeypatch.setattr(
+            DIContainer,
+            "factory_variable_discovery",
+            lambda self: _FailingDiscovery(),
+        )
+
+        with pytest.raises(RuntimeError, match="discovery exploded"):
+            scanner.run_scan(
+                role_path=str(basic_test_role),
+                output="README.md",
+                output_format="md",
+                dry_run=True,
+            )
+
+    def test_run_scan_best_effort_marks_degraded_metadata(
+        self,
+        basic_test_role: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Best-effort run_scan mode should annotate degraded metadata."""
+
+        captured: dict[str, object] = {}
+
+        class _FailingDiscovery:
+            def discover(self) -> tuple[object, ...]:
+                raise RuntimeError("discovery exploded")
+
+        def fake_emit_scan_outputs(args: dict[str, object]) -> str:
+            captured["metadata"] = args["metadata"]
+            return "ok"
+
+        monkeypatch.setattr(
+            DIContainer,
+            "factory_variable_discovery",
+            lambda self: _FailingDiscovery(),
+        )
+        monkeypatch.setattr(scanner, "_emit_scan_outputs", fake_emit_scan_outputs)
+
+        scanner.run_scan(
+            role_path=str(basic_test_role),
+            output="README.md",
+            output_format="md",
+            dry_run=True,
+            strict_phase_failures=False,
+        )
+
+        metadata = cast(dict[str, object], captured["metadata"])
+        scan_errors = cast(list[dict[str, str]], metadata["scan_errors"])
+        assert metadata["scan_degraded"] is True
+        assert scan_errors[0]["phase"] == "discovery"
+        assert scan_errors[0]["error_type"] == "RuntimeError"
+        assert scan_errors[0]["message"] == "discovery exploded"
