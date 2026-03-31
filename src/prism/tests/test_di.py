@@ -9,6 +9,9 @@ from __future__ import annotations
 import pytest
 
 from prism.scanner_core.di import DIContainer
+from prism.scanner_core.output_orchestrator import OutputOrchestrator
+from prism.scanner_core.scanner_context import ScannerContext
+from prism.scanner_data.builders import VariableRowBuilder
 
 
 class TestDIContainerInstantiation:
@@ -62,11 +65,15 @@ class TestDIContainerFactoryMethods:
             scan_options={"include_vars_main": True},
         )
 
-    def test_factory_scanner_context_returns_none_placeholder(
+    def test_factory_scanner_context_returns_scanner_context_instance(
         self, container: DIContainer
     ) -> None:
-        """ScannerContext factory is intentionally a placeholder today."""
-        assert container.factory_scanner_context() is None
+        """ScannerContext factory returns canonical scanner context instances."""
+        first = container.factory_scanner_context()
+        second = container.factory_scanner_context()
+        assert isinstance(first, ScannerContext)
+        assert second is first
+        assert first._di is container
 
     def test_factory_variable_discovery_can_be_called(
         self, container: DIContainer
@@ -77,12 +84,12 @@ class TestDIContainerFactoryMethods:
         assert first is not None
         assert second is first
 
-    def test_factory_output_orchestrator_returns_none_placeholder(
+    def test_factory_output_orchestrator_returns_orchestrator_instance(
         self, container: DIContainer
     ) -> None:
-        """OutputOrchestrator factory is intentionally a placeholder today."""
+        """factory_output_orchestrator returns canonical orchestrator instance."""
         result = container.factory_output_orchestrator("/path/to/output.md")
-        assert result is None
+        assert isinstance(result, OutputOrchestrator)
 
     def test_factory_feature_detector_can_be_called(
         self, container: DIContainer
@@ -93,12 +100,14 @@ class TestDIContainerFactoryMethods:
         assert first is not None
         assert second is first
 
-    def test_factory_variable_row_builder_returns_none_placeholder(
+    def test_factory_variable_row_builder_returns_builder_instance(
         self, container: DIContainer
     ) -> None:
-        """VariableRowBuilder factory is intentionally a placeholder today."""
-        result = container.factory_variable_row_builder()
-        assert result is None
+        """factory_variable_row_builder returns cached builder instance."""
+        first = container.factory_variable_row_builder()
+        second = container.factory_variable_row_builder()
+        assert isinstance(first, VariableRowBuilder)
+        assert second is first
 
 
 class TestDIContainerMockInjection:
@@ -201,18 +210,18 @@ class TestDIContainerBootstrapPattern:
         container = DIContainer(role_path, options)
         assert container is not None
 
-        # All factory methods should be callable (even if they return None)
+        # All factory methods should return canonical callables/instances.
         context = container.factory_scanner_context()
         discovery = container.factory_variable_discovery()
         orchestrator = container.factory_output_orchestrator("/tmp/README.md")
         detector = container.factory_feature_detector()
         builder = container.factory_variable_row_builder()
 
-        assert context is None
+        assert isinstance(context, ScannerContext)
         assert discovery is not None
-        assert orchestrator is None
+        assert isinstance(orchestrator, OutputOrchestrator)
         assert detector is not None
-        assert builder is None
+        assert isinstance(builder, VariableRowBuilder)
 
 
 class TestDIContainerLineLength:
