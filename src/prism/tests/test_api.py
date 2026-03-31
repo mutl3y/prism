@@ -1280,6 +1280,99 @@ def test_scan_collection_writes_runbook_markdown_and_csv(monkeypatch, tmp_path):
     ) == "task,file\n"
 
 
+def test_scan_collection_records_post_scan_render_failures(monkeypatch, tmp_path):
+    collection_root = tmp_path / "demo_collection"
+    (collection_root / "roles" / "role_a").mkdir(parents=True)
+    (collection_root / "roles" / "role_b").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        api,
+        "scan_role",
+        lambda role_path, **kwargs: {
+            "role_name": Path(role_path).name,
+            "metadata": {},
+            "variables": {},
+            "requirements": [],
+            "default_filters": [],
+            "description": "",
+        },
+    )
+
+    def fake_render_readme(*args, **kwargs):
+        role_name = kwargs.get("role_name") or (args[1] if len(args) > 1 else None)
+        if role_name == "role_b":
+            raise RuntimeError("render boom")
+        return "# ok\n"
+
+    monkeypatch.setattr(api, "render_readme", fake_render_readme)
+
+    payload = api.scan_collection(str(collection_root), include_rendered_readme=True)
+
+    assert payload["summary"] == {
+        "total_roles": 2,
+        "scanned_roles": 1,
+        "failed_roles": 1,
+    }
+    assert payload["roles"][0]["role"] == "role_a"
+    assert payload["roles"][0]["rendered_readme"] == "# ok\n"
+    assert payload["failures"] == [
+        {
+            "role": "role_b",
+            "path": str((collection_root / "roles" / "role_b").resolve()),
+            "error_type": "RuntimeError",
+            "error": "render boom",
+            "traceback": payload["failures"][0]["traceback"],
+        }
+    ]
+    assert "RuntimeError: render boom" in payload["failures"][0]["traceback"]
+
+
+def test_scan_collection_records_runbook_render_failures(monkeypatch, tmp_path):
+    collection_root = tmp_path / "demo_collection"
+    (collection_root / "roles" / "role_a").mkdir(parents=True)
+    (collection_root / "roles" / "role_b").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        api,
+        "scan_role",
+        lambda role_path, **kwargs: {
+            "role_name": Path(role_path).name,
+            "metadata": {},
+        },
+    )
+
+    def fake_render_runbook(role_name, metadata):
+        if role_name == "role_b":
+            raise RuntimeError("runbook boom")
+        return "# RB\n"
+
+    monkeypatch.setattr(api, "render_runbook", fake_render_runbook)
+
+    payload = api.scan_collection(
+        str(collection_root),
+        runbook_output_dir=str(tmp_path / "runbooks"),
+    )
+
+    assert payload["summary"] == {
+        "total_roles": 2,
+        "scanned_roles": 1,
+        "failed_roles": 1,
+    }
+    assert payload["roles"][0]["role"] == "role_a"
+    assert payload["failures"][0]["role"] == "role_b"
+    assert payload["failures"][0]["error_type"] == "RuntimeError"
+    assert payload["failures"][0]["error"] == "runbook boom"
+    assert "RuntimeError: runbook boom" in payload["failures"][0]["traceback"]
+
+
 def test_role_dependency_key_uses_src_when_name_missing():
     assert api._role_dependency_key({"name": "", "src": "demo.role"}, 2) == "demo.role"
 
