@@ -141,6 +141,11 @@ class ScannerContext:
             ValueError: If orchestration encounters unrecoverable errors
                         (e.g., invalid role structure).
         """
+        self._discovered_variables = ()
+        self._detected_features = {}
+        self._scan_metadata = {}
+        self._scan_errors = []
+
         # Phase 1: Variable Discovery (returns immutable tuple)
         self._discovered_variables = self._discover_variables()
 

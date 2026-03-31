@@ -156,6 +156,28 @@ def test_load_pattern_config_ignores_blank_override_file(tmp_path):
     assert "section_aliases" in config
 
 
+def test_load_pattern_config_treats_scalar_builtin_variables_as_single_token(
+    tmp_path,
+):
+    override = tmp_path / "scalar-builtin.yml"
+    override.write_text("ansible_builtin_variables: not_a_list\n", encoding="utf-8")
+
+    config = load_pattern_config(override_path=str(override))
+
+    assert config["ansible_builtin_variables"] == {"not_a_list"}
+
+
+def test_load_pattern_config_treats_scalar_ignored_identifiers_as_single_token(
+    tmp_path,
+):
+    override = tmp_path / "scalar-ignored.yml"
+    override.write_text("ignored_identifiers: foobar\n", encoding="utf-8")
+
+    config = load_pattern_config(override_path=str(override))
+
+    assert config["ignored_identifiers"] == {"foobar"}
+
+
 def test_fetch_remote_policy_success(monkeypatch):
     """fetch_remote_policy returns a normalised policy on a successful fetch."""
     monkeypatch.setattr(

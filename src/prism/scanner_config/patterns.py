@@ -60,6 +60,21 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
 
 def _normalise(policy: dict[str, Any]) -> dict[str, Any]:
     """Ensure expected keys exist and convert sets."""
+
+    def _normalise_token_collection(raw: Any) -> set[str]:
+        if isinstance(raw, str):
+            value = raw.strip()
+            return {value} if value else set()
+        if isinstance(raw, (list, tuple, set)):
+            values: set[str] = set()
+            for item in raw:
+                if isinstance(item, str):
+                    value = item.strip()
+                    if value:
+                        values.add(value)
+            return values
+        return set()
+
     policy.setdefault("section_aliases", {})
     policy.setdefault("sensitivity", {})
     policy["sensitivity"].setdefault("name_tokens", [])
@@ -70,8 +85,12 @@ def _normalise(policy: dict[str, Any]) -> dict[str, Any]:
     policy["variable_guidance"].setdefault("priority_keywords", [])
     policy.setdefault("ansible_builtin_variables", [])
     policy.setdefault("ignored_identifiers", [])
-    policy["ansible_builtin_variables"] = set(policy["ansible_builtin_variables"])
-    policy["ignored_identifiers"] = set(policy["ignored_identifiers"])
+    policy["ansible_builtin_variables"] = _normalise_token_collection(
+        policy["ansible_builtin_variables"]
+    )
+    policy["ignored_identifiers"] = _normalise_token_collection(
+        policy["ignored_identifiers"]
+    )
     return policy
 
 

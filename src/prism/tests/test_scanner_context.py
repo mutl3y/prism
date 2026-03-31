@@ -444,6 +444,44 @@ class TestScannerContextPhaseCoordination:
         assert metadata["scan_errors"][0]["error_type"] == "RuntimeError"
         assert metadata["scan_errors"][0]["message"] == "discovery exploded"
 
+    def test_orchestrate_scan_best_effort_resets_scan_errors_each_run(self) -> None:
+        """Best-effort mode should not leak prior run errors into later successful runs."""
+
+        class _FlakyDiscovery:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def discover(self) -> tuple[object, ...]:
+                self.calls += 1
+                if self.calls == 1:
+                    raise RuntimeError("first pass failed")
+                return ()
+
+        scan_options = {
+            **_canonical_scan_options(),
+            "strict_phase_failures": False,
+        }
+        discovery = _FlakyDiscovery()
+        di = DIContainer(role_path="/path/to/role", scan_options=scan_options)
+        di.factory_variable_discovery = lambda: discovery  # type: ignore[method-assign]
+
+        context = ScannerContext(
+            di=di,
+            role_path="/path/to/role",
+            scan_options=scan_options,
+            prepare_scan_context_fn=_prepare_scan_context_stub,
+        )
+
+        degraded_payload = context.orchestrate_scan()
+        degraded_metadata = degraded_payload["metadata"]
+        assert degraded_metadata["scan_degraded"] is True
+        assert len(degraded_metadata["scan_errors"]) == 1
+
+        recovered_payload = context.orchestrate_scan()
+        recovered_metadata = recovered_payload["metadata"]
+        assert "scan_degraded" not in recovered_metadata
+        assert "scan_errors" not in recovered_metadata
+
 
 class TestScannerContextDataFlow:
     """Test immutable data flow through orchestration."""

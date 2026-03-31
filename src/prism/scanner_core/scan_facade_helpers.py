@@ -52,13 +52,13 @@ def compute_quality_metrics(
     role_path: str,
     exclude_paths: list[str] | None,
     collect_role_contents: Callable[[str, list[str] | None], dict],
-    load_variables: Callable[[str, list[str] | None], dict],
+    load_variables: Callable[..., dict],
     scan_for_default_filters: Callable[[str, list[str] | None], list],
 ) -> dict:
     """Compute lightweight role quality metrics for comparison output."""
     contents = collect_role_contents(role_path, exclude_paths)
     features = contents.get("features", {}) if isinstance(contents, dict) else {}
-    variables = load_variables(role_path, exclude_paths)
+    variables = load_variables(role_path=role_path, exclude_paths=exclude_paths)
 
     present_dirs = 0
     for section in (

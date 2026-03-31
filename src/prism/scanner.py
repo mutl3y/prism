@@ -409,7 +409,10 @@ def _compute_quality_metrics(
         role_path=role_path,
         exclude_paths=exclude_paths,
         collect_role_contents=collect_role_contents,
-        load_variables=load_variables,
+        load_variables=lambda role_path, exclude_paths=None: load_variables(
+            role_path,
+            exclude_paths=exclude_paths,
+        ),
         scan_for_default_filters=scan_for_default_filters,
     )
 

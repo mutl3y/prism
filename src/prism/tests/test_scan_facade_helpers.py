@@ -92,6 +92,46 @@ def test_compute_quality_metrics_and_comparison_report_use_helper_dependencies()
     assert report["metrics"]["default_filter_count"]["target"] == 1
 
 
+def test_compute_quality_metrics_passes_exclude_paths_by_keyword_to_loader():
+    captured: dict[str, object] = {}
+
+    def collect_role_contents(
+        role_path: str, exclude_paths: list[str] | None = None
+    ) -> dict:
+        return {
+            "tasks": [],
+            "defaults": [],
+            "vars": [],
+            "handlers": [],
+            "templates": [],
+            "files": [],
+            "tests": [],
+            "features": {"tasks_scanned": 0, "unique_modules": "none"},
+        }
+
+    def load_variables(
+        role_path: str,
+        include_vars_main: bool = True,
+        exclude_paths: list[str] | None = None,
+    ) -> dict:
+        captured["role_path"] = role_path
+        captured["include_vars_main"] = include_vars_main
+        captured["exclude_paths"] = exclude_paths
+        return {}
+
+    scan_facade_helpers.compute_quality_metrics(
+        role_path="target",
+        exclude_paths=["tasks/generated/**"],
+        collect_role_contents=collect_role_contents,
+        load_variables=load_variables,
+        scan_for_default_filters=lambda _role_path, _exclude_paths: [],
+    )
+
+    assert captured["role_path"] == "target"
+    assert captured["include_vars_main"] is True
+    assert captured["exclude_paths"] == ["tasks/generated/**"]
+
+
 def test_collect_scan_artifacts_adds_catalog_when_requested():
     variables, requirements, found, metadata = (
         scan_facade_helpers.collect_scan_artifacts(
