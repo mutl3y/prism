@@ -123,7 +123,7 @@ def _iter_scanner_private_cross_package_imports(module_path: Path) -> list[str]:
             continue
         offenders.append(f"{imported_module}:{node.attr}")
 
-    return offenders
+    return sorted(set(offenders))
 
 
 def test_scanner_facade_uses_public_cross_package_imports_only() -> None:
@@ -165,3 +165,57 @@ def test_from_import_alias_private_attribute_access_is_detected(tmp_path: Path) 
     offenders = _iter_scanner_private_cross_package_imports(module_path)
 
     assert offenders == ["prism.scanner_readme.style:_private_name"]
+
+
+def test_private_from_import_symbol_alias_is_detected(tmp_path: Path) -> None:
+    module_path = tmp_path / "fake_scanner.py"
+    module_path.write_text(
+        "\n".join(
+            [
+                "from prism.scanner_readme.style import _private_symbol as private_symbol",
+                "_ = private_symbol",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    offenders = _iter_scanner_private_cross_package_imports(module_path)
+
+    assert offenders == ["prism.scanner_readme.style:_private_symbol"]
+
+
+def test_private_cross_package_offenders_are_deduplicated(tmp_path: Path) -> None:
+    module_path = tmp_path / "fake_scanner.py"
+    module_path.write_text(
+        "\n".join(
+            [
+                "from prism.scanner_readme import style as readme_style",
+                "_ = readme_style._private_name",
+                "_ = readme_style._private_name",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    offenders = _iter_scanner_private_cross_package_imports(module_path)
+
+    assert offenders == ["prism.scanner_readme.style:_private_name"]
+
+
+def test_wildcard_from_import_private_names_are_intentionally_ignored(
+    tmp_path: Path,
+) -> None:
+    module_path = tmp_path / "fake_scanner.py"
+    module_path.write_text(
+        "\n".join(
+            [
+                "from prism.scanner_readme.style import *",
+                "_ = _private_symbol",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    offenders = _iter_scanner_private_cross_package_imports(module_path)
+
+    assert offenders == []
