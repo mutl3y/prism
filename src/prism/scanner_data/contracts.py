@@ -255,6 +255,17 @@ class ReferenceContext(TypedDict):
     """Set of normalized variable name tokens in dynamic task includes."""
 
 
+class ScanPhaseError(TypedDict):
+    """Structured scan phase failure metadata for degraded scan payloads."""
+
+    phase: str
+    """Logical scanner phase that failed (e.g., discovery, feature_detection)."""
+    error_type: str
+    """Exception class name."""
+    message: str
+    """Human-readable exception message."""
+
+
 class ScanMetadata(TypedDict, total=False):
     """Comprehensive metadata contract flowing through scanner orchestration.
 
@@ -349,6 +360,10 @@ class ScanMetadata(TypedDict, total=False):
     """Strict YAML-like annotation mode."""
     ignore_unresolved_internal_underscore_references: bool
     """Ignore pattern mode."""
+    scan_errors: NotRequired[list[ScanPhaseError]]
+    """Structured scan phase errors captured in best-effort mode."""
+    scan_degraded: NotRequired[bool]
+    """True when one or more scan phases failed and degraded output is emitted."""
 
     # Optional detailed catalogs
     task_catalog: NotRequired[list[Any]]

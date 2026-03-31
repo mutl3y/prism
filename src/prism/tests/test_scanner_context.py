@@ -370,6 +370,80 @@ class TestScannerContextPhaseCoordination:
         assert calls["discovery"] == 1
         assert calls["detector"] == 1
 
+    def test_orchestrate_scan_raises_on_discovery_failure_by_default(self) -> None:
+        """Discovery errors must raise by default (strict mode)."""
+
+        class _FailingDiscovery:
+            def discover(self) -> tuple[object, ...]:
+                raise RuntimeError("discovery exploded")
+
+        scan_options = _canonical_scan_options()
+        di = DIContainer(role_path="/path/to/role", scan_options=scan_options)
+        di.factory_variable_discovery = lambda: _FailingDiscovery()  # type: ignore[method-assign]
+
+        context = ScannerContext(
+            di=di,
+            role_path="/path/to/role",
+            scan_options=scan_options,
+            prepare_scan_context_fn=_prepare_scan_context_stub,
+        )
+
+        with pytest.raises(RuntimeError, match="discovery exploded"):
+            context.orchestrate_scan()
+
+    def test_orchestrate_scan_raises_on_feature_detection_failure_by_default(
+        self,
+    ) -> None:
+        """Feature detection errors must raise by default (strict mode)."""
+
+        class _Detector:
+            def detect(self) -> dict[str, object]:
+                raise RuntimeError("feature detection exploded")
+
+        scan_options = _canonical_scan_options()
+        di = DIContainer(role_path="/path/to/role", scan_options=scan_options)
+        di.factory_feature_detector = lambda: _Detector()  # type: ignore[method-assign]
+
+        context = ScannerContext(
+            di=di,
+            role_path="/path/to/role",
+            scan_options=scan_options,
+            prepare_scan_context_fn=_prepare_scan_context_stub,
+        )
+
+        with pytest.raises(RuntimeError, match="feature detection exploded"):
+            context.orchestrate_scan()
+
+    def test_orchestrate_scan_best_effort_records_structured_phase_errors(self) -> None:
+        """Best-effort mode records scan_errors and marks metadata degraded."""
+
+        class _FailingDiscovery:
+            def discover(self) -> tuple[object, ...]:
+                raise RuntimeError("discovery exploded")
+
+        scan_options = {
+            **_canonical_scan_options(),
+            "strict_phase_failures": False,
+        }
+        di = DIContainer(role_path="/path/to/role", scan_options=scan_options)
+        di.factory_variable_discovery = lambda: _FailingDiscovery()  # type: ignore[method-assign]
+
+        context = ScannerContext(
+            di=di,
+            role_path="/path/to/role",
+            scan_options=scan_options,
+            prepare_scan_context_fn=_prepare_scan_context_stub,
+        )
+
+        payload = context.orchestrate_scan()
+
+        metadata = payload["metadata"]
+        assert metadata["scan_degraded"] is True
+        assert isinstance(metadata["scan_errors"], list)
+        assert metadata["scan_errors"][0]["phase"] == "discovery"
+        assert metadata["scan_errors"][0]["error_type"] == "RuntimeError"
+        assert metadata["scan_errors"][0]["message"] == "discovery exploded"
+
 
 class TestScannerContextDataFlow:
     """Test immutable data flow through orchestration."""

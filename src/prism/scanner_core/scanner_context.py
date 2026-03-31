@@ -11,6 +11,7 @@ specialized orchestrators (VariableDiscovery, OutputOrchestrator, FeatureDetecto
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable
 
 from . import scan_request
@@ -93,11 +94,15 @@ class ScannerContext:
             build_run_scan_options_fn or scan_request.build_run_scan_options
         )
         self._prepare_scan_context_fn = prepare_scan_context_fn
+        self._strict_phase_failures = bool(
+            self._scan_options.get("strict_phase_failures", True)
+        )
 
         # Internal state: discovered variables and features stored as immutable tuples/dicts
         self._discovered_variables: tuple[Any, ...] = ()
         self._detected_features: dict[str, Any] = {}
         self._scan_metadata: dict[str, Any] = {}
+        self._scan_errors: list[dict[str, str]] = []
 
     def orchestrate_scan(self) -> dict[str, Any]:
         """Execute complete scan orchestration: discover → detect → emit.
@@ -118,11 +123,10 @@ class ScannerContext:
         - payload built via ScanPayloadBuilder (immutable typed dict)
         - No mutations to discovered data after discovery phase completes
 
-        **Error Handling:**
-        - If role_path is invalid: return error payload with error_status
-        - If discovery fails: catch exception, log, continue with empty variables
-        - If detection fails: catch exception, log, continue with minimal features
-        - If output fails: catch, return rendered payload (writes may be skipped)
+                **Error Handling:**
+                - Core phase failures raise by default (strict behavior).
+                - Optional best-effort mode (strict_phase_failures=False) records
+                    structured scan_errors metadata and continues with degraded output.
 
         Returns:
             dict[str, Any]: RunScanOutputPayload-compatible dict with:
@@ -148,6 +152,20 @@ class ScannerContext:
 
         return payload
 
+    def _record_phase_error(self, phase: str, error: Exception) -> dict[str, str]:
+        """Record a structured phase failure entry for metadata propagation."""
+        entry = {
+            "phase": phase,
+            "error_type": error.__class__.__name__,
+            "message": str(error),
+        }
+        self._scan_errors.append(entry)
+        self._scan_metadata = {
+            "scan_errors": list(self._scan_errors),
+            "scan_degraded": True,
+        }
+        return entry
+
     def _discover_variables(self) -> tuple[Any, ...]:
         """Execute variable discovery phase.
 
@@ -167,11 +185,15 @@ class ScannerContext:
             variables_tuple = discovery.discover()  # Returns tuple[VariableRow, ...]
             return variables_tuple
         except Exception as e:
-            # Log error and return empty tuple for graceful degradation
-            import logging
-
             logger = logging.getLogger(__name__)
-            logger.error(f"Variable discovery failed: {e}")
+            entry = self._record_phase_error("discovery", e)
+            if self._strict_phase_failures:
+                logger.error("Variable discovery failed", extra={"scan_error": entry})
+                raise
+            logger.error(
+                "Variable discovery failed; continuing in best-effort mode",
+                extra={"scan_error": entry},
+            )
             return ()
 
     def _detect_features(self) -> dict[str, Any]:
@@ -193,11 +215,15 @@ class ScannerContext:
             features = detector.detect()  # Returns dict[str, Any]
             return features
         except Exception as e:
-            # Log error and return minimal features dict for graceful degradation
-            import logging
-
             logger = logging.getLogger(__name__)
-            logger.error(f"Feature detection failed: {e}")
+            entry = self._record_phase_error("feature_detection", e)
+            if self._strict_phase_failures:
+                logger.error("Feature detection failed", extra={"scan_error": entry})
+                raise
+            logger.error(
+                "Feature detection failed; continuing in best-effort mode",
+                extra={"scan_error": entry},
+            )
             return {
                 "task_files_scanned": 0,
                 "tasks_scanned": 0,
@@ -306,6 +332,9 @@ class ScannerContext:
         metadata = dict(scan_context.get("metadata") or {})
         if "features" not in metadata and self._detected_features:
             metadata["features"] = dict(self._detected_features)
+        if self._scan_errors:
+            metadata["scan_errors"] = list(self._scan_errors)
+            metadata["scan_degraded"] = True
         self._scan_metadata = metadata
 
         return {
