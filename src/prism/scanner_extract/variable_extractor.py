@@ -45,9 +45,9 @@ from . import (
     SET_FACT_KEYS,
     _collect_task_files,
     _is_path_excluded,
-    _iter_task_mappings,
     _load_yaml_file,
 )
+from .task_parser import _iter_task_include_targets, _iter_task_mappings
 from ..scanner_config.patterns import load_pattern_config
 
 # ---------------------------------------------------------------------------
@@ -380,8 +380,6 @@ def _collect_dynamic_task_include_refs(
     exclude_paths: list[str] | None = None,
 ) -> list[str]:
     """Return templated include/import task references from task files."""
-    from . import _iter_task_include_targets
-
     role_root = Path(role_path).resolve()
     refs: list[str] = []
     for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):

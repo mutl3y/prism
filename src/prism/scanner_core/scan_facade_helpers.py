@@ -181,9 +181,6 @@ def collect_scan_artifacts(
     )
     metadata["marker_prefix"] = marker_prefix
     metadata["detailed_catalog"] = bool(detailed_catalog)
-    metadata["include_task_parameters"] = True
-    metadata["include_task_runbooks"] = True
-    metadata["inline_task_runbooks"] = True
     metadata["unconstrained_dynamic_task_includes"] = (
         collect_unconstrained_dynamic_task_includes(role_path, exclude_path_patterns)
     )

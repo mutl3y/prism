@@ -191,20 +191,6 @@ DEFAULT_SECTION_DISPLAY_TITLES_PATH = (
 )
 DEFAULT_DOC_MARKER_PREFIX = READMECFG_DEFAULT_DOC_MARKER_PREFIX
 
-NON_AUTHORITATIVE_TEST_TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
-NON_AUTHORITATIVE_TEST_EVIDENCE_ALLOWED_SUFFIXES = {
-    ".yml",
-    ".yaml",
-    ".j2",
-    ".jinja2",
-    ".json",
-    ".ini",
-    ".cfg",
-    ".conf",
-    ".md",
-    ".txt",
-}
-
 
 def _refresh_policy(override_path: str | None = None) -> None:
     """Reload policy-derived globals with an optional explicit override path."""

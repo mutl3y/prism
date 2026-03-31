@@ -7,18 +7,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any
 
-
-class FinalOutputPayload(TypedDict):
-    """Typed payload passed into final output rendering."""
-
-    role_name: str
-    description: str
-    variables: dict[str, Any]
-    requirements: list[Any]
-    default_filters: list[dict[str, Any]]
-    metadata: dict[str, Any]
+from ..scanner_data.contracts import FinalOutputPayload
 
 
 def build_final_output_payload(

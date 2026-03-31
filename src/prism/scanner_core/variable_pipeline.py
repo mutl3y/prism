@@ -18,19 +18,21 @@ from ..scanner_analysis.metrics import (
 from ..scanner_extract import (
     IGNORED_IDENTIFIERS,
     JINJA_IDENTIFIER_RE,
+    _collect_include_vars_files,
+    iter_role_argument_spec_entries,
+    load_meta,
+    _load_yaml_file,
+)
+from ..scanner_extract.task_parser import _format_inline_yaml
+from ..scanner_extract.variable_extractor import (
     _collect_dynamic_include_vars_refs,
     _collect_dynamic_task_include_refs,
-    _collect_include_vars_files,
     _collect_referenced_variable_names,
     _collect_register_names,
     _collect_set_fact_names,
     _find_variable_line_in_yaml,
-    _format_inline_yaml,
     _infer_variable_type,
     _is_sensitive_variable,
-    iter_role_argument_spec_entries,
-    load_meta,
-    _load_yaml_file,
 )
 from ..scanner_readme.input_parser import collect_readme_input_variables
 

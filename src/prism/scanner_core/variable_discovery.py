@@ -20,15 +20,17 @@ from .di import DIContainer
 from ..scanner_data.builders import VariableRowBuilder
 from ..scanner_data.contracts import VariableRow
 from ..scanner_extract import (
-    _infer_variable_type,
-    _is_sensitive_variable,
-    _collect_referenced_variable_names,
-    _collect_set_fact_names,
-    _find_variable_line_in_yaml,
     load_role_variable_maps,
     iter_role_argument_spec_entries,
     iter_role_variable_map_candidates,
     _load_yaml_file,
+)
+from ..scanner_extract.variable_extractor import (
+    _collect_referenced_variable_names,
+    _collect_set_fact_names,
+    _find_variable_line_in_yaml,
+    _infer_variable_type,
+    _is_sensitive_variable,
 )
 
 

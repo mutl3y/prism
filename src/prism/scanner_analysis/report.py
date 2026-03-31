@@ -2,7 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, TypedDict, cast
+from typing import Any, Callable, cast
+
+from ..scanner_data.contracts import (
+    AnnotationQualityCounters,
+    NormalizedScannerReportMetadata,
+    ReadmeSectionRenderInput,
+    ScannerCounters,
+    ScannerReportIssueListRow,
+    ScannerReportMetadata,
+    ScannerReportSectionRenderInput,
+    ScannerReportYamlParseFailureRow,
+    SectionBodyRenderResult,
+)
 
 PRECEDENCE_DEFAULTS_OVERRIDDEN_BY_VARS = "precedence_defaults_overridden_by_vars"
 LEGACY_AMBIGUOUS_DEFAULTS_VARS_OVERRIDE = "ambiguous_defaults_vars_override"
@@ -17,98 +29,6 @@ UNRESOLVED_NOISE_CATEGORY_KEYS = frozenset(
         "unresolved_other",
     }
 )
-
-
-class ScannerCounters(TypedDict):
-    """Typed scanner counter payload used by report rendering and sidecars."""
-
-    total_variables: int
-    documented_variables: int
-    undocumented_variables: int
-    unresolved_variables: int
-    unresolved_noise_variables: int
-    ambiguous_variables: int
-    secret_variables: int
-    required_variables: int
-    high_confidence_variables: int
-    medium_confidence_variables: int
-    low_confidence_variables: int
-    total_default_filters: int
-    undocumented_default_filters: int
-    included_role_calls: int
-    dynamic_included_role_calls: int
-    disabled_task_annotations: int
-    yaml_like_task_annotations: int
-    yaml_parse_failures: int
-    non_authoritative_test_evidence_variables: int
-    non_authoritative_test_evidence_saturation_hits: int
-    non_authoritative_test_evidence_budget_hits: int
-    provenance_issue_categories: dict[str, int]
-
-
-class ScannerReportMetadata(TypedDict, total=False):
-    """Typed metadata contract consumed by scanner-report rendering helpers."""
-
-    scanner_counters: ScannerCounters
-    variable_insights: list[dict[str, Any]]
-    features: dict[str, Any]
-    yaml_parse_failures: list[dict[str, object]]
-
-
-class ReadmeSectionRenderInput(TypedDict):
-    """Typed contract for readme section rendering invocation inputs."""
-
-    section_id: str
-    role_name: str
-    description: str
-    variables: dict[str, Any]
-    requirements: list[Any]
-    default_filters: list[Any]
-    metadata: ScannerReportMetadata
-
-
-class ScannerReportIssueListRow(TypedDict):
-    """Typed contract for scanner report issue-list row rendering."""
-
-    name: str
-    uncertainty_reason: str | None
-
-
-class ScannerReportYamlParseFailureRow(TypedDict):
-    """Typed contract for scanner report YAML parse-failure row rendering."""
-
-    location: str
-    error: str
-
-
-class AnnotationQualityCounters(TypedDict):
-    """Typed annotation-quality counter payload extracted from scan features."""
-
-    disabled_task_annotations: int
-    yaml_like_task_annotations: int
-
-
-class ScannerReportSectionRenderInput(TypedDict):
-    """Typed contract for scanner report section-title/body rendering."""
-
-    title: str
-    body: str
-
-
-class NormalizedScannerReportMetadata(TypedDict):
-    """Typed optional-field normalization result for scanner-report metadata."""
-
-    scanner_counters: ScannerCounters | None
-    variable_insights: list[dict[str, Any]]
-    features: dict[str, Any]
-    yaml_parse_failures: list[dict[str, object]]
-
-
-class SectionBodyRenderResult(TypedDict):
-    """Typed result of a readme section body renderer invocation."""
-
-    body: str
-    has_content: bool
 
 
 ReadmeSectionBodyRenderer = Callable[
