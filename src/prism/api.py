@@ -302,6 +302,48 @@ def scan_collection(
                 include_task_runbooks=include_task_runbooks,
                 inline_task_runbooks=inline_task_runbooks,
             )
+
+            rendered_readme = None
+            if include_rendered_readme:
+                rendered_readme = render_readme(
+                    output="README.md",
+                    role_name=str(payload.get("role_name") or role_dir.name),
+                    description=str(payload.get("description") or ""),
+                    variables=(payload.get("variables") or {}),
+                    requirements=(payload.get("requirements") or []),
+                    default_filters=(payload.get("default_filters") or []),
+                    metadata=(payload.get("metadata") or {}),
+                    write=False,
+                )
+
+            if runbook_output_dir:
+                rb_dir = Path(runbook_output_dir)
+                rb_dir.mkdir(parents=True, exist_ok=True)
+                rb_metadata = payload.get("metadata") or {}
+                rb_role_name = payload.get("role_name") or role_dir.name
+                rb_content = render_runbook(rb_role_name, rb_metadata)
+                (rb_dir / f"{role_dir.name}.runbook.md").write_text(
+                    rb_content,
+                    encoding="utf-8",
+                )
+            if runbook_csv_output_dir:
+                rb_csv_dir = Path(runbook_csv_output_dir)
+                rb_csv_dir.mkdir(parents=True, exist_ok=True)
+                rb_metadata = payload.get("metadata") or {}
+                rb_csv_content = render_runbook_csv(rb_metadata)
+                (rb_csv_dir / f"{role_dir.name}.runbook.csv").write_text(
+                    rb_csv_content,
+                    encoding="utf-8",
+                )
+
+            role_entries.append(
+                {
+                    "role": role_dir.name,
+                    "path": str(role_dir),
+                    "payload": payload,
+                    "rendered_readme": rendered_readme,
+                }
+            )
         except _COLLECTION_ROLE_SCAN_RECOVERABLE_ERRORS as exc:
             failures.append(
                 {
@@ -315,47 +357,6 @@ def scan_collection(
                 }
             )
             continue
-
-        rendered_readme = None
-        if include_rendered_readme:
-            rendered_readme = render_readme(
-                output="README.md",
-                role_name=str(payload.get("role_name") or role_dir.name),
-                description=str(payload.get("description") or ""),
-                variables=(payload.get("variables") or {}),
-                requirements=(payload.get("requirements") or []),
-                default_filters=(payload.get("default_filters") or []),
-                metadata=(payload.get("metadata") or {}),
-                write=False,
-            )
-
-        role_entries.append(
-            {
-                "role": role_dir.name,
-                "path": str(role_dir),
-                "payload": payload,
-                "rendered_readme": rendered_readme,
-            }
-        )
-        if runbook_output_dir:
-            rb_dir = Path(runbook_output_dir)
-            rb_dir.mkdir(parents=True, exist_ok=True)
-            rb_metadata = payload.get("metadata") or {}
-            rb_role_name = payload.get("role_name") or role_dir.name
-            rb_content = render_runbook(rb_role_name, rb_metadata)
-            (rb_dir / f"{role_dir.name}.runbook.md").write_text(
-                rb_content,
-                encoding="utf-8",
-            )
-        if runbook_csv_output_dir:
-            rb_csv_dir = Path(runbook_csv_output_dir)
-            rb_csv_dir.mkdir(parents=True, exist_ok=True)
-            rb_metadata = payload.get("metadata") or {}
-            rb_csv_content = render_runbook_csv(rb_metadata)
-            (rb_csv_dir / f"{role_dir.name}.runbook.csv").write_text(
-                rb_csv_content,
-                encoding="utf-8",
-            )
 
     dependencies = _aggregate_collection_dependencies(root)
     plugin_catalog = scan_collection_plugins(root)
