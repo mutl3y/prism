@@ -275,12 +275,36 @@ class TestScannerContextStateImmutability:
         assert isinstance(metadata, dict)
 
     def test_properties_return_same_reference(self, context: ScannerContext) -> None:
-        """Properties return references to internal state (immutable from caller)."""
+        """Properties must return defensive copies for mutable dict state."""
         context.orchestrate_scan()
         metadata1 = context.scan_metadata
         metadata2 = context.scan_metadata
-        # Same reference expected (immutable view of internal state)
-        assert metadata1 is metadata2
+        assert metadata1 == metadata2
+        assert metadata1 is not metadata2
+
+    def test_detected_features_property_returns_defensive_copy(
+        self, context: ScannerContext
+    ) -> None:
+        """Mutating detected_features result must not mutate internal state."""
+        context.orchestrate_scan()
+
+        first = context.detected_features
+        first["mutated"] = True
+
+        second = context.detected_features
+        assert "mutated" not in second
+
+    def test_scan_metadata_property_returns_defensive_copy(
+        self, context: ScannerContext
+    ) -> None:
+        """Mutating scan_metadata result must not mutate internal state."""
+        context.orchestrate_scan()
+
+        first = context.scan_metadata
+        first["mutated"] = True
+
+        second = context.scan_metadata
+        assert "mutated" not in second
 
 
 class TestScannerContextPhaseCoordination:
@@ -580,19 +604,14 @@ class TestScannerContextIntegration:
         assert "role_name" in payload
 
     def test_scanner_context_from_di_factory_requires_prepare_hook(self) -> None:
-        """DI factory context should fail explicitly until runtime hooks are wired."""
+        """DI factory context path is explicitly blocked until runtime hooks are wired."""
         di = DIContainer(
             role_path="/path/to/role",
             scan_options=_canonical_scan_options(),
         )
 
-        context = di.factory_scanner_context()
-
-        assert isinstance(context, ScannerContext)
-        with pytest.raises(
-            ValueError, match="prepare_scan_context_fn must be provided"
-        ):
-            context.orchestrate_scan()
+        with pytest.raises(RuntimeError, match="factory_scanner_context is disabled"):
+            di.factory_scanner_context()
 
 
 def test_scanner_context_orchestrate_scan_rejects_sparse_scan_options():

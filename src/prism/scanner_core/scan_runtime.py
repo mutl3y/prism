@@ -498,9 +498,9 @@ def render_primary_scan_output(
     template: str | None,
     dry_run: bool,
     output_payload: RunScanOutputPayload,
-    render_primary_scan_output_fn: Callable[..., str],
-    render_and_write_scan_output: Callable[..., str],
-) -> str:
+    render_primary_scan_output_fn: Callable[..., str | bytes],
+    render_and_write_scan_output: Callable[..., str | bytes],
+) -> str | bytes:
     """Render and optionally write the primary scan output."""
     return render_primary_scan_output_fn(
         out_path=out_path,
@@ -515,12 +515,12 @@ def render_primary_scan_output(
 def emit_scan_outputs(
     args: EmitScanOutputsArgs,
     *,
-    emit_scan_outputs_fn: Callable[..., str],
+    emit_scan_outputs_fn: Callable[..., str | bytes],
     build_scanner_report_markdown: Callable[..., str],
-    render_and_write_scan_output: Callable[..., str],
+    render_and_write_scan_output: Callable[..., str | bytes],
     render_runbook: Callable[..., str],
     render_runbook_csv: Callable[..., str],
-) -> str:
+) -> str | bytes:
     """Render primary outputs and optional sidecars for a scanner run."""
     return emit_scan_outputs_fn(
         args,

@@ -184,8 +184,6 @@ def orchestrate_output_emission(
             dry_run=kw["dry_run"],
         ),
     )
-    if isinstance(result, bytes):
-        result = result.decode("utf-8", errors="replace")
 
     if args["dry_run"]:
         return result

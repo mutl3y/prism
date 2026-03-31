@@ -488,7 +488,7 @@ class ScanPayloadBuilder:
 
         # Validate metadata
         metadata = self._payload.get("metadata")
-        if not metadata or not isinstance(metadata, dict):
+        if metadata is None or not isinstance(metadata, dict):
             raise ValueError(
                 "'metadata' is required and must be a dict. " f"Got: {metadata!r}"
             )

@@ -116,7 +116,7 @@ def emit_scan_outputs(
     render_and_write_output: Callable[..., str | bytes],
     render_runbook_fn: Callable[[str, dict[str, Any] | None], str],
     render_runbook_csv_fn: Callable[[dict[str, Any] | None], str],
-) -> str:
+) -> str | bytes:
     """Orchestrate primary output rendering with optional scanner-report and runbook sidecars."""
     out_path = resolve_output_path(args["output"], args["output_format"])
     output_payload = _build_scan_output_payload(args)
@@ -144,8 +144,6 @@ def emit_scan_outputs(
         output_payload=output_payload,
         render_and_write_scan_output=render_and_write_output,
     )
-    if isinstance(result, bytes):
-        result = result.decode("utf-8", errors="replace")
 
     if args["dry_run"]:
         return result

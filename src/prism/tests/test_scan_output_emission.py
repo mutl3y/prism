@@ -174,6 +174,39 @@ def test_emit_scan_outputs_non_dry_run_writes_sidecars(tmp_path):
     assert runbook_out.read_text(encoding="utf-8") == "runbook::live_role\n"
 
 
+def test_emit_scan_outputs_dry_run_preserves_binary_bytes_for_pdf(tmp_path):
+    """Dry-run binary formats should preserve bytes (no UTF-8 coercion)."""
+    out_pdf = tmp_path / "scan.pdf"
+    args = {
+        "output": str(out_pdf),
+        "output_format": "pdf",
+        "concise_readme": False,
+        "scanner_report_output": None,
+        "include_scanner_report_link": False,
+        "role_name": "pdf_role",
+        "description": "pdf desc",
+        "display_variables": {},
+        "requirements_display": [],
+        "undocumented_default_filters": [],
+        "metadata": {},
+        "template": None,
+        "dry_run": True,
+        "runbook_output": None,
+        "runbook_csv_output": None,
+    }
+
+    result = scan_output_emission.emit_scan_outputs(
+        args,
+        build_scanner_report_markdown=lambda **kw: "report",
+        render_and_write_output=lambda **kw: b"%PDF-1.7\nmock\n",
+        render_runbook_fn=lambda role, meta: "runbook",
+        render_runbook_csv_fn=lambda meta: "csv",
+    )
+
+    assert isinstance(result, bytes)
+    assert result.startswith(b"%PDF")
+
+
 def test_scan_runtime_emit_scan_outputs_delegates_to_emission_function():
     captured = {}
 

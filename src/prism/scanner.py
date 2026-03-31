@@ -903,7 +903,7 @@ def _execute_scan_with_context(
     dry_run: bool,
     runbook_output: str | None,
     runbook_csv_output: str | None,
-) -> str:
+) -> str | bytes:
     """Execute scan using ScannerContext orchestration and emit final outputs."""
     container = DIContainer(role_path=role_path, scan_options=scan_options)
     context = ScannerContext(
@@ -962,7 +962,7 @@ def run_scan(
     strict_phase_failures: bool = True,
     runbook_output: str | None = None,
     runbook_csv_output: str | None = None,
-) -> str:
+) -> str | bytes:
     """Scan an Ansible role and render documentation.
 
     Delegates scan orchestration to ScannerContext and then emits outputs.

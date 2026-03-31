@@ -11,6 +11,7 @@ specialized orchestrators (VariableDiscovery, OutputOrchestrator, FeatureDetecto
 
 from __future__ import annotations
 
+from copy import deepcopy
 import logging
 from typing import Any, Callable
 
@@ -371,7 +372,7 @@ class ScannerContext:
             dict[str, Any]: Features detected in phase 2 (feature detection).
                             Type: FeaturesContext when fully populated.
         """
-        return self._detected_features
+        return deepcopy(self._detected_features)
 
     @property
     def scan_metadata(self) -> dict[str, Any]:
@@ -383,4 +384,4 @@ class ScannerContext:
             dict[str, Any]: Metadata dict flowing through all phases.
                             Type: ScanMetadata when fully populated.
         """
-        return self._scan_metadata
+        return deepcopy(self._scan_metadata)

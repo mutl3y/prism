@@ -40,17 +40,17 @@ class DIContainer:
         self._mocks: dict[str, Any] = {}
 
     def factory_scanner_context(self) -> ScannerContext:
-        """Create ScannerContext orchestrator with lazy caching for reuse."""
-        key = "scanner_context"
-        if key not in self._cache:
-            from .scanner_context import ScannerContext
+        """Block direct ScannerContext factory usage without runtime seam wiring.
 
-            self._cache[key] = ScannerContext(
-                di=self,
-                role_path=self._role_path,
-                scan_options=self._scan_options,
-            )
-        return self._cache[key]
+        ScannerContext requires a canonical ``prepare_scan_context_fn`` runtime seam
+        to orchestrate safely. The DI container intentionally does not infer or
+        auto-wire that seam because doing so would require scanner-facade coupling.
+        """
+        raise RuntimeError(
+            "factory_scanner_context is disabled: ScannerContext requires "
+            "prepare_scan_context_fn runtime seam injection. "
+            "Construct ScannerContext directly with prepare_scan_context_fn."
+        )
 
     def factory_variable_discovery(self) -> VariableDiscovery:
         """Create VariableDiscovery analyzer with caching for reuse.
