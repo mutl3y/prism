@@ -11,11 +11,34 @@ specialized orchestrators (VariableDiscovery, OutputOrchestrator, FeatureDetecto
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Callable
 
 from . import scan_request
 from .di import DIContainer
+
+
+_REQUIRED_SCAN_OPTION_KEYS: set[str] = {
+    "role_path",
+    "role_name_override",
+    "readme_config_path",
+    "include_vars_main",
+    "exclude_path_patterns",
+    "detailed_catalog",
+    "include_task_parameters",
+    "include_task_runbooks",
+    "inline_task_runbooks",
+    "include_collection_checks",
+    "keep_unknown_style_sections",
+    "adopt_heading_mode",
+    "vars_seed_paths",
+    "style_readme_path",
+    "style_source_path",
+    "style_guide_skeleton",
+    "compare_role_path",
+    "fail_on_unconstrained_dynamic_includes",
+    "fail_on_yaml_like_task_annotations",
+    "ignore_unresolved_internal_underscore_references",
+}
 
 
 class ScannerContext:
@@ -216,48 +239,14 @@ class ScannerContext:
         Returns:
             dict[str, Any]: Payload ready for output emission (immutable from perspective of caller).
         """
-        required_scan_option_keys = {
-            "role_path",
-            "role_name_override",
-            "readme_config_path",
-            "include_vars_main",
-            "exclude_path_patterns",
-            "detailed_catalog",
-            "include_task_parameters",
-            "include_task_runbooks",
-            "inline_task_runbooks",
-            "include_collection_checks",
-            "keep_unknown_style_sections",
-            "adopt_heading_mode",
-            "vars_seed_paths",
-            "style_readme_path",
-            "style_source_path",
-            "style_guide_skeleton",
-            "compare_role_path",
-            "fail_on_unconstrained_dynamic_includes",
-            "fail_on_yaml_like_task_annotations",
-            "ignore_unresolved_internal_underscore_references",
-        }
-
-        # Preserve sparse-option compatibility for ScannerContext unit/integration usage.
-        if not required_scan_option_keys.issubset(self._scan_options):
-            role_name = str(self._scan_options.get("role_name_override") or "").strip()
-            if not role_name:
-                role_name = Path(self._role_path).name or self._role_path
-
-            metadata = dict(self._scan_metadata)
-            if "features" not in metadata and self._detected_features:
-                metadata["features"] = dict(self._detected_features)
-            self._scan_metadata = metadata
-
-            return {
-                "role_name": role_name,
-                "description": "",
-                "display_variables": {},
-                "requirements_display": [],
-                "undocumented_default_filters": [],
-                "metadata": metadata,
-            }
+        missing_keys = sorted(
+            key for key in _REQUIRED_SCAN_OPTION_KEYS if key not in self._scan_options
+        )
+        if missing_keys:
+            raise ValueError(
+                "scan_options missing required canonical keys: "
+                + ", ".join(missing_keys)
+            )
 
         normalized_scan_options = self._build_run_scan_options_fn(
             role_path=str(self._scan_options.get("role_path") or self._role_path),
@@ -301,8 +290,8 @@ class ScannerContext:
         )
 
         if self._prepare_scan_context_fn is None:
-            raise RuntimeError(
-                "prepare_scan_context_fn must be provided when using normalized scan options"
+            raise ValueError(
+                "prepare_scan_context_fn must be provided for canonical ScannerContext orchestration"
             )
 
         (

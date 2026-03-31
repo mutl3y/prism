@@ -15,8 +15,47 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 
+from prism import scanner
+from prism.scanner_core import scan_request
 from prism.scanner_core import DIContainer, ScannerContext
+
+
+def _canonical_scan_options(role_path: str) -> dict:
+    return scan_request.build_run_scan_options(
+        role_path=role_path,
+        role_name_override=None,
+        readme_config_path=None,
+        include_vars_main=True,
+        exclude_path_patterns=None,
+        detailed_catalog=False,
+        include_task_parameters=True,
+        include_task_runbooks=True,
+        inline_task_runbooks=True,
+        include_collection_checks=True,
+        keep_unknown_style_sections=True,
+        adopt_heading_mode=None,
+        vars_seed_paths=None,
+        style_readme_path=None,
+        style_source_path=None,
+        style_guide_skeleton=False,
+        compare_role_path=None,
+        fail_on_unconstrained_dynamic_includes=None,
+        fail_on_yaml_like_task_annotations=None,
+        ignore_unresolved_internal_underscore_references=False,
+    )
+
+
+def _build_context(role_path: str) -> ScannerContext:
+    scan_options = _canonical_scan_options(role_path)
+    di = DIContainer(role_path=role_path, scan_options=scan_options)
+    return ScannerContext(
+        di=di,
+        role_path=role_path,
+        scan_options=scan_options,
+        prepare_scan_context_fn=scanner._prepare_scan_context,
+    )
 
 
 class TestScannerIntegrationEndToEnd:
@@ -26,21 +65,7 @@ class TestScannerIntegrationEndToEnd:
         self, empty_test_role: Path
     ) -> None:
         """Full scan workflow with empty role produces valid payload."""
-        di = DIContainer(
-            role_path=str(empty_test_role),
-            scan_options={
-                "role_path": str(empty_test_role),
-                "include_vars_main": True,
-                "exclude_path_patterns": None,
-                "vars_seed_paths": None,
-                "ignore_unresolved_internal_underscore_references": False,
-            },
-        )
-        context = ScannerContext(
-            di=di,
-            role_path=str(empty_test_role),
-            scan_options=di._scan_options,
-        )
+        context = _build_context(str(empty_test_role))
 
         # Full orchestration
         payload = context.orchestrate_scan()
@@ -54,21 +79,7 @@ class TestScannerIntegrationEndToEnd:
         self, basic_test_role: Path
     ) -> None:
         """Full scan workflow with basic role discovers variables."""
-        di = DIContainer(
-            role_path=str(basic_test_role),
-            scan_options={
-                "role_path": str(basic_test_role),
-                "include_vars_main": True,
-                "exclude_path_patterns": None,
-                "vars_seed_paths": None,
-                "ignore_unresolved_internal_underscore_references": False,
-            },
-        )
-        context = ScannerContext(
-            di=di,
-            role_path=str(basic_test_role),
-            scan_options=di._scan_options,
-        )
+        context = _build_context(str(basic_test_role))
 
         # Full orchestration
         payload = context.orchestrate_scan()
@@ -82,21 +93,7 @@ class TestScannerIntegrationEndToEnd:
         self, complex_test_role: Path
     ) -> None:
         """Full scan workflow with complex role analyzes features."""
-        di = DIContainer(
-            role_path=str(complex_test_role),
-            scan_options={
-                "role_path": str(complex_test_role),
-                "include_vars_main": True,
-                "exclude_path_patterns": None,
-                "vars_seed_paths": None,
-                "ignore_unresolved_internal_underscore_references": False,
-            },
-        )
-        context = ScannerContext(
-            di=di,
-            role_path=str(complex_test_role),
-            scan_options=di._scan_options,
-        )
+        context = _build_context(str(complex_test_role))
 
         # Full orchestration
         payload = context.orchestrate_scan()
@@ -110,21 +107,7 @@ class TestScannerIntegrationEndToEnd:
         self, basic_test_role: Path
     ) -> None:
         """Payload includes complete metadata after orchestration."""
-        di = DIContainer(
-            role_path=str(basic_test_role),
-            scan_options={
-                "role_path": str(basic_test_role),
-                "include_vars_main": True,
-                "exclude_path_patterns": None,
-                "vars_seed_paths": None,
-                "ignore_unresolved_internal_underscore_references": False,
-            },
-        )
-        context = ScannerContext(
-            di=di,
-            role_path=str(basic_test_role),
-            scan_options=di._scan_options,
-        )
+        context = _build_context(str(basic_test_role))
 
         payload = context.orchestrate_scan()
 
@@ -136,52 +119,19 @@ class TestScannerIntegrationEndToEnd:
     def test_scanner_context_handles_missing_role_gracefully(
         self,
     ) -> None:
-        """Scanner handles missing role path gracefully."""
+        """ScannerContext raises explicitly when role path does not exist."""
         missing_role = "/tmp/nonexistent_test_role_12345"
 
-        di = DIContainer(
-            role_path=missing_role,
-            scan_options={
-                "role_path": missing_role,
-                "include_vars_main": True,
-                "exclude_path_patterns": None,
-                "vars_seed_paths": None,
-                "ignore_unresolved_internal_underscore_references": False,
-            },
-        )
-        context = ScannerContext(
-            di=di,
-            role_path=missing_role,
-            scan_options=di._scan_options,
-        )
+        context = _build_context(missing_role)
 
-        # Orchestration should handle missing path
-        payload = context.orchestrate_scan()
-
-        # Payload should still be valid dict (not raise exception)
-        assert isinstance(payload, dict)
-        # Empty display_variables expected for missing role
-        assert isinstance(payload.get("display_variables"), dict)
+        with pytest.raises(FileNotFoundError, match="role path not found"):
+            context.orchestrate_scan()
 
     def test_scanner_context_discovered_variables_contain_all_phases(
         self, basic_test_role: Path
     ) -> None:
         """Discovered variables include both static and referenced sources."""
-        di = DIContainer(
-            role_path=str(basic_test_role),
-            scan_options={
-                "role_path": str(basic_test_role),
-                "include_vars_main": True,
-                "exclude_path_patterns": None,
-                "vars_seed_paths": None,
-                "ignore_unresolved_internal_underscore_references": False,
-            },
-        )
-        context = ScannerContext(
-            di=di,
-            role_path=str(basic_test_role),
-            scan_options=di._scan_options,
-        )
+        context = _build_context(str(basic_test_role))
 
         context.orchestrate_scan()
 
@@ -193,21 +143,7 @@ class TestScannerIntegrationEndToEnd:
         self, basic_test_role: Path
     ) -> None:
         """ScannerContext maintains immutable state after orchestration."""
-        di = DIContainer(
-            role_path=str(basic_test_role),
-            scan_options={
-                "role_path": str(basic_test_role),
-                "include_vars_main": True,
-                "exclude_path_patterns": None,
-                "vars_seed_paths": None,
-                "ignore_unresolved_internal_underscore_references": False,
-            },
-        )
-        context = ScannerContext(
-            di=di,
-            role_path=str(basic_test_role),
-            scan_options=di._scan_options,
-        )
+        context = _build_context(str(basic_test_role))
 
         # First orchestration
         payload1 = context.orchestrate_scan()

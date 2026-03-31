@@ -21,7 +21,9 @@ from pathlib import Path
 
 import pytest
 
+from prism import scanner
 from prism.scanner_core import DIContainer
+from prism.scanner_core import scan_request
 from prism.scanner_core.scanner_context import ScannerContext
 from prism.scanner_core.variable_discovery import VariableDiscovery
 from prism.scanner_core.output_orchestrator import OutputOrchestrator
@@ -232,18 +234,38 @@ class TestImmutableDataFlow:
         )
 
         self.role_path = str(role_path)
-        self.options = {
-            "role_path": self.role_path,
-            "include_vars_main": True,
-            "exclude_path_patterns": None,
-            "vars_seed_paths": None,
-            "ignore_unresolved_internal_underscore_references": False,
-        }
+        self.options = scan_request.build_run_scan_options(
+            role_path=self.role_path,
+            role_name_override=None,
+            readme_config_path=None,
+            include_vars_main=True,
+            exclude_path_patterns=None,
+            detailed_catalog=False,
+            include_task_parameters=True,
+            include_task_runbooks=True,
+            inline_task_runbooks=True,
+            include_collection_checks=True,
+            keep_unknown_style_sections=True,
+            adopt_heading_mode=None,
+            vars_seed_paths=None,
+            style_readme_path=None,
+            style_source_path=None,
+            style_guide_skeleton=False,
+            compare_role_path=None,
+            fail_on_unconstrained_dynamic_includes=None,
+            fail_on_yaml_like_task_annotations=None,
+            ignore_unresolved_internal_underscore_references=False,
+        )
 
     def test_scanner_context_orchestrate_returns_immutable_payload(self):
         """orchestrate_scan() returns a payload dict (not mutated by construction)."""
         di = DIContainer(self.role_path, self.options)
-        context = ScannerContext(di, self.role_path, self.options)
+        context = ScannerContext(
+            di,
+            self.role_path,
+            self.options,
+            prepare_scan_context_fn=scanner._prepare_scan_context,
+        )
 
         payload = context.orchestrate_scan()
 

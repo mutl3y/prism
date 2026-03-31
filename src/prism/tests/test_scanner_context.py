@@ -7,10 +7,54 @@ scanner.py infrastructure.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from prism import scanner
 from prism.scanner_core import DIContainer, ScannerContext
+
+
+def _canonical_scan_options(
+    *, role_path: str = "/path/to/role", role_name_override: str | None = None
+) -> dict[str, object]:
+    return {
+        "role_path": role_path,
+        "role_name_override": role_name_override,
+        "readme_config_path": None,
+        "include_vars_main": True,
+        "exclude_path_patterns": None,
+        "detailed_catalog": False,
+        "include_task_parameters": True,
+        "include_task_runbooks": True,
+        "inline_task_runbooks": True,
+        "include_collection_checks": True,
+        "keep_unknown_style_sections": True,
+        "adopt_heading_mode": None,
+        "vars_seed_paths": None,
+        "style_readme_path": None,
+        "style_source_path": None,
+        "style_guide_skeleton": False,
+        "compare_role_path": None,
+        "fail_on_unconstrained_dynamic_includes": None,
+        "fail_on_yaml_like_task_annotations": None,
+        "ignore_unresolved_internal_underscore_references": None,
+    }
+
+
+def _prepare_scan_context_stub(scan_options: dict[str, object]):
+    role_path = str(scan_options["role_path"])
+    role_name = str(scan_options.get("role_name_override") or "").strip()
+    if not role_name:
+        role_name = Path(role_path).name or role_path
+    return (
+        role_path,
+        role_name,
+        "",
+        [],
+        [],
+        {"display_variables": {}, "metadata": {}},
+    )
 
 
 class TestScannerContextInstantiation:
@@ -72,14 +116,13 @@ class TestScannerContextOrchestration:
     @pytest.fixture
     def context(self) -> ScannerContext:
         """Provide a configured context for tests."""
-        di = DIContainer(
-            role_path="/path/to/role",
-            scan_options={"include_vars_main": True},
-        )
+        scan_options = _canonical_scan_options()
+        di = DIContainer(role_path="/path/to/role", scan_options=scan_options)
         return ScannerContext(
             di=di,
             role_path="/path/to/role",
-            scan_options={"include_vars_main": True, "detailed_catalog": False},
+            scan_options=scan_options,
+            prepare_scan_context_fn=_prepare_scan_context_stub,
         )
 
     def test_orchestrate_scan_can_be_called(self, context: ScannerContext) -> None:
@@ -116,14 +159,13 @@ class TestScannerContextOrchestration:
 
     def test_orchestrate_scan_prefers_role_name_override(self) -> None:
         """orchestrate_scan uses role_name_override when provided."""
-        di = DIContainer(
-            role_path="/path/to/role",
-            scan_options={"role_name_override": "custom_role"},
-        )
+        scan_options = _canonical_scan_options(role_name_override="custom_role")
+        di = DIContainer(role_path="/path/to/role", scan_options=scan_options)
         context = ScannerContext(
             di=di,
             role_path="/path/to/role",
-            scan_options={"role_name_override": "custom_role"},
+            scan_options=scan_options,
+            prepare_scan_context_fn=_prepare_scan_context_stub,
         )
 
         result = context.orchestrate_scan()
@@ -166,14 +208,13 @@ class TestScannerContextStateImmutability:
     @pytest.fixture
     def context(self) -> ScannerContext:
         """Provide a configured context for tests."""
-        di = DIContainer(
-            role_path="/path/to/role",
-            scan_options={},
-        )
+        scan_options = _canonical_scan_options()
+        di = DIContainer(role_path="/path/to/role", scan_options=scan_options)
         return ScannerContext(
             di=di,
             role_path="/path/to/role",
-            scan_options={},
+            scan_options=scan_options,
+            prepare_scan_context_fn=_prepare_scan_context_stub,
         )
 
     def test_discovered_variables_property_exists(
@@ -247,14 +288,13 @@ class TestScannerContextPhaseCoordination:
     @pytest.fixture
     def context(self) -> ScannerContext:
         """Provide a configured context for tests."""
-        di = DIContainer(
-            role_path="/path/to/role",
-            scan_options={},
-        )
+        scan_options = _canonical_scan_options()
+        di = DIContainer(role_path="/path/to/role", scan_options=scan_options)
         return ScannerContext(
             di=di,
             role_path="/path/to/role",
-            scan_options={"include_vars_main": True},
+            scan_options=scan_options,
+            prepare_scan_context_fn=_prepare_scan_context_stub,
         )
 
     def test_orchestrate_scan_runs_all_phases(self, context: ScannerContext) -> None:
@@ -300,7 +340,8 @@ class TestScannerContextPhaseCoordination:
             def detect(self) -> dict[str, object]:
                 return {"tasks_scanned": 1}
 
-        di = DIContainer(role_path="/path/to/role", scan_options={})
+        scan_options = _canonical_scan_options()
+        di = DIContainer(role_path="/path/to/role", scan_options=scan_options)
         calls = {"discovery": 0, "detector": 0}
 
         discovery = _Discovery()
@@ -317,7 +358,12 @@ class TestScannerContextPhaseCoordination:
         di.factory_variable_discovery = _factory_discovery  # type: ignore[method-assign]
         di.factory_feature_detector = _factory_detector  # type: ignore[method-assign]
 
-        context = ScannerContext(di=di, role_path="/path/to/role", scan_options={})
+        context = ScannerContext(
+            di=di,
+            role_path="/path/to/role",
+            scan_options=scan_options,
+            prepare_scan_context_fn=_prepare_scan_context_stub,
+        )
 
         context.orchestrate_scan()
 
@@ -331,14 +377,13 @@ class TestScannerContextDataFlow:
     @pytest.fixture
     def context(self) -> ScannerContext:
         """Provide a configured context for tests."""
-        di = DIContainer(
-            role_path="/path/to/role",
-            scan_options={"include_vars_main": True, "detailed_catalog": False},
-        )
+        scan_options = _canonical_scan_options()
+        di = DIContainer(role_path="/path/to/role", scan_options=scan_options)
         return ScannerContext(
             di=di,
             role_path="/path/to/role",
-            scan_options={"include_vars_main": True, "detailed_catalog": False},
+            scan_options=scan_options,
+            prepare_scan_context_fn=_prepare_scan_context_stub,
         )
 
     def test_payload_structure_matches_contract(self, context: ScannerContext) -> None:
@@ -408,32 +453,52 @@ class TestScannerContextIntegration:
 
     def test_scanner_context_can_orchestrate_minimal_role(self) -> None:
         """ScannerContext orchestration completes without errors on minimal config."""
-        di = DIContainer(
-            role_path="/path/to/role",
-            scan_options={},
-        )
+        scan_options = _canonical_scan_options()
+        di = DIContainer(role_path="/path/to/role", scan_options=scan_options)
         context = ScannerContext(
             di=di,
             role_path="/path/to/role",
-            scan_options={},
+            scan_options=scan_options,
+            prepare_scan_context_fn=_prepare_scan_context_stub,
         )
         # Should complete without exception
         payload = context.orchestrate_scan()
         assert payload is not None
         assert "role_name" in payload
 
-    def test_scanner_context_from_di_factory_orchestrates(self) -> None:
-        """DI factory should provide canonical ScannerContext wiring."""
+    def test_scanner_context_from_di_factory_requires_prepare_hook(self) -> None:
+        """DI factory context should fail explicitly until runtime hooks are wired."""
         di = DIContainer(
             role_path="/path/to/role",
-            scan_options={"include_vars_main": True},
+            scan_options=_canonical_scan_options(),
         )
 
         context = di.factory_scanner_context()
-        payload = context.orchestrate_scan()
 
         assert isinstance(context, ScannerContext)
-        assert payload["role_name"] == "role"
+        with pytest.raises(
+            ValueError, match="prepare_scan_context_fn must be provided"
+        ):
+            context.orchestrate_scan()
+
+
+def test_scanner_context_orchestrate_scan_rejects_sparse_scan_options():
+    """Sparse scan_options should fail with explicit canonical contract error."""
+    di = DIContainer(
+        role_path="/path/to/role",
+        scan_options={"include_vars_main": True},
+    )
+    context = ScannerContext(
+        di=di,
+        role_path="/path/to/role",
+        scan_options={"include_vars_main": True},
+        prepare_scan_context_fn=_prepare_scan_context_stub,
+    )
+
+    with pytest.raises(
+        ValueError, match="scan_options missing required canonical keys"
+    ):
+        context.orchestrate_scan()
 
 
 def test_scanner_context_runtime_path_uses_canonical_modules(monkeypatch):
