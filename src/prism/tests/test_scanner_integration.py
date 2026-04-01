@@ -18,6 +18,7 @@ from typing import cast
 
 import pytest
 
+from prism import errors as prism_errors
 from prism import scanner
 from prism.scanner_core import scan_request
 from prism.scanner_core import DIContainer, ScannerContext
@@ -210,7 +211,11 @@ class TestScannerIntegrationEndToEnd:
 
         class _FailingDiscovery:
             def discover(self) -> tuple[object, ...]:
-                raise RuntimeError("discovery exploded")
+                raise prism_errors.PrismRuntimeError(
+                    code=prism_errors.ROLE_SCAN_RUNTIME_ERROR,
+                    category=prism_errors.ERROR_CATEGORY_RUNTIME,
+                    message="discovery exploded",
+                )
 
         def fake_emit_scan_outputs(args: dict[str, object]) -> str:
             captured["metadata"] = args["metadata"]
@@ -235,5 +240,5 @@ class TestScannerIntegrationEndToEnd:
         scan_errors = cast(list[dict[str, str]], metadata["scan_errors"])
         assert metadata["scan_degraded"] is True
         assert scan_errors[0]["phase"] == "discovery"
-        assert scan_errors[0]["error_type"] == "RuntimeError"
-        assert scan_errors[0]["message"] == "discovery exploded"
+        assert scan_errors[0]["error_type"] == "PrismRuntimeError"
+        assert "discovery exploded" in scan_errors[0]["message"]
