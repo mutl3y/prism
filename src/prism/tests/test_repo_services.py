@@ -2,6 +2,7 @@ import json
 import pytest
 
 from prism import repo_services
+from prism import errors as prism_errors
 
 
 def test_normalize_repo_scan_result_payload_supports_dict_payloads():
@@ -96,3 +97,17 @@ def test_normalize_repo_scan_result_payload_rejects_invalid_style_guide_shape():
             payload,
             repo_style_readme_path="README.md",
         )
+
+
+def test_build_repo_intake_error_preserves_classified_dimensions():
+    exc = RuntimeError("boom")
+    err = repo_services.build_repo_intake_error(
+        code=prism_errors.REPO_SPARSE_CHECKOUT_FAILED,
+        message="sparse checkout failed",
+        cause=exc,
+    )
+
+    assert err["code"] == prism_errors.REPO_SPARSE_CHECKOUT_FAILED
+    assert err["category"] == prism_errors.ERROR_CATEGORY_REPO
+    assert err["message"] == "sparse checkout failed"
+    assert err["cause_type"] == "RuntimeError"

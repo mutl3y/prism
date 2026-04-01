@@ -13,6 +13,30 @@ from typing import Any
 import yaml
 
 from .collection_plugins import scan_collection_plugins
+from .errors import (
+    ERROR_CATEGORY_RUNTIME,
+    FailurePolicy,
+    PrismRuntimeError,
+    REPO_SCAN_PAYLOAD_JSON_INVALID,
+    REPO_SCAN_PAYLOAD_SHAPE_INVALID,
+    REPO_SCAN_PAYLOAD_TYPE_INVALID,
+    ROLE_CONTENT_ENCODING_INVALID,
+    ROLE_CONTENT_INVALID,
+    ROLE_CONTENT_IO_ERROR,
+    ROLE_CONTENT_JSON_INVALID,
+    ROLE_CONTENT_MISSING,
+    ROLE_CONTENT_YAML_INVALID,
+    ROLE_METADATA_YAML_INVALID,
+    ROLE_POLICY_CONFIG_YAML_INVALID,
+    ROLE_README_MARKER_CONFIG_YAML_INVALID,
+    ROLE_README_SECTION_CONFIG_YAML_INVALID,
+    ROLE_SCAN_FAILED,
+    ROLE_SCAN_RUNTIME_ERROR,
+    SCAN_ROLE_PAYLOAD_JSON_INVALID,
+    SCAN_ROLE_PAYLOAD_SHAPE_INVALID,
+    SCAN_ROLE_PAYLOAD_TYPE_INVALID,
+    to_failure_detail,
+)
 from .repo_services import (
     build_lightweight_sparse_clone_paths as _build_lightweight_sparse_clone_paths,
     build_repo_style_readme_candidates as _repo_build_repo_style_readme_candidates,
@@ -33,6 +57,7 @@ from .repo_services import (
 )
 from .scanner import run_scan
 from .scanner_analysis import render_runbook, render_runbook_csv
+from .scanner_data.contracts import CollectionScanResult, RepoScanResult, RoleScanResult
 from .scanner_readme import render_readme
 
 # Compatibility export for downstream imports and parity checks with CLI/helpers.
@@ -51,34 +76,31 @@ _COLLECTION_ROLE_CONTENT_RECOVERABLE_ERRORS = (
 )
 
 _COLLECTION_ROLE_FAILURE_CODES: tuple[tuple[type[Exception], str, str], ...] = (
-    (FileNotFoundError, "role_content_missing", "io"),
-    (UnicodeDecodeError, "role_content_encoding_invalid", "io"),
-    (json.JSONDecodeError, "role_content_json_invalid", "parser"),
-    (yaml.YAMLError, "role_content_yaml_invalid", "parser"),
-    (OSError, "role_content_io_error", "io"),
-    (ValueError, "role_content_invalid", "validation"),
-    (RuntimeError, "role_scan_runtime_error", "runtime"),
+    (FileNotFoundError, ROLE_CONTENT_MISSING, "io"),
+    (UnicodeDecodeError, ROLE_CONTENT_ENCODING_INVALID, "io"),
+    (json.JSONDecodeError, ROLE_CONTENT_JSON_INVALID, "parser"),
+    (yaml.YAMLError, ROLE_CONTENT_YAML_INVALID, "parser"),
+    (OSError, ROLE_CONTENT_IO_ERROR, "io"),
+    (ValueError, ROLE_CONTENT_INVALID, "validation"),
+    (RuntimeError, ROLE_SCAN_RUNTIME_ERROR, "runtime"),
 )
 
 _COLLECTION_ROLE_RUNTIME_DETAIL_CODES: dict[str, tuple[str, str]] = {
-    "POLICY_CONFIG_YAML_INVALID": ("role_policy_config_yaml_invalid", "config"),
+    "POLICY_CONFIG_YAML_INVALID": (ROLE_POLICY_CONFIG_YAML_INVALID, "config"),
     "README_MARKER_CONFIG_YAML_INVALID": (
-        "role_readme_marker_config_yaml_invalid",
+        ROLE_README_MARKER_CONFIG_YAML_INVALID,
         "config",
     ),
     "README_SECTION_CONFIG_YAML_INVALID": (
-        "role_readme_section_config_yaml_invalid",
+        ROLE_README_SECTION_CONFIG_YAML_INVALID,
         "config",
     ),
-    "ROLE_METADATA_YAML_INVALID": ("role_metadata_yaml_invalid", "config"),
+    "ROLE_METADATA_YAML_INVALID": (ROLE_METADATA_YAML_INVALID, "config"),
 }
 
-SCAN_ROLE_PAYLOAD_JSON_INVALID = "SCAN_ROLE_PAYLOAD_JSON_INVALID"
-SCAN_ROLE_PAYLOAD_TYPE_INVALID = "SCAN_ROLE_PAYLOAD_TYPE_INVALID"
-SCAN_ROLE_PAYLOAD_SHAPE_INVALID = "SCAN_ROLE_PAYLOAD_SHAPE_INVALID"
-
-
 def _collection_role_runtime_detail_code(exc: Exception) -> str | None:
+    if isinstance(exc, PrismRuntimeError):
+        return exc.code
     if not isinstance(exc, RuntimeError):
         return None
     detail_code, separator, _message = str(exc).partition(":")
@@ -93,6 +115,9 @@ def _collection_role_runtime_detail_code(exc: Exception) -> str | None:
 
 
 def _collection_role_failure_details(exc: Exception) -> tuple[str, str, str | None]:
+    if isinstance(exc, PrismRuntimeError):
+        return exc.code, exc.category, exc.code
+
     detail_code = _collection_role_runtime_detail_code(exc)
     if detail_code is not None:
         runtime_details = _COLLECTION_ROLE_RUNTIME_DETAIL_CODES.get(detail_code)
@@ -103,17 +128,20 @@ def _collection_role_failure_details(exc: Exception) -> tuple[str, str, str | No
     for error_type, code, category in _COLLECTION_ROLE_FAILURE_CODES:
         if isinstance(exc, error_type):
             return code, category, detail_code
-    return "role_scan_failed", "runtime", detail_code
+    return ROLE_SCAN_FAILED, ERROR_CATEGORY_RUNTIME, detail_code
 
 
-def _parse_scan_role_payload(payload: str) -> dict[str, Any]:
+def _parse_scan_role_payload(payload: str | dict[str, Any]) -> dict[str, Any]:
     """Parse run_scan JSON payload with explicit classification at the API boundary."""
-    try:
-        parsed = json.loads(payload)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"{SCAN_ROLE_PAYLOAD_JSON_INVALID}: scan_role received invalid JSON payload"
-        ) from exc
+    if isinstance(payload, dict):
+        parsed = payload
+    else:
+        try:
+            parsed = json.loads(payload)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                f"{SCAN_ROLE_PAYLOAD_JSON_INVALID}: scan_role received invalid JSON payload"
+            ) from exc
 
     if not isinstance(parsed, dict):
         raise RuntimeError(
@@ -131,6 +159,46 @@ def _parse_scan_role_payload(payload: str) -> dict[str, Any]:
         )
 
     return parsed
+
+
+def _build_failure_record(
+    *,
+    role_name: str,
+    role_path: str,
+    exc: Exception,
+    include_traceback: bool,
+) -> dict[str, Any]:
+    error_code, error_category, error_detail_code = _collection_role_failure_details(exc)
+    traceback_text = (
+        "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+        if include_traceback
+        else None
+    )
+    detail = to_failure_detail(
+        code=error_code,
+        message=str(exc),
+        detail_code=error_detail_code,
+        source=role_path,
+        cause=exc,
+        traceback_text=traceback_text,
+    )
+    failure = {
+        "role": role_name,
+        "path": role_path,
+        "error_code": detail["code"],
+        "error_category": detail["category"],
+        "error_type": detail.get("cause_type", type(exc).__name__),
+        "error": detail["message"],
+        "code": detail["code"],
+        "category": detail["category"],
+        "message": detail["message"],
+    }
+    if error_detail_code is not None:
+        failure["error_detail_code"] = error_detail_code
+        failure["detail_code"] = error_detail_code
+    if traceback_text:
+        failure["traceback"] = traceback_text
+    return failure
 
 
 def _load_yaml_document(path: Path) -> dict[str, Any] | list[Any] | None:
@@ -336,7 +404,7 @@ def scan_collection(
     runbook_output_dir: str | None = None,
     runbook_csv_output_dir: str | None = None,
     include_traceback: bool = False,
-) -> dict[str, Any]:
+) -> CollectionScanResult:
     """Scan an Ansible collection root and return per-role payloads + metadata."""
     # Auto-enable task catalog collection when runbook output is requested.
     if (runbook_output_dir or runbook_csv_output_dir) and not detailed_catalog:
@@ -430,24 +498,14 @@ def scan_collection(
                 }
             )
         except _COLLECTION_ROLE_CONTENT_RECOVERABLE_ERRORS as exc:
-            error_code, error_category, error_detail_code = (
-                _collection_role_failure_details(exc)
-            )
-            failure = {
-                "role": role_dir.name,
-                "path": str(role_dir),
-                "error_code": error_code,
-                "error_category": error_category,
-                "error_type": type(exc).__name__,
-                "error": str(exc),
-            }
-            if error_detail_code is not None:
-                failure["error_detail_code"] = error_detail_code
-            if include_traceback:
-                failure["traceback"] = "".join(
-                    traceback.format_exception(type(exc), exc, exc.__traceback__)
+            failures.append(
+                _build_failure_record(
+                    role_name=role_dir.name,
+                    role_path=str(role_dir),
+                    exc=exc,
+                    include_traceback=include_traceback,
                 )
-            failures.append(failure)
+            )
             continue
 
     dependencies = _aggregate_collection_dependencies(root)
@@ -478,8 +536,12 @@ def _normalize_repo_style_guide_path(
             payload,
             repo_style_readme_path=repo_style_readme_path,
         )
-    except RuntimeError as exc:
-        if str(exc).startswith("REPO_SCAN_PAYLOAD_"):
+    except PrismRuntimeError as exc:
+        if exc.code in {
+            REPO_SCAN_PAYLOAD_JSON_INVALID,
+            REPO_SCAN_PAYLOAD_TYPE_INVALID,
+            REPO_SCAN_PAYLOAD_SHAPE_INVALID,
+        }:
             return payload
         raise
     if isinstance(normalized_payload, dict):
@@ -513,7 +575,8 @@ def scan_role(
     include_task_parameters: bool = True,
     include_task_runbooks: bool = True,
     inline_task_runbooks: bool = True,
-) -> dict[str, Any]:
+    failure_policy: FailurePolicy | None = None,
+) -> RoleScanResult:
     """Return the scanner payload as a Python dictionary.
 
     External orchestrators should prefer this wrapper over importing internal
@@ -551,6 +614,7 @@ def scan_role(
         include_task_parameters=include_task_parameters,
         include_task_runbooks=include_task_runbooks,
         inline_task_runbooks=inline_task_runbooks,
+        failure_policy=failure_policy,
         dry_run=True,
     )
     return _parse_scan_role_payload(payload)
@@ -585,7 +649,8 @@ def scan_repo(
     include_task_parameters: bool = True,
     include_task_runbooks: bool = True,
     inline_task_runbooks: bool = True,
-) -> dict[str, Any]:
+    failure_policy: FailurePolicy | None = None,
+) -> RepoScanResult:
     """Clone a repository source, scan the requested role path, and return a dict.
 
     This mirrors the CLI repo-intake path but remains file-write free for callers
@@ -635,6 +700,7 @@ def scan_repo(
                 include_task_parameters=include_task_parameters,
                 include_task_runbooks=include_task_runbooks,
                 inline_task_runbooks=inline_task_runbooks,
+                failure_policy=failure_policy,
             )
             return _normalize_repo_scan_metadata_paths(
                 payload,
@@ -689,6 +755,7 @@ def scan_repo(
             include_task_parameters=include_task_parameters,
             include_task_runbooks=include_task_runbooks,
             inline_task_runbooks=inline_task_runbooks,
+            failure_policy=failure_policy,
         )
         return _normalize_repo_scan_metadata_paths(
             payload,

@@ -274,6 +274,50 @@ class ScanPhaseError(TypedDict):
     """Human-readable exception message."""
 
 
+class FailurePolicyContract(TypedDict, total=False):
+    """Request-scoped failure-policy envelope shared across runtime seams."""
+
+    strict: bool
+
+
+class FailureDetail(TypedDict, total=False):
+    """Shared warning/failure detail format for role, collection, and repo scans."""
+
+    code: str
+    category: str
+    message: str
+    detail_code: str
+    source: str
+    cause_type: str
+    traceback: str
+
+
+class RoleScanResult(TypedDict, total=False):
+    """Typed public role-scan envelope returned by prism.api.scan_role."""
+
+    role_name: str
+    description: str
+    variables: dict[str, Any]
+    requirements: list[Any]
+    default_filters: list[Any]
+    metadata: ScanMetadata
+
+
+class CollectionScanResult(TypedDict, total=False):
+    """Typed public collection-scan envelope returned by prism.api.scan_collection."""
+
+    collection: dict[str, Any]
+    dependencies: dict[str, Any]
+    plugin_catalog: dict[str, Any]
+    roles: list[dict[str, Any]]
+    failures: list[FailureDetail]
+    summary: dict[str, Any]
+
+
+class RepoScanResult(RoleScanResult, total=False):
+    """Typed public repo-scan envelope returned by prism.api.scan_repo."""
+
+
 class ScanMetadata(TypedDict, total=False):
     """Comprehensive metadata contract flowing through scanner orchestration.
 
@@ -739,12 +783,17 @@ class SectionBodyRenderResult(TypedDict):
 
 __all__ = [
     "AnnotationQualityCounters",
+    "CollectionScanResult",
     "EmitScanOutputsArgs",
+    "FailureDetail",
+    "FailurePolicyContract",
     "FeaturesContext",
     "FinalOutputPayload",
     "NormalizedScannerReportMetadata",
     "ReadmeSectionRenderInput",
     "ReferenceContext",
+    "RepoScanResult",
+    "RoleScanResult",
     "RunbookSidecarArgs",
     "RunScanOutputPayload",
     "ScanBaseContext",

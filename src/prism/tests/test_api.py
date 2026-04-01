@@ -6,6 +6,7 @@ import shutil
 import pytest
 
 from prism import api, cli, repo_services
+from prism import errors as prism_errors
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -222,6 +223,45 @@ def test_scan_role_classifies_invalid_metadata_shape(monkeypatch):
 
     with pytest.raises(RuntimeError, match="SCAN_ROLE_PAYLOAD_SHAPE_INVALID"):
         api.scan_role("/tmp/mock_role")
+
+
+def test_scan_role_accepts_in_memory_payload_without_json_roundtrip(monkeypatch):
+    expected_payload = {"role_name": "mock_role", "metadata": {"ok": True}}
+    monkeypatch.setattr(api, "run_scan", lambda *args, **kwargs: expected_payload)
+
+    payload = api.scan_role("/tmp/mock_role")
+
+    assert payload == expected_payload
+
+
+def test_collection_role_failure_uses_typed_runtime_error_code():
+    exc = prism_errors.PrismRuntimeError(
+        code=prism_errors.ROLE_METADATA_YAML_INVALID,
+        category=prism_errors.ERROR_CATEGORY_CONFIG,
+        message="meta parse failed",
+    )
+
+    error_code, error_category, error_detail_code = api._collection_role_failure_details(exc)
+
+    assert error_code == prism_errors.ROLE_METADATA_YAML_INVALID
+    assert error_category == prism_errors.ERROR_CATEGORY_CONFIG
+    assert error_detail_code == prism_errors.ROLE_METADATA_YAML_INVALID
+
+
+def test_scan_role_forwards_failure_policy_contract(monkeypatch):
+    calls: dict[str, object] = {}
+
+    def fake_run_scan(*args, **kwargs):
+        calls.update(kwargs)
+        return {"role_name": "demo", "metadata": {}}
+
+    monkeypatch.setattr(api, "run_scan", fake_run_scan)
+
+    policy = prism_errors.FailurePolicy(strict=False)
+    payload = api.scan_role("/tmp/mock_role", failure_policy=policy)
+
+    assert payload["role_name"] == "demo"
+    assert calls["failure_policy"] == policy
 
 
 def test_scan_repo_returns_payload_dict(monkeypatch, tmp_path):

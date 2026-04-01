@@ -20,6 +20,15 @@ from urllib.parse import quote, urlparse
 from urllib.request import Request, urlopen
 from typing import Any
 
+from .errors import (
+    FailureDetail,
+    PrismRuntimeError,
+    REPO_SCAN_PAYLOAD_JSON_INVALID,
+    REPO_SCAN_PAYLOAD_SHAPE_INVALID,
+    REPO_SCAN_PAYLOAD_TYPE_INVALID,
+    to_failure_detail,
+)
+
 _ROLE_MARKER_DIRS = frozenset(
     {"defaults", "files", "handlers", "meta", "tasks", "templates", "tests", "vars"}
 )
@@ -28,9 +37,21 @@ _REQUIRED_ROLE_DIR_SEQUENCE = ("defaults", "tasks", "meta")
 _SHARED_TMP_ROOT_NAME = "prism"
 _REPO_TRANSPORT_POLICY_ENV_VAR = "PRISM_REPO_TRANSPORT_POLICY"
 _REPO_TRANSPORT_POLICY_DEFAULT = "preserve"
-REPO_SCAN_PAYLOAD_JSON_INVALID = "REPO_SCAN_PAYLOAD_JSON_INVALID"
-REPO_SCAN_PAYLOAD_TYPE_INVALID = "REPO_SCAN_PAYLOAD_TYPE_INVALID"
-REPO_SCAN_PAYLOAD_SHAPE_INVALID = "REPO_SCAN_PAYLOAD_SHAPE_INVALID"
+def build_repo_intake_error(
+    *,
+    code: str,
+    message: str,
+    cause: Exception | None = None,
+    source: str | None = None,
+) -> FailureDetail:
+    """Build a normalized repo-intake failure payload."""
+
+    return to_failure_detail(
+        code=code,
+        message=message,
+        source=source,
+        cause=cause,
+    )
 
 
 def _normalize_repo_transport_policy(policy: str | None) -> str:
@@ -378,13 +399,17 @@ def _decode_repo_scan_payload_json(payload: str) -> dict[str, Any]:
     try:
         parsed_payload = json.loads(payload)
     except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"{REPO_SCAN_PAYLOAD_JSON_INVALID}: payload is not valid JSON"
+        raise PrismRuntimeError(
+            code=REPO_SCAN_PAYLOAD_JSON_INVALID,
+            category="parser",
+            message="payload is not valid JSON",
         ) from exc
 
     if not isinstance(parsed_payload, dict):
-        raise RuntimeError(
-            f"{REPO_SCAN_PAYLOAD_TYPE_INVALID}: top-level payload must be a JSON object"
+        raise PrismRuntimeError(
+            code=REPO_SCAN_PAYLOAD_TYPE_INVALID,
+            category="validation",
+            message="top-level payload must be a JSON object",
         )
 
     return parsed_payload
@@ -396,14 +421,18 @@ def _validate_repo_scan_payload_shape(payload: dict[str, Any]) -> None:
     if metadata is None:
         return
     if not isinstance(metadata, dict):
-        raise RuntimeError(
-            f"{REPO_SCAN_PAYLOAD_SHAPE_INVALID}: metadata must be a JSON object"
+        raise PrismRuntimeError(
+            code=REPO_SCAN_PAYLOAD_SHAPE_INVALID,
+            category="validation",
+            message="metadata must be a JSON object",
         )
 
     style_guide = metadata.get("style_guide")
     if style_guide is not None and not isinstance(style_guide, dict):
-        raise RuntimeError(
-            f"{REPO_SCAN_PAYLOAD_SHAPE_INVALID}: metadata.style_guide must be a JSON object"
+        raise PrismRuntimeError(
+            code=REPO_SCAN_PAYLOAD_SHAPE_INVALID,
+            category="validation",
+            message="metadata.style_guide must be a JSON object",
         )
 
 
