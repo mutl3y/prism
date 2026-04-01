@@ -16,8 +16,8 @@ import tempfile as _tempfile
 from urllib.request import urlopen
 
 from prism import cli_commands, cli_presenters
-from .feedback import apply_feedback_recommendations, load_feedback
-from .repo_services import (
+from prism.feedback import apply_feedback_recommendations, load_feedback
+from prism.repo_services import (
     _build_repo_style_readme_candidates as _repo_build_repo_style_readme_candidates,
     _build_sparse_clone_paths,
     _checkout_repo_lightweight_style_readme as _repo_checkout_repo_lightweight_style_readme,
@@ -36,7 +36,7 @@ from .repo_services import (
     _resolve_repo_scan_scanner_report_relpath,
     _resolve_style_readme_candidate,
 )
-from .scanner import parse_style_readme, resolve_default_style_guide_source, run_scan
+from prism.scanner import parse_style_readme, resolve_default_style_guide_source, run_scan
 
 # Compatibility exports for downstream imports and parity checks with API/helpers.
 _build_repo_style_readme_candidates = _repo_build_repo_style_readme_candidates
@@ -200,7 +200,7 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
 
 
 def _handle_collection_command(args: argparse.Namespace) -> int:
-    from .api import scan_collection
+    from prism.api import scan_collection
 
     return cli_commands._handle_collection_command(
         args,
