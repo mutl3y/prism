@@ -1,4 +1,5 @@
 import ast
+from pathlib import Path
 
 from prism import collection_plugins as plugins
 
@@ -247,3 +248,87 @@ def test_extract_short_description_returns_none_when_key_missing():
         plugins._extract_short_description_from_documentation("description: demo")
         is None
     )
+
+
+def test_scan_collection_plugins_records_filter_parse_failures(tmp_path):
+    plugin_dir = tmp_path / "plugins" / "filter"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "broken.py").write_text("def broken(:\n", encoding="utf-8")
+
+    catalog = plugins.scan_collection_plugins(tmp_path)
+
+    assert catalog["summary"]["files_scanned"] == 1
+    assert catalog["summary"]["files_failed"] == 1
+    assert catalog["failures"] == [
+        {
+            "relative_path": "plugins/filter/broken.py",
+            "type": "filter",
+            "category": "parse",
+            "error_type": "SyntaxError",
+            "error": catalog["failures"][0]["error"],
+            "stage": "ast_parse",
+        }
+    ]
+
+
+def test_scan_collection_plugins_records_non_filter_read_failures(
+    monkeypatch, tmp_path
+):
+    plugin_dir = tmp_path / "plugins" / "modules"
+    plugin_dir.mkdir(parents=True)
+    plugin_file = plugin_dir / "demo.py"
+    plugin_file.write_text("def run():\n    return None\n", encoding="utf-8")
+
+    original_read_text = Path.read_text
+
+    def _raise_for_demo(path: Path, *args, **kwargs):
+        if path == plugin_file:
+            raise OSError("denied")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _raise_for_demo)
+
+    catalog = plugins.scan_collection_plugins(tmp_path)
+
+    assert catalog["summary"]["files_scanned"] == 1
+    assert catalog["summary"]["files_failed"] == 1
+    assert catalog["failures"] == [
+        {
+            "relative_path": "plugins/modules/demo.py",
+            "type": "modules",
+            "category": "io",
+            "error_type": "OSError",
+            "error": "denied",
+            "stage": "read",
+        }
+    ]
+
+
+def test_scan_collection_plugins_keeps_successful_filter_extraction_stable(tmp_path):
+    plugin_dir = tmp_path / "plugins" / "filter"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "normalize.py").write_text(
+        """
+class FilterModule:
+    def filters(self):
+        return {'normalize': normalize}
+
+def normalize(value):
+    \"\"\"Normalize value.\"\"\"
+    return value
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    catalog = plugins.scan_collection_plugins(tmp_path)
+
+    assert catalog["summary"]["files_scanned"] == 1
+    assert catalog["summary"]["files_failed"] == 0
+    assert catalog["failures"] == []
+    assert len(catalog["by_type"]["filter"]) == 1
+    record = catalog["by_type"]["filter"][0]
+    assert record["name"] == "normalize"
+    assert record["symbols"] == ["normalize"]
+    assert record["extraction"]["method"] == plugins.PLUGIN_EXTRACTION_METHOD_AST
+    assert record["extraction"]["fallback_used"] is False

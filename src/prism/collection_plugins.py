@@ -53,9 +53,22 @@ class PluginRecord(TypedDict, total=False):
 class PluginScanFailure(TypedDict):
     relative_path: str
     type: str
+    category: str
     error_type: str
     error: str
     stage: str
+
+
+PluginSummaryExtraction = tuple[
+    str,
+    str,
+    str,
+    str,
+    float,
+    list[str],
+    list[str],
+    dict[str, str],
+]
 
 
 class PluginCatalogSummary(TypedDict):
@@ -127,11 +140,12 @@ def _scan_filter_plugins(
         catalog["summary"]["files_scanned"] += 1
         try:
             text = plugin_file.read_text(encoding="utf-8")
-        except Exception as exc:  # pragma: no cover - defensive IO guard
+        except (OSError, UnicodeDecodeError) as exc:
             failures.append(
                 {
                     "relative_path": relpath,
                     "type": "filter",
+                    "category": "io",
                     "error_type": type(exc).__name__,
                     "error": str(exc),
                     "stage": "read",
@@ -146,6 +160,7 @@ def _scan_filter_plugins(
                 {
                     "relative_path": relpath,
                     "type": "filter",
+                    "category": "parse",
                     "error_type": type(exc).__name__,
                     "error": str(exc),
                     "stage": "ast_parse",
@@ -195,6 +210,7 @@ def _scan_non_filter_plugins(
     catalog: PluginCatalog,
 ) -> None:
     records = catalog["by_type"][plugin_type]
+    failures = catalog["failures"]
     for plugin_file in _iter_plugin_files(plugin_dir):
         relpath = _relative_path(plugin_file, collection_root)
         catalog["summary"]["files_scanned"] += 1
@@ -217,7 +233,13 @@ def _scan_non_filter_plugins(
             },
         }
         if language == "python":
-            extracted = _extract_python_plugin_summary(plugin_file, plugin_type)
+            extracted, failure = _extract_python_plugin_summary_with_failure(
+                plugin_file,
+                plugin_type,
+                relpath,
+            )
+            if failure is not None:
+                failures.append(failure)
             if extracted is not None:
                 (
                     summary,
@@ -385,27 +407,52 @@ def _module_function_docstrings(parsed: ast.Module) -> dict[str, str]:
 def _extract_python_plugin_summary(
     plugin_file: Path,
     plugin_type: str,
-) -> (
-    tuple[
-        str,
-        str,
-        str,
-        str,
-        float,
-        list[str],
-        list[str],
-        dict[str, str],
-    ]
-    | None
-):
+) -> PluginSummaryExtraction | None:
+    extracted, _failure = _extract_python_plugin_summary_with_failure(
+        plugin_file,
+        plugin_type,
+        None,
+    )
+    return extracted
+
+
+def _extract_python_plugin_summary_with_failure(
+    plugin_file: Path,
+    plugin_type: str,
+    relative_path: str | None,
+) -> tuple[PluginSummaryExtraction | None, PluginScanFailure | None]:
     try:
         text = plugin_file.read_text(encoding="utf-8")
-    except Exception:
-        return None
+    except (OSError, UnicodeDecodeError) as exc:
+        if relative_path is None:
+            return None, None
+        return (
+            None,
+            {
+                "relative_path": relative_path,
+                "type": plugin_type,
+                "category": "io",
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+                "stage": "read",
+            },
+        )
     try:
         parsed = ast.parse(text)
-    except SyntaxError:
-        return None
+    except SyntaxError as exc:
+        if relative_path is None:
+            return None, None
+        return (
+            None,
+            {
+                "relative_path": relative_path,
+                "type": plugin_type,
+                "category": "parse",
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+                "stage": "ast_parse",
+            },
+        )
 
     documentation_blocks = _extract_documentation_literals(parsed)
     short_description = _extract_short_description_from_documentation(
@@ -416,27 +463,33 @@ def _extract_python_plugin_summary(
 
     if short_description:
         return (
-            short_description,
-            "documentation_short_description",
-            PLUGIN_EXTRACTION_METHOD_AST,
-            "medium",
-            0.70,
-            symbols,
-            capability_hints,
-            documentation_blocks,
+            (
+                short_description,
+                "documentation_short_description",
+                PLUGIN_EXTRACTION_METHOD_AST,
+                "medium",
+                0.70,
+                symbols,
+                capability_hints,
+                documentation_blocks,
+            ),
+            None,
         )
 
     if capability_hints:
         hint_text = ", ".join(capability_hints[:4])
         return (
-            f"Capability hints: {hint_text}.",
-            "class_method_hints",
-            PLUGIN_EXTRACTION_METHOD_AST,
-            "medium",
-            0.65,
-            symbols,
-            capability_hints,
-            documentation_blocks,
+            (
+                f"Capability hints: {hint_text}.",
+                "class_method_hints",
+                PLUGIN_EXTRACTION_METHOD_AST,
+                "medium",
+                0.65,
+                symbols,
+                capability_hints,
+                documentation_blocks,
+            ),
+            None,
         )
 
     module_doc = ast.get_docstring(parsed)
@@ -450,9 +503,9 @@ def _extract_python_plugin_summary(
             symbols,
             capability_hints,
             documentation_blocks,
-        )
+        ), None
 
-    return None
+    return None, None
 
 
 def _extract_documentation_literals(parsed: ast.Module) -> dict[str, str]:
