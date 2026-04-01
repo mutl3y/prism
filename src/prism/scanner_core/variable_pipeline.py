@@ -16,16 +16,13 @@ from ..scanner_analysis.metrics import (
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
 )
-from ..scanner_extract import (
+from ..scanner_extract.dataload import iter_role_argument_spec_entries
+from ..scanner_extract.discovery import load_meta
+from ..scanner_extract.task_parser import _format_inline_yaml, _load_yaml_file
+from ..scanner_extract.variable_extractor import (
     IGNORED_IDENTIFIERS,
     JINJA_IDENTIFIER_RE,
     _collect_include_vars_files,
-    iter_role_argument_spec_entries,
-    load_meta,
-    _load_yaml_file,
-)
-from ..scanner_extract.task_parser import _format_inline_yaml
-from ..scanner_extract.variable_extractor import (
     _collect_dynamic_include_vars_refs,
     _collect_dynamic_task_include_refs,
     _collect_referenced_variable_names,
@@ -41,6 +38,7 @@ from ..scanner_readme.input_parser import collect_readme_input_variables
 def collect_dynamic_task_include_tokens(
     role_path: str,
     exclude_paths: list[str] | None,
+    ignored_identifiers: set[str] | frozenset[str] | None = None,
 ) -> set[str]:
     """Collect unresolved Jinja identifier tokens from dynamic task includes."""
     dynamic_task_include_refs = _collect_dynamic_task_include_refs(
@@ -48,25 +46,36 @@ def collect_dynamic_task_include_tokens(
         exclude_paths=exclude_paths,
     )
     tokens: set[str] = set()
+    effective_ignored = (
+        set(IGNORED_IDENTIFIERS)
+        if ignored_identifiers is None
+        else set(ignored_identifiers)
+    )
     for ref in dynamic_task_include_refs:
         tokens.update(
             token
             for token in JINJA_IDENTIFIER_RE.findall(ref)
-            if token.lower() not in IGNORED_IDENTIFIERS
+            if token.lower() not in effective_ignored
         )
     return tokens
 
 
 def collect_dynamic_include_var_tokens(
     dynamic_include_vars_refs: list[str],
+    ignored_identifiers: set[str] | frozenset[str] | None = None,
 ) -> set[str]:
     """Collect unresolved Jinja identifier tokens from dynamic include_vars refs."""
     tokens: set[str] = set()
+    effective_ignored = (
+        set(IGNORED_IDENTIFIERS)
+        if ignored_identifiers is None
+        else set(ignored_identifiers)
+    )
     for ref in dynamic_include_vars_refs:
         tokens.update(
             token
             for token in JINJA_IDENTIFIER_RE.findall(ref)
-            if token.lower() not in IGNORED_IDENTIFIERS
+            if token.lower() not in effective_ignored
         )
     return tokens
 
@@ -383,16 +392,21 @@ def append_referenced_variable_rows(
     dynamic_include_vars_refs: list[str],
     dynamic_include_var_tokens: set[str],
     dynamic_task_include_tokens: set[str],
+    referenced_names: set[str] | None,
     ignore_unresolved_internal_underscore_references: bool,
     exclude_paths: list[str] | None,
+    ignored_identifiers: set[str] | frozenset[str] | None = None,
 ) -> None:
     """Append rows for referenced-but-undefined variable names."""
-    referenced_names = _collect_referenced_variable_names(
-        role_path,
-        exclude_paths=exclude_paths,
-    )
+    effective_referenced_names = referenced_names
+    if effective_referenced_names is None:
+        effective_referenced_names = _collect_referenced_variable_names(
+            role_path,
+            exclude_paths=exclude_paths,
+            ignored_identifiers=ignored_identifiers,
+        )
 
-    for name in sorted(referenced_names - known_names):
+    for name in sorted(effective_referenced_names - known_names):
         if should_suppress_internal_unresolved_reference(
             name=name,
             seed_values=seed_values,
@@ -458,19 +472,34 @@ def collect_variable_reference_context(
     seed_paths: list[str] | None,
     exclude_paths: list[str] | None,
     load_seed_variables,
+    policy_context: dict[str, Any] | None = None,
 ) -> ReferenceContext:
     """Collect seed and dynamic-reference context for inferred variable rows."""
     seed_values, seed_secrets, seed_sources = load_seed_variables(seed_paths)
+    ignored_identifiers = None
+    if policy_context:
+        raw_ignored = policy_context.get("ignored_identifiers")
+        if isinstance(raw_ignored, (set, frozenset, list, tuple)):
+            ignored_identifiers = {
+                token for token in raw_ignored if isinstance(token, str)
+            }
+    referenced_names = _collect_referenced_variable_names(
+        role_path,
+        exclude_paths=exclude_paths,
+        ignored_identifiers=ignored_identifiers,
+    )
     dynamic_include_vars_refs = _collect_dynamic_include_vars_refs(
         role_path,
         exclude_paths=exclude_paths,
     )
     dynamic_include_var_tokens = collect_dynamic_include_var_tokens(
-        dynamic_include_vars_refs
+        dynamic_include_vars_refs,
+        ignored_identifiers=ignored_identifiers,
     )
     dynamic_task_include_tokens = collect_dynamic_task_include_tokens(
         role_path,
         exclude_paths=exclude_paths,
+        ignored_identifiers=ignored_identifiers,
     )
     return {
         "seed_values": seed_values,
@@ -479,6 +508,7 @@ def collect_variable_reference_context(
         "dynamic_include_vars_refs": dynamic_include_vars_refs,
         "dynamic_include_var_tokens": dynamic_include_var_tokens,
         "dynamic_task_include_tokens": dynamic_task_include_tokens,
+        "referenced_names": referenced_names,
     }
 
 
@@ -491,6 +521,7 @@ def populate_variable_rows(
     reference_context: ReferenceContext,
     map_argument_spec_type,
     style_readme_path: str | None = None,
+    policy_context: dict[str, Any] | None = None,
     ignore_unresolved_internal_underscore_references: bool = True,
     non_authoritative_test_evidence_max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
     non_authoritative_test_evidence_max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
@@ -536,10 +567,14 @@ def populate_variable_rows(
         dynamic_include_vars_refs=reference_context["dynamic_include_vars_refs"],
         dynamic_include_var_tokens=reference_context["dynamic_include_var_tokens"],
         dynamic_task_include_tokens=reference_context["dynamic_task_include_tokens"],
+        referenced_names=reference_context.get("referenced_names"),
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),
         exclude_paths=exclude_paths,
+        ignored_identifiers=(
+            policy_context.get("ignored_identifiers") if policy_context else None
+        ),
     )
     append_readme_documented_rows(
         role_path=role_path,

@@ -33,6 +33,7 @@ from .scanner_config import (
     load_readme_section_visibility as _load_readme_section_visibility,
 )
 from .scanner_data.contracts import (
+    PolicyContext as _PolicyContext,
     ReferenceContext as _scan_context_ReferenceContext,
     ScanMetadata as _scan_context_ScanMetadata,
 )
@@ -471,6 +472,7 @@ def _collect_variable_reference_context(
     role_path: str,
     seed_paths: list[str] | None,
     exclude_paths: list[str] | None,
+    policy_context: dict | None = None,
 ) -> _scan_context_ReferenceContext:
     """Collect seed and dynamic-reference context for inferred variable rows."""
     return _variable_pipeline.collect_variable_reference_context(
@@ -478,6 +480,7 @@ def _collect_variable_reference_context(
         seed_paths=seed_paths,
         exclude_paths=exclude_paths,
         load_seed_variables=load_seed_variables,
+        policy_context=policy_context,
     )
 
 
@@ -489,6 +492,7 @@ def _populate_variable_rows(
     exclude_paths: list[str] | None,
     reference_context: _scan_context_ReferenceContext,
     style_readme_path: str | None = None,
+    policy_context: dict | None = None,
     ignore_unresolved_internal_underscore_references: bool = True,
     non_authoritative_test_evidence_max_file_bytes: int = _ANALYSIS_MAX_FILE_BYTES,
     non_authoritative_test_evidence_max_files_scanned: int = _ANALYSIS_MAX_FILES_SCANNED,
@@ -503,6 +507,7 @@ def _populate_variable_rows(
         reference_context=reference_context,
         map_argument_spec_type=_dataload_map_argument_spec_type,
         style_readme_path=style_readme_path,
+        policy_context=policy_context,
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),
@@ -529,6 +534,7 @@ def build_variable_insights(
     include_vars_main: bool = True,
     exclude_paths: list[str] | None = None,
     style_readme_path: str | None = None,
+    policy_context: dict | None = None,
     ignore_unresolved_internal_underscore_references: bool = True,
     non_authoritative_test_evidence_max_file_bytes: int = _ANALYSIS_MAX_FILE_BYTES,
     non_authoritative_test_evidence_max_files_scanned: int = _ANALYSIS_MAX_FILES_SCANNED,
@@ -541,6 +547,7 @@ def build_variable_insights(
         include_vars_main=include_vars_main,
         exclude_paths=exclude_paths,
         style_readme_path=style_readme_path,
+        policy_context=policy_context,
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),
@@ -559,6 +566,17 @@ def build_variable_insights(
         populate_variable_rows=_populate_variable_rows,
         redact_secret_defaults=_redact_secret_defaults,
     )
+
+
+def _build_policy_context_snapshot() -> _PolicyContext:
+    """Capture immutable policy values for the current scan execution."""
+    return {
+        "section_aliases": dict(STYLE_SECTION_ALIASES),
+        "ignored_identifiers": frozenset(
+            token.lower() for token in _variable_pipeline.IGNORED_IDENTIFIERS
+        ),
+        "variable_guidance_keywords": tuple(_VARIABLE_GUIDANCE_KEYWORDS),
+    }
 
 
 load_readme_marker_prefix = partial(
@@ -999,6 +1017,7 @@ def run_scan(
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),
+        policy_context=_build_policy_context_snapshot(),
     )
     scan_options["strict_phase_failures"] = bool(strict_phase_failures)
     return _execute_scan_with_context(

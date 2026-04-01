@@ -257,6 +257,10 @@ class ReferenceContext(TypedDict):
     """Set of normalized variable name tokens from dynamic includes."""
     dynamic_task_include_tokens: set[str]
     """Set of normalized variable name tokens in dynamic task includes."""
+    referenced_names: set[str]
+    """Set of referenced variable names collected once per orchestration run."""
+    ignored_identifiers: NotRequired[set[str]]
+    """Optional per-scan ignored identifier override snapshot."""
 
 
 class ScanPhaseError(TypedDict):
@@ -439,7 +443,16 @@ class ScanOptionsDict(TypedDict):
     fail_on_unconstrained_dynamic_includes: bool | None
     fail_on_yaml_like_task_annotations: bool | None
     ignore_unresolved_internal_underscore_references: bool | None
+    policy_context: NotRequired[PolicyContext | None]
     strict_phase_failures: NotRequired[bool]
+
+
+class PolicyContext(TypedDict):
+    """Per-scan immutable policy snapshot used to avoid shared global reads."""
+
+    section_aliases: dict[str, str]
+    ignored_identifiers: frozenset[str]
+    variable_guidance_keywords: tuple[str, ...]
 
 
 class ScanContextPayload(TypedDict):

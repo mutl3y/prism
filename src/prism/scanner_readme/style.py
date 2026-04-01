@@ -139,8 +139,13 @@ def format_heading(text: str, level: int, style: str) -> str:
     return f"{'#' * level} {text}"
 
 
-def parse_style_readme(style_readme_path: str) -> dict:
+def parse_style_readme(
+    style_readme_path: str,
+    *,
+    section_aliases: dict[str, str] | None = None,
+) -> dict:
     """Parse a README style guide into section order and heading styles."""
+    alias_map = section_aliases or STYLE_SECTION_ALIASES
     text = Path(style_readme_path).read_text(encoding="utf-8")
     lines = text.splitlines()
     section_level = detect_style_section_level(lines)
@@ -193,7 +198,7 @@ def parse_style_readme(style_readme_path: str) -> dict:
                 section_style = "atx"
             if level == section_level:
                 normalized_title = normalize_style_heading(title)
-                canonical = STYLE_SECTION_ALIASES.get(normalized_title, "unknown")
+                canonical = alias_map.get(normalized_title, "unknown")
                 current_section = {
                     "id": canonical,
                     "title": title,
@@ -215,7 +220,7 @@ def parse_style_readme(style_readme_path: str) -> dict:
         if re.match(r"^-+$", next_line):
             section_style = "setext"
             normalized_title = normalize_style_heading(line)
-            canonical = STYLE_SECTION_ALIASES.get(normalized_title, "unknown")
+            canonical = alias_map.get(normalized_title, "unknown")
             current_section = {
                 "id": canonical,
                 "title": line.strip(),
