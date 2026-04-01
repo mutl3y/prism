@@ -11,6 +11,7 @@ from functools import partial
 from pathlib import Path
 import re
 import threading
+from types import MappingProxyType
 
 from .scanner_io import (
     render_final_output,
@@ -118,7 +119,8 @@ _POLICY = load_pattern_config()
 # Re-entrant lock protecting policy-derived module-level globals during concurrent scans.
 _POLICY_REFRESH_LOCK = threading.RLock()
 
-STYLE_SECTION_ALIASES: dict[str, str] = _POLICY["section_aliases"]
+_STYLE_SECTION_ALIASES: dict[str, str] = dict(_POLICY["section_aliases"])
+STYLE_SECTION_ALIASES = MappingProxyType(_STYLE_SECTION_ALIASES)
 
 # Sensitivity detection tokens extracted from policy for fast tuple lookup
 _SENSITIVITY = _POLICY["sensitivity"]
@@ -211,7 +213,6 @@ def _refresh_policy(
     """
     with _POLICY_REFRESH_LOCK:
         global _POLICY
-        global STYLE_SECTION_ALIASES
         global _SENSITIVITY
         global _SECRET_NAME_TOKENS
         global _VAULT_MARKERS
@@ -225,7 +226,7 @@ def _refresh_policy(
 
         (
             _POLICY,
-            STYLE_SECTION_ALIASES,
+            _style_section_aliases,
             _SECRET_NAME_TOKENS,
             _VAULT_MARKERS,
             _CREDENTIAL_PREFIXES,
@@ -233,6 +234,8 @@ def _refresh_policy(
             _VARIABLE_GUIDANCE_KEYWORDS,
             _,
         ) = _config_refresh_policy(**refresh_kwargs)
+        _STYLE_SECTION_ALIASES.clear()
+        _STYLE_SECTION_ALIASES.update(_style_section_aliases)
         _SENSITIVITY = _POLICY["sensitivity"]
 
         from .scanner_extract import (
@@ -571,12 +574,17 @@ def build_variable_insights(
 def _build_policy_context_snapshot() -> _PolicyContext:
     """Capture immutable policy values for the current scan execution."""
     return {
-        "section_aliases": dict(STYLE_SECTION_ALIASES),
+        "section_aliases": get_style_section_aliases_snapshot(),
         "ignored_identifiers": frozenset(
             token.lower() for token in _variable_pipeline.IGNORED_IDENTIFIERS
         ),
         "variable_guidance_keywords": tuple(_VARIABLE_GUIDANCE_KEYWORDS),
     }
+
+
+def get_style_section_aliases_snapshot() -> dict[str, str]:
+    """Return an isolated copy of the currently active section alias mapping."""
+    return dict(_STYLE_SECTION_ALIASES)
 
 
 load_readme_marker_prefix = partial(
@@ -683,7 +691,7 @@ def load_readme_section_visibility(
         config_path=config_path,
         adopt_heading_mode=None,
         all_section_ids=ALL_SECTION_IDS,
-        section_aliases=STYLE_SECTION_ALIASES,
+        section_aliases=_STYLE_SECTION_ALIASES,
         normalize_heading=normalize_style_heading,
         display_titles_path=DEFAULT_SECTION_DISPLAY_TITLES_PATH,
         config_filenames=SECTION_CONFIG_FILENAMES,
@@ -703,7 +711,7 @@ def load_readme_section_config(
         config_path=config_path,
         adopt_heading_mode=adopt_heading_mode,
         all_section_ids=ALL_SECTION_IDS,
-        section_aliases=STYLE_SECTION_ALIASES,
+        section_aliases=_STYLE_SECTION_ALIASES,
         normalize_heading=normalize_style_heading,
         display_titles_path=DEFAULT_SECTION_DISPLAY_TITLES_PATH,
         strict=strict,
