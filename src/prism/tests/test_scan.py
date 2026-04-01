@@ -6,12 +6,14 @@ invoking the entrypoint in a subprocess to simulate real usage.
 
 from pathlib import Path
 import json
+import jinja2
 import pytest
 import shutil
 import subprocess
 import sys
 import threading
 
+from prism import _jinja_analyzer as jinja_analyzer
 from prism import scanner
 from prism.scanner import scan_for_all_filters, scan_for_default_filters
 from prism.scanner_analysis import metrics as analysis_metrics
@@ -211,6 +213,58 @@ def test_scan_all_filters_falls_back_to_regex_on_invalid_template(tmp_path):
     found = scan_for_all_filters(str(role))
 
     assert any(item["filter_name"] == "upper" for item in found)
+
+
+def test_scan_default_filter_classifies_expected_jinja_parser_limitations(
+    tmp_path, monkeypatch
+):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Parser limitation fallback\n"
+        "  debug:\n"
+        "    msg: \"{{ user_name | default('fallback') }}\"\n",
+        encoding="utf-8",
+    )
+
+    def raise_template_syntax_error(_text):
+        raise jinja2.exceptions.TemplateSyntaxError("invalid template", 1)
+
+    monkeypatch.setattr(
+        jinja_analyzer._JINJA_AST_ENV,
+        "parse",
+        raise_template_syntax_error,
+    )
+
+    found = scan_for_default_filters(str(role))
+
+    assert any("fallback" in item["args"] for item in found)
+
+
+def test_scan_default_filter_surfaces_unexpected_jinja_analyzer_faults(
+    tmp_path, monkeypatch
+):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "main.yml").write_text(
+        "---\n"
+        "- name: Unexpected analyzer failure\n"
+        "  debug:\n"
+        "    msg: \"{{ user_name | default('fallback') }}\"\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        jinja_analyzer._JINJA_AST_ENV,
+        "parse",
+        lambda _text: (_ for _ in ()).throw(RuntimeError("analyzer-bug")),
+    )
+
+    with pytest.raises(RuntimeError, match="analyzer-bug"):
+        scan_for_default_filters(str(role))
 
 
 def test_scan_all_filters_respects_exclude_paths(tmp_path):

@@ -31,7 +31,10 @@ def _scan_text_for_all_filters_with_ast(text: str, lines: list[str]) -> list[dic
         return []
     try:
         parsed = _JINJA_AST_ENV.parse(text)
-    except Exception:
+    except (
+        jinja2.exceptions.TemplateSyntaxError,
+        jinja2.exceptions.TemplateAssertionError,
+    ):
         return []
 
     occurrences: list[dict] = []
@@ -237,11 +240,14 @@ def _collect_undeclared_jinja_variables(text: str) -> set[str]:
         return set()
     try:
         parsed = _JINJA_AST_ENV.parse(text)
-    except Exception:
+    except (
+        jinja2.exceptions.TemplateSyntaxError,
+        jinja2.exceptions.TemplateAssertionError,
+    ):
         return set()
     try:
         return set(meta.find_undeclared_variables(parsed))
-    except Exception:
+    except jinja2.exceptions.TemplateAssertionError:
         # Some Ansible-specific filters are unknown to plain Jinja and can
         # break introspection. Fall back to AST name scanning.
         return _collect_undeclared_jinja_variables_from_ast(parsed)
@@ -274,7 +280,10 @@ def _collect_jinja_local_bindings_from_text(text: str) -> set[str]:
         return set()
     try:
         parsed = _JINJA_AST_ENV.parse(text)
-    except Exception:
+    except (
+        jinja2.exceptions.TemplateSyntaxError,
+        jinja2.exceptions.TemplateAssertionError,
+    ):
         return set()
     return _collect_jinja_local_bindings(parsed)
 
