@@ -618,7 +618,7 @@ def test_scan_repo_resolves_case_variant_repo_style_readme(monkeypatch, tmp_path
 
     assert calls["requested_paths"] == ["README.md", "Readme.md", "readme.md"]
     assert calls["sparse_paths"] == ["roles/demo"]
-    assert payload["metadata"]["style_guide"]["path"] == "readme.md"
+    assert payload["metadata"]["style_guide"]["path"] == "README.md"
 
 
 def test_scan_repo_sets_logical_scanner_report_relpath(monkeypatch, tmp_path):
@@ -656,7 +656,7 @@ def test_scan_repo_sets_logical_scanner_report_relpath(monkeypatch, tmp_path):
         scanner_report_output="reports/repo.scan.md",
     )
 
-    assert payload["metadata"]["style_guide"]["path"] == "readme.md"
+    assert payload["metadata"]["style_guide"]["path"] == "README.md"
     assert payload["metadata"]["scanner_report_relpath"] == "reports/repo.scan.md"
 
 
@@ -700,7 +700,7 @@ def test_scan_repo_normalizes_windows_scanner_report_relpath(monkeypatch, tmp_pa
         scanner_report_output=r"reports\nested\repo.scan.md",
     )
 
-    assert payload["metadata"]["style_guide"]["path"] == "readme.md"
+    assert payload["metadata"]["style_guide"]["path"] == "README.md"
     assert (
         payload["metadata"]["scanner_report_relpath"]
         == "../reports/nested/repo.scan.md"
@@ -751,7 +751,7 @@ def test_scan_repo_lightweight_normalizes_windows_scanner_report_relpath(
         lightweight_readme_only=True,
     )
 
-    assert payload["metadata"]["style_guide"]["path"] == "readme.md"
+    assert payload["metadata"]["style_guide"]["path"] == "README.md"
     assert (
         payload["metadata"]["scanner_report_relpath"]
         == "../reports/nested/repo.scan.md"
@@ -780,6 +780,40 @@ def test_scan_repo_lightweight_requires_readme_when_missing(monkeypatch):
             repo_style_readme_path="README.md",
             lightweight_readme_only=True,
         )
+
+
+def test_scan_repo_lightweight_uses_canonical_target_resolver(monkeypatch, tmp_path):
+    role_stub = tmp_path / "stub"
+    role_stub.mkdir(parents=True)
+    resolver_calls: dict[str, object] = {}
+
+    def fake_resolve_repo_scan_target(**kwargs):
+        resolver_calls.update(kwargs)
+        return repo_services._RepoScanTarget(
+            role_path=role_stub,
+            effective_style_readme_path="README.md",
+            resolved_repo_style_readme_path="README.md",
+        )
+
+    monkeypatch.setattr(api, "_resolve_repo_scan_target", fake_resolve_repo_scan_target)
+    monkeypatch.setattr(
+        api,
+        "scan_role",
+        lambda *_args, **_kwargs: {
+            "role_name": "demo-role",
+            "metadata": {"style_guide": {"path": "README.md"}},
+        },
+    )
+
+    payload = api.scan_repo(
+        "https://github.com/example/demo-role.git",
+        repo_role_path="roles/demo",
+        repo_style_readme_path="README.md",
+        lightweight_readme_only=True,
+    )
+
+    assert resolver_calls["lightweight_readme_only"] is True
+    assert payload["metadata"]["style_guide"]["path"] == "README.md"
 
 
 def test_scan_repo_lightweight_sparse_failure_does_not_fallback_full_clone(monkeypatch):
