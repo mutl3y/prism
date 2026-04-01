@@ -1,4 +1,5 @@
 import json
+import pytest
 
 from prism import repo_services
 
@@ -50,20 +51,48 @@ def test_normalize_repo_scan_result_payload_supports_json_payloads():
 def test_normalize_repo_scan_result_payload_keeps_malformed_json_unchanged():
     payload = '{"role_name": "demo-role", "metadata":'
 
-    normalized = repo_services._normalize_repo_scan_result_payload(
-        payload,
-        repo_style_readme_path="README.md",
-    )
-
-    assert normalized == payload
+    with pytest.raises(RuntimeError, match="REPO_SCAN_PAYLOAD_JSON_INVALID"):
+        repo_services._normalize_repo_scan_result_payload(
+            payload,
+            repo_style_readme_path="README.md",
+        )
 
 
 def test_normalize_repo_scan_result_payload_keeps_non_object_json_unchanged():
     payload = json.dumps(["demo-role"])
 
-    normalized = repo_services._normalize_repo_scan_result_payload(
-        payload,
-        repo_style_readme_path="README.md",
+    with pytest.raises(RuntimeError, match="REPO_SCAN_PAYLOAD_TYPE_INVALID"):
+        repo_services._normalize_repo_scan_result_payload(
+            payload,
+            repo_style_readme_path="README.md",
+        )
+
+
+def test_normalize_repo_scan_result_payload_rejects_invalid_metadata_shape():
+    payload = json.dumps(
+        {
+            "role_name": "demo-role",
+            "metadata": [],
+        }
     )
 
-    assert normalized == payload
+    with pytest.raises(RuntimeError, match="REPO_SCAN_PAYLOAD_SHAPE_INVALID"):
+        repo_services._normalize_repo_scan_result_payload(
+            payload,
+            repo_style_readme_path="README.md",
+        )
+
+
+def test_normalize_repo_scan_result_payload_rejects_invalid_style_guide_shape():
+    payload = json.dumps(
+        {
+            "role_name": "demo-role",
+            "metadata": {"style_guide": "not-an-object"},
+        }
+    )
+
+    with pytest.raises(RuntimeError, match="REPO_SCAN_PAYLOAD_SHAPE_INVALID"):
+        repo_services._normalize_repo_scan_result_payload(
+            payload,
+            repo_style_readme_path="README.md",
+        )

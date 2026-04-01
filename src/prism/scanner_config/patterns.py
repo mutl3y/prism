@@ -7,6 +7,7 @@ Supports override files and remote pattern repositories.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 import urllib.error
@@ -43,7 +44,7 @@ def _load_yaml(path: Path) -> dict[str, Any]:
         with path.open(encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
         return data if isinstance(data, dict) else {}
-    except Exception:
+    except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
         return {}
 
 
@@ -138,11 +139,11 @@ def _iter_default_override_paths(
     user_data_home = _default_user_data_home()
     paths.append(user_data_home / APP_DATA_DIRNAME / CWD_OVERRIDE_FILENAME)
 
-    # repo-local override; prefer explicit search_root over ambient process CWD.
+    # repo-local override is only considered when the caller provides an
+    # explicit deterministic root.
     local_override_root = _resolve_search_root(search_root)
-    if local_override_root is None:
-        local_override_root = Path.cwd()
-    paths.append(local_override_root / REPO_OVERRIDE_FILENAME)
+    if local_override_root is not None:
+        paths.append(local_override_root / REPO_OVERRIDE_FILENAME)
 
     # optional env var override (highest precedence among implicit defaults)
     env_override = os.environ.get(ENV_PATTERNS_OVERRIDE_PATH)
@@ -168,7 +169,7 @@ def load_pattern_config(
         Path to a YAML override file. Non-existent paths are ignored.
     search_root:
         Deterministic root used for implicit repo-local override resolution.
-        When omitted, the process CWD remains the fallback for backward compatibility.
+        When omitted, no repo-local implicit override is consulted.
 
     Returns
     -------
@@ -198,13 +199,48 @@ def fetch_remote_policy(
     url: str = DEFAULT_REMOTE_URL,
     cache_path: str | Path | None = None,
     timeout: int = 10,
+    expected_integrity: str | None = None,
 ) -> dict[str, Any]:
     """Fetch a ``pattern_policy.yml`` from *url* and return the parsed policy.
 
     If *cache_path* is provided the raw YAML bytes are written there.
 
+    When *expected_integrity* is provided, it must be in the form
+    ``sha256:<64 lowercase-hex>`` and the fetched/cached bytes must match.
+
     Raises ``RuntimeError`` if the fetch fails and no cached copy exists.
     """
+
+    def _parse_expected_sha256(integrity: str | None) -> str | None:
+        if integrity is None:
+            return None
+        if not isinstance(integrity, str):
+            raise RuntimeError(
+                "REMOTE_POLICY_INTEGRITY_CONTRACT_INVALID: expected_integrity must be a string"
+            )
+        value = integrity.strip().lower()
+        if not value.startswith("sha256:"):
+            raise RuntimeError(
+                "REMOTE_POLICY_INTEGRITY_CONTRACT_INVALID: expected format is sha256:<64 hex>"
+            )
+        digest = value.split(":", 1)[1]
+        if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+            raise RuntimeError(
+                "REMOTE_POLICY_INTEGRITY_CONTRACT_INVALID: expected format is sha256:<64 hex>"
+            )
+        return digest
+
+    expected_sha256 = _parse_expected_sha256(expected_integrity)
+
+    def _verify_integrity(raw: bytes) -> None:
+        if expected_sha256 is None:
+            return
+        actual_sha256 = hashlib.sha256(raw).hexdigest()
+        if actual_sha256 != expected_sha256:
+            raise RuntimeError(
+                "REMOTE_POLICY_INTEGRITY_MISMATCH: remote policy checksum mismatch"
+            )
+
     raw_bytes: bytes | None = None
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:  # noqa: S310
@@ -214,6 +250,9 @@ def fetch_remote_policy(
             raise RuntimeError(
                 f"Failed to fetch remote patterns from {url}: {exc}"
             ) from exc
+
+    if raw_bytes is not None:
+        _verify_integrity(raw_bytes)
 
     if raw_bytes is not None and cache_path is not None:
         cache_file = Path(cache_path)
@@ -225,6 +264,7 @@ def fetch_remote_policy(
             cache_file = Path(cache_path)
             if cache_file.exists():
                 raw_bytes = cache_file.read_bytes()
+                _verify_integrity(raw_bytes)
             else:
                 raise RuntimeError(
                     f"Failed to fetch remote patterns from {url} and no cache found at {cache_path}"

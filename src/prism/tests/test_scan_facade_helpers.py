@@ -15,7 +15,7 @@ def test_collect_role_contents_handles_exclusions_and_meta_failure(tmp_path: Pat
     (role / "templates" / "keep.j2").write_text("x", encoding="utf-8")
     (role / "templates" / "skip.j2").write_text("x", encoding="utf-8")
 
-    def fail_meta(_role_path: str) -> dict:
+    def fail_meta(_role_path: str, **_kwargs: object) -> dict:
         raise RuntimeError("meta parse failed")
 
     def is_path_excluded(
@@ -34,6 +34,9 @@ def test_collect_role_contents_handles_exclusions_and_meta_failure(tmp_path: Pat
     assert contents["tasks"] == ["tasks/main.yml"]
     assert contents["templates"] == ["templates/keep.j2"]
     assert contents["meta"] == {}
+    assert contents["meta_load_warnings"] == [
+        "ROLE_METADATA_LOAD_FAILED: meta parse failed"
+    ]
     assert contents["features"] == {"tasks_scanned": 1}
 
 

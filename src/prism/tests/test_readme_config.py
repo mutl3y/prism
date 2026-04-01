@@ -119,6 +119,29 @@ def test_load_readme_marker_prefix_invalid_config_falls_back_to_default(
     assert scanner.load_readme_marker_prefix(str(role)) == "prism"
 
 
+def test_load_readme_marker_prefix_collects_warning_for_invalid_yaml(tmp_path):
+    role = _write_role_prism_config(tmp_path, "markers: [\n  broken\n")
+
+    warnings: list[str] = []
+    result = scanner.load_readme_marker_prefix(str(role), warning_collector=warnings)
+
+    assert result == "prism"
+    assert len(warnings) == 1
+    assert warnings[0].startswith("README_MARKER_CONFIG_YAML_INVALID:")
+
+
+def test_load_readme_marker_prefix_collects_warning_for_invalid_shape(tmp_path):
+    role = _write_role_prism_config(tmp_path, "markers:\n  prefix: 42\n")
+
+    warnings: list[str] = []
+    result = scanner.load_readme_marker_prefix(str(role), warning_collector=warnings)
+
+    assert result == "prism"
+    assert len(warnings) == 1
+    assert warnings[0].startswith("README_MARKER_CONFIG_SHAPE_INVALID:")
+    assert "prefix" in warnings[0]
+
+
 def test_load_fail_on_unconstrained_dynamic_includes_handles_native_bool(tmp_path):
     """_coerce_bool handles a native Python bool (YAML true/false)."""
     role = _write_role_prism_config(
@@ -315,6 +338,17 @@ def test_load_readme_section_config_non_dict_raw_returns_none(tmp_path):
     assert scanner.load_readme_section_config(str(role)) is None
 
 
+def test_load_readme_section_config_non_dict_raw_collects_warning(tmp_path):
+    role = _write_role_prism_config(tmp_path, "- foo\n- bar\n")
+
+    warnings: list[str] = []
+    config = scanner.load_readme_section_config(str(role), warning_collector=warnings)
+
+    assert config is None
+    assert len(warnings) == 1
+    assert warnings[0].startswith("README_SECTION_CONFIG_SHAPE_INVALID:")
+
+
 def test_load_readme_section_config_skips_non_string_include_items(tmp_path):
     """load_readme_section_config silently skips non-string include_sections items."""
     role = _write_role_prism_config(
@@ -406,6 +440,20 @@ def test_load_section_display_titles_returns_empty_on_invalid_yaml(tmp_path):
     assert result == {}
 
 
+def test_load_section_display_titles_collects_warning_on_invalid_yaml(tmp_path):
+    from prism.scanner_config.readme import _load_section_display_titles
+
+    fixture = tmp_path / "bad.yml"
+    fixture.write_text("key: [\n  unclosed\n", encoding="utf-8")
+
+    warnings: list[str] = []
+    result = _load_section_display_titles(fixture, warning_collector=warnings)
+
+    assert result == {}
+    assert len(warnings) == 1
+    assert warnings[0].startswith("README_SECTION_DISPLAY_TITLES_YAML_INVALID:")
+
+
 @pytest.mark.parametrize(
     "config_text",
     [
@@ -428,3 +476,21 @@ def test_load_section_display_titles_skips_non_string_keys_or_values(tmp_path):
         "display_titles:\n" "  valid_section: Valid Label\n" "  42: bad key\n",
     )
     assert result == {"valid_section": "Valid Label"}
+
+
+def test_load_section_display_titles_matches_canonical_style_loader(tmp_path):
+    """README loader should match canonical style loader parsing semantics."""
+    from prism.scanner_config import load_section_display_titles
+    from prism.scanner_config.readme import _load_section_display_titles
+
+    fixture = tmp_path / "titles.yml"
+    fixture.write_text(
+        "display_titles:\n"
+        "  purpose: Purpose and Scope\n"
+        "  empty_label: '   '\n"
+        "  role_variables: Role Variables\n"
+        "  42: invalid\n",
+        encoding="utf-8",
+    )
+
+    assert _load_section_display_titles(fixture) == load_section_display_titles(fixture)

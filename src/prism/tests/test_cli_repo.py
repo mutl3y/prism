@@ -786,7 +786,7 @@ def test_cli_repo_scan_uses_shared_temp_root(monkeypatch, tmp_path):
     assert not (tmp_path / "prism").exists()
 
 
-def test_cli_github_https_url_is_converted_to_ssh(monkeypatch, tmp_path):
+def test_cli_github_https_url_is_preserved_by_default(monkeypatch, tmp_path):
     clone_cmd: dict = {}
 
     def fake_clone_run(cmd, check, stdout, stderr, text, timeout, env):
@@ -800,6 +800,37 @@ def test_cli_github_https_url_is_converted_to_ssh(monkeypatch, tmp_path):
 
     monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
     monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+
+    out = tmp_path / "repo-ssh-url.md"
+    rc = cli.main(
+        [
+            "repo",
+            "--repo-url",
+            "https://github.com/example/role",
+            "-o",
+            str(out),
+        ]
+    )
+
+    assert rc == 0
+    assert clone_cmd["cmd"][-2] == "https://github.com/example/role"
+
+
+def test_cli_repo_transport_policy_can_force_ssh(monkeypatch, tmp_path):
+    clone_cmd: dict = {}
+
+    def fake_clone_run(cmd, check, stdout, stderr, text, timeout, env):
+        clone_cmd["cmd"] = cmd
+        destination = Path(cmd[-1])
+        destination.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    def fake_run_scan(role_path, output, template, output_format, **kwargs):
+        return _write_generated_output(output)
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_clone_run)
+    monkeypatch.setattr(cli, "run_scan", fake_run_scan)
+    monkeypatch.setenv("PRISM_REPO_TRANSPORT_POLICY", "ssh")
 
     out = tmp_path / "repo-ssh-url.md"
     rc = cli.main(

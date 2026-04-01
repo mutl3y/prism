@@ -1,9 +1,12 @@
 """Focused tests for scan discovery/path extraction and scanner wrappers."""
 
+from pathlib import Path
+
 import pytest
 
 from prism import scanner
 from prism.scanner_extract import discovery as scan_discovery
+from prism.scanner_io import loader as scan_loader
 
 
 def test_scan_discovery_iter_role_variable_map_candidates_prefers_main_then_fragments(
@@ -165,3 +168,85 @@ def test_scanner_wrapper_resolve_scan_identity_applies_override_when_meta_role_i
     assert resolved[1]["galaxy_info"]["role_name"] == "repo"
     assert resolved[2] == "override_name"
     assert resolved[3] == "meta description"
+
+
+def test_loader_iter_role_yaml_candidates_handles_symlink_dir_outside_role_root(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    external_dir = tmp_path / "external"
+    (role / "tasks").mkdir(parents=True)
+    external_dir.mkdir()
+
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+    (external_dir / "external.yml").write_text("---\n", encoding="utf-8")
+    (role / "linked-external").symlink_to(external_dir, target_is_directory=True)
+
+    discovered = list(
+        scan_loader.iter_role_yaml_candidates(
+            role,
+            exclude_paths=["linked-external/**"],
+            ignored_dirs=set(scanner.IGNORED_DIRS),
+            is_relpath_excluded_fn=scanner._is_relpath_excluded,
+            is_path_excluded_fn=scanner._is_path_excluded,
+        )
+    )
+
+    assert [path.relative_to(role).as_posix() for path in discovered] == [
+        "tasks/main.yml"
+    ]
+
+
+def test_loader_parse_yaml_candidate_reports_symlink_path_for_outside_root_target(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    external_dir = tmp_path / "external"
+    (role / "tasks").mkdir(parents=True)
+    external_dir.mkdir()
+
+    broken_target = external_dir / "broken.yml"
+    broken_target.write_text("---\nfoo: [unterminated\n", encoding="utf-8")
+    symlink_path = role / "tasks" / "broken-link.yml"
+    symlink_path.symlink_to(broken_target)
+
+    failure = scan_loader.parse_yaml_candidate(symlink_path, role)
+
+    assert failure is not None
+    assert failure["file"] == "tasks/broken-link.yml"
+    assert isinstance(failure["line"], int)
+    assert failure["column"] is not None
+
+
+def test_loader_load_yaml_file_returns_none_for_malformed_yaml(tmp_path):
+    broken = tmp_path / "broken.yml"
+    broken.write_text("---\nfoo: [unterminated\n", encoding="utf-8")
+
+    assert scan_loader.load_yaml_file(broken) is None
+
+
+def test_loader_load_yaml_file_returns_none_for_io_error(tmp_path, monkeypatch):
+    target = tmp_path / "broken.yml"
+    target.write_text("foo: bar\n", encoding="utf-8")
+
+    def raise_oserror(*args, **kwargs):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(Path, "read_text", raise_oserror)
+
+    assert scan_loader.load_yaml_file(target) is None
+
+
+def test_loader_load_yaml_file_propagates_unexpected_runtime_error(
+    tmp_path, monkeypatch
+):
+    target = tmp_path / "broken.yml"
+    target.write_text("foo: bar\n", encoding="utf-8")
+
+    def raise_runtime_error(*args, **kwargs):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(scan_loader.yaml, "safe_load", raise_runtime_error)
+
+    with pytest.raises(RuntimeError, match="unexpected"):
+        scan_loader.load_yaml_file(target)

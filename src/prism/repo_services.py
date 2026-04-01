@@ -26,6 +26,49 @@ _ROLE_MARKER_DIRS = frozenset(
 _REQUIRED_ROLE_DIRS = frozenset({"defaults", "tasks", "meta"})
 _REQUIRED_ROLE_DIR_SEQUENCE = ("defaults", "tasks", "meta")
 _SHARED_TMP_ROOT_NAME = "prism"
+_REPO_TRANSPORT_POLICY_ENV_VAR = "PRISM_REPO_TRANSPORT_POLICY"
+_REPO_TRANSPORT_POLICY_DEFAULT = "preserve"
+REPO_SCAN_PAYLOAD_JSON_INVALID = "REPO_SCAN_PAYLOAD_JSON_INVALID"
+REPO_SCAN_PAYLOAD_TYPE_INVALID = "REPO_SCAN_PAYLOAD_TYPE_INVALID"
+REPO_SCAN_PAYLOAD_SHAPE_INVALID = "REPO_SCAN_PAYLOAD_SHAPE_INVALID"
+
+
+def _normalize_repo_transport_policy(policy: str | None) -> str:
+    """Return a supported transport policy with safe fallback semantics."""
+    raw_policy = (policy or os.environ.get(_REPO_TRANSPORT_POLICY_ENV_VAR, "")).strip()
+    if not raw_policy:
+        return _REPO_TRANSPORT_POLICY_DEFAULT
+
+    normalized = raw_policy.lower()
+    alias_map = {
+        "default": "preserve",
+        "https": "preserve",
+        "legacy": "ssh",
+        "compat": "ssh",
+    }
+    normalized = alias_map.get(normalized, normalized)
+    if normalized in {"preserve", "ssh"}:
+        return normalized
+    return _REPO_TRANSPORT_POLICY_DEFAULT
+
+
+def _resolve_repo_clone_url(repo_url: str, transport_policy: str | None = None) -> str:
+    """Resolve clone URL according to deterministic transport policy."""
+    policy = _normalize_repo_transport_policy(transport_policy)
+    if policy != "ssh":
+        return repo_url
+
+    parsed = urlparse(repo_url)
+    if parsed.scheme not in {"http", "https"} or parsed.netloc != "github.com":
+        return repo_url
+
+    repo_path = parsed.path.strip("/")
+    if not repo_path or repo_path.count("/") < 1:
+        return repo_url
+
+    if not repo_path.endswith(".git"):
+        repo_path = f"{repo_path}.git"
+    return f"git@github.com:{repo_path}"
 
 
 @dataclass(frozen=True)
@@ -309,6 +352,7 @@ def _normalize_repo_scan_result_payload(
     preserving their existing payload formats.
     """
     if isinstance(payload, dict):
+        _validate_repo_scan_payload_shape(payload)
         return _normalize_repo_scan_metadata_paths(
             payload,
             repo_style_readme_path=repo_style_readme_path,
@@ -318,13 +362,8 @@ def _normalize_repo_scan_result_payload(
     if not isinstance(payload, str):
         return payload
 
-    try:
-        parsed_payload = json.loads(payload)
-    except json.JSONDecodeError:
-        return payload
-
-    if not isinstance(parsed_payload, dict):
-        return payload
+    parsed_payload = _decode_repo_scan_payload_json(payload)
+    _validate_repo_scan_payload_shape(parsed_payload)
 
     normalized_payload = _normalize_repo_scan_metadata_paths(
         parsed_payload,
@@ -332,6 +371,40 @@ def _normalize_repo_scan_result_payload(
         scanner_report_relpath=scanner_report_relpath,
     )
     return json.dumps(normalized_payload, indent=2)
+
+
+def _decode_repo_scan_payload_json(payload: str) -> dict[str, Any]:
+    """Decode repo-scan JSON payload and enforce top-level mapping contract."""
+    try:
+        parsed_payload = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"{REPO_SCAN_PAYLOAD_JSON_INVALID}: payload is not valid JSON"
+        ) from exc
+
+    if not isinstance(parsed_payload, dict):
+        raise RuntimeError(
+            f"{REPO_SCAN_PAYLOAD_TYPE_INVALID}: top-level payload must be a JSON object"
+        )
+
+    return parsed_payload
+
+
+def _validate_repo_scan_payload_shape(payload: dict[str, Any]) -> None:
+    """Validate optional nested shape assumptions for repo-scan payloads."""
+    metadata = payload.get("metadata")
+    if metadata is None:
+        return
+    if not isinstance(metadata, dict):
+        raise RuntimeError(
+            f"{REPO_SCAN_PAYLOAD_SHAPE_INVALID}: metadata must be a JSON object"
+        )
+
+    style_guide = metadata.get("style_guide")
+    if style_guide is not None and not isinstance(style_guide, dict):
+        raise RuntimeError(
+            f"{REPO_SCAN_PAYLOAD_SHAPE_INVALID}: metadata.style_guide must be a JSON object"
+        )
 
 
 def _checkout_repo_scan_role(
@@ -520,6 +593,7 @@ def _clone_repo(
     timeout: int = 60,
     sparse_paths: list[str] | None = None,
     allow_sparse_fallback_to_full: bool = True,
+    transport_policy: str | None = None,
     *,
     run_command=None,
     environment=None,
@@ -531,14 +605,7 @@ def _clone_repo(
     reduce downloaded content. If sparse setup fails, behavior depends on
     ``allow_sparse_fallback_to_full``.
     """
-    parsed = urlparse(repo_url)
-    clone_url = repo_url
-    if parsed.scheme in {"http", "https"} and parsed.netloc == "github.com":
-        repo_path = parsed.path.strip("/")
-        if repo_path and repo_path.count("/") >= 1:
-            if not repo_path.endswith(".git"):
-                repo_path = f"{repo_path}.git"
-            clone_url = f"git@github.com:{repo_path}"
+    clone_url = _resolve_repo_clone_url(repo_url, transport_policy)
 
     clone_cmd = ["git", "clone", "--depth", "1"]
     if ref:

@@ -42,22 +42,95 @@ _REQUIRED_ROLE_DIRS = ("defaults", "tasks", "meta")
 
 _COLLECTION_ROLE_CONTENT_RECOVERABLE_ERRORS = (
     FileNotFoundError,
+    OSError,
+    UnicodeDecodeError,
     ValueError,
     json.JSONDecodeError,
+    yaml.YAMLError,
+    RuntimeError,
 )
 
-_COLLECTION_ROLE_FAILURE_CODES: tuple[tuple[type[Exception], str], ...] = (
-    (FileNotFoundError, "role_content_missing"),
-    (json.JSONDecodeError, "role_content_json_invalid"),
-    (ValueError, "role_content_invalid"),
+_COLLECTION_ROLE_FAILURE_CODES: tuple[tuple[type[Exception], str, str], ...] = (
+    (FileNotFoundError, "role_content_missing", "io"),
+    (UnicodeDecodeError, "role_content_encoding_invalid", "io"),
+    (json.JSONDecodeError, "role_content_json_invalid", "parser"),
+    (yaml.YAMLError, "role_content_yaml_invalid", "parser"),
+    (OSError, "role_content_io_error", "io"),
+    (ValueError, "role_content_invalid", "validation"),
+    (RuntimeError, "role_scan_runtime_error", "runtime"),
 )
 
+_COLLECTION_ROLE_RUNTIME_DETAIL_CODES: dict[str, tuple[str, str]] = {
+    "POLICY_CONFIG_YAML_INVALID": ("role_policy_config_yaml_invalid", "config"),
+    "README_MARKER_CONFIG_YAML_INVALID": (
+        "role_readme_marker_config_yaml_invalid",
+        "config",
+    ),
+    "README_SECTION_CONFIG_YAML_INVALID": (
+        "role_readme_section_config_yaml_invalid",
+        "config",
+    ),
+    "ROLE_METADATA_YAML_INVALID": ("role_metadata_yaml_invalid", "config"),
+}
 
-def _collection_role_failure_code(exc: Exception) -> str:
-    for error_type, code in _COLLECTION_ROLE_FAILURE_CODES:
+SCAN_ROLE_PAYLOAD_JSON_INVALID = "SCAN_ROLE_PAYLOAD_JSON_INVALID"
+SCAN_ROLE_PAYLOAD_TYPE_INVALID = "SCAN_ROLE_PAYLOAD_TYPE_INVALID"
+SCAN_ROLE_PAYLOAD_SHAPE_INVALID = "SCAN_ROLE_PAYLOAD_SHAPE_INVALID"
+
+
+def _collection_role_runtime_detail_code(exc: Exception) -> str | None:
+    if not isinstance(exc, RuntimeError):
+        return None
+    detail_code, separator, _message = str(exc).partition(":")
+    if not separator:
+        return None
+    normalized = detail_code.strip()
+    if not normalized:
+        return None
+    if not normalized.replace("_", "").isalnum() or normalized.upper() != normalized:
+        return None
+    return normalized
+
+
+def _collection_role_failure_details(exc: Exception) -> tuple[str, str, str | None]:
+    detail_code = _collection_role_runtime_detail_code(exc)
+    if detail_code is not None:
+        runtime_details = _COLLECTION_ROLE_RUNTIME_DETAIL_CODES.get(detail_code)
+        if runtime_details is not None:
+            error_code, error_category = runtime_details
+            return error_code, error_category, detail_code
+
+    for error_type, code, category in _COLLECTION_ROLE_FAILURE_CODES:
         if isinstance(exc, error_type):
-            return code
-    return "role_scan_failed"
+            return code, category, detail_code
+    return "role_scan_failed", "runtime", detail_code
+
+
+def _parse_scan_role_payload(payload: str) -> dict[str, Any]:
+    """Parse run_scan JSON payload with explicit classification at the API boundary."""
+    try:
+        parsed = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"{SCAN_ROLE_PAYLOAD_JSON_INVALID}: scan_role received invalid JSON payload"
+        ) from exc
+
+    if not isinstance(parsed, dict):
+        raise RuntimeError(
+            f"{SCAN_ROLE_PAYLOAD_TYPE_INVALID}: scan_role payload must be a JSON object"
+        )
+
+    if "role_name" in parsed and not isinstance(parsed.get("role_name"), str):
+        raise RuntimeError(
+            f"{SCAN_ROLE_PAYLOAD_SHAPE_INVALID}: expected role_name=str when present"
+        )
+
+    if "metadata" in parsed and not isinstance(parsed.get("metadata"), dict):
+        raise RuntimeError(
+            f"{SCAN_ROLE_PAYLOAD_SHAPE_INVALID}: expected metadata=object when present"
+        )
+
+    return parsed
 
 
 def _load_yaml_document(path: Path) -> dict[str, Any] | list[Any] | None:
@@ -357,13 +430,19 @@ def scan_collection(
                 }
             )
         except _COLLECTION_ROLE_CONTENT_RECOVERABLE_ERRORS as exc:
+            error_code, error_category, error_detail_code = (
+                _collection_role_failure_details(exc)
+            )
             failure = {
                 "role": role_dir.name,
                 "path": str(role_dir),
-                "error_code": _collection_role_failure_code(exc),
+                "error_code": error_code,
+                "error_category": error_category,
                 "error_type": type(exc).__name__,
                 "error": str(exc),
             }
+            if error_detail_code is not None:
+                failure["error_detail_code"] = error_detail_code
             if include_traceback:
                 failure["traceback"] = "".join(
                     traceback.format_exception(type(exc), exc, exc.__traceback__)
@@ -394,10 +473,15 @@ def _normalize_repo_style_guide_path(
     payload: dict[str, Any], repo_style_readme_path: str | None
 ) -> dict[str, Any]:
     """Backward-compatible wrapper around repo scan metadata normalization."""
-    normalized_payload = _normalize_repo_scan_result_payload(
-        payload,
-        repo_style_readme_path=repo_style_readme_path,
-    )
+    try:
+        normalized_payload = _normalize_repo_scan_result_payload(
+            payload,
+            repo_style_readme_path=repo_style_readme_path,
+        )
+    except RuntimeError as exc:
+        if str(exc).startswith("REPO_SCAN_PAYLOAD_"):
+            return payload
+        raise
     if isinstance(normalized_payload, dict):
         return normalized_payload
     return payload
@@ -469,7 +553,7 @@ def scan_role(
         inline_task_runbooks=inline_task_runbooks,
         dry_run=True,
     )
-    return json.loads(payload)
+    return _parse_scan_role_payload(payload)
 
 
 def scan_repo(

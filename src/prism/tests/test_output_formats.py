@@ -9,6 +9,7 @@ import types
 import pytest
 
 from prism import scanner
+from prism.scanner_io.output import render_final_output
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -145,6 +146,47 @@ def test_run_scan_html_uses_markdown_module_when_available(tmp_path, monkeypatch
 
     html = out.read_text(encoding="utf-8")
     assert "rendered by fake markdown" in html
+
+
+def test_run_scan_html_reraises_unexpected_markdown_runtime_error(
+    tmp_path, monkeypatch
+):
+    role_src = BASE_ROLE_FIXTURE
+    target = tmp_path / "mock_role"
+    shutil.copytree(role_src, target)
+
+    fake_markdown = types.SimpleNamespace(
+        markdown=lambda text, extensions: (_ for _ in ()).throw(
+            RuntimeError("unexpected markdown failure")
+        )
+    )
+    original_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "markdown":
+            return fake_markdown
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    out = tmp_path / "unexpected-markdown.html"
+    with pytest.raises(RuntimeError, match="unexpected markdown failure"):
+        scanner.run_scan(str(target), output=str(out), output_format="html")
+
+
+def test_render_final_output_html_escapes_title():
+    html = render_final_output(
+        "# Demo",
+        "html",
+        'bad<title><script>alert("x")</script>',
+    )
+
+    assert isinstance(html, str)
+    assert '<script>alert("x")</script>' not in html
+    assert (
+        "<title>bad&lt;title&gt;&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;</title>"
+        in html
+    )
 
 
 def test_run_scan_json_output_uses_json_suffix_and_payload(tmp_path):

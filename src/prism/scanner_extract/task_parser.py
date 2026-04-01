@@ -191,7 +191,7 @@ def _load_yaml_file(file_path: Path) -> object | None:
     """Load a YAML file and return its contents, or ``None`` on failure."""
     try:
         return yaml.safe_load(file_path.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
         return None
 
 

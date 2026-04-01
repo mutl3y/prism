@@ -251,7 +251,7 @@ def collect_scan_identity_and_artifacts(
     exclude_path_patterns: list[str] | None,
     detailed_catalog: bool,
     resolve_scan_identity: Callable[[str, str | None], tuple[Any, Any, str, str]],
-    load_readme_marker_prefix: Callable[[str, str | None], str],
+    load_readme_marker_prefix: Callable[..., str],
     collect_scan_artifacts: Callable[..., tuple[dict, list, list, ScanMetadata]],
 ) -> tuple[Any, Any, str, str, str, dict, list, list, ScanMetadata]:
     """Resolve scan identity and collect core role artifacts."""
@@ -259,9 +259,11 @@ def collect_scan_identity_and_artifacts(
         role_path,
         role_name_override,
     )
+    marker_config_warnings: list[str] = []
     marker_prefix = load_readme_marker_prefix(
         role_path,
         readme_config_path,
+        warning_collector=marker_config_warnings,
     )
     variables, requirements, found, metadata = collect_scan_artifacts(
         role_path=role_path,
@@ -270,6 +272,8 @@ def collect_scan_identity_and_artifacts(
         detailed_catalog=detailed_catalog,
         marker_prefix=marker_prefix,
     )
+    if marker_config_warnings:
+        metadata["readme_marker_config_warnings"] = marker_config_warnings
     return (
         rp,
         meta,

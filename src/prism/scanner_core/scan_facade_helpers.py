@@ -62,7 +62,7 @@ def collect_role_contents(
     role_path: str,
     exclude_paths: list[str] | None,
     is_path_excluded: Callable[[Path, Path, list[str] | None], bool],
-    load_meta: Callable[[str], dict],
+    load_meta: Callable[..., dict],
     extract_role_features: Callable[..., dict],
 ) -> dict:
     """Collect lists of files from common role subdirectories."""
@@ -86,10 +86,14 @@ def collect_role_contents(
                         continue
                     entries.append(str(path.relative_to(rp)))
         result[name] = entries
+    meta_warnings: list[str] = []
     try:
-        result["meta"] = load_meta(role_path)
-    except Exception:
+        result["meta"] = load_meta(role_path, warning_collector=meta_warnings)
+    except Exception as exc:
         result["meta"] = {}
+        meta_warnings.append(f"ROLE_METADATA_LOAD_FAILED: {exc}")
+    if meta_warnings:
+        result["meta_load_warnings"] = meta_warnings
     result["features"] = extract_role_features(role_path, exclude_paths=exclude_paths)
     return result
 

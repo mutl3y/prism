@@ -33,17 +33,32 @@ class _FakeHTTPResponse:
         pass
 
 
-def test_load_pattern_config_reads_cwd_override(monkeypatch, tmp_path):
+def test_load_pattern_config_reads_repo_override_from_explicit_search_root(tmp_path):
     override = tmp_path / ".prism_patterns.yml"
     override.write_text(
         "sensitivity:\n  name_tokens:\n    - from_cwd_override\n",
         encoding="utf-8",
     )
 
-    monkeypatch.chdir(tmp_path)
-    config = load_pattern_config()
+    config = load_pattern_config(search_root=tmp_path)
 
     assert "from_cwd_override" in config["sensitivity"]["name_tokens"]
+
+
+def test_load_pattern_config_ignores_process_cwd_without_explicit_search_root(
+    monkeypatch, tmp_path
+):
+    override = tmp_path / pattern_config.CWD_OVERRIDE_FILENAME
+    override.write_text(
+        "sensitivity:\n  name_tokens:\n    - from_process_cwd\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    config = load_pattern_config()
+
+    assert "from_process_cwd" not in config["sensitivity"]["name_tokens"]
 
 
 def test_load_pattern_config_prefers_search_root_over_process_cwd(
@@ -162,6 +177,26 @@ def test_load_yaml_returns_empty_dict_on_io_error(tmp_path, monkeypatch):
 
     monkeypatch.setattr(Path, "open", raise_oserror)
     assert _load_yaml(target) == {}
+
+
+def test_load_yaml_returns_empty_dict_on_malformed_yaml(tmp_path):
+    target = tmp_path / "bad.yml"
+    target.write_text("sensitivity: [unterminated\n", encoding="utf-8")
+
+    assert _load_yaml(target) == {}
+
+
+def test_load_yaml_propagates_unexpected_runtime_errors(tmp_path, monkeypatch):
+    target = tmp_path / "bad.yml"
+    target.write_text("key: value\n", encoding="utf-8")
+
+    def raise_runtime_error(*args, **kwargs):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(pattern_config.yaml, "safe_load", raise_runtime_error)
+
+    with pytest.raises(RuntimeError, match="unexpected"):
+        _load_yaml(target)
 
 
 def test_load_pattern_config_ignores_nonexistent_override_path(tmp_path):
@@ -288,6 +323,50 @@ def test_fetch_remote_policy_raises_on_non_mapping_yaml(monkeypatch):
     )
     with pytest.raises(RuntimeError, match="did not parse to a mapping"):
         fetch_remote_policy("http://example.test/policy.yml")
+
+
+def test_fetch_remote_policy_verifies_expected_sha256(monkeypatch):
+    content = b"section_aliases: {}\n"
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *a, **kw: _FakeHTTPResponse(content),
+    )
+
+    result = fetch_remote_policy(
+        "http://example.test/policy.yml",
+        expected_integrity="sha256:5a240c2ac5eaf53edbda8336a7cff62eac2f7ec413ab183b50cde27549875d87",
+    )
+
+    assert isinstance(result, dict)
+
+
+def test_fetch_remote_policy_rejects_integrity_mismatch(monkeypatch):
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *a, **kw: _FakeHTTPResponse(b"section_aliases: {}\n"),
+    )
+
+    with pytest.raises(RuntimeError, match="REMOTE_POLICY_INTEGRITY_MISMATCH"):
+        fetch_remote_policy(
+            "http://example.test/policy.yml",
+            expected_integrity="sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        )
+
+
+def test_fetch_remote_policy_rejects_invalid_integrity_contract(monkeypatch):
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *a, **kw: _FakeHTTPResponse(b"section_aliases: {}\n"),
+    )
+
+    with pytest.raises(RuntimeError, match="REMOTE_POLICY_INTEGRITY_CONTRACT_INVALID"):
+        fetch_remote_policy(
+            "http://example.test/policy.yml",
+            expected_integrity="sha512:abc",
+        )
 
 
 def test_write_unknown_headings_log_creates_valid_json(tmp_path):

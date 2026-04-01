@@ -5,10 +5,12 @@ invoking the entrypoint in a subprocess to simulate real usage.
 """
 
 from pathlib import Path
+import json
 import pytest
 import shutil
 import subprocess
 import sys
+import threading
 
 from prism import scanner
 from prism.scanner import scan_for_all_filters, scan_for_default_filters
@@ -571,6 +573,31 @@ def test_load_yaml_file_returns_none_for_malformed_yaml(tmp_path):
     broken.write_text("---\nfoo: [unterminated\n", encoding="utf-8")
 
     assert task_parser._load_yaml_file(broken) is None
+
+
+def test_load_yaml_file_returns_none_for_io_error(tmp_path, monkeypatch):
+    target = tmp_path / "task.yml"
+    target.write_text("foo: bar\n", encoding="utf-8")
+
+    def raise_oserror(*args, **kwargs):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(Path, "read_text", raise_oserror)
+
+    assert task_parser._load_yaml_file(target) is None
+
+
+def test_load_yaml_file_propagates_unexpected_runtime_error(tmp_path, monkeypatch):
+    target = tmp_path / "task.yml"
+    target.write_text("foo: bar\n", encoding="utf-8")
+
+    def raise_runtime_error(*args, **kwargs):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(task_parser.yaml, "safe_load", raise_runtime_error)
+
+    with pytest.raises(RuntimeError, match="unexpected"):
+        task_parser._load_yaml_file(target)
 
 
 def test_load_meta_and_requirements_ignore_malformed_yaml(tmp_path):
@@ -2270,6 +2297,115 @@ def test_run_scan_uses_explicit_policy_override_when_config_is_valid(tmp_path):
     assert out.exists()
 
 
+def test_run_scan_policy_override_state_does_not_leak_between_scans(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "defaults").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text(
+        "---\n- name: demo\n  debug:\n    msg: ok\n",
+        encoding="utf-8",
+    )
+    (role / "defaults" / "main.yml").write_text(
+        "policy_leak_probe: Abcd1234!xyz\n",
+        encoding="utf-8",
+    )
+
+    override = tmp_path / "policy-override.yml"
+    override.write_text(
+        "sensitivity:\n  name_tokens:\n    - policy_leak_probe\n",
+        encoding="utf-8",
+    )
+
+    first_payload = json.loads(
+        scanner.run_scan(
+            str(role),
+            output="scan.json",
+            output_format="json",
+            dry_run=True,
+            policy_config_path=str(override),
+        )
+    )
+    second_payload = json.loads(
+        scanner.run_scan(
+            str(role),
+            output="scan.json",
+            output_format="json",
+            dry_run=True,
+            policy_config_path=None,
+        )
+    )
+
+    first_row = next(
+        row
+        for row in (first_payload.get("metadata", {}).get("variable_insights") or [])
+        if row.get("name") == "policy_leak_probe"
+    )
+    second_row = next(
+        row
+        for row in (second_payload.get("metadata", {}).get("variable_insights") or [])
+        if row.get("name") == "policy_leak_probe"
+    )
+
+    assert first_row.get("secret") is True
+    assert second_row.get("secret") is False
+
+
+def test_run_scan_policy_override_isolation_across_concurrent_calls(tmp_path):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "defaults").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text(
+        "---\n- name: demo\n  debug:\n    msg: ok\n",
+        encoding="utf-8",
+    )
+    (role / "defaults" / "main.yml").write_text(
+        "policy_leak_probe: Abcd1234!xyz\n",
+        encoding="utf-8",
+    )
+
+    override = tmp_path / "policy-override.yml"
+    override.write_text(
+        "sensitivity:\n  name_tokens:\n    - policy_leak_probe\n",
+        encoding="utf-8",
+    )
+
+    results: dict[str, bool] = {}
+
+    def run_with_override(label: str, policy_path: str | None) -> None:
+        payload = json.loads(
+            scanner.run_scan(
+                str(role),
+                output="scan.json",
+                output_format="json",
+                dry_run=True,
+                policy_config_path=policy_path,
+            )
+        )
+        row = next(
+            item
+            for item in (payload.get("metadata", {}).get("variable_insights") or [])
+            if item.get("name") == "policy_leak_probe"
+        )
+        results[label] = bool(row.get("secret"))
+
+    thread_with_override = threading.Thread(
+        target=run_with_override,
+        args=("with_override", str(override)),
+    )
+    thread_without_override = threading.Thread(
+        target=run_with_override,
+        args=("without_override", None),
+    )
+
+    thread_with_override.start()
+    thread_without_override.start()
+    thread_with_override.join()
+    thread_without_override.join()
+
+    assert results["with_override"] is True
+    assert results["without_override"] is False
+
+
 def test_load_section_display_titles_parses_valid_entries_only(tmp_path, monkeypatch):
     titles = tmp_path / "titles.yml"
     titles.write_text(
@@ -2745,6 +2881,62 @@ def test_collect_yaml_parse_failures_read_and_problem_fallback_paths(
     assert str(by_file["tasks/read_fail.yml"]["error"]).startswith("read_error:")
     assert "tasks/parse_fail.yml" in by_file
     assert by_file["tasks/parse_fail.yml"]["error"] == "plain parser failure"
+
+
+def test_collect_yaml_parse_failures_reports_symlink_path_for_outside_root_target(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    tasks = role / "tasks"
+    external_dir = tmp_path / "external"
+    tasks.mkdir(parents=True)
+    external_dir.mkdir()
+
+    broken_target = external_dir / "broken.yml"
+    broken_target.write_text("---\nfoo: [unterminated\n", encoding="utf-8")
+    (tasks / "broken-link.yml").symlink_to(broken_target)
+
+    failures = extract_collect_yaml_parse_failures(
+        str(role),
+        None,
+        lambda role_root, exclude_paths: scanner._dataload_iter_role_yaml_candidates(
+            role_root,
+            exclude_paths=exclude_paths,
+            ignored_dirs=scanner.IGNORED_DIRS,
+            is_relpath_excluded_fn=scanner._is_relpath_excluded,
+            is_path_excluded_fn=scanner._is_path_excluded,
+        ),
+    )
+
+    assert len(failures) == 1
+    assert failures[0]["file"] == "tasks/broken-link.yml"
+
+
+def test_dataload_iter_role_yaml_candidates_handles_symlink_dir_outside_role_root(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    external_dir = tmp_path / "external"
+    (role / "tasks").mkdir(parents=True)
+    external_dir.mkdir()
+
+    (role / "tasks" / "main.yml").write_text("---\n", encoding="utf-8")
+    (external_dir / "external.yml").write_text("---\n", encoding="utf-8")
+    (role / "linked-external").symlink_to(external_dir, target_is_directory=True)
+
+    discovered = list(
+        scanner._dataload_iter_role_yaml_candidates(
+            role,
+            exclude_paths=["linked-external/**"],
+            ignored_dirs=scanner.IGNORED_DIRS,
+            is_relpath_excluded_fn=scanner._is_relpath_excluded,
+            is_path_excluded_fn=scanner._is_path_excluded,
+        )
+    )
+
+    assert [path.relative_to(role).as_posix() for path in discovered] == [
+        "tasks/main.yml"
+    ]
 
 
 def test_readme_variable_heading_and_blank_text_helpers():

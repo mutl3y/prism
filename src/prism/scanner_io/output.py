@@ -45,16 +45,20 @@ def resolve_output_path(output: str, output_format: str) -> Path:
 
 
 def _render_html_document(markdown_content: str, title: str) -> str:
+    import html as _html
+
     try:
         import markdown as _md
-
-        html_body = _md.markdown(markdown_content, extensions=["extra", "toc"])
-    except Exception:
-        import html as _html
-
+    except ImportError:
         html_body = f"<pre>{_html.escape(markdown_content)}</pre>"
+    else:
+        try:
+            html_body = _md.markdown(markdown_content, extensions=["extra", "toc"])
+        except (ImportError, AttributeError, TypeError, ValueError):
+            html_body = f"<pre>{_html.escape(markdown_content)}</pre>"
 
-    return f'<!doctype html>\n<html><head><meta charset="utf-8"><title>{title}</title></head><body>\n{html_body}\n</body></html>'
+    escaped_title = _html.escape(title, quote=True)
+    return f'<!doctype html>\n<html><head><meta charset="utf-8"><title>{escaped_title}</title></head><body>\n{html_body}\n</body></html>'
 
 
 def render_final_output(

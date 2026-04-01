@@ -13,6 +13,22 @@ from typing import Callable
 import yaml
 
 
+def _role_relative_candidate_path(path: Path, role_root: Path) -> str | None:
+    """Return a lexical role-relative path when the candidate lives under the role."""
+    try:
+        return path.relative_to(role_root).as_posix()
+    except ValueError:
+        return None
+
+
+def _format_candidate_failure_path(candidate: Path, role_root: Path) -> str:
+    """Return a stable failure-path string without crashing on outside-root symlinks."""
+    relpath = _role_relative_candidate_path(candidate, role_root)
+    if relpath is not None:
+        return relpath
+    return candidate.resolve().as_posix()
+
+
 def iter_role_yaml_candidates(
     role_root: Path,
     *,
@@ -39,7 +55,7 @@ def iter_role_yaml_candidates(
             for d in dirs
             if d not in ignored_dirs
             and not is_relpath_excluded_fn(
-                str((Path(root) / d).resolve().relative_to(role_root)),
+                _role_relative_candidate_path(Path(root) / d, role_root) or d,
                 exclude_paths,
             )
         ]
@@ -68,7 +84,7 @@ def parse_yaml_candidate(candidate: Path, role_root: Path) -> dict[str, object] 
         return None
     except (OSError, UnicodeDecodeError) as exc:
         return {
-            "file": str(candidate.resolve().relative_to(role_root)),
+            "file": _format_candidate_failure_path(candidate, role_root),
             "line": None,
             "column": None,
             "error": f"read_error: {exc}",
@@ -81,7 +97,7 @@ def parse_yaml_candidate(candidate: Path, role_root: Path) -> dict[str, object] 
         if not problem:
             problem = str(exc).splitlines()[0].strip()
         return {
-            "file": str(candidate.resolve().relative_to(role_root)),
+            "file": _format_candidate_failure_path(candidate, role_root),
             "line": line,
             "column": column,
             "error": problem,

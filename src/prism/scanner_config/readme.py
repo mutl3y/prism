@@ -18,10 +18,19 @@ from .legacy_retirement import (
     format_legacy_retirement_error,
 )
 from .section import SECTION_CONFIG_FILENAME, SECTION_CONFIG_FILENAMES
+from .style import load_section_display_titles
 
 
 README_SECTION_CONFIG_YAML_INVALID = "README_SECTION_CONFIG_YAML_INVALID"
 README_SECTION_CONFIG_IO_ERROR = "README_SECTION_CONFIG_IO_ERROR"
+README_SECTION_CONFIG_SHAPE_INVALID = "README_SECTION_CONFIG_SHAPE_INVALID"
+README_SECTION_DISPLAY_TITLES_YAML_INVALID = (
+    "README_SECTION_DISPLAY_TITLES_YAML_INVALID"
+)
+README_SECTION_DISPLAY_TITLES_IO_ERROR = "README_SECTION_DISPLAY_TITLES_IO_ERROR"
+README_SECTION_DISPLAY_TITLES_SHAPE_INVALID = (
+    "README_SECTION_DISPLAY_TITLES_SHAPE_INVALID"
+)
 
 
 def _record_readme_config_warning(
@@ -29,7 +38,7 @@ def _record_readme_config_warning(
     *,
     code: str,
     cfg_file: Path,
-    error: Exception,
+    error: Exception | str,
 ) -> None:
     """Append a stable warning string for non-strict config parsing failures."""
     if warning_collector is None:
@@ -70,29 +79,21 @@ def resolve_role_config_file(
     return role_root / default_filename
 
 
-def _load_section_display_titles(path: Path) -> dict[str, str]:
+def _load_section_display_titles(
+    path: Path,
+    *,
+    strict: bool = False,
+    warning_collector: list[str] | None = None,
+) -> dict[str, str]:
     """Load optional section display-title overrides from bundled data YAML."""
-    if not path.is_file():
-        return {}
-    try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return {}
-    if not isinstance(raw, dict):
-        return {}
-    payload = raw.get("display_titles")
-    if not isinstance(payload, dict):
-        return {}
-
-    parsed: dict[str, str] = {}
-    for section_id, display_title in payload.items():
-        if not isinstance(section_id, str) or not isinstance(display_title, str):
-            continue
-        sid = section_id.strip()
-        label = display_title.strip()
-        if sid and label:
-            parsed[sid] = label
-    return parsed
+    return load_section_display_titles(
+        path,
+        strict=strict,
+        warning_collector=warning_collector,
+        yaml_invalid_code=README_SECTION_DISPLAY_TITLES_YAML_INVALID,
+        io_error_code=README_SECTION_DISPLAY_TITLES_IO_ERROR,
+        shape_invalid_code=README_SECTION_DISPLAY_TITLES_SHAPE_INVALID,
+    )
 
 
 def _resolve_section_selector(
@@ -151,7 +152,7 @@ def load_readme_section_config(
             error=exc,
         )
         return None
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         if strict:
             raise RuntimeError(
                 f"{README_SECTION_CONFIG_IO_ERROR}: {cfg_file}: {exc}"
@@ -164,10 +165,22 @@ def load_readme_section_config(
         )
         return None
     if not isinstance(raw, dict):
+        _record_readme_config_warning(
+            warning_collector,
+            code=README_SECTION_CONFIG_SHAPE_INVALID,
+            cfg_file=cfg_file,
+            error="config root must be a mapping",
+        )
         return None
 
     readme_cfg = raw.get("readme", raw)
     if not isinstance(readme_cfg, dict):
+        _record_readme_config_warning(
+            warning_collector,
+            code=README_SECTION_CONFIG_SHAPE_INVALID,
+            cfg_file=cfg_file,
+            error="readme config must be a mapping",
+        )
         return None
 
     include_raw = readme_cfg.get("include_sections")
@@ -190,8 +203,27 @@ def load_readme_section_config(
         content_modes_raw if isinstance(content_modes_raw, dict) else {}
     )
 
+    shape_errors: list[str] = []
+    if include_raw is not None and not isinstance(include_raw, list):
+        shape_errors.append("include_sections must be a list")
+    if exclude_raw is not None and not isinstance(exclude_raw, list):
+        shape_errors.append("exclude_sections must be a list")
+    if content_modes_raw is not None and not isinstance(content_modes_raw, dict):
+        shape_errors.append("section_content_modes must be a mapping")
+    if shape_errors:
+        _record_readme_config_warning(
+            warning_collector,
+            code=README_SECTION_CONFIG_SHAPE_INVALID,
+            cfg_file=cfg_file,
+            error="; ".join(shape_errors),
+        )
+
     title_overrides: dict[str, str] = {}
-    display_titles = _load_section_display_titles(display_titles_path)
+    display_titles = _load_section_display_titles(
+        display_titles_path,
+        strict=strict,
+        warning_collector=warning_collector,
+    )
     section_content_modes: dict[str, str] = {}
     include_selector_map: dict[str, str] = {}
 

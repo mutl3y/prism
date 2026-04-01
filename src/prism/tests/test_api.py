@@ -199,6 +199,31 @@ def test_scan_role_forwards_library_options(monkeypatch):
     assert calls["keep_unknown_style_sections"] is False
 
 
+def test_scan_role_classifies_invalid_json_payload(monkeypatch):
+    monkeypatch.setattr(api, "run_scan", lambda *args, **kwargs: "{not-json")
+
+    with pytest.raises(RuntimeError, match="SCAN_ROLE_PAYLOAD_JSON_INVALID"):
+        api.scan_role("/tmp/mock_role")
+
+
+def test_scan_role_classifies_non_mapping_json_payload(monkeypatch):
+    monkeypatch.setattr(api, "run_scan", lambda *args, **kwargs: "[]")
+
+    with pytest.raises(RuntimeError, match="SCAN_ROLE_PAYLOAD_TYPE_INVALID"):
+        api.scan_role("/tmp/mock_role")
+
+
+def test_scan_role_classifies_invalid_metadata_shape(monkeypatch):
+    monkeypatch.setattr(
+        api,
+        "run_scan",
+        lambda *args, **kwargs: json.dumps({"metadata": []}),
+    )
+
+    with pytest.raises(RuntimeError, match="SCAN_ROLE_PAYLOAD_SHAPE_INVALID"):
+        api.scan_role("/tmp/mock_role")
+
+
 def test_scan_repo_returns_payload_dict(monkeypatch, tmp_path):
     def fake_clone_repo(repo_url, destination, ref=None, timeout=60, sparse_paths=None):
         role_dir = destination / "roles" / "demo"
@@ -893,6 +918,7 @@ def test_scan_collection_records_role_failures(monkeypatch, tmp_path):
             "role": "role_b",
             "path": str((collection_root / "roles" / "role_b").resolve()),
             "error_code": "role_content_invalid",
+            "error_category": "validation",
             "error_type": "ValueError",
             "error": "invalid role content",
         }
@@ -912,10 +938,85 @@ def test_scan_collection_records_role_failures(monkeypatch, tmp_path):
     ]
 
 
-def test_scan_collection_runtime_error_is_not_recoverable(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    ("raised", "expected_code", "expected_category", "expected_detail_code"),
+    [
+        (
+            RuntimeError("scanner system failure"),
+            "role_scan_runtime_error",
+            "runtime",
+            None,
+        ),
+        (
+            RuntimeError(
+                "ROLE_METADATA_YAML_INVALID: /tmp/demo_collection/roles/role_b/meta/main.yml: broken"
+            ),
+            "role_metadata_yaml_invalid",
+            "config",
+            "ROLE_METADATA_YAML_INVALID",
+        ),
+        (
+            RuntimeError(
+                "README_MARKER_CONFIG_YAML_INVALID: /tmp/demo_collection/roles/role_b/.prism.yml: broken"
+            ),
+            "role_readme_marker_config_yaml_invalid",
+            "config",
+            "README_MARKER_CONFIG_YAML_INVALID",
+        ),
+        (
+            RuntimeError(
+                "README_SECTION_CONFIG_YAML_INVALID: /tmp/demo_collection/roles/role_b/.prism.yml: broken"
+            ),
+            "role_readme_section_config_yaml_invalid",
+            "config",
+            "README_SECTION_CONFIG_YAML_INVALID",
+        ),
+        (
+            RuntimeError(
+                "POLICY_CONFIG_YAML_INVALID: /tmp/demo_collection/roles/role_b/.prism.yml: broken"
+            ),
+            "role_policy_config_yaml_invalid",
+            "config",
+            "POLICY_CONFIG_YAML_INVALID",
+        ),
+        (
+            OSError("permission denied"),
+            "role_content_io_error",
+            "io",
+            None,
+        ),
+        (
+            UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
+            "role_content_encoding_invalid",
+            "io",
+            None,
+        ),
+        (
+            json.JSONDecodeError("bad json", "{", 0),
+            "role_content_json_invalid",
+            "parser",
+            None,
+        ),
+        (
+            api.yaml.YAMLError("bad yaml"),
+            "role_content_yaml_invalid",
+            "parser",
+            None,
+        ),
+    ],
+)
+def test_scan_collection_classifies_recoverable_role_failures_without_abort(
+    monkeypatch,
+    tmp_path,
+    raised,
+    expected_code,
+    expected_category,
+    expected_detail_code,
+):
     collection_root = tmp_path / "demo_collection"
     (collection_root / "roles" / "role_a").mkdir(parents=True)
     (collection_root / "roles" / "role_b").mkdir(parents=True)
+    (collection_root / "roles" / "role_c").mkdir(parents=True)
     (collection_root / "galaxy.yml").write_text(
         "---\nnamespace: demo\nname: toolkit\n",
         encoding="utf-8",
@@ -923,13 +1024,25 @@ def test_scan_collection_runtime_error_is_not_recoverable(monkeypatch, tmp_path)
 
     def fake_scan_role(role_path, **kwargs):
         if Path(role_path).name == "role_b":
-            raise RuntimeError("scanner system failure")
-        return {"role_name": "role_a", "metadata": {}}
+            raise raised
+        return {"role_name": Path(role_path).name, "metadata": {}}
 
     monkeypatch.setattr(api, "scan_role", fake_scan_role)
 
-    with pytest.raises(RuntimeError, match="scanner system failure"):
-        api.scan_collection(str(collection_root))
+    payload = api.scan_collection(str(collection_root))
+
+    assert payload["summary"] == {
+        "total_roles": 3,
+        "scanned_roles": 2,
+        "failed_roles": 1,
+    }
+    assert [entry["role"] for entry in payload["roles"]] == ["role_a", "role_c"]
+
+    failure = payload["failures"][0]
+    assert failure["role"] == "role_b"
+    assert failure["error_code"] == expected_code
+    assert failure["error_category"] == expected_category
+    assert failure.get("error_detail_code") == expected_detail_code
 
 
 def test_scan_collection_can_include_traceback_when_requested(monkeypatch, tmp_path):
@@ -1362,8 +1475,23 @@ def test_scan_collection_records_post_scan_render_failures(monkeypatch, tmp_path
 
     monkeypatch.setattr(api, "render_readme", fake_render_readme)
 
-    with pytest.raises(RuntimeError, match="render boom"):
-        api.scan_collection(str(collection_root), include_rendered_readme=True)
+    payload = api.scan_collection(str(collection_root), include_rendered_readme=True)
+
+    assert payload["summary"] == {
+        "total_roles": 2,
+        "scanned_roles": 1,
+        "failed_roles": 1,
+    }
+    assert payload["failures"] == [
+        {
+            "role": "role_b",
+            "path": str((collection_root / "roles" / "role_b").resolve()),
+            "error_code": "role_scan_runtime_error",
+            "error_category": "runtime",
+            "error_type": "RuntimeError",
+            "error": "render boom",
+        }
+    ]
 
 
 def test_scan_collection_records_runbook_render_failures(monkeypatch, tmp_path):
@@ -1391,11 +1519,26 @@ def test_scan_collection_records_runbook_render_failures(monkeypatch, tmp_path):
 
     monkeypatch.setattr(api, "render_runbook", fake_render_runbook)
 
-    with pytest.raises(RuntimeError, match="runbook boom"):
-        api.scan_collection(
-            str(collection_root),
-            runbook_output_dir=str(tmp_path / "runbooks"),
-        )
+    payload = api.scan_collection(
+        str(collection_root),
+        runbook_output_dir=str(tmp_path / "runbooks"),
+    )
+
+    assert payload["summary"] == {
+        "total_roles": 2,
+        "scanned_roles": 1,
+        "failed_roles": 1,
+    }
+    assert payload["failures"] == [
+        {
+            "role": "role_b",
+            "path": str((collection_root / "roles" / "role_b").resolve()),
+            "error_code": "role_scan_runtime_error",
+            "error_category": "runtime",
+            "error_type": "RuntimeError",
+            "error": "runbook boom",
+        }
+    ]
 
 
 def test_role_dependency_key_uses_src_when_name_missing():
