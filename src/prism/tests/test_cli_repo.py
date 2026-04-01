@@ -11,6 +11,7 @@ from prism import cli
 from prism import cli_commands, cli_presenters
 from prism import errors as prism_errors
 from prism import repo_services
+from prism.scanner_io.collection_renderer import render_collection_markdown
 
 _REAL_FETCH_REPO_FILE = cli._fetch_repo_file
 _REAL_FETCH_REPO_DIRECTORY_NAMES = cli._fetch_repo_directory_names
@@ -3190,3 +3191,21 @@ def test_cli_collection_presenter_delegates_to_cli_presenters(monkeypatch):
     )
 
     assert cli._render_collection_markdown({"summary": {}}) == "delegated-render"
+
+
+def test_collection_markdown_renderer_is_callable_outside_cli_layer():
+    rendered = render_collection_markdown(
+        {
+            "collection": {
+                "metadata": {
+                    "namespace": "demo",
+                    "name": "sample",
+                    "version": "1.0.0",
+                }
+            },
+            "summary": {"total_roles": 1, "scanned_roles": 1, "failed_roles": 0},
+        }
+    )
+
+    assert "# demo.sample Collection Documentation" in rendered
+    assert "- Total roles: 1" in rendered

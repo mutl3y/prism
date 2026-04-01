@@ -9,6 +9,7 @@ from .loader import (
     map_argument_spec_type,
     parse_yaml_candidate,
 )
+from .collection_renderer import render_collection_markdown
 from .output import (
     FinalOutputPayload,
     build_final_output_payload,
@@ -23,6 +24,7 @@ __all__ = [
     "load_yaml_file",
     "map_argument_spec_type",
     "parse_yaml_candidate",
+    "render_collection_markdown",
     "FinalOutputPayload",
     "build_final_output_payload",
     "render_final_output",
