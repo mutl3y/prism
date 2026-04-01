@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from prism import errors as prism_errors
 from prism import scanner
 from prism.scanner_core import DIContainer, ScannerContext
 
@@ -444,7 +445,11 @@ class TestScannerContextPhaseCoordination:
 
         class _FailingDiscovery:
             def discover(self) -> tuple[object, ...]:
-                raise RuntimeError("discovery exploded")
+                raise prism_errors.PrismRuntimeError(
+                    code=prism_errors.ROLE_SCAN_RUNTIME_ERROR,
+                    category=prism_errors.ERROR_CATEGORY_RUNTIME,
+                    message="discovery exploded",
+                )
 
         scan_options = {
             **_canonical_scan_options(),
@@ -466,8 +471,32 @@ class TestScannerContextPhaseCoordination:
         assert metadata["scan_degraded"] is True
         assert isinstance(metadata["scan_errors"], list)
         assert metadata["scan_errors"][0]["phase"] == "discovery"
-        assert metadata["scan_errors"][0]["error_type"] == "RuntimeError"
-        assert metadata["scan_errors"][0]["message"] == "discovery exploded"
+        assert metadata["scan_errors"][0]["error_type"] == "PrismRuntimeError"
+        assert "discovery exploded" in metadata["scan_errors"][0]["message"]
+
+    def test_orchestrate_scan_best_effort_reraises_unexpected_runtime_errors(
+        self,
+    ) -> None:
+        class _FailingDiscovery:
+            def discover(self) -> tuple[object, ...]:
+                raise RuntimeError("unexpected discovery bug")
+
+        scan_options = {
+            **_canonical_scan_options(),
+            "strict_phase_failures": False,
+        }
+        di = DIContainer(role_path="/path/to/role", scan_options=scan_options)
+        di.factory_variable_discovery = lambda: _FailingDiscovery()  # type: ignore[method-assign]
+
+        context = ScannerContext(
+            di=di,
+            role_path="/path/to/role",
+            scan_options=scan_options,
+            prepare_scan_context_fn=_prepare_scan_context_stub,
+        )
+
+        with pytest.raises(RuntimeError, match="unexpected discovery bug"):
+            context.orchestrate_scan()
 
     def test_orchestrate_scan_best_effort_resets_scan_errors_each_run(self) -> None:
         """Best-effort mode should not leak prior run errors into later successful runs."""
@@ -479,7 +508,11 @@ class TestScannerContextPhaseCoordination:
             def discover(self) -> tuple[object, ...]:
                 self.calls += 1
                 if self.calls == 1:
-                    raise RuntimeError("first pass failed")
+                    raise prism_errors.PrismRuntimeError(
+                        code=prism_errors.ROLE_SCAN_RUNTIME_ERROR,
+                        category=prism_errors.ERROR_CATEGORY_RUNTIME,
+                        message="first pass failed",
+                    )
                 return ()
 
         scan_options = {

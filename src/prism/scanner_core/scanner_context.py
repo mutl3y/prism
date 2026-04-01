@@ -15,6 +15,7 @@ from copy import deepcopy
 import logging
 from typing import Any, Callable
 
+from ..errors import PrismRuntimeError
 from ..scanner_data.contracts import ScanContextPayload, ScanOptionsDict
 from . import scan_request
 from .di import DIContainer
@@ -42,6 +43,8 @@ _REQUIRED_SCAN_OPTION_KEYS: set[str] = {
     "fail_on_yaml_like_task_annotations",
     "ignore_unresolved_internal_underscore_references",
 }
+
+_RECOVERABLE_PHASE_ERRORS: tuple[type[Exception], ...] = (PrismRuntimeError,)
 
 
 class ScannerContext:
@@ -195,10 +198,13 @@ class ScannerContext:
             return variables_tuple
         except Exception as e:
             logger = logging.getLogger(__name__)
-            entry = self._record_phase_error("discovery", e)
-            if self._strict_phase_failures:
-                logger.error("Variable discovery failed", extra={"scan_error": entry})
+            if self._strict_phase_failures or not isinstance(
+                e,
+                _RECOVERABLE_PHASE_ERRORS,
+            ):
+                logger.error("Variable discovery failed")
                 raise
+            entry = self._record_phase_error("discovery", e)
             logger.error(
                 "Variable discovery failed; continuing in best-effort mode",
                 extra={"scan_error": entry},
@@ -225,10 +231,13 @@ class ScannerContext:
             return features
         except Exception as e:
             logger = logging.getLogger(__name__)
-            entry = self._record_phase_error("feature_detection", e)
-            if self._strict_phase_failures:
-                logger.error("Feature detection failed", extra={"scan_error": entry})
+            if self._strict_phase_failures or not isinstance(
+                e,
+                _RECOVERABLE_PHASE_ERRORS,
+            ):
+                logger.error("Feature detection failed")
                 raise
+            entry = self._record_phase_error("feature_detection", e)
             logger.error(
                 "Feature detection failed; continuing in best-effort mode",
                 extra={"scan_error": entry},

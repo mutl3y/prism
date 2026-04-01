@@ -988,36 +988,14 @@ def test_scan_collection_records_role_failures(monkeypatch, tmp_path):
             None,
         ),
         (
-            RuntimeError(
-                "ROLE_METADATA_YAML_INVALID: /tmp/demo_collection/roles/role_b/meta/main.yml: broken"
+            prism_errors.PrismRuntimeError(
+                code=prism_errors.ROLE_METADATA_YAML_INVALID,
+                category=prism_errors.ERROR_CATEGORY_CONFIG,
+                message="role metadata parse failed",
             ),
             "role_metadata_yaml_invalid",
             "config",
-            "ROLE_METADATA_YAML_INVALID",
-        ),
-        (
-            RuntimeError(
-                "README_MARKER_CONFIG_YAML_INVALID: /tmp/demo_collection/roles/role_b/.prism.yml: broken"
-            ),
-            "role_readme_marker_config_yaml_invalid",
-            "config",
-            "README_MARKER_CONFIG_YAML_INVALID",
-        ),
-        (
-            RuntimeError(
-                "README_SECTION_CONFIG_YAML_INVALID: /tmp/demo_collection/roles/role_b/.prism.yml: broken"
-            ),
-            "role_readme_section_config_yaml_invalid",
-            "config",
-            "README_SECTION_CONFIG_YAML_INVALID",
-        ),
-        (
-            RuntimeError(
-                "POLICY_CONFIG_YAML_INVALID: /tmp/demo_collection/roles/role_b/.prism.yml: broken"
-            ),
-            "role_policy_config_yaml_invalid",
-            "config",
-            "POLICY_CONFIG_YAML_INVALID",
+            "role_metadata_yaml_invalid",
         ),
         (
             OSError("permission denied"),
@@ -1410,7 +1388,7 @@ def test_scan_collection_extracts_lookup_class_method_capability_hints(
     assert "run" in record["symbols"]
 
 
-def test_load_yaml_document_returns_none_for_scalar_or_invalid(tmp_path):
+def test_load_yaml_document_returns_none_for_scalar_and_raises_for_invalid(tmp_path):
     scalar_path = tmp_path / "scalar.yml"
     scalar_path.write_text("---\n42\n", encoding="utf-8")
     invalid_path = tmp_path / "invalid.yml"
@@ -1418,7 +1396,9 @@ def test_load_yaml_document_returns_none_for_scalar_or_invalid(tmp_path):
 
     assert api._load_yaml_document(tmp_path / "missing.yml") is None
     assert api._load_yaml_document(scalar_path) is None
-    assert api._load_yaml_document(invalid_path) is None
+    with pytest.raises(prism_errors.PrismRuntimeError) as exc_info:
+        api._load_yaml_document(invalid_path)
+    assert exc_info.value.code == prism_errors.ROLE_CONTENT_YAML_INVALID
 
 
 def test_requirements_entries_and_dependency_key_helpers_cover_edge_cases():

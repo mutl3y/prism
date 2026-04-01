@@ -85,50 +85,14 @@ _COLLECTION_ROLE_FAILURE_CODES: tuple[tuple[type[Exception], str, str], ...] = (
     (RuntimeError, ROLE_SCAN_RUNTIME_ERROR, "runtime"),
 )
 
-_COLLECTION_ROLE_RUNTIME_DETAIL_CODES: dict[str, tuple[str, str]] = {
-    "POLICY_CONFIG_YAML_INVALID": (ROLE_POLICY_CONFIG_YAML_INVALID, "config"),
-    "README_MARKER_CONFIG_YAML_INVALID": (
-        ROLE_README_MARKER_CONFIG_YAML_INVALID,
-        "config",
-    ),
-    "README_SECTION_CONFIG_YAML_INVALID": (
-        ROLE_README_SECTION_CONFIG_YAML_INVALID,
-        "config",
-    ),
-    "ROLE_METADATA_YAML_INVALID": (ROLE_METADATA_YAML_INVALID, "config"),
-}
-
-def _collection_role_runtime_detail_code(exc: Exception) -> str | None:
-    if isinstance(exc, PrismRuntimeError):
-        return exc.code
-    if not isinstance(exc, RuntimeError):
-        return None
-    detail_code, separator, _message = str(exc).partition(":")
-    if not separator:
-        return None
-    normalized = detail_code.strip()
-    if not normalized:
-        return None
-    if not normalized.replace("_", "").isalnum() or normalized.upper() != normalized:
-        return None
-    return normalized
-
-
 def _collection_role_failure_details(exc: Exception) -> tuple[str, str, str | None]:
     if isinstance(exc, PrismRuntimeError):
         return exc.code, exc.category, exc.code
 
-    detail_code = _collection_role_runtime_detail_code(exc)
-    if detail_code is not None:
-        runtime_details = _COLLECTION_ROLE_RUNTIME_DETAIL_CODES.get(detail_code)
-        if runtime_details is not None:
-            error_code, error_category = runtime_details
-            return error_code, error_category, detail_code
-
     for error_type, code, category in _COLLECTION_ROLE_FAILURE_CODES:
         if isinstance(exc, error_type):
-            return code, category, detail_code
-    return ROLE_SCAN_FAILED, ERROR_CATEGORY_RUNTIME, detail_code
+            return code, category, None
+    return ROLE_SCAN_FAILED, ERROR_CATEGORY_RUNTIME, None
 
 
 def _parse_scan_role_payload(payload: str | dict[str, Any]) -> dict[str, Any]:
@@ -203,8 +167,27 @@ def _load_yaml_document(path: Path) -> dict[str, Any] | list[Any] | None:
         return None
     try:
         loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
+    except UnicodeDecodeError as exc:
+        raise PrismRuntimeError(
+            code=ROLE_CONTENT_ENCODING_INVALID,
+            category="io",
+            message=f"failed to decode YAML document: {path}",
+            detail={"path": str(path)},
+        ) from exc
+    except yaml.YAMLError as exc:
+        raise PrismRuntimeError(
+            code=ROLE_CONTENT_YAML_INVALID,
+            category="parser",
+            message=f"failed to parse YAML document: {path}",
+            detail={"path": str(path)},
+        ) from exc
+    except OSError as exc:
+        raise PrismRuntimeError(
+            code=ROLE_CONTENT_IO_ERROR,
+            category="io",
+            message=f"failed to read YAML document: {path}",
+            detail={"path": str(path)},
+        ) from exc
     if isinstance(loaded, (dict, list)):
         return loaded
     return None
