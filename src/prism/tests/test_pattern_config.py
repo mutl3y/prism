@@ -46,6 +46,30 @@ def test_load_pattern_config_reads_cwd_override(monkeypatch, tmp_path):
     assert "from_cwd_override" in config["sensitivity"]["name_tokens"]
 
 
+def test_load_pattern_config_prefers_search_root_over_process_cwd(
+    monkeypatch, tmp_path
+):
+    cwd_root = tmp_path / "cwd-root"
+    role_root = tmp_path / "role-root"
+    cwd_root.mkdir()
+    role_root.mkdir()
+
+    (cwd_root / pattern_config.CWD_OVERRIDE_FILENAME).write_text(
+        "sensitivity:\n  name_tokens:\n    - from_process_cwd\n",
+        encoding="utf-8",
+    )
+    (role_root / pattern_config.REPO_OVERRIDE_FILENAME).write_text(
+        "sensitivity:\n  name_tokens:\n    - from_role_root\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(cwd_root)
+
+    config = load_pattern_config(search_root=role_root)
+
+    assert config["sensitivity"]["name_tokens"] == ["from_role_root"]
+
+
 def test_load_pattern_config_reads_xdg_user_override(monkeypatch, tmp_path):
     xdg_home = tmp_path / "xdg-home"
     override = xdg_home / "prism" / pattern_config.CWD_OVERRIDE_FILENAME

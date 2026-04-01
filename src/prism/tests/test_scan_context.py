@@ -246,6 +246,37 @@ def test_refresh_policy_updates_readme_section_aliases_in_process(
         scanner._refresh_policy()
 
 
+def test_refresh_policy_uses_role_root_override_instead_of_process_cwd(
+    monkeypatch, tmp_path
+):
+    cwd_root = tmp_path / "cwd-root"
+    role_root = tmp_path / "role-root"
+    cwd_root.mkdir()
+    role_root.mkdir()
+
+    (cwd_root / ".prism_patterns.yml").write_text(
+        "sensitivity:\n  name_tokens:\n    - from_process_cwd\n",
+        encoding="utf-8",
+    )
+    (role_root / ".prism_patterns.yml").write_text(
+        "sensitivity:\n  name_tokens:\n    - from_role_root\n",
+        encoding="utf-8",
+    )
+
+    original_tokens = scanner._SECRET_NAME_TOKENS
+    monkeypatch.chdir(cwd_root)
+
+    scanner._refresh_policy(role_root=str(role_root))
+
+    try:
+        assert "from_role_root" in scanner._SECRET_NAME_TOKENS
+        assert "from_process_cwd" not in scanner._SECRET_NAME_TOKENS
+    finally:
+        monkeypatch.chdir(tmp_path)
+        scanner._refresh_policy()
+        assert scanner._SECRET_NAME_TOKENS == original_tokens
+
+
 def test_scanner_runtime_context_helpers_are_flattened_partial_aliases():
     prepare_scan_context = scanner._prepare_scan_context
     collect_scan_base_context = scanner._collect_scan_base_context
@@ -584,6 +615,43 @@ def test_execute_scan_with_context_invokes_scanner_context_once(monkeypatch, tmp
         "build_emit_args": 1,
         "emit": 1,
     }
+
+
+def test_execute_scan_with_context_routes_through_scan_facade_helper(
+    monkeypatch, tmp_path
+):
+    captured = {}
+
+    def fake_execute_scan_with_context(**kwargs):
+        captured.update(kwargs)
+        return "helper-result"
+
+    monkeypatch.setattr(
+        scanner._scan_facade_helpers,
+        "execute_scan_with_context",
+        fake_execute_scan_with_context,
+    )
+
+    result = scanner._execute_scan_with_context(
+        role_path=str(tmp_path / "role"),
+        scan_options={"role_path": str(tmp_path / "role")},
+        output="README.md",
+        output_format="md",
+        concise_readme=False,
+        scanner_report_output=None,
+        include_scanner_report_link=True,
+        template=None,
+        dry_run=True,
+        runbook_output=None,
+        runbook_csv_output=None,
+    )
+
+    assert result == "helper-result"
+    assert captured["role_path"] == str(tmp_path / "role")
+    assert captured["output"] == "README.md"
+    assert captured["output_format"] == "md"
+    assert captured["scanner_context_cls"] is scanner.ScannerContext
+    assert callable(captured["prepare_scan_context_fn"])
 
 
 def test_execute_scan_with_context_does_not_fall_back_for_orchestrated_payload_shape(

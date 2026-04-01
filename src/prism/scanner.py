@@ -197,7 +197,11 @@ DEFAULT_SECTION_DISPLAY_TITLES_PATH = (
 DEFAULT_DOC_MARKER_PREFIX = READMECFG_DEFAULT_DOC_MARKER_PREFIX
 
 
-def _refresh_policy(override_path: str | None = None) -> None:
+def _refresh_policy(
+    override_path: str | None = None,
+    *,
+    role_root: str | None = None,
+) -> None:
     """Reload policy-derived module globals. Protected by _POLICY_REFRESH_LOCK for thread safety.
 
     Note: This function mutates module-level state. The lock prevents concurrent scans from
@@ -214,6 +218,10 @@ def _refresh_policy(override_path: str | None = None) -> None:
         global _URL_PREFIXES
         global _VARIABLE_GUIDANCE_KEYWORDS
 
+        refresh_kwargs = {"override_path": override_path}
+        if role_root is not None:
+            refresh_kwargs["search_root"] = role_root
+
         (
             _POLICY,
             STYLE_SECTION_ALIASES,
@@ -223,7 +231,7 @@ def _refresh_policy(override_path: str | None = None) -> None:
             _URL_PREFIXES,
             _VARIABLE_GUIDANCE_KEYWORDS,
             _,
-        ) = _config_refresh_policy(override_path=override_path)
+        ) = _config_refresh_policy(**refresh_kwargs)
         _SENSITIVITY = _POLICY["sensitivity"]
 
         from .scanner_extract import (
@@ -905,29 +913,25 @@ def _execute_scan_with_context(
     runbook_csv_output: str | None,
 ) -> str | bytes:
     """Execute scan using ScannerContext orchestration and emit final outputs."""
-    container = DIContainer(role_path=role_path, scan_options=scan_options)
-    context = ScannerContext(
-        di=container,
+    return _scan_facade_helpers.execute_scan_with_context(
         role_path=role_path,
         scan_options=scan_options,
-        build_run_scan_options_fn=scan_request.build_run_scan_options_canonical,
-        prepare_scan_context_fn=_prepare_scan_context,
-    )
-    payload = context.orchestrate_scan()
-
-    emit_args = _build_emit_scan_outputs_args(
         output=output,
         output_format=output_format,
         concise_readme=concise_readme,
         scanner_report_output=scanner_report_output,
         include_scanner_report_link=include_scanner_report_link,
-        payload=payload,
         template=template,
         dry_run=dry_run,
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
+        di_container_cls=DIContainer,
+        scanner_context_cls=ScannerContext,
+        build_run_scan_options_fn=scan_request.build_run_scan_options_canonical,
+        prepare_scan_context_fn=_prepare_scan_context,
+        build_emit_scan_outputs_args_fn=_build_emit_scan_outputs_args,
+        emit_scan_outputs_fn=_emit_scan_outputs,
     )
-    return _emit_scan_outputs(emit_args)
 
 
 def run_scan(
@@ -967,7 +971,7 @@ def run_scan(
 
     Delegates scan orchestration to ScannerContext and then emits outputs.
     """
-    _refresh_policy(policy_config_path)
+    _refresh_policy(policy_config_path, role_root=role_path)
     scan_options = scan_request.build_run_scan_options_canonical(
         role_path=role_path,
         role_name_override=role_name_override,

@@ -7,7 +7,52 @@ dependency injection.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
+
+
+def execute_scan_with_context(
+    *,
+    role_path: str,
+    scan_options: dict[str, Any],
+    output: str,
+    output_format: str,
+    concise_readme: bool,
+    scanner_report_output: str | None,
+    include_scanner_report_link: bool,
+    template: str | None,
+    dry_run: bool,
+    runbook_output: str | None,
+    runbook_csv_output: str | None,
+    di_container_cls: type,
+    scanner_context_cls: type,
+    build_run_scan_options_fn: Callable[..., dict[str, Any]],
+    prepare_scan_context_fn: Callable[..., dict[str, Any]],
+    build_emit_scan_outputs_args_fn: Callable[..., dict[str, Any]],
+    emit_scan_outputs_fn: Callable[[dict[str, Any]], str | bytes],
+) -> str | bytes:
+    """Execute a scan via ScannerContext and forward results to output emission."""
+    container = di_container_cls(role_path=role_path, scan_options=scan_options)
+    context = scanner_context_cls(
+        di=container,
+        role_path=role_path,
+        scan_options=scan_options,
+        build_run_scan_options_fn=build_run_scan_options_fn,
+        prepare_scan_context_fn=prepare_scan_context_fn,
+    )
+    payload = context.orchestrate_scan()
+    emit_args = build_emit_scan_outputs_args_fn(
+        output=output,
+        output_format=output_format,
+        concise_readme=concise_readme,
+        scanner_report_output=scanner_report_output,
+        include_scanner_report_link=include_scanner_report_link,
+        payload=payload,
+        template=template,
+        dry_run=dry_run,
+        runbook_output=runbook_output,
+        runbook_csv_output=runbook_csv_output,
+    )
+    return emit_scan_outputs_fn(emit_args)
 
 
 def collect_role_contents(
