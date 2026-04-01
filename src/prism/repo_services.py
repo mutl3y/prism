@@ -6,6 +6,7 @@ in ``repo_intake`` and ``repo_metadata``.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import os
 
 from .errors import FailureDetail, to_failure_detail
@@ -66,6 +67,31 @@ def build_repo_intake_error(
     )
 
 
+@dataclass(frozen=True)
+class RepoScanFacade:
+    """Cohesive repo-scan facade for API and CLI orchestration layers."""
+
+    build_lightweight_sparse_clone_paths: object
+    build_repo_style_readme_candidates: object
+    build_sparse_clone_paths: object
+    checkout_repo_lightweight_style_readme: object
+    checkout_repo_scan_role: object
+    clone_repo: object
+    fetch_repo_contents_payload: object
+    fetch_repo_directory_names: object
+    fetch_repo_file: object
+    github_repo_from_url: object
+    normalize_repo_path: object
+    normalize_repo_scan_result_payload: object
+    normalize_repo_scan_metadata_paths: object
+    prepare_repo_scan_inputs: object
+    repo_name_from_url: object
+    repo_path_looks_like_role: object
+    repo_scan_workspace: object
+    resolve_repo_scan_scanner_report_relpath: object
+    resolve_style_readme_candidate: object
+
+
 # Public surface for API consumers.
 build_lightweight_sparse_clone_paths = _build_lightweight_sparse_clone_paths
 build_repo_style_readme_candidates = _build_repo_style_readme_candidates
@@ -86,3 +112,25 @@ repo_path_looks_like_role = _repo_path_looks_like_role
 repo_scan_workspace = _repo_scan_workspace
 resolve_repo_scan_scanner_report_relpath = _resolve_repo_scan_scanner_report_relpath
 resolve_style_readme_candidate = _resolve_style_readme_candidate
+
+repo_scan_facade = RepoScanFacade(
+    build_lightweight_sparse_clone_paths=build_lightweight_sparse_clone_paths,
+    build_repo_style_readme_candidates=build_repo_style_readme_candidates,
+    build_sparse_clone_paths=build_sparse_clone_paths,
+    checkout_repo_lightweight_style_readme=checkout_repo_lightweight_style_readme,
+    checkout_repo_scan_role=checkout_repo_scan_role,
+    clone_repo=clone_repo,
+    fetch_repo_contents_payload=fetch_repo_contents_payload,
+    fetch_repo_directory_names=fetch_repo_directory_names,
+    fetch_repo_file=fetch_repo_file,
+    github_repo_from_url=github_repo_from_url,
+    normalize_repo_path=normalize_repo_path,
+    normalize_repo_scan_result_payload=normalize_repo_scan_result_payload,
+    normalize_repo_scan_metadata_paths=normalize_repo_scan_metadata_paths,
+    prepare_repo_scan_inputs=prepare_repo_scan_inputs,
+    repo_name_from_url=repo_name_from_url,
+    repo_path_looks_like_role=repo_path_looks_like_role,
+    repo_scan_workspace=repo_scan_workspace,
+    resolve_repo_scan_scanner_report_relpath=resolve_repo_scan_scanner_report_relpath,
+    resolve_style_readme_candidate=resolve_style_readme_candidate,
+)

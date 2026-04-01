@@ -101,6 +101,10 @@ def test_api_imports_repo_service_public_aliases_only() -> None:
     assert "from .repo_services import _" not in api_source
 
 
+def test_api_uses_repo_scan_facade_binding() -> None:
+    assert api._repo_scan_facade is repo_services.repo_scan_facade
+
+
 def test_scan_repo_uses_shared_checkout_orchestration(monkeypatch, tmp_path):
     calls: dict = {}
     role_path = tmp_path / "repo" / "roles" / "demo"
