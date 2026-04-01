@@ -9,6 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
+from prism.scanner_data.contracts import PolicyContext
+
 
 def execute_scan_with_context(
     *,
@@ -255,7 +257,7 @@ def apply_style_and_comparison_metadata(
     resolve_default_style_guide_source: Callable[[str | None], str],
     parse_style_readme: Callable[..., dict],
     build_comparison_report: Callable[[str, str, list[str] | None], dict],
-    policy_context: dict[str, Any] | None = None,
+    policy_context: PolicyContext | None = None,
 ) -> None:
     """Attach style-guide and optional baseline comparison metadata."""
     effective_style_readme_path = style_readme_path

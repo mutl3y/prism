@@ -472,7 +472,7 @@ def _collect_variable_reference_context(
     role_path: str,
     seed_paths: list[str] | None,
     exclude_paths: list[str] | None,
-    policy_context: dict | None = None,
+    policy_context: _PolicyContext | None = None,
 ) -> _scan_context_ReferenceContext:
     """Collect seed and dynamic-reference context for inferred variable rows."""
     return _variable_pipeline.collect_variable_reference_context(
@@ -492,7 +492,7 @@ def _populate_variable_rows(
     exclude_paths: list[str] | None,
     reference_context: _scan_context_ReferenceContext,
     style_readme_path: str | None = None,
-    policy_context: dict | None = None,
+    policy_context: _PolicyContext | None = None,
     ignore_unresolved_internal_underscore_references: bool = True,
     non_authoritative_test_evidence_max_file_bytes: int = _ANALYSIS_MAX_FILE_BYTES,
     non_authoritative_test_evidence_max_files_scanned: int = _ANALYSIS_MAX_FILES_SCANNED,
@@ -534,7 +534,7 @@ def build_variable_insights(
     include_vars_main: bool = True,
     exclude_paths: list[str] | None = None,
     style_readme_path: str | None = None,
-    policy_context: dict | None = None,
+    policy_context: _PolicyContext | None = None,
     ignore_unresolved_internal_underscore_references: bool = True,
     non_authoritative_test_evidence_max_file_bytes: int = _ANALYSIS_MAX_FILE_BYTES,
     non_authoritative_test_evidence_max_files_scanned: int = _ANALYSIS_MAX_FILES_SCANNED,

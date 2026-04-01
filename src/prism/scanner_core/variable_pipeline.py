@@ -6,7 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from prism.scanner_data.contracts import ReferenceContext, VariableRow
+from prism.scanner_data.contracts import PolicyContext, ReferenceContext, VariableRow
 
 from ..scanner_analysis.metrics import (
     attach_non_authoritative_test_evidence,
@@ -472,7 +472,7 @@ def collect_variable_reference_context(
     seed_paths: list[str] | None,
     exclude_paths: list[str] | None,
     load_seed_variables,
-    policy_context: dict[str, Any] | None = None,
+    policy_context: PolicyContext | None = None,
 ) -> ReferenceContext:
     """Collect seed and dynamic-reference context for inferred variable rows."""
     seed_values, seed_secrets, seed_sources = load_seed_variables(seed_paths)
@@ -521,7 +521,7 @@ def populate_variable_rows(
     reference_context: ReferenceContext,
     map_argument_spec_type,
     style_readme_path: str | None = None,
-    policy_context: dict[str, Any] | None = None,
+    policy_context: PolicyContext | None = None,
     ignore_unresolved_internal_underscore_references: bool = True,
     non_authoritative_test_evidence_max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
     non_authoritative_test_evidence_max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,

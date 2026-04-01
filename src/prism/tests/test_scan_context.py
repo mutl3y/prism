@@ -316,6 +316,14 @@ def test_build_variable_insights_uses_per_scan_ignored_identifier_context(tmp_pa
     assert all(row["name"] != "bertrum_runtime_only_ignored" for row in policy_rows)
 
 
+def test_policy_context_annotations_use_typed_contract_across_runtime_seams():
+    scan_runtime_hints = get_type_hints(scan_runtime.enrich_scan_context_with_insights)
+    scanner_hints = get_type_hints(scanner.build_variable_insights)
+
+    assert scan_runtime_hints["policy_context"] == contracts.PolicyContext | None
+    assert scanner_hints["policy_context"] == contracts.PolicyContext | None
+
+
 def test_refresh_policy_uses_role_root_override_instead_of_process_cwd(
     monkeypatch, tmp_path
 ):

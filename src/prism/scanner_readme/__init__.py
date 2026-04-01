@@ -10,6 +10,7 @@ from .render import (
 )
 from .style import (
     STYLE_SECTION_ALIASES,
+    get_style_section_aliases_snapshot,
     detect_style_section_level,
     format_heading,
     normalize_style_heading,
@@ -36,6 +37,7 @@ __all__ = [
     "append_scanner_report_section_if_enabled",
     "render_guide_section_body",
     "STYLE_SECTION_ALIASES",
+    "get_style_section_aliases_snapshot",
     "detect_style_section_level",
     "format_heading",
     "normalize_style_heading",

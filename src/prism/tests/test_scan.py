@@ -2034,6 +2034,30 @@ def test_resolve_section_selector_handles_blank_canonical_and_alias():
     )
 
 
+def test_style_section_aliases_public_compat_mapping_is_read_only():
+    with pytest.raises(TypeError):
+        readme_style.STYLE_SECTION_ALIASES["runtime inputs"] = "role_variables"
+
+
+def test_get_style_section_aliases_snapshot_isolated_from_future_refresh():
+    original_policy = scanner._POLICY
+    snapshot_before = readme_style.get_style_section_aliases_snapshot()
+    assert isinstance(snapshot_before, dict)
+
+    patched_policy = dict(original_policy)
+    patched_aliases = dict(original_policy["section_aliases"])
+    patched_aliases["bertrum policy alias"] = "role_variables"
+    patched_policy["section_aliases"] = patched_aliases
+
+    try:
+        readme_style._refresh_policy_derived_state(patched_policy)
+        snapshot_after = readme_style.get_style_section_aliases_snapshot()
+        assert "bertrum policy alias" not in snapshot_before
+        assert snapshot_after["bertrum policy alias"] == "role_variables"
+    finally:
+        readme_style._refresh_policy_derived_state(original_policy)
+
+
 def test_load_readme_section_config_parses_include_exclude_and_modes(tmp_path):
     role = tmp_path / "role"
     role.mkdir(parents=True)

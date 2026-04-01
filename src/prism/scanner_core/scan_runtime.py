@@ -7,6 +7,7 @@ from typing import Any, Callable
 
 from prism.scanner_data.contracts import (
     EmitScanOutputsArgs,
+    PolicyContext,
     RunbookSidecarArgs,
     RunScanOutputPayload,
     ScanBaseContext,
@@ -352,7 +353,7 @@ def enrich_scan_context_with_insights(
     ],
     build_doc_insights: Callable[..., dict],
     apply_style_and_comparison_metadata: Callable[..., None],
-    policy_context: dict[str, Any] | None = None,
+    policy_context: PolicyContext | None = None,
 ) -> tuple[list[dict], dict]:
     """Add variable/doc/style insights to scan metadata and display payloads."""
     variable_insights, undocumented_default_filters, display_variables = (

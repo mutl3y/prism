@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
+from prism.scanner_data.contracts import PolicyContext
+
 
 def collect_variable_insights_and_default_filter_findings(
     *,
@@ -17,7 +19,7 @@ def collect_variable_insights_and_default_filter_findings(
     metadata: dict,
     marker_prefix: str,
     style_readme_path: str | None,
-    policy_context: dict | None,
+    policy_context: PolicyContext | None,
     ignore_unresolved_internal_underscore_references: bool,
     non_authoritative_test_evidence_max_file_bytes: int,
     non_authoritative_test_evidence_max_files_scanned: int,
@@ -142,7 +144,7 @@ def build_variable_insights(
     include_vars_main: bool,
     exclude_paths: list[str] | None,
     style_readme_path: str | None,
-    policy_context: dict | None,
+    policy_context: PolicyContext | None,
     ignore_unresolved_internal_underscore_references: bool,
     non_authoritative_test_evidence_max_file_bytes: int,
     non_authoritative_test_evidence_max_files_scanned: int,
