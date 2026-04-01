@@ -27,6 +27,8 @@ Exported names consumed by scanner.py:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar, Token
 import re
 import threading
 import yaml
@@ -95,6 +97,42 @@ _URL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["url_prefixes"])
 
 # Re-entrant lock protecting policy-derived module-level globals during concurrent scans.
 _POLICY_DERIVED_STATE_LOCK = threading.RLock()
+_POLICY_OVERRIDE: ContextVar[dict[str, Any] | None] = ContextVar(
+    "prism_variable_extractor_policy_override",
+    default=None,
+)
+
+
+def _active_policy() -> dict[str, Any]:
+    policy_override = _POLICY_OVERRIDE.get()
+    if isinstance(policy_override, dict):
+        return policy_override
+    return _POLICY
+
+
+def _active_ignored_identifiers() -> set[str]:
+    return _build_effective_ignored_identifiers(_active_policy())
+
+
+def _active_sensitivity_tokens() -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    sensitivity = _active_policy().get("sensitivity") or {}
+    return (
+        tuple(sensitivity.get("name_tokens") or ()),
+        tuple(sensitivity.get("vault_markers") or ()),
+        tuple(sensitivity.get("credential_prefixes") or ()),
+        tuple(sensitivity.get("url_prefixes") or ()),
+    )
+
+
+@contextmanager
+def policy_override_scope(policy: dict[str, Any] | None):
+    """Apply a request-scoped policy override for variable extraction."""
+
+    token: Token[dict[str, Any] | None] = _POLICY_OVERRIDE.set(policy)
+    try:
+        yield
+    finally:
+        _POLICY_OVERRIDE.reset(token)
 
 
 def _coerce_identifier(value: object) -> str | None:
@@ -404,7 +442,7 @@ def _collect_referenced_variable_names(
     """Collect likely variable references from role tasks/templates/handlers files."""
     role_root = Path(role_path).resolve()
     candidates: set[str] = set()
-    effective_ignored_identifiers = set(IGNORED_IDENTIFIERS)
+    effective_ignored_identifiers = _active_ignored_identifiers()
     if ignored_identifiers:
         effective_ignored_identifiers.update(
             token.lower() for token in ignored_identifiers if isinstance(token, str)
@@ -490,12 +528,19 @@ def _is_when_expression_token_candidate(
 
 def _looks_secret_name(name: str) -> bool:
     """Return True when a variable name suggests secret/sensitive content."""
+    secret_name_tokens, _vault_markers, _credential_prefixes, _url_prefixes = (
+        _active_sensitivity_tokens()
+    )
     lowered = name.lower()
-    return any(token in lowered for token in _SECRET_NAME_TOKENS)
+    return any(token in lowered for token in secret_name_tokens)
 
 
 def _resembles_password_like(value: object) -> bool:
     """Return True when a string value looks like a credential/token."""
+    _secret_name_tokens, vault_markers, credential_prefixes, url_prefixes = (
+        _active_sensitivity_tokens()
+    )
+
     if not isinstance(value, str):
         return False
 
@@ -504,11 +549,11 @@ def _resembles_password_like(value: object) -> bool:
         return False
     lowered = raw.lower()
 
-    if any(marker in lowered for marker in _VAULT_MARKERS):
+    if any(marker in lowered for marker in vault_markers):
         return True
-    if raw.startswith(_CREDENTIAL_PREFIXES):
+    if raw.startswith(credential_prefixes):
         return True
-    if raw.startswith(_URL_PREFIXES):
+    if raw.startswith(url_prefixes):
         return False
     if " " in raw or "{{" in raw or "}}" in raw:
         return False
@@ -538,10 +583,13 @@ def _is_sensitive_variable(name: str, value: object) -> bool:
 def _looks_secret_value(value: object) -> bool:
     """Return True when a value appears to be vaulted or sensitive."""
     if isinstance(value, str):
+        _secret_name_tokens, vault_markers, _credential_prefixes, _url_prefixes = (
+            _active_sensitivity_tokens()
+        )
         lowered = value.lower()
-        return any(
-            marker in lowered for marker in _VAULT_MARKERS
-        ) or lowered.startswith("vault_")
+        return any(marker in lowered for marker in vault_markers) or lowered.startswith(
+            "vault_"
+        )
     return False
 
 
