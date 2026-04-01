@@ -2460,6 +2460,36 @@ def test_run_scan_policy_override_isolation_across_concurrent_calls(tmp_path):
     assert results["without_override"] is False
 
 
+def test_run_scan_does_not_mutate_module_policy_state(tmp_path, monkeypatch):
+    role = tmp_path / "role"
+    (role / "tasks").mkdir(parents=True)
+    (role / "tasks" / "main.yml").write_text(
+        "---\n- name: demo\n  debug:\n    msg: ok\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        scanner,
+        "_refresh_policy",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("no refresh")),
+    )
+    monkeypatch.setattr(
+        scanner,
+        "_restore_policy_snapshot",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("no restore")),
+    )
+
+    payload = scanner.run_scan(
+        str(role),
+        output="scan.json",
+        output_format="json",
+        dry_run=True,
+    )
+
+    parsed = json.loads(payload)
+    assert parsed["role_name"] == "role"
+
+
 def test_load_section_display_titles_parses_valid_entries_only(tmp_path, monkeypatch):
     titles = tmp_path / "titles.yml"
     titles.write_text(
