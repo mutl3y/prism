@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 import base64
 import json
@@ -13,6 +14,22 @@ from prism import repo_services
 
 _REAL_FETCH_REPO_FILE = cli._fetch_repo_file
 _REAL_FETCH_REPO_DIRECTORY_NAMES = cli._fetch_repo_directory_names
+
+
+def test_cli_imports_only_public_repo_service_symbols():
+    module_source = Path(cli.__file__).read_text(encoding="utf-8")
+    module_ast = ast.parse(module_source)
+
+    imported_names: list[str] = []
+    for node in module_ast.body:
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        if node.module != "prism.repo_services":
+            continue
+        imported_names.extend(alias.name for alias in node.names)
+
+    assert imported_names
+    assert all(not name.startswith("_") for name in imported_names)
 
 
 def _write_generated_output(output: str) -> str:
