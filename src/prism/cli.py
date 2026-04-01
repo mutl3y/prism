@@ -19,6 +19,12 @@ from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 import yaml
+from .errors import (
+    PrismRuntimeError,
+    REPO_SCAN_PAYLOAD_JSON_INVALID,
+    REPO_SCAN_PAYLOAD_SHAPE_INVALID,
+    REPO_SCAN_PAYLOAD_TYPE_INVALID,
+)
 from .repo_services import (
     _build_repo_style_readme_candidates as _repo_build_repo_style_readme_candidates,
     _build_sparse_clone_paths,
@@ -816,8 +822,12 @@ def _normalize_repo_json_payload(
             repo_style_readme_path=repo_style_readme_path,
             scanner_report_relpath=scanner_report_relpath,
         )
-    except RuntimeError as exc:
-        if str(exc).startswith("REPO_SCAN_PAYLOAD_"):
+    except PrismRuntimeError as exc:
+        if exc.code in {
+            REPO_SCAN_PAYLOAD_JSON_INVALID,
+            REPO_SCAN_PAYLOAD_TYPE_INVALID,
+            REPO_SCAN_PAYLOAD_SHAPE_INVALID,
+        }:
             return rendered_payload
         raise
     if isinstance(normalized_payload, str):
@@ -826,6 +836,12 @@ def _normalize_repo_json_payload(
 
 
 def _map_top_level_exception_to_exit_code(exc: Exception) -> int:
+    if isinstance(exc, PrismRuntimeError):
+        if exc.category == "network":
+            return _EXIT_CODE_NETWORK_ERROR
+        if exc.category == "io":
+            return _EXIT_CODE_OS_ERROR
+        return _EXIT_CODE_GENERIC_ERROR
     if isinstance(exc, FileNotFoundError):
         return _EXIT_CODE_NOT_FOUND
     if isinstance(exc, PermissionError):
@@ -837,6 +853,13 @@ def _map_top_level_exception_to_exit_code(exc: Exception) -> int:
     if isinstance(exc, OSError):
         return _EXIT_CODE_OS_ERROR
     return _EXIT_CODE_GENERIC_ERROR
+
+
+def _format_top_level_exception(exc: Exception) -> str:
+    """Render a deterministic error line with code/category when available."""
+    if isinstance(exc, PrismRuntimeError):
+        return f"Error: code={exc.code} category={exc.category} message={exc.message}"
+    return f"Error: message={exc}"
 
 
 def _handle_repo_command(args: argparse.Namespace) -> int:
@@ -1353,7 +1376,7 @@ def main(argv=None) -> int:
     except KeyboardInterrupt:
         return _EXIT_CODE_INTERRUPTED
     except Exception as e:
-        print("Error:", e, file=sys.stderr)
+        print(_format_top_level_exception(e), file=sys.stderr)
         return _map_top_level_exception_to_exit_code(e)
 
 
