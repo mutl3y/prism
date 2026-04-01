@@ -33,7 +33,7 @@ def test_build_scanner_report_output_path_respects_explicit_path(tmp_path):
 
 def test_write_concise_scanner_report_if_enabled_dry_run_sets_flags_only(tmp_path):
     out_path = tmp_path / "docs" / "README.md"
-    metadata = {}
+    metadata = {"existing": "value"}
 
     report_path = scan_output_emission.write_concise_scanner_report_if_enabled(
         concise_readme=True,
@@ -51,16 +51,14 @@ def test_write_concise_scanner_report_if_enabled_dry_run_sets_flags_only(tmp_pat
     )
 
     assert report_path == tmp_path / "docs" / "README.scan-report.md"
-    assert metadata["concise_readme"] is True
-    assert metadata["include_scanner_report_link"] is False
-    assert "scanner_report_relpath" not in metadata
+    assert metadata == {"existing": "value"}
     assert not report_path.exists()
 
 
 def test_write_concise_scanner_report_if_enabled_writes_report_and_relpath(tmp_path):
     out_path = tmp_path / "docs" / "README.md"
     explicit_report = tmp_path / "reports" / "scanner.md"
-    metadata = {}
+    metadata = {"existing": "value"}
     captured = {}
 
     def fake_build_scanner_report_markdown(**kwargs):
@@ -84,9 +82,11 @@ def test_write_concise_scanner_report_if_enabled_writes_report_and_relpath(tmp_p
 
     assert report_path == explicit_report
     assert report_path.read_text(encoding="utf-8") == "scanner-report-content\n"
-    assert metadata["scanner_report_relpath"] == "../reports/scanner.md"
+    assert metadata == {"existing": "value"}
     assert captured["kwargs"]["role_name"] == "demo"
-    assert captured["kwargs"]["metadata"] is metadata
+    assert captured["kwargs"]["metadata"] is not metadata
+    assert captured["kwargs"]["metadata"]["concise_readme"] is True
+    assert captured["kwargs"]["metadata"]["include_scanner_report_link"] is True
 
 
 def test_write_optional_runbook_outputs_writes_requested_sidecars(tmp_path):
@@ -172,6 +172,50 @@ def test_emit_scan_outputs_non_dry_run_writes_sidecars(tmp_path):
 
     assert result == "written-md"
     assert runbook_out.read_text(encoding="utf-8") == "runbook::live_role\n"
+
+
+def test_emit_scan_outputs_concise_primary_render_receives_sidecar_metadata(tmp_path):
+    """Concise mode must pass scanner sidecar metadata into primary render call."""
+    out_md = tmp_path / "README.md"
+    explicit_report = tmp_path / "reports" / "SCAN.md"
+    captured: dict[str, object] = {}
+
+    def fake_render_and_write_output(**kwargs):
+        captured["metadata"] = kwargs["metadata"]
+        return "rendered-md"
+
+    args = {
+        "output": str(out_md),
+        "output_format": "md",
+        "concise_readme": True,
+        "scanner_report_output": str(explicit_report),
+        "include_scanner_report_link": True,
+        "role_name": "concise_role",
+        "description": "concise desc",
+        "display_variables": {},
+        "requirements_display": [],
+        "undocumented_default_filters": [],
+        "metadata": {},
+        "template": None,
+        "dry_run": False,
+        "runbook_output": None,
+        "runbook_csv_output": None,
+    }
+
+    result = scan_output_emission.emit_scan_outputs(
+        args,
+        build_scanner_report_markdown=lambda **_kw: "report-content",
+        render_and_write_output=fake_render_and_write_output,
+        render_runbook_fn=lambda _role, _meta: "runbook",
+        render_runbook_csv_fn=lambda _meta: "csv",
+    )
+
+    assert result == "rendered-md"
+    metadata = captured["metadata"]
+    assert isinstance(metadata, dict)
+    assert metadata["concise_readme"] is True
+    assert metadata["include_scanner_report_link"] is True
+    assert metadata["scanner_report_relpath"] == "reports/SCAN.md"
 
 
 def test_emit_scan_outputs_dry_run_preserves_binary_bytes_for_pdf(tmp_path):

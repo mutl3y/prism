@@ -71,7 +71,10 @@ def emit_scan_outputs(
             output_format=kwargs["output_format"],
             template=kwargs["template"],
             dry_run=kwargs["dry_run"],
-            output_payload=output_payload,
+            output_payload={
+                **output_payload,
+                "metadata": kwargs.get("metadata", output_payload["metadata"]),
+            },
             render_and_write_scan_output=render_and_write_output,
         ),
         render_scanner_report=build_scanner_report_markdown,

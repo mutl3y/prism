@@ -332,6 +332,10 @@ class ScanMetadata(TypedDict, total=False):
     """Section rendering mode overrides."""
     readme_section_config_warnings: NotRequired[list[str]]
     """Non-strict README section config parse warnings."""
+    readme_marker_config_warnings: NotRequired[list[str]]
+    """Non-strict README marker config warnings."""
+    meta_load_warnings: NotRequired[list[str]]
+    """Role metadata load warnings preserved for observability."""
 
     # Variable & issue analysis
     variable_insights: list[dict[str, Any]]

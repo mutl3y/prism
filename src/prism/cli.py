@@ -810,11 +810,16 @@ def _normalize_repo_json_payload(
     scanner_report_relpath: str | None,
 ) -> str:
     """Normalize repo-backed JSON payload metadata paths when parseable."""
-    normalized_payload = _normalize_repo_scan_result_payload(
-        rendered_payload,
-        repo_style_readme_path=repo_style_readme_path,
-        scanner_report_relpath=scanner_report_relpath,
-    )
+    try:
+        normalized_payload = _normalize_repo_scan_result_payload(
+            rendered_payload,
+            repo_style_readme_path=repo_style_readme_path,
+            scanner_report_relpath=scanner_report_relpath,
+        )
+    except RuntimeError as exc:
+        if str(exc).startswith("REPO_SCAN_PAYLOAD_"):
+            return rendered_payload
+        raise
     if isinstance(normalized_payload, str):
         return normalized_payload
     return rendered_payload

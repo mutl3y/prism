@@ -150,6 +150,38 @@ def test_emit_scanner_report_sidecar_respects_dry_run(tmp_path):
     assert not report_path.exists() or result is not None
 
 
+def test_orchestrate_output_emission_does_not_mutate_input_metadata(tmp_path):
+    """Orchestration must not mutate caller-owned metadata structures."""
+    input_metadata = {"source": "caller"}
+    args = {
+        "role_name": "test_role",
+        "description": "test description",
+        "display_variables": {},
+        "requirements_display": [],
+        "undocumented_default_filters": [],
+        "metadata": input_metadata,
+        "output": str(tmp_path / "README.md"),
+        "output_format": "md",
+        "template": None,
+        "dry_run": True,
+        "concise_readme": True,
+        "scanner_report_output": str(tmp_path / "scan-report.md"),
+        "include_scanner_report_link": True,
+        "runbook_output": None,
+        "runbook_csv_output": None,
+    }
+
+    emit_output.orchestrate_output_emission(
+        args=args,
+        render_and_write=mock.MagicMock(return_value="README"),
+        render_scanner_report=mock.MagicMock(return_value="report"),
+        render_runbook=mock.MagicMock(return_value="runbook"),
+        render_runbook_csv=mock.MagicMock(return_value="csv"),
+    )
+
+    assert input_metadata == {"source": "caller"}
+
+
 def test_emit_runbook_sidecars_writes_when_requested(tmp_path):
     """Test that runbook sidecars are written when paths are provided."""
     runbook_path = tmp_path / "RUNBOOK.md"

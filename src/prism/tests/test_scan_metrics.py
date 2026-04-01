@@ -43,6 +43,26 @@ def test_append_non_authoritative_test_evidence_uncertainty_reason_shapes_suffix
     assert "Evidence scan budget limit was reached." in reason
 
 
+def test_test_evidence_probability_uses_explicit_score_contract_constants():
+    assert (
+        analysis_metrics.NON_AUTHORITATIVE_TEST_EVIDENCE_SCORE_BASE
+        + analysis_metrics.NON_AUTHORITATIVE_TEST_EVIDENCE_SCORE_STEP
+        == 0.40
+    )
+    assert analysis_metrics.NON_AUTHORITATIVE_TEST_EVIDENCE_SCORE_MAX == 0.85
+    assert analysis_metrics.NON_AUTHORITATIVE_TEST_EVIDENCE_SCORE_ROUND_DIGITS == 2
+
+
+def test_test_evidence_probability_boundaries_and_saturation_contract():
+    assert analysis_metrics.test_evidence_probability(-5) == 0.0
+    assert analysis_metrics.test_evidence_probability(0) == 0.0
+    assert analysis_metrics.test_evidence_probability(1) == 0.4
+    assert analysis_metrics.test_evidence_probability(2) == 0.55
+    assert analysis_metrics.test_evidence_probability(3) == 0.7
+    assert analysis_metrics.test_evidence_probability(4) == 0.85
+    assert analysis_metrics.test_evidence_probability(9) == 0.85
+
+
 def test_scanner_wrapper_extract_scanner_counters_re_exports_canonical_implementation():
     variable_rows = [
         {

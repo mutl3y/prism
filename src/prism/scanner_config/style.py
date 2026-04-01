@@ -12,6 +12,18 @@ from pathlib import Path
 import yaml
 
 
+def _record_display_titles_warning(
+    warning_collector: list[str] | None,
+    *,
+    code: str,
+    cfg_file: Path,
+    error: Exception | str,
+) -> None:
+    if warning_collector is None:
+        return
+    warning_collector.append(f"{code}: {cfg_file}: {error}")
+
+
 def default_style_guide_user_paths(
     xdg_data_home_env: str = "XDG_DATA_HOME",
     style_guide_data_dirname: str = "prism",
@@ -138,7 +150,15 @@ def resolve_section_selector(
     return style_section_aliases.get(normalized)
 
 
-def load_section_display_titles(display_titles_path: Path) -> dict[str, str]:
+def load_section_display_titles(
+    display_titles_path: Path,
+    *,
+    strict: bool = False,
+    warning_collector: list[str] | None = None,
+    yaml_invalid_code: str = "README_SECTION_DISPLAY_TITLES_YAML_INVALID",
+    io_error_code: str = "README_SECTION_DISPLAY_TITLES_IO_ERROR",
+    shape_invalid_code: str = "README_SECTION_DISPLAY_TITLES_SHAPE_INVALID",
+) -> dict[str, str]:
     """Load optional section display-title overrides from bundled data YAML.
 
     Args:
@@ -151,12 +171,48 @@ def load_section_display_titles(display_titles_path: Path) -> dict[str, str]:
         return {}
     try:
         raw = yaml.safe_load(display_titles_path.read_text(encoding="utf-8")) or {}
-    except Exception:
+    except yaml.YAMLError as exc:
+        if strict:
+            raise RuntimeError(
+                f"{yaml_invalid_code}: {display_titles_path}: {exc}"
+            ) from exc
+        _record_display_titles_warning(
+            warning_collector,
+            code=yaml_invalid_code,
+            cfg_file=display_titles_path,
+            error=exc,
+        )
+        return {}
+    except (OSError, UnicodeDecodeError) as exc:
+        if strict:
+            raise RuntimeError(
+                f"{io_error_code}: {display_titles_path}: {exc}"
+            ) from exc
+        _record_display_titles_warning(
+            warning_collector,
+            code=io_error_code,
+            cfg_file=display_titles_path,
+            error=exc,
+        )
         return {}
     if not isinstance(raw, dict):
+        _record_display_titles_warning(
+            warning_collector,
+            code=shape_invalid_code,
+            cfg_file=display_titles_path,
+            error="config root must be a mapping",
+        )
         return {}
     payload = raw.get("display_titles")
+    if payload is None:
+        return {}
     if not isinstance(payload, dict):
+        _record_display_titles_warning(
+            warning_collector,
+            code=shape_invalid_code,
+            cfg_file=display_titles_path,
+            error="display_titles must be a mapping",
+        )
         return {}
 
     parsed: dict[str, str] = {}

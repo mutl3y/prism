@@ -52,7 +52,7 @@ def test_extract_filter_symbols_falls_back_to_regex_when_no_filtermodule():
     assert symbols == ["fallback_key"]
     assert mapping == {"fallback_key": None}
     assert confidence == "low"
-    assert method == "mixed"
+    assert method == plugins.PLUGIN_EXTRACTION_METHOD_BEST_EFFORT
 
 
 def test_extract_direct_return_dict_keys_returns_empty_when_return_not_dict():
@@ -151,7 +151,26 @@ def test_extract_filter_symbols_returns_empty_when_no_match_patterns():
     assert symbols == []
     assert mapping == {}
     assert confidence == "low"
-    assert method == "mixed"
+    assert method == plugins.PLUGIN_EXTRACTION_METHOD_BEST_EFFORT
+
+
+def test_extract_filter_symbols_best_effort_method_is_stable_for_all_fallback_paths():
+    parsed_with_regex = _parse_module("value = {'fallback_key': handler}")
+    parsed_without_regex = _parse_module("value = 1")
+
+    _symbols_a, _mapping_a, confidence_a, method_a = plugins._extract_filter_symbols(
+        parsed_with_regex,
+        "value = {'fallback_key': handler}",
+    )
+    _symbols_b, _mapping_b, confidence_b, method_b = plugins._extract_filter_symbols(
+        parsed_without_regex,
+        "",
+    )
+
+    assert confidence_a == "low"
+    assert confidence_b == "low"
+    assert method_a == plugins.PLUGIN_EXTRACTION_METHOD_BEST_EFFORT
+    assert method_b == plugins.PLUGIN_EXTRACTION_METHOD_BEST_EFFORT
 
 
 def test_function_name_from_ast_value_returns_none_for_unsupported_node():

@@ -12,6 +12,9 @@ import re
 from typing import TypedDict
 
 PLUGIN_CATALOG_SCHEMA_VERSION = 1
+PLUGIN_EXTRACTION_METHOD_AST = "ast"
+PLUGIN_EXTRACTION_METHOD_PATH_INVENTORY = "path_inventory"
+PLUGIN_EXTRACTION_METHOD_BEST_EFFORT = "best_effort"
 PLUGIN_TYPES: tuple[str, ...] = (
     "filter",
     "modules",
@@ -178,7 +181,7 @@ def _scan_filter_plugins(
                 "extraction": {
                     "method": extraction_method,
                     "ast_version": "py3",
-                    "fallback_used": extraction_method != "ast",
+                        "fallback_used": extraction_method != PLUGIN_EXTRACTION_METHOD_AST,
                 },
                 "capability_hints": sorted(set(symbols)),
             }
@@ -208,7 +211,7 @@ def _scan_non_filter_plugins(
             "confidence": "low",
             "confidence_score": 0.30,
             "extraction": {
-                "method": "path_inventory",
+                "method": PLUGIN_EXTRACTION_METHOD_PATH_INVENTORY,
                 "ast_version": None,
                 "fallback_used": False,
             },
@@ -238,7 +241,7 @@ def _scan_non_filter_plugins(
                 record["extraction"] = {
                     "method": method,
                     "ast_version": "py3",
-                    "fallback_used": method != "ast",
+                    "fallback_used": method != PLUGIN_EXTRACTION_METHOD_AST,
                 }
         records.append(record)
 
@@ -284,16 +287,26 @@ def _extract_filter_symbols(
                 direct = _extract_direct_return_dict_keys(item)
                 if direct:
                     symbols = sorted(set(direct.keys()))
-                    return symbols, direct, "high", "ast"
+                    return symbols, direct, "high", PLUGIN_EXTRACTION_METHOD_AST
                 indirect = _extract_named_dict_return_keys(item)
                 if indirect:
                     symbols = sorted(set(indirect.keys()))
-                    return symbols, indirect, "medium", "ast"
+                    return (
+                        symbols,
+                        indirect,
+                        "medium",
+                        PLUGIN_EXTRACTION_METHOD_AST,
+                    )
 
     fallback = _fallback_extract_symbols(text)
     if fallback:
-        return fallback, {symbol: None for symbol in fallback}, "low", "mixed"
-    return [], {}, "low", "mixed"
+        return (
+            fallback,
+            {symbol: None for symbol in fallback},
+            "low",
+            PLUGIN_EXTRACTION_METHOD_BEST_EFFORT,
+        )
+    return [], {}, "low", PLUGIN_EXTRACTION_METHOD_BEST_EFFORT
 
 
 def _extract_direct_return_dict_keys(func: ast.FunctionDef) -> dict[str, str | None]:
@@ -405,7 +418,7 @@ def _extract_python_plugin_summary(
         return (
             short_description,
             "documentation_short_description",
-            "ast",
+            PLUGIN_EXTRACTION_METHOD_AST,
             "medium",
             0.70,
             symbols,
@@ -418,7 +431,7 @@ def _extract_python_plugin_summary(
         return (
             f"Capability hints: {hint_text}.",
             "class_method_hints",
-            "ast",
+            PLUGIN_EXTRACTION_METHOD_AST,
             "medium",
             0.65,
             symbols,
@@ -431,7 +444,7 @@ def _extract_python_plugin_summary(
         return (
             module_doc,
             "module_docstring",
-            "ast",
+            PLUGIN_EXTRACTION_METHOD_AST,
             "medium",
             0.65,
             symbols,

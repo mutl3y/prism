@@ -7,6 +7,7 @@ metadata and variables, and render a README using a Jinja2 template.
 
 from __future__ import annotations
 
+import copy
 from functools import partial
 from pathlib import Path
 import re
@@ -118,6 +119,7 @@ _POLICY = load_pattern_config()
 
 # Re-entrant lock protecting policy-derived module-level globals during concurrent scans.
 _POLICY_REFRESH_LOCK = threading.RLock()
+_RUN_SCAN_POLICY_CONTEXT_LOCK = threading.RLock()
 
 _STYLE_SECTION_ALIASES: dict[str, str] = dict(_POLICY["section_aliases"])
 STYLE_SECTION_ALIASES = MappingProxyType(_STYLE_SECTION_ALIASES)
@@ -247,6 +249,41 @@ def _refresh_policy(
 
         _extract_refresh_policy_derived_state(_POLICY)
         _readme_refresh_policy_derived_state(_POLICY)
+
+
+def _restore_policy_snapshot(policy_snapshot: dict) -> None:
+    """Restore scanner policy-derived globals from an immutable snapshot."""
+    with _POLICY_REFRESH_LOCK:
+        global _POLICY
+        global _SENSITIVITY
+        global _SECRET_NAME_TOKENS
+        global _VAULT_MARKERS
+        global _CREDENTIAL_PREFIXES
+        global _URL_PREFIXES
+        global _VARIABLE_GUIDANCE_KEYWORDS
+
+        restored = copy.deepcopy(policy_snapshot)
+        _POLICY = restored
+        _SENSITIVITY = restored["sensitivity"]
+        _SECRET_NAME_TOKENS = tuple(_SENSITIVITY["name_tokens"])
+        _VAULT_MARKERS = tuple(_SENSITIVITY["vault_markers"])
+        _CREDENTIAL_PREFIXES = tuple(_SENSITIVITY["credential_prefixes"])
+        _URL_PREFIXES = tuple(_SENSITIVITY["url_prefixes"])
+        _VARIABLE_GUIDANCE_KEYWORDS = tuple(
+            restored["variable_guidance"]["priority_keywords"]
+        )
+        _STYLE_SECTION_ALIASES.clear()
+        _STYLE_SECTION_ALIASES.update(restored["section_aliases"])
+
+        from .scanner_extract import (
+            refresh_policy_derived_state as _extract_refresh_policy_derived_state,
+        )
+        from .scanner_readme import (
+            refresh_policy_derived_state as _readme_refresh_policy_derived_state,
+        )
+
+        _extract_refresh_policy_derived_state(restored)
+        _readme_refresh_policy_derived_state(restored)
 
 
 def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:
@@ -997,47 +1034,54 @@ def run_scan(
 
     Delegates scan orchestration to ScannerContext and then emits outputs.
     """
-    _refresh_policy(policy_config_path, role_root=role_path)
-    scan_options = scan_request.build_run_scan_options_canonical(
-        role_path=role_path,
-        role_name_override=role_name_override,
-        readme_config_path=readme_config_path,
-        include_vars_main=include_vars_main,
-        exclude_path_patterns=exclude_path_patterns,
-        detailed_catalog=scan_request.resolve_scan_request_for_runtime(
-            detailed_catalog=detailed_catalog,
-            runbook_output=runbook_output,
-            runbook_csv_output=runbook_csv_output,
-        ),
-        include_task_parameters=include_task_parameters,
-        include_task_runbooks=include_task_runbooks,
-        inline_task_runbooks=inline_task_runbooks,
-        include_collection_checks=include_collection_checks,
-        keep_unknown_style_sections=keep_unknown_style_sections,
-        adopt_heading_mode=adopt_heading_mode,
-        vars_seed_paths=vars_seed_paths,
-        style_readme_path=style_readme_path,
-        style_source_path=style_source_path,
-        style_guide_skeleton=style_guide_skeleton,
-        compare_role_path=compare_role_path,
-        fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
-        fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
-        ignore_unresolved_internal_underscore_references=(
-            ignore_unresolved_internal_underscore_references
-        ),
-        policy_context=_build_policy_context_snapshot(),
-    )
-    scan_options["strict_phase_failures"] = bool(strict_phase_failures)
-    return _execute_scan_with_context(
-        role_path=role_path,
-        scan_options=scan_options,
-        output=output,
-        output_format=output_format,
-        concise_readme=concise_readme,
-        scanner_report_output=scanner_report_output,
-        include_scanner_report_link=include_scanner_report_link,
-        template=template,
-        dry_run=dry_run,
-        runbook_output=runbook_output,
-        runbook_csv_output=runbook_csv_output,
-    )
+    with _RUN_SCAN_POLICY_CONTEXT_LOCK:
+        previous_policy_snapshot = copy.deepcopy(_POLICY)
+        try:
+            _refresh_policy(policy_config_path, role_root=role_path)
+            scan_options = scan_request.build_run_scan_options_canonical(
+                role_path=role_path,
+                role_name_override=role_name_override,
+                readme_config_path=readme_config_path,
+                include_vars_main=include_vars_main,
+                exclude_path_patterns=exclude_path_patterns,
+                detailed_catalog=scan_request.resolve_scan_request_for_runtime(
+                    detailed_catalog=detailed_catalog,
+                    runbook_output=runbook_output,
+                    runbook_csv_output=runbook_csv_output,
+                ),
+                include_task_parameters=include_task_parameters,
+                include_task_runbooks=include_task_runbooks,
+                inline_task_runbooks=inline_task_runbooks,
+                include_collection_checks=include_collection_checks,
+                keep_unknown_style_sections=keep_unknown_style_sections,
+                adopt_heading_mode=adopt_heading_mode,
+                vars_seed_paths=vars_seed_paths,
+                style_readme_path=style_readme_path,
+                style_source_path=style_source_path,
+                style_guide_skeleton=style_guide_skeleton,
+                compare_role_path=compare_role_path,
+                fail_on_unconstrained_dynamic_includes=(
+                    fail_on_unconstrained_dynamic_includes
+                ),
+                fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
+                ignore_unresolved_internal_underscore_references=(
+                    ignore_unresolved_internal_underscore_references
+                ),
+                policy_context=_build_policy_context_snapshot(),
+            )
+            scan_options["strict_phase_failures"] = bool(strict_phase_failures)
+            return _execute_scan_with_context(
+                role_path=role_path,
+                scan_options=scan_options,
+                output=output,
+                output_format=output_format,
+                concise_readme=concise_readme,
+                scanner_report_output=scanner_report_output,
+                include_scanner_report_link=include_scanner_report_link,
+                template=template,
+                dry_run=dry_run,
+                runbook_output=runbook_output,
+                runbook_csv_output=runbook_csv_output,
+            )
+        finally:
+            _restore_policy_snapshot(previous_policy_snapshot)

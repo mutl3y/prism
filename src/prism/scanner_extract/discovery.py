@@ -8,6 +8,23 @@ from typing import Callable
 import yaml
 
 
+ROLE_METADATA_YAML_INVALID = "ROLE_METADATA_YAML_INVALID"
+ROLE_METADATA_IO_ERROR = "ROLE_METADATA_IO_ERROR"
+ROLE_METADATA_SHAPE_INVALID = "ROLE_METADATA_SHAPE_INVALID"
+
+
+def _record_metadata_warning(
+    warning_collector: list[str] | None,
+    *,
+    code: str,
+    meta_file: Path,
+    error: Exception | str,
+) -> None:
+    if warning_collector is None:
+        return
+    warning_collector.append(f"{code}: {meta_file}: {error}")
+
+
 def iter_role_variable_map_candidates(role_root: Path, subdir: str) -> list[Path]:
     """Return role variable map files in deterministic merge order.
 
@@ -32,7 +49,12 @@ def iter_role_variable_map_candidates(role_root: Path, subdir: str) -> list[Path
     return candidates
 
 
-def load_meta(role_path: str) -> dict:
+def load_meta(
+    role_path: str,
+    *,
+    strict: bool = False,
+    warning_collector: list[str] | None = None,
+) -> dict:
     """Load the role metadata file ``meta/main.yml`` if present.
 
     Returns a mapping (empty if missing or unparsable).
@@ -40,9 +62,36 @@ def load_meta(role_path: str) -> dict:
     meta_file = Path(role_path) / "meta" / "main.yml"
     if meta_file.exists():
         try:
-            return yaml.safe_load(meta_file.read_text(encoding="utf-8")) or {}
-        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
+            loaded = yaml.safe_load(meta_file.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError as exc:
+            if strict:
+                raise RuntimeError(f"{ROLE_METADATA_YAML_INVALID}: {meta_file}: {exc}") from exc
+            _record_metadata_warning(
+                warning_collector,
+                code=ROLE_METADATA_YAML_INVALID,
+                meta_file=meta_file,
+                error=exc,
+            )
             return {}
+        except (OSError, UnicodeDecodeError) as exc:
+            if strict:
+                raise RuntimeError(f"{ROLE_METADATA_IO_ERROR}: {meta_file}: {exc}") from exc
+            _record_metadata_warning(
+                warning_collector,
+                code=ROLE_METADATA_IO_ERROR,
+                meta_file=meta_file,
+                error=exc,
+            )
+            return {}
+        if not isinstance(loaded, dict):
+            _record_metadata_warning(
+                warning_collector,
+                code=ROLE_METADATA_SHAPE_INVALID,
+                meta_file=meta_file,
+                error="metadata root must be a mapping",
+            )
+            return {}
+        return loaded
     return {}
 
 
