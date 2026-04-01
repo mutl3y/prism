@@ -19,12 +19,14 @@ from typing import Any
 from .di import DIContainer
 from ..scanner_data.builders import VariableRowBuilder
 from ..scanner_data.contracts import VariableRow
-from ..scanner_extract import (
-    load_role_variable_maps,
+from ..scanner_extract.dataload import (
     iter_role_argument_spec_entries,
-    iter_role_variable_map_candidates,
-    _load_yaml_file,
+    load_role_variable_maps,
+    map_argument_spec_type,
 )
+from ..scanner_extract.discovery import iter_role_variable_map_candidates
+from ..scanner_extract.task_parser import _format_inline_yaml
+from ..scanner_extract.task_parser import _load_yaml_file
 from ..scanner_extract.variable_extractor import (
     _collect_referenced_variable_names,
     _collect_set_fact_names,
@@ -119,7 +121,9 @@ class VariableDiscovery:
                 VariableRowBuilder()
                 .name(var_name)
                 .type(inferred_type)
-                .default(str(var_value) if var_value is not None else "")
+                .default(
+                    _format_inline_yaml(var_value) if var_value is not None else ""
+                )
                 .source("defaults/main.yml")
                 .required(False)
                 .secret(is_secret)
@@ -158,7 +162,9 @@ class VariableDiscovery:
                     VariableRowBuilder()
                     .name(var_name)
                     .type(inferred_type)
-                    .default(str(var_value) if var_value is not None else "")
+                    .default(
+                        _format_inline_yaml(var_value) if var_value is not None else ""
+                    )
                     .source("vars/main.yml")
                     .required(False)
                     .secret(is_secret)
@@ -191,8 +197,6 @@ class VariableDiscovery:
 
             # Type from argument spec
             if isinstance(spec_type, str):
-                from ..scanner_extract import map_argument_spec_type
-
                 inferred_type = map_argument_spec_type(spec_type)
             else:
                 inferred_type = "documented"
@@ -207,7 +211,7 @@ class VariableDiscovery:
                 VariableRowBuilder()
                 .name(var_name)
                 .type(inferred_type)
-                .default(str(var_default) if var_default else "")
+                .default(_format_inline_yaml(var_default) if var_default else "")
                 .source("meta/argument_specs")
                 .documented(True)
                 .required(bool(spec.get("required", False)))
@@ -275,12 +279,17 @@ class VariableDiscovery:
                 pattern = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)")
                 for match in pattern.finditer(readme_text):
                     referenced.add(match.group(1))
-            except OSError, UnicodeDecodeError:
+            except (OSError, UnicodeDecodeError):
                 pass
 
         return frozenset(referenced)
 
-    def resolve_unresolved(self) -> dict[str, str]:
+    def resolve_unresolved(
+        self,
+        *,
+        static_names: frozenset[str] | None = None,
+        referenced: frozenset[str] | None = None,
+    ) -> dict[str, str]:
         """Return mapping of unresolved variable names → uncertainty reasons.
 
         Returns immutable mapping of unresolved variable names and their reasons.
@@ -290,17 +299,22 @@ class VariableDiscovery:
             explaining why the variable couldn't be resolved.
         """
         # Get static and referenced
-        static = self.discover_static()
-        static_names: frozenset[str] = frozenset(v["name"] for v in static)
+        effective_static_names = static_names
+        if effective_static_names is None:
+            static = self.discover_static()
+            effective_static_names = frozenset(v["name"] for v in static)
 
-        referenced = self.discover_referenced()
+        effective_referenced = referenced or self.discover_referenced()
 
         # Find unresolved (referenced but not defined) - build as new dict
         unresolved: dict[str, str] = {}
-        for var_name in referenced:
-            if var_name not in static_names:
+        for var_name in effective_referenced:
+            if var_name not in effective_static_names:
                 # Build uncertainty reason
-                reason = self._build_uncertainty_reason(var_name)
+                reason = self._build_uncertainty_reason(
+                    var_name,
+                    referenced_names=effective_referenced,
+                )
                 unresolved[var_name] = reason
 
         return unresolved
@@ -320,7 +334,10 @@ class VariableDiscovery:
         static_names: frozenset[str] = frozenset(v["name"] for v in static_rows)
 
         referenced = self.discover_referenced()
-        unresolved = self.resolve_unresolved()
+        unresolved = self.resolve_unresolved(
+            static_names=static_names,
+            referenced=referenced,
+        )
 
         # Build list during construction (mutable intermediate)
         all_rows: list[VariableRow] = list(static_rows)
@@ -352,15 +369,19 @@ class VariableDiscovery:
 
         return tuple(all_rows)
 
-    def _build_uncertainty_reason(self, var_name: str) -> str:
+    def _build_uncertainty_reason(
+        self,
+        var_name: str,
+        *,
+        referenced_names: frozenset[str],
+    ) -> str:
         """Build uncertainty reason text for unresolved variable."""
         # Check for dynamic indicators
         if var_name.startswith("_"):
             return "Dynamic or internal variable (underscore prefix)"
 
         # Check if it might come from complex expressions
-        referenced = self.discover_referenced()
-        if var_name in referenced:
+        if var_name in referenced_names:
             return "Referenced but not defined in role"
 
         return "Unresolved reference"

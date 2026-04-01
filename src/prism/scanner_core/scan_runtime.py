@@ -352,6 +352,7 @@ def enrich_scan_context_with_insights(
     ],
     build_doc_insights: Callable[..., dict],
     apply_style_and_comparison_metadata: Callable[..., None],
+    policy_context: dict[str, Any] | None = None,
 ) -> tuple[list[dict], dict]:
     """Add variable/doc/style insights to scan metadata and display payloads."""
     variable_insights, undocumented_default_filters, display_variables = (
@@ -365,6 +366,7 @@ def enrich_scan_context_with_insights(
             metadata=metadata,
             marker_prefix=marker_prefix,
             style_readme_path=style_readme_path,
+            policy_context=policy_context,
             ignore_unresolved_internal_underscore_references=(
                 ignore_unresolved_internal_underscore_references
             ),
@@ -394,6 +396,7 @@ def enrich_scan_context_with_insights(
         compare_role_path=compare_role_path,
         role_path=role_path,
         exclude_path_patterns=exclude_path_patterns,
+        policy_context=policy_context,
     )
     return undocumented_default_filters, display_variables
 

@@ -8,7 +8,7 @@ import re
 from typing import Counter as CounterType
 from typing import Any
 
-from ..scanner_extract import _is_path_excluded
+from ..scanner_extract.task_parser import _is_path_excluded
 
 from .report import (
     ScannerCounters,

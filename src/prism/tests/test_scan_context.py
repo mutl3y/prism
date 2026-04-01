@@ -246,6 +246,76 @@ def test_refresh_policy_updates_readme_section_aliases_in_process(
         scanner._refresh_policy()
 
 
+def test_prepare_scan_context_uses_per_scan_policy_context_for_style_aliases(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    role.mkdir()
+    style = tmp_path / "STYLE_GUIDE_SOURCE.md"
+    heading = "Bertrum Runtime Inputs"
+    style.write_text(f"{heading}\n----------------------\n\nBody\n", encoding="utf-8")
+
+    scan_options = scan_request.build_run_scan_options_canonical(
+        role_path=str(role),
+        role_name_override=None,
+        readme_config_path=None,
+        include_vars_main=True,
+        exclude_path_patterns=None,
+        detailed_catalog=False,
+        include_task_parameters=True,
+        include_task_runbooks=True,
+        inline_task_runbooks=True,
+        include_collection_checks=True,
+        keep_unknown_style_sections=True,
+        adopt_heading_mode=None,
+        vars_seed_paths=None,
+        style_readme_path=str(style),
+        style_source_path=str(style),
+        style_guide_skeleton=False,
+        compare_role_path=None,
+        fail_on_unconstrained_dynamic_includes=None,
+        fail_on_yaml_like_task_annotations=None,
+        ignore_unresolved_internal_underscore_references=None,
+        policy_context={
+            "section_aliases": {"bertrum runtime inputs": "role_variables"},
+            "ignored_identifiers": frozenset(),
+            "variable_guidance_keywords": tuple(),
+        },
+    )
+
+    payload = scanner._prepare_scan_context(scan_options)
+
+    assert payload["metadata"]["style_guide"]["sections"][0]["id"] == "role_variables"
+
+
+def test_build_variable_insights_uses_per_scan_ignored_identifier_context(tmp_path):
+    role = tmp_path / "role"
+    tasks_dir = role / "tasks"
+    tasks_dir.mkdir(parents=True)
+    (tasks_dir / "main.yml").write_text(
+        "---\n"
+        "- name: Reference runtime-only ignored variable\n"
+        "  ansible.builtin.debug:\n"
+        '    msg: "{{ bertrum_runtime_only_ignored }}"\n',
+        encoding="utf-8",
+    )
+
+    baseline_rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    assert any(row["name"] == "bertrum_runtime_only_ignored" for row in baseline_rows)
+
+    policy_rows = scanner.build_variable_insights(
+        str(role),
+        include_vars_main=False,
+        policy_context={
+            "section_aliases": {},
+            "ignored_identifiers": frozenset({"bertrum_runtime_only_ignored"}),
+            "variable_guidance_keywords": tuple(),
+        },
+    )
+
+    assert all(row["name"] != "bertrum_runtime_only_ignored" for row in policy_rows)
+
+
 def test_refresh_policy_uses_role_root_override_instead_of_process_cwd(
     monkeypatch, tmp_path
 ):

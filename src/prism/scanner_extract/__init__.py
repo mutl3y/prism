@@ -18,15 +18,15 @@ from .task_parser import (
     TASK_NOTES_LONG_RE,
     TASK_NOTES_SHORT_RE,
     COMMENT_CONTINUATION_RE,
-    _is_path_excluded,
-    _load_yaml_file,
-    _collect_task_files,
-    _is_relpath_excluded,
-    _extract_role_notes_from_comments,
-    _collect_unconstrained_dynamic_role_includes,
-    _collect_unconstrained_dynamic_task_includes,
-    _collect_task_handler_catalog,
-    _collect_molecule_scenarios,
+    is_path_excluded,
+    load_yaml_file,
+    collect_task_files,
+    is_relpath_excluded,
+    extract_role_notes_from_comments,
+    collect_unconstrained_dynamic_role_includes,
+    collect_unconstrained_dynamic_task_includes,
+    collect_task_handler_catalog,
+    collect_molecule_scenarios,
     extract_role_features,
 )
 
@@ -37,12 +37,12 @@ from .variable_extractor import (
     JINJA_IDENTIFIER_RE,
     VAULT_KEY_RE,
     IGNORED_IDENTIFIERS,
-    _collect_include_vars_files,
-    _looks_secret_name,
-    _resembles_password_like,
-    _extract_default_target_var,
+    collect_include_vars_files,
+    looks_secret_name,
+    resembles_password_like,
+    extract_default_target_var,
     load_seed_variables,
-    _refresh_policy_derived_state,
+    refresh_policy_derived_state,
 )
 
 # Discovery helpers
@@ -75,26 +75,6 @@ from .requirements import (
     build_collection_compliance_notes,
     build_requirements_display,
 )
-
-# Public wrappers for scanner facade imports; avoid cross-package private imports.
-is_relpath_excluded = _is_relpath_excluded
-is_path_excluded = _is_path_excluded
-extract_default_target_var = _extract_default_target_var
-collect_include_vars_files = _collect_include_vars_files
-collect_unconstrained_dynamic_role_includes = (
-    _collect_unconstrained_dynamic_role_includes
-)
-collect_unconstrained_dynamic_task_includes = (
-    _collect_unconstrained_dynamic_task_includes
-)
-collect_task_handler_catalog = _collect_task_handler_catalog
-collect_molecule_scenarios = _collect_molecule_scenarios
-extract_role_notes_from_comments = _extract_role_notes_from_comments
-looks_secret_name = _looks_secret_name
-resembles_password_like = _resembles_password_like
-load_yaml_file = _load_yaml_file
-collect_task_files = _collect_task_files
-refresh_policy_derived_state = _refresh_policy_derived_state
 
 __all__ = [
     # Task parsing

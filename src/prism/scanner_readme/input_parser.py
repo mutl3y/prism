@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 from typing import Callable
 
-from ..scanner_extract import IGNORED_IDENTIFIERS
+from ..scanner_extract.variable_extractor import IGNORED_IDENTIFIERS
 from .style import STYLE_SECTION_ALIASES, normalize_style_heading
 
 MARKDOWN_VAR_BACKTICK_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")

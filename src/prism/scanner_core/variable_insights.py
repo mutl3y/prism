@@ -17,6 +17,7 @@ def collect_variable_insights_and_default_filter_findings(
     metadata: dict,
     marker_prefix: str,
     style_readme_path: str | None,
+    policy_context: dict | None,
     ignore_unresolved_internal_underscore_references: bool,
     non_authoritative_test_evidence_max_file_bytes: int,
     non_authoritative_test_evidence_max_files_scanned: int,
@@ -36,6 +37,7 @@ def collect_variable_insights_and_default_filter_findings(
         include_vars_main=include_vars_main,
         exclude_paths=exclude_path_patterns,
         style_readme_path=style_readme_path,
+        policy_context=policy_context,
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),
@@ -140,6 +142,7 @@ def build_variable_insights(
     include_vars_main: bool,
     exclude_paths: list[str] | None,
     style_readme_path: str | None,
+    policy_context: dict | None,
     ignore_unresolved_internal_underscore_references: bool,
     non_authoritative_test_evidence_max_file_bytes: int,
     non_authoritative_test_evidence_max_files_scanned: int,
@@ -159,6 +162,7 @@ def build_variable_insights(
         role_path=role_path,
         seed_paths=seed_paths,
         exclude_paths=exclude_paths,
+        policy_context=policy_context,
     )
 
     rows, rows_by_name = build_static_variable_rows(
@@ -175,6 +179,7 @@ def build_variable_insights(
         exclude_paths=exclude_paths,
         reference_context=reference_context,
         style_readme_path=style_readme_path,
+        policy_context=policy_context,
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),

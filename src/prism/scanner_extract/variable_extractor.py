@@ -37,7 +37,7 @@ from .._jinja_analyzer import (
     _collect_jinja_local_bindings_from_text,
     _collect_undeclared_jinja_variables,
 )
-from . import (
+from .task_parser import (
     TASK_BLOCK_KEYS,
     TASK_INCLUDE_KEYS,
     TASK_META_KEYS,
@@ -47,8 +47,9 @@ from . import (
     _collect_task_files,
     _is_path_excluded,
     _load_yaml_file,
+    _iter_task_include_targets,
+    _iter_task_mappings,
 )
-from .task_parser import _iter_task_include_targets, _iter_task_mappings
 from ..scanner_config.patterns import load_pattern_config
 
 # ---------------------------------------------------------------------------
@@ -398,10 +399,16 @@ def _collect_dynamic_task_include_refs(
 def _collect_referenced_variable_names(
     role_path: str,
     exclude_paths: list[str] | None = None,
+    ignored_identifiers: set[str] | frozenset[str] | None = None,
 ) -> set[str]:
     """Collect likely variable references from role tasks/templates/handlers files."""
     role_root = Path(role_path).resolve()
     candidates: set[str] = set()
+    effective_ignored_identifiers = set(IGNORED_IDENTIFIERS)
+    if ignored_identifiers:
+        effective_ignored_identifiers.update(
+            token.lower() for token in ignored_identifiers if isinstance(token, str)
+        )
     scan_dirs = ["tasks", "templates", "handlers", "vars"]
     for dirname in scan_dirs:
         root = role_root / dirname
@@ -419,12 +426,15 @@ def _collect_referenced_variable_names(
             local_bindings = _collect_jinja_local_bindings_from_text(text)
             for name in _collect_undeclared_jinja_variables(text):
                 lowered = name.lower()
-                if lowered in IGNORED_IDENTIFIERS:
+                if lowered in effective_ignored_identifiers:
                     continue
                 candidates.add(name)
             for match in JINJA_VAR_RE.findall(text):
                 lowered = match.lower()
-                if lowered not in IGNORED_IDENTIFIERS and match not in local_bindings:
+                if (
+                    lowered not in effective_ignored_identifiers
+                    and match not in local_bindings
+                ):
                     candidates.add(match)
             if file_path.suffix in {".yml", ".yaml"}:
                 for line in text.splitlines():
@@ -438,7 +448,7 @@ def _collect_referenced_variable_names(
                         ):
                             continue
                         lowered = token.lower()
-                        if lowered in IGNORED_IDENTIFIERS:
+                        if lowered in effective_ignored_identifiers:
                             continue
                         candidates.add(token)
     candidates -= _REGISTERED_RESULT_ATTRS
@@ -624,3 +634,11 @@ def load_seed_variables(seed_paths: list[str] | None) -> tuple[dict, set[str], d
         for key in file_values:
             source_map[key] = str(path)
     return values, secret_names, source_map
+
+
+# Public wrappers for package-root re-exports.
+extract_default_target_var = _extract_default_target_var
+collect_include_vars_files = _collect_include_vars_files
+looks_secret_name = _looks_secret_name
+resembles_password_like = _resembles_password_like
+refresh_policy_derived_state = _refresh_policy_derived_state

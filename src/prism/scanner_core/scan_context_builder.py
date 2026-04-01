@@ -116,6 +116,7 @@ class ScanContextBuilder:
                 variables=base_context["variables"],
                 metadata=metadata,
                 style_readme_path=scan_options["style_readme_path"],
+                policy_context=scan_options.get("policy_context"),
                 style_source_path=scan_options["style_source_path"],
                 style_guide_skeleton=scan_options["style_guide_skeleton"],
                 compare_role_path=scan_options["compare_role_path"],

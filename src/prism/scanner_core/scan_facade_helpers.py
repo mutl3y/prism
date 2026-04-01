@@ -253,8 +253,9 @@ def apply_style_and_comparison_metadata(
     role_path: str,
     exclude_path_patterns: list[str] | None,
     resolve_default_style_guide_source: Callable[[str | None], str],
-    parse_style_readme: Callable[[str], dict],
+    parse_style_readme: Callable[..., dict],
     build_comparison_report: Callable[[str, str, list[str] | None], dict],
+    policy_context: dict[str, Any] | None = None,
 ) -> None:
     """Attach style-guide and optional baseline comparison metadata."""
     effective_style_readme_path = style_readme_path
@@ -271,7 +272,18 @@ def apply_style_and_comparison_metadata(
             raise FileNotFoundError(
                 f"style README not found: {effective_style_readme_path}"
             )
-        metadata["style_guide"] = parse_style_readme(str(style_path))
+        section_aliases = None
+        if policy_context:
+            context_aliases = policy_context.get("section_aliases")
+            if isinstance(context_aliases, dict):
+                section_aliases = context_aliases
+        if section_aliases is None:
+            metadata["style_guide"] = parse_style_readme(str(style_path))
+        else:
+            metadata["style_guide"] = parse_style_readme(
+                str(style_path),
+                section_aliases=section_aliases,
+            )
     if style_guide_skeleton:
         metadata["style_guide_skeleton"] = True
     if compare_role_path:

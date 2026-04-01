@@ -1282,3 +1282,13 @@ def test_custom_ansible_prefixed_var_not_filtered_by_ignored_identifiers():
         f"{sentinel!r} should NOT be in IGNORED_IDENTIFIERS; "
         "only known builtins belong there"
     )
+
+
+def test_scanner_extract_package_root_limits_exports_to_public_wrappers():
+    """scanner_extract package root should not expose private helper names."""
+    from prism import scanner_extract
+
+    assert "load_yaml_file" in scanner_extract.__all__
+    assert "collect_task_files" in scanner_extract.__all__
+    assert "_load_yaml_file" not in scanner_extract.__all__
+    assert "_collect_task_files" not in scanner_extract.__all__

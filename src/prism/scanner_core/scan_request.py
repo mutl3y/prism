@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from prism.scanner_data.contracts import ScanOptionsDict
+from prism.scanner_data.contracts import PolicyContext, ScanOptionsDict
 
 
 def resolve_scan_request_for_runtime(
@@ -39,6 +39,7 @@ def build_run_scan_options_canonical(
     fail_on_unconstrained_dynamic_includes: bool | None,
     fail_on_yaml_like_task_annotations: bool | None,
     ignore_unresolved_internal_underscore_references: bool | None,
+    policy_context: PolicyContext | None = None,
 ) -> ScanOptionsDict:
     """Canonical scan options map builder for scanner runtime path."""
     return ScanOptionsDict(
@@ -64,4 +65,5 @@ def build_run_scan_options_canonical(
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),
+        policy_context=policy_context,
     )

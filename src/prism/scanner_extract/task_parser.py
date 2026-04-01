@@ -1201,3 +1201,19 @@ def extract_role_features(
         "disabled_task_annotations": disabled_task_annotations,
         "yaml_like_task_annotations": yaml_like_task_annotations,
     }
+
+
+# Public wrappers for package-root re-exports.
+is_relpath_excluded = _is_relpath_excluded
+is_path_excluded = _is_path_excluded
+load_yaml_file = _load_yaml_file
+collect_task_files = _collect_task_files
+extract_role_notes_from_comments = _extract_role_notes_from_comments
+collect_unconstrained_dynamic_role_includes = (
+    _collect_unconstrained_dynamic_role_includes
+)
+collect_unconstrained_dynamic_task_includes = (
+    _collect_unconstrained_dynamic_task_includes
+)
+collect_task_handler_catalog = _collect_task_handler_catalog
+collect_molecule_scenarios = _collect_molecule_scenarios

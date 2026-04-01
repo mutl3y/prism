@@ -322,6 +322,7 @@ class ScannerContext:
             ignore_unresolved_internal_underscore_references=self._scan_options.get(
                 "ignore_unresolved_internal_underscore_references"
             ),
+            policy_context=self._scan_options.get("policy_context"),
         )
 
         if self._prepare_scan_context_fn is None:
