@@ -674,9 +674,12 @@ def scan_repo(
             inline_task_runbooks=inline_task_runbooks,
             failure_policy=failure_policy,
         )
+        normalized_repo_style_readme_path = checkout.resolved_repo_style_readme_path
+        if repo_style_readme_path:
+            normalized_repo_style_readme_path = repo_style_readme_path
         return _normalize_repo_scan_metadata_paths(
             payload,
-            repo_style_readme_path=checkout.resolved_repo_style_readme_path,
+            repo_style_readme_path=normalized_repo_style_readme_path,
             scanner_report_relpath=_resolve_repo_scan_scanner_report_relpath(
                 concise_readme=concise_readme,
                 scanner_report_output=scanner_report_output,
