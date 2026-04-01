@@ -37,6 +37,7 @@ from .repo_services import repo_scan_facade as _repo_scan_facade
 from .scanner import run_scan
 from .scanner_analysis import render_runbook, render_runbook_csv
 from .scanner_data.contracts import CollectionScanResult, RepoScanResult, RoleScanResult
+from .scanner_io.collection_renderer import write_collection_runbook_artifacts
 from .scanner_readme import render_readme
 
 # Compatibility export for downstream imports and parity checks with CLI/helpers.
@@ -445,25 +446,14 @@ def scan_collection(
                     write=False,
                 )
 
-            if runbook_output_dir:
-                rb_dir = Path(runbook_output_dir)
-                rb_dir.mkdir(parents=True, exist_ok=True)
-                rb_metadata = payload.get("metadata") or {}
-                rb_role_name = payload.get("role_name") or role_dir.name
-                rb_content = render_runbook(rb_role_name, rb_metadata)
-                (rb_dir / f"{role_dir.name}.runbook.md").write_text(
-                    rb_content,
-                    encoding="utf-8",
-                )
-            if runbook_csv_output_dir:
-                rb_csv_dir = Path(runbook_csv_output_dir)
-                rb_csv_dir.mkdir(parents=True, exist_ok=True)
-                rb_metadata = payload.get("metadata") or {}
-                rb_csv_content = render_runbook_csv(rb_metadata)
-                (rb_csv_dir / f"{role_dir.name}.runbook.csv").write_text(
-                    rb_csv_content,
-                    encoding="utf-8",
-                )
+            write_collection_runbook_artifacts(
+                role_name=role_dir.name,
+                metadata=(payload.get("metadata") or {}),
+                runbook_output_dir=runbook_output_dir,
+                runbook_csv_output_dir=runbook_csv_output_dir,
+                render_runbook_fn=render_runbook,
+                render_runbook_csv_fn=render_runbook_csv,
+            )
 
             role_entries.append(
                 {

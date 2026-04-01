@@ -7,6 +7,7 @@ import pytest
 
 from prism import api, cli, repo_services
 from prism import errors as prism_errors
+from prism.scanner_io.collection_renderer import write_collection_runbook_artifacts
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
@@ -1467,6 +1468,21 @@ def test_scan_collection_writes_runbook_markdown_and_csv(monkeypatch, tmp_path):
     assert (runbook_csv_dir / "role_a.runbook.csv").read_text(
         encoding="utf-8"
     ) == "task,file\n"
+
+
+def test_write_collection_runbook_artifacts_noops_without_output_dirs():
+    write_collection_runbook_artifacts(
+        role_name="role_a",
+        metadata={},
+        runbook_output_dir=None,
+        runbook_csv_output_dir=None,
+        render_runbook_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("render_runbook should not be called")
+        ),
+        render_runbook_csv_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("render_runbook_csv should not be called")
+        ),
+    )
 
 
 def test_scan_collection_records_post_scan_render_failures(monkeypatch, tmp_path):

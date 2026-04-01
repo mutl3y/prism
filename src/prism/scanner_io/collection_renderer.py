@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 
 def _as_dict(value: object) -> dict:
     return value if isinstance(value, dict) else {}
@@ -197,3 +199,32 @@ def render_collection_markdown(payload: dict) -> str:
 
     lines.append("")
     return "\n".join(lines)
+
+
+def write_collection_runbook_artifacts(
+    *,
+    role_name: str,
+    metadata: dict,
+    runbook_output_dir: str | None,
+    runbook_csv_output_dir: str | None,
+    render_runbook_fn,
+    render_runbook_csv_fn,
+) -> None:
+    """Write runbook artifacts only when explicit output directories are provided."""
+    if runbook_output_dir:
+        rb_dir = Path(runbook_output_dir)
+        rb_dir.mkdir(parents=True, exist_ok=True)
+        rb_content = render_runbook_fn(role_name, metadata)
+        (rb_dir / f"{role_name}.runbook.md").write_text(
+            rb_content,
+            encoding="utf-8",
+        )
+
+    if runbook_csv_output_dir:
+        rb_csv_dir = Path(runbook_csv_output_dir)
+        rb_csv_dir.mkdir(parents=True, exist_ok=True)
+        rb_csv_content = render_runbook_csv_fn(metadata)
+        (rb_csv_dir / f"{role_name}.runbook.csv").write_text(
+            rb_csv_content,
+            encoding="utf-8",
+        )
