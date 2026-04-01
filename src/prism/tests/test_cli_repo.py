@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from prism import cli
+from prism import cli_commands, cli_presenters
 from prism import errors as prism_errors
 from prism import repo_services
 
@@ -3155,3 +3156,20 @@ def test_main_prints_structured_error_context(monkeypatch, capsys):
     assert rc == cli._EXIT_CODE_NETWORK_ERROR
     assert "code=repo_transport_failed" in captured.err
     assert "category=network" in captured.err
+
+
+def test_cli_build_parser_delegates_to_cli_commands(monkeypatch):
+    sentinel = object()
+    monkeypatch.setattr(cli_commands, "build_parser", lambda: sentinel)
+
+    assert cli.build_parser() is sentinel
+
+
+def test_cli_collection_presenter_delegates_to_cli_presenters(monkeypatch):
+    monkeypatch.setattr(
+        cli_presenters,
+        "_render_collection_markdown",
+        lambda payload: "delegated-render",
+    )
+
+    assert cli._render_collection_markdown({"summary": {}}) == "delegated-render"
