@@ -141,3 +141,16 @@ def test_repo_services_public_aliases_preserve_behavior_surface():
     assert repo_services.fetch_repo_directory_names is repo_metadata._fetch_repo_directory_names
     assert repo_services.fetch_repo_file is repo_metadata._fetch_repo_file
     assert repo_services.repo_name_from_url is repo_metadata._repo_name_from_url
+
+
+def test_repo_scan_facade_exposes_cohesive_api_surface():
+    facade = repo_services.repo_scan_facade
+
+    assert facade.clone_repo is repo_services.clone_repo
+    assert facade.repo_scan_workspace is repo_services.repo_scan_workspace
+    assert facade.checkout_repo_scan_role is repo_services.checkout_repo_scan_role
+    assert (
+        facade.checkout_repo_lightweight_style_readme
+        is repo_services.checkout_repo_lightweight_style_readme
+    )
+    assert facade.normalize_repo_scan_metadata_paths is repo_services.normalize_repo_scan_metadata_paths

@@ -33,30 +33,30 @@ from .errors import (
     SCAN_ROLE_PAYLOAD_TYPE_INVALID,
     to_failure_detail,
 )
-from .repo_services import (
-    build_lightweight_sparse_clone_paths as _build_lightweight_sparse_clone_paths,
-    build_repo_style_readme_candidates as _repo_build_repo_style_readme_candidates,
-    build_sparse_clone_paths as _build_sparse_clone_paths,
-    checkout_repo_lightweight_style_readme as _checkout_repo_lightweight_style_readme,
-    checkout_repo_scan_role as _checkout_repo_scan_role,
-    clone_repo as _clone_repo,
-    fetch_repo_directory_names as _fetch_repo_directory_names,
-    fetch_repo_file as _fetch_repo_file,
-    normalize_repo_scan_result_payload as _normalize_repo_scan_result_payload,
-    normalize_repo_scan_metadata_paths as _normalize_repo_scan_metadata_paths,
-    prepare_repo_scan_inputs as _prepare_repo_scan_inputs,
-    repo_name_from_url as _repo_name_from_url,
-    repo_path_looks_like_role as _repo_path_looks_like_role,
-    repo_scan_workspace as _repo_scan_workspace,
-    resolve_repo_scan_scanner_report_relpath as _resolve_repo_scan_scanner_report_relpath,
-    resolve_style_readme_candidate as _resolve_style_readme_candidate,
-)
+from .repo_services import repo_scan_facade as _repo_scan_facade
 from .scanner import run_scan
 from .scanner_analysis import render_runbook, render_runbook_csv
 from .scanner_data.contracts import CollectionScanResult, RepoScanResult, RoleScanResult
 from .scanner_readme import render_readme
 
 # Compatibility export for downstream imports and parity checks with CLI/helpers.
+_build_lightweight_sparse_clone_paths = _repo_scan_facade.build_lightweight_sparse_clone_paths
+_repo_build_repo_style_readme_candidates = _repo_scan_facade.build_repo_style_readme_candidates
+_build_sparse_clone_paths = _repo_scan_facade.build_sparse_clone_paths
+_checkout_repo_lightweight_style_readme = _repo_scan_facade.checkout_repo_lightweight_style_readme
+_checkout_repo_scan_role = _repo_scan_facade.checkout_repo_scan_role
+_clone_repo = _repo_scan_facade.clone_repo
+_fetch_repo_directory_names = _repo_scan_facade.fetch_repo_directory_names
+_fetch_repo_file = _repo_scan_facade.fetch_repo_file
+_normalize_repo_scan_result_payload = _repo_scan_facade.normalize_repo_scan_result_payload
+_normalize_repo_scan_metadata_paths = _repo_scan_facade.normalize_repo_scan_metadata_paths
+_prepare_repo_scan_inputs = _repo_scan_facade.prepare_repo_scan_inputs
+_repo_name_from_url = _repo_scan_facade.repo_name_from_url
+_repo_path_looks_like_role = _repo_scan_facade.repo_path_looks_like_role
+_repo_scan_workspace = _repo_scan_facade.repo_scan_workspace
+_resolve_repo_scan_scanner_report_relpath = _repo_scan_facade.resolve_repo_scan_scanner_report_relpath
+_resolve_style_readme_candidate = _repo_scan_facade.resolve_style_readme_candidate
+
 _build_repo_style_readme_candidates = _repo_build_repo_style_readme_candidates
 
 _REQUIRED_ROLE_DIRS = ("defaults", "tasks", "meta")
