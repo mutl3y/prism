@@ -33,6 +33,7 @@ from prism.repo_services import (
     repo_name_from_url as _repo_name_from_url,
     repo_path_looks_like_role as _repo_path_looks_like_role,
     repo_scan_workspace as _repo_scan_workspace,
+    resolve_repo_scan_target as _resolve_repo_scan_target,
     resolve_repo_scan_scanner_report_relpath as _resolve_repo_scan_scanner_report_relpath,
     resolve_style_readme_candidate as _resolve_style_readme_candidate,
 )
@@ -189,6 +190,7 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
         resolve_default_style_guide_source=resolve_default_style_guide_source,
         run_scan=run_scan,
         repo_name_from_url=_repo_name_from_url,
+        resolve_repo_scan_target=_resolve_repo_scan_target,
         resolve_repo_scan_scanner_report_relpath=_resolve_repo_scan_scanner_report_relpath,
         resolve_include_collection_checks=_resolve_include_collection_checks,
         normalize_repo_json_payload=_normalize_repo_json_payload,

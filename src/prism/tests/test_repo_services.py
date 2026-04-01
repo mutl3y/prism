@@ -153,4 +153,5 @@ def test_repo_scan_facade_exposes_cohesive_api_surface():
         facade.checkout_repo_lightweight_style_readme
         is repo_services.checkout_repo_lightweight_style_readme
     )
+    assert facade.resolve_repo_scan_target is repo_services.resolve_repo_scan_target
     assert facade.normalize_repo_scan_metadata_paths is repo_services.normalize_repo_scan_metadata_paths

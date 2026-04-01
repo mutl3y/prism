@@ -55,6 +55,7 @@ _prepare_repo_scan_inputs = _repo_scan_facade.prepare_repo_scan_inputs
 _repo_name_from_url = _repo_scan_facade.repo_name_from_url
 _repo_path_looks_like_role = _repo_scan_facade.repo_path_looks_like_role
 _repo_scan_workspace = _repo_scan_facade.repo_scan_workspace
+_resolve_repo_scan_target = _repo_scan_facade.resolve_repo_scan_target
 _resolve_repo_scan_scanner_report_relpath = _repo_scan_facade.resolve_repo_scan_scanner_report_relpath
 _resolve_style_readme_candidate = _repo_scan_facade.resolve_style_readme_candidate
 
@@ -624,75 +625,25 @@ def scan_repo(
     """
 
     with _repo_scan_workspace() as workspace:
-        if lightweight_readme_only:
-            lightweight_checkout = _checkout_repo_lightweight_style_readme(
-                repo_url,
-                workspace=workspace,
-                repo_role_path=repo_role_path,
-                repo_style_readme_path=repo_style_readme_path,
-                repo_ref=repo_ref,
-                repo_timeout=repo_timeout,
-                prepare_repo_scan_inputs=_prepare_repo_scan_inputs,
-                fetch_repo_directory_names=_fetch_repo_directory_names,
-                repo_path_looks_like_role=_repo_path_looks_like_role,
-                fetch_repo_file=_fetch_repo_file,
-                clone_repo=_clone_repo,
-                build_lightweight_sparse_clone_paths=_build_lightweight_sparse_clone_paths,
-                resolve_style_readme_candidate=_resolve_style_readme_candidate,
-            )
-            payload = scan_role(
-                str(lightweight_checkout.role_stub_dir),
-                compare_role_path=compare_role_path,
-                style_readme_path=lightweight_checkout.effective_style_readme_path,
-                role_name_override=_repo_name_from_url(repo_url),
-                vars_seed_paths=vars_seed_paths,
-                concise_readme=concise_readme,
-                scanner_report_output=scanner_report_output,
-                include_vars_main=include_vars_main,
-                include_scanner_report_link=include_scanner_report_link,
-                readme_config_path=readme_config_path,
-                adopt_heading_mode=adopt_heading_mode,
-                style_guide_skeleton=style_guide_skeleton,
-                keep_unknown_style_sections=keep_unknown_style_sections,
-                exclude_path_patterns=exclude_path_patterns,
-                style_source_path=style_source_path,
-                policy_config_path=policy_config_path,
-                fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
-                fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
-                ignore_unresolved_internal_underscore_references=(
-                    ignore_unresolved_internal_underscore_references
-                ),
-                include_collection_checks=include_collection_checks,
-                include_task_parameters=include_task_parameters,
-                include_task_runbooks=include_task_runbooks,
-                inline_task_runbooks=inline_task_runbooks,
-                failure_policy=failure_policy,
-            )
-            return _normalize_repo_scan_metadata_paths(
-                payload,
-                repo_style_readme_path=lightweight_checkout.resolved_repo_style_readme_path,
-                scanner_report_relpath=_resolve_repo_scan_scanner_report_relpath(
-                    concise_readme=concise_readme,
-                    scanner_report_output=scanner_report_output,
-                    primary_output_path="scan.json",
-                ),
-            )
-
-        checkout = _checkout_repo_scan_role(
-            repo_url,
+        checkout = _resolve_repo_scan_target(
+            repo_url=repo_url,
             workspace=workspace,
             repo_role_path=repo_role_path,
             repo_style_readme_path=repo_style_readme_path,
             style_readme_path=style_readme_path,
             repo_ref=repo_ref,
             repo_timeout=repo_timeout,
-            prepare_repo_scan_inputs=_prepare_repo_scan_inputs,
-            fetch_repo_directory_names=_fetch_repo_directory_names,
-            repo_path_looks_like_role=_repo_path_looks_like_role,
-            fetch_repo_file=_fetch_repo_file,
-            clone_repo=_clone_repo,
-            build_sparse_clone_paths=_build_sparse_clone_paths,
-            resolve_style_readme_candidate=_resolve_style_readme_candidate,
+            lightweight_readme_only=lightweight_readme_only,
+            checkout_repo_lightweight_style_readme_fn=_checkout_repo_lightweight_style_readme,
+            checkout_repo_scan_role_fn=_checkout_repo_scan_role,
+            prepare_repo_scan_inputs_fn=_prepare_repo_scan_inputs,
+            fetch_repo_directory_names_fn=_fetch_repo_directory_names,
+            repo_path_looks_like_role_fn=_repo_path_looks_like_role,
+            fetch_repo_file_fn=_fetch_repo_file,
+            clone_repo_fn=_clone_repo,
+            build_lightweight_sparse_clone_paths_fn=_build_lightweight_sparse_clone_paths,
+            build_sparse_clone_paths_fn=_build_sparse_clone_paths,
+            resolve_style_readme_candidate_fn=_resolve_style_readme_candidate,
         )
 
         payload = scan_role(
