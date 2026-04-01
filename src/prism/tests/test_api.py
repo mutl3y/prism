@@ -62,6 +62,7 @@ def test_api_and_cli_share_repo_service_helper_bindings(monkeypatch):
     )
     assert api._build_sparse_clone_paths is repo_services._build_sparse_clone_paths
     assert api._prepare_repo_scan_inputs is repo_services._prepare_repo_scan_inputs
+    assert api._resolve_repo_scan_target is repo_services._resolve_repo_scan_target
     assert (
         api._resolve_style_readme_candidate
         is repo_services._resolve_style_readme_candidate
@@ -85,6 +86,7 @@ def test_api_and_cli_share_repo_service_helper_bindings(monkeypatch):
     )
     assert cli._build_sparse_clone_paths is repo_services._build_sparse_clone_paths
     assert cli._prepare_repo_scan_inputs is repo_services._prepare_repo_scan_inputs
+    assert cli._resolve_repo_scan_target is repo_services._resolve_repo_scan_target
     assert (
         cli._resolve_style_readme_candidate
         is repo_services._resolve_style_readme_candidate

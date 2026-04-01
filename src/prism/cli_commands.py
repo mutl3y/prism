@@ -560,6 +560,7 @@ def _handle_repo_command(
     resolve_default_style_guide_source,
     run_scan,
     repo_name_from_url,
+    resolve_repo_scan_target,
     resolve_repo_scan_scanner_report_relpath,
     resolve_include_collection_checks,
     normalize_repo_json_payload,
@@ -573,21 +574,23 @@ def _handle_repo_command(
     with repo_scan_workspace() as workspace:
         if args.verbose:
             print(f"Cloning: {args.repo_url}")
-        checkout = checkout_repo_scan_role(
-            args.repo_url,
+        checkout = resolve_repo_scan_target(
+            repo_url=args.repo_url,
             workspace=workspace,
             repo_role_path=args.repo_role_path,
             repo_style_readme_path=args.repo_style_readme_path,
             style_readme_path=args.style_readme,
             repo_ref=args.repo_ref,
             repo_timeout=args.repo_timeout,
-            prepare_repo_scan_inputs=prepare_repo_scan_inputs,
-            fetch_repo_directory_names=fetch_repo_directory_names,
-            repo_path_looks_like_role=repo_path_looks_like_role,
-            fetch_repo_file=fetch_repo_file,
-            clone_repo=clone_repo,
-            build_sparse_clone_paths=build_sparse_clone_paths,
-            resolve_style_readme_candidate=resolve_style_readme_candidate,
+            lightweight_readme_only=False,
+            checkout_repo_scan_role_fn=checkout_repo_scan_role,
+            prepare_repo_scan_inputs_fn=prepare_repo_scan_inputs,
+            fetch_repo_directory_names_fn=fetch_repo_directory_names,
+            repo_path_looks_like_role_fn=repo_path_looks_like_role,
+            fetch_repo_file_fn=fetch_repo_file,
+            clone_repo_fn=clone_repo,
+            build_sparse_clone_paths_fn=build_sparse_clone_paths,
+            resolve_style_readme_candidate_fn=resolve_style_readme_candidate,
         )
         style_readme_path = checkout.effective_style_readme_path
         if args.create_style_guide and not style_readme_path:
