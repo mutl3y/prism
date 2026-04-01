@@ -172,6 +172,8 @@ def load_section_display_titles(display_titles_path: Path) -> dict[str, str]:
 
 def refresh_policy(
     override_path: str | None = None,
+    *,
+    search_root: str | None = None,
 ) -> tuple[dict, dict, tuple, tuple, tuple, tuple, tuple, dict]:
     """Reload policy-derived globals and return their values.
 
@@ -189,7 +191,10 @@ def refresh_policy(
     # Import here to avoid circular dependency
     from .patterns import load_pattern_config
 
-    policy = load_pattern_config(override_path=override_path)
+    policy = load_pattern_config(
+        override_path=override_path,
+        search_root=search_root,
+    )
     section_aliases = policy["section_aliases"]
     sensitivity = policy["sensitivity"]
     secret_name_tokens = tuple(sensitivity["name_tokens"])

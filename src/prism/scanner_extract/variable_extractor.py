@@ -28,6 +28,7 @@ Exported names consumed by scanner.py:
 from __future__ import annotations
 
 import re
+import threading
 import yaml
 from pathlib import Path
 from typing import Any, Iterable
@@ -36,7 +37,7 @@ from .._jinja_analyzer import (
     _collect_jinja_local_bindings_from_text,
     _collect_undeclared_jinja_variables,
 )
-from . import (
+from .task_parser import (
     TASK_BLOCK_KEYS,
     TASK_INCLUDE_KEYS,
     TASK_META_KEYS,
@@ -45,8 +46,9 @@ from . import (
     SET_FACT_KEYS,
     _collect_task_files,
     _is_path_excluded,
-    _iter_task_mappings,
     _load_yaml_file,
+    _iter_task_include_targets,
+    _iter_task_mappings,
 )
 from ..scanner_config.patterns import load_pattern_config
 
@@ -90,6 +92,9 @@ _SECRET_NAME_TOKENS: tuple[str, ...] = tuple(_SENSITIVITY["name_tokens"])
 _VAULT_MARKERS: tuple[str, ...] = tuple(_SENSITIVITY["vault_markers"])
 _CREDENTIAL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["credential_prefixes"])
 _URL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["url_prefixes"])
+
+# Re-entrant lock protecting policy-derived module-level globals during concurrent scans.
+_POLICY_DERIVED_STATE_LOCK = threading.RLock()
 
 
 def _coerce_identifier(value: object) -> str | None:
@@ -197,20 +202,21 @@ IGNORED_IDENTIFIERS: set[str] = _build_effective_ignored_identifiers(_POLICY)
 
 
 def _refresh_policy_derived_state(policy: dict[str, Any]) -> None:
-    """Refresh module-level policy state after scanner policy reloads."""
-    global _SENSITIVITY
-    global _SECRET_NAME_TOKENS
-    global _VAULT_MARKERS
-    global _CREDENTIAL_PREFIXES
-    global _URL_PREFIXES
-    global IGNORED_IDENTIFIERS
+    """Refresh module-level policy state after scanner policy reloads. Protected by _POLICY_DERIVED_STATE_LOCK."""
+    with _POLICY_DERIVED_STATE_LOCK:
+        global _SENSITIVITY
+        global _SECRET_NAME_TOKENS
+        global _VAULT_MARKERS
+        global _CREDENTIAL_PREFIXES
+        global _URL_PREFIXES
+        global IGNORED_IDENTIFIERS
 
-    _SENSITIVITY = policy["sensitivity"]
-    _SECRET_NAME_TOKENS = tuple(_SENSITIVITY["name_tokens"])
-    _VAULT_MARKERS = tuple(_SENSITIVITY["vault_markers"])
-    _CREDENTIAL_PREFIXES = tuple(_SENSITIVITY["credential_prefixes"])
-    _URL_PREFIXES = tuple(_SENSITIVITY["url_prefixes"])
-    IGNORED_IDENTIFIERS = _build_effective_ignored_identifiers(policy)
+        _SENSITIVITY = policy["sensitivity"]
+        _SECRET_NAME_TOKENS = tuple(_SENSITIVITY["name_tokens"])
+        _VAULT_MARKERS = tuple(_SENSITIVITY["vault_markers"])
+        _CREDENTIAL_PREFIXES = tuple(_SENSITIVITY["credential_prefixes"])
+        _URL_PREFIXES = tuple(_SENSITIVITY["url_prefixes"])
+        IGNORED_IDENTIFIERS = _build_effective_ignored_identifiers(policy)
 
 
 _REGISTERED_RESULT_ATTRS: frozenset[str] = frozenset(
@@ -380,8 +386,6 @@ def _collect_dynamic_task_include_refs(
     exclude_paths: list[str] | None = None,
 ) -> list[str]:
     """Return templated include/import task references from task files."""
-    from . import _iter_task_include_targets
-
     role_root = Path(role_path).resolve()
     refs: list[str] = []
     for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
@@ -395,10 +399,16 @@ def _collect_dynamic_task_include_refs(
 def _collect_referenced_variable_names(
     role_path: str,
     exclude_paths: list[str] | None = None,
+    ignored_identifiers: set[str] | frozenset[str] | None = None,
 ) -> set[str]:
     """Collect likely variable references from role tasks/templates/handlers files."""
     role_root = Path(role_path).resolve()
     candidates: set[str] = set()
+    effective_ignored_identifiers = set(IGNORED_IDENTIFIERS)
+    if ignored_identifiers:
+        effective_ignored_identifiers.update(
+            token.lower() for token in ignored_identifiers if isinstance(token, str)
+        )
     scan_dirs = ["tasks", "templates", "handlers", "vars"]
     for dirname in scan_dirs:
         root = role_root / dirname
@@ -416,12 +426,15 @@ def _collect_referenced_variable_names(
             local_bindings = _collect_jinja_local_bindings_from_text(text)
             for name in _collect_undeclared_jinja_variables(text):
                 lowered = name.lower()
-                if lowered in IGNORED_IDENTIFIERS:
+                if lowered in effective_ignored_identifiers:
                     continue
                 candidates.add(name)
             for match in JINJA_VAR_RE.findall(text):
                 lowered = match.lower()
-                if lowered not in IGNORED_IDENTIFIERS and match not in local_bindings:
+                if (
+                    lowered not in effective_ignored_identifiers
+                    and match not in local_bindings
+                ):
                     candidates.add(match)
             if file_path.suffix in {".yml", ".yaml"}:
                 for line in text.splitlines():
@@ -435,7 +448,7 @@ def _collect_referenced_variable_names(
                         ):
                             continue
                         lowered = token.lower()
-                        if lowered in IGNORED_IDENTIFIERS:
+                        if lowered in effective_ignored_identifiers:
                             continue
                         candidates.add(token)
     candidates -= _REGISTERED_RESULT_ATTRS
@@ -621,3 +634,11 @@ def load_seed_variables(seed_paths: list[str] | None) -> tuple[dict, set[str], d
         for key in file_values:
             source_map[key] = str(path)
     return values, secret_names, source_map
+
+
+# Public wrappers for package-root re-exports.
+extract_default_target_var = _extract_default_target_var
+collect_include_vars_files = _collect_include_vars_files
+looks_secret_name = _looks_secret_name
+resembles_password_like = _resembles_password_like
+refresh_policy_derived_state = _refresh_policy_derived_state

@@ -10,6 +10,8 @@ from __future__ import annotations
 from functools import partial
 from pathlib import Path
 import re
+import threading
+from types import MappingProxyType
 
 from .scanner_io import (
     render_final_output,
@@ -32,6 +34,7 @@ from .scanner_config import (
     load_readme_section_visibility as _load_readme_section_visibility,
 )
 from .scanner_data.contracts import (
+    PolicyContext as _PolicyContext,
     ReferenceContext as _scan_context_ReferenceContext,
     ScanMetadata as _scan_context_ScanMetadata,
 )
@@ -47,6 +50,7 @@ from .scanner_core import scan_facade_helpers as _scan_facade_helpers
 from .scanner_core import scan_runtime as _scan_runtime
 from .scanner_core import variable_insights as _variable_insights
 from .scanner_core import variable_pipeline as _variable_pipeline
+from .scanner_data.contracts import VariableRow as _VariableRow
 from .scanner_analysis.metrics import (
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES as _ANALYSIS_MAX_FILE_BYTES,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED as _ANALYSIS_MAX_FILES_SCANNED,
@@ -112,7 +116,11 @@ from .scanner_readme import render_readme as _readme_render_readme
 # Pass override_path to load_pattern_config() if you want to merge a local file.
 _POLICY = load_pattern_config()
 
-STYLE_SECTION_ALIASES: dict[str, str] = _POLICY["section_aliases"]
+# Re-entrant lock protecting policy-derived module-level globals during concurrent scans.
+_POLICY_REFRESH_LOCK = threading.RLock()
+
+_STYLE_SECTION_ALIASES: dict[str, str] = dict(_POLICY["section_aliases"])
+STYLE_SECTION_ALIASES = MappingProxyType(_STYLE_SECTION_ALIASES)
 
 # Sensitivity detection tokens extracted from policy for fast tuple lookup
 _SENSITIVITY = _POLICY["sensitivity"]
@@ -191,53 +199,54 @@ DEFAULT_SECTION_DISPLAY_TITLES_PATH = (
 )
 DEFAULT_DOC_MARKER_PREFIX = READMECFG_DEFAULT_DOC_MARKER_PREFIX
 
-NON_AUTHORITATIVE_TEST_TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
-NON_AUTHORITATIVE_TEST_EVIDENCE_ALLOWED_SUFFIXES = {
-    ".yml",
-    ".yaml",
-    ".j2",
-    ".jinja2",
-    ".json",
-    ".ini",
-    ".cfg",
-    ".conf",
-    ".md",
-    ".txt",
-}
 
+def _refresh_policy(
+    override_path: str | None = None,
+    *,
+    role_root: str | None = None,
+) -> None:
+    """Reload policy-derived module globals. Protected by _POLICY_REFRESH_LOCK for thread safety.
 
-def _refresh_policy(override_path: str | None = None) -> None:
-    """Reload policy-derived globals with an optional explicit override path."""
-    global _POLICY
-    global STYLE_SECTION_ALIASES
-    global _SENSITIVITY
-    global _SECRET_NAME_TOKENS
-    global _VAULT_MARKERS
-    global _CREDENTIAL_PREFIXES
-    global _URL_PREFIXES
-    global _VARIABLE_GUIDANCE_KEYWORDS
+    Note: This function mutates module-level state. The lock prevents concurrent scans from
+    observing each other's mid-mutation policy state. Full per-scan encapsulation is a
+    longer-term goal; this lock is the interim thread-safety measure.
+    """
+    with _POLICY_REFRESH_LOCK:
+        global _POLICY
+        global _SENSITIVITY
+        global _SECRET_NAME_TOKENS
+        global _VAULT_MARKERS
+        global _CREDENTIAL_PREFIXES
+        global _URL_PREFIXES
+        global _VARIABLE_GUIDANCE_KEYWORDS
 
-    (
-        _POLICY,
-        STYLE_SECTION_ALIASES,
-        _SECRET_NAME_TOKENS,
-        _VAULT_MARKERS,
-        _CREDENTIAL_PREFIXES,
-        _URL_PREFIXES,
-        _VARIABLE_GUIDANCE_KEYWORDS,
-        _,
-    ) = _config_refresh_policy(override_path=override_path)
-    _SENSITIVITY = _POLICY["sensitivity"]
+        refresh_kwargs = {"override_path": override_path}
+        if role_root is not None:
+            refresh_kwargs["search_root"] = role_root
 
-    from .scanner_extract import (
-        refresh_policy_derived_state as _extract_refresh_policy_derived_state,
-    )
-    from .scanner_readme import (
-        refresh_policy_derived_state as _readme_refresh_policy_derived_state,
-    )
+        (
+            _POLICY,
+            _style_section_aliases,
+            _SECRET_NAME_TOKENS,
+            _VAULT_MARKERS,
+            _CREDENTIAL_PREFIXES,
+            _URL_PREFIXES,
+            _VARIABLE_GUIDANCE_KEYWORDS,
+            _,
+        ) = _config_refresh_policy(**refresh_kwargs)
+        _STYLE_SECTION_ALIASES.clear()
+        _STYLE_SECTION_ALIASES.update(_style_section_aliases)
+        _SENSITIVITY = _POLICY["sensitivity"]
 
-    _extract_refresh_policy_derived_state(_POLICY)
-    _readme_refresh_policy_derived_state(_POLICY)
+        from .scanner_extract import (
+            refresh_policy_derived_state as _extract_refresh_policy_derived_state,
+        )
+        from .scanner_readme import (
+            refresh_policy_derived_state as _readme_refresh_policy_derived_state,
+        )
+
+        _extract_refresh_policy_derived_state(_POLICY)
+        _readme_refresh_policy_derived_state(_POLICY)
 
 
 def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:
@@ -450,7 +459,7 @@ def _build_static_variable_rows(
     vars_data: dict,
     defaults_sources: dict[str, Path],
     vars_sources: dict[str, Path],
-) -> tuple[list[dict], dict[str, dict]]:
+) -> tuple[list[_VariableRow], dict[str, _VariableRow]]:
     """Build baseline rows from defaults/main.yml and vars/main.yml."""
     return _variable_pipeline.build_static_variable_rows(
         role_root=role_root,
@@ -466,6 +475,7 @@ def _collect_variable_reference_context(
     role_path: str,
     seed_paths: list[str] | None,
     exclude_paths: list[str] | None,
+    policy_context: _PolicyContext | None = None,
 ) -> _scan_context_ReferenceContext:
     """Collect seed and dynamic-reference context for inferred variable rows."""
     return _variable_pipeline.collect_variable_reference_context(
@@ -473,17 +483,19 @@ def _collect_variable_reference_context(
         seed_paths=seed_paths,
         exclude_paths=exclude_paths,
         load_seed_variables=load_seed_variables,
+        policy_context=policy_context,
     )
 
 
 def _populate_variable_rows(
     *,
     role_path: str,
-    rows: list[dict],
-    rows_by_name: dict,
+    rows: list[_VariableRow],
+    rows_by_name: dict[str, _VariableRow],
     exclude_paths: list[str] | None,
     reference_context: _scan_context_ReferenceContext,
     style_readme_path: str | None = None,
+    policy_context: _PolicyContext | None = None,
     ignore_unresolved_internal_underscore_references: bool = True,
     non_authoritative_test_evidence_max_file_bytes: int = _ANALYSIS_MAX_FILE_BYTES,
     non_authoritative_test_evidence_max_files_scanned: int = _ANALYSIS_MAX_FILES_SCANNED,
@@ -498,6 +510,7 @@ def _populate_variable_rows(
         reference_context=reference_context,
         map_argument_spec_type=_dataload_map_argument_spec_type,
         style_readme_path=style_readme_path,
+        policy_context=policy_context,
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),
@@ -513,7 +526,7 @@ def _populate_variable_rows(
     )
 
 
-def _redact_secret_defaults(rows: list[dict]) -> None:
+def _redact_secret_defaults(rows: list[_VariableRow]) -> None:
     """Mask secret defaults in-place before rendering/output."""
     _variable_pipeline.redact_secret_defaults(rows)
 
@@ -524,6 +537,7 @@ def build_variable_insights(
     include_vars_main: bool = True,
     exclude_paths: list[str] | None = None,
     style_readme_path: str | None = None,
+    policy_context: _PolicyContext | None = None,
     ignore_unresolved_internal_underscore_references: bool = True,
     non_authoritative_test_evidence_max_file_bytes: int = _ANALYSIS_MAX_FILE_BYTES,
     non_authoritative_test_evidence_max_files_scanned: int = _ANALYSIS_MAX_FILES_SCANNED,
@@ -536,6 +550,7 @@ def build_variable_insights(
         include_vars_main=include_vars_main,
         exclude_paths=exclude_paths,
         style_readme_path=style_readme_path,
+        policy_context=policy_context,
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),
@@ -554,6 +569,22 @@ def build_variable_insights(
         populate_variable_rows=_populate_variable_rows,
         redact_secret_defaults=_redact_secret_defaults,
     )
+
+
+def _build_policy_context_snapshot() -> _PolicyContext:
+    """Capture immutable policy values for the current scan execution."""
+    return {
+        "section_aliases": get_style_section_aliases_snapshot(),
+        "ignored_identifiers": frozenset(
+            token.lower() for token in _variable_pipeline.IGNORED_IDENTIFIERS
+        ),
+        "variable_guidance_keywords": tuple(_VARIABLE_GUIDANCE_KEYWORDS),
+    }
+
+
+def get_style_section_aliases_snapshot() -> dict[str, str]:
+    """Return an isolated copy of the currently active section alias mapping."""
+    return dict(_STYLE_SECTION_ALIASES)
 
 
 load_readme_marker_prefix = partial(
@@ -660,7 +691,7 @@ def load_readme_section_visibility(
         config_path=config_path,
         adopt_heading_mode=None,
         all_section_ids=ALL_SECTION_IDS,
-        section_aliases=STYLE_SECTION_ALIASES,
+        section_aliases=_STYLE_SECTION_ALIASES,
         normalize_heading=normalize_style_heading,
         display_titles_path=DEFAULT_SECTION_DISPLAY_TITLES_PATH,
         config_filenames=SECTION_CONFIG_FILENAMES,
@@ -680,7 +711,7 @@ def load_readme_section_config(
         config_path=config_path,
         adopt_heading_mode=adopt_heading_mode,
         all_section_ids=ALL_SECTION_IDS,
-        section_aliases=STYLE_SECTION_ALIASES,
+        section_aliases=_STYLE_SECTION_ALIASES,
         normalize_heading=normalize_style_heading,
         display_titles_path=DEFAULT_SECTION_DISPLAY_TITLES_PATH,
         strict=strict,
@@ -906,31 +937,27 @@ def _execute_scan_with_context(
     dry_run: bool,
     runbook_output: str | None,
     runbook_csv_output: str | None,
-) -> str:
+) -> str | bytes:
     """Execute scan using ScannerContext orchestration and emit final outputs."""
-    container = DIContainer(role_path=role_path, scan_options=scan_options)
-    context = ScannerContext(
-        di=container,
+    return _scan_facade_helpers.execute_scan_with_context(
         role_path=role_path,
         scan_options=scan_options,
-        build_run_scan_options_fn=scan_request.build_run_scan_options,
-        prepare_scan_context_fn=_prepare_scan_context,
-    )
-    payload = context.orchestrate_scan()
-
-    emit_args = _build_emit_scan_outputs_args(
         output=output,
         output_format=output_format,
         concise_readme=concise_readme,
         scanner_report_output=scanner_report_output,
         include_scanner_report_link=include_scanner_report_link,
-        payload=payload,
         template=template,
         dry_run=dry_run,
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
+        di_container_cls=DIContainer,
+        scanner_context_cls=ScannerContext,
+        build_run_scan_options_fn=scan_request.build_run_scan_options_canonical,
+        prepare_scan_context_fn=_prepare_scan_context,
+        build_emit_scan_outputs_args_fn=_build_emit_scan_outputs_args,
+        emit_scan_outputs_fn=_emit_scan_outputs,
     )
-    return _emit_scan_outputs(emit_args)
 
 
 def run_scan(
@@ -965,13 +992,13 @@ def run_scan(
     strict_phase_failures: bool = True,
     runbook_output: str | None = None,
     runbook_csv_output: str | None = None,
-) -> str:
+) -> str | bytes:
     """Scan an Ansible role and render documentation.
 
     Delegates scan orchestration to ScannerContext and then emits outputs.
     """
-    _refresh_policy(policy_config_path)
-    scan_options = scan_request.build_run_scan_options(
+    _refresh_policy(policy_config_path, role_root=role_path)
+    scan_options = scan_request.build_run_scan_options_canonical(
         role_path=role_path,
         role_name_override=role_name_override,
         readme_config_path=readme_config_path,
@@ -998,6 +1025,7 @@ def run_scan(
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),
+        policy_context=_build_policy_context_snapshot(),
     )
     scan_options["strict_phase_failures"] = bool(strict_phase_failures)
     return _execute_scan_with_context(

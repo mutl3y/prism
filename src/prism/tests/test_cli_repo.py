@@ -2219,7 +2219,7 @@ def test_cli_repo_rejects_non_role_directory_listing(monkeypatch, tmp_path, caps
     )
 
     captured = capsys.readouterr()
-    assert rc == 2
+    assert rc == 3
     assert "repository path does not look like an Ansible role" in captured.err
 
 
@@ -2296,7 +2296,7 @@ def test_cli_repo_role_path_must_exist(monkeypatch, tmp_path, capsys):
     )
 
     captured = capsys.readouterr()
-    assert rc == 2
+    assert rc == 3
     assert "role path not found in cloned repository" in captured.err
 
 
@@ -2800,6 +2800,52 @@ def test_main_returns_error_for_unknown_command(monkeypatch):
     monkeypatch.setattr(cli, "build_parser", lambda: fake_parser)
 
     assert cli.main([]) == 2
+
+
+def test_main_maps_file_not_found_to_specific_exit_code(monkeypatch, capsys):
+    fake_parser = SimpleNamespace(
+        parse_args=lambda argv: SimpleNamespace(command="role")
+    )
+    monkeypatch.setattr(cli, "build_parser", lambda: fake_parser)
+    monkeypatch.setattr(
+        cli,
+        "_handle_role_command",
+        lambda args: (_ for _ in ()).throw(FileNotFoundError("missing role")),
+    )
+
+    assert cli.main([]) == 3
+    captured = capsys.readouterr()
+    assert "missing role" in captured.err
+
+
+def test_main_maps_permission_error_to_specific_exit_code(monkeypatch, capsys):
+    fake_parser = SimpleNamespace(
+        parse_args=lambda argv: SimpleNamespace(command="collection")
+    )
+    monkeypatch.setattr(cli, "build_parser", lambda: fake_parser)
+    monkeypatch.setattr(
+        cli,
+        "_handle_collection_command",
+        lambda args: (_ for _ in ()).throw(PermissionError("permission denied")),
+    )
+
+    assert cli.main([]) == 4
+    captured = capsys.readouterr()
+    assert "permission denied" in captured.err
+
+
+def test_main_maps_keyboard_interrupt_to_interrupt_exit_code(monkeypatch):
+    fake_parser = SimpleNamespace(
+        parse_args=lambda argv: SimpleNamespace(command="repo")
+    )
+    monkeypatch.setattr(cli, "build_parser", lambda: fake_parser)
+    monkeypatch.setattr(
+        cli,
+        "_handle_repo_command",
+        lambda args: (_ for _ in ()).throw(KeyboardInterrupt()),
+    )
+
+    assert cli.main([]) == 130
 
 
 def test_fetch_repo_contents_payload_returns_none_for_unparseable_repo_url():

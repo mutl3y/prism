@@ -2034,6 +2034,55 @@ def test_resolve_section_selector_handles_blank_canonical_and_alias():
     )
 
 
+def test_style_section_aliases_public_compat_mapping_is_read_only():
+    with pytest.raises(TypeError):
+        scanner.STYLE_SECTION_ALIASES["runtime inputs"] = "role_variables"
+
+
+def test_get_style_section_aliases_snapshot_isolated_from_future_refresh():
+    original_policy = scanner._POLICY
+    snapshot_before = scanner.get_style_section_aliases_snapshot()
+    assert isinstance(snapshot_before, dict)
+
+    patched_policy = dict(original_policy)
+    patched_aliases = dict(original_policy["section_aliases"])
+    patched_aliases["bertrum policy alias"] = "role_variables"
+    patched_policy["section_aliases"] = patched_aliases
+
+    def _refresh_return_for(policy: dict):
+        sensitivity = policy["sensitivity"]
+        return (
+            policy,
+            policy["section_aliases"],
+            tuple(sensitivity["name_tokens"]),
+            tuple(sensitivity["vault_markers"]),
+            tuple(sensitivity["credential_prefixes"]),
+            tuple(sensitivity["url_prefixes"]),
+            tuple(policy["variable_guidance"]["priority_keywords"]),
+            policy["ignored_identifiers"],
+        )
+
+    def _patched_refresh_policy(override_path=None):
+        return _refresh_return_for(patched_policy)
+
+    def _base_refresh_policy(override_path=None):
+        return _refresh_return_for(original_policy)
+
+    try:
+        original_refresh = scanner._config_refresh_policy
+        scanner._config_refresh_policy = _patched_refresh_policy
+        scanner._refresh_policy()
+        snapshot_after = scanner.get_style_section_aliases_snapshot()
+        assert "bertrum policy alias" not in snapshot_before
+        snapshot_before["bertrum policy alias"] = "unknown"
+        assert scanner.STYLE_SECTION_ALIASES["bertrum policy alias"] == "role_variables"
+        assert snapshot_after["bertrum policy alias"] == "role_variables"
+    finally:
+        scanner._config_refresh_policy = _base_refresh_policy
+        scanner._refresh_policy()
+        scanner._config_refresh_policy = original_refresh
+
+
 def test_load_readme_section_config_parses_include_exclude_and_modes(tmp_path):
     role = tmp_path / "role"
     role.mkdir(parents=True)

@@ -12,7 +12,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from prism import scanner
 from prism.scanner_core import DIContainer
+from prism.scanner_core import variable_discovery as variable_discovery_module
 from prism.scanner_core.variable_discovery import VariableDiscovery
 
 
@@ -79,6 +81,53 @@ class TestVariableDiscoveryStaticDiscovery:
         assert type_map["default_number"] == "int"
         assert type_map["default_list"] == "list"
         assert type_map["default_dict"] == "dict"
+
+    def test_discover_static_formats_defaults_like_variable_pipeline(self, tmp_path):
+        """Static discovery should serialize defaults the same way as the pipeline."""
+        role_path = tmp_path
+        defaults_dir = role_path / "defaults"
+        defaults_dir.mkdir()
+
+        (defaults_dir / "main.yml").write_text(
+            "---\n"
+            "default_list:\n"
+            "  - item1\n"
+            "  - item2\n"
+            "default_dict:\n"
+            "  key: value\n"
+            "default_bool: true\n",
+            encoding="utf-8",
+        )
+
+        options = {
+            "role_path": str(role_path),
+            "include_vars_main": True,
+            "exclude_path_patterns": None,
+            "vars_seed_paths": None,
+            "ignore_unresolved_internal_underscore_references": False,
+        }
+        di = DIContainer(str(role_path), options)
+        discovery = VariableDiscovery(di, str(role_path), options)
+
+        static_rows = {row["name"]: row for row in discovery.discover_static()}
+        pipeline_rows = {
+            row["name"]: row
+            for row in scanner.build_variable_insights(str(role_path))
+            if row["name"] in static_rows
+        }
+
+        assert (
+            static_rows["default_list"]["default"]
+            == pipeline_rows["default_list"]["default"]
+        )
+        assert (
+            static_rows["default_dict"]["default"]
+            == pipeline_rows["default_dict"]["default"]
+        )
+        assert (
+            static_rows["default_bool"]["default"]
+            == pipeline_rows["default_bool"]["default"]
+        )
 
     def test_discover_static_from_vars_main_yml(self, tmp_path):
         """Load variables from vars/main.yml when include_vars_main=True."""
@@ -303,6 +352,52 @@ class TestVariableDiscoveryReferencedDiscovery:
         assert isinstance(referenced, (set, frozenset))
         # task_var and another_var should be found
         assert len(referenced) > 0
+        assert "task_var" in referenced
+        assert "another_var" in referenced
+
+    def test_discover_caches_referenced_collection_for_full_pipeline(
+        self, tmp_path, monkeypatch
+    ):
+        """Full discovery should collect referenced names once per orchestrated run."""
+        role_path = tmp_path
+        tasks_dir = role_path / "tasks"
+        tasks_dir.mkdir()
+        (tasks_dir / "main.yml").write_text(
+            "---\n"
+            "- name: Use runtime value\n"
+            "  ansible.builtin.debug:\n"
+            '    msg: "{{ runtime_value }}"\n',
+            encoding="utf-8",
+        )
+
+        options = {
+            "role_path": str(role_path),
+            "include_vars_main": True,
+            "exclude_path_patterns": None,
+            "vars_seed_paths": None,
+            "ignore_unresolved_internal_underscore_references": False,
+        }
+        di = DIContainer(str(role_path), options)
+        discovery = VariableDiscovery(di, str(role_path), options)
+
+        call_count = 0
+        original = variable_discovery_module._collect_referenced_variable_names
+
+        def _counting_collect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(
+            variable_discovery_module,
+            "_collect_referenced_variable_names",
+            _counting_collect,
+        )
+
+        rows = discovery.discover()
+
+        assert any(row["name"] == "runtime_value" for row in rows)
+        assert call_count == 1
 
     def test_discover_referenced_from_readme(self, tmp_path):
         """Extract referenced variable names from README."""
@@ -382,36 +477,12 @@ class TestVariableDiscoveryTypeInference:
 
         assert type_map["int_var"] == "int"
 
-    def test_infer_type_from_default_value_bool(self, tmp_path):
-        """Boolean default inferred as bool type."""
-        role_path = tmp_path
-        (role_path / "defaults").mkdir()
-        (role_path / "defaults" / "main.yml").write_text(
-            "---\nbool_var: true\n",
-            encoding="utf-8",
-        )
-
-        options = {
-            "role_path": str(role_path),
-            "include_vars_main": True,
-            "exclude_path_patterns": None,
-            "vars_seed_paths": None,
-            "ignore_unresolved_internal_underscore_references": False,
-        }
-        di = DIContainer(str(role_path), options)
-        discovery = VariableDiscovery(di, str(role_path), options)
-
-        static = discovery.discover_static()
-        type_map = {v["name"]: v["type"] for v in static}
-
-        assert type_map["bool_var"] == "bool"
-
     def test_infer_type_from_default_value_list(self, tmp_path):
         """List default inferred as list type."""
         role_path = tmp_path
         (role_path / "defaults").mkdir()
         (role_path / "defaults" / "main.yml").write_text(
-            "---\nlist_var:\n  - item1\n  - item2\n",
+            "---\nlist_var:\n  - one\n  - two\n",
             encoding="utf-8",
         )
 

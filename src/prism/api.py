@@ -14,22 +14,22 @@ import yaml
 
 from .collection_plugins import scan_collection_plugins
 from .repo_services import (
-    _build_lightweight_sparse_clone_paths,
-    _build_repo_style_readme_candidates as _repo_build_repo_style_readme_candidates,
-    _build_sparse_clone_paths,
-    _checkout_repo_lightweight_style_readme,
-    _checkout_repo_scan_role,
-    _clone_repo,
-    _fetch_repo_directory_names,
-    _fetch_repo_file,
-    _normalize_repo_scan_result_payload,
-    _normalize_repo_scan_metadata_paths,
-    _prepare_repo_scan_inputs,
-    _repo_name_from_url,
-    _repo_path_looks_like_role,
-    _repo_scan_workspace,
-    _resolve_repo_scan_scanner_report_relpath,
-    _resolve_style_readme_candidate,
+    build_lightweight_sparse_clone_paths as _build_lightweight_sparse_clone_paths,
+    build_repo_style_readme_candidates as _repo_build_repo_style_readme_candidates,
+    build_sparse_clone_paths as _build_sparse_clone_paths,
+    checkout_repo_lightweight_style_readme as _checkout_repo_lightweight_style_readme,
+    checkout_repo_scan_role as _checkout_repo_scan_role,
+    clone_repo as _clone_repo,
+    fetch_repo_directory_names as _fetch_repo_directory_names,
+    fetch_repo_file as _fetch_repo_file,
+    normalize_repo_scan_result_payload as _normalize_repo_scan_result_payload,
+    normalize_repo_scan_metadata_paths as _normalize_repo_scan_metadata_paths,
+    prepare_repo_scan_inputs as _prepare_repo_scan_inputs,
+    repo_name_from_url as _repo_name_from_url,
+    repo_path_looks_like_role as _repo_path_looks_like_role,
+    repo_scan_workspace as _repo_scan_workspace,
+    resolve_repo_scan_scanner_report_relpath as _resolve_repo_scan_scanner_report_relpath,
+    resolve_style_readme_candidate as _resolve_style_readme_candidate,
 )
 from .scanner import run_scan
 from .scanner_analysis import render_runbook, render_runbook_csv
@@ -40,13 +40,24 @@ _build_repo_style_readme_candidates = _repo_build_repo_style_readme_candidates
 
 _REQUIRED_ROLE_DIRS = ("defaults", "tasks", "meta")
 
-_COLLECTION_ROLE_SCAN_RECOVERABLE_ERRORS = (
+_COLLECTION_ROLE_CONTENT_RECOVERABLE_ERRORS = (
     FileNotFoundError,
-    OSError,
     ValueError,
-    RuntimeError,
     json.JSONDecodeError,
 )
+
+_COLLECTION_ROLE_FAILURE_CODES: tuple[tuple[type[Exception], str], ...] = (
+    (FileNotFoundError, "role_content_missing"),
+    (json.JSONDecodeError, "role_content_json_invalid"),
+    (ValueError, "role_content_invalid"),
+)
+
+
+def _collection_role_failure_code(exc: Exception) -> str:
+    for error_type, code in _COLLECTION_ROLE_FAILURE_CODES:
+        if isinstance(exc, error_type):
+            return code
+    return "role_scan_failed"
 
 
 def _load_yaml_document(path: Path) -> dict[str, Any] | list[Any] | None:
@@ -251,6 +262,7 @@ def scan_collection(
     inline_task_runbooks: bool = True,
     runbook_output_dir: str | None = None,
     runbook_csv_output_dir: str | None = None,
+    include_traceback: bool = False,
 ) -> dict[str, Any]:
     """Scan an Ansible collection root and return per-role payloads + metadata."""
     # Auto-enable task catalog collection when runbook output is requested.
@@ -344,18 +356,19 @@ def scan_collection(
                     "rendered_readme": rendered_readme,
                 }
             )
-        except _COLLECTION_ROLE_SCAN_RECOVERABLE_ERRORS as exc:
-            failures.append(
-                {
-                    "role": role_dir.name,
-                    "path": str(role_dir),
-                    "error_type": type(exc).__name__,
-                    "error": str(exc),
-                    "traceback": "".join(
-                        traceback.format_exception(type(exc), exc, exc.__traceback__)
-                    ),
-                }
-            )
+        except _COLLECTION_ROLE_CONTENT_RECOVERABLE_ERRORS as exc:
+            failure = {
+                "role": role_dir.name,
+                "path": str(role_dir),
+                "error_code": _collection_role_failure_code(exc),
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            }
+            if include_traceback:
+                failure["traceback"] = "".join(
+                    traceback.format_exception(type(exc), exc, exc.__traceback__)
+                )
+            failures.append(failure)
             continue
 
     dependencies = _aggregate_collection_dependencies(root)

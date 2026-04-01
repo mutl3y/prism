@@ -234,7 +234,7 @@ class TestImmutableDataFlow:
         )
 
         self.role_path = str(role_path)
-        self.options = scan_request.build_run_scan_options(
+        self.options = scan_request.build_run_scan_options_canonical(
             role_path=self.role_path,
             role_name_override=None,
             readme_config_path=None,

@@ -7,10 +7,10 @@ from prism import scanner
 from prism.scanner_core import ScanContextBuilder
 from prism.scanner_core import scan_request
 from prism.scanner_core import scan_runtime
-from prism.scanner_data import contracts
+from prism.scanner_data import ScanContextPayload, contracts
 
 
-def test_finalize_scan_context_payload_shapes_expected_tuple():
+def test_finalize_scan_context_payload_shapes_expected_mapping():
     payload = scan_runtime.finalize_scan_context_payload(
         rp="/tmp/role",
         role_name="demo_role",
@@ -21,13 +21,17 @@ def test_finalize_scan_context_payload_shapes_expected_tuple():
         metadata={"features": {"tasks_scanned": 1}},
     )
 
-    assert payload[0] == "/tmp/role"
-    assert payload[1] == "demo_role"
-    assert payload[2] == "demo"
-    assert payload[3] == ["dep"]
-    assert payload[4] == [{"file": "tasks/main.yml"}]
-    assert payload[5]["display_variables"] == {"name": {"required": False}}
-    assert payload[5]["metadata"] == {"features": {"tasks_scanned": 1}}
+    assert payload["rp"] == "/tmp/role"
+    assert payload["role_name"] == "demo_role"
+    assert payload["description"] == "demo"
+    assert payload["requirements_display"] == ["dep"]
+    assert payload["undocumented_default_filters"] == [{"file": "tasks/main.yml"}]
+    assert payload["display_variables"] == {"name": {"required": False}}
+    assert payload["metadata"] == {"features": {"tasks_scanned": 1}}
+
+
+def test_scan_context_payload_is_re_exported_from_scanner_data() -> None:
+    assert ScanContextPayload is not None
 
 
 def test_build_scan_output_payload_shapes_expected_map():
@@ -51,24 +55,22 @@ def test_build_scan_output_payload_shapes_expected_map():
 
 
 def test_build_scan_output_payload_maps_prepared_context_values():
-    prepared_context = (
-        "/tmp/role",
-        "demo_role",
-        "demo",
-        ["dep"],
-        [{"file": "tasks/main.yml"}],
-        {
-            "display_variables": {"name": {"required": False}},
-            "metadata": {"features": {"tasks_scanned": 1}},
-        },
-    )
+    prepared_context = {
+        "rp": "/tmp/role",
+        "role_name": "demo_role",
+        "description": "demo",
+        "requirements_display": ["dep"],
+        "undocumented_default_filters": [{"file": "tasks/main.yml"}],
+        "display_variables": {"name": {"required": False}},
+        "metadata": {"features": {"tasks_scanned": 1}},
+    }
     payload = scan_runtime.build_scan_output_payload(
-        role_name=prepared_context[1],
-        description=prepared_context[2],
-        display_variables=prepared_context[5]["display_variables"],
-        requirements_display=prepared_context[3],
-        undocumented_default_filters=prepared_context[4],
-        metadata=prepared_context[5]["metadata"],
+        role_name=prepared_context["role_name"],
+        description=prepared_context["description"],
+        display_variables=prepared_context["display_variables"],
+        requirements_display=prepared_context["requirements_display"],
+        undocumented_default_filters=prepared_context["undocumented_default_filters"],
+        metadata=prepared_context["metadata"],
     )
 
     assert payload == {
@@ -242,6 +244,115 @@ def test_refresh_policy_updates_readme_section_aliases_in_process(
             lambda override_path=None: _refresh_return_for(base_policy),
         )
         scanner._refresh_policy()
+
+
+def test_prepare_scan_context_uses_per_scan_policy_context_for_style_aliases(
+    tmp_path,
+):
+    role = tmp_path / "role"
+    role.mkdir()
+    style = tmp_path / "STYLE_GUIDE_SOURCE.md"
+    heading = "Bertrum Runtime Inputs"
+    style.write_text(f"{heading}\n----------------------\n\nBody\n", encoding="utf-8")
+
+    scan_options = scan_request.build_run_scan_options_canonical(
+        role_path=str(role),
+        role_name_override=None,
+        readme_config_path=None,
+        include_vars_main=True,
+        exclude_path_patterns=None,
+        detailed_catalog=False,
+        include_task_parameters=True,
+        include_task_runbooks=True,
+        inline_task_runbooks=True,
+        include_collection_checks=True,
+        keep_unknown_style_sections=True,
+        adopt_heading_mode=None,
+        vars_seed_paths=None,
+        style_readme_path=str(style),
+        style_source_path=str(style),
+        style_guide_skeleton=False,
+        compare_role_path=None,
+        fail_on_unconstrained_dynamic_includes=None,
+        fail_on_yaml_like_task_annotations=None,
+        ignore_unresolved_internal_underscore_references=None,
+        policy_context={
+            "section_aliases": {"bertrum runtime inputs": "role_variables"},
+            "ignored_identifiers": frozenset(),
+            "variable_guidance_keywords": tuple(),
+        },
+    )
+
+    payload = scanner._prepare_scan_context(scan_options)
+
+    assert payload["metadata"]["style_guide"]["sections"][0]["id"] == "role_variables"
+
+
+def test_build_variable_insights_uses_per_scan_ignored_identifier_context(tmp_path):
+    role = tmp_path / "role"
+    tasks_dir = role / "tasks"
+    tasks_dir.mkdir(parents=True)
+    (tasks_dir / "main.yml").write_text(
+        "---\n"
+        "- name: Reference runtime-only ignored variable\n"
+        "  ansible.builtin.debug:\n"
+        '    msg: "{{ bertrum_runtime_only_ignored }}"\n',
+        encoding="utf-8",
+    )
+
+    baseline_rows = scanner.build_variable_insights(str(role), include_vars_main=False)
+    assert any(row["name"] == "bertrum_runtime_only_ignored" for row in baseline_rows)
+
+    policy_rows = scanner.build_variable_insights(
+        str(role),
+        include_vars_main=False,
+        policy_context={
+            "section_aliases": {},
+            "ignored_identifiers": frozenset({"bertrum_runtime_only_ignored"}),
+            "variable_guidance_keywords": tuple(),
+        },
+    )
+
+    assert all(row["name"] != "bertrum_runtime_only_ignored" for row in policy_rows)
+
+
+def test_policy_context_annotations_use_typed_contract_across_runtime_seams():
+    scan_runtime_hints = get_type_hints(scan_runtime.enrich_scan_context_with_insights)
+    scanner_hints = get_type_hints(scanner.build_variable_insights)
+
+    assert scan_runtime_hints["policy_context"] == contracts.PolicyContext | None
+    assert scanner_hints["policy_context"] == contracts.PolicyContext | None
+
+
+def test_refresh_policy_uses_role_root_override_instead_of_process_cwd(
+    monkeypatch, tmp_path
+):
+    cwd_root = tmp_path / "cwd-root"
+    role_root = tmp_path / "role-root"
+    cwd_root.mkdir()
+    role_root.mkdir()
+
+    (cwd_root / ".prism_patterns.yml").write_text(
+        "sensitivity:\n  name_tokens:\n    - from_process_cwd\n",
+        encoding="utf-8",
+    )
+    (role_root / ".prism_patterns.yml").write_text(
+        "sensitivity:\n  name_tokens:\n    - from_role_root\n",
+        encoding="utf-8",
+    )
+
+    original_tokens = scanner._SECRET_NAME_TOKENS
+    monkeypatch.chdir(cwd_root)
+
+    scanner._refresh_policy(role_root=str(role_root))
+
+    try:
+        assert "from_role_root" in scanner._SECRET_NAME_TOKENS
+        assert "from_process_cwd" not in scanner._SECRET_NAME_TOKENS
+    finally:
+        monkeypatch.chdir(tmp_path)
+        scanner._refresh_policy()
+        assert scanner._SECRET_NAME_TOKENS == original_tokens
 
 
 def test_scanner_runtime_context_helpers_are_flattened_partial_aliases():
@@ -584,6 +695,43 @@ def test_execute_scan_with_context_invokes_scanner_context_once(monkeypatch, tmp
     }
 
 
+def test_execute_scan_with_context_routes_through_scan_facade_helper(
+    monkeypatch, tmp_path
+):
+    captured = {}
+
+    def fake_execute_scan_with_context(**kwargs):
+        captured.update(kwargs)
+        return "helper-result"
+
+    monkeypatch.setattr(
+        scanner._scan_facade_helpers,
+        "execute_scan_with_context",
+        fake_execute_scan_with_context,
+    )
+
+    result = scanner._execute_scan_with_context(
+        role_path=str(tmp_path / "role"),
+        scan_options={"role_path": str(tmp_path / "role")},
+        output="README.md",
+        output_format="md",
+        concise_readme=False,
+        scanner_report_output=None,
+        include_scanner_report_link=True,
+        template=None,
+        dry_run=True,
+        runbook_output=None,
+        runbook_csv_output=None,
+    )
+
+    assert result == "helper-result"
+    assert captured["role_path"] == str(tmp_path / "role")
+    assert captured["output"] == "README.md"
+    assert captured["output_format"] == "md"
+    assert captured["scanner_context_cls"] is scanner.ScannerContext
+    assert callable(captured["prepare_scan_context_fn"])
+
+
 def test_execute_scan_with_context_does_not_fall_back_for_orchestrated_payload_shape(
     monkeypatch, tmp_path
 ):
@@ -649,7 +797,7 @@ def test_execute_scan_with_context_normalized_options_do_not_emit_runtime_fallba
 ):
     role_path = str(tmp_path / "role")
     (tmp_path / "role").mkdir()
-    scan_options = scan_request.build_run_scan_options(
+    scan_options = scan_request.build_run_scan_options_canonical(
         role_path=role_path,
         role_name_override=None,
         readme_config_path=None,
@@ -730,7 +878,7 @@ def test_execute_scan_with_context_uses_real_scanner_context_without_fallback(
 ):
     role_path = str(tmp_path / "demo_role")
     (tmp_path / "demo_role").mkdir()
-    scan_options = scan_request.build_run_scan_options(
+    scan_options = scan_request.build_run_scan_options_canonical(
         role_path=role_path,
         role_name_override=None,
         readme_config_path=None,
@@ -1024,7 +1172,7 @@ def test_execute_scan_with_context_does_not_set_fallback_reason_when_context_pat
 ):
     role_path = str(tmp_path / "demo_role")
     (tmp_path / "demo_role").mkdir()
-    scan_options = scan_request.build_run_scan_options(
+    scan_options = scan_request.build_run_scan_options_canonical(
         role_path=role_path,
         role_name_override=None,
         readme_config_path=None,
@@ -1102,7 +1250,7 @@ def test_execute_scan_with_context_emitted_args_keep_canonical_keyset_across_pat
 
     monkeypatch.setattr(scanner, "_emit_scan_outputs", fake_emit)
 
-    context_scan_options = scan_request.build_run_scan_options(
+    context_scan_options = scan_request.build_run_scan_options_canonical(
         role_path=role_path,
         role_name_override=None,
         readme_config_path=None,
@@ -1138,7 +1286,7 @@ def test_execute_scan_with_context_emitted_args_keep_canonical_keyset_across_pat
         runbook_csv_output=None,
     )
 
-    second_scan_options = scan_request.build_run_scan_options(
+    second_scan_options = scan_request.build_run_scan_options_canonical(
         role_path=role_path,
         role_name_override="role_override",
         readme_config_path=None,

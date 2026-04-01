@@ -7,18 +7,19 @@ from typing import Any, Callable
 
 from prism.scanner_data.contracts import (
     EmitScanOutputsArgs,
+    PolicyContext,
     RunbookSidecarArgs,
     RunScanOutputPayload,
     ScanBaseContext,
+    ScanContextPayload,
     ScanMetadata,
+    ScanOptionsDict,
     ScanReportSidecarArgs,
 )
 
-ScanContextPayload = tuple[str, str, str, list, list, dict[str, Any]]
-
 
 def prepare_scan_context(
-    scan_options: dict[str, Any],
+    scan_options: ScanOptionsDict,
     *,
     scan_context_builder_cls: type,
     collect_scan_base_context: Callable[[dict[str, Any]], ScanBaseContext],
@@ -71,7 +72,7 @@ def prepare_scan_context(
 
 
 def collect_scan_base_context(
-    scan_options: dict[str, Any],
+    scan_options: ScanOptionsDict,
     *,
     collect_scan_identity_and_artifacts: Callable[..., tuple[Any, ...]],
     apply_scan_metadata_configuration: Callable[..., list],
@@ -227,19 +228,17 @@ def finalize_scan_context_payload(
     requirements_display: list,
     undocumented_default_filters: list[dict],
     display_variables: dict,
-    metadata: dict,
+    metadata: ScanMetadata,
 ) -> ScanContextPayload:
     """Return normalized context payload used by run_scan output emission."""
-    return (
-        rp,
-        role_name,
-        description,
-        requirements_display,
-        undocumented_default_filters,
-        {
-            "display_variables": display_variables,
-            "metadata": metadata,
-        },
+    return ScanContextPayload(
+        rp=rp,
+        role_name=role_name,
+        description=description,
+        requirements_display=requirements_display,
+        undocumented_default_filters=undocumented_default_filters,
+        display_variables=display_variables,
+        metadata=metadata,
     )
 
 
@@ -354,6 +353,7 @@ def enrich_scan_context_with_insights(
     ],
     build_doc_insights: Callable[..., dict],
     apply_style_and_comparison_metadata: Callable[..., None],
+    policy_context: PolicyContext | None = None,
 ) -> tuple[list[dict], dict]:
     """Add variable/doc/style insights to scan metadata and display payloads."""
     variable_insights, undocumented_default_filters, display_variables = (
@@ -367,6 +367,7 @@ def enrich_scan_context_with_insights(
             metadata=metadata,
             marker_prefix=marker_prefix,
             style_readme_path=style_readme_path,
+            policy_context=policy_context,
             ignore_unresolved_internal_underscore_references=(
                 ignore_unresolved_internal_underscore_references
             ),
@@ -396,6 +397,7 @@ def enrich_scan_context_with_insights(
         compare_role_path=compare_role_path,
         role_path=role_path,
         exclude_path_patterns=exclude_path_patterns,
+        policy_context=policy_context,
     )
     return undocumented_default_filters, display_variables
 
@@ -500,9 +502,9 @@ def render_primary_scan_output(
     template: str | None,
     dry_run: bool,
     output_payload: RunScanOutputPayload,
-    render_primary_scan_output_fn: Callable[..., str],
-    render_and_write_scan_output: Callable[..., str],
-) -> str:
+    render_primary_scan_output_fn: Callable[..., str | bytes],
+    render_and_write_scan_output: Callable[..., str | bytes],
+) -> str | bytes:
     """Render and optionally write the primary scan output."""
     return render_primary_scan_output_fn(
         out_path=out_path,
@@ -517,12 +519,12 @@ def render_primary_scan_output(
 def emit_scan_outputs(
     args: EmitScanOutputsArgs,
     *,
-    emit_scan_outputs_fn: Callable[..., str],
+    emit_scan_outputs_fn: Callable[..., str | bytes],
     build_scanner_report_markdown: Callable[..., str],
-    render_and_write_scan_output: Callable[..., str],
+    render_and_write_scan_output: Callable[..., str | bytes],
     render_runbook: Callable[..., str],
     render_runbook_csv: Callable[..., str],
-) -> str:
+) -> str | bytes:
     """Render primary outputs and optional sidecars for a scanner run."""
     return emit_scan_outputs_fn(
         args,

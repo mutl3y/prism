@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
-from prism.scanner_data.contracts import ReferenceContext
+from prism.scanner_data.contracts import PolicyContext, ReferenceContext, VariableRow
 
 from ..scanner_analysis.metrics import (
     attach_non_authoritative_test_evidence,
@@ -15,22 +16,21 @@ from ..scanner_analysis.metrics import (
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
 )
-from ..scanner_extract import (
+from ..scanner_extract.dataload import iter_role_argument_spec_entries
+from ..scanner_extract.discovery import load_meta
+from ..scanner_extract.task_parser import _format_inline_yaml, _load_yaml_file
+from ..scanner_extract.variable_extractor import (
     IGNORED_IDENTIFIERS,
     JINJA_IDENTIFIER_RE,
+    _collect_include_vars_files,
     _collect_dynamic_include_vars_refs,
     _collect_dynamic_task_include_refs,
-    _collect_include_vars_files,
     _collect_referenced_variable_names,
     _collect_register_names,
     _collect_set_fact_names,
     _find_variable_line_in_yaml,
-    _format_inline_yaml,
     _infer_variable_type,
     _is_sensitive_variable,
-    iter_role_argument_spec_entries,
-    load_meta,
-    _load_yaml_file,
 )
 from ..scanner_readme.input_parser import collect_readme_input_variables
 
@@ -38,6 +38,7 @@ from ..scanner_readme.input_parser import collect_readme_input_variables
 def collect_dynamic_task_include_tokens(
     role_path: str,
     exclude_paths: list[str] | None,
+    ignored_identifiers: set[str] | frozenset[str] | None = None,
 ) -> set[str]:
     """Collect unresolved Jinja identifier tokens from dynamic task includes."""
     dynamic_task_include_refs = _collect_dynamic_task_include_refs(
@@ -45,25 +46,36 @@ def collect_dynamic_task_include_tokens(
         exclude_paths=exclude_paths,
     )
     tokens: set[str] = set()
+    effective_ignored = (
+        set(IGNORED_IDENTIFIERS)
+        if ignored_identifiers is None
+        else set(ignored_identifiers)
+    )
     for ref in dynamic_task_include_refs:
         tokens.update(
             token
             for token in JINJA_IDENTIFIER_RE.findall(ref)
-            if token.lower() not in IGNORED_IDENTIFIERS
+            if token.lower() not in effective_ignored
         )
     return tokens
 
 
 def collect_dynamic_include_var_tokens(
     dynamic_include_vars_refs: list[str],
+    ignored_identifiers: set[str] | frozenset[str] | None = None,
 ) -> set[str]:
     """Collect unresolved Jinja identifier tokens from dynamic include_vars refs."""
     tokens: set[str] = set()
+    effective_ignored = (
+        set(IGNORED_IDENTIFIERS)
+        if ignored_identifiers is None
+        else set(ignored_identifiers)
+    )
     for ref in dynamic_include_vars_refs:
         tokens.update(
             token
             for token in JINJA_IDENTIFIER_RE.findall(ref)
-            if token.lower() not in IGNORED_IDENTIFIERS
+            if token.lower() not in effective_ignored
         )
     return tokens
 
@@ -75,10 +87,10 @@ def build_static_variable_rows(
     vars_data: dict,
     defaults_sources: dict[str, Path],
     vars_sources: dict[str, Path],
-) -> tuple[list[dict], dict[str, dict]]:
+) -> tuple[list[VariableRow], dict[str, VariableRow]]:
     """Build baseline rows from defaults/main.yml and vars/main.yml."""
-    rows: list[dict] = []
-    rows_by_name: dict[str, dict] = {}
+    rows: list[VariableRow] = []
+    rows_by_name: dict[str, VariableRow] = {}
     for name in sorted(set(defaults_data) | set(vars_data)):
         has_default = name in defaults_data
         has_var = name in vars_data
@@ -128,7 +140,7 @@ def build_static_variable_rows(
                 else None
             )
             provenance_confidence = 0.90
-        row = {
+        row: VariableRow = {
             "name": name,
             "type": _infer_variable_type(value),
             "default": _format_inline_yaml(value),
@@ -152,8 +164,8 @@ def append_include_vars_rows(
     *,
     role_path: str,
     role_root: Path,
-    rows: list[dict],
-    rows_by_name: dict[str, dict],
+    rows: list[VariableRow],
+    rows_by_name: dict[str, VariableRow],
     exclude_paths: list[str] | None,
 ) -> set[str]:
     """Merge include_vars-derived values into variable insight rows."""
@@ -180,9 +192,9 @@ def collect_include_var_sources(
     role_path: str,
     role_root: Path,
     exclude_paths: list[str] | None,
-) -> dict[str, list[dict]]:
+) -> dict[str, list[dict[str, Any]]]:
     """Collect include_vars value sources keyed by variable name."""
-    include_var_sources: dict[str, list[dict]] = defaultdict(list)
+    include_var_sources: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for extra_path in _collect_include_vars_files(
         role_path,
         exclude_paths=exclude_paths,
@@ -202,7 +214,9 @@ def collect_include_var_sources(
     return include_var_sources
 
 
-def mark_existing_row_as_include_vars_ambiguous(row: dict, entries: list[dict]) -> None:
+def mark_existing_row_as_include_vars_ambiguous(
+    row: VariableRow, entries: list[dict[str, Any]]
+) -> None:
     """Downgrade confidence for rows that can be overridden by include_vars."""
     row["is_ambiguous"] = True
     row["uncertainty_reason"] = (
@@ -215,11 +229,11 @@ def mark_existing_row_as_include_vars_ambiguous(row: dict, entries: list[dict]) 
     )
 
 
-def build_include_vars_row(name: str, entries: list[dict]) -> dict:
+def build_include_vars_row(name: str, entries: list[dict[str, Any]]) -> VariableRow:
     """Build a variable insight row for include_vars-discovered variables."""
     selected = entries[-1]
     ambiguous = len(entries) > 1
-    return {
+    result: VariableRow = {
         "name": name,
         "type": _infer_variable_type(selected["value"]),
         "default": _format_inline_yaml(selected["value"]),
@@ -239,12 +253,13 @@ def build_include_vars_row(name: str, entries: list[dict]) -> dict:
         "is_unresolved": False,
         "is_ambiguous": ambiguous,
     }
+    return result
 
 
 def append_set_fact_rows(
     *,
     role_path: str,
-    rows: list[dict],
+    rows: list[VariableRow],
     known_names: set[str],
     exclude_paths: list[str] | None,
 ) -> None:
@@ -252,29 +267,28 @@ def append_set_fact_rows(
     for name in sorted(
         _collect_set_fact_names(role_path, exclude_paths=exclude_paths) - known_names
     ):
-        rows.append(
-            {
-                "name": name,
-                "type": "computed",
-                "default": "-",
-                "source": "tasks (set_fact)",
-                "documented": True,
-                "required": False,
-                "secret": False,
-                "provenance_source_file": "tasks (set_fact)",
-                "provenance_line": None,
-                "provenance_confidence": 0.65,
-                "uncertainty_reason": "Computed by set_fact at runtime.",
-                "is_unresolved": False,
-                "is_ambiguous": True,
-            }
-        )
+        row: VariableRow = {
+            "name": name,
+            "type": "computed",
+            "default": "-",
+            "source": "tasks (set_fact)",
+            "documented": True,
+            "required": False,
+            "secret": False,
+            "provenance_source_file": "tasks (set_fact)",
+            "provenance_line": None,
+            "provenance_confidence": 0.65,
+            "uncertainty_reason": "Computed by set_fact at runtime.",
+            "is_unresolved": False,
+            "is_ambiguous": True,
+        }
+        rows.append(row)
 
 
 def append_register_rows(
     *,
     role_path: str,
-    rows: list[dict],
+    rows: list[VariableRow],
     known_names: set[str],
     exclude_paths: list[str] | None,
 ) -> None:
@@ -282,29 +296,28 @@ def append_register_rows(
     for name in sorted(
         _collect_register_names(role_path, exclude_paths=exclude_paths) - known_names
     ):
-        rows.append(
-            {
-                "name": name,
-                "type": "computed",
-                "default": "-",
-                "source": "tasks (register)",
-                "documented": True,
-                "required": False,
-                "secret": False,
-                "provenance_source_file": "tasks (register)",
-                "provenance_line": None,
-                "provenance_confidence": 0.75,
-                "uncertainty_reason": None,
-                "is_unresolved": False,
-                "is_ambiguous": False,
-            }
-        )
+        row: VariableRow = {
+            "name": name,
+            "type": "computed",
+            "default": "-",
+            "source": "tasks (register)",
+            "documented": True,
+            "required": False,
+            "secret": False,
+            "provenance_source_file": "tasks (register)",
+            "provenance_line": None,
+            "provenance_confidence": 0.75,
+            "uncertainty_reason": None,
+            "is_unresolved": False,
+            "is_ambiguous": False,
+        }
+        rows.append(row)
 
 
 def append_readme_documented_rows(
     *,
     role_path: str,
-    rows: list[dict],
+    rows: list[VariableRow],
     style_readme_path: str | None = None,
 ) -> None:
     """Enrich existing variable rows with README documentation."""
@@ -326,7 +339,7 @@ def append_readme_documented_rows(
 def append_argument_spec_rows(
     *,
     role_path: str,
-    rows: list[dict],
+    rows: list[VariableRow],
     known_names: set[str],
     map_argument_spec_type,
 ) -> set[str]:
@@ -342,29 +355,28 @@ def append_argument_spec_rows(
         default_value = spec.get("default")
         required = bool(spec.get("required", False) and not has_default)
         line_hint = _find_variable_line_in_yaml(Path(role_path) / source_file, name)
-        rows.append(
-            {
-                "name": name,
-                "type": map_argument_spec_type(spec.get("type")),
-                "default": (
-                    _format_inline_yaml(default_value) if has_default else "<required>"
-                ),
-                "source": f"{source_file} (argument_specs)",
-                "documented": True,
-                "required": required,
-                "secret": _is_sensitive_variable(name, default_value),
-                "provenance_source_file": source_file,
-                "provenance_line": line_hint,
-                "provenance_confidence": 0.88 if has_default else 0.78,
-                "uncertainty_reason": (
-                    "Declared in argument_specs without a static default value."
-                    if required
-                    else None
-                ),
-                "is_unresolved": required,
-                "is_ambiguous": False,
-            }
-        )
+        spec_row: VariableRow = {
+            "name": name,
+            "type": map_argument_spec_type(spec.get("type")),
+            "default": (
+                _format_inline_yaml(default_value) if has_default else "<required>"
+            ),
+            "source": f"{source_file} (argument_specs)",
+            "documented": True,
+            "required": required,
+            "secret": _is_sensitive_variable(name, default_value),
+            "provenance_source_file": source_file,
+            "provenance_line": line_hint,
+            "provenance_confidence": 0.88 if has_default else 0.78,
+            "uncertainty_reason": (
+                "Declared in argument_specs without a static default value."
+                if required
+                else None
+            ),
+            "is_unresolved": required,
+            "is_ambiguous": False,
+        }
+        rows.append(spec_row)
         known_names.add(name)
     return known_names
 
@@ -372,7 +384,7 @@ def append_argument_spec_rows(
 def append_referenced_variable_rows(
     *,
     role_path: str,
-    rows: list[dict],
+    rows: list[VariableRow],
     known_names: set[str],
     seed_values: dict,
     seed_secrets: set[str],
@@ -380,16 +392,21 @@ def append_referenced_variable_rows(
     dynamic_include_vars_refs: list[str],
     dynamic_include_var_tokens: set[str],
     dynamic_task_include_tokens: set[str],
+    referenced_names: set[str] | None,
     ignore_unresolved_internal_underscore_references: bool,
     exclude_paths: list[str] | None,
+    ignored_identifiers: set[str] | frozenset[str] | None = None,
 ) -> None:
     """Append rows for referenced-but-undefined variable names."""
-    referenced_names = _collect_referenced_variable_names(
-        role_path,
-        exclude_paths=exclude_paths,
-    )
+    effective_referenced_names = referenced_names
+    if effective_referenced_names is None:
+        effective_referenced_names = _collect_referenced_variable_names(
+            role_path,
+            exclude_paths=exclude_paths,
+            ignored_identifiers=ignored_identifiers,
+        )
 
-    for name in sorted(referenced_names - known_names):
+    for name in sorted(effective_referenced_names - known_names):
         if should_suppress_internal_unresolved_reference(
             name=name,
             seed_values=seed_values,
@@ -420,12 +437,12 @@ def build_referenced_variable_row(
     dynamic_include_vars_refs: list[str],
     dynamic_include_var_tokens: set[str],
     dynamic_task_include_tokens: set[str],
-) -> dict:
+) -> VariableRow:
     """Build one inferred variable row for referenced-but-undefined names."""
     seeded = name in seed_values
     value = seed_values.get(name, "<required>")
     source_name = seed_sources.get(name, "external vars")
-    return {
+    result: VariableRow = {
         "name": name,
         "type": _infer_variable_type(value) if seeded else "required",
         "default": _format_inline_yaml(value) if seeded else "<required>",
@@ -446,6 +463,7 @@ def build_referenced_variable_row(
         "is_unresolved": not seeded,
         "is_ambiguous": False,
     }
+    return result
 
 
 def collect_variable_reference_context(
@@ -454,19 +472,34 @@ def collect_variable_reference_context(
     seed_paths: list[str] | None,
     exclude_paths: list[str] | None,
     load_seed_variables,
+    policy_context: PolicyContext | None = None,
 ) -> ReferenceContext:
     """Collect seed and dynamic-reference context for inferred variable rows."""
     seed_values, seed_secrets, seed_sources = load_seed_variables(seed_paths)
+    ignored_identifiers = None
+    if policy_context:
+        raw_ignored = policy_context.get("ignored_identifiers")
+        if isinstance(raw_ignored, (set, frozenset, list, tuple)):
+            ignored_identifiers = {
+                token for token in raw_ignored if isinstance(token, str)
+            }
+    referenced_names = _collect_referenced_variable_names(
+        role_path,
+        exclude_paths=exclude_paths,
+        ignored_identifiers=ignored_identifiers,
+    )
     dynamic_include_vars_refs = _collect_dynamic_include_vars_refs(
         role_path,
         exclude_paths=exclude_paths,
     )
     dynamic_include_var_tokens = collect_dynamic_include_var_tokens(
-        dynamic_include_vars_refs
+        dynamic_include_vars_refs,
+        ignored_identifiers=ignored_identifiers,
     )
     dynamic_task_include_tokens = collect_dynamic_task_include_tokens(
         role_path,
         exclude_paths=exclude_paths,
+        ignored_identifiers=ignored_identifiers,
     )
     return {
         "seed_values": seed_values,
@@ -475,18 +508,20 @@ def collect_variable_reference_context(
         "dynamic_include_vars_refs": dynamic_include_vars_refs,
         "dynamic_include_var_tokens": dynamic_include_var_tokens,
         "dynamic_task_include_tokens": dynamic_task_include_tokens,
+        "referenced_names": referenced_names,
     }
 
 
 def populate_variable_rows(
     *,
     role_path: str,
-    rows: list[dict],
-    rows_by_name: dict,
+    rows: list[VariableRow],
+    rows_by_name: dict[str, VariableRow],
     exclude_paths: list[str] | None,
     reference_context: ReferenceContext,
     map_argument_spec_type,
     style_readme_path: str | None = None,
+    policy_context: PolicyContext | None = None,
     ignore_unresolved_internal_underscore_references: bool = True,
     non_authoritative_test_evidence_max_file_bytes: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
     non_authoritative_test_evidence_max_files_scanned: int = NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
@@ -532,10 +567,14 @@ def populate_variable_rows(
         dynamic_include_vars_refs=reference_context["dynamic_include_vars_refs"],
         dynamic_include_var_tokens=reference_context["dynamic_include_var_tokens"],
         dynamic_task_include_tokens=reference_context["dynamic_task_include_tokens"],
+        referenced_names=reference_context.get("referenced_names"),
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),
         exclude_paths=exclude_paths,
+        ignored_identifiers=(
+            policy_context.get("ignored_identifiers") if policy_context else None
+        ),
     )
     append_readme_documented_rows(
         role_path=role_path,
@@ -552,12 +591,12 @@ def populate_variable_rows(
     )
 
 
-def refresh_known_names(rows: list[dict]) -> set[str]:
+def refresh_known_names(rows: list[VariableRow]) -> set[str]:
     """Return a set of known variable names from row payloads."""
     return {row["name"] for row in rows}
 
 
-def redact_secret_defaults(rows: list[dict]) -> None:
+def redact_secret_defaults(rows: list[VariableRow]) -> None:
     """Mask secret defaults in-place before rendering/output."""
     for row in rows:
         if row.get("secret"):

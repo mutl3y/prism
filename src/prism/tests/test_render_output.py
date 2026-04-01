@@ -205,3 +205,35 @@ def test_resolve_scanner_report_path_respects_explicit():
 
 def test_emit_output_module_exposes_orchestration_entrypoint():
     assert callable(emit_output.orchestrate_output_emission)
+
+
+def test_orchestrate_output_emission_preserves_binary_bytes_for_pdf_dry_run(tmp_path):
+    """Binary dry-run output must remain bytes through emit_output orchestration."""
+    args = {
+        "role_name": "test_role",
+        "description": "test description",
+        "display_variables": {},
+        "requirements_display": [],
+        "undocumented_default_filters": [],
+        "metadata": {},
+        "output": str(tmp_path / "scan.pdf"),
+        "output_format": "pdf",
+        "template": None,
+        "dry_run": True,
+        "concise_readme": False,
+        "scanner_report_output": None,
+        "include_scanner_report_link": False,
+        "runbook_output": None,
+        "runbook_csv_output": None,
+    }
+
+    result = emit_output.orchestrate_output_emission(
+        args=args,
+        render_and_write=mock.MagicMock(return_value=b"%PDF-1.7\nmock\n"),
+        render_scanner_report=mock.MagicMock(return_value="report"),
+        render_runbook=mock.MagicMock(return_value="runbook"),
+        render_runbook_csv=mock.MagicMock(return_value="csv"),
+    )
+
+    assert isinstance(result, bytes)
+    assert result.startswith(b"%PDF")

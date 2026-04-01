@@ -6,16 +6,95 @@ rendering and optional sidecar generation (scanner reports, runbooks).
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Callable, cast
 
 from .output import resolve_output_path, write_output
-from .scan_output_emission import (
-    build_scanner_report_output_path,
-    write_concise_scanner_report_if_enabled,
-    write_optional_runbook_outputs,
-)
 from ..scanner_data.contracts import RunScanOutputPayload, ScanMetadata
+
+
+def build_scanner_report_output_path(
+    *,
+    scanner_report_output: str | None,
+    out_path: Path,
+) -> Path:
+    """Return the scanner sidecar path from explicit output or default suffix."""
+    if scanner_report_output:
+        return Path(scanner_report_output)
+    return out_path.with_suffix(".scan-report.md")
+
+
+def write_concise_scanner_report_if_enabled(
+    *,
+    concise_readme: bool,
+    scanner_report_output: str | None,
+    out_path: Path,
+    include_scanner_report_link: bool,
+    role_name: str,
+    description: str,
+    display_variables: dict[str, Any],
+    requirements_display: list[Any],
+    undocumented_default_filters: list[Any],
+    metadata: ScanMetadata,
+    dry_run: bool,
+    build_scanner_report_markdown: Callable[..., str],
+) -> Path | None:
+    """Write scanner sidecar report when concise mode is enabled."""
+    if not concise_readme:
+        return None
+
+    scanner_report_path = build_scanner_report_output_path(
+        scanner_report_output=scanner_report_output,
+        out_path=out_path,
+    )
+    metadata["concise_readme"] = True
+    metadata["include_scanner_report_link"] = include_scanner_report_link
+
+    if dry_run:
+        return scanner_report_path
+
+    scanner_report_path.parent.mkdir(parents=True, exist_ok=True)
+    scanner_report = build_scanner_report_markdown(
+        role_name=role_name,
+        description=description,
+        variables=display_variables,
+        requirements=requirements_display,
+        default_filters=undocumented_default_filters,
+        metadata=metadata,
+    )
+    scanner_report_path.write_text(scanner_report, encoding="utf-8")
+    metadata["scanner_report_relpath"] = os.path.relpath(
+        scanner_report_path,
+        out_path.parent,
+    )
+    return scanner_report_path
+
+
+def write_optional_runbook_outputs(
+    *,
+    runbook_output: str | None,
+    runbook_csv_output: str | None,
+    role_name: str,
+    metadata: ScanMetadata,
+    render_runbook: Callable[[str, dict[str, Any] | None], str],
+    render_runbook_csv: Callable[[dict[str, Any] | None], str],
+) -> None:
+    """Write standalone runbook outputs when requested."""
+    if runbook_output:
+        rb_path = Path(runbook_output)
+        rb_path.parent.mkdir(parents=True, exist_ok=True)
+        render_runbook_any = cast(Any, render_runbook)
+        try:
+            rb_content = render_runbook_any(role_name=role_name, metadata=metadata)
+        except TypeError:
+            rb_content = render_runbook(role_name, metadata)
+        rb_path.write_text(rb_content, encoding="utf-8")
+    if runbook_csv_output:
+        rb_csv_path = Path(runbook_csv_output)
+        rb_csv_path.parent.mkdir(parents=True, exist_ok=True)
+        rb_csv_content = render_runbook_csv(metadata)
+        rb_csv_path.write_text(rb_csv_content, encoding="utf-8")
 
 
 def resolve_output_file_path(
@@ -71,6 +150,11 @@ def emit_scanner_report_sidecar(
     metadata: ScanMetadata,
     dry_run: bool,
     render_scanner_report: Callable[..., str],
+    role_name: str | None = None,
+    description: str | None = None,
+    display_variables: dict[str, Any] | None = None,
+    requirements_display: list[Any] | None = None,
+    undocumented_default_filters: list[Any] | None = None,
 ) -> Path | None:
     """Emit scanner sidecar report when concise mode is enabled."""
     return write_concise_scanner_report_if_enabled(
@@ -78,13 +162,14 @@ def emit_scanner_report_sidecar(
         scanner_report_output=scanner_report_output,
         out_path=out_path,
         include_scanner_report_link=include_scanner_report_link,
-        role_name=cast(str, metadata.get("role_name", "")),
-        description=cast(str, metadata.get("description", "")),
-        display_variables=cast(dict[str, Any], metadata.get("display_variables", {})),
-        requirements_display=cast(list[Any], metadata.get("requirements_display", [])),
-        undocumented_default_filters=cast(
-            list[Any], metadata.get("undocumented_default_filters", [])
-        ),
+        role_name=role_name or cast(str, metadata.get("role_name", "")),
+        description=description or cast(str, metadata.get("description", "")),
+        display_variables=display_variables
+        or cast(dict[str, Any], metadata.get("display_variables", {})),
+        requirements_display=requirements_display
+        or cast(list[Any], metadata.get("requirements_display", [])),
+        undocumented_default_filters=undocumented_default_filters
+        or cast(list[Any], metadata.get("undocumented_default_filters", [])),
         metadata=metadata,
         dry_run=dry_run,
         build_scanner_report_markdown=render_scanner_report,
@@ -98,12 +183,13 @@ def emit_runbook_sidecars(
     metadata: ScanMetadata,
     render_runbook: Callable[[str, dict[str, Any] | None], str],
     render_runbook_csv: Callable[[dict[str, Any] | None], str],
+    role_name: str | None = None,
 ) -> None:
     """Emit runbook sidecar outputs when requested."""
     write_optional_runbook_outputs(
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
-        role_name=cast(str, metadata.get("role_name", "")),
+        role_name=role_name or cast(str, metadata.get("role_name", "")),
         metadata=metadata,
         render_runbook=render_runbook,
         render_runbook_csv=render_runbook_csv,
@@ -154,6 +240,9 @@ def orchestrate_output_emission(
     """Orchestrate coordinated output emission (primary + sidecars)."""
     out_path = resolve_output_file_path(Path(args["output"]), args["output_format"])
 
+    if not args["dry_run"]:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
     if args["concise_readme"]:
         emit_scanner_report_sidecar(
             concise_readme=args["concise_readme"],
@@ -163,6 +252,11 @@ def orchestrate_output_emission(
             metadata=args["metadata"],
             dry_run=args["dry_run"],
             render_scanner_report=render_scanner_report,
+            role_name=args["role_name"],
+            description=args["description"],
+            display_variables=args["display_variables"],
+            requirements_display=args["requirements_display"],
+            undocumented_default_filters=args["undocumented_default_filters"],
         )
 
     result = emit_primary_output(
@@ -184,8 +278,6 @@ def orchestrate_output_emission(
             dry_run=kw["dry_run"],
         ),
     )
-    if isinstance(result, bytes):
-        result = result.decode("utf-8", errors="replace")
 
     if args["dry_run"]:
         return result
@@ -197,6 +289,7 @@ def orchestrate_output_emission(
             metadata=args["metadata"],
             render_runbook=render_runbook,
             render_runbook_csv=render_runbook_csv,
+            role_name=args["role_name"],
         )
 
     return result

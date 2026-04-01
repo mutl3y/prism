@@ -24,7 +24,7 @@ from prism.scanner_core import DIContainer, ScannerContext
 
 
 def _canonical_scan_options(role_path: str) -> dict:
-    return scan_request.build_run_scan_options(
+    return scan_request.build_run_scan_options_canonical(
         role_path=role_path,
         role_name_override=None,
         readme_config_path=None,

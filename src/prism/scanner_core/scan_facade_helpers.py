@@ -7,7 +7,54 @@ dependency injection.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
+
+from prism.scanner_data.contracts import PolicyContext
+
+
+def execute_scan_with_context(
+    *,
+    role_path: str,
+    scan_options: dict[str, Any],
+    output: str,
+    output_format: str,
+    concise_readme: bool,
+    scanner_report_output: str | None,
+    include_scanner_report_link: bool,
+    template: str | None,
+    dry_run: bool,
+    runbook_output: str | None,
+    runbook_csv_output: str | None,
+    di_container_cls: type,
+    scanner_context_cls: type,
+    build_run_scan_options_fn: Callable[..., dict[str, Any]],
+    prepare_scan_context_fn: Callable[..., dict[str, Any]],
+    build_emit_scan_outputs_args_fn: Callable[..., dict[str, Any]],
+    emit_scan_outputs_fn: Callable[[dict[str, Any]], str | bytes],
+) -> str | bytes:
+    """Execute a scan via ScannerContext and forward results to output emission."""
+    container = di_container_cls(role_path=role_path, scan_options=scan_options)
+    context = scanner_context_cls(
+        di=container,
+        role_path=role_path,
+        scan_options=scan_options,
+        build_run_scan_options_fn=build_run_scan_options_fn,
+        prepare_scan_context_fn=prepare_scan_context_fn,
+    )
+    payload = context.orchestrate_scan()
+    emit_args = build_emit_scan_outputs_args_fn(
+        output=output,
+        output_format=output_format,
+        concise_readme=concise_readme,
+        scanner_report_output=scanner_report_output,
+        include_scanner_report_link=include_scanner_report_link,
+        payload=payload,
+        template=template,
+        dry_run=dry_run,
+        runbook_output=runbook_output,
+        runbook_csv_output=runbook_csv_output,
+    )
+    return emit_scan_outputs_fn(emit_args)
 
 
 def collect_role_contents(
@@ -181,9 +228,6 @@ def collect_scan_artifacts(
     )
     metadata["marker_prefix"] = marker_prefix
     metadata["detailed_catalog"] = bool(detailed_catalog)
-    metadata["include_task_parameters"] = True
-    metadata["include_task_runbooks"] = True
-    metadata["inline_task_runbooks"] = True
     metadata["unconstrained_dynamic_task_includes"] = (
         collect_unconstrained_dynamic_task_includes(role_path, exclude_path_patterns)
     )
@@ -211,8 +255,9 @@ def apply_style_and_comparison_metadata(
     role_path: str,
     exclude_path_patterns: list[str] | None,
     resolve_default_style_guide_source: Callable[[str | None], str],
-    parse_style_readme: Callable[[str], dict],
+    parse_style_readme: Callable[..., dict],
     build_comparison_report: Callable[[str, str, list[str] | None], dict],
+    policy_context: PolicyContext | None = None,
 ) -> None:
     """Attach style-guide and optional baseline comparison metadata."""
     effective_style_readme_path = style_readme_path
@@ -229,7 +274,18 @@ def apply_style_and_comparison_metadata(
             raise FileNotFoundError(
                 f"style README not found: {effective_style_readme_path}"
             )
-        metadata["style_guide"] = parse_style_readme(str(style_path))
+        section_aliases = None
+        if policy_context:
+            context_aliases = policy_context.get("section_aliases")
+            if isinstance(context_aliases, dict):
+                section_aliases = context_aliases
+        if section_aliases is None:
+            metadata["style_guide"] = parse_style_readme(str(style_path))
+        else:
+            metadata["style_guide"] = parse_style_readme(
+                str(style_path),
+                section_aliases=section_aliases,
+            )
     if style_guide_skeleton:
         metadata["style_guide_skeleton"] = True
     if compare_role_path:

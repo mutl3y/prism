@@ -76,6 +76,18 @@ class TestScanPayloadBuilderInvariants:
         with pytest.raises(ValueError, match="metadata"):
             builder.build()
 
+    def test_build_accepts_empty_metadata_dict(self) -> None:
+        """build() accepts empty metadata dict; only None/non-dict are invalid."""
+        payload = (
+            ScanPayloadBuilder()
+            .role_name("test")
+            .description("desc")
+            .metadata({})
+            .build()
+        )
+
+        assert payload["metadata"] == {}
+
     def test_build_rejects_empty_role_name(self) -> None:
         """build() rejects empty role_name string."""
         builder = ScanPayloadBuilder()

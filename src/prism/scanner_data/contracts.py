@@ -76,6 +76,10 @@ class VariableRow(TypedDict, total=False):
     """True if variable cannot be resolved to a static definition."""
     is_ambiguous: bool
     """True if variable has multiple possible sources or values."""
+    readme_documented: NotRequired[bool]
+    """True if variable is documented in the role README."""
+    non_authoritative_test_evidence: NotRequired[dict[str, Any]]
+    """Non-authoritative test evidence attached during pipeline enrichment."""
 
 
 class VariableRowWithMeta(TypedDict, total=False):
@@ -253,6 +257,10 @@ class ReferenceContext(TypedDict):
     """Set of normalized variable name tokens from dynamic includes."""
     dynamic_task_include_tokens: set[str]
     """Set of normalized variable name tokens in dynamic task includes."""
+    referenced_names: set[str]
+    """Set of referenced variable names collected once per orchestration run."""
+    ignored_identifiers: NotRequired[set[str]]
+    """Optional per-scan ignored identifier override snapshot."""
 
 
 class ScanPhaseError(TypedDict):
@@ -410,6 +418,53 @@ class ScanBaseContext(TypedDict):
     """Scan metadata."""
     requirements_display: list[Any]
     """Rendered requirements list."""
+
+
+class ScanOptionsDict(TypedDict):
+    """Normalized scan configuration passed through the scanner pipeline."""
+
+    role_path: str
+    role_name_override: str | None
+    readme_config_path: str | None
+    include_vars_main: bool
+    exclude_path_patterns: list[str] | None
+    detailed_catalog: bool
+    include_task_parameters: bool
+    include_task_runbooks: bool
+    inline_task_runbooks: bool
+    include_collection_checks: bool
+    keep_unknown_style_sections: bool
+    adopt_heading_mode: str | None
+    vars_seed_paths: list[str] | None
+    style_readme_path: str | None
+    style_source_path: str | None
+    style_guide_skeleton: bool
+    compare_role_path: str | None
+    fail_on_unconstrained_dynamic_includes: bool | None
+    fail_on_yaml_like_task_annotations: bool | None
+    ignore_unresolved_internal_underscore_references: bool | None
+    policy_context: NotRequired[PolicyContext | None]
+    strict_phase_failures: NotRequired[bool]
+
+
+class PolicyContext(TypedDict):
+    """Per-scan immutable policy snapshot used to avoid shared global reads."""
+
+    section_aliases: dict[str, str]
+    ignored_identifiers: frozenset[str]
+    variable_guidance_keywords: tuple[str, ...]
+
+
+class ScanContextPayload(TypedDict):
+    """Assembled scan context payload ready for output orchestration."""
+
+    rp: str
+    role_name: str
+    description: str
+    requirements_display: list[Any]
+    undocumented_default_filters: list[Any]
+    display_variables: dict[str, Any]
+    metadata: ScanMetadata
 
 
 # ============================================================================
@@ -676,3 +731,36 @@ class SectionBodyRenderResult(TypedDict):
     """Rendered section body."""
     has_content: bool
     """True if section has content to render."""
+
+
+__all__ = [
+    "AnnotationQualityCounters",
+    "EmitScanOutputsArgs",
+    "FeaturesContext",
+    "FinalOutputPayload",
+    "NormalizedScannerReportMetadata",
+    "ReadmeSectionRenderInput",
+    "ReferenceContext",
+    "RunbookSidecarArgs",
+    "RunScanOutputPayload",
+    "ScanBaseContext",
+    "ScanContext",
+    "ScanContextPayload",
+    "ScanMetadata",
+    "ScanOptionsDict",
+    "ScanPhaseError",
+    "ScanReportSidecarArgs",
+    "ScannerCounters",
+    "ScannerReportIssueListRow",
+    "ScannerReportMetadata",
+    "ScannerReportSectionRenderInput",
+    "ScannerReportYamlParseFailureRow",
+    "SectionBodyRenderResult",
+    "StyleGuideConfig",
+    "Variable",
+    "VariableProvenance",
+    "VariableRow",
+    "VariableRowWithMeta",
+    "_SectionTitleBucket",
+    "_StyleSection",
+]

@@ -10,8 +10,8 @@ import re
 from pathlib import Path
 from typing import Callable
 
-from ..scanner_extract import IGNORED_IDENTIFIERS
-from .style import STYLE_SECTION_ALIASES, normalize_style_heading
+from ..scanner_extract.variable_extractor import IGNORED_IDENTIFIERS
+from .style import get_style_section_aliases_snapshot, normalize_style_heading
 
 MARKDOWN_VAR_BACKTICK_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")
 MARKDOWN_VAR_TABLE_RE = re.compile(r"^\|\s*`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\|")
@@ -33,7 +33,7 @@ def is_readme_variable_section_heading(title: str) -> bool:
     normalized = normalize_style_heading(title)
     if not normalized:
         return False
-    canonical = STYLE_SECTION_ALIASES.get(normalized)
+    canonical = get_style_section_aliases_snapshot().get(normalized)
     if canonical in {"role_variables", "variable_summary", "variable_guidance"}:
         return True
     return "variable" in normalized or "input" in normalized

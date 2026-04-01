@@ -111,7 +111,20 @@ def _default_user_data_home() -> Path:
     return (Path.home() / ".local" / "share").expanduser()
 
 
-def _iter_default_override_paths() -> list[Path]:
+def _resolve_search_root(search_root: str | Path | None) -> Path | None:
+    """Return the deterministic root used for repo-local pattern overrides."""
+    if search_root is None:
+        return None
+    root_path = Path(search_root).expanduser()
+    if root_path.exists() and root_path.is_file():
+        return root_path.parent.resolve()
+    return root_path.resolve()
+
+
+def _iter_default_override_paths(
+    *,
+    search_root: str | Path | None = None,
+) -> list[Path]:
     """Return default mutable override paths in merge order.
 
     Returned in low -> high precedence order (later ones override earlier ones).
@@ -125,8 +138,11 @@ def _iter_default_override_paths() -> list[Path]:
     user_data_home = _default_user_data_home()
     paths.append(user_data_home / APP_DATA_DIRNAME / CWD_OVERRIDE_FILENAME)
 
-    # repo-local/cwd override
-    paths.append(Path.cwd() / CWD_OVERRIDE_FILENAME)
+    # repo-local override; prefer explicit search_root over ambient process CWD.
+    local_override_root = _resolve_search_root(search_root)
+    if local_override_root is None:
+        local_override_root = Path.cwd()
+    paths.append(local_override_root / REPO_OVERRIDE_FILENAME)
 
     # optional env var override (highest precedence among implicit defaults)
     env_override = os.environ.get(ENV_PATTERNS_OVERRIDE_PATH)
@@ -136,7 +152,11 @@ def _iter_default_override_paths() -> list[Path]:
     return paths
 
 
-def load_pattern_config(override_path: str | None = None) -> dict[str, Any]:
+def load_pattern_config(
+    override_path: str | Path | None = None,
+    *,
+    search_root: str | Path | None = None,
+) -> dict[str, Any]:
     """Load pattern configuration policy from built-in and override sources.
 
     Loads all built-in policy YAML files, then applies overrides in precedence
@@ -146,6 +166,9 @@ def load_pattern_config(override_path: str | None = None) -> dict[str, Any]:
     ----------
     override_path:
         Path to a YAML override file. Non-existent paths are ignored.
+    search_root:
+        Deterministic root used for implicit repo-local override resolution.
+        When omitted, the process CWD remains the fallback for backward compatibility.
 
     Returns
     -------
@@ -155,14 +178,14 @@ def load_pattern_config(override_path: str | None = None) -> dict[str, Any]:
     """
     policy = _load_builtin_policy()
 
-    for override_file in _iter_default_override_paths():
+    for override_file in _iter_default_override_paths(search_root=search_root):
         if override_file.exists():
             override = _load_yaml(override_file)
             if override:
                 policy = _deep_merge(policy, override)
 
     if override_path is not None:
-        override_file = Path(override_path)
+        override_file = Path(override_path).expanduser()
         if override_file.exists():
             override = _load_yaml(override_file)
             if override:

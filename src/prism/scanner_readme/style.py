@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from types import MappingProxyType
 from pathlib import Path
 import re
+from threading import RLock
 from typing import Any, TypedDict
 
 import yaml
@@ -12,7 +15,16 @@ from ..scanner_config.patterns import load_pattern_config
 from ..scanner_extract.task_parser import _format_inline_yaml
 
 _POLICY = load_pattern_config()
-STYLE_SECTION_ALIASES: dict[str, str] = _POLICY["section_aliases"]
+_STYLE_SECTION_ALIASES: dict[str, str] = dict(_POLICY["section_aliases"])
+_STYLE_SECTION_ALIASES_LOCK = RLock()
+# Public compatibility alias: read-only mapping over module-internal state.
+STYLE_SECTION_ALIASES: Mapping[str, str] = MappingProxyType(_STYLE_SECTION_ALIASES)
+
+
+def get_style_section_aliases_snapshot() -> dict[str, str]:
+    """Return a stable alias snapshot for callers that require read consistency."""
+    with _STYLE_SECTION_ALIASES_LOCK:
+        return dict(_STYLE_SECTION_ALIASES)
 
 
 def _refresh_policy_derived_state(policy: dict[str, Any]) -> None:
@@ -20,8 +32,9 @@ def _refresh_policy_derived_state(policy: dict[str, Any]) -> None:
     global _POLICY
 
     _POLICY = policy
-    STYLE_SECTION_ALIASES.clear()
-    STYLE_SECTION_ALIASES.update(policy["section_aliases"])
+    with _STYLE_SECTION_ALIASES_LOCK:
+        _STYLE_SECTION_ALIASES.clear()
+        _STYLE_SECTION_ALIASES.update(policy["section_aliases"])
 
 
 class _SectionTitleBucket(TypedDict):
@@ -139,8 +152,13 @@ def format_heading(text: str, level: int, style: str) -> str:
     return f"{'#' * level} {text}"
 
 
-def parse_style_readme(style_readme_path: str) -> dict:
+def parse_style_readme(
+    style_readme_path: str,
+    *,
+    section_aliases: dict[str, str] | None = None,
+) -> dict:
     """Parse a README style guide into section order and heading styles."""
+    alias_map = section_aliases or get_style_section_aliases_snapshot()
     text = Path(style_readme_path).read_text(encoding="utf-8")
     lines = text.splitlines()
     section_level = detect_style_section_level(lines)
@@ -193,7 +211,7 @@ def parse_style_readme(style_readme_path: str) -> dict:
                 section_style = "atx"
             if level == section_level:
                 normalized_title = normalize_style_heading(title)
-                canonical = STYLE_SECTION_ALIASES.get(normalized_title, "unknown")
+                canonical = alias_map.get(normalized_title, "unknown")
                 current_section = {
                     "id": canonical,
                     "title": title,
@@ -215,7 +233,7 @@ def parse_style_readme(style_readme_path: str) -> dict:
         if re.match(r"^-+$", next_line):
             section_style = "setext"
             normalized_title = normalize_style_heading(line)
-            canonical = STYLE_SECTION_ALIASES.get(normalized_title, "unknown")
+            canonical = alias_map.get(normalized_title, "unknown")
             current_section = {
                 "id": canonical,
                 "title": line.strip(),

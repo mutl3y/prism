@@ -10,7 +10,6 @@ import pytest
 
 from prism.scanner_core.di import DIContainer
 from prism.scanner_core.output_orchestrator import OutputOrchestrator
-from prism.scanner_core.scanner_context import ScannerContext
 from prism.scanner_data.builders import VariableRowBuilder
 
 
@@ -68,12 +67,9 @@ class TestDIContainerFactoryMethods:
     def test_factory_scanner_context_returns_scanner_context_instance(
         self, container: DIContainer
     ) -> None:
-        """ScannerContext factory returns canonical scanner context instances."""
-        first = container.factory_scanner_context()
-        second = container.factory_scanner_context()
-        assert isinstance(first, ScannerContext)
-        assert second is first
-        assert first._di is container
+        """ScannerContext factory path is blocked until runtime seams are wired."""
+        with pytest.raises(RuntimeError, match="factory_scanner_context is disabled"):
+            container.factory_scanner_context()
 
     def test_factory_variable_discovery_can_be_called(
         self, container: DIContainer
@@ -211,17 +207,28 @@ class TestDIContainerBootstrapPattern:
         assert container is not None
 
         # All factory methods should return canonical callables/instances.
-        context = container.factory_scanner_context()
         discovery = container.factory_variable_discovery()
         orchestrator = container.factory_output_orchestrator("/tmp/README.md")
         detector = container.factory_feature_detector()
         builder = container.factory_variable_row_builder()
 
-        assert isinstance(context, ScannerContext)
         assert discovery is not None
         assert isinstance(orchestrator, OutputOrchestrator)
         assert detector is not None
         assert isinstance(builder, VariableRowBuilder)
+
+    def test_scanner_context_factory_raises_deterministic_error_message(self) -> None:
+        """DI factory exposes an explicit runtime-seam error for scanner context."""
+        container = DIContainer(
+            role_path="/ansible/roles/my_role",
+            scan_options={"role_name_override": None},
+        )
+
+        with pytest.raises(RuntimeError) as exc_info:
+            container.factory_scanner_context()
+
+        assert "factory_scanner_context is disabled" in str(exc_info.value)
+        assert "prepare_scan_context_fn" in str(exc_info.value)
 
 
 class TestDIContainerLineLength:
