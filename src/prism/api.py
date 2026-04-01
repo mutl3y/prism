@@ -189,9 +189,6 @@ def _build_failure_record(
         "error_category": detail["category"],
         "error_type": detail.get("cause_type", type(exc).__name__),
         "error": detail["message"],
-        "code": detail["code"],
-        "category": detail["category"],
-        "message": detail["message"],
     }
     if error_detail_code is not None:
         failure["error_detail_code"] = error_detail_code
