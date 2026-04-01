@@ -71,6 +71,14 @@ _CAPTURE_MAX_CONTENT_CHARS = 20000
 _CAPTURE_MAX_TOTAL_CHARS = 1_000_000
 _TRUNCATION_MARKER = "\n[truncated]"
 
+_EXIT_CODE_GENERIC_ERROR = 2
+_EXIT_CODE_NOT_FOUND = 3
+_EXIT_CODE_PERMISSION_DENIED = 4
+_EXIT_CODE_JSON_PAYLOAD_ERROR = 5
+_EXIT_CODE_NETWORK_ERROR = 6
+_EXIT_CODE_OS_ERROR = 7
+_EXIT_CODE_INTERRUPTED = 130
+
 _REDACTION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(
@@ -812,6 +820,20 @@ def _normalize_repo_json_payload(
     return rendered_payload
 
 
+def _map_top_level_exception_to_exit_code(exc: Exception) -> int:
+    if isinstance(exc, FileNotFoundError):
+        return _EXIT_CODE_NOT_FOUND
+    if isinstance(exc, PermissionError):
+        return _EXIT_CODE_PERMISSION_DENIED
+    if isinstance(exc, json.JSONDecodeError):
+        return _EXIT_CODE_JSON_PAYLOAD_ERROR
+    if isinstance(exc, (HTTPError, URLError)):
+        return _EXIT_CODE_NETWORK_ERROR
+    if isinstance(exc, OSError):
+        return _EXIT_CODE_OS_ERROR
+    return _EXIT_CODE_GENERIC_ERROR
+
+
 def _handle_repo_command(args: argparse.Namespace) -> int:
     """Handle repository-backed role documentation."""
     vars_context_paths = _resolve_vars_context_paths(args)
@@ -964,6 +986,7 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
         include_rendered_readme=args.format == "md",
         runbook_output_dir=args.runbook_output,
         runbook_csv_output_dir=args.runbook_csv_output,
+        include_traceback=args.verbose,
     )
     rendered = (
         json.dumps(payload, indent=2)
@@ -1322,9 +1345,11 @@ def main(argv=None) -> int:
         if args.command == "completion":
             return _handle_completion_command(args)
         raise ValueError(f"unsupported command: {args.command}")
+    except KeyboardInterrupt:
+        return _EXIT_CODE_INTERRUPTED
     except Exception as e:
         print("Error:", e, file=sys.stderr)
-        return 2
+        return _map_top_level_exception_to_exit_code(e)
 
 
 if __name__ == "__main__":

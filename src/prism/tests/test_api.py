@@ -876,7 +876,7 @@ def test_scan_collection_records_role_failures(monkeypatch, tmp_path):
 
     def fake_scan_role(role_path, **kwargs):
         if Path(role_path).name == "role_b":
-            raise RuntimeError("boom")
+            raise ValueError("invalid role content")
         return {"role_name": "role_a", "metadata": {}}
 
     monkeypatch.setattr(api, "scan_role", fake_scan_role)
@@ -892,12 +892,12 @@ def test_scan_collection_records_role_failures(monkeypatch, tmp_path):
         {
             "role": "role_b",
             "path": str((collection_root / "roles" / "role_b").resolve()),
-            "error_type": "RuntimeError",
-            "error": "boom",
-            "traceback": payload["failures"][0]["traceback"],
+            "error_code": "role_content_invalid",
+            "error_type": "ValueError",
+            "error": "invalid role content",
         }
     ]
-    assert "RuntimeError: boom" in payload["failures"][0]["traceback"]
+    assert "traceback" not in payload["failures"][0]
     assert sorted(payload["plugin_catalog"]["by_type"].keys()) == [
         "callback",
         "connection",
@@ -910,6 +910,51 @@ def test_scan_collection_records_role_failures(monkeypatch, tmp_path):
         "strategy",
         "test",
     ]
+
+
+def test_scan_collection_runtime_error_is_not_recoverable(monkeypatch, tmp_path):
+    collection_root = tmp_path / "demo_collection"
+    (collection_root / "roles" / "role_a").mkdir(parents=True)
+    (collection_root / "roles" / "role_b").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+
+    def fake_scan_role(role_path, **kwargs):
+        if Path(role_path).name == "role_b":
+            raise RuntimeError("scanner system failure")
+        return {"role_name": "role_a", "metadata": {}}
+
+    monkeypatch.setattr(api, "scan_role", fake_scan_role)
+
+    with pytest.raises(RuntimeError, match="scanner system failure"):
+        api.scan_collection(str(collection_root))
+
+
+def test_scan_collection_can_include_traceback_when_requested(monkeypatch, tmp_path):
+    collection_root = tmp_path / "demo_collection"
+    (collection_root / "roles" / "role_a").mkdir(parents=True)
+    (collection_root / "roles" / "role_b").mkdir(parents=True)
+    (collection_root / "galaxy.yml").write_text(
+        "---\nnamespace: demo\nname: toolkit\n",
+        encoding="utf-8",
+    )
+
+    def fake_scan_role(role_path, **kwargs):
+        if Path(role_path).name == "role_b":
+            raise ValueError("bad vars schema")
+        return {"role_name": "role_a", "metadata": {}}
+
+    monkeypatch.setattr(api, "scan_role", fake_scan_role)
+
+    payload = api.scan_collection(str(collection_root), include_traceback=True)
+
+    assert payload["summary"]["failed_roles"] == 1
+    failure = payload["failures"][0]
+    assert failure["error_code"] == "role_content_invalid"
+    assert failure["error_type"] == "ValueError"
+    assert "ValueError: bad vars schema" in failure["traceback"]
 
 
 def test_scan_collection_can_include_rendered_readme(monkeypatch, tmp_path):
@@ -1317,25 +1362,8 @@ def test_scan_collection_records_post_scan_render_failures(monkeypatch, tmp_path
 
     monkeypatch.setattr(api, "render_readme", fake_render_readme)
 
-    payload = api.scan_collection(str(collection_root), include_rendered_readme=True)
-
-    assert payload["summary"] == {
-        "total_roles": 2,
-        "scanned_roles": 1,
-        "failed_roles": 1,
-    }
-    assert payload["roles"][0]["role"] == "role_a"
-    assert payload["roles"][0]["rendered_readme"] == "# ok\n"
-    assert payload["failures"] == [
-        {
-            "role": "role_b",
-            "path": str((collection_root / "roles" / "role_b").resolve()),
-            "error_type": "RuntimeError",
-            "error": "render boom",
-            "traceback": payload["failures"][0]["traceback"],
-        }
-    ]
-    assert "RuntimeError: render boom" in payload["failures"][0]["traceback"]
+    with pytest.raises(RuntimeError, match="render boom"):
+        api.scan_collection(str(collection_root), include_rendered_readme=True)
 
 
 def test_scan_collection_records_runbook_render_failures(monkeypatch, tmp_path):
@@ -1363,21 +1391,11 @@ def test_scan_collection_records_runbook_render_failures(monkeypatch, tmp_path):
 
     monkeypatch.setattr(api, "render_runbook", fake_render_runbook)
 
-    payload = api.scan_collection(
-        str(collection_root),
-        runbook_output_dir=str(tmp_path / "runbooks"),
-    )
-
-    assert payload["summary"] == {
-        "total_roles": 2,
-        "scanned_roles": 1,
-        "failed_roles": 1,
-    }
-    assert payload["roles"][0]["role"] == "role_a"
-    assert payload["failures"][0]["role"] == "role_b"
-    assert payload["failures"][0]["error_type"] == "RuntimeError"
-    assert payload["failures"][0]["error"] == "runbook boom"
-    assert "RuntimeError: runbook boom" in payload["failures"][0]["traceback"]
+    with pytest.raises(RuntimeError, match="runbook boom"):
+        api.scan_collection(
+            str(collection_root),
+            runbook_output_dir=str(tmp_path / "runbooks"),
+        )
 
 
 def test_role_dependency_key_uses_src_when_name_missing():
