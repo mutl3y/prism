@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from prism import cli
+from prism import errors as prism_errors
 from prism import repo_services
 
 _REAL_FETCH_REPO_FILE = cli._fetch_repo_file
@@ -3129,3 +3130,28 @@ def test_cli_collection_dry_run_prints_rendered_output(monkeypatch, tmp_path, ca
 
     assert rc == 0
     assert "Collection Documentation" in captured.out
+
+
+def test_main_prints_structured_error_context(monkeypatch, capsys):
+    fake_parser = SimpleNamespace(
+        parse_args=lambda argv: SimpleNamespace(command="repo")
+    )
+    monkeypatch.setattr(cli, "build_parser", lambda: fake_parser)
+    monkeypatch.setattr(
+        cli,
+        "_handle_repo_command",
+        lambda args: (_ for _ in ()).throw(
+            prism_errors.PrismRuntimeError(
+                code=prism_errors.REPO_TRANSPORT_FAILED,
+                category=prism_errors.ERROR_CATEGORY_NETWORK,
+                message="network down",
+            )
+        ),
+    )
+
+    rc = cli.main([])
+    captured = capsys.readouterr()
+
+    assert rc == cli._EXIT_CODE_NETWORK_ERROR
+    assert "code=repo_transport_failed" in captured.err
+    assert "category=network" in captured.err
