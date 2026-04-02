@@ -648,7 +648,9 @@ def test_load_yaml_file_propagates_unexpected_runtime_error(tmp_path, monkeypatc
     def raise_runtime_error(*args, **kwargs):
         raise RuntimeError("unexpected")
 
-    monkeypatch.setattr(task_parser.yaml, "safe_load", raise_runtime_error)
+    from prism.scanner_extract import task_file_traversal
+
+    monkeypatch.setattr(task_file_traversal.yaml, "safe_load", raise_runtime_error)
 
     with pytest.raises(RuntimeError, match="unexpected"):
         task_parser._load_yaml_file(target)
