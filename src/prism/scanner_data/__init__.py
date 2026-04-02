@@ -3,7 +3,14 @@
 This module consolidates all TypedDict data contracts used throughout the scanner
 pipeline, providing a single source of truth for data structure definitions.
 It also exports builder classes for fluent, type-safe construction of immutable data.
+
+**Public API Guardrails:**
+Only symbols in __all__ are considered public. Accessing private symbols (e.g.,
+prefixed with _) will raise AttributeError at runtime. This enforces module boundaries
+without relying solely on tests.
 """
+
+from __future__ import annotations
 
 from .contracts_output import ScanPayloadBuilder as ScanPayloadBuilder
 from .contracts_variables import VariableRowBuilder as VariableRowBuilder
@@ -46,8 +53,6 @@ from .contracts import (
     VariableProvenance as VariableProvenance,
     VariableRow as VariableRow,
     VariableRowWithMeta as VariableRowWithMeta,
-    _StyleSection as _StyleSection,
-    _SectionTitleBucket as _SectionTitleBucket,
 )
 
 __all__ = [
@@ -92,3 +97,23 @@ __all__ = [
     "VariableRowBuilder",
     "VariableRowWithMeta",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Enforce module public API at runtime.
+
+    Prevents access to private symbols (prefixed with _) that are not in __all__.
+    This reduces reliance on test-only architecture enforcement by making
+    boundary violations raise AttributeError immediately at import/access time.
+    """
+    if name.startswith("_"):
+        raise AttributeError(
+            f"module '{__name__}' has no attribute '{name}' "
+            f"(private member; only __all__ symbols are public)"
+        )
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
+def __dir__() -> list[str]:
+    """Expose only public API in dir() and introspection."""
+    return sorted(__all__)

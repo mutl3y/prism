@@ -46,3 +46,23 @@ __all__ = [
     "build_doc_insights",
     "parse_comma_values",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Enforce module public API at runtime.
+
+    Prevents access to private symbols (prefixed with _) that are not in __all__.
+    This reduces reliance on test-only architecture enforcement by making
+    boundary violations raise AttributeError immediately at import/access time.
+    """
+    if name.startswith("_"):
+        raise AttributeError(
+            f"module '{__name__}' has no attribute '{name}' "
+            f"(private member; only __all__ symbols are public)"
+        )
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
+def __dir__() -> list[str]:
+    """Expose only public API in dir() and introspection."""
+    return sorted(__all__)
