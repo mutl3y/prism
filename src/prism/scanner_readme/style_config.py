@@ -1,0 +1,52 @@
+"""Style guide configuration and alias management."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar, Token
+from types import MappingProxyType
+from threading import RLock
+from typing import Any
+
+from ..scanner_config.patterns import load_pattern_config
+
+_POLICY = load_pattern_config()
+_STYLE_SECTION_ALIASES: dict[str, str] = dict(_POLICY["section_aliases"])
+_STYLE_SECTION_ALIASES_LOCK = RLock()
+# Public compatibility alias: read-only mapping over module-internal state.
+STYLE_SECTION_ALIASES: Mapping[str, str] = MappingProxyType(_STYLE_SECTION_ALIASES)
+_SECTION_ALIAS_OVERRIDE: ContextVar[dict[str, str] | None] = ContextVar(
+    "prism_style_section_alias_override",
+    default=None,
+)
+
+
+@contextmanager
+def style_section_aliases_scope(section_aliases: dict[str, str] | None):
+    """Apply request-scoped style aliases for style parsing and rendering."""
+
+    token: Token[dict[str, str] | None] = _SECTION_ALIAS_OVERRIDE.set(section_aliases)
+    try:
+        yield
+    finally:
+        _SECTION_ALIAS_OVERRIDE.reset(token)
+
+
+def get_style_section_aliases_snapshot() -> dict[str, str]:
+    """Return a stable alias snapshot for callers that require read consistency."""
+    scoped_aliases = _SECTION_ALIAS_OVERRIDE.get()
+    if isinstance(scoped_aliases, dict):
+        return dict(scoped_aliases)
+    with _STYLE_SECTION_ALIASES_LOCK:
+        return dict(_STYLE_SECTION_ALIASES)
+
+
+def refresh_policy_derived_state(policy: dict[str, Any]) -> None:
+    """Refresh module-level policy state after scanner policy reloads."""
+    global _POLICY
+
+    _POLICY = policy
+    with _STYLE_SECTION_ALIASES_LOCK:
+        _STYLE_SECTION_ALIASES.clear()
+        _STYLE_SECTION_ALIASES.update(policy["section_aliases"])
