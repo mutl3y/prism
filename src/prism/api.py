@@ -17,9 +17,6 @@ from .errors import (
     ERROR_CATEGORY_RUNTIME,
     FailurePolicy,
     PrismRuntimeError,
-    REPO_SCAN_PAYLOAD_JSON_INVALID,
-    REPO_SCAN_PAYLOAD_SHAPE_INVALID,
-    REPO_SCAN_PAYLOAD_TYPE_INVALID,
     ROLE_CONTENT_ENCODING_INVALID,
     ROLE_CONTENT_INVALID,
     ROLE_CONTENT_IO_ERROR,
@@ -36,27 +33,52 @@ from .errors import (
 from .repo_services import repo_scan_facade as _repo_scan_facade
 from .scanner import run_scan
 from .scanner_analysis import render_runbook, render_runbook_csv
-from .scanner_data.contracts import CollectionScanResult, RepoScanResult, RoleScanResult
+from .scanner_analysis.collection_dependencies import (  # noqa: F401
+    aggregate_collection_dependencies,
+    _collection_dependency_key,
+    _role_dependency_key,
+    _merge_dependency_entry,
+    _finalize_dependency_bucket,
+    _load_yaml_document,
+    _requirements_entries_from_document,
+)
+from .scanner_data.contracts_errors import (
+    CollectionScanResult,
+    RepoScanResult,
+    RoleScanResult,
+)
 from .scanner_io.collection_renderer import write_collection_runbook_artifacts
 from .scanner_readme import render_readme
 
 # Compatibility export for downstream imports and parity checks with CLI/helpers.
-_build_lightweight_sparse_clone_paths = _repo_scan_facade.build_lightweight_sparse_clone_paths
-_repo_build_repo_style_readme_candidates = _repo_scan_facade.build_repo_style_readme_candidates
+_build_lightweight_sparse_clone_paths = (
+    _repo_scan_facade.build_lightweight_sparse_clone_paths
+)
+_build_repo_intake_components = _repo_scan_facade.build_repo_intake_components
+_repo_build_repo_style_readme_candidates = (
+    _repo_scan_facade.build_repo_style_readme_candidates
+)
 _build_sparse_clone_paths = _repo_scan_facade.build_sparse_clone_paths
-_checkout_repo_lightweight_style_readme = _repo_scan_facade.checkout_repo_lightweight_style_readme
+_checkout_repo_lightweight_style_readme = (
+    _repo_scan_facade.checkout_repo_lightweight_style_readme
+)
 _checkout_repo_scan_role = _repo_scan_facade.checkout_repo_scan_role
 _clone_repo = _repo_scan_facade.clone_repo
 _fetch_repo_directory_names = _repo_scan_facade.fetch_repo_directory_names
 _fetch_repo_file = _repo_scan_facade.fetch_repo_file
-_normalize_repo_scan_result_payload = _repo_scan_facade.normalize_repo_scan_result_payload
-_normalize_repo_scan_metadata_paths = _repo_scan_facade.normalize_repo_scan_metadata_paths
+_normalize_repo_scan_payload = _repo_scan_facade.normalize_repo_scan_payload
+_normalize_repo_scan_metadata_paths = (
+    _repo_scan_facade.normalize_repo_scan_metadata_paths
+)
 _prepare_repo_scan_inputs = _repo_scan_facade.prepare_repo_scan_inputs
 _repo_name_from_url = _repo_scan_facade.repo_name_from_url
 _repo_path_looks_like_role = _repo_scan_facade.repo_path_looks_like_role
 _repo_scan_workspace = _repo_scan_facade.repo_scan_workspace
+_run_repo_scan = _repo_scan_facade.run_repo_scan
 _resolve_repo_scan_target = _repo_scan_facade.resolve_repo_scan_target
-_resolve_repo_scan_scanner_report_relpath = _repo_scan_facade.resolve_repo_scan_scanner_report_relpath
+_resolve_repo_scan_scanner_report_relpath = (
+    _repo_scan_facade.resolve_repo_scan_scanner_report_relpath
+)
 _resolve_style_readme_candidate = _repo_scan_facade.resolve_style_readme_candidate
 
 _build_repo_style_readme_candidates = _repo_build_repo_style_readme_candidates
@@ -82,6 +104,7 @@ _COLLECTION_ROLE_FAILURE_CODES: tuple[tuple[type[Exception], str, str], ...] = (
     (ValueError, ROLE_CONTENT_INVALID, "validation"),
     (RuntimeError, ROLE_SCAN_RUNTIME_ERROR, "runtime"),
 )
+
 
 def _collection_role_failure_details(exc: Exception) -> tuple[str, str, str | None]:
     if isinstance(exc, PrismRuntimeError):
@@ -130,7 +153,9 @@ def _build_failure_record(
     exc: Exception,
     include_traceback: bool,
 ) -> dict[str, Any]:
-    error_code, error_category, error_detail_code = _collection_role_failure_details(exc)
+    error_code, error_category, error_detail_code = _collection_role_failure_details(
+        exc
+    )
     traceback_text = (
         "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
         if include_traceback
@@ -160,197 +185,43 @@ def _build_failure_record(
     return failure
 
 
-def _load_yaml_document(path: Path) -> dict[str, Any] | list[Any] | None:
-    if not path.is_file():
-        return None
-    try:
-        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except UnicodeDecodeError as exc:
-        raise PrismRuntimeError(
-            code=ROLE_CONTENT_ENCODING_INVALID,
-            category="io",
-            message=f"failed to decode YAML document: {path}",
-            detail={"path": str(path)},
-        ) from exc
-    except yaml.YAMLError as exc:
-        raise PrismRuntimeError(
-            code=ROLE_CONTENT_YAML_INVALID,
-            category="parser",
-            message=f"failed to parse YAML document: {path}",
-            detail={"path": str(path)},
-        ) from exc
-    except OSError as exc:
-        raise PrismRuntimeError(
-            code=ROLE_CONTENT_IO_ERROR,
-            category="io",
-            message=f"failed to read YAML document: {path}",
-            detail={"path": str(path)},
-        ) from exc
-    if isinstance(loaded, (dict, list)):
-        return loaded
-    return None
-
-
-def _requirements_entries_from_document(document: Any) -> list[dict[str, Any]]:
-    if isinstance(document, list):
-        return [item for item in document if isinstance(item, dict)]
-    if isinstance(document, dict):
-        entries: list[dict[str, Any]] = []
-        for key in ("collections", "roles"):
-            value = document.get(key)
-            if isinstance(value, list):
-                entries.extend(item for item in value if isinstance(item, dict))
-        return entries
-    return []
-
-
-def _collection_dependency_key(entry: dict[str, Any], index: int) -> str | None:
-    name = str(entry.get("name") or "").strip()
-    if name and "." in name:
-        return name
-    src = str(entry.get("src") or "").strip()
-    if src and "." in src and "/" not in src:
-        return src
-    return None
-
-
-def _role_dependency_key(entry: dict[str, Any], index: int) -> str:
-    name = str(entry.get("name") or "").strip()
-    if name:
-        return name
-    src = str(entry.get("src") or "").strip()
-    if src:
-        return src
-    return f"unknown:{index}"
-
-
-def _merge_dependency_entry(
-    bucket: dict[str, dict[str, Any]],
-    *,
-    key: str,
-    dep_type: str,
-    entry: dict[str, Any],
-    source: str,
-) -> None:
-    item = bucket.setdefault(
-        key,
-        {
-            "key": key,
-            "type": dep_type,
-            "name": str(entry.get("name") or "").strip() or None,
-            "src": str(entry.get("src") or "").strip() or None,
-            "versions": set(),
-            "sources": set(),
-            "raw": [],
-        },
-    )
-    version = str(entry.get("version") or "").strip()
-    if version:
-        item["versions"].add(version)
-    item["sources"].add(source)
-    item["raw"].append(dict(entry))
-
-
-def _finalize_dependency_bucket(
-    bucket: dict[str, dict[str, Any]], conflict_label: str
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    conflicts: list[dict[str, Any]] = []
-    items: list[dict[str, Any]] = []
-    for key in sorted(bucket):
-        item = bucket[key]
-        versions = sorted(item["versions"])
-        sources = sorted(item["sources"])
-        finalized = {
-            "key": item["key"],
-            "type": item["type"],
-            "name": item["name"],
-            "src": item["src"],
-            "version": versions[0] if len(versions) == 1 else None,
-            "versions": versions,
-            "sources": sources,
-        }
-        items.append(finalized)
-        if len(versions) > 1:
-            conflicts.append(
-                {
-                    "conflict": conflict_label,
-                    "key": key,
-                    "versions": versions,
-                    "sources": sources,
-                }
-            )
-    return items, conflicts
-
-
 def _aggregate_collection_dependencies(collection_root: Path) -> dict[str, Any]:
-    collection_bucket: dict[str, dict[str, Any]] = {}
-    role_bucket: dict[str, dict[str, Any]] = {}
+    """Delegate to the canonical collection_dependencies module."""
+    return aggregate_collection_dependencies(collection_root)
 
-    sources: list[tuple[Path, str]] = []
-    sources.append(
-        (
-            collection_root / "collections" / "requirements.yml",
-            "collections/requirements.yml",
-        )
-    )
-    sources.append(
-        (
-            collection_root / "roles" / "requirements.yml",
-            "roles/requirements.yml",
-        )
-    )
 
-    roles_dir = collection_root / "roles"
-    if roles_dir.is_dir():
-        for role_dir in sorted(path for path in roles_dir.iterdir() if path.is_dir()):
-            rel_source = f"roles/{role_dir.name}/meta/requirements.yml"
-            sources.append((role_dir / "meta" / "requirements.yml", rel_source))
-
-    for req_path, source_label in sources:
-        document = _load_yaml_document(req_path)
-        entries = _requirements_entries_from_document(document)
-        for index, entry in enumerate(entries):
-            entry_type = str(entry.get("type") or "").strip().lower()
-            if req_path.parts[-2:] == ("collections", "requirements.yml"):
-                entry_type = "collection"
-            elif req_path.parts[-2:] == ("roles", "requirements.yml"):
-                entry_type = "role"
-
-            if entry_type == "collection":
-                key = _collection_dependency_key(entry, index)
-                if key:
-                    _merge_dependency_entry(
-                        collection_bucket,
-                        key=key,
-                        dep_type="collection",
-                        entry=entry,
-                        source=source_label,
-                    )
-                continue
-
-            key = _role_dependency_key(entry, index)
-            _merge_dependency_entry(
-                role_bucket,
-                key=key,
-                dep_type="role",
-                entry=entry,
-                source=source_label,
-            )
-
-    collections, collection_conflicts = _finalize_dependency_bucket(
-        collection_bucket,
-        "version_conflict",
-    )
-    roles, role_conflicts = _finalize_dependency_bucket(
-        role_bucket,
-        "dependency_conflict",
+def _render_collection_role_readme(
+    *,
+    payload: dict[str, Any],
+    role_name: str,
+) -> str:
+    return render_readme(
+        output="README.md",
+        role_name=str(payload.get("role_name") or role_name),
+        description=str(payload.get("description") or ""),
+        variables=(payload.get("variables") or {}),
+        requirements=(payload.get("requirements") or []),
+        default_filters=(payload.get("default_filters") or []),
+        metadata=(payload.get("metadata") or {}),
+        write=False,
     )
 
-    return {
-        "collections": collections,
-        "roles": roles,
-        "conflicts": [*collection_conflicts, *role_conflicts],
-    }
+
+def _write_collection_role_runbook_artifacts(
+    *,
+    role_name: str,
+    payload: dict[str, Any],
+    runbook_output_dir: str | None,
+    runbook_csv_output_dir: str | None,
+) -> None:
+    write_collection_runbook_artifacts(
+        role_name=role_name,
+        metadata=(payload.get("metadata") or {}),
+        runbook_output_dir=runbook_output_dir,
+        runbook_csv_output_dir=runbook_csv_output_dir,
+        render_runbook_fn=render_runbook,
+        render_runbook_csv_fn=render_runbook_csv,
+    )
 
 
 def scan_collection(
@@ -436,25 +307,18 @@ def scan_collection(
 
             rendered_readme = None
             if include_rendered_readme:
-                rendered_readme = render_readme(
-                    output="README.md",
-                    role_name=str(payload.get("role_name") or role_dir.name),
-                    description=str(payload.get("description") or ""),
-                    variables=(payload.get("variables") or {}),
-                    requirements=(payload.get("requirements") or []),
-                    default_filters=(payload.get("default_filters") or []),
-                    metadata=(payload.get("metadata") or {}),
-                    write=False,
+                rendered_readme = _render_collection_role_readme(
+                    payload=payload,
+                    role_name=role_dir.name,
                 )
 
-            write_collection_runbook_artifacts(
-                role_name=role_dir.name,
-                metadata=(payload.get("metadata") or {}),
-                runbook_output_dir=runbook_output_dir,
-                runbook_csv_output_dir=runbook_csv_output_dir,
-                render_runbook_fn=render_runbook,
-                render_runbook_csv_fn=render_runbook_csv,
-            )
+            if runbook_output_dir or runbook_csv_output_dir:
+                _write_collection_role_runbook_artifacts(
+                    role_name=role_dir.name,
+                    payload=payload,
+                    runbook_output_dir=runbook_output_dir,
+                    runbook_csv_output_dir=runbook_csv_output_dir,
+                )
 
             role_entries.append(
                 {
@@ -492,28 +356,6 @@ def scan_collection(
             "failed_roles": len(failures),
         },
     }
-
-
-def _normalize_repo_style_guide_path(
-    payload: dict[str, Any], repo_style_readme_path: str | None
-) -> dict[str, Any]:
-    """Backward-compatible wrapper around repo scan metadata normalization."""
-    try:
-        normalized_payload = _normalize_repo_scan_result_payload(
-            payload,
-            repo_style_readme_path=repo_style_readme_path,
-        )
-    except PrismRuntimeError as exc:
-        if exc.code in {
-            REPO_SCAN_PAYLOAD_JSON_INVALID,
-            REPO_SCAN_PAYLOAD_TYPE_INVALID,
-            REPO_SCAN_PAYLOAD_SHAPE_INVALID,
-        }:
-            return payload
-        raise
-    if isinstance(normalized_payload, dict):
-        return normalized_payload
-    return payload
 
 
 def scan_role(
@@ -624,33 +466,16 @@ def scan_repo(
     that want to orchestrate scans programmatically.
     """
 
-    with _repo_scan_workspace() as workspace:
-        checkout = _resolve_repo_scan_target(
-            repo_url=repo_url,
-            workspace=workspace,
-            repo_role_path=repo_role_path,
-            repo_style_readme_path=repo_style_readme_path,
-            style_readme_path=style_readme_path,
-            repo_ref=repo_ref,
-            repo_timeout=repo_timeout,
-            lightweight_readme_only=lightweight_readme_only,
-            checkout_repo_lightweight_style_readme_fn=_checkout_repo_lightweight_style_readme,
-            checkout_repo_scan_role_fn=_checkout_repo_scan_role,
-            prepare_repo_scan_inputs_fn=_prepare_repo_scan_inputs,
-            fetch_repo_directory_names_fn=_fetch_repo_directory_names,
-            repo_path_looks_like_role_fn=_repo_path_looks_like_role,
-            fetch_repo_file_fn=_fetch_repo_file,
-            clone_repo_fn=_clone_repo,
-            build_lightweight_sparse_clone_paths_fn=_build_lightweight_sparse_clone_paths,
-            build_sparse_clone_paths_fn=_build_sparse_clone_paths,
-            resolve_style_readme_candidate_fn=_resolve_style_readme_candidate,
-        )
-
-        payload = scan_role(
-            str(checkout.role_path),
+    def _scan_repo_role(
+        role_path: str,
+        effective_style_readme_path: str | None,
+        role_name_override: str,
+    ) -> RoleScanResult:
+        return scan_role(
+            role_path,
             compare_role_path=compare_role_path,
-            style_readme_path=checkout.effective_style_readme_path,
-            role_name_override=_repo_name_from_url(repo_url),
+            style_readme_path=effective_style_readme_path,
+            role_name_override=role_name_override,
             vars_seed_paths=vars_seed_paths,
             concise_readme=concise_readme,
             scanner_report_output=scanner_report_output,
@@ -674,18 +499,55 @@ def scan_repo(
             inline_task_runbooks=inline_task_runbooks,
             failure_policy=failure_policy,
         )
-        normalized_repo_style_readme_path = checkout.resolved_repo_style_readme_path
-        if repo_style_readme_path:
-            normalized_repo_style_readme_path = repo_style_readme_path
-        return _normalize_repo_scan_metadata_paths(
-            payload,
-            repo_style_readme_path=normalized_repo_style_readme_path,
-            scanner_report_relpath=_resolve_repo_scan_scanner_report_relpath(
-                concise_readme=concise_readme,
-                scanner_report_output=scanner_report_output,
-                primary_output_path="scan.json",
-            ),
-        )
+
+    repo_intake_components = _build_repo_intake_components(
+        prepare_repo_scan_inputs_fn=_prepare_repo_scan_inputs,
+        fetch_repo_directory_names_fn=_fetch_repo_directory_names,
+        repo_path_looks_like_role_fn=_repo_path_looks_like_role,
+        fetch_repo_file_fn=_fetch_repo_file,
+        clone_repo_fn=_clone_repo,
+        build_sparse_clone_paths_fn=_build_sparse_clone_paths,
+        build_lightweight_sparse_clone_paths_fn=_build_lightweight_sparse_clone_paths,
+        resolve_style_readme_candidate_fn=_resolve_style_readme_candidate,
+    )
+
+    run_result = _run_repo_scan(
+        repo_url=repo_url,
+        repo_role_path=repo_role_path,
+        repo_style_readme_path=repo_style_readme_path,
+        style_readme_path=style_readme_path,
+        repo_ref=repo_ref,
+        repo_timeout=repo_timeout,
+        lightweight_readme_only=lightweight_readme_only,
+        create_style_guide=False,
+        style_source_path=style_source_path,
+        scan_fn=_scan_repo_role,
+        repo_scan_workspace_fn=_repo_scan_workspace,
+        resolve_repo_scan_target_fn=_resolve_repo_scan_target,
+        checkout_repo_lightweight_style_readme_fn=_checkout_repo_lightweight_style_readme,
+        checkout_repo_scan_role_fn=_checkout_repo_scan_role,
+        repo_intake_components=repo_intake_components,
+        repo_name_from_url_fn=_repo_name_from_url,
+    )
+
+    payload = run_result.scan_output
+    normalized_repo_style_readme_path = (
+        run_result.checkout.resolved_repo_style_readme_path
+    )
+    if repo_style_readme_path:
+        normalized_repo_style_readme_path = repo_style_readme_path
+    normalized = _normalize_repo_scan_payload(
+        payload,
+        repo_style_readme_path=normalized_repo_style_readme_path,
+        scanner_report_relpath=_resolve_repo_scan_scanner_report_relpath(
+            concise_readme=concise_readme,
+            scanner_report_output=scanner_report_output,
+            primary_output_path="scan.json",
+        ),
+    )
+    if isinstance(normalized, dict):
+        return normalized
+    return payload
 
 
 __all__ = ["scan_collection", "scan_repo", "scan_role"]
