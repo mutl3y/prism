@@ -22,10 +22,11 @@ from prism.scanner_readme.style import (
     format_heading,
     normalize_style_heading,
     parse_style_readme,
-    _refresh_policy_derived_state,
+    _refresh_policy_derived_state as _refresh_style_policy_derived_state,
 )
 from prism.scanner_readme.guide import (
     _render_guide_section_body,
+    refresh_policy_derived_state as _refresh_guide_policy_derived_state,
 )
 from prism.scanner_readme.doc_insights import (
     build_doc_insights,
@@ -35,7 +36,14 @@ from prism.scanner_readme.doc_insights import (
 # Public wrappers for scanner facade imports; avoid cross-package private imports.
 append_scanner_report_section_if_enabled = _append_scanner_report_section_if_enabled
 render_guide_section_body = _render_guide_section_body
-refresh_policy_derived_state = _refresh_policy_derived_state
+
+
+def refresh_policy_derived_state(policy: dict) -> None:
+    """Refresh legacy README policy-derived defaults for compatibility callers."""
+
+    _refresh_style_policy_derived_state(policy)
+    _refresh_guide_policy_derived_state(policy)
+
 
 __all__ = [
     "DEFAULT_SECTION_SPECS",

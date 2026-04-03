@@ -8,6 +8,7 @@ from prism.scanner_core import ScanContextBuilder
 from prism.scanner_core import scan_request
 from prism.scanner_core import scan_runtime
 from prism.scanner_data import ScanContextPayload, contracts
+from prism.scanner_readme import guide as readme_guide
 from prism.tests import _scan_context_execution_tail as scan_context_execution_tail
 
 
@@ -355,6 +356,40 @@ def test_build_variable_insights_uses_per_scan_ignored_identifier_context(tmp_pa
     )
 
     assert all(row["name"] != "bertrum_runtime_only_ignored" for row in policy_rows)
+
+
+def test_render_guide_section_body_uses_request_scoped_variable_guidance_keywords():
+    metadata = {
+        "variable_insights": [
+            {"name": "zzzz_nonpriority_alpha", "default": "keep"},
+            {"name": "bertrum_runtime_choice", "default": "pick"},
+        ]
+    }
+
+    before = scanner._render_guide_section_body(
+        "variable_guidance",
+        "demo",
+        "",
+        {},
+        [],
+        [],
+        metadata,
+    )
+    assert "zzzz_nonpriority_alpha" in before
+
+    with readme_guide.variable_guidance_keywords_scope(("bertrum_runtime",)):
+        after = scanner._render_guide_section_body(
+            "variable_guidance",
+            "demo",
+            "",
+            {},
+            [],
+            [],
+            metadata,
+        )
+
+    assert "bertrum_runtime_choice" in after
+    assert "zzzz_nonpriority_alpha" not in after
 
 
 def test_policy_context_annotations_use_typed_contract_across_runtime_seams():

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar, Token
+
 from prism.scanner_readme.style import (
     _render_role_notes_section,
     _render_role_variables_for_style,
@@ -16,6 +19,37 @@ _POLICY = load_pattern_config()
 _VARIABLE_GUIDANCE_KEYWORDS: tuple[str, ...] = tuple(
     _POLICY["variable_guidance"]["priority_keywords"]
 )
+_VARIABLE_GUIDANCE_KEYWORDS_OVERRIDE: ContextVar[tuple[str, ...] | None] = ContextVar(
+    "prism_readme_variable_guidance_keywords_override",
+    default=None,
+)
+
+
+@contextmanager
+def variable_guidance_keywords_scope(
+    variable_guidance_keywords: tuple[str, ...] | None,
+):
+    """Apply request-scoped variable-guidance keywords for README rendering."""
+
+    token: Token[tuple[str, ...] | None] = _VARIABLE_GUIDANCE_KEYWORDS_OVERRIDE.set(
+        variable_guidance_keywords
+    )
+    try:
+        yield
+    finally:
+        _VARIABLE_GUIDANCE_KEYWORDS_OVERRIDE.reset(token)
+
+
+def refresh_policy_derived_state(policy: dict) -> None:
+    """Refresh default variable-guidance keywords for legacy in-process callers."""
+
+    global _POLICY
+    global _VARIABLE_GUIDANCE_KEYWORDS
+
+    _POLICY = policy
+    _VARIABLE_GUIDANCE_KEYWORDS = tuple(
+        policy.get("variable_guidance", {}).get("priority_keywords") or ()
+    )
 
 
 def _render_guide_identity_sections(
@@ -153,7 +187,11 @@ def _render_variable_guidance_section(
     if not rows:
         return "No variable guidance available because no variable defaults were discovered."
 
-    keywords = variable_guidance_keywords or _VARIABLE_GUIDANCE_KEYWORDS
+    keywords = variable_guidance_keywords
+    if keywords is None:
+        keywords = _VARIABLE_GUIDANCE_KEYWORDS_OVERRIDE.get()
+    if keywords is None:
+        keywords = _VARIABLE_GUIDANCE_KEYWORDS
     priority = [
         row for row in rows if any(keyword in row["name"] for keyword in keywords)
     ]
