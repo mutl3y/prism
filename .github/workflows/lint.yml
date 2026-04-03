@@ -65,3 +65,31 @@ jobs:
         env:
           # To report GitHub Actions status checks
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  plugin-comment-highlighter:
+    name: Plugin Comment Highlighter
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Install plugin dependencies
+        working-directory: plugins/prism-comment-highlighter
+        run: npm ci
+
+      - name: Check plugin formatting
+        working-directory: plugins/prism-comment-highlighter
+        run: npm run format:check
+
+      - name: Lint plugin sources
+        working-directory: plugins/prism-comment-highlighter
+        run: npm run lint
+
+      - name: Typecheck plugin sources
+        working-directory: plugins/prism-comment-highlighter
+        run: npm run check
+
+      - name: Test plugin
+        working-directory: plugins/prism-comment-highlighter
+        run: npm test
