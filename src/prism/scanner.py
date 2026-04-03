@@ -8,6 +8,7 @@ metadata and variables, and render a README using a Jinja2 template.
 from __future__ import annotations
 
 import copy
+from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 import re
@@ -115,6 +116,7 @@ from prism.scanner_readme import (
     parse_style_readme,
     render_guide_section_body as _readme_render_guide_section_body,
 )
+from prism.scanner_readme import guide as _readme_guide
 from prism.scanner_readme import render_readme as _readme_render_readme
 from prism.scanner_readme import style as _readme_style
 
@@ -794,9 +796,7 @@ def _render_guide_section_body(
         requirements,
         default_filters,
         metadata,
-        variable_guidance_keywords=(
-            variable_guidance_keywords or _VARIABLE_GUIDANCE_KEYWORDS
-        ),
+        variable_guidance_keywords=variable_guidance_keywords,
     )
 
 
@@ -1098,6 +1098,23 @@ def _build_runtime_scan_state(
     return loaded_policy, policy_context, scan_options
 
 
+@contextmanager
+def _scan_policy_scope(
+    *,
+    loaded_policy: dict[str, Any],
+    policy_context: _PolicyContext,
+):
+    """Apply request-scoped policy overrides used by one scanner execution."""
+    with _variable_extractor.policy_override_scope(
+        loaded_policy
+    ), _readme_style.style_section_aliases_scope(
+        dict(policy_context["section_aliases"])
+    ), _readme_guide.variable_guidance_keywords_scope(
+        tuple(policy_context["variable_guidance_keywords"])
+    ):
+        yield
+
+
 def _run_scan_payload(
     role_path: str,
     *,
@@ -1159,10 +1176,9 @@ def _run_scan_payload(
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
     )
-    with _variable_extractor.policy_override_scope(
-        loaded_policy
-    ), _readme_style.style_section_aliases_scope(
-        dict(policy_context["section_aliases"])
+    with _scan_policy_scope(
+        loaded_policy=loaded_policy,
+        policy_context=policy_context,
     ):
         return _orchestrate_scan_payload(
             role_path=role_path,
@@ -1237,10 +1253,9 @@ def run_scan(
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
     )
-    with _variable_extractor.policy_override_scope(
-        loaded_policy
-    ), _readme_style.style_section_aliases_scope(
-        dict(policy_context["section_aliases"])
+    with _scan_policy_scope(
+        loaded_policy=loaded_policy,
+        policy_context=policy_context,
     ):
         return _execute_scan_with_context(
             role_path=role_path,
