@@ -2,9 +2,12 @@ import json
 import pytest
 
 from prism import repo_services
-from prism import repo_intake
-from prism import repo_metadata
 from prism import errors as prism_errors
+from prism.tests._boundary_acceptance import (
+    assert_callable_aliases_expose_contract,
+    assert_named_exports_exist,
+    assert_repo_scan_facade_contract,
+)
 
 
 def test_normalize_repo_scan_result_payload_supports_dict_payloads():
@@ -115,70 +118,105 @@ def test_build_repo_intake_error_preserves_classified_dimensions():
     assert err["cause_type"] == "RuntimeError"
 
 
-def test_repo_services_private_helpers_delegate_to_decomposed_modules():
-    assert repo_services._clone_repo is repo_intake._clone_repo
-    assert repo_services._repo_scan_workspace is repo_intake._repo_scan_workspace
-    assert (
-        repo_services._checkout_repo_scan_role is repo_intake._checkout_repo_scan_role
+def test_repo_services_declares_canonical_surface_registers() -> None:
+    assert_named_exports_exist(
+        repo_services, repo_services.REPO_SERVICE_CANONICAL_SURFACE
     )
-    assert (
-        repo_services._prepare_repo_scan_inputs is repo_intake._prepare_repo_scan_inputs
+    assert_named_exports_exist(
+        repo_services, repo_services.REPO_SERVICE_COMPATIBILITY_SEAMS
     )
 
-    assert repo_services._fetch_repo_file is repo_metadata._fetch_repo_file
-    assert (
-        repo_services._fetch_repo_contents_payload
-        is repo_metadata._fetch_repo_contents_payload
-    )
-    assert repo_services._repo_name_from_url is repo_metadata._repo_name_from_url
-    assert (
-        repo_services._normalize_repo_scan_result_payload
-        is repo_metadata._normalize_repo_scan_result_payload
+
+def test_repo_services_private_helpers_delegate_to_decomposed_modules():
+    assert_callable_aliases_expose_contract(
+        repo_services,
+        (
+            "_clone_repo",
+            "_repo_scan_workspace",
+            "_checkout_repo_scan_role",
+            "_prepare_repo_scan_inputs",
+            "_fetch_repo_file",
+            "_fetch_repo_contents_payload",
+            "_repo_name_from_url",
+            "_normalize_repo_scan_result_payload",
+        ),
+        expected_owner_modules={
+            "_clone_repo": "prism.repo_layer.intake",
+            "_repo_scan_workspace": "prism.repo_layer.intake",
+            "_checkout_repo_scan_role": "prism.repo_layer.intake",
+            "_prepare_repo_scan_inputs": "prism.repo_layer.intake",
+            "_fetch_repo_file": "prism.repo_layer.metadata",
+            "_fetch_repo_contents_payload": "prism.repo_layer.metadata",
+            "_repo_name_from_url": "prism.repo_layer.metadata",
+            "_normalize_repo_scan_result_payload": "prism.repo_layer.metadata",
+        },
     )
 
 
 def test_repo_services_public_aliases_preserve_behavior_surface():
-    assert repo_services.clone_repo is repo_intake._clone_repo
-    assert (
-        repo_services.prepare_repo_scan_inputs is repo_intake._prepare_repo_scan_inputs
+    assert_callable_aliases_expose_contract(
+        repo_services,
+        (
+            "clone_repo",
+            "prepare_repo_scan_inputs",
+            "repo_scan_workspace",
+            "fetch_repo_directory_names",
+            "fetch_repo_file",
+            "repo_name_from_url",
+        ),
+        expected_owner_modules={
+            "clone_repo": "prism.repo_layer.intake",
+            "prepare_repo_scan_inputs": "prism.repo_layer.intake",
+            "repo_scan_workspace": "prism.repo_layer.intake",
+            "fetch_repo_directory_names": "prism.repo_layer.metadata",
+            "fetch_repo_file": "prism.repo_layer.metadata",
+            "repo_name_from_url": "prism.repo_layer.metadata",
+        },
     )
-    assert repo_services.repo_scan_workspace is repo_intake._repo_scan_workspace
-
     assert (
-        repo_services.fetch_repo_directory_names
-        is repo_metadata._fetch_repo_directory_names
+        repo_services.repo_name_from_url("https://github.com/example/demo-role.git")
+        == "demo-role"
     )
-    assert repo_services.fetch_repo_file is repo_metadata._fetch_repo_file
-    assert repo_services.repo_name_from_url is repo_metadata._repo_name_from_url
 
 
 def test_repo_scan_facade_exposes_cohesive_api_surface():
     facade = repo_services.repo_scan_facade
-
-    assert facade.clone_repo is repo_services.clone_repo
-    assert facade.repo_scan_workspace is repo_services.repo_scan_workspace
-    assert facade.checkout_repo_scan_role is repo_services.checkout_repo_scan_role
-    assert (
-        facade.checkout_repo_lightweight_style_readme
-        is repo_services.checkout_repo_lightweight_style_readme
-    )
-    assert facade.resolve_repo_scan_target is repo_services.resolve_repo_scan_target
-    assert (
-        facade.normalize_repo_scan_metadata_paths
-        is repo_services.normalize_repo_scan_metadata_paths
+    assert_callable_aliases_expose_contract(
+        facade,
+        (
+            "clone_repo",
+            "repo_scan_workspace",
+            "checkout_repo_scan_role",
+            "checkout_repo_lightweight_style_readme",
+            "resolve_repo_scan_target",
+            "normalize_repo_scan_metadata_paths",
+        ),
+        expected_owner_modules={
+            "clone_repo": "prism.repo_layer.intake",
+            "repo_scan_workspace": "prism.repo_layer.intake",
+            "checkout_repo_scan_role": "prism.repo_layer.intake",
+            "checkout_repo_lightweight_style_readme": "prism.repo_layer.intake",
+            "resolve_repo_scan_target": "prism.repo_services",
+            "normalize_repo_scan_metadata_paths": "prism.repo_layer.metadata",
+        },
     )
 
 
 def test_repo_scan_facade_exposes_api_compatibility_contracts():
     facade = repo_services.repo_scan_facade
-
-    assert (
-        facade.build_repo_intake_components
-        is repo_services.build_repo_intake_components
-    )
-    assert facade.run_repo_scan is repo_services.run_repo_scan
-    assert (
-        facade.normalize_repo_scan_payload is repo_services.normalize_repo_scan_payload
+    assert_repo_scan_facade_contract(facade)
+    assert_callable_aliases_expose_contract(
+        facade,
+        (
+            "build_repo_intake_components",
+            "run_repo_scan",
+            "normalize_repo_scan_payload",
+        ),
+        expected_owner_modules={
+            "build_repo_intake_components": "prism.repo_services",
+            "run_repo_scan": "prism.repo_services",
+            "normalize_repo_scan_payload": "prism.repo_services",
+        },
     )
 
 

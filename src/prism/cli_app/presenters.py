@@ -1,4 +1,4 @@
-"""Presentation helpers for prism CLI commands."""
+"""Package-owned presentation helpers for Prism CLI."""
 
 from __future__ import annotations
 
@@ -9,70 +9,70 @@ import shutil
 
 import yaml
 
-from .scanner_io.collection_renderer import render_collection_markdown
+from prism.scanner_io.collection_renderer import render_collection_markdown
 
-_CAPTURE_SCHEMA_VERSION = 1
-_CAPTURE_MAX_SECTIONS = 50
-_CAPTURE_MAX_CONTENT_CHARS = 20000
-_CAPTURE_MAX_TOTAL_CHARS = 1_000_000
-_TRUNCATION_MARKER = "\n[truncated]"
+CAPTURE_SCHEMA_VERSION = 1
+CAPTURE_MAX_SECTIONS = 50
+CAPTURE_MAX_CONTENT_CHARS = 20000
+CAPTURE_MAX_TOTAL_CHARS = 1_000_000
+TRUNCATION_MARKER = "\n[truncated]"
 
-_REDACTION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+REDACTION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(
-            r"(?im)\\b(password|passwd|token|secret|api[_-]?key)\\b\\s*[:=]\\s*([^\\s]+)"
+            r"(?im)\b(password|passwd|token|secret|api[_-]?key)\b\s*[:=]\s*([^\s]+)"
         ),
-        r"\\1: <redacted>",
+        r"\1: <redacted>",
     ),
     (
-        re.compile(r"(?i)\\b(bearer)\\s+[A-Za-z0-9._~+/-]+=*"),
-        r"\\1 <redacted>",
+        re.compile(r"(?i)\b(bearer)\s+[A-Za-z0-9._~+/-]+=*"),
+        r"\1 <redacted>",
     ),
 )
 
 
-class _ReadableYamlDumper(yaml.SafeDumper):
+class ReadableYamlDumper(yaml.SafeDumper):
     """YAML dumper that emits multiline strings as literal blocks."""
 
 
-def _str_presenter(dumper: yaml.SafeDumper, data: str) -> yaml.nodes.ScalarNode:
+def str_presenter(dumper: yaml.SafeDumper, data: str) -> yaml.nodes.ScalarNode:
     if "\n" in data:
         return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
     return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
 
-_ReadableYamlDumper.add_representer(str, _str_presenter)
+ReadableYamlDumper.add_representer(str, str_presenter)
 
 
-def _sanitize_captured_content(text: str) -> str:
+def sanitize_captured_content(text: str) -> str:
     sanitized = text
-    for pattern, replacement in _REDACTION_PATTERNS:
+    for pattern, replacement in REDACTION_PATTERNS:
         sanitized = pattern.sub(replacement, sanitized)
     return sanitized
 
 
-def _truncate_content(text: str, max_chars: int) -> tuple[str, bool]:
+def truncate_content(text: str, max_chars: int) -> tuple[str, bool]:
     if len(text) <= max_chars:
         return text, False
     clipped = text[:max_chars].rstrip()
-    return f"{clipped}{_TRUNCATION_MARKER}", True
+    return f"{clipped}{TRUNCATION_MARKER}", True
 
 
-def _as_dict(value: object) -> dict:
+def as_dict(value: object) -> dict:
     return value if isinstance(value, dict) else {}
 
 
-def _bounded_list(items: list[dict], limit: int) -> tuple[list[dict], int]:
+def bounded_list(items: list[dict], limit: int) -> tuple[list[dict], int]:
     if len(items) <= limit:
         return items, 0
     return items[:limit], len(items) - limit
 
 
-def _render_collection_markdown(payload: dict) -> str:
+def render_collection_markdown_payload(payload: dict) -> str:
     return render_collection_markdown(payload)
 
 
-def _emit_success(
+def emit_success(
     args: object,
     outpath: str,
     style_source_path: str | None = None,
@@ -90,7 +90,7 @@ def _emit_success(
     return 0
 
 
-def _save_style_comparison_artifacts(
+def save_style_comparison_artifacts(
     style_readme_path: str | None,
     generated_output: str,
     style_source_name: str | None = None,
@@ -98,10 +98,10 @@ def _save_style_comparison_artifacts(
     keep_unknown_style_sections: bool = False,
     *,
     parse_style_readme_fn,
-    capture_schema_version: int = _CAPTURE_SCHEMA_VERSION,
-    capture_max_sections: int = _CAPTURE_MAX_SECTIONS,
-    capture_max_content_chars: int = _CAPTURE_MAX_CONTENT_CHARS,
-    capture_max_total_chars: int = _CAPTURE_MAX_TOTAL_CHARS,
+    capture_schema_version: int = CAPTURE_SCHEMA_VERSION,
+    capture_max_sections: int = CAPTURE_MAX_SECTIONS,
+    capture_max_content_chars: int = CAPTURE_MAX_CONTENT_CHARS,
+    capture_max_total_chars: int = CAPTURE_MAX_TOTAL_CHARS,
 ) -> tuple[str | None, str | None]:
     if not style_readme_path:
         return None, None
@@ -171,21 +171,21 @@ def _save_style_comparison_artifacts(
             break
 
         title = str(section.get("title") or "").strip()
-        key = re.sub(r"\\s+", " ", title).lower()
+        key = re.sub(r"\s+", " ", title).lower()
         if not key or key in seen_keys:
             continue
         seen_keys.add(key)
 
         body = str(section.get("body") or "").strip()
-        body = _sanitize_captured_content(body)
-        body, truncated_one = _truncate_content(body, capture_max_content_chars)
+        body = sanitize_captured_content(body)
+        body, truncated_one = truncate_content(body, capture_max_content_chars)
         if truncated_one:
             truncated_any = True
 
         proposed_chars = total_chars + len(title) + len(body)
         if proposed_chars > capture_max_total_chars:
             remaining = max(0, capture_max_total_chars - total_chars - len(title))
-            body, _ = _truncate_content(body, remaining)
+            body, _ = truncate_content(body, remaining)
             truncated_any = True
 
         unknown_sections.append({"title": title, "content": body})
@@ -212,7 +212,7 @@ def _save_style_comparison_artifacts(
         "# to keep unknown style sections as your source-of-truth.",
         yaml.dump(
             payload,
-            Dumper=_ReadableYamlDumper,
+            Dumper=ReadableYamlDumper,
             sort_keys=False,
             default_flow_style=False,
             width=10000,

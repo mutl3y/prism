@@ -1,0 +1,464 @@
+plan_id: prism-architecture-review-top50-20260401
+objective: Finalize the CLI/API package split by retiring transitional facade clutter, freezing the intentional compatibility seam register, and closing the full validation gate.
+created_at: "2026-04-03T00:00:00Z"
+created_by: codex
+status: completed
+research_confidence: high
+
+backlog_authority:
+  canonical_register: docs/plan/prism-architecture-review-top50-20260401/plan.yaml
+  artifact_role: focused_follow_up_finalization_slice
+  authority_note: This slice follows plan_e closure, narrows the final package-split cleanup lane, and defers canonical risk authority to plan.yaml.
+
+traceability_contract:
+  source_register: docs/plan/prism-architecture-review-top50-20260401/plan.yaml
+  predecessor_slice: docs/plan/prism-architecture-review-top50-20260401/plan_e.yaml
+  source_issue_ids_expectation:
+    - Each F-task maps to one or more Axx issues from the canonical register.
+    - plan_e is closure context for extraction and E6 contract cleanup; it is not replaced as historical evidence.
+    - Any package-finalization task that removes or deprecates a facade seam must cite live consumer/test evidence before implementation.
+
+plan_metrics:
+  total_waves: 4
+  total_tasks: 6
+  immediate_start_lanes: 1
+  risk_score: medium
+  current_hotspots:
+    - path: src/prism/api.py
+      lines: 459
+    - path: src/prism/cli.py
+      lines: 430
+    - path: src/prism/repo_services.py
+      lines: 422
+  current_transition_seams:
+    - src/prism/api.py
+    - src/prism/cli.py
+    - src/prism/repo_services.py
+  package_owned_implementation:
+    - src/prism/api_layer/common.py
+    - src/prism/api_layer/role.py
+    - src/prism/api_layer/repo.py
+    - src/prism/api_layer/collection.py
+    - src/prism/cli_app/parser.py
+    - src/prism/cli_app/shared.py
+    - src/prism/cli_app/commands.py
+    - src/prism/repo_layer/intake.py
+    - src/prism/repo_layer/metadata.py
+
+tldr: |
+  The package split finalization lane is now complete.
+  What is already true:
+  - api.py and cli.py are stable top-level facades over package-owned internals
+  - api_layer/, cli_app/, and repo_layer/ are the frozen internal package names
+  - reverse-import guardrails are in place and passing
+  - plan_e closed the extraction and first contract-hardening pass
+  - plan_f froze explicit seam registers for api.py, cli.py, and repo_services.py
+  - cli.py now binds directly to cli_app/, and repo_services.py now binds directly to repo_layer/
+  - the full closure bundle passed together
+  Final state:
+  - new extension work should land in api_layer/, cli_app/, and repo_layer/ first
+  - top-level facades retain only documented compatibility and entrypoint seams, without extra top-level CLI or repo helper modules
+  - repo_services.py remains the canonical shared repo facade for API and CLI orchestration
+
+progress_snapshot:
+  completed_context:
+    - plan_e closed E1-E6: package names frozen, reverse-import guardrails added, API/CLI implementation extracted, and brittle alias-identity tests reduced.
+    - plan_f closed F1-F6: seam registers frozen, CLI ownership consolidated, repo helper ownership packaged under repo_layer/, API facade seams curated, and the full validation bundle recorded.
+    - Reverse-import scans show no api_layer -> prism.api, cli_app -> prism.cli, or repo_layer -> prism.repo_services offenders.
+    - Full closure bundle passed together: pytest -q, ruff check src/prism, black --check src/prism, tox -e typecheck.
+  remaining_finalization_theme: []
+
+review_scope:
+  included:
+    - docs/plan/prism-architecture-review-top50-20260401/plan_e.yaml
+    - src/prism/api.py
+    - src/prism/cli.py
+    - src/prism/repo_services.py
+    - src/prism/api_layer/common.py
+    - src/prism/api_layer/role.py
+    - src/prism/api_layer/repo.py
+    - src/prism/api_layer/collection.py
+    - src/prism/cli_app/parser.py
+    - src/prism/cli_app/shared.py
+    - src/prism/cli_app/commands.py
+    - src/prism/repo_layer/intake.py
+    - src/prism/repo_layer/metadata.py
+    - src/prism/tests/test_api.py
+    - src/prism/tests/test_cli_repo.py
+    - src/prism/tests/test_repo_services.py
+    - docs/dev_docs/architecture.md
+  excluded:
+    - scanner.py decomposition outside CLI/API package ownership
+    - non-package scanner follow-up work in guide.py or other scanner_extract lanes
+    - changes to end-user command names or primary public API entrypoint names
+
+current_state_findings:
+  - finding_id: FF1
+    severity: high
+    summary: api.py now has an explicit seam register separating stable entrypoints from retained compatibility seams.
+    evidence:
+      - src/prism/api.py defines API_PUBLIC_ENTRYPOINTS, API_SHARED_REPO_COMPATIBILITY_SEAMS, API_RETAINED_PATCHABLE_SEAMS, and API_TRANSITIONAL_COMPATIBILITY_SEAMS.
+      - src/prism/tests/test_api.py now verifies the documented seam register exists on the facade.
+    implication: Future API cleanup can distinguish intentional compatibility from retirement candidates without rediscovering the surface ad hoc.
+
+  - finding_id: FF2
+    severity: high
+    summary: CLI ownership is now consolidated under cli_app/, and cli.py no longer depends on extra top-level CLI helper modules.
+    evidence:
+      - src/prism/cli_app/presenters.py and src/prism/cli_app/runtime.py now hold canonical presenter/runtime ownership.
+      - cli.py now delegates parser and presenter behavior directly to cli_app modules.
+    implication: New CLI extension work now has one clear default home inside cli_app/ without competing top-level helper files.
+
+  - finding_id: FF3
+    severity: medium
+    summary: repo_services.py is now explicitly frozen as the canonical shared repo facade over a packaged repo_layer implementation.
+    evidence:
+      - src/prism/repo_services.py defines REPO_SERVICE_CANONICAL_SURFACE and REPO_SERVICE_COMPATIBILITY_SEAMS.
+      - src/prism/repo_layer/intake.py and src/prism/repo_layer/metadata.py now own repo clone/workspace and metadata logic.
+      - src/prism/tests/test_repo_services.py verifies the documented canonical surface exists.
+    implication: Shared repo orchestration now has a documented boundary that API and CLI facades can defer to consistently.
+
+  - finding_id: FF4
+    severity: medium
+    summary: Monkeypatch seams were retained deliberately and recorded rather than left implicit.
+    evidence:
+      - src/prism/tests/test_api.py and src/prism/tests/test_cli_repo.py continue to use facade-level monkeypatch seams where the public compatibility contract intentionally allows it.
+      - docs/dev_docs/architecture.md now documents the explicit seam-register rule for api.py, cli.py, and repo_services.py.
+    implication: Future removals now require an explicit seam-retirement decision instead of incidental refactoring.
+
+  - finding_id: FF5
+    severity: low
+    summary: The package split now matches the top-level filesystem shape rather than relying on extra wrapper modules.
+    evidence:
+      - Source search no longer finds active top-level cli_commands.py, cli_presenters.py, repo_intake.py, or repo_metadata.py modules.
+      - Architecture guardrails now cover repo_layer reverse imports in addition to api_layer and cli_app checks.
+    implication: The remaining top-level surface is easier to reason about and less likely to attract new extension work into the wrong location.
+
+recommended_target_shape:
+  stable_facades:
+    - src/prism/api.py
+    - src/prism/cli.py
+    - src/prism/repo_services.py
+  package_owned_internals:
+    - src/prism/api_layer
+    - src/prism/cli_app
+    - src/prism/repo_layer
+  finalization_rule: |
+    Keep api.py, cli.py, and repo_services.py as the only stable top-level facades in
+    this lane. Any remaining helper that is still intended for extension or internal
+    evolution should live under api_layer/, cli_app/, or repo_layer/, or be wrapped by a
+    clearly documented compatibility seam with an explicit retention decision.
+  compatibility_register_expectation:
+    - Enumerate which api.py names are intentionally patchable/public compatibility seams.
+    - Enumerate which cli.py names are intentionally patchable/public compatibility seams.
+    - Enumerate which repo_services.py names are the canonical shared repo facade.
+    - Treat undocumented alias exports as retirement candidates, not permanent surface area.
+
+strategic_decision:
+  decision: Treat package-split finalization as a seam-curation and ownership-consolidation effort, not another extraction wave.
+  rationale:
+    - Extraction and reverse-import control are already complete enough to support package-oriented extension work.
+    - The remaining risk is ambiguity: too many facade-level aliases, duplicate wrapper ownership, and unclear permanence of monkeypatch seams.
+    - A finalization plan should reduce that ambiguity before more feature work accumulates on top of the transitional layout.
+  success_definition:
+    - api.py, cli.py, and repo_services.py each have a documented, intentionally small compatibility surface.
+    - cli_app/, api_layer/, and repo_layer/ are the default homes for new extension work without competing top-level helper ownership.
+    - Remaining compatibility seams are explicit and tested as curated contracts.
+    - The full closure bundle passes together: pytest, ruff, black --check, and tox -e typecheck.
+
+execution_policy:
+  change_unit: small closure-oriented slices with explicit seam-retention decisions
+  commit_template: "arch-finalize(<wave_id>/<task_id>): <short outcome>"
+  priority_rules:
+    - Decide seam ownership before deleting or moving compatibility exports.
+    - Prefer one canonical ownership location per behavior; avoid leaving extra top-level helper modules beside the facades.
+    - Preserve documented monkeypatch seams until an explicit retirement task removes them.
+    - Do not change public entrypoint names unless the canonical register is updated first.
+  telemetry:
+    - Track line counts for api.py, cli.py, and repo_services.py.
+    - Track count of documented compatibility seams in api.py, cli.py, and repo_services.py.
+    - Track count of top-level helpers whose canonical ownership remains outside api_layer/, cli_app/, or repo_layer/.
+
+waves:
+  - wave: 1
+    title: Seam Register Freeze
+    goal: Freeze which facade seams are intentionally public, patchable, and permanent enough to retain through finalization.
+    task_ids:
+      - F1
+      - F2
+  - wave: 2
+    title: CLI Ownership Consolidation
+    goal: Collapse remaining duplicate CLI wrapper ownership and decide the permanent home of presenter logic.
+    task_ids:
+      - F3
+      - F4
+  - wave: 3
+    title: API Facade Finalization
+    goal: Reduce api.py transition clutter to the curated compatibility surface that remains intentionally public.
+    task_ids:
+      - F5
+  - wave: 4
+    title: Closure Gate
+    goal: Validate the finalized split with the full repo closure gate and capture closure evidence.
+    task_ids:
+      - F6
+
+contracts:
+  - from_task: F1
+    to_task: F3
+    interface: approved cli.py compatibility seam register
+    format: documented facade compatibility contract
+  - from_task: F1
+    to_task: F5
+    interface: approved api.py compatibility seam register
+    format: documented facade compatibility contract
+  - from_task: F2
+    to_task: F6
+    interface: documented repo_services facade contract
+    format: shared repo-service surface contract
+  - from_task: F4
+    to_task: F6
+    interface: final CLI ownership map and compatibility wrappers
+    format: architecture and acceptance test contract
+  - from_task: F5
+    to_task: F6
+    interface: final API compatibility seam surface
+    format: architecture and acceptance test contract
+
+tasks:
+  - id: F1
+    source_issue_ids:
+      - A17
+      - A18
+      - A21
+      - A46
+    title: Freeze the explicit compatibility seam register for api.py and cli.py
+    description: |
+      Create a concrete register of which top-level facade names are intentionally public
+      compatibility seams, which are test-only transitional seams, and which are retirement
+      candidates. This becomes the decision boundary for final cleanup rather than leaving
+      alias survival to historical accident.
+    wave: 1
+    priority: high
+    status: completed
+    dependencies: []
+    conflicts_with:
+      - F3
+      - F4
+      - F5
+    estimated_effort: medium
+    estimated_files: 4
+    estimated_lines: 180
+    context_files:
+      - path: src/prism/api.py
+        description: Current API compatibility seam surface.
+      - path: src/prism/cli.py
+        description: Current CLI compatibility seam surface.
+      - path: src/prism/tests/test_api.py
+        description: Existing patchable seam usage for API.
+      - path: src/prism/tests/test_cli_repo.py
+        description: Existing patchable seam usage for CLI.
+    verification:
+      - pytest -q src/prism/tests/test_api.py src/prism/tests/test_cli_repo.py -k "facade or helper or compatibility"
+    acceptance_criteria:
+      - api.py compatibility exports are categorized as retained, transitional, or retirement candidates.
+      - cli.py compatibility exports are categorized as retained, transitional, or retirement candidates.
+      - The seam register is documented in the new plan and architecture notes before cleanup begins.
+
+  - id: F2
+    source_issue_ids:
+      - A19
+      - A20
+      - A49
+    title: Freeze repo_services.py as the canonical shared repo facade and stop ad hoc helper sprawl
+    description: |
+      Document which repo_services names are the stable shared repo intake surface used by
+      both API and CLI, and distinguish that canonical facade from extra helper re-exports
+      currently living in api.py and cli.py.
+    wave: 1
+    priority: high
+    status: completed
+    dependencies: []
+    conflicts_with:
+      - F5
+    estimated_effort: medium
+    estimated_files: 3
+    estimated_lines: 140
+    context_files:
+      - path: src/prism/repo_services.py
+        description: Mature shared repo facade to freeze as the stable boundary.
+      - path: src/prism/api.py
+        description: Current API repo helper aliases that should be compared against repo_services ownership.
+      - path: src/prism/cli.py
+        description: Current CLI repo helper aliases that should be compared against repo_services ownership.
+    verification:
+      - pytest -q src/prism/tests/test_repo_services.py src/prism/tests/test_api.py src/prism/tests/test_cli_repo.py -k "repo_service or facade"
+    acceptance_criteria:
+      - repo_services.py has an explicit canonical surface description.
+      - Top-level repo helper aliases in api.py and cli.py are justified against that canonical surface.
+      - Unjustified repo aliases become explicit retirement candidates.
+
+  - id: F3
+    source_issue_ids:
+      - A17
+      - A20
+      - A48
+    title: Collapse duplicate CLI wrapper ownership between cli.py and cli_commands.py
+    description: |
+      Remove or reduce duplicate wrapper/helper ownership across cli.py and cli_commands.py
+      so the CLI facade remains small and cli_app/ becomes the default home for parser,
+      dispatch, formatting, and helper evolution.
+    wave: 2
+    priority: high
+    status: completed
+    dependencies:
+      - F1
+    conflicts_with:
+      - F6
+    estimated_effort: large
+    estimated_files: 5
+    estimated_lines: 260
+    context_files:
+      - path: src/prism/cli.py
+        description: Top-level CLI facade that still owns many wrapper delegates.
+      - path: src/prism/cli_commands.py
+        description: Transitional wrapper module that still overlaps with cli.py responsibilities.
+      - path: src/prism/cli_app/parser.py
+        description: Canonical parser ownership target.
+      - path: src/prism/cli_app/commands.py
+        description: Canonical command dispatch/handler ownership target.
+    verification:
+      - pytest -q src/prism/tests/test_cli_repo.py
+    acceptance_criteria:
+      - There is one clear top-level wrapper location per CLI behavior.
+      - cli.py is thinner and no longer duplicates wrapper behavior already owned by cli_commands.py or cli_app/.
+      - cli_commands.py is either reduced to a narrow compatibility layer or retired from active ownership.
+
+  - id: F4
+    source_issue_ids:
+      - A17
+      - A20
+      - A21
+    title: Decide and implement the permanent ownership of CLI presenter logic
+    description: |
+      Resolve whether cli_presenters.py remains a permanent top-level support module or
+      moves behind cli_app/ with a compatibility wrapper. This task finalizes the last
+      major CLI ownership exception that still sits outside the package boundary.
+    wave: 2
+    priority: medium
+    status: completed
+    dependencies:
+      - F1
+      - F3
+    conflicts_with:
+      - F6
+    estimated_effort: medium
+    estimated_files: 4
+    estimated_lines: 180
+    context_files:
+      - path: src/prism/cli_presenters.py
+        description: Remaining top-level CLI helper module.
+      - path: src/prism/cli.py
+        description: Current consumer of presenter helpers and constants.
+      - path: src/prism/cli_app/shared.py
+        description: Package module already depending on presenter logic.
+      - path: docs/dev_docs/architecture.md
+        description: Architecture note that currently marks cli_presenters.py as an exception.
+    verification:
+      - pytest -q src/prism/tests/test_cli_repo.py -k "presenter or collection"
+    acceptance_criteria:
+      - Presenter ownership is documented as permanent or moved behind cli_app/.
+      - The code matches the documented ownership decision.
+      - CLI extension guidance no longer has an ambiguous presenter exception.
+
+  - id: F5
+    source_issue_ids:
+      - A18
+      - A19
+      - A46
+    title: Reduce api.py to the curated final compatibility surface
+    description: |
+      Remove, wrap, or explicitly retain the remaining api.py transition-era aliases so the
+      public API facade contains only the stable public entrypoints plus the compatibility
+      seams that were intentionally approved in F1/F2.
+    wave: 3
+    priority: high
+    status: completed
+    dependencies:
+      - F1
+      - F2
+    conflicts_with:
+      - F6
+    estimated_effort: large
+    estimated_files: 5
+    estimated_lines: 240
+    context_files:
+      - path: src/prism/api.py
+        description: Current API facade with repo helper aliases and collection render hooks.
+      - path: src/prism/api_layer/repo.py
+        description: Canonical repo orchestration ownership.
+      - path: src/prism/api_layer/collection.py
+        description: Canonical collection orchestration ownership.
+      - path: src/prism/tests/test_api.py
+        description: Existing patchable seam usage that must be preserved or deliberately retired.
+    verification:
+      - pytest -q src/prism/tests/test_api.py
+      - pytest -q src/prism/tests/test_repo_services.py
+    acceptance_criteria:
+      - api.py clearly separates stable public entrypoints from explicitly retained compatibility seams.
+      - Unapproved compatibility aliases are removed or wrapped behind documented retention decisions.
+      - api.py line count and direct helper ownership are materially lower than the post-E6 baseline.
+
+  - id: F6
+    source_issue_ids:
+      - A21
+      - A36
+      - A49
+      - A50
+    title: Close the package-split lane with the full repo validation bundle and closure evidence
+    description: |
+      Run the full closure gate once the finalization tasks are complete and record the
+      resulting evidence bundle. This is the point where the package split can be considered
+      operationally finished rather than only structurally improved.
+    wave: 4
+    priority: high
+    status: completed
+    dependencies:
+      - F2
+      - F4
+      - F5
+    conflicts_with: []
+    estimated_effort: medium
+    estimated_files: 2
+    estimated_lines: 80
+    context_files:
+      - path: docs/dev_docs/architecture.md
+        description: Final package ownership and compatibility guidance.
+      - path: docs/plan/prism-architecture-review-top50-20260401/plan_f.yaml
+        description: Closure evidence and completion status should be recorded here.
+    verification:
+      - pytest -q
+      - .venv/bin/python -m ruff check src/prism
+      - .venv/bin/python -m black --check src/prism
+      - .venv/bin/python -m tox -e typecheck
+    acceptance_criteria:
+      - The full repo closure bundle passes together.
+      - The new plan records closure evidence and marks package-split finalization complete.
+      - Architecture docs, tests, and top-level facades all agree on the final ownership model.
+
+acceptance_gates:
+  documentation_slice:
+    - docs/plan/prism-architecture-review-top50-20260401/plan_f.yaml exists and maps every task to canonical Axx issue IDs.
+    - The plan explicitly distinguishes retained compatibility seams from retirement candidates.
+    - Architecture docs state the final ownership model, including the outcome for cli_presenters.py and repo_services.py.
+  future_implementation_slice:
+    - pytest -q
+    - .venv/bin/python -m ruff check src/prism
+    - .venv/bin/python -m black --check src/prism
+    - .venv/bin/python -m tox -e typecheck
+
+assumptions:
+  - api.py and cli.py remain stable public imports throughout this plan.
+  - repo_services.py remains the shared repo intake facade for both API and CLI layers.
+  - Monkeypatch seams should be preserved until they are explicitly documented as retirement candidates and validated.
+  - The goal of this slice is ownership finalization, not a public API rename or command rename.
