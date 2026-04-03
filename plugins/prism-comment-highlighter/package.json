@@ -38,7 +38,7 @@
 		"lint": "biome lint .",
 		"package": "npm test && npx @vscode/vsce package",
 		"watch": "tsc -p . --watch --preserveWatchOutput",
-		"test": "npm run build && node --test out/test/**/*.test.js"
+		"test": "npm run build && node --test out/test/*.test.js"
 	},
 	"contributes": {
 		"commands": [
