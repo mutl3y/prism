@@ -37,7 +37,11 @@ from prism.repo_services import (
     resolve_repo_scan_scanner_report_relpath as _resolve_repo_scan_scanner_report_relpath,
     resolve_style_readme_candidate as _resolve_style_readme_candidate,
 )
-from prism.scanner import parse_style_readme, resolve_default_style_guide_source, run_scan
+from prism.scanner import (
+    parse_style_readme,
+    resolve_default_style_guide_source,
+    run_scan,
+)
 
 # Compatibility exports for downstream imports and parity checks with API/helpers.
 _build_repo_style_readme_candidates = _repo_build_repo_style_readme_candidates
@@ -125,7 +129,9 @@ def _resolve_effective_readme_config(
     role_path: Path,
     explicit_config_path: str | None,
 ) -> str | None:
-    return cli_commands._resolve_effective_readme_config(role_path, explicit_config_path)
+    return cli_commands._resolve_effective_readme_config(
+        role_path, explicit_config_path
+    )
 
 
 def _emit_success(
@@ -134,7 +140,9 @@ def _emit_success(
     style_source_path: str | None = None,
     style_demo_path: str | None = None,
 ) -> int:
-    return cli_presenters._emit_success(args, outpath, style_source_path, style_demo_path)
+    return cli_presenters._emit_success(
+        args, outpath, style_source_path, style_demo_path
+    )
 
 
 def _resolve_vars_context_paths(args: argparse.Namespace) -> list[str] | None:

@@ -80,6 +80,21 @@ from .notes_renderer import (
     render_template_overrides_section as _render_template_overrides_section,
 )  # noqa: F401
 
+# Keep legacy private alias imports live for compatibility lookups.
+_LEGACY_PRIVATE_EXPORTS = (
+    _is_role_local_variable_row,
+    _describe_variable,
+    _render_role_variables_for_style,
+    _render_role_variables_table_style,
+    _render_role_variables_nested_bullets_style,
+    _render_role_variables_yaml_block_style,
+    _render_role_variables_simple_list_style,
+    _render_role_notes_section,
+    _render_variable_uncertainty_notes,
+    _render_variable_summary_section,
+    _render_template_overrides_section,
+)
+
 
 # Legacy API support for legacy callers using private functions
 def _refresh_policy_derived_state(policy: dict) -> None:

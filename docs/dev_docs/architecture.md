@@ -21,35 +21,39 @@ It is best understood as a contract-and-governance pipeline, not only a renderer
 - CLI orchestration (`role`, `collection`, `repo`)
 - output rendering (`md`, `json`, `html`, `pdf`)
 
-## Scanner Submodule Layout
+## Scanner Package Decomposition
 
-`scanner.py` is an orchestrator that delegates to focused submodules under `src/prism/scanner_submodules/`:
+`scanner.py` remains a public facade and delegates canonical runtime behavior to package-owned modules under `src/prism/`:
 
-| Module | Responsibility |
+| Package | Ownership boundary |
 | --- | --- |
-| `scan_request.py` | scan option-map shaping and detailed-catalog flag normalization |
-| `scan_context.py` | scan context/payload shaping; TypedDict definitions for internal seam contracts |
-| `scan_metrics.py` | scanner counter extraction and uncertainty/provenance attribution |
-| `scan_output_emission.py` | sidecar output emission orchestration (scanner report, runbook) |
-| `scan_discovery.py` | role identity resolution and metadata/requirements/variable path discovery |
-| `scan_output_primary.py` | primary output rendering and write orchestration |
-| `scanner_report.py` | scanner report markdown rendering and typed row/section helpers |
+| `scanner_core/` | request normalization, DI-driven orchestration, scan runtime/context assembly, variable discovery orchestration |
+| `scanner_data/` | typed contracts and builders for request/result envelopes, scan payloads, report metadata, and variable rows |
+| `scanner_extract/` | YAML/task traversal, variable/reference extraction, role feature collection, requirements and discovery loaders |
+| `scanner_readme/` | README rendering, style parsing/normalization, documentation insights, section composition |
+| `scanner_analysis/` | scanner metrics, report shaping, runbook generation, dependency analysis helpers |
+| `scanner_io/` | output rendering/writing, scan output emission, YAML candidate loading and parse-failure reporting |
+| `scanner_config/` | policy/config loading, style/section markers, legacy retirement behavior, runtime scan policy switches |
+| `scanner_compat/` | compatibility bridge helpers isolated from canonical runtime paths |
 
-Pre-existing submodules (`task_parser.py`, `variable_extractor.py`, `readme_config.py`, `output.py`, `runbook.py`, `style_guide.py`, `style_vars.py`, `doc_insights.py`, `requirements.py`) retain their original responsibilities.
+Cross-package architecture guardrails enforce one-way decomposition: canonical scanner packages must not reverse-import `prism.scanner`, and private cross-package imports are blocked except for explicitly whitelisted seams.
 
 `src/prism/repo_services.py` holds shared repo-intake, clone, fetch, sparse-checkout, and temp-workspace orchestration extracted from `cli.py`. Both `api.py` and `cli.py` import from `repo_services`.
 
 ## Typed Seam Contracts
 
-Internal TypedDicts stabilize payload boundaries between scan orchestration stages. Primary contracts:
+Typed contracts are centralized in `scanner_data/` and exposed via `scanner_data/contracts.py` and domain split modules (`contracts_request.py`, `contracts_output.py`, `contracts_report.py`, `contracts_variables.py`, `contracts_collection.py`, `contracts_errors.py`).
 
-- `scan_context.py`: `ScanContext`, `RunScanOutputPayload`, `EmitScanOutputsArgs`, `ScanReportSidecarArgs`, `RunbookSidecarArgs`
-- `scanner_report.py`: `ScannerReportMetadata`, `NormalizedScannerReportMetadata`, `ReadmeSectionRenderInput`, `ScannerReportIssueListRow`, `ScannerReportYamlParseFailureRow`, `ScannerReportSectionRenderInput`, `SectionBodyRenderResult`, `AnnotationQualityCounters`, `ScannerCounters`
-- `output.py`: `FinalOutputPayload`
+Primary scanner boundaries:
+
+- request/runtime: `ScanOptionsDict`, `ScanContext`, `ScanBaseContext`, `ScanContextPayload`, `FailurePolicyContract`
+- output envelopes: `ScanRenderPayload`, `RunScanOutputPayload`, `RunbookSidecarPayload`, `FinalOutputPayload`
+- reporting: `ScannerReportMetadata`, `NormalizedScannerReportMetadata`, `ScannerCounters`, `AnnotationQualityCounters`, report row contracts
+- public API results: `RoleScanResult`, `CollectionScanResult`, `RepoScanResult`
 
 ## Mypy Gate
 
-`tox -e typecheck` runs `mypy` over all 25 source files in the prism package. The gate is also wired as a pre-commit hook (`mypy-seams`) and runs in CI on every push/PR via `.github/workflows/prism.yml`.
+`tox -e typecheck` runs `mypy` over `src/`. The gate is also wired as a pre-commit hook (`mypy-seams`) and runs in CI on every push/PR via `.github/workflows/prism.yml`.
 
 Flags: `--ignore-missing-imports --disable-error-code=import-untyped --follow-imports=silent`
 

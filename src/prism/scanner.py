@@ -641,7 +641,9 @@ def _build_policy_context_for_scan(
         ),
         "variable_guidance_keywords": tuple(
             token
-            for token in (policy.get("variable_guidance", {}).get("priority_keywords") or [])
+            for token in (
+                policy.get("variable_guidance", {}).get("priority_keywords") or []
+            )
             if isinstance(token, str)
         ),
     }
@@ -1093,9 +1095,7 @@ def run_scan(
         style_source_path=style_source_path,
         style_guide_skeleton=style_guide_skeleton,
         compare_role_path=compare_role_path,
-        fail_on_unconstrained_dynamic_includes=(
-            fail_on_unconstrained_dynamic_includes
-        ),
+        fail_on_unconstrained_dynamic_includes=(fail_on_unconstrained_dynamic_includes),
         fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
@@ -1103,7 +1103,9 @@ def run_scan(
         policy_context=policy_context,
     )
     scan_options["strict_phase_failures"] = bool(strict_phase_failures)
-    with _variable_extractor.policy_override_scope(loaded_policy), _readme_style.style_section_aliases_scope(
+    with _variable_extractor.policy_override_scope(
+        loaded_policy
+    ), _readme_style.style_section_aliases_scope(
         dict(policy_context["section_aliases"])
     ):
         return _execute_scan_with_context(

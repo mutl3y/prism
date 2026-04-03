@@ -1,5 +1,5 @@
 prd_id: legacy-ansible-role-doc-retirement-20260329
-version: 5.8.0
+version: 5.9.0
 status: final
 
 user_stories:
@@ -72,6 +72,9 @@ features:
   - name: Scanner godfile decomposition wave 9 fast-track closure
     overview: Completed wave-9 fast-track closure with seam-first primary criteria met (targeted seam migration complete, rollback-boundary parity verified across RB1/RB2/RB3, and full closure gates green with pytest, lint [ruff + black --check], and mypy typecheck) while scanner.py size remains non-blocking telemetry.
     status: complete
+  - name: Architecture review top-50 Wave 5 closeout (A46-A50)
+    overview: Completed governance and test-architecture closeout for A46-A50 with canonical status ledger in plan.yaml, reconciled authority language across plan variants, archived-vs-active architecture-doc guidance clarified, and a unified final validation bundle recorded.
+    status: complete
 
 errors:
   - code: LEGACY_SECTION_CONFIG_UNSUPPORTED
@@ -96,6 +99,8 @@ decisions:
     rationale: "Wave-9 closure contract and progress evidence preserve the same policy: seam migration completeness, parity stability, and full closure gates are required for completion; scanner size is recorded as telemetry only."
 
 changes:
+  - version: 5.9.0
+    change: "2026-04-03 - Recorded completion of prism-architecture-review-top50-20260401 Wave 5 closeout (A46-A50): canonical closeout ledger added to plan.yaml, plan_b/plan_d authority language reconciled to defer to plan.yaml, modernization-plan-v2 archival-vs-active guidance clarified, and unified validation bundle captured (pytest, ruff, black --check, tox -e typecheck)."
   - version: 5.8.0
     change: "2026-03-29 - Recorded closure for scanner-godfile-decomposition-wave9-fasttrack-20260329: fast-track tasks w9_f_01 through w9_f_04 completed; seam-first primary criteria passed (targeted seam migration complete, RB1/RB2/RB3 parity PASS, and full closure gates PASS for pytest, lint [ruff + black --check], and mypy typecheck); scanner.py size retained as non-blocking telemetry."
   - version: 5.7.0

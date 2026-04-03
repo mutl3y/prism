@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
 import re
 
@@ -24,6 +25,55 @@ SCANNER_PRIVATE_IMPORT_BOUNDARIES = (
     "prism.scanner_io",
     "prism.scanner_config",
 )
+
+
+ORCHESTRATOR_TELEMETRY_TARGETS: dict[str, dict[str, object]] = {
+    "prism.scanner": {
+        "path": PROJECT_ROOT / "src" / "prism" / "scanner.py",
+        "max_lines": 1300,
+        "max_private_helpers": 22,
+        "option_surface": {
+            "function": "run_scan",
+            "max_parameters": 34,
+        },
+    },
+    "prism.api": {
+        "path": PROJECT_ROOT / "src" / "prism" / "api.py",
+        "max_lines": 700,
+        "max_private_helpers": 12,
+        "option_surface": {
+            "function": "scan_repo",
+            "max_parameters": 30,
+        },
+    },
+    "prism.cli": {
+        "path": PROJECT_ROOT / "src" / "prism" / "cli.py",
+        "max_lines": 450,
+        "max_private_helpers": 34,
+        "option_surface": {
+            "function": "_clone_repo",
+            "max_parameters": 8,
+        },
+    },
+    "prism.repo_services": {
+        "path": PROJECT_ROOT / "src" / "prism" / "repo_services.py",
+        "max_lines": 450,
+        "max_private_helpers": 2,
+        "option_surface": {
+            "function": "resolve_repo_scan_target",
+            "max_parameters": 20,
+        },
+    },
+    "prism.scanner_core.scan_request": {
+        "path": PROJECT_ROOT / "src" / "prism" / "scanner_core" / "scan_request.py",
+        "max_lines": 120,
+        "max_private_helpers": 2,
+        "option_surface": {
+            "function": "build_run_scan_options_canonical",
+            "max_parameters": 24,
+        },
+    },
+}
 
 _ALLOWED_CANONICAL_PRIVATE_CROSS_PACKAGE_TOUCHPOINTS: dict[str, set[str]] = {
     "prism.scanner_core.feature_detector": {
@@ -102,6 +152,63 @@ def _iter_python_modules(package_dirs: dict[str, Path]) -> list[tuple[str, Path]
         for module_path in sorted(package_dir.rglob("*.py")):
             modules.append((package_name, module_path))
     return modules
+
+
+def _count_function_parameters(node: ast.FunctionDef) -> int:
+    return (
+        len(node.args.posonlyargs)
+        + len(node.args.args)
+        + len(node.args.kwonlyargs)
+        + (1 if node.args.vararg else 0)
+        + (1 if node.args.kwarg else 0)
+    )
+
+
+def _find_module_function(
+    tree: ast.Module, function_name: str
+) -> ast.FunctionDef | None:
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == function_name:
+            return node
+    return None
+
+
+def _collect_orchestrator_growth_telemetry() -> dict[str, dict[str, int | str]]:
+    telemetry: dict[str, dict[str, int | str]] = {}
+
+    for module_name, budget in ORCHESTRATOR_TELEMETRY_TARGETS.items():
+        module_path = budget["path"]
+        assert isinstance(module_path, Path)
+
+        source = module_path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+
+        private_helpers = sum(
+            1
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name.startswith("_")
+        )
+
+        option_surface_budget = budget["option_surface"]
+        assert isinstance(option_surface_budget, dict)
+        option_surface_function = option_surface_budget["function"]
+        assert isinstance(option_surface_function, str)
+
+        option_surface_node = _find_module_function(tree, option_surface_function)
+        assert (
+            option_surface_node is not None
+        ), f"option-surface function {option_surface_function} missing in {module_name}"
+
+        telemetry[module_name] = {
+            "path": str(module_path.relative_to(PROJECT_ROOT)),
+            "line_count": source.count("\n") + (1 if source else 0),
+            "private_helper_count": private_helpers,
+            "option_surface_parameter_count": _count_function_parameters(
+                option_surface_node
+            ),
+        }
+
+    return telemetry
 
 
 def _resolve_import_from(module_name: str, node: ast.ImportFrom) -> str | None:
@@ -385,3 +492,74 @@ def test_wildcard_from_import_private_names_are_intentionally_ignored(
     offenders = _iter_scanner_private_cross_package_imports(module_path)
 
     assert offenders == []
+
+
+def test_orchestrator_growth_telemetry_has_stable_shape() -> None:
+    telemetry = _collect_orchestrator_growth_telemetry()
+
+    assert set(telemetry) == set(ORCHESTRATOR_TELEMETRY_TARGETS)
+    for module_name, module_telemetry in telemetry.items():
+        assert module_telemetry["path"]
+        assert isinstance(module_telemetry["line_count"], int)
+        assert isinstance(module_telemetry["private_helper_count"], int)
+        assert isinstance(module_telemetry["option_surface_parameter_count"], int)
+
+
+def test_orchestrator_growth_guardrails_remain_within_budget() -> None:
+    telemetry = _collect_orchestrator_growth_telemetry()
+    violations: list[dict[str, int | str]] = []
+
+    for module_name, budget in ORCHESTRATOR_TELEMETRY_TARGETS.items():
+        module_telemetry = telemetry[module_name]
+        max_lines = budget["max_lines"]
+        max_private_helpers = budget["max_private_helpers"]
+        option_surface_budget = budget["option_surface"]
+        assert isinstance(max_lines, int)
+        assert isinstance(max_private_helpers, int)
+        assert isinstance(option_surface_budget, dict)
+        option_surface_function = option_surface_budget["function"]
+        max_option_surface = option_surface_budget["max_parameters"]
+        assert isinstance(option_surface_function, str)
+        assert isinstance(max_option_surface, int)
+
+        line_count = module_telemetry["line_count"]
+        private_helper_count = module_telemetry["private_helper_count"]
+        option_surface_count = module_telemetry["option_surface_parameter_count"]
+        assert isinstance(line_count, int)
+        assert isinstance(private_helper_count, int)
+        assert isinstance(option_surface_count, int)
+
+        if line_count > max_lines:
+            violations.append(
+                {
+                    "module": module_name,
+                    "metric": "line_count",
+                    "actual": line_count,
+                    "budget": max_lines,
+                }
+            )
+        if private_helper_count > max_private_helpers:
+            violations.append(
+                {
+                    "module": module_name,
+                    "metric": "private_helper_count",
+                    "actual": private_helper_count,
+                    "budget": max_private_helpers,
+                }
+            )
+        if option_surface_count > max_option_surface:
+            violations.append(
+                {
+                    "module": module_name,
+                    "metric": f"option_surface_parameter_count[{option_surface_function}]",
+                    "actual": option_surface_count,
+                    "budget": max_option_surface,
+                }
+            )
+
+    assert not violations, (
+        "orchestrator growth guardrails exceeded; telemetry="
+        + json.dumps(telemetry, indent=2, sort_keys=True)
+        + "; violations="
+        + json.dumps(violations, indent=2, sort_keys=True)
+    )

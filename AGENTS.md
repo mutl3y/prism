@@ -72,3 +72,9 @@
 - Wave 9 fast-track closure is complete (2026-03-29): large-batch seam migrations with rollback-boundary checks and one final full closure gate passed together.
 - Seam-first blocking criteria remained the closure contract, and scanner-size stayed non-blocking telemetry for decision-making continuity.
 - Current telemetry from wave 9 artifacts records `scanner.py` at 1856 lines.
+
+## Notable Findings (Plan Closure: prism-architecture-review-top50-20260401)
+
+- Plan closure is complete (2026-04-03): `docs/plan/prism-architecture-review-top50-20260401/plan.yaml` is the canonical authority for the A01-A50 risk register.
+- Follow-up slices for this plan ID are execution/history artifacts that defer to the canonical register and do not replace it.
+- Closure evidence is a unified validation bundle that must be green together: full pytest, `ruff check src`, `black --check src`, and `tox -e typecheck`.

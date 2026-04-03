@@ -196,7 +196,7 @@ def _scan_filter_plugins(
                 "extraction": {
                     "method": extraction_method,
                     "ast_version": "py3",
-                        "fallback_used": extraction_method != PLUGIN_EXTRACTION_METHOD_AST,
+                    "fallback_used": extraction_method != PLUGIN_EXTRACTION_METHOD_AST,
                 },
                 "capability_hints": sorted(set(symbols)),
             }

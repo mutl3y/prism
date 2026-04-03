@@ -33,7 +33,11 @@ class OutputConfiguration(TypedDict, total=False):
 class RunScanOutputPayload(TypedDict):
     """Typed seam payload between run_scan orchestration and output rendering."""
 
-    render_payload: ScanRenderPayload
+    role_name: str
+    description: str
+    display_variables: dict[str, Any]
+    requirements_display: list[Any]
+    undocumented_default_filters: list[Any]
     metadata: ScanMetadata
 
 
@@ -52,7 +56,12 @@ class EmitScanOutputsArgs(TypedDict):
     concise_readme: bool
     scanner_report_output: str | None
     include_scanner_report_link: bool
-    output_payload: RunScanOutputPayload
+    role_name: str
+    description: str
+    display_variables: dict[str, Any]
+    requirements_display: list[Any]
+    undocumented_default_filters: list[Any]
+    metadata: ScanMetadata
     template: str | None
     dry_run: bool
     runbook_output: str | None
@@ -66,7 +75,11 @@ class ScanReportSidecarArgs(TypedDict):
     scanner_report_output: str | None
     out_path: Path
     include_scanner_report_link: bool
-    render_payload: ScanRenderPayload
+    role_name: str
+    description: str
+    display_variables: dict[str, Any]
+    requirements_display: list[Any]
+    undocumented_default_filters: list[Any]
     metadata: ScanMetadata
     dry_run: bool
 
@@ -76,7 +89,8 @@ class RunbookSidecarArgs(TypedDict):
 
     runbook_output: str | None
     runbook_csv_output: str | None
-    payload: RunbookSidecarPayload
+    role_name: str
+    metadata: ScanMetadata
 
 
 class FinalOutputPayload(TypedDict):
@@ -237,7 +251,7 @@ class ScanPayloadBuilder:
                 "'metadata' is required and must be a dict. " f"Got: {metadata!r}"
             )
 
-        render_payload: ScanRenderPayload = {
+        result: RunScanOutputPayload = {
             "role_name": role_name,
             "description": description,
             "display_variables": self._payload.get("display_variables", {}),
@@ -245,9 +259,6 @@ class ScanPayloadBuilder:
             "undocumented_default_filters": self._payload.get(
                 "undocumented_default_filters", []
             ),
-        }
-        result: RunScanOutputPayload = {
-            "render_payload": render_payload,
             "metadata": metadata,
         }
         return result

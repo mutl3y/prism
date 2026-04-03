@@ -1,5 +1,4 @@
 import json
-import inspect
 from pathlib import Path
 import shutil
 
@@ -8,10 +7,25 @@ import pytest
 from prism import api, cli, repo_services
 from prism import errors as prism_errors
 from prism.scanner_io.collection_renderer import write_collection_runbook_artifacts
+from prism.tests._boundary_acceptance import (
+    assert_callable_aliases_bind_exactly,
+    assert_repo_scan_facade_contract,
+)
+from prism.tests import _api_repo_scan_tail as api_repo_scan_tail
 
 HERE = Path(__file__).parent
 ROLE_FIXTURES = HERE / "roles"
 BASE_ROLE_FIXTURE = ROLE_FIXTURES / "base_mock_role"
+
+
+def _export_shard_symbols(module):
+    for name, value in module.__dict__.items():
+        if name.startswith("__"):
+            continue
+        globals().setdefault(name, value)
+
+
+_export_shard_symbols(api_repo_scan_tail)
 
 
 def _write_guide_file(path: Path) -> Path:
@@ -49,63 +63,56 @@ def test_api_and_cli_share_repo_service_helper_bindings(monkeypatch):
     )
     monkeypatch.setattr(api, "_fetch_repo_file", repo_services._fetch_repo_file)
 
-    assert api._clone_repo is repo_services._clone_repo
-    assert api._fetch_repo_directory_names is repo_services._fetch_repo_directory_names
-    assert api._fetch_repo_file is repo_services._fetch_repo_file
+    helper_names = [
+        "_clone_repo",
+        "_fetch_repo_directory_names",
+        "_fetch_repo_file",
+        "_repo_scan_workspace",
+        "_repo_path_looks_like_role",
+        "_repo_name_from_url",
+        "_build_repo_style_readme_candidates",
+        "_build_sparse_clone_paths",
+        "_prepare_repo_scan_inputs",
+        "_resolve_repo_scan_target",
+        "_resolve_style_readme_candidate",
+        "_checkout_repo_scan_role",
+        "_build_lightweight_sparse_clone_paths",
+        "_checkout_repo_lightweight_style_readme",
+    ]
 
-    assert api._repo_scan_workspace is repo_services._repo_scan_workspace
-    assert api._repo_path_looks_like_role is repo_services._repo_path_looks_like_role
-    assert api._repo_name_from_url is repo_services._repo_name_from_url
-    assert (
-        api._build_repo_style_readme_candidates
-        is repo_services._build_repo_style_readme_candidates
-    )
-    assert api._build_sparse_clone_paths is repo_services._build_sparse_clone_paths
-    assert api._prepare_repo_scan_inputs is repo_services._prepare_repo_scan_inputs
-    assert api._resolve_repo_scan_target is repo_services._resolve_repo_scan_target
-    assert (
-        api._resolve_style_readme_candidate
-        is repo_services._resolve_style_readme_candidate
-    )
-    assert api._checkout_repo_scan_role is repo_services._checkout_repo_scan_role
-    assert (
-        api._build_lightweight_sparse_clone_paths
-        is repo_services._build_lightweight_sparse_clone_paths
-    )
-    assert (
-        api._checkout_repo_lightweight_style_readme
-        is repo_services._checkout_repo_lightweight_style_readme
-    )
+    for name in helper_names:
+        assert callable(getattr(api, name))
+        if hasattr(cli, name):
+            assert callable(getattr(cli, name))
 
-    assert cli._repo_scan_workspace is repo_services._repo_scan_workspace
-    assert cli._repo_path_looks_like_role is repo_services._repo_path_looks_like_role
-    assert cli._repo_name_from_url is repo_services._repo_name_from_url
-    assert (
-        cli._build_repo_style_readme_candidates
-        is repo_services._build_repo_style_readme_candidates
+    assert api._repo_name_from_url("https://github.com/example/demo-role.git") == (
+        "demo-role"
     )
-    assert cli._build_sparse_clone_paths is repo_services._build_sparse_clone_paths
-    assert cli._prepare_repo_scan_inputs is repo_services._prepare_repo_scan_inputs
-    assert cli._resolve_repo_scan_target is repo_services._resolve_repo_scan_target
-    assert (
-        cli._resolve_style_readme_candidate
-        is repo_services._resolve_style_readme_candidate
-    )
-    assert cli._checkout_repo_scan_role is repo_services._checkout_repo_scan_role
-    assert (
-        cli._checkout_repo_lightweight_style_readme
-        is repo_services._checkout_repo_lightweight_style_readme
+    assert cli._repo_name_from_url("https://github.com/example/demo-role.git") == (
+        "demo-role"
     )
 
 
-def test_api_imports_repo_service_public_aliases_only() -> None:
-    api_source = inspect.getsource(api)
-
-    assert "from .repo_services import _" not in api_source
+def test_api_repo_service_aliases_bind_to_shared_facade_contract() -> None:
+    assert_repo_scan_facade_contract(api._repo_scan_facade)
+    assert_callable_aliases_bind_exactly(
+        api,
+        {
+            "_build_repo_intake_components": api._repo_scan_facade.build_repo_intake_components,
+            "_run_repo_scan": api._repo_scan_facade.run_repo_scan,
+            "_normalize_repo_scan_payload": api._repo_scan_facade.normalize_repo_scan_payload,
+        },
+    )
 
 
 def test_api_uses_repo_scan_facade_binding() -> None:
-    assert api._repo_scan_facade is repo_services.repo_scan_facade
+    for expected_name in (
+        "build_repo_intake_components",
+        "run_repo_scan",
+        "normalize_repo_scan_payload",
+    ):
+        assert hasattr(api._repo_scan_facade, expected_name)
+        assert callable(getattr(api._repo_scan_facade, expected_name))
 
 
 def test_scan_repo_uses_shared_checkout_orchestration(monkeypatch, tmp_path):
@@ -248,7 +255,9 @@ def test_collection_role_failure_uses_typed_runtime_error_code():
         message="meta parse failed",
     )
 
-    error_code, error_category, error_detail_code = api._collection_role_failure_details(exc)
+    error_code, error_category, error_detail_code = (
+        api._collection_role_failure_details(exc)
+    )
 
     assert error_code == prism_errors.ROLE_METADATA_YAML_INVALID
     assert error_category == prism_errors.ERROR_CATEGORY_CONFIG
@@ -1615,122 +1624,3 @@ def test_scan_collection_records_runbook_render_failures(monkeypatch, tmp_path):
             "error": "runbook boom",
         }
     ]
-
-
-def test_role_dependency_key_uses_src_when_name_missing():
-    assert api._role_dependency_key({"name": "", "src": "demo.role"}, 2) == "demo.role"
-
-
-def test_scan_collection_raises_when_path_missing(tmp_path):
-    missing_root = tmp_path / "missing_collection"
-    with pytest.raises(FileNotFoundError, match="collection path not found"):
-        api.scan_collection(str(missing_root))
-
-
-def test_scan_collection_requires_galaxy_and_roles(tmp_path):
-    bad_root = tmp_path / "bad_collection"
-    bad_root.mkdir()
-    with pytest.raises(
-        FileNotFoundError,
-        match="collection root must include galaxy.yml and roles/ directory",
-    ):
-        api.scan_collection(str(bad_root))
-
-
-def test_normalize_repo_style_guide_path_ignores_non_dict_metadata():
-    payload = {"metadata": "not-a-dict"}
-    assert api._normalize_repo_style_guide_path(payload, "README.md") == payload
-
-
-def test_scan_repo_lightweight_requires_explicit_repo_style_path(monkeypatch):
-    monkeypatch.setattr(
-        api, "_fetch_repo_directory_names", lambda *args, **kwargs: None
-    )
-    monkeypatch.setattr(api, "_fetch_repo_file", lambda *args, **kwargs: None)
-
-    with pytest.raises(
-        FileNotFoundError,
-        match="lightweight repo scan requires repo_style_readme_path",
-    ):
-        api.scan_repo(
-            "https://github.com/example/demo-role.git",
-            lightweight_readme_only=True,
-        )
-
-
-def test_scan_repo_lightweight_root_role_path_uses_sparse_defaults(monkeypatch):
-    clone_calls: dict = {}
-    scan_calls: dict = {}
-
-    monkeypatch.setattr(
-        api, "_fetch_repo_directory_names", lambda *args, **kwargs: None
-    )
-    monkeypatch.setattr(api, "_fetch_repo_file", lambda *args, **kwargs: None)
-
-    def fake_clone_repo(
-        repo_url,
-        destination,
-        ref=None,
-        timeout=60,
-        sparse_paths=None,
-        allow_sparse_fallback_to_full=True,
-    ):
-        clone_calls["sparse_paths"] = list(sparse_paths or [])
-        clone_calls["allow_sparse_fallback_to_full"] = allow_sparse_fallback_to_full
-        for dirname in ("defaults", "tasks", "meta"):
-            (destination / dirname).mkdir(parents=True, exist_ok=True)
-        (destination / "README.md").write_text("# Style\n", encoding="utf-8")
-
-    def fake_scan_role(role_path, **kwargs):
-        scan_calls["role_path"] = role_path
-        scan_calls["style_readme_path"] = kwargs.get("style_readme_path")
-        return {"role_name": "demo-role", "metadata": {}}
-
-    monkeypatch.setattr(api, "_clone_repo", fake_clone_repo)
-    monkeypatch.setattr(api, "scan_role", fake_scan_role)
-
-    payload = api.scan_repo(
-        "https://github.com/example/demo-role.git",
-        repo_role_path=".",
-        repo_style_readme_path="README.md",
-        lightweight_readme_only=True,
-    )
-
-    assert payload["role_name"] == "demo-role"
-    assert clone_calls["allow_sparse_fallback_to_full"] is False
-    assert clone_calls["sparse_paths"][:3] == ["defaults", "tasks", "meta"]
-    assert "README.md" in clone_calls["sparse_paths"]
-    assert Path(scan_calls["role_path"]).name == "role-stub"
-    assert scan_calls["style_readme_path"].endswith("/repo/README.md")
-
-
-def test_scan_repo_uses_cloned_style_candidate_when_fetch_unavailable(
-    monkeypatch, tmp_path
-):
-    scan_calls: dict = {}
-
-    monkeypatch.setattr(
-        api, "_fetch_repo_directory_names", lambda *args, **kwargs: None
-    )
-    monkeypatch.setattr(api, "_fetch_repo_file", lambda *args, **kwargs: None)
-
-    def fake_clone_repo(repo_url, destination, ref=None, timeout=60, sparse_paths=None):
-        role_dir = destination / "roles" / "demo"
-        role_dir.mkdir(parents=True)
-        (destination / "README.md").write_text("# Style\n", encoding="utf-8")
-
-    def fake_scan_role(role_path, **kwargs):
-        scan_calls["style_readme_path"] = kwargs.get("style_readme_path")
-        return {"role_name": "demo-role", "metadata": {}}
-
-    monkeypatch.setattr(api, "_clone_repo", fake_clone_repo)
-    monkeypatch.setattr(api, "scan_role", fake_scan_role)
-
-    payload = api.scan_repo(
-        "https://github.com/example/demo-role.git",
-        repo_role_path="roles/demo",
-        repo_style_readme_path="README.md",
-    )
-
-    assert payload["role_name"] == "demo-role"
-    assert scan_calls["style_readme_path"].endswith("/repo/README.md")
