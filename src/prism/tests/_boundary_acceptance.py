@@ -10,6 +10,17 @@ from types import ModuleType
 from typing import Any, Iterable, Mapping
 
 
+def assert_named_exports_exist(
+    export_owner: Any,
+    export_names: Iterable[str],
+) -> None:
+    """Assert named exports exist on the boundary owner."""
+    for export_name in export_names:
+        assert hasattr(
+            export_owner, export_name
+        ), f"{export_name} must exist on {export_owner!r}"
+
+
 def assert_callable_aliases_bind_exactly(
     alias_owner: Any,
     expected_aliases: Mapping[str, object],
@@ -23,6 +34,25 @@ def assert_callable_aliases_bind_exactly(
         assert (
             actual is expected_callable
         ), f"{alias_name} must bind to shared canonical callable"
+
+        if expected_owner_modules and alias_name in expected_owner_modules:
+            expected_module = expected_owner_modules[alias_name]
+            actual_module = getattr(actual, "__module__", None)
+            assert (
+                actual_module == expected_module
+            ), f"{alias_name} must be owned by {expected_module}"
+
+
+def assert_callable_aliases_expose_contract(
+    alias_owner: Any,
+    alias_names: Iterable[str],
+    *,
+    expected_owner_modules: Mapping[str, str] | None = None,
+) -> None:
+    """Assert boundary aliases remain callable and module-owned as expected."""
+    for alias_name in alias_names:
+        actual = getattr(alias_owner, alias_name, None)
+        assert callable(actual), f"{alias_name} must be callable"
 
         if expected_owner_modules and alias_name in expected_owner_modules:
             expected_module = expected_owner_modules[alias_name]

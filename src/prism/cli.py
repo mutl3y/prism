@@ -1,6 +1,11 @@
 """CLI entry point for prism.
 
 Provides a small CLI wrapper around :func:`prism.scanner.run_scan`.
+
+`cli.py` is the stable top-level CLI facade. Package-owned parser, dispatch,
+presenter, and command implementation now lives under `prism.cli_app`, while
+this module preserves the public entrypoint and only the compatibility seams
+that are intentionally retained.
 """
 
 from __future__ import annotations
@@ -15,7 +20,11 @@ import sys
 import tempfile as _tempfile
 from urllib.request import urlopen
 
-from prism import cli_commands, cli_presenters
+from prism.cli_app import commands as cli_app_commands
+from prism.cli_app import parser as cli_parser
+from prism.cli_app import presenters as cli_app_presenters
+from prism.cli_app import runtime as cli_runtime
+from prism.cli_app import shared as cli_shared
 from prism.feedback import apply_feedback_recommendations, load_feedback
 from prism.repo_services import (
     build_repo_style_readme_candidates as _repo_build_repo_style_readme_candidates,
@@ -49,51 +58,92 @@ _checkout_repo_lightweight_style_readme = _repo_checkout_repo_lightweight_style_
 # Re-export the same tempfile module object used in repo_services.
 tempfile = _tempfile
 
-_CAPTURE_SCHEMA_VERSION = cli_presenters._CAPTURE_SCHEMA_VERSION
-_CAPTURE_MAX_SECTIONS = cli_presenters._CAPTURE_MAX_SECTIONS
-_CAPTURE_MAX_CONTENT_CHARS = cli_presenters._CAPTURE_MAX_CONTENT_CHARS
-_CAPTURE_MAX_TOTAL_CHARS = cli_presenters._CAPTURE_MAX_TOTAL_CHARS
-_TRUNCATION_MARKER = cli_presenters._TRUNCATION_MARKER
-_REDACTION_PATTERNS = cli_presenters._REDACTION_PATTERNS
+CLI_PUBLIC_ENTRYPOINTS: tuple[str, ...] = ("main", "build_parser")
+CLI_SHARED_REPO_COMPATIBILITY_SEAMS: tuple[str, ...] = (
+    "_checkout_repo_lightweight_style_readme",
+    "_build_repo_style_readme_candidates",
+    "_clone_repo",
+    "_fetch_repo_contents_payload",
+    "_fetch_repo_directory_names",
+    "_fetch_repo_file",
+    "_github_repo_from_url",
+    "_normalize_repo_path",
+    "_repo_name_from_url",
+    "_repo_path_looks_like_role",
+    "_repo_scan_workspace",
+    "_prepare_repo_scan_inputs",
+    "_resolve_repo_scan_target",
+    "_resolve_repo_scan_scanner_report_relpath",
+    "_checkout_repo_scan_role",
+    "_build_sparse_clone_paths",
+    "_resolve_style_readme_candidate",
+)
+CLI_RETAINED_COMPATIBILITY_SEAMS: tuple[str, ...] = (
+    "_handle_repo_command",
+    "_handle_collection_command",
+    "_handle_role_command",
+    "_handle_completion_command",
+    "_resolve_include_collection_checks",
+    "_resolve_effective_readme_config",
+    "_resolve_vars_context_paths",
+    "_normalize_repo_json_payload",
+    "_save_style_comparison_artifacts",
+    "_render_collection_markdown",
+    "_emit_success",
+)
+CLI_TRANSITIONAL_COMPATIBILITY_SEAMS: tuple[str, ...] = (
+    "_str_presenter",
+    "_sanitize_captured_content",
+    "_truncate_content",
+    "_as_dict",
+    "_bounded_list",
+)
 
-_EXIT_CODE_GENERIC_ERROR = cli_commands._EXIT_CODE_GENERIC_ERROR
-_EXIT_CODE_NOT_FOUND = cli_commands._EXIT_CODE_NOT_FOUND
-_EXIT_CODE_PERMISSION_DENIED = cli_commands._EXIT_CODE_PERMISSION_DENIED
-_EXIT_CODE_JSON_PAYLOAD_ERROR = cli_commands._EXIT_CODE_JSON_PAYLOAD_ERROR
-_EXIT_CODE_NETWORK_ERROR = cli_commands._EXIT_CODE_NETWORK_ERROR
-_EXIT_CODE_OS_ERROR = cli_commands._EXIT_CODE_OS_ERROR
-_EXIT_CODE_INTERRUPTED = cli_commands._EXIT_CODE_INTERRUPTED
+_CAPTURE_SCHEMA_VERSION = cli_app_presenters.CAPTURE_SCHEMA_VERSION
+_CAPTURE_MAX_SECTIONS = cli_app_presenters.CAPTURE_MAX_SECTIONS
+_CAPTURE_MAX_CONTENT_CHARS = cli_app_presenters.CAPTURE_MAX_CONTENT_CHARS
+_CAPTURE_MAX_TOTAL_CHARS = cli_app_presenters.CAPTURE_MAX_TOTAL_CHARS
+_TRUNCATION_MARKER = cli_app_presenters.TRUNCATION_MARKER
+_REDACTION_PATTERNS = cli_app_presenters.REDACTION_PATTERNS
+
+_EXIT_CODE_GENERIC_ERROR = cli_runtime.EXIT_CODE_GENERIC_ERROR
+_EXIT_CODE_NOT_FOUND = cli_runtime.EXIT_CODE_NOT_FOUND
+_EXIT_CODE_PERMISSION_DENIED = cli_runtime.EXIT_CODE_PERMISSION_DENIED
+_EXIT_CODE_JSON_PAYLOAD_ERROR = cli_runtime.EXIT_CODE_JSON_PAYLOAD_ERROR
+_EXIT_CODE_NETWORK_ERROR = cli_runtime.EXIT_CODE_NETWORK_ERROR
+_EXIT_CODE_OS_ERROR = cli_runtime.EXIT_CODE_OS_ERROR
+_EXIT_CODE_INTERRUPTED = cli_runtime.EXIT_CODE_INTERRUPTED
 
 
-_ReadableYamlDumper = cli_presenters._ReadableYamlDumper
+_ReadableYamlDumper = cli_app_presenters.ReadableYamlDumper
 
 
 def _str_presenter(dumper, data):
-    return cli_presenters._str_presenter(dumper, data)
+    return cli_app_presenters.str_presenter(dumper, data)
 
 
 def _sanitize_captured_content(text: str) -> str:
-    return cli_presenters._sanitize_captured_content(text)
+    return cli_app_presenters.sanitize_captured_content(text)
 
 
 def _truncate_content(text: str, max_chars: int) -> tuple[str, bool]:
-    return cli_presenters._truncate_content(text, max_chars)
+    return cli_app_presenters.truncate_content(text, max_chars)
 
 
 def _as_dict(value: object) -> dict:
-    return cli_presenters._as_dict(value)
+    return cli_app_presenters.as_dict(value)
 
 
 def _bounded_list(items: list[dict], limit: int) -> tuple[list[dict], int]:
-    return cli_presenters._bounded_list(items, limit)
+    return cli_app_presenters.bounded_list(items, limit)
 
 
 def _render_collection_markdown(payload: dict) -> str:
-    return cli_presenters._render_collection_markdown(payload)
+    return cli_app_presenters.render_collection_markdown_payload(payload)
 
 
 def _add_shared_scan_arguments(parser: argparse.ArgumentParser) -> None:
-    cli_commands._add_shared_scan_arguments(parser)
+    cli_parser.add_shared_scan_arguments(parser)
 
 
 def _add_common_output_arguments(
@@ -102,7 +152,7 @@ def _add_common_output_arguments(
     include_template: bool,
     format_choices: tuple[str, ...],
 ) -> None:
-    cli_commands._add_common_output_arguments(
+    cli_parser.add_common_output_arguments(
         parser,
         include_template=include_template,
         format_choices=format_choices,
@@ -110,28 +160,26 @@ def _add_common_output_arguments(
 
 
 def _add_repo_arguments(parser: argparse.ArgumentParser) -> None:
-    cli_commands._add_repo_arguments(parser)
+    cli_parser.add_repo_arguments(parser)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    return cli_commands.build_parser()
+    return cli_parser.build_parser()
 
 
 def _collect_option_strings(parser: argparse.ArgumentParser) -> list[str]:
-    return cli_commands._collect_option_strings(parser)
+    return cli_parser.collect_option_strings(parser)
 
 
 def _build_bash_completion_script() -> str:
-    return cli_commands._build_bash_completion_script(parser_factory=build_parser)
+    return cli_parser.build_bash_completion_script(parser_factory=build_parser)
 
 
 def _resolve_effective_readme_config(
     role_path: Path,
     explicit_config_path: str | None,
 ) -> str | None:
-    return cli_commands._resolve_effective_readme_config(
-        role_path, explicit_config_path
-    )
+    return cli_shared.resolve_effective_readme_config(role_path, explicit_config_path)
 
 
 def _emit_success(
@@ -140,24 +188,27 @@ def _emit_success(
     style_source_path: str | None = None,
     style_demo_path: str | None = None,
 ) -> int:
-    return cli_presenters._emit_success(
-        args, outpath, style_source_path, style_demo_path
+    return cli_app_presenters.emit_success(
+        args,
+        outpath,
+        style_source_path,
+        style_demo_path,
     )
 
 
 def _resolve_vars_context_paths(args: argparse.Namespace) -> list[str] | None:
-    return cli_commands._resolve_vars_context_paths(args)
+    return cli_shared.resolve_vars_context_paths(args)
 
 
 def _resolve_include_collection_checks(
     feedback_source: str | None,
     include_collection_checks: bool,
 ) -> bool | None:
-    return cli_commands._resolve_include_collection_checks(
+    return cli_shared.resolve_include_collection_checks(
         feedback_source,
         include_collection_checks,
-        load_feedback=load_feedback,
-        apply_feedback_recommendations=apply_feedback_recommendations,
+        load_feedback_fn=load_feedback,
+        apply_feedback_recommendations_fn=apply_feedback_recommendations,
     )
 
 
@@ -167,7 +218,7 @@ def _normalize_repo_json_payload(
     repo_style_readme_path: str | None,
     scanner_report_relpath: str | None,
 ) -> str:
-    return cli_commands._normalize_repo_json_payload(
+    return cli_shared.normalize_repo_json_payload(
         rendered_payload,
         repo_style_readme_path=repo_style_readme_path,
         scanner_report_relpath=scanner_report_relpath,
@@ -176,15 +227,15 @@ def _normalize_repo_json_payload(
 
 
 def _map_top_level_exception_to_exit_code(exc: Exception) -> int:
-    return cli_commands._map_top_level_exception_to_exit_code(exc)
+    return cli_runtime.map_top_level_exception_to_exit_code(exc)
 
 
 def _format_top_level_exception(exc: Exception) -> str:
-    return cli_commands._format_top_level_exception(exc)
+    return cli_runtime.format_top_level_exception(exc)
 
 
 def _handle_repo_command(args: argparse.Namespace) -> int:
-    return cli_commands._handle_repo_command(
+    return cli_app_commands.handle_repo_command(
         args,
         repo_scan_workspace=_repo_scan_workspace,
         checkout_repo_scan_role=_checkout_repo_scan_role,
@@ -206,24 +257,29 @@ def _handle_repo_command(args: argparse.Namespace) -> int:
         save_style_comparison_artifacts=_save_style_comparison_artifacts,
         emit_success=_emit_success,
         resolve_vars_context_paths=_resolve_vars_context_paths,
+        finalize_repo_json_output_fn=cli_runtime.finalize_repo_json_output,
     )
 
 
 def _handle_collection_command(args: argparse.Namespace) -> int:
     from prism.api import scan_collection
 
-    return cli_commands._handle_collection_command(
+    return cli_app_commands.handle_collection_command(
         args,
         scan_collection=scan_collection,
         render_collection_markdown=_render_collection_markdown,
         resolve_vars_context_paths=_resolve_vars_context_paths,
         resolve_include_collection_checks=_resolve_include_collection_checks,
         emit_success=_emit_success,
+        resolve_cli_output_path_fn=cli_runtime.resolve_cli_output_path,
+        persist_collection_role_markdown_documents_fn=(
+            cli_runtime.persist_collection_role_markdown_documents
+        ),
     )
 
 
 def _handle_role_command(args: argparse.Namespace) -> int:
-    return cli_commands._handle_role_command(
+    return cli_app_commands.handle_role_command(
         args,
         run_scan=run_scan,
         resolve_default_style_guide_source=resolve_default_style_guide_source,
@@ -236,7 +292,7 @@ def _handle_role_command(args: argparse.Namespace) -> int:
 
 
 def _handle_completion_command(args: argparse.Namespace) -> int:
-    return cli_commands._handle_completion_command(
+    return cli_app_commands.handle_completion_command(
         args,
         build_bash_completion_script=_build_bash_completion_script,
     )
@@ -330,7 +386,7 @@ def _save_style_comparison_artifacts(
     role_config_path: str | None = None,
     keep_unknown_style_sections: bool = False,
 ) -> tuple[str | None, str | None]:
-    return cli_presenters._save_style_comparison_artifacts(
+    return cli_shared.save_style_comparison_artifacts(
         style_readme_path,
         generated_output,
         style_source_name,

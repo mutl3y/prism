@@ -78,3 +78,7 @@
 - Plan closure is complete (2026-04-03): `docs/plan/prism-architecture-review-top50-20260401/plan.yaml` is the canonical authority for the A01-A50 risk register.
 - Follow-up slices for this plan ID are execution/history artifacts that defer to the canonical register and do not replace it.
 - Closure evidence is a unified validation bundle that must be green together: full pytest, `ruff check src`, `black --check src`, and `tox -e typecheck`.
+- Follow-up finalization slice `docs/plan/prism-architecture-review-top50-20260401/plan_f.yaml` is complete (2026-04-03): CLI/API package split finalization now records explicit seam registers for `api.py`, `cli.py`, and `repo_services.py`.
+- Canonical CLI ownership now lives under `src/prism/cli_app/`, and `cli.py` now binds directly to that package instead of top-level CLI helper wrapper modules.
+- Canonical repo helper ownership now lives under `src/prism/repo_layer/`; `repo_services.py` remains the only top-level repo facade for API/CLI orchestration.
+- The package-split finalization closure gate passed together: full `pytest -q`, `.venv/bin/python -m ruff check src/prism`, `.venv/bin/python -m black --check src/prism`, and `.venv/bin/python -m tox -e typecheck`.

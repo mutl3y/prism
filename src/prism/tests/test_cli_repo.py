@@ -8,7 +8,10 @@ import pytest
 
 from prism import cli
 from prism import repo_services
-from prism.tests._boundary_acceptance import assert_callable_aliases_bind_exactly
+from prism.tests._boundary_acceptance import (
+    assert_callable_aliases_expose_contract,
+    assert_named_exports_exist,
+)
 from prism.tests import _cli_repo_error_and_feedback as cli_repo_error_and_feedback
 
 _REAL_FETCH_REPO_FILE = cli._fetch_repo_file
@@ -31,35 +34,43 @@ def test_cli_repo_service_aliases_bind_to_shared_canonical_helpers(monkeypatch):
     )
     monkeypatch.setattr(cli, "_fetch_repo_file", _REAL_FETCH_REPO_FILE)
 
-    assert_callable_aliases_bind_exactly(
+    assert_callable_aliases_expose_contract(
         cli,
-        {
-            "_prepare_repo_scan_inputs": repo_services.prepare_repo_scan_inputs,
-            "_resolve_repo_scan_target": repo_services.resolve_repo_scan_target,
-            "_resolve_repo_scan_scanner_report_relpath": repo_services.resolve_repo_scan_scanner_report_relpath,
-            "_repo_scan_workspace": repo_services.repo_scan_workspace,
-            "_repo_name_from_url": repo_services.repo_name_from_url,
-            "_repo_path_looks_like_role": repo_services.repo_path_looks_like_role,
-            "_fetch_repo_directory_names": _REAL_FETCH_REPO_DIRECTORY_NAMES,
-            "_fetch_repo_file": _REAL_FETCH_REPO_FILE,
-            "_build_sparse_clone_paths": repo_services.build_sparse_clone_paths,
-            "_resolve_style_readme_candidate": repo_services.resolve_style_readme_candidate,
-            "_normalize_repo_scan_result_payload": repo_services.normalize_repo_scan_result_payload,
-        },
+        (
+            "_prepare_repo_scan_inputs",
+            "_resolve_repo_scan_target",
+            "_resolve_repo_scan_scanner_report_relpath",
+            "_repo_scan_workspace",
+            "_repo_name_from_url",
+            "_repo_path_looks_like_role",
+            "_fetch_repo_directory_names",
+            "_fetch_repo_file",
+            "_build_sparse_clone_paths",
+            "_resolve_style_readme_candidate",
+            "_normalize_repo_scan_result_payload",
+        ),
         expected_owner_modules={
-            "_prepare_repo_scan_inputs": "prism.repo_intake",
+            "_prepare_repo_scan_inputs": "prism.repo_layer.intake",
             "_resolve_repo_scan_target": "prism.repo_services",
-            "_resolve_repo_scan_scanner_report_relpath": "prism.repo_metadata",
-            "_repo_scan_workspace": "prism.repo_intake",
-            "_repo_name_from_url": "prism.repo_metadata",
-            "_repo_path_looks_like_role": "prism.repo_metadata",
+            "_resolve_repo_scan_scanner_report_relpath": "prism.repo_layer.metadata",
+            "_repo_scan_workspace": "prism.repo_layer.intake",
+            "_repo_name_from_url": "prism.repo_layer.metadata",
+            "_repo_path_looks_like_role": "prism.repo_layer.metadata",
             "_fetch_repo_directory_names": "prism.cli",
             "_fetch_repo_file": "prism.cli",
-            "_build_sparse_clone_paths": "prism.repo_intake",
-            "_resolve_style_readme_candidate": "prism.repo_intake",
-            "_normalize_repo_scan_result_payload": "prism.repo_metadata",
+            "_build_sparse_clone_paths": "prism.repo_layer.intake",
+            "_resolve_style_readme_candidate": "prism.repo_layer.intake",
+            "_normalize_repo_scan_result_payload": "prism.repo_layer.metadata",
         },
     )
+
+
+def test_cli_declares_curated_compatibility_seam_registers() -> None:
+    assert cli.CLI_PUBLIC_ENTRYPOINTS == ("main", "build_parser")
+    assert_named_exports_exist(cli, cli.CLI_PUBLIC_ENTRYPOINTS)
+    assert_named_exports_exist(cli, cli.CLI_SHARED_REPO_COMPATIBILITY_SEAMS)
+    assert_named_exports_exist(cli, cli.CLI_RETAINED_COMPATIBILITY_SEAMS)
+    assert_named_exports_exist(cli, cli.CLI_TRANSITIONAL_COMPATIBILITY_SEAMS)
 
 
 def _write_generated_output(output: str) -> str:
