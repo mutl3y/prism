@@ -2,7 +2,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from prism import cli
-from prism import cli_commands, cli_presenters
 from prism import errors as prism_errors
 from prism.scanner_io.collection_renderer import render_collection_markdown
 
@@ -339,17 +338,17 @@ def test_main_prints_structured_error_context(monkeypatch, capsys):
     assert "category=network" in captured.err
 
 
-def test_cli_build_parser_delegates_to_cli_commands(monkeypatch):
+def test_cli_build_parser_delegates_to_cli_parser(monkeypatch):
     sentinel = object()
-    monkeypatch.setattr(cli_commands, "build_parser", lambda: sentinel)
+    monkeypatch.setattr(cli.cli_parser, "build_parser", lambda: sentinel)
 
     assert cli.build_parser() is sentinel
 
 
-def test_cli_collection_presenter_delegates_to_cli_presenters(monkeypatch):
+def test_cli_collection_presenter_delegates_to_cli_app_presenters(monkeypatch):
     monkeypatch.setattr(
-        cli_presenters,
-        "_render_collection_markdown",
+        cli.cli_app_presenters,
+        "render_collection_markdown_payload",
         lambda payload: "delegated-render",
     )
 

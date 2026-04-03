@@ -1,0 +1,206 @@
+{
+  "name": "prism-comment-highlighter",
+  "displayName": "Prism Comment Highlighter",
+  "description": "Highlight and fold Prism comment-driven documentation blocks in VS Code.",
+  "version": "0.0.3",
+  "publisher": "Prism",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mutl3y/prism.git"
+  },
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "prism",
+    "comments",
+    "documentation",
+    "folding",
+    "highlighting"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:prismCommentDocs.toggleEnabled",
+    "onCommand:prismCommentDocs.openSettings",
+    "onCommand:prismCommentDocs.foldAll",
+    "onCommand:prismCommentDocs.unfoldAll"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "build": "tsc -p .",
+    "check": "tsc -p . --noEmit",
+    "package": "npm test && npx @vscode/vsce package",
+    "watch": "tsc -p . --watch --preserveWatchOutput",
+    "test": "npm run build && node --test out/test/**/*.test.js"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "prismCommentDocs.toggleEnabled",
+        "title": "Prism Comment Docs: Toggle Enabled"
+      },
+      {
+        "command": "prismCommentDocs.openSettings",
+        "title": "Prism Comment Docs: Open Settings"
+      },
+      {
+        "command": "prismCommentDocs.foldAll",
+        "title": "Prism Comment Docs: Fold All"
+      },
+      {
+        "command": "prismCommentDocs.unfoldAll",
+        "title": "Prism Comment Docs: Unfold All"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "prismCommentDocs.toggleEnabled",
+        "key": "ctrl+shift+alt+p",
+        "mac": "cmd+shift+alt+p",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "prismCommentDocs.foldAll",
+        "key": "ctrl+alt+]",
+        "mac": "cmd+alt+]",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "prismCommentDocs.unfoldAll",
+        "key": "ctrl+alt+[",
+        "mac": "cmd+alt+[",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "Prism Comment Docs",
+      "properties": {
+        "prismCommentDocs.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Prism comment highlighting."
+        },
+        "prismCommentDocs.markerPrefix": {
+          "type": "string",
+          "default": "prism",
+          "description": "Prefix used before Prism comment markers, for example prism or opsdoc."
+        },
+        "prismCommentDocs.languageIds": {
+          "type": "array",
+          "default": [
+            "yaml",
+            "ansible",
+            "python",
+            "shellscript"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "VS Code language IDs where Prism comment highlighting and folding should apply."
+        },
+        "prismCommentDocs.markerKinds": {
+          "type": "array",
+          "default": [
+            "warning",
+            "deprecated",
+            "note",
+            "notes",
+            "additional",
+            "additionals",
+            "runbook",
+            "task"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Supported Prism marker kinds."
+        },
+        "prismCommentDocs.styleMode": {
+          "type": "string",
+          "enum": [
+            "yellow",
+            "amber",
+            "faded",
+            "custom"
+          ],
+          "default": "yellow",
+          "description": "Visual style used for Prism documentation blocks."
+        },
+        "prismCommentDocs.customColor": {
+          "type": "string",
+          "default": "#ffd54f",
+          "format": "color-hex",
+          "description": "Foreground color used in custom mode. Hex values work best in the Settings UI color picker; rgba values can still be entered directly in settings.json."
+        },
+        "prismCommentDocs.multicolorEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use default per-marker colors so Prism kinds such as note, warning, runbook, and task render with different highlight colors."
+        },
+        "prismCommentDocs.multicolor.warningColor": {
+          "type": "string",
+          "default": "#ff8a65",
+          "format": "color-hex",
+          "description": "Highlight color used for `prism~warning` blocks when multicolor mode is enabled."
+        },
+        "prismCommentDocs.multicolor.deprecatedColor": {
+          "type": "string",
+          "default": "#e57373",
+          "format": "color-hex",
+          "description": "Highlight color used for `prism~deprecated` blocks when multicolor mode is enabled."
+        },
+        "prismCommentDocs.multicolor.noteColor": {
+          "type": "string",
+          "default": "#64b5f6",
+          "format": "color-hex",
+          "description": "Highlight color used for `prism~note` blocks when multicolor mode is enabled."
+        },
+        "prismCommentDocs.multicolor.notesColor": {
+          "type": "string",
+          "default": "#64b5f6",
+          "format": "color-hex",
+          "description": "Highlight color used for `prism~notes` blocks when multicolor mode is enabled."
+        },
+        "prismCommentDocs.multicolor.additionalColor": {
+          "type": "string",
+          "default": "#4db6ac",
+          "format": "color-hex",
+          "description": "Highlight color used for `prism~additional` blocks when multicolor mode is enabled."
+        },
+        "prismCommentDocs.multicolor.additionalsColor": {
+          "type": "string",
+          "default": "#4db6ac",
+          "format": "color-hex",
+          "description": "Highlight color used for `prism~additionals` blocks when multicolor mode is enabled."
+        },
+        "prismCommentDocs.multicolor.runbookColor": {
+          "type": "string",
+          "default": "#9575cd",
+          "format": "color-hex",
+          "description": "Highlight color used for `prism~runbook` blocks when multicolor mode is enabled."
+        },
+        "prismCommentDocs.multicolor.taskColor": {
+          "type": "string",
+          "default": "#ffd54f",
+          "format": "color-hex",
+          "description": "Highlight color used for `prism~task` blocks when multicolor mode is enabled."
+        },
+        "prismCommentDocs.foldingEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Prism-only folding ranges and fold or unfold commands."
+        }
+      }
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "@types/vscode": "^1.96.0",
+    "@vscode/vsce": "^3.7.1",
+    "typescript": "^5.8.2"
+  }
+}

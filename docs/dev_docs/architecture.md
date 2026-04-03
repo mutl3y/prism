@@ -38,7 +38,49 @@ It is best understood as a contract-and-governance pipeline, not only a renderer
 
 Cross-package architecture guardrails enforce one-way decomposition: canonical scanner packages must not reverse-import `prism.scanner`, and private cross-package imports are blocked except for explicitly whitelisted seams.
 
-`src/prism/repo_services.py` holds shared repo-intake, clone, fetch, sparse-checkout, and temp-workspace orchestration extracted from `cli.py`. Both `api.py` and `cli.py` import from `repo_services`.
+`src/prism/repo_services.py` is the stable shared repo facade. Package-owned repository intake and metadata logic now lives under `src/prism/repo_layer/`, and both `api.py` and `cli.py` import the curated facade rather than top-level repo helper modules.
+
+## API And CLI Facades
+
+`src/prism/api.py` and `src/prism/cli.py` remain the stable top-level public facades.
+They should stay small and unsurprising:
+
+- `api.py` owns public API exports and final public-boundary compatibility normalization
+- `cli.py` owns the top-level `main()` entrypoint, parser export, and top-level exit handling
+- neither facade should own multi-step orchestration or become the default home for new helpers
+
+Concrete internal package names are now frozen and in active use:
+
+| Package | Ownership boundary |
+| --- | --- |
+| `api_layer/` | package-owned API orchestration split across `common.py`, `role.py`, `repo.py`, and `collection.py` |
+| `cli_app/` | package-owned CLI parser, dispatch, runtime, presenter, and shared helper ownership in `parser.py`, `commands.py`, `runtime.py`, `presenters.py`, and `shared.py` |
+| `repo_layer/` | package-owned repo clone/workspace orchestration and repo metadata helpers in `intake.py` and `metadata.py` |
+
+Naming rule:
+
+- do not introduce `src/prism/api/` while `src/prism/api.py` remains the stable public module
+- do not introduce `src/prism/cli/` while `src/prism/cli.py` remains the stable public module
+- internal modules under `api_layer/` must not import back through `prism.api`
+- internal modules under `cli_app/` must not import back through `prism.cli`
+
+Extension rule:
+
+- add new public API behavior in `api_layer/` first, then expose it from `api.py` only if it belongs on the public surface
+- add new CLI parser, dispatch, and shared runtime helpers under `cli_app/`, not `cli.py`
+- keep `cli.py` and `api.py` focused on stable facade seams, compatibility wrappers, and top-level entry handling
+
+Current compatibility note:
+
+- `repo_services.py` remains the shared repo-intake facade used by both `api.py` and `cli.py`
+- package-owned repo internals live under `repo_layer/`, not as top-level `repo_*` modules
+- boundary tests should prefer callable contract and owner-module checks over exact alias identity unless identity is itself the public contract
+
+Explicit seam register:
+
+- `api.py` should retain only `API_PUBLIC_ENTRYPOINTS`, `API_SHARED_REPO_COMPATIBILITY_SEAMS`, and `API_RETAINED_PATCHABLE_SEAMS`
+- `cli.py` should retain only `CLI_PUBLIC_ENTRYPOINTS`, `CLI_SHARED_REPO_COMPATIBILITY_SEAMS`, `CLI_RETAINED_COMPATIBILITY_SEAMS`, and narrowly scoped `CLI_TRANSITIONAL_COMPATIBILITY_SEAMS`
+- `repo_services.py` is the canonical shared repo boundary and records that surface via `REPO_SERVICE_CANONICAL_SURFACE` plus `REPO_SERVICE_COMPATIBILITY_SEAMS`
 
 ## Typed Seam Contracts
 

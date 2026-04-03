@@ -1,7 +1,7 @@
 """Shared repository-intake helpers for API and CLI layers.
 
-This module remains the compatibility facade while focused responsibilities live
-in ``repo_intake`` and ``repo_metadata``.
+This module remains the stable top-level facade while focused responsibilities
+live in ``prism.repo_layer``.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .errors import FailureDetail, to_failure_detail
-from .repo_intake import (
+from .repo_layer.intake import (
     _RepoCheckoutResult as _IntakeRepoCheckoutResult,
     _RepoLightweightCheckoutResult as _IntakeRepoLightweightCheckoutResult,
     _RepoScanPreparation as _IntakeRepoScanPreparation,
@@ -25,7 +25,7 @@ from .repo_intake import (
     _repo_scan_workspace,
     _resolve_style_readme_candidate,
 )
-from .repo_metadata import (
+from .repo_layer.metadata import (
     _build_repo_style_readme_candidates,
     _fetch_repo_contents_payload as _metadata_fetch_repo_contents_payload,
     _fetch_repo_directory_names,
@@ -37,6 +37,43 @@ from .repo_metadata import (
     _repo_name_from_url,
     _repo_path_looks_like_role,
     _resolve_repo_scan_scanner_report_relpath,
+)
+
+REPO_SERVICE_CANONICAL_SURFACE: tuple[str, ...] = (
+    "build_repo_intake_components",
+    "build_repo_intake_error",
+    "build_repo_style_readme_candidates",
+    "build_sparse_clone_paths",
+    "build_lightweight_sparse_clone_paths",
+    "checkout_repo_lightweight_style_readme",
+    "checkout_repo_scan_role",
+    "clone_repo",
+    "fetch_repo_contents_payload",
+    "fetch_repo_directory_names",
+    "fetch_repo_file",
+    "github_repo_from_url",
+    "normalize_repo_path",
+    "normalize_repo_scan_metadata_paths",
+    "normalize_repo_scan_payload",
+    "normalize_repo_scan_result_payload",
+    "prepare_repo_scan_inputs",
+    "repo_name_from_url",
+    "repo_path_looks_like_role",
+    "repo_scan_facade",
+    "repo_scan_workspace",
+    "resolve_repo_scan_scanner_report_relpath",
+    "resolve_repo_scan_target",
+    "run_repo_scan",
+)
+REPO_SERVICE_COMPATIBILITY_SEAMS: tuple[str, ...] = (
+    "_RepoScanPreparation",
+    "_RepoCheckoutResult",
+    "_RepoLightweightCheckoutResult",
+    "_RepoScanTarget",
+    "_fetch_repo_contents_payload",
+    "_github_repo_from_url",
+    "_normalize_repo_path",
+    "os",
 )
 
 # Compatibility export for callers monkeypatching repo_services.os.path.

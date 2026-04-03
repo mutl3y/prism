@@ -11,7 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlparse
 from urllib.request import Request, urlopen
 
-from .errors import (
+from ..errors import (
     PrismRuntimeError,
     REPO_SCAN_PAYLOAD_JSON_INVALID,
     REPO_SCAN_PAYLOAD_SHAPE_INVALID,

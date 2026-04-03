@@ -8,7 +8,8 @@ from prism import api, cli, repo_services
 from prism import errors as prism_errors
 from prism.scanner_io.collection_renderer import write_collection_runbook_artifacts
 from prism.tests._boundary_acceptance import (
-    assert_callable_aliases_bind_exactly,
+    assert_callable_aliases_expose_contract,
+    assert_named_exports_exist,
     assert_repo_scan_facade_contract,
 )
 from prism.tests import _api_repo_scan_tail as api_repo_scan_tail
@@ -80,10 +81,11 @@ def test_api_and_cli_share_repo_service_helper_bindings(monkeypatch):
         "_checkout_repo_lightweight_style_readme",
     ]
 
-    for name in helper_names:
-        assert callable(getattr(api, name))
-        if hasattr(cli, name):
-            assert callable(getattr(cli, name))
+    assert_callable_aliases_expose_contract(api, helper_names)
+    assert_callable_aliases_expose_contract(
+        cli,
+        tuple(name for name in helper_names if hasattr(cli, name)),
+    )
 
     assert api._repo_name_from_url("https://github.com/example/demo-role.git") == (
         "demo-role"
@@ -93,15 +95,23 @@ def test_api_and_cli_share_repo_service_helper_bindings(monkeypatch):
     )
 
 
+def test_api_declares_curated_compatibility_seam_registers() -> None:
+    assert api.API_PUBLIC_ENTRYPOINTS == ("scan_collection", "scan_repo", "scan_role")
+    assert_named_exports_exist(api, api.API_PUBLIC_ENTRYPOINTS)
+    assert_named_exports_exist(api, api.API_SHARED_REPO_COMPATIBILITY_SEAMS)
+    assert_named_exports_exist(api, api.API_RETAINED_PATCHABLE_SEAMS)
+    assert api.API_TRANSITIONAL_COMPATIBILITY_SEAMS == ()
+
+
 def test_api_repo_service_aliases_bind_to_shared_facade_contract() -> None:
     assert_repo_scan_facade_contract(api._repo_scan_facade)
-    assert_callable_aliases_bind_exactly(
+    assert_callable_aliases_expose_contract(
         api,
-        {
-            "_build_repo_intake_components": api._repo_scan_facade.build_repo_intake_components,
-            "_run_repo_scan": api._repo_scan_facade.run_repo_scan,
-            "_normalize_repo_scan_payload": api._repo_scan_facade.normalize_repo_scan_payload,
-        },
+        (
+            "_build_repo_intake_components",
+            "_run_repo_scan",
+            "_normalize_repo_scan_payload",
+        ),
         expected_owner_modules={
             "_build_repo_intake_components": "prism.repo_services",
             "_run_repo_scan": "prism.repo_services",
@@ -110,14 +120,8 @@ def test_api_repo_service_aliases_bind_to_shared_facade_contract() -> None:
     )
 
 
-def test_api_uses_repo_scan_facade_binding() -> None:
-    for expected_name in (
-        "build_repo_intake_components",
-        "run_repo_scan",
-        "normalize_repo_scan_payload",
-    ):
-        assert hasattr(api._repo_scan_facade, expected_name)
-        assert callable(getattr(api._repo_scan_facade, expected_name))
+def test_api_exposes_repo_scan_facade_contract() -> None:
+    assert_repo_scan_facade_contract(api._repo_scan_facade)
 
 
 def test_scan_repo_uses_shared_checkout_orchestration(monkeypatch, tmp_path):
