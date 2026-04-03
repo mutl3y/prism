@@ -8,6 +8,7 @@ from prism.scanner_core import ScanContextBuilder
 from prism.scanner_core import scan_request
 from prism.scanner_core import scan_runtime
 from prism.scanner_data import ScanContextPayload, contracts
+from prism.scanner_extract import variable_extractor
 from prism.scanner_readme import guide as readme_guide
 from prism.tests import _scan_context_execution_tail as scan_context_execution_tail
 
@@ -390,6 +391,111 @@ def test_render_guide_section_body_uses_request_scoped_variable_guidance_keyword
 
     assert "bertrum_runtime_choice" in after
     assert "zzzz_nonpriority_alpha" not in after
+
+
+def test_run_scan_payload_scopes_policy_without_mutating_scanner_globals(
+    monkeypatch,
+    tmp_path,
+):
+    role = tmp_path / "role"
+    tasks_dir = role / "tasks"
+    tasks_dir.mkdir(parents=True)
+    (tasks_dir / "main.yml").write_text(
+        "---\n"
+        "- name: Reference runtime-only ignored variable\n"
+        "  ansible.builtin.debug:\n"
+        '    msg: "{{ bertrum_runtime_only_ignored }}"\n',
+        encoding="utf-8",
+    )
+    style = tmp_path / "STYLE_GUIDE_SOURCE.md"
+    style.write_text("Runtime Inputs\n--------------\n\nBody\n", encoding="utf-8")
+    (role / ".prism_patterns.yml").write_text(
+        "section_aliases:\n"
+        "  runtime inputs: role_variables\n"
+        "ignored_identifiers:\n"
+        "  - bertrum_runtime_only_ignored\n"
+        "variable_guidance:\n"
+        "  priority_keywords:\n"
+        "    - bertrum_runtime\n"
+        "sensitivity:\n"
+        "  name_tokens:\n"
+        "    - bertrum_scope_sentinel\n",
+        encoding="utf-8",
+    )
+
+    original_tokens = scanner._SECRET_NAME_TOKENS
+    baseline_style = scanner.parse_style_readme(str(style))
+    baseline_refs = variable_extractor._collect_referenced_variable_names(str(role))
+    baseline_guidance = scanner._render_guide_section_body(
+        "variable_guidance",
+        "demo",
+        "",
+        {},
+        [],
+        [],
+        {
+            "variable_insights": [
+                {"name": "zzzz_nonpriority_alpha", "default": "keep"},
+                {"name": "bertrum_runtime_choice", "default": "pick"},
+            ]
+        },
+    )
+
+    assert baseline_style["sections"][0]["id"] == "unknown"
+    assert "bertrum_runtime_only_ignored" in baseline_refs
+    assert "zzzz_nonpriority_alpha" in baseline_guidance
+    assert not variable_extractor._looks_secret_name("bertrum_scope_sentinel_value")
+
+    def _fake_orchestrate_scan_payload(*, role_path: str, scan_options: dict):
+        scoped_style = scanner.parse_style_readme(str(style))
+        scoped_refs = variable_extractor._collect_referenced_variable_names(role_path)
+        scoped_guidance = scanner._render_guide_section_body(
+            "variable_guidance",
+            "demo",
+            "",
+            {},
+            [],
+            [],
+            {
+                "variable_insights": [
+                    {"name": "zzzz_nonpriority_alpha", "default": "keep"},
+                    {"name": "bertrum_runtime_choice", "default": "pick"},
+                ]
+            },
+        )
+
+        assert scan_options["policy_context"]["section_aliases"]["runtime inputs"] == (
+            "role_variables"
+        )
+        assert (
+            "bertrum_runtime_only_ignored"
+            in scan_options["policy_context"]["ignored_identifiers"]
+        )
+        assert scan_options["policy_context"]["variable_guidance_keywords"] == (
+            "bertrum_runtime",
+        )
+        assert scoped_style["sections"][0]["id"] == "role_variables"
+        assert "bertrum_runtime_only_ignored" not in scoped_refs
+        assert "bertrum_runtime_choice" in scoped_guidance
+        assert "zzzz_nonpriority_alpha" not in scoped_guidance
+        assert variable_extractor._looks_secret_name("bertrum_scope_sentinel_value")
+        assert scanner._SECRET_NAME_TOKENS == original_tokens
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        scanner, "_orchestrate_scan_payload", _fake_orchestrate_scan_payload
+    )
+
+    result = scanner._run_scan_payload(str(role), style_readme_path=str(style))
+
+    assert result == {"ok": True}
+    assert scanner._SECRET_NAME_TOKENS == original_tokens
+    assert scanner.parse_style_readme(str(style))["sections"][0]["id"] == "unknown"
+    assert (
+        "bertrum_runtime_only_ignored"
+        in variable_extractor._collect_referenced_variable_names(str(role))
+    )
+    assert not variable_extractor._looks_secret_name("bertrum_scope_sentinel_value")
 
 
 def test_policy_context_annotations_use_typed_contract_across_runtime_seams():
