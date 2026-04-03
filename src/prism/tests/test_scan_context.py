@@ -4,12 +4,17 @@ from functools import partial
 from typing import get_type_hints
 
 from prism import scanner
+from prism.scanner_config import (
+    load_pattern_config as config_load_pattern_config,
+    load_pattern_policy_with_context as config_load_pattern_policy_with_context,
+)
 from prism.scanner_core import ScanContextBuilder
 from prism.scanner_core import scan_request
 from prism.scanner_core import scan_runtime
 from prism.scanner_data import ScanContextPayload, contracts
 from prism.scanner_extract import variable_extractor
 from prism.scanner_readme import guide as readme_guide
+from prism.scanner_readme import style as readme_style
 from prism.tests import _scan_context_execution_tail as scan_context_execution_tail
 
 
@@ -176,25 +181,12 @@ def test_scanner_runtime_policy_helpers_are_flattened_partial_aliases():
 
 
 def test_refresh_policy_updates_variable_guidance_rendering_in_process(monkeypatch):
-    base_policy = dict(scanner._POLICY)
+    base_policy = config_load_pattern_config()
     patched_policy = dict(base_policy)
     patched_guidance = dict(base_policy["variable_guidance"])
     sentinel_keyword = "ansible_prism_runtime_keyword"
     patched_guidance["priority_keywords"] = [sentinel_keyword]
     patched_policy["variable_guidance"] = patched_guidance
-
-    def _refresh_return_for(policy: dict):
-        sensitivity = policy["sensitivity"]
-        return (
-            policy,
-            policy["section_aliases"],
-            tuple(sensitivity["name_tokens"]),
-            tuple(sensitivity["vault_markers"]),
-            tuple(sensitivity["credential_prefixes"]),
-            tuple(sensitivity["url_prefixes"]),
-            tuple(policy["variable_guidance"]["priority_keywords"]),
-            policy["ignored_identifiers"],
-        )
 
     metadata = {
         "variable_insights": [
@@ -214,12 +206,7 @@ def test_refresh_policy_updates_variable_guidance_rendering_in_process(monkeypat
     )
     assert "zzzz_nonpriority_alpha" in before
 
-    monkeypatch.setattr(
-        scanner,
-        "_config_refresh_policy",
-        lambda override_path=None: _refresh_return_for(patched_policy),
-    )
-    scanner._refresh_policy()
+    readme_guide.refresh_policy_derived_state(patched_policy)
 
     try:
         after = scanner._render_guide_section_body(
@@ -234,35 +221,17 @@ def test_refresh_policy_updates_variable_guidance_rendering_in_process(monkeypat
         assert f"{sentinel_keyword}_choice" in after
         assert "zzzz_nonpriority_alpha" not in after
     finally:
-        monkeypatch.setattr(
-            scanner,
-            "_config_refresh_policy",
-            lambda override_path=None: _refresh_return_for(base_policy),
-        )
-        scanner._refresh_policy()
+        readme_guide.refresh_policy_derived_state(base_policy)
 
 
 def test_refresh_policy_updates_readme_section_aliases_in_process(
-    monkeypatch, tmp_path
+    tmp_path,
 ):
-    base_policy = dict(scanner._POLICY)
+    base_policy = config_load_pattern_config()
     patched_policy = dict(base_policy)
     patched_aliases = dict(base_policy["section_aliases"])
     patched_aliases["runtime inputs"] = "role_variables"
     patched_policy["section_aliases"] = patched_aliases
-
-    def _refresh_return_for(policy: dict):
-        sensitivity = policy["sensitivity"]
-        return (
-            policy,
-            policy["section_aliases"],
-            tuple(sensitivity["name_tokens"]),
-            tuple(sensitivity["vault_markers"]),
-            tuple(sensitivity["credential_prefixes"]),
-            tuple(sensitivity["url_prefixes"]),
-            tuple(policy["variable_guidance"]["priority_keywords"]),
-            policy["ignored_identifiers"],
-        )
 
     style = tmp_path / "STYLE_GUIDE_SOURCE.md"
     style.write_text("Runtime Inputs\n--------------\n\nBody\n", encoding="utf-8")
@@ -270,23 +239,13 @@ def test_refresh_policy_updates_readme_section_aliases_in_process(
     before = scanner.parse_style_readme(str(style))
     assert before["sections"][0]["id"] == "unknown"
 
-    monkeypatch.setattr(
-        scanner,
-        "_config_refresh_policy",
-        lambda override_path=None: _refresh_return_for(patched_policy),
-    )
-    scanner._refresh_policy()
+    readme_style.refresh_policy_derived_state(patched_policy)
 
     try:
         after = scanner.parse_style_readme(str(style))
         assert after["sections"][0]["id"] == "role_variables"
     finally:
-        monkeypatch.setattr(
-            scanner,
-            "_config_refresh_policy",
-            lambda override_path=None: _refresh_return_for(base_policy),
-        )
-        scanner._refresh_policy()
+        readme_style.refresh_policy_derived_state(base_policy)
 
 
 def test_prepare_scan_context_uses_per_scan_policy_context_for_style_aliases(
@@ -393,7 +352,7 @@ def test_render_guide_section_body_uses_request_scoped_variable_guidance_keyword
     assert "zzzz_nonpriority_alpha" not in after
 
 
-def test_run_scan_payload_scopes_policy_without_mutating_scanner_globals(
+def test_run_scan_payload_scopes_policy_without_mutating_canonical_defaults(
     monkeypatch,
     tmp_path,
 ):
@@ -423,7 +382,6 @@ def test_run_scan_payload_scopes_policy_without_mutating_scanner_globals(
         encoding="utf-8",
     )
 
-    original_tokens = scanner._SECRET_NAME_TOKENS
     baseline_style = scanner.parse_style_readme(str(style))
     baseline_refs = variable_extractor._collect_referenced_variable_names(str(role))
     baseline_guidance = scanner._render_guide_section_body(
@@ -479,7 +437,6 @@ def test_run_scan_payload_scopes_policy_without_mutating_scanner_globals(
         assert "bertrum_runtime_choice" in scoped_guidance
         assert "zzzz_nonpriority_alpha" not in scoped_guidance
         assert variable_extractor._looks_secret_name("bertrum_scope_sentinel_value")
-        assert scanner._SECRET_NAME_TOKENS == original_tokens
         return {"ok": True}
 
     monkeypatch.setattr(
@@ -489,7 +446,6 @@ def test_run_scan_payload_scopes_policy_without_mutating_scanner_globals(
     result = scanner._run_scan_payload(str(role), style_readme_path=str(style))
 
     assert result == {"ok": True}
-    assert scanner._SECRET_NAME_TOKENS == original_tokens
     assert scanner.parse_style_readme(str(style))["sections"][0]["id"] == "unknown"
     assert (
         "bertrum_runtime_only_ignored"
@@ -506,7 +462,7 @@ def test_policy_context_annotations_use_typed_contract_across_runtime_seams():
     assert scanner_hints["policy_context"] == contracts.PolicyContext | None
 
 
-def test_refresh_policy_uses_role_root_override_instead_of_process_cwd(
+def test_load_pattern_policy_with_context_uses_role_root_override_instead_of_process_cwd(
     monkeypatch, tmp_path
 ):
     cwd_root = tmp_path / "cwd-root"
@@ -523,18 +479,15 @@ def test_refresh_policy_uses_role_root_override_instead_of_process_cwd(
         encoding="utf-8",
     )
 
-    original_tokens = scanner._SECRET_NAME_TOKENS
     monkeypatch.chdir(cwd_root)
 
-    scanner._refresh_policy(role_root=str(role_root))
+    policy, _context = config_load_pattern_policy_with_context(
+        search_root=str(role_root)
+    )
 
-    try:
-        assert "from_role_root" in scanner._SECRET_NAME_TOKENS
-        assert "from_process_cwd" not in scanner._SECRET_NAME_TOKENS
-    finally:
-        monkeypatch.chdir(tmp_path)
-        scanner._refresh_policy()
-        assert scanner._SECRET_NAME_TOKENS == original_tokens
+    monkeypatch.chdir(tmp_path)
+    assert "from_role_root" in policy["sensitivity"]["name_tokens"]
+    assert "from_process_cwd" not in policy["sensitivity"]["name_tokens"]
 
 
 def test_scanner_runtime_context_orchestration_executes_all_phases():

@@ -34,6 +34,7 @@ from prism.scanner_config import (
     default_style_guide_user_paths as config_default_style_guide_user_paths,
 )
 from prism.scanner_config import (
+    load_pattern_config as config_load_pattern_config,
     load_section_display_titles as config_load_section_display_titles,
 )
 from prism.scanner_config import (
@@ -2099,7 +2100,7 @@ def test_resolve_section_selector_handles_blank_canonical_and_alias():
         config_resolve_section_selector(
             "   ",
             all_section_ids=scanner.ALL_SECTION_IDS,
-            style_section_aliases=scanner.STYLE_SECTION_ALIASES,
+            style_section_aliases=readme_style.STYLE_SECTION_ALIASES,
             normalize_heading_fn=readme_style.normalize_style_heading,
         )
         is None
@@ -2108,7 +2109,7 @@ def test_resolve_section_selector_handles_blank_canonical_and_alias():
         config_resolve_section_selector(
             "requirements",
             all_section_ids=scanner.ALL_SECTION_IDS,
-            style_section_aliases=scanner.STYLE_SECTION_ALIASES,
+            style_section_aliases=readme_style.STYLE_SECTION_ALIASES,
             normalize_heading_fn=readme_style.normalize_style_heading,
         )
         == "requirements"
@@ -2117,7 +2118,7 @@ def test_resolve_section_selector_handles_blank_canonical_and_alias():
         config_resolve_section_selector(
             "Role purpose and capabilities",
             all_section_ids=scanner.ALL_SECTION_IDS,
-            style_section_aliases=scanner.STYLE_SECTION_ALIASES,
+            style_section_aliases=readme_style.STYLE_SECTION_ALIASES,
             normalize_heading_fn=readme_style.normalize_style_heading,
         )
         == "purpose"
@@ -2126,11 +2127,11 @@ def test_resolve_section_selector_handles_blank_canonical_and_alias():
 
 def test_style_section_aliases_public_compat_mapping_is_read_only():
     with pytest.raises(TypeError):
-        scanner.STYLE_SECTION_ALIASES["runtime inputs"] = "role_variables"
+        readme_style.STYLE_SECTION_ALIASES["runtime inputs"] = "role_variables"
 
 
-def test_get_style_section_aliases_snapshot_isolated_from_future_refresh():
-    original_policy = scanner._POLICY
+def test_get_style_section_aliases_snapshot_isolated_from_canonical_refresh():
+    original_policy = config_load_pattern_config()
     snapshot_before = scanner.get_style_section_aliases_snapshot()
     assert isinstance(snapshot_before, dict)
 
@@ -2139,38 +2140,18 @@ def test_get_style_section_aliases_snapshot_isolated_from_future_refresh():
     patched_aliases["bertrum policy alias"] = "role_variables"
     patched_policy["section_aliases"] = patched_aliases
 
-    def _refresh_return_for(policy: dict):
-        sensitivity = policy["sensitivity"]
-        return (
-            policy,
-            policy["section_aliases"],
-            tuple(sensitivity["name_tokens"]),
-            tuple(sensitivity["vault_markers"]),
-            tuple(sensitivity["credential_prefixes"]),
-            tuple(sensitivity["url_prefixes"]),
-            tuple(policy["variable_guidance"]["priority_keywords"]),
-            policy["ignored_identifiers"],
-        )
-
-    def _patched_refresh_policy(override_path=None):
-        return _refresh_return_for(patched_policy)
-
-    def _base_refresh_policy(override_path=None):
-        return _refresh_return_for(original_policy)
-
     try:
-        original_refresh = scanner._config_refresh_policy
-        scanner._config_refresh_policy = _patched_refresh_policy
-        scanner._refresh_policy()
+        readme_style.refresh_policy_derived_state(patched_policy)
         snapshot_after = scanner.get_style_section_aliases_snapshot()
         assert "bertrum policy alias" not in snapshot_before
         snapshot_before["bertrum policy alias"] = "unknown"
-        assert scanner.STYLE_SECTION_ALIASES["bertrum policy alias"] == "role_variables"
+        assert (
+            readme_style.STYLE_SECTION_ALIASES["bertrum policy alias"]
+            == "role_variables"
+        )
         assert snapshot_after["bertrum policy alias"] == "role_variables"
     finally:
-        scanner._config_refresh_policy = _base_refresh_policy
-        scanner._refresh_policy()
-        scanner._config_refresh_policy = original_refresh
+        readme_style.refresh_policy_derived_state(original_policy)
 
 
 def test_load_readme_section_config_parses_include_exclude_and_modes(tmp_path):
@@ -2477,16 +2458,8 @@ def test_run_scan_does_not_mutate_module_policy_state(tmp_path, monkeypatch):
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(
-        scanner,
-        "_refresh_policy",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("no refresh")),
-    )
-    monkeypatch.setattr(
-        scanner,
-        "_restore_policy_snapshot",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("no restore")),
-    )
+    assert not hasattr(scanner, "_refresh_policy")
+    assert not hasattr(scanner, "_restore_policy_snapshot")
 
     payload = scanner.run_scan(
         str(role),
@@ -3037,7 +3010,7 @@ def test_readme_variable_heading_and_blank_text_helpers():
         readme_input_parser.is_readme_variable_section_heading_with(
             "Variables",
             normalize_heading=lambda title: "",
-            section_aliases=scanner.STYLE_SECTION_ALIASES,
+            section_aliases=readme_style.STYLE_SECTION_ALIASES,
         )
         is False
     )
