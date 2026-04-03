@@ -10,8 +10,10 @@ import pytest
 from prism.scanner_config import patterns as pattern_config
 from prism.scanner_config.patterns import (
     _load_yaml,
+    build_policy_context,
     fetch_remote_policy,
     load_pattern_config,
+    load_pattern_policy_with_context,
     write_unknown_headings_log,
 )
 from prism import scanner_config
@@ -235,6 +237,47 @@ def test_load_pattern_config_treats_scalar_ignored_identifiers_as_single_token(
     config = load_pattern_config(override_path=str(override))
 
     assert config["ignored_identifiers"] == {"foobar"}
+
+
+def test_build_policy_context_normalizes_runtime_policy_contract():
+    policy = {
+        "section_aliases": {"Runtime Inputs": "role_variables"},
+        "ignored_identifiers": {"MiXeD_Name", 7},
+        "variable_guidance": {
+            "priority_keywords": ["bertrum_priority", 3, "runtime_input"]
+        },
+    }
+
+    context = build_policy_context(policy)
+
+    assert context == {
+        "section_aliases": {"Runtime Inputs": "role_variables"},
+        "ignored_identifiers": frozenset({"mixed_name"}),
+        "variable_guidance_keywords": ("bertrum_priority", "runtime_input"),
+    }
+
+
+def test_load_pattern_policy_with_context_uses_search_root_and_matches_builder(
+    tmp_path,
+):
+    override = tmp_path / ".prism_patterns.yml"
+    override.write_text(
+        "section_aliases:\n"
+        "  runtime inputs: role_variables\n"
+        "ignored_identifiers:\n"
+        "  - Bertrum_Runtime_Only_Ignored\n"
+        "variable_guidance:\n"
+        "  priority_keywords:\n"
+        "    - bertrum_runtime\n",
+        encoding="utf-8",
+    )
+
+    policy, context = load_pattern_policy_with_context(search_root=tmp_path)
+
+    assert context == build_policy_context(policy)
+    assert context["section_aliases"]["runtime inputs"] == "role_variables"
+    assert "bertrum_runtime_only_ignored" in context["ignored_identifiers"]
+    assert context["variable_guidance_keywords"] == ("bertrum_runtime",)
 
 
 def test_fetch_remote_policy_success(monkeypatch):

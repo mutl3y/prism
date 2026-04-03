@@ -42,6 +42,7 @@ from prism.scanner_config import (
     load_non_authoritative_test_evidence_max_files_scanned as _load_non_authoritative_test_evidence_max_files_scanned,
     load_non_authoritative_test_evidence_max_total_bytes as _load_non_authoritative_test_evidence_max_total_bytes,
     load_pattern_config,
+    load_pattern_policy_with_context,
     load_readme_marker_prefix as _load_readme_marker_prefix,
     load_readme_section_config as _load_readme_section_config,
     load_readme_section_visibility as _load_readme_section_visibility,
@@ -598,26 +599,10 @@ def _build_policy_context_for_scan(
     policy_config_path: str | None,
 ) -> tuple[dict, _PolicyContext]:
     """Load immutable per-scan policy state without mutating module globals."""
-    policy = load_pattern_config(
+    return load_pattern_policy_with_context(
         override_path=policy_config_path,
         search_root=role_path,
     )
-    policy_context: _PolicyContext = {
-        "section_aliases": dict(policy.get("section_aliases") or {}),
-        "ignored_identifiers": frozenset(
-            token.lower()
-            for token in (policy.get("ignored_identifiers") or set())
-            if isinstance(token, str)
-        ),
-        "variable_guidance_keywords": tuple(
-            token
-            for token in (
-                policy.get("variable_guidance", {}).get("priority_keywords") or []
-            )
-            if isinstance(token, str)
-        ),
-    }
-    return policy, policy_context
 
 
 def get_style_section_aliases_snapshot() -> dict[str, str]:

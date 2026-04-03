@@ -44,8 +44,10 @@ from prism.scanner_config.policy import (
 
 # Pattern loading
 from prism.scanner_config.patterns import (
+    build_policy_context,
     fetch_remote_policy,
     load_pattern_config,
+    load_pattern_policy_with_context,
     write_unknown_headings_log,
 )
 
@@ -77,8 +79,10 @@ __all__ = [
     "load_non_authoritative_test_evidence_max_files_scanned",
     "load_non_authoritative_test_evidence_max_total_bytes",
     # Pattern loading
+    "build_policy_context",
     "fetch_remote_policy",
     "load_pattern_config",
+    "load_pattern_policy_with_context",
     "write_unknown_headings_log",
     # Style guide and section resolution
     "default_style_guide_user_paths",

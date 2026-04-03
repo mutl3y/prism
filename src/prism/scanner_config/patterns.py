@@ -17,6 +17,8 @@ from typing import Any
 
 import yaml
 
+from prism.scanner_data.contracts_request import PolicyContext
+
 # Directory containing the built-in per-topic YAML files shipped with the package
 _BUILTIN_DATA_DIR = Path(__file__).parent.parent / "data"
 
@@ -193,6 +195,38 @@ def load_pattern_config(
                 policy = _deep_merge(policy, override)
 
     return _normalise(policy)
+
+
+def build_policy_context(policy: dict[str, Any]) -> PolicyContext:
+    """Build a normalized immutable per-scan policy snapshot contract."""
+    return {
+        "section_aliases": dict(policy.get("section_aliases") or {}),
+        "ignored_identifiers": frozenset(
+            token.lower()
+            for token in (policy.get("ignored_identifiers") or set())
+            if isinstance(token, str)
+        ),
+        "variable_guidance_keywords": tuple(
+            token
+            for token in (
+                policy.get("variable_guidance", {}).get("priority_keywords") or []
+            )
+            if isinstance(token, str)
+        ),
+    }
+
+
+def load_pattern_policy_with_context(
+    override_path: str | Path | None = None,
+    *,
+    search_root: str | Path | None = None,
+) -> tuple[dict[str, Any], PolicyContext]:
+    """Load pattern policy plus its normalized per-scan policy context."""
+    policy = load_pattern_config(
+        override_path=override_path,
+        search_root=search_root,
+    )
+    return policy, build_policy_context(policy)
 
 
 def fetch_remote_policy(
