@@ -6,7 +6,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from prism.scanner_data.contracts import PolicyContext, ReferenceContext, VariableRow
+from prism.scanner_data.contracts_request import PolicyContext
+from prism.scanner_data.contracts_variables import ReferenceContext, VariableRow
 
 from ..scanner_analysis.metrics import (
     attach_non_authoritative_test_evidence,

@@ -12,7 +12,7 @@ from functools import partial
 from pathlib import Path
 import re
 import threading
-from types import MappingProxyType
+from typing import Any
 
 from .scanner_io import (
     render_final_output,
@@ -35,9 +35,13 @@ from .scanner_config import (
     load_readme_section_visibility as _load_readme_section_visibility,
 )
 from .scanner_data.contracts import (
-    PolicyContext as _PolicyContext,
-    ReferenceContext as _scan_context_ReferenceContext,
     ScanMetadata as _scan_context_ScanMetadata,
+)
+from .scanner_data.contracts_output import RunScanOutputPayload as _RunScanOutputPayload
+from .scanner_data.contracts_request import PolicyContext as _PolicyContext
+from .scanner_data.contracts_request import ScanOptionsDict as _ScanOptionsDict
+from .scanner_data.contracts_variables import (
+    ReferenceContext as _scan_context_ReferenceContext,
 )
 from .scanner_io.scan_output_emission import (
     emit_scan_outputs as _scan_output_emit_scan_outputs,
@@ -51,7 +55,7 @@ from .scanner_core import scan_facade_helpers as _scan_facade_helpers
 from .scanner_core import scan_runtime as _scan_runtime
 from .scanner_core import variable_insights as _variable_insights
 from .scanner_core import variable_pipeline as _variable_pipeline
-from .scanner_data.contracts import VariableRow as _VariableRow
+from .scanner_data.contracts_variables import VariableRow as _VariableRow
 from .scanner_analysis.metrics import (
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES as _ANALYSIS_MAX_FILE_BYTES,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED as _ANALYSIS_MAX_FILES_SCANNED,
@@ -122,10 +126,8 @@ _POLICY = load_pattern_config()
 
 # Re-entrant lock protecting policy-derived module-level globals during concurrent scans.
 _POLICY_REFRESH_LOCK = threading.RLock()
-_RUN_SCAN_POLICY_CONTEXT_LOCK = threading.RLock()
 
-_STYLE_SECTION_ALIASES: dict[str, str] = dict(_POLICY["section_aliases"])
-STYLE_SECTION_ALIASES = MappingProxyType(_STYLE_SECTION_ALIASES)
+STYLE_SECTION_ALIASES = _readme_style.STYLE_SECTION_ALIASES
 
 # Sensitivity detection tokens extracted from policy for fast tuple lookup
 _SENSITIVITY = _POLICY["sensitivity"]
@@ -231,7 +233,7 @@ def _refresh_policy(
 
         (
             _POLICY,
-            _style_section_aliases,
+            _,
             _SECRET_NAME_TOKENS,
             _VAULT_MARKERS,
             _CREDENTIAL_PREFIXES,
@@ -239,8 +241,6 @@ def _refresh_policy(
             _VARIABLE_GUIDANCE_KEYWORDS,
             _,
         ) = _config_refresh_policy(**refresh_kwargs)
-        _STYLE_SECTION_ALIASES.clear()
-        _STYLE_SECTION_ALIASES.update(_style_section_aliases)
         _SENSITIVITY = _POLICY["sensitivity"]
 
         from .scanner_extract import (
@@ -275,8 +275,6 @@ def _restore_policy_snapshot(policy_snapshot: dict) -> None:
         _VARIABLE_GUIDANCE_KEYWORDS = tuple(
             restored["variable_guidance"]["priority_keywords"]
         )
-        _STYLE_SECTION_ALIASES.clear()
-        _STYLE_SECTION_ALIASES.update(restored["section_aliases"])
 
         from .scanner_extract import (
             refresh_policy_derived_state as _extract_refresh_policy_derived_state,
@@ -611,17 +609,6 @@ def build_variable_insights(
     )
 
 
-def _build_policy_context_snapshot() -> _PolicyContext:
-    """Capture immutable policy values for the current scan execution."""
-    return {
-        "section_aliases": get_style_section_aliases_snapshot(),
-        "ignored_identifiers": frozenset(
-            token.lower() for token in _variable_pipeline.IGNORED_IDENTIFIERS
-        ),
-        "variable_guidance_keywords": tuple(_VARIABLE_GUIDANCE_KEYWORDS),
-    }
-
-
 def _build_policy_context_for_scan(
     *,
     role_path: str,
@@ -652,7 +639,7 @@ def _build_policy_context_for_scan(
 
 def get_style_section_aliases_snapshot() -> dict[str, str]:
     """Return an isolated copy of the currently active section alias mapping."""
-    return dict(_STYLE_SECTION_ALIASES)
+    return _readme_style.get_style_section_aliases_snapshot()
 
 
 load_readme_marker_prefix = partial(
@@ -759,7 +746,7 @@ def load_readme_section_visibility(
         config_path=config_path,
         adopt_heading_mode=None,
         all_section_ids=ALL_SECTION_IDS,
-        section_aliases=_STYLE_SECTION_ALIASES,
+        section_aliases=get_style_section_aliases_snapshot(),
         normalize_heading=normalize_style_heading,
         display_titles_path=DEFAULT_SECTION_DISPLAY_TITLES_PATH,
         config_filenames=SECTION_CONFIG_FILENAMES,
@@ -779,7 +766,7 @@ def load_readme_section_config(
         config_path=config_path,
         adopt_heading_mode=adopt_heading_mode,
         all_section_ids=ALL_SECTION_IDS,
-        section_aliases=_STYLE_SECTION_ALIASES,
+        section_aliases=get_style_section_aliases_snapshot(),
         normalize_heading=normalize_style_heading,
         display_titles_path=DEFAULT_SECTION_DISPLAY_TITLES_PATH,
         strict=strict,
@@ -995,7 +982,7 @@ _emit_scan_outputs = partial(
 def _execute_scan_with_context(
     *,
     role_path: str,
-    scan_options: dict,
+    scan_options: _ScanOptionsDict,
     output: str,
     output_format: str,
     concise_readme: bool,
@@ -1026,6 +1013,163 @@ def _execute_scan_with_context(
         build_emit_scan_outputs_args_fn=_build_emit_scan_outputs_args,
         emit_scan_outputs_fn=_emit_scan_outputs,
     )
+
+
+def _orchestrate_scan_payload(
+    *,
+    role_path: str,
+    scan_options: _ScanOptionsDict,
+) -> _RunScanOutputPayload:
+    """Execute scan orchestration and return the structured payload."""
+    return _scan_facade_helpers.orchestrate_scan_payload(
+        role_path=role_path,
+        scan_options=scan_options,
+        di_container_cls=DIContainer,
+        scanner_context_cls=ScannerContext,
+        build_run_scan_options_fn=scan_request.build_run_scan_options_canonical,
+        prepare_scan_context_fn=_prepare_scan_context,
+    )
+
+
+def _build_runtime_scan_state(
+    *,
+    role_path: str,
+    role_name_override: str | None,
+    readme_config_path: str | None,
+    include_vars_main: bool,
+    exclude_path_patterns: list[str] | None,
+    detailed_catalog: bool,
+    include_task_parameters: bool,
+    include_task_runbooks: bool,
+    inline_task_runbooks: bool,
+    include_collection_checks: bool,
+    keep_unknown_style_sections: bool,
+    adopt_heading_mode: str | None,
+    vars_seed_paths: list[str] | None,
+    style_readme_path: str | None,
+    style_source_path: str | None,
+    style_guide_skeleton: bool,
+    compare_role_path: str | None,
+    policy_config_path: str | None,
+    fail_on_unconstrained_dynamic_includes: bool | None,
+    fail_on_yaml_like_task_annotations: bool | None,
+    ignore_unresolved_internal_underscore_references: bool | None,
+    strict_phase_failures: bool,
+    failure_policy: FailurePolicy | None,
+    runbook_output: str | None,
+    runbook_csv_output: str | None,
+) -> tuple[dict[str, Any], _PolicyContext, _ScanOptionsDict]:
+    """Resolve request-scoped policy and canonical scan options for one run."""
+    loaded_policy, policy_context = _build_policy_context_for_scan(
+        role_path=role_path,
+        policy_config_path=policy_config_path,
+    )
+    if failure_policy is not None and hasattr(failure_policy, "strict"):
+        strict_phase_failures = bool(getattr(failure_policy, "strict"))
+
+    scan_options = scan_request.build_run_scan_options_canonical(
+        role_path=role_path,
+        role_name_override=role_name_override,
+        readme_config_path=readme_config_path,
+        include_vars_main=include_vars_main,
+        exclude_path_patterns=exclude_path_patterns,
+        detailed_catalog=scan_request.resolve_scan_request_for_runtime(
+            detailed_catalog=detailed_catalog,
+            runbook_output=runbook_output,
+            runbook_csv_output=runbook_csv_output,
+        ),
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
+        include_collection_checks=include_collection_checks,
+        keep_unknown_style_sections=keep_unknown_style_sections,
+        adopt_heading_mode=adopt_heading_mode,
+        vars_seed_paths=vars_seed_paths,
+        style_readme_path=style_readme_path,
+        style_source_path=style_source_path,
+        style_guide_skeleton=style_guide_skeleton,
+        compare_role_path=compare_role_path,
+        fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
+        fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
+        ignore_unresolved_internal_underscore_references=(
+            ignore_unresolved_internal_underscore_references
+        ),
+        policy_context=policy_context,
+    )
+    scan_options["strict_phase_failures"] = bool(strict_phase_failures)
+    return loaded_policy, policy_context, scan_options
+
+
+def _run_scan_payload(
+    role_path: str,
+    *,
+    compare_role_path: str | None = None,
+    style_readme_path: str | None = None,
+    role_name_override: str | None = None,
+    vars_seed_paths: list[str] | None = None,
+    concise_readme: bool = False,
+    scanner_report_output: str | None = None,
+    include_vars_main: bool = True,
+    include_scanner_report_link: bool = True,
+    readme_config_path: str | None = None,
+    adopt_heading_mode: str | None = None,
+    style_guide_skeleton: bool = False,
+    keep_unknown_style_sections: bool = True,
+    exclude_path_patterns: list[str] | None = None,
+    style_source_path: str | None = None,
+    policy_config_path: str | None = None,
+    fail_on_unconstrained_dynamic_includes: bool | None = None,
+    fail_on_yaml_like_task_annotations: bool | None = None,
+    ignore_unresolved_internal_underscore_references: bool | None = None,
+    detailed_catalog: bool = False,
+    include_collection_checks: bool = True,
+    include_task_parameters: bool = True,
+    include_task_runbooks: bool = True,
+    inline_task_runbooks: bool = True,
+    strict_phase_failures: bool = True,
+    failure_policy: FailurePolicy | None = None,
+    runbook_output: str | None = None,
+    runbook_csv_output: str | None = None,
+) -> _RunScanOutputPayload:
+    """Scan a role and return the structured payload without rendering output."""
+    loaded_policy, policy_context, scan_options = _build_runtime_scan_state(
+        role_path=role_path,
+        role_name_override=role_name_override,
+        readme_config_path=readme_config_path,
+        include_vars_main=include_vars_main,
+        exclude_path_patterns=exclude_path_patterns,
+        detailed_catalog=detailed_catalog,
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
+        include_collection_checks=include_collection_checks,
+        keep_unknown_style_sections=keep_unknown_style_sections,
+        adopt_heading_mode=adopt_heading_mode,
+        vars_seed_paths=vars_seed_paths,
+        style_readme_path=style_readme_path,
+        style_source_path=style_source_path,
+        style_guide_skeleton=style_guide_skeleton,
+        compare_role_path=compare_role_path,
+        policy_config_path=policy_config_path,
+        fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
+        fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
+        ignore_unresolved_internal_underscore_references=(
+            ignore_unresolved_internal_underscore_references
+        ),
+        strict_phase_failures=strict_phase_failures,
+        failure_policy=failure_policy,
+        runbook_output=runbook_output,
+        runbook_csv_output=runbook_csv_output,
+    )
+    with _variable_extractor.policy_override_scope(
+        loaded_policy
+    ), _readme_style.style_section_aliases_scope(
+        dict(policy_context["section_aliases"])
+    ):
+        return _orchestrate_scan_payload(
+            role_path=role_path,
+            scan_options=scan_options,
+        )
 
 
 def run_scan(
@@ -1066,24 +1210,13 @@ def run_scan(
 
     Delegates scan orchestration to ScannerContext and then emits outputs.
     """
-    loaded_policy, policy_context = _build_policy_context_for_scan(
-        role_path=role_path,
-        policy_config_path=policy_config_path,
-    )
-    if failure_policy is not None and hasattr(failure_policy, "strict"):
-        strict_phase_failures = bool(getattr(failure_policy, "strict"))
-
-    scan_options = scan_request.build_run_scan_options_canonical(
+    loaded_policy, policy_context, scan_options = _build_runtime_scan_state(
         role_path=role_path,
         role_name_override=role_name_override,
         readme_config_path=readme_config_path,
         include_vars_main=include_vars_main,
         exclude_path_patterns=exclude_path_patterns,
-        detailed_catalog=scan_request.resolve_scan_request_for_runtime(
-            detailed_catalog=detailed_catalog,
-            runbook_output=runbook_output,
-            runbook_csv_output=runbook_csv_output,
-        ),
+        detailed_catalog=detailed_catalog,
         include_task_parameters=include_task_parameters,
         include_task_runbooks=include_task_runbooks,
         inline_task_runbooks=inline_task_runbooks,
@@ -1095,14 +1228,17 @@ def run_scan(
         style_source_path=style_source_path,
         style_guide_skeleton=style_guide_skeleton,
         compare_role_path=compare_role_path,
-        fail_on_unconstrained_dynamic_includes=(fail_on_unconstrained_dynamic_includes),
+        policy_config_path=policy_config_path,
+        fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
         fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),
-        policy_context=policy_context,
+        strict_phase_failures=strict_phase_failures,
+        failure_policy=failure_policy,
+        runbook_output=runbook_output,
+        runbook_csv_output=runbook_csv_output,
     )
-    scan_options["strict_phase_failures"] = bool(strict_phase_failures)
     with _variable_extractor.policy_override_scope(
         loaded_policy
     ), _readme_style.style_section_aliases_scope(

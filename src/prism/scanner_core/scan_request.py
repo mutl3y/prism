@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from prism.scanner_data.contracts import PolicyContext, ScanOptionsDict
+from prism.scanner_data.contracts_request import PolicyContext, ScanOptionsDict
 
 
 def resolve_scan_request_for_runtime(

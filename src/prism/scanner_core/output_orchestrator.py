@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from .di import DIContainer
-from ..scanner_data.contracts import RunScanOutputPayload
+from ..scanner_data.contracts_output import RunScanOutputPayload
 from ..scanner_io.emit_output import (
     build_output_emission_context as _build_output_emission_context,
     orchestrate_output_emission as _orchestrate_output_emission,

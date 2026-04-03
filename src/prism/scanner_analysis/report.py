@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, cast
 
-from ..scanner_data.contracts import (
+from ..scanner_data.contracts_output import (
     AnnotationQualityCounters,
     NormalizedScannerReportMetadata,
     ReadmeSectionRenderInput,

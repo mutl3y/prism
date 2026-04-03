@@ -5,16 +5,18 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
-from prism.scanner_data.contracts import (
+from prism.scanner_data.contracts_output import (
     EmitScanOutputsArgs,
-    PolicyContext,
     RunbookSidecarArgs,
     RunScanOutputPayload,
+    ScanReportSidecarArgs,
+)
+from prism.scanner_data.contracts_request import (
+    PolicyContext,
     ScanBaseContext,
     ScanContextPayload,
     ScanMetadata,
     ScanOptionsDict,
-    ScanReportSidecarArgs,
 )
 
 

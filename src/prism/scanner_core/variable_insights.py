@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-from prism.scanner_data.contracts import PolicyContext
+from prism.scanner_data.contracts_request import PolicyContext
 
 
 def collect_variable_insights_and_default_filter_findings(

@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from .di import DIContainer
-from ..scanner_data.contracts import FeaturesContext
+from ..scanner_data.contracts_request import FeaturesContext
 from ..scanner_extract.task_parser import (
     _collect_task_files,
     _load_yaml_file,

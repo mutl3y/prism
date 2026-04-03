@@ -244,19 +244,21 @@ IGNORED_IDENTIFIERS: set[str] = _build_effective_ignored_identifiers(_POLICY)
 def _refresh_policy_derived_state(policy: dict[str, Any]) -> None:
     """Refresh module-level policy state after scanner policy reloads. Protected by _POLICY_DERIVED_STATE_LOCK."""
     with _POLICY_DERIVED_STATE_LOCK:
+        global _POLICY
         global _SENSITIVITY
         global _SECRET_NAME_TOKENS
         global _VAULT_MARKERS
         global _CREDENTIAL_PREFIXES
         global _URL_PREFIXES
-        global IGNORED_IDENTIFIERS
 
+        _POLICY = policy
         _SENSITIVITY = policy["sensitivity"]
         _SECRET_NAME_TOKENS = tuple(_SENSITIVITY["name_tokens"])
         _VAULT_MARKERS = tuple(_SENSITIVITY["vault_markers"])
         _CREDENTIAL_PREFIXES = tuple(_SENSITIVITY["credential_prefixes"])
         _URL_PREFIXES = tuple(_SENSITIVITY["url_prefixes"])
-        IGNORED_IDENTIFIERS = _build_effective_ignored_identifiers(policy)
+        IGNORED_IDENTIFIERS.clear()
+        IGNORED_IDENTIFIERS.update(_build_effective_ignored_identifiers(policy))
 
 
 _REGISTERED_RESULT_ATTRS: frozenset[str] = frozenset(

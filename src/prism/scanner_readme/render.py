@@ -9,7 +9,7 @@ import jinja2
 
 from .guide import _render_guide_section_body
 from .style import format_heading
-from ..scanner_data.contracts import StyleGuideConfig
+from ..scanner_data.contracts_request import StyleGuideConfig
 
 DEFAULT_SECTION_SPECS = [
     ("galaxy_info", "Galaxy Info"),

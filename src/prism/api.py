@@ -31,7 +31,8 @@ from .errors import (
     to_failure_detail,
 )
 from .repo_services import repo_scan_facade as _repo_scan_facade
-from .scanner import run_scan
+from .scanner import _run_scan_payload
+from .scanner import run_scan as _scanner_run_scan
 from .scanner_analysis import render_runbook, render_runbook_csv
 from .scanner_analysis.collection_dependencies import (  # noqa: F401
     aggregate_collection_dependencies,
@@ -82,6 +83,7 @@ _resolve_repo_scan_scanner_report_relpath = (
 _resolve_style_readme_candidate = _repo_scan_facade.resolve_style_readme_candidate
 
 _build_repo_style_readme_candidates = _repo_build_repo_style_readme_candidates
+run_scan = _scanner_run_scan
 
 
 def _normalize_repo_style_guide_path(
@@ -173,6 +175,21 @@ def _parse_scan_role_payload(payload: str | dict[str, Any]) -> dict[str, Any]:
         )
 
     return parsed
+
+
+def _normalize_scan_role_payload_shape(payload: dict[str, Any]) -> RoleScanResult:
+    """Attach stable public field names to the structured scan payload."""
+    normalized = dict(payload)
+    if "variables" not in normalized and "display_variables" in normalized:
+        normalized["variables"] = normalized["display_variables"]
+    if "requirements" not in normalized and "requirements_display" in normalized:
+        normalized["requirements"] = normalized["requirements_display"]
+    if (
+        "default_filters" not in normalized
+        and "undocumented_default_filters" in normalized
+    ):
+        normalized["default_filters"] = normalized["undocumented_default_filters"]
+    return normalized
 
 
 def _build_failure_record(
@@ -418,15 +435,12 @@ def scan_role(
     """Return the scanner payload as a Python dictionary.
 
     External orchestrators should prefer this wrapper over importing internal
-    scanner helpers directly. The wrapper forces JSON dry-run behavior so the
-    caller receives a deterministic, machine-readable payload without writing
-    output files.
+    scanner helpers directly. The wrapper uses the in-memory payload path and
+    keeps JSON as a serializer rather than the core in-process contract.
     """
 
-    payload = run_scan(
+    payload = _run_scan_payload(
         role_path,
-        output="scan.json",
-        output_format="json",
         compare_role_path=compare_role_path,
         style_readme_path=style_readme_path,
         role_name_override=role_name_override,
@@ -453,9 +467,8 @@ def scan_role(
         include_task_runbooks=include_task_runbooks,
         inline_task_runbooks=inline_task_runbooks,
         failure_policy=failure_policy,
-        dry_run=True,
     )
-    return _parse_scan_role_payload(payload)
+    return _normalize_scan_role_payload_shape(_parse_scan_role_payload(payload))
 
 
 def scan_repo(

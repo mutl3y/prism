@@ -6,10 +6,28 @@ contract TypedDict it constructs, not in a separate builders.py god-file.
 
 from __future__ import annotations
 
+import ast
 import inspect
+from pathlib import Path
+from types import ModuleType
 
 import prism.scanner_data.contracts_output as contracts_output_mod
 import prism.scanner_data.contracts_variables as contracts_variables_mod
+import prism.scanner_analysis.report as scanner_report_mod
+import prism.scanner_core.feature_detector as feature_detector_mod
+import prism.scanner_core.scan_context_builder as scan_context_builder_mod
+import prism.scanner_core.scan_facade_helpers as scan_facade_helpers_mod
+import prism.scanner_core.scan_request as scan_request_mod
+import prism.scanner_core.scan_runtime as scan_runtime_mod
+import prism.scanner_core.scanner_context as scanner_context_mod
+import prism.scanner_core.variable_discovery as variable_discovery_mod
+import prism.scanner_core.variable_insights as variable_insights_mod
+import prism.scanner_core.variable_pipeline as variable_pipeline_mod
+import prism.scanner_io.emit_output as emit_output_mod
+import prism.scanner_io.output as output_mod
+import prism.scanner_io.scan_output_emission as scan_output_emission_mod
+import prism.scanner_io.scan_output_primary as scan_output_primary_mod
+import prism.scanner_readme.render as readme_render_mod
 from prism.scanner_data.builders import ScanPayloadBuilder, VariableRowBuilder
 from prism.scanner_data.contracts_output import (
     RunScanOutputPayload,
@@ -129,3 +147,144 @@ class TestBuildersShimBackwardCompat:
         # Only re-export lines allowed; no class VariableRowBuilder or ScanPayloadBuilder
         assert "class VariableRowBuilder" not in source
         assert "class ScanPayloadBuilder" not in source
+
+
+class TestOutputModulesImportCanonicalContracts:
+    """Output-domain internals should import contracts from canonical owner modules."""
+
+    def _imported_modules(self, module: ModuleType) -> set[str]:
+        assert module.__file__ is not None
+        return self._imported_modules_from_path(Path(module.__file__))
+
+    def _imported_modules_from_path(self, path: Path) -> set[str]:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        imported: set[str] = set()
+        for node in tree.body:
+            if isinstance(node, ast.ImportFrom) and node.module is not None:
+                imported.add(node.module)
+        return imported
+
+    def _assert_avoids_umbrella_contracts(self, module: ModuleType) -> set[str]:
+        imported = self._imported_modules(module)
+        assert "prism.scanner_data.contracts" not in imported
+        assert "scanner_data.contracts" not in imported
+        return imported
+
+    def _assert_imports_owner_modules(
+        self,
+        module: ModuleType | Path,
+        *owner_modules: str,
+    ) -> None:
+        imported = (
+            self._assert_avoids_umbrella_contracts(module)
+            if isinstance(module, ModuleType)
+            else self._imported_modules_from_path(module)
+        )
+        if isinstance(module, Path):
+            assert "prism.scanner_data.contracts" not in imported
+            assert "scanner_data.contracts" not in imported
+        for owner_module in owner_modules:
+            assert any(
+                imported_module.endswith(owner_module) for imported_module in imported
+            ), (
+                module.__name__ if isinstance(module, ModuleType) else str(module),
+                imported,
+                owner_module,
+            )
+
+    def test_scan_output_emission_imports_contracts_output_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            scan_output_emission_mod,
+            "scanner_data.contracts_output",
+        )
+
+    def test_scan_output_primary_imports_contracts_output_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            scan_output_primary_mod,
+            "scanner_data.contracts_output",
+        )
+
+    def test_output_imports_contracts_output_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            output_mod,
+            "scanner_data.contracts_output",
+        )
+
+    def test_emit_output_imports_contract_owner_modules_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            emit_output_mod,
+            "scanner_data.contracts_output",
+            "scanner_data.contracts_request",
+        )
+
+    def test_scan_runtime_imports_contract_owner_modules_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            scan_runtime_mod,
+            "scanner_data.contracts_output",
+            "scanner_data.contracts_request",
+        )
+
+    def test_scan_context_builder_imports_contracts_request_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            scan_context_builder_mod,
+            "scanner_data.contracts_request",
+        )
+
+    def test_scanner_context_imports_contracts_request_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            scanner_context_mod,
+            "scanner_data.contracts_request",
+        )
+
+    def test_scan_request_imports_contracts_request_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            scan_request_mod,
+            "scanner_data.contracts_request",
+        )
+
+    def test_variable_insights_imports_contracts_request_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            variable_insights_mod,
+            "scanner_data.contracts_request",
+        )
+
+    def test_variable_pipeline_imports_contract_owner_modules_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            variable_pipeline_mod,
+            "scanner_data.contracts_request",
+            "scanner_data.contracts_variables",
+        )
+
+    def test_feature_detector_imports_contracts_request_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            feature_detector_mod,
+            "scanner_data.contracts_request",
+        )
+
+    def test_variable_discovery_imports_contracts_variables_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            variable_discovery_mod,
+            "scanner_data.contracts_variables",
+        )
+
+    def test_scanner_report_helpers_import_contracts_output_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            scanner_report_mod,
+            "scanner_data.contracts_output",
+        )
+
+    def test_readme_render_imports_contracts_request_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            readme_render_mod,
+            "scanner_data.contracts_request",
+        )
+
+    def test_render_compat_imports_contracts_request_directly(self) -> None:
+        self._assert_imports_owner_modules(
+            Path("src/prism/scanner_compat/render_compat.py"),
+            "scanner_data.contracts_request",
+        )
+
+    def test_scan_facade_helpers_no_longer_imports_umbrella_contracts(self) -> None:
+        self._assert_avoids_umbrella_contracts(scan_facade_helpers_mod)

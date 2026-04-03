@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from prism.scanner_data.contracts import (
+from prism.scanner_data.contracts_request import (
     ScanBaseContext,
     ScanContextPayload,
     ScanOptionsDict,
