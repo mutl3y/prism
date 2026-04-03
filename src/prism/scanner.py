@@ -7,12 +7,10 @@ metadata and variables, and render a README using a Jinja2 template.
 
 from __future__ import annotations
 
-import copy
 from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 import re
-import threading
 from typing import Any
 
 from prism._jinja_analyzer import (
@@ -41,12 +39,10 @@ from prism.scanner_config import (
     load_non_authoritative_test_evidence_max_file_bytes as _load_non_authoritative_test_evidence_max_file_bytes,
     load_non_authoritative_test_evidence_max_files_scanned as _load_non_authoritative_test_evidence_max_files_scanned,
     load_non_authoritative_test_evidence_max_total_bytes as _load_non_authoritative_test_evidence_max_total_bytes,
-    load_pattern_config,
     load_pattern_policy_with_context,
     load_readme_marker_prefix as _load_readme_marker_prefix,
     load_readme_section_config as _load_readme_section_config,
     load_readme_section_visibility as _load_readme_section_visibility,
-    refresh_policy as _config_refresh_policy,
     resolve_default_style_guide_source as _config_resolve_default_style_guide_source,
 )
 from prism.scanner_core import DIContainer, ScanContextBuilder, ScannerContext
@@ -121,27 +117,6 @@ from prism.scanner_readme import guide as _readme_guide
 from prism.scanner_readme import render_readme as _readme_render_readme
 from prism.scanner_readme import style as _readme_style
 
-# Load pattern policy (built-in defaults, optionally merged with a repo override).
-# Pass override_path to load_pattern_config() if you want to merge a local file.
-_POLICY = load_pattern_config()
-
-# Re-entrant lock protecting policy-derived module-level globals during concurrent scans.
-_POLICY_REFRESH_LOCK = threading.RLock()
-
-STYLE_SECTION_ALIASES = _readme_style.STYLE_SECTION_ALIASES
-
-# Sensitivity detection tokens extracted from policy for fast tuple lookup
-_SENSITIVITY = _POLICY["sensitivity"]
-_SECRET_NAME_TOKENS: tuple[str, ...] = tuple(_SENSITIVITY["name_tokens"])
-_VAULT_MARKERS: tuple[str, ...] = tuple(_SENSITIVITY["vault_markers"])
-_CREDENTIAL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["credential_prefixes"])
-_URL_PREFIXES: tuple[str, ...] = tuple(_SENSITIVITY["url_prefixes"])
-
-# Variable guidance priority keywords
-_VARIABLE_GUIDANCE_KEYWORDS: tuple[str, ...] = tuple(
-    _POLICY["variable_guidance"]["priority_keywords"]
-)
-
 DEFAULT_SECTION_SPECS = [
     ("galaxy_info", "Galaxy Info"),
     ("requirements", "Requirements"),
@@ -206,69 +181,6 @@ DEFAULT_SECTION_DISPLAY_TITLES_PATH = (
     Path(__file__).parent / "data" / "section_display_titles.yml"
 )
 DEFAULT_DOC_MARKER_PREFIX = READMECFG_DEFAULT_DOC_MARKER_PREFIX
-
-
-def _apply_legacy_policy_derived_state(policy: dict[str, Any]) -> None:
-    """Apply legacy module-level policy compatibility state.
-
-    The main scan runtime now uses per-scan policy loading plus scoped overrides.
-    This helper exists only for compatibility paths that still expect in-process
-    refresh/restore behavior for module-level defaults and tests.
-    """
-    global _POLICY
-    global _SENSITIVITY
-    global _SECRET_NAME_TOKENS
-    global _VAULT_MARKERS
-    global _CREDENTIAL_PREFIXES
-    global _URL_PREFIXES
-    global _VARIABLE_GUIDANCE_KEYWORDS
-
-    applied_policy = copy.deepcopy(policy)
-    _POLICY = applied_policy
-    _SENSITIVITY = applied_policy["sensitivity"]
-    _SECRET_NAME_TOKENS = tuple(_SENSITIVITY["name_tokens"])
-    _VAULT_MARKERS = tuple(_SENSITIVITY["vault_markers"])
-    _CREDENTIAL_PREFIXES = tuple(_SENSITIVITY["credential_prefixes"])
-    _URL_PREFIXES = tuple(_SENSITIVITY["url_prefixes"])
-    _VARIABLE_GUIDANCE_KEYWORDS = tuple(
-        applied_policy["variable_guidance"]["priority_keywords"]
-    )
-
-    from prism.scanner_extract import (
-        refresh_policy_derived_state as _extract_refresh_policy_derived_state,
-    )
-    from prism.scanner_readme import (
-        refresh_policy_derived_state as _readme_refresh_policy_derived_state,
-    )
-
-    _extract_refresh_policy_derived_state(applied_policy)
-    _readme_refresh_policy_derived_state(applied_policy)
-
-
-def _refresh_policy(
-    override_path: str | None = None,
-    *,
-    role_root: str | None = None,
-) -> None:
-    """Reload legacy module-level policy compatibility state.
-
-    The main scan runtime no longer relies on this mutable path, but compatibility
-    callers and legacy tests still exercise it. The lock keeps the remaining
-    in-process refresh behavior deterministic while the compatibility seam exists.
-    """
-    with _POLICY_REFRESH_LOCK:
-        refresh_kwargs = {"override_path": override_path}
-        if role_root is not None:
-            refresh_kwargs["search_root"] = role_root
-
-        refreshed_policy, *_rest = _config_refresh_policy(**refresh_kwargs)
-        _apply_legacy_policy_derived_state(refreshed_policy)
-
-
-def _restore_policy_snapshot(policy_snapshot: dict) -> None:
-    """Restore legacy module-level policy compatibility state from a snapshot."""
-    with _POLICY_REFRESH_LOCK:
-        _apply_legacy_policy_derived_state(policy_snapshot)
 
 
 def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:

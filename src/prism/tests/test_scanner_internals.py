@@ -14,6 +14,7 @@ Test groups mirror the planned submodule boundaries:
 
 from prism import _jinja_analyzer as jinja_analyzer
 from prism import scanner
+from prism.scanner_config import load_pattern_config as config_load_pattern_config
 from prism.scanner_readme import input_parser as readme_input_parser
 from prism.scanner_extract import task_parser
 from prism.scanner_extract import variable_extractor
@@ -1111,11 +1112,7 @@ def test_reload_pattern_config_synchronizes_ansible_builtin_variables_into_ignor
     """
     sentinel = "ansible_prism_test_sentinel_do_not_use"
     # Patch a minimal policy that adds the sentinel to ansible_builtin_variables
-    original_policy = (
-        scanner._POLICY.copy()
-        if hasattr(scanner._POLICY, "copy")
-        else dict(scanner._POLICY)
-    )
+    original_policy = config_load_pattern_config()
     patched_policy = dict(original_policy)
     existing_builtins = list(patched_policy.get("ansible_builtin_variables", []))
     patched_policy["ansible_builtin_variables"] = existing_builtins + [sentinel]
@@ -1188,56 +1185,24 @@ def test_runbook_bridge_wrappers_re_export_canonical_implementations():
     assert not hasattr(scanner, "render_runbook_csv")
 
 
-def test_scanner_refresh_policy_keeps_wrapper_and_canonical_ignored_in_sync(
-    monkeypatch,
-):
-    """scanner._refresh_policy must keep wrapper and canonical states aligned."""
+def test_scanner_extract_refresh_policy_reexport_keeps_ignored_state_in_sync():
+    """scanner_extract refresh-policy re-export must keep ignored state aligned."""
+    from prism import scanner_extract
     from prism.scanner_extract import variable_extractor as canonical
     from prism.scanner_extract import variable_extractor as compat
 
     sentinel = "ansible_prism_sync_test_sentinel"
-    base_policy = dict(scanner._POLICY)
+    base_policy = config_load_pattern_config()
     patched_policy = dict(base_policy)
     builtins = list(patched_policy.get("ansible_builtin_variables", []))
     patched_policy["ansible_builtin_variables"] = builtins + [sentinel]
 
-    def _fake_refresh_policy(override_path=None):
-        sensitivity = patched_policy["sensitivity"]
-        return (
-            patched_policy,
-            patched_policy["section_aliases"],
-            tuple(sensitivity["name_tokens"]),
-            tuple(sensitivity["vault_markers"]),
-            tuple(sensitivity["credential_prefixes"]),
-            tuple(sensitivity["url_prefixes"]),
-            tuple(patched_policy["variable_guidance"]["priority_keywords"]),
-            patched_policy["ignored_identifiers"],
-        )
-
-    monkeypatch.setattr(scanner, "_config_refresh_policy", _fake_refresh_policy)
-
-    scanner._refresh_policy()
-
     try:
+        scanner_extract.refresh_policy_derived_state(patched_policy)
         assert sentinel in canonical.IGNORED_IDENTIFIERS
         assert compat.IGNORED_IDENTIFIERS == canonical.IGNORED_IDENTIFIERS
     finally:
-
-        def _restore_refresh_policy(override_path=None):
-            sensitivity = base_policy["sensitivity"]
-            return (
-                base_policy,
-                base_policy["section_aliases"],
-                tuple(sensitivity["name_tokens"]),
-                tuple(sensitivity["vault_markers"]),
-                tuple(sensitivity["credential_prefixes"]),
-                tuple(sensitivity["url_prefixes"]),
-                tuple(base_policy["variable_guidance"]["priority_keywords"]),
-                base_policy["ignored_identifiers"],
-            )
-
-        monkeypatch.setattr(scanner, "_config_refresh_policy", _restore_refresh_policy)
-        scanner._refresh_policy()
+        scanner_extract.refresh_policy_derived_state(base_policy)
 
 
 def test_collect_referenced_variable_names_ignores_explicit_ansible_connection_vars(
