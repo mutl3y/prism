@@ -24,9 +24,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .di import DIContainer
-from ..scanner_data.contracts_request import FeaturesContext
-from ..scanner_extract.task_parser import (
+from prism.scanner_core.di import DIContainer
+from prism.scanner_data.contracts_request import FeaturesContext
+from prism.scanner_extract.task_parser import (
     _collect_task_files,
     _load_yaml_file,
     _iter_task_include_targets,

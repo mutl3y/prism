@@ -14,9 +14,9 @@ from __future__ import annotations
 from pathlib import Path
 from collections import defaultdict
 
-from . import task_line_parsing as tlp
-from . import task_file_traversal as tft
-from . import task_annotation_parsing as tap
+from prism.scanner_extract import task_annotation_parsing as tap
+from prism.scanner_extract import task_file_traversal as tft
+from prism.scanner_extract import task_line_parsing as tlp
 
 # ---------------------------------------------------------------------------
 # Task module detection

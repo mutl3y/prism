@@ -17,9 +17,11 @@ without relying solely on tests.
 
 from __future__ import annotations
 
-from .contracts_output import ScanPayloadBuilder as ScanPayloadBuilder
-from .contracts_variables import VariableRowBuilder as VariableRowBuilder
-from .contracts import (
+from prism.scanner_data.contracts_output import ScanPayloadBuilder as ScanPayloadBuilder
+from prism.scanner_data.contracts_variables import (
+    VariableRowBuilder as VariableRowBuilder,
+)
+from prism.scanner_data.contracts import (
     AnnotationQualityCounters as AnnotationQualityCounters,
     CollectionScanResult as CollectionScanResult,
     EmitScanOutputsArgs as EmitScanOutputsArgs,

@@ -15,8 +15,12 @@ import json
 from typing import Any
 import yaml
 
-from .collection_plugins import scan_collection_plugins
-from .errors import (
+from prism.api_layer import collection as api_collection
+from prism.api_layer import common as api_common
+from prism.api_layer import repo as api_repo
+from prism.api_layer import role as api_role
+from prism.collection_plugins import scan_collection_plugins
+from prism.errors import (
     FailurePolicy,
     ROLE_CONTENT_ENCODING_INVALID,
     ROLE_CONTENT_INVALID,
@@ -27,15 +31,11 @@ from .errors import (
     ROLE_SCAN_RUNTIME_ERROR,
     to_failure_detail,
 )
-from .api_layer import collection as api_collection
-from .api_layer import common as api_common
-from .api_layer import repo as api_repo
-from .api_layer import role as api_role
-from .repo_services import repo_scan_facade as _repo_scan_facade
-from .scanner import _run_scan_payload
-from .scanner import run_scan as _scanner_run_scan
-from .scanner_analysis import render_runbook, render_runbook_csv
-from .scanner_analysis.collection_dependencies import (  # noqa: F401
+from prism.repo_services import repo_scan_facade as _repo_scan_facade
+from prism.scanner import _run_scan_payload
+from prism.scanner import run_scan as _scanner_run_scan
+from prism.scanner_analysis import render_runbook, render_runbook_csv
+from prism.scanner_analysis.collection_dependencies import (  # noqa: F401
     _collection_dependency_key,
     _role_dependency_key,
     _merge_dependency_entry,
@@ -43,13 +43,13 @@ from .scanner_analysis.collection_dependencies import (  # noqa: F401
     _load_yaml_document,
     _requirements_entries_from_document,
 )
-from .scanner_data.contracts_errors import (
+from prism.scanner_data.contracts_errors import (
     CollectionScanResult,
     RepoScanResult,
     RoleScanResult,
 )
-from .scanner_io.collection_renderer import write_collection_runbook_artifacts
-from .scanner_readme import render_readme
+from prism.scanner_io.collection_renderer import write_collection_runbook_artifacts
+from prism.scanner_readme import render_readme
 
 API_PUBLIC_ENTRYPOINTS: tuple[str, ...] = ("scan_collection", "scan_repo", "scan_role")
 API_SHARED_REPO_COMPATIBILITY_SEAMS: tuple[str, ...] = (

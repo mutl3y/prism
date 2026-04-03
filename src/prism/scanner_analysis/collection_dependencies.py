@@ -10,7 +10,7 @@ import yaml
 from pathlib import Path
 from typing import Any
 
-from ..errors import (
+from prism.errors import (
     PrismRuntimeError,
     ROLE_CONTENT_ENCODING_INVALID,
     ROLE_CONTENT_YAML_INVALID,

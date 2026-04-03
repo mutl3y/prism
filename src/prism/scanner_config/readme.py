@@ -11,14 +11,17 @@ from typing import Callable
 
 import yaml
 
-from .legacy_retirement import (
+from prism.scanner_config.legacy_retirement import (
     LEGACY_SECTION_CONFIG_FILENAME,
     LEGACY_SECTION_CONFIG_UNSUPPORTED,
     LEGACY_SECTION_CONFIG_UNSUPPORTED_MESSAGE,
     format_legacy_retirement_error,
 )
-from .section import SECTION_CONFIG_FILENAME, SECTION_CONFIG_FILENAMES
-from .style import load_section_display_titles
+from prism.scanner_config.section import (
+    SECTION_CONFIG_FILENAME,
+    SECTION_CONFIG_FILENAMES,
+)
+from prism.scanner_config.style import load_section_display_titles
 
 
 README_SECTION_CONFIG_YAML_INVALID = "README_SECTION_CONFIG_YAML_INVALID"

@@ -11,8 +11,10 @@ This module preserves the ``prism.scanner_data.builders`` import surface.
 
 from __future__ import annotations
 
-from .contracts_output import ScanPayloadBuilder as ScanPayloadBuilder
-from .contracts_variables import VariableRowBuilder as VariableRowBuilder
+from prism.scanner_data.contracts_output import ScanPayloadBuilder as ScanPayloadBuilder
+from prism.scanner_data.contracts_variables import (
+    VariableRowBuilder as VariableRowBuilder,
+)
 
 __all__ = [
     "ScanPayloadBuilder",

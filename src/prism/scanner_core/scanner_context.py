@@ -15,10 +15,10 @@ from copy import deepcopy
 import logging
 from typing import Any, Callable
 
-from ..errors import PrismRuntimeError
-from ..scanner_data.contracts_request import ScanContextPayload, ScanOptionsDict
-from . import scan_request
-from .di import DIContainer
+from prism.errors import PrismRuntimeError
+from prism.scanner_data.contracts_request import ScanContextPayload, ScanOptionsDict
+from prism.scanner_core import scan_request
+from prism.scanner_core.di import DIContainer
 
 
 _REQUIRED_SCAN_OPTION_KEYS: set[str] = {

@@ -14,12 +14,23 @@ import re
 import threading
 from typing import Any
 
-from .scanner_io import (
-    render_final_output,
-    write_output,
+from prism._jinja_analyzer import (
+    _scan_text_for_all_filters_with_ast,
+    _scan_text_for_default_filters_with_ast,
 )
-from .scanner_readme import build_doc_insights
-from .scanner_config import (
+from prism.errors import FailurePolicy
+from prism.scanner_analysis import (
+    build_scanner_report_markdown as _runbook_report_build_scanner_report_markdown,
+    extract_scanner_counters as _analysis_extract_scanner_counters,
+    render_runbook as _runbook_report_render_runbook,
+    render_runbook_csv as _runbook_report_render_runbook_csv,
+)
+from prism.scanner_analysis.metrics import (
+    NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES as _ANALYSIS_MAX_FILE_BYTES,
+    NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED as _ANALYSIS_MAX_FILES_SCANNED,
+    NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES as _ANALYSIS_MAX_TOTAL_BYTES,
+)
+from prism.scanner_config import (
     DEFAULT_DOC_MARKER_PREFIX as READMECFG_DEFAULT_DOC_MARKER_PREFIX,
     SECTION_CONFIG_FILENAME,
     SECTION_CONFIG_FILENAMES,
@@ -33,92 +44,79 @@ from .scanner_config import (
     load_readme_marker_prefix as _load_readme_marker_prefix,
     load_readme_section_config as _load_readme_section_config,
     load_readme_section_visibility as _load_readme_section_visibility,
-)
-from .scanner_data.contracts import (
-    ScanMetadata as _scan_context_ScanMetadata,
-)
-from .scanner_data.contracts_output import RunScanOutputPayload as _RunScanOutputPayload
-from .scanner_data.contracts_request import PolicyContext as _PolicyContext
-from .scanner_data.contracts_request import ScanOptionsDict as _ScanOptionsDict
-from .scanner_data.contracts_variables import (
-    ReferenceContext as _scan_context_ReferenceContext,
-)
-from .scanner_io.scan_output_emission import (
-    emit_scan_outputs as _scan_output_emit_scan_outputs,
-)
-from .scanner_io.scan_output_primary import (
-    render_and_write_scan_output as _scan_output_primary_render_and_write_scan_output,
-)
-from .scanner_core import DIContainer, ScanContextBuilder, ScannerContext
-from .scanner_core import scan_request
-from .scanner_core import scan_facade_helpers as _scan_facade_helpers
-from .scanner_core import scan_runtime as _scan_runtime
-from .scanner_core import variable_insights as _variable_insights
-from .scanner_core import variable_pipeline as _variable_pipeline
-from .scanner_data.contracts_variables import VariableRow as _VariableRow
-from .scanner_analysis.metrics import (
-    NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES as _ANALYSIS_MAX_FILE_BYTES,
-    NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED as _ANALYSIS_MAX_FILES_SCANNED,
-    NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES as _ANALYSIS_MAX_TOTAL_BYTES,
-)
-from .scanner_config import (
     refresh_policy as _config_refresh_policy,
     resolve_default_style_guide_source as _config_resolve_default_style_guide_source,
 )
-from .scanner_io import (
-    collect_yaml_parse_failures as _dataload_collect_yaml_parse_failures,
-    iter_role_yaml_candidates as _dataload_iter_role_yaml_candidates,
-    map_argument_spec_type as _dataload_map_argument_spec_type,
+from prism.scanner_core import DIContainer, ScanContextBuilder, ScannerContext
+from prism.scanner_core import scan_facade_helpers as _scan_facade_helpers
+from prism.scanner_core import scan_request
+from prism.scanner_core import scan_runtime as _scan_runtime
+from prism.scanner_core import variable_insights as _variable_insights
+from prism.scanner_core import variable_pipeline as _variable_pipeline
+from prism.scanner_data.contracts import (
+    ScanMetadata as _scan_context_ScanMetadata,
 )
-from .scanner_extract import (
+from prism.scanner_data.contracts_output import (
+    RunScanOutputPayload as _RunScanOutputPayload,
+)
+from prism.scanner_data.contracts_request import PolicyContext as _PolicyContext
+from prism.scanner_data.contracts_request import ScanOptionsDict as _ScanOptionsDict
+from prism.scanner_data.contracts_variables import (
+    ReferenceContext as _scan_context_ReferenceContext,
+)
+from prism.scanner_data.contracts_variables import VariableRow as _VariableRow
+from prism.scanner_extract import (
     build_requirements_display as _runbook_report_build_requirements_display,
+    collect_include_vars_files as _collect_include_vars_files,
+    collect_molecule_scenarios as _collect_molecule_scenarios,
+    collect_task_files as _collect_task_files,
+    collect_task_handler_catalog as _collect_task_handler_catalog,
+    collect_unconstrained_dynamic_role_includes as _collect_unconstrained_dynamic_role_includes,
+    collect_unconstrained_dynamic_task_includes as _collect_unconstrained_dynamic_task_includes,
+    extract_default_target_var as _extract_default_target_var,
+    extract_role_features,
+    extract_role_notes_from_comments as _extract_role_notes_from_comments,
+    filter_scanner as _filter_scanner,
+    is_path_excluded as _is_path_excluded,
+    is_relpath_excluded as _is_relpath_excluded,
     iter_role_argument_spec_entries as _dataload_iter_role_argument_spec_entries,
     iter_role_variable_map_candidates as _scan_discovery_iter_role_variable_map_candidates,
     load_meta as _scan_discovery_load_meta,
     load_requirements as _scan_discovery_load_requirements,
     load_role_variable_maps as _dataload_load_role_variable_maps,
+    load_seed_variables,
     load_variables as _scan_discovery_load_variables,
+    load_yaml_file as _load_yaml_file,
+    looks_secret_name as _looks_secret_name,
     normalize_requirements as _requirements_normalize_requirements,
+    resembles_password_like as _resembles_password_like,
     resolve_scan_identity as _scan_discovery_resolve_scan_identity,
-    filter_scanner as _filter_scanner,
 )
-from .scanner_analysis import (
-    build_scanner_report_markdown as _runbook_report_build_scanner_report_markdown,
-    extract_scanner_counters as _analysis_extract_scanner_counters,
-    render_runbook as _runbook_report_render_runbook,
-    render_runbook_csv as _runbook_report_render_runbook_csv,
+from prism.scanner_extract import variable_extractor as _variable_extractor
+from prism.scanner_io import (
+    render_final_output,
+    write_output,
 )
-from .scanner_readme import (
+from prism.scanner_io import (
+    collect_yaml_parse_failures as _dataload_collect_yaml_parse_failures,
+    iter_role_yaml_candidates as _dataload_iter_role_yaml_candidates,
+    map_argument_spec_type as _dataload_map_argument_spec_type,
+)
+from prism.scanner_io.scan_output_emission import (
+    emit_scan_outputs as _scan_output_emit_scan_outputs,
+)
+from prism.scanner_io.scan_output_primary import (
+    render_and_write_scan_output as _scan_output_primary_render_and_write_scan_output,
+)
+from prism.scanner_readme import (
     append_scanner_report_section_if_enabled as _readme_append_scanner_report_section_if_enabled,
-    render_guide_section_body as _readme_render_guide_section_body,
+    build_doc_insights,
     normalize_style_heading,
     parse_style_readme,
+    render_guide_section_body as _readme_render_guide_section_body,
 )
-from ._jinja_analyzer import (
-    _scan_text_for_all_filters_with_ast,
-    _scan_text_for_default_filters_with_ast,
-)
-from .errors import FailurePolicy
-from .scanner_extract import (
-    is_relpath_excluded as _is_relpath_excluded,
-    is_path_excluded as _is_path_excluded,
-    extract_default_target_var as _extract_default_target_var,
-    collect_include_vars_files as _collect_include_vars_files,
-    collect_unconstrained_dynamic_role_includes as _collect_unconstrained_dynamic_role_includes,
-    collect_unconstrained_dynamic_task_includes as _collect_unconstrained_dynamic_task_includes,
-    collect_task_handler_catalog as _collect_task_handler_catalog,
-    collect_molecule_scenarios as _collect_molecule_scenarios,
-    extract_role_notes_from_comments as _extract_role_notes_from_comments,
-    looks_secret_name as _looks_secret_name,
-    resembles_password_like as _resembles_password_like,
-    load_yaml_file as _load_yaml_file,
-    collect_task_files as _collect_task_files,
-    extract_role_features,
-    load_seed_variables,
-)
-from .scanner_extract import variable_extractor as _variable_extractor
-from .scanner_readme import render_readme as _readme_render_readme
-from .scanner_readme import style as _readme_style
+from prism.scanner_readme import render_readme as _readme_render_readme
+from prism.scanner_readme import style as _readme_style
 
 # Load pattern policy (built-in defaults, optionally merged with a repo override).
 # Pass override_path to load_pattern_config() if you want to merge a local file.
@@ -243,10 +241,10 @@ def _refresh_policy(
         ) = _config_refresh_policy(**refresh_kwargs)
         _SENSITIVITY = _POLICY["sensitivity"]
 
-        from .scanner_extract import (
+        from prism.scanner_extract import (
             refresh_policy_derived_state as _extract_refresh_policy_derived_state,
         )
-        from .scanner_readme import (
+        from prism.scanner_readme import (
             refresh_policy_derived_state as _readme_refresh_policy_derived_state,
         )
 
@@ -276,10 +274,10 @@ def _restore_policy_snapshot(policy_snapshot: dict) -> None:
             restored["variable_guidance"]["priority_keywords"]
         )
 
-        from .scanner_extract import (
+        from prism.scanner_extract import (
             refresh_policy_derived_state as _extract_refresh_policy_derived_state,
         )
-        from .scanner_readme import (
+        from prism.scanner_readme import (
             refresh_policy_derived_state as _readme_refresh_policy_derived_state,
         )
 

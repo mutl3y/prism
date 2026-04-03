@@ -20,19 +20,19 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .di import DIContainer
-from ..scanner_data.contracts_output import RunScanOutputPayload
-from ..scanner_io.emit_output import (
+from prism.scanner_core.di import DIContainer
+from prism.scanner_data.contracts_output import RunScanOutputPayload
+from prism.scanner_io.emit_output import (
     build_output_emission_context as _build_output_emission_context,
     orchestrate_output_emission as _orchestrate_output_emission,
 )
-from ..scanner_io.scan_output_primary import (
+from prism.scanner_io.scan_output_primary import (
     render_and_write_scan_output as _render_and_write_scan_output,
 )
-from ..scanner_io import render_final_output, write_output
-from ..scanner_analysis import build_scanner_report_markdown
-from ..scanner_analysis import render_runbook, render_runbook_csv
-from ..scanner_readme import render_guide_section_body, render_readme
+from prism.scanner_io import render_final_output, write_output
+from prism.scanner_analysis import build_scanner_report_markdown
+from prism.scanner_analysis import render_runbook, render_runbook_csv
+from prism.scanner_readme import render_guide_section_body, render_readme
 
 
 class OutputOrchestrator:

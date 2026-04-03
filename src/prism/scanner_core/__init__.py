@@ -56,12 +56,12 @@ DIContainer factory methods.
 
 from __future__ import annotations
 
-from .di import DIContainer
-from .feature_detector import FeatureDetector
-from .output_orchestrator import OutputOrchestrator
-from .scan_context_builder import ScanContextBuilder
-from .scanner_context import ScannerContext
-from .variable_discovery import VariableDiscovery
+from prism.scanner_core.di import DIContainer
+from prism.scanner_core.feature_detector import FeatureDetector
+from prism.scanner_core.output_orchestrator import OutputOrchestrator
+from prism.scanner_core.scan_context_builder import ScanContextBuilder
+from prism.scanner_core.scanner_context import ScannerContext
+from prism.scanner_core.variable_discovery import VariableDiscovery
 
 __all__ = [
     "DIContainer",

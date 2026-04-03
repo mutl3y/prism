@@ -9,7 +9,7 @@ from types import MappingProxyType
 from threading import RLock
 from typing import Any
 
-from ..scanner_config.patterns import load_pattern_config
+from prism.scanner_config.patterns import load_pattern_config
 
 _POLICY = load_pattern_config()
 _STYLE_SECTION_ALIASES: dict[str, str] = dict(_POLICY["section_aliases"])

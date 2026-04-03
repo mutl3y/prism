@@ -5,7 +5,7 @@ Current capability ownership:
 - transitional wrapper surfaces kept outside canonical scanner runtime flow
 """
 
-from .render_compat import (
+from prism.scanner_compat.render_compat import (
     append_scanner_report_section_if_enabled,
     compose_section_body,
     generated_merge_markers,

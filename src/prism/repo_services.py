@@ -11,8 +11,8 @@ import os
 from pathlib import Path
 from typing import Any, Callable
 
-from .errors import FailureDetail, to_failure_detail
-from .repo_layer.intake import (
+from prism.errors import FailureDetail, to_failure_detail
+from prism.repo_layer.intake import (
     _RepoCheckoutResult as _IntakeRepoCheckoutResult,
     _RepoLightweightCheckoutResult as _IntakeRepoLightweightCheckoutResult,
     _RepoScanPreparation as _IntakeRepoScanPreparation,
@@ -25,7 +25,7 @@ from .repo_layer.intake import (
     _repo_scan_workspace,
     _resolve_style_readme_candidate,
 )
-from .repo_layer.metadata import (
+from prism.repo_layer.metadata import (
     _build_repo_style_readme_candidates,
     _fetch_repo_contents_payload as _metadata_fetch_repo_contents_payload,
     _fetch_repo_directory_names,

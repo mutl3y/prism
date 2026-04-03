@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import yaml
 
-from ..scanner_extract.task_parser import _format_inline_yaml
+from prism.scanner_extract.task_parser import _format_inline_yaml
 
 
 def is_role_local_variable_row(row: dict) -> bool:

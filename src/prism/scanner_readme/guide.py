@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from .style import (
+from prism.scanner_readme.style import (
     _render_role_notes_section,
     _render_role_variables_for_style,
     _render_template_overrides_section,
     _render_variable_summary_section,
 )
-from .doc_insights import parse_comma_values
-from ..scanner_extract.requirements import normalize_requirements
-from ..scanner_config.patterns import load_pattern_config
+from prism.scanner_readme.doc_insights import parse_comma_values
+from prism.scanner_extract.requirements import normalize_requirements
+from prism.scanner_config.patterns import load_pattern_config
 
 _POLICY = load_pattern_config()
 _VARIABLE_GUIDANCE_KEYWORDS: tuple[str, ...] = tuple(

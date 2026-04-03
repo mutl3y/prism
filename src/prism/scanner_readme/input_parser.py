@@ -10,8 +10,11 @@ import re
 from pathlib import Path
 from typing import Callable
 
-from ..scanner_extract.variable_extractor import IGNORED_IDENTIFIERS
-from .style import get_style_section_aliases_snapshot, normalize_style_heading
+from prism.scanner_extract.variable_extractor import IGNORED_IDENTIFIERS
+from prism.scanner_readme.style import (
+    get_style_section_aliases_snapshot,
+    normalize_style_heading,
+)
 
 MARKDOWN_VAR_BACKTICK_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)`")
 MARKDOWN_VAR_TABLE_RE = re.compile(r"^\|\s*`?([A-Za-z_][A-Za-z0-9_]*)`?\s*\|")

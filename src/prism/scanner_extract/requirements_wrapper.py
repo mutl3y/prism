@@ -6,7 +6,7 @@ extracted from scanner.py for improved organization.
 
 from __future__ import annotations
 
-from . import (
+from prism.scanner_extract import (
     build_collection_compliance_notes as _requirements_build_collection_compliance_notes,
     build_requirements_display as _requirements_build_display,
     extract_declared_collections_from_meta as _requirements_extract_declared_meta,

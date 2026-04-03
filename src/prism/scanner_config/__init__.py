@@ -14,26 +14,26 @@ Current capability ownership:
 from __future__ import annotations
 
 # Section constants
-from .section import (
+from prism.scanner_config.section import (
     DEFAULT_DOC_MARKER_PREFIX,
     SECTION_CONFIG_FILENAME,
     SECTION_CONFIG_FILENAMES,
 )
 
 # Marker loading
-from .marker import (
+from prism.scanner_config.marker import (
     load_readme_marker_prefix,
 )
 
 # README section configuration
-from .readme import (
+from prism.scanner_config.readme import (
     load_readme_section_config,
     load_readme_section_visibility,
     resolve_role_config_file,
 )
 
 # Scan policy loaders
-from .policy import (
+from prism.scanner_config.policy import (
     load_fail_on_unconstrained_dynamic_includes,
     load_fail_on_yaml_like_task_annotations,
     load_ignore_unresolved_internal_underscore_references,
@@ -43,14 +43,14 @@ from .policy import (
 )
 
 # Pattern loading
-from .patterns import (
+from prism.scanner_config.patterns import (
     fetch_remote_policy,
     load_pattern_config,
     write_unknown_headings_log,
 )
 
 # Style guide and section resolution
-from .style import (
+from prism.scanner_config.style import (
     default_style_guide_user_paths,
     load_section_display_titles,
     refresh_policy,

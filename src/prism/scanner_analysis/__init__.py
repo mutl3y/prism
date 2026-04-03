@@ -9,12 +9,12 @@ Current capability ownership:
 
 from __future__ import annotations
 
-from .metrics import (
+from prism.scanner_analysis.metrics import (
     append_non_authoritative_test_evidence_uncertainty_reason,
     build_referenced_variable_uncertainty_reason,
     extract_scanner_counters,
 )
-from .report import (
+from prism.scanner_analysis.report import (
     AnnotationQualityCounters,
     NormalizedScannerReportMetadata,
     ReadmeSectionBodyRenderer,
@@ -40,7 +40,7 @@ from .report import (
     render_scanner_report_section,
     render_scanner_report_yaml_parse_failure_row,
 )
-from .runbook import (
+from prism.scanner_analysis.runbook import (
     build_runbook_rows,
     render_runbook,
     render_runbook_csv,

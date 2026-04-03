@@ -10,7 +10,7 @@ import ast
 from pathlib import Path
 import re
 
-from .scanner_data.contracts_collection import (
+from prism.scanner_data.contracts_collection import (
     PluginCatalog,
     PluginCatalogSummary,
     PluginExtraction,

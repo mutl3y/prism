@@ -18,7 +18,7 @@ import yaml
 from fnmatch import fnmatch
 from pathlib import Path
 
-from . import task_line_parsing as tlp
+from prism.scanner_extract import task_line_parsing as tlp
 
 # ---------------------------------------------------------------------------
 # Path exclusion helpers

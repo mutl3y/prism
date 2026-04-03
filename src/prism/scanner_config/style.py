@@ -245,7 +245,7 @@ def refresh_policy(
                   ignored_identifiers)
     """
     # Import here to avoid circular dependency
-    from .patterns import load_pattern_config
+    from prism.scanner_config.patterns import load_pattern_config
 
     policy = load_pattern_config(
         override_path=override_path,

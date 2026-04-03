@@ -76,6 +76,9 @@ ORCHESTRATOR_TELEMETRY_TARGETS: dict[str, dict[str, object]] = {
 }
 
 _ALLOWED_CANONICAL_PRIVATE_CROSS_PACKAGE_TOUCHPOINTS: dict[str, set[str]] = {
+    "prism.scanner_analysis.metrics": {
+        "prism.scanner_extract.task_parser:_is_path_excluded",
+    },
     "prism.scanner_core.feature_detector": {
         "prism.scanner_extract.task_parser:_collect_task_files",
         "prism.scanner_extract.task_parser:_detect_task_module",
@@ -99,6 +102,18 @@ _ALLOWED_CANONICAL_PRIVATE_CROSS_PACKAGE_TOUCHPOINTS: dict[str, set[str]] = {
         "prism.scanner_extract.variable_extractor:_find_variable_line_in_yaml",
         "prism.scanner_extract.variable_extractor:_infer_variable_type",
         "prism.scanner_extract.variable_extractor:_is_sensitive_variable",
+    },
+    "prism.scanner_core.variable_discovery": {
+        "prism.scanner_extract.task_parser:_format_inline_yaml",
+        "prism.scanner_extract.task_parser:_load_yaml_file",
+        "prism.scanner_extract.variable_extractor:_collect_referenced_variable_names",
+        "prism.scanner_extract.variable_extractor:_collect_set_fact_names",
+        "prism.scanner_extract.variable_extractor:_find_variable_line_in_yaml",
+        "prism.scanner_extract.variable_extractor:_infer_variable_type",
+        "prism.scanner_extract.variable_extractor:_is_sensitive_variable",
+    },
+    "prism.scanner_readme.variable_renderer": {
+        "prism.scanner_extract.task_parser:_format_inline_yaml",
     },
 }
 

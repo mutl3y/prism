@@ -26,7 +26,7 @@ Exported names consumed by scanner.py:
 from __future__ import annotations
 
 # Re-export constants from task_line_parsing
-from .task_line_parsing import (
+from prism.scanner_extract.task_line_parsing import (
     TASK_INCLUDE_KEYS,
     ROLE_INCLUDE_KEYS,
     INCLUDE_VARS_KEYS,
@@ -48,7 +48,7 @@ from .task_line_parsing import (
 )
 
 # Re-export functions from task_file_traversal
-from .task_file_traversal import (
+from prism.scanner_extract.task_file_traversal import (
     _normalize_exclude_patterns,
     _is_relpath_excluded,
     _is_path_excluded,
@@ -66,7 +66,7 @@ from .task_file_traversal import (
 )
 
 # Re-export functions from task_annotation_parsing
-from .task_annotation_parsing import (
+from prism.scanner_extract.task_annotation_parsing import (
     _split_task_annotation_label,
     _split_task_target_payload,
     _annotation_payload_looks_yaml,
@@ -75,7 +75,7 @@ from .task_annotation_parsing import (
 )
 
 # Re-export functions from task_catalog_assembly
-from .task_catalog_assembly import (
+from prism.scanner_extract.task_catalog_assembly import (
     _detect_task_module,
     _extract_collection_from_module_name,
     _compact_task_parameters,

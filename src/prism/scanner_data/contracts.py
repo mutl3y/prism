@@ -5,7 +5,7 @@ do not converge in a single god-file. This module preserves the stable
 import surface for existing consumers by re-exporting the curated public set.
 """
 
-from .contracts_errors import (
+from prism.scanner_data.contracts_errors import (
     CollectionScanResult as CollectionScanResult,
     FailureDetail as FailureDetail,
     FailurePolicyContract as FailurePolicyContract,
@@ -13,17 +13,17 @@ from .contracts_errors import (
     RoleScanResult as RoleScanResult,
     ScanPhaseStatus as ScanPhaseStatus,
 )
-from .contracts_collection import (
+from prism.scanner_data.contracts_collection import (
     PluginCatalog as PluginCatalog,
     PluginCatalogSummary as PluginCatalogSummary,
     PluginExtraction as PluginExtraction,
     PluginRecord as PluginRecord,
     PluginScanFailure as PluginScanFailure,
 )
-from .contracts_extraction import (
+from prism.scanner_data.contracts_extraction import (
     VariableAnalysisResults as VariableAnalysisResults,
 )
-from .contracts_output import (
+from prism.scanner_data.contracts_output import (
     AnnotationQualityCounters as AnnotationQualityCounters,
     EmitScanOutputsArgs as EmitScanOutputsArgs,
     FinalOutputPayload as FinalOutputPayload,
@@ -43,10 +43,10 @@ from .contracts_output import (
     ScannerReportYamlParseFailureRow as ScannerReportYamlParseFailureRow,
     SectionBodyRenderResult as SectionBodyRenderResult,
 )
-from .contracts_report import (
+from prism.scanner_data.contracts_report import (
     ReportRenderingMetadata as ReportRenderingMetadata,
 )
-from .contracts_request import (
+from prism.scanner_data.contracts_request import (
     FeaturesContext as FeaturesContext,
     PolicyContext as PolicyContext,
     ScanBaseContext as ScanBaseContext,
@@ -59,7 +59,7 @@ from .contracts_request import (
     _SectionTitleBucket as _SectionTitleBucket,
     _StyleSection as _StyleSection,
 )
-from .contracts_variables import (
+from prism.scanner_data.contracts_variables import (
     ReferenceContext as ReferenceContext,
     Variable as Variable,
     VariableProvenance as VariableProvenance,

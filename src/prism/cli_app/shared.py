@@ -11,8 +11,8 @@ from urllib.error import HTTPError, URLError
 from prism.feedback import apply_feedback_recommendations, load_feedback
 from prism.scanner import SECTION_CONFIG_FILENAMES, parse_style_readme
 
-from . import presenters as cli_presenters
-from ..errors import (
+from prism.cli_app import presenters as cli_presenters
+from prism.errors import (
     PrismRuntimeError,
     REPO_SCAN_PAYLOAD_JSON_INVALID,
     REPO_SCAN_PAYLOAD_SHAPE_INVALID,

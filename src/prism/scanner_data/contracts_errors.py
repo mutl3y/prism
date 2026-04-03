@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
-from .contracts_request import ScanMetadata, ScanPhaseError
+from prism.scanner_data.contracts_request import ScanMetadata, ScanPhaseError
 
 
 class ScanPhaseStatus(TypedDict, total=False):

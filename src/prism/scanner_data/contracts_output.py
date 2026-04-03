@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Self, TypedDict
 
-from .contracts_request import ScanMetadata
+from prism.scanner_data.contracts_request import ScanMetadata
 
 
 class ScanRenderPayload(TypedDict):

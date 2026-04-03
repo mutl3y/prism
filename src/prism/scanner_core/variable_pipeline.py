@@ -9,7 +9,7 @@ from typing import Any
 from prism.scanner_data.contracts_request import PolicyContext
 from prism.scanner_data.contracts_variables import ReferenceContext, VariableRow
 
-from ..scanner_analysis.metrics import (
+from prism.scanner_analysis.metrics import (
     attach_non_authoritative_test_evidence,
     build_referenced_variable_uncertainty_reason,
     should_suppress_internal_unresolved_reference,
@@ -17,10 +17,10 @@ from ..scanner_analysis.metrics import (
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
 )
-from ..scanner_extract.dataload import iter_role_argument_spec_entries
-from ..scanner_extract.discovery import load_meta
-from ..scanner_extract.task_parser import _format_inline_yaml, _load_yaml_file
-from ..scanner_extract.variable_extractor import (
+from prism.scanner_extract.dataload import iter_role_argument_spec_entries
+from prism.scanner_extract.discovery import load_meta
+from prism.scanner_extract.task_parser import _format_inline_yaml, _load_yaml_file
+from prism.scanner_extract.variable_extractor import (
     IGNORED_IDENTIFIERS,
     JINJA_IDENTIFIER_RE,
     _collect_include_vars_files,
@@ -33,7 +33,7 @@ from ..scanner_extract.variable_extractor import (
     _infer_variable_type,
     _is_sensitive_variable,
 )
-from ..scanner_readme.input_parser import collect_readme_input_variables
+from prism.scanner_readme.input_parser import collect_readme_input_variables
 
 
 def collect_dynamic_task_include_tokens(

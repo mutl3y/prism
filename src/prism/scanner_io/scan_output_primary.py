@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
-from .output import build_final_output_payload
-from ..scanner_data.contracts_output import RunScanOutputPayload
+from prism.scanner_io.output import build_final_output_payload
+from prism.scanner_data.contracts_output import RunScanOutputPayload
 
 
 def render_and_write_scan_output(

@@ -9,15 +9,15 @@ Current capability ownership:
 
 from __future__ import annotations
 
-from .loader import (
+from prism.scanner_io.loader import (
     collect_yaml_parse_failures,
     iter_role_yaml_candidates,
     load_yaml_file,
     map_argument_spec_type,
     parse_yaml_candidate,
 )
-from .collection_renderer import render_collection_markdown
-from .output import (
+from prism.scanner_io.collection_renderer import render_collection_markdown
+from prism.scanner_io.output import (
     FinalOutputPayload,
     build_final_output_payload,
     render_final_output,

@@ -9,13 +9,13 @@ Current capability ownership:
 
 from __future__ import annotations
 
-from .render import (
+from prism.scanner_readme.render import (
     DEFAULT_SECTION_SPECS,
     SCANNER_STATS_SECTION_IDS,
     render_readme,
     _append_scanner_report_section_if_enabled,
 )
-from .style import (
+from prism.scanner_readme.style import (
     STYLE_SECTION_ALIASES,
     get_style_section_aliases_snapshot,
     detect_style_section_level,
@@ -24,10 +24,10 @@ from .style import (
     parse_style_readme,
     _refresh_policy_derived_state,
 )
-from .guide import (
+from prism.scanner_readme.guide import (
     _render_guide_section_body,
 )
-from .doc_insights import (
+from prism.scanner_readme.doc_insights import (
     build_doc_insights,
     parse_comma_values,
 )

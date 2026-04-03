@@ -15,7 +15,7 @@ import re
 from bisect import bisect_right
 from collections import defaultdict
 
-from . import task_line_parsing as tlp
+from prism.scanner_extract import task_line_parsing as tlp
 
 # ---------------------------------------------------------------------------
 # Annotation payload splitting

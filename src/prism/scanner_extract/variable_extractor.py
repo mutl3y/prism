@@ -35,11 +35,11 @@ import yaml
 from pathlib import Path
 from typing import Any, Iterable
 
-from .._jinja_analyzer import (
+from prism._jinja_analyzer import (
     _collect_jinja_local_bindings_from_text,
     _collect_undeclared_jinja_variables,
 )
-from .task_parser import (
+from prism.scanner_extract.task_parser import (
     TASK_BLOCK_KEYS,
     TASK_INCLUDE_KEYS,
     TASK_META_KEYS,
@@ -52,7 +52,7 @@ from .task_parser import (
     _iter_task_include_targets,
     _iter_task_mappings,
 )
-from ..scanner_config.patterns import load_pattern_config
+from prism.scanner_config.patterns import load_pattern_config
 
 # ---------------------------------------------------------------------------
 # Regex patterns

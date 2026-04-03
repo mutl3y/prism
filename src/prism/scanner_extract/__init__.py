@@ -13,7 +13,7 @@ Current capability ownership:
 from __future__ import annotations
 
 # Task parsing constants and functions
-from .task_parser import (
+from prism.scanner_extract.task_parser import (
     TASK_INCLUDE_KEYS,
     ROLE_INCLUDE_KEYS,
     INCLUDE_VARS_KEYS,
@@ -38,7 +38,7 @@ from .task_parser import (
 )
 
 # Variable extraction functions
-from .variable_extractor import (
+from prism.scanner_extract.variable_extractor import (
     DEFAULT_TARGET_RE,
     JINJA_VAR_RE,
     JINJA_IDENTIFIER_RE,
@@ -53,7 +53,7 @@ from .variable_extractor import (
 )
 
 # Discovery helpers
-from .discovery import (
+from prism.scanner_extract.discovery import (
     iter_role_variable_map_candidates,
     load_meta,
     load_requirements,
@@ -62,7 +62,7 @@ from .discovery import (
 )
 
 # Data loading functions
-from .dataload import (
+from prism.scanner_extract.dataload import (
     iter_role_yaml_candidates,
     parse_yaml_candidate,
     collect_yaml_parse_failures,
@@ -72,7 +72,7 @@ from .dataload import (
 )
 
 # Requirements functions
-from .requirements import (
+from prism.scanner_extract.requirements import (
     format_requirement_line,
     normalize_requirements,
     normalize_meta_role_dependencies,

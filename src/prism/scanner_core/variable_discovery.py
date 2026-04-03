@@ -17,18 +17,18 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .di import DIContainer
-from ..scanner_data.builders import VariableRowBuilder
-from ..scanner_data.contracts_variables import VariableRow
-from ..scanner_extract.dataload import (
+from prism.scanner_core.di import DIContainer
+from prism.scanner_data.builders import VariableRowBuilder
+from prism.scanner_data.contracts_variables import VariableRow
+from prism.scanner_extract.dataload import (
     iter_role_argument_spec_entries,
     load_role_variable_maps,
     map_argument_spec_type,
 )
-from ..scanner_extract.discovery import iter_role_variable_map_candidates
-from ..scanner_extract.task_parser import _format_inline_yaml
-from ..scanner_extract.task_parser import _load_yaml_file
-from ..scanner_extract.variable_extractor import (
+from prism.scanner_extract.discovery import iter_role_variable_map_candidates
+from prism.scanner_extract.task_parser import _format_inline_yaml
+from prism.scanner_extract.task_parser import _load_yaml_file
+from prism.scanner_extract.variable_extractor import (
     _collect_referenced_variable_names,
     _collect_set_fact_names,
     _find_variable_line_in_yaml,

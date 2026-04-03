@@ -9,12 +9,12 @@ import re
 
 import yaml
 
-from .section import (
+from prism.scanner_config.section import (
     DEFAULT_DOC_MARKER_PREFIX,
     SECTION_CONFIG_FILENAME,
     SECTION_CONFIG_FILENAMES,
 )
-from .readme import resolve_role_config_file
+from prism.scanner_config.readme import resolve_role_config_file
 
 
 README_MARKER_CONFIG_YAML_INVALID = "README_MARKER_CONFIG_YAML_INVALID"

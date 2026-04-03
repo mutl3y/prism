@@ -8,15 +8,15 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from .emit_output import (
+from prism.scanner_io.emit_output import (
     build_output_emission_context as _build_output_emission_context,
     build_scanner_report_output_path as build_scanner_report_output_path,
     orchestrate_output_emission as _orchestrate_output_emission,
     write_concise_scanner_report_if_enabled as write_concise_scanner_report_if_enabled,
     write_optional_runbook_outputs as write_optional_runbook_outputs,
 )
-from .scan_output_primary import render_primary_scan_output
-from ..scanner_data.contracts_output import (
+from prism.scanner_io.scan_output_primary import render_primary_scan_output
+from prism.scanner_data.contracts_output import (
     EmitScanOutputsArgs,
     RunScanOutputPayload,
 )

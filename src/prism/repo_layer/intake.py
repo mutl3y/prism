@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import tempfile
 
-from .metadata import (
+from prism.repo_layer.metadata import (
     _build_repo_style_readme_candidates,
     _fetch_repo_directory_names,
     _fetch_repo_file,

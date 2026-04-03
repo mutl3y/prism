@@ -10,9 +10,9 @@ import os
 from pathlib import Path
 from typing import Any, Callable, cast
 
-from .output import resolve_output_path, write_output
-from ..scanner_data.contracts_output import RunScanOutputPayload
-from ..scanner_data.contracts_request import ScanMetadata
+from prism.scanner_io.output import resolve_output_path, write_output
+from prism.scanner_data.contracts_output import RunScanOutputPayload
+from prism.scanner_data.contracts_request import ScanMetadata
 
 
 def build_scanner_report_output_path(

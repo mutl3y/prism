@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
-    from .feature_detector import FeatureDetector
-    from .output_orchestrator import OutputOrchestrator
-    from .scanner_context import ScannerContext
-    from .variable_discovery import VariableDiscovery
-    from ..scanner_data.builders import VariableRowBuilder
+    from prism.scanner_core.feature_detector import FeatureDetector
+    from prism.scanner_core.output_orchestrator import OutputOrchestrator
+    from prism.scanner_core.scanner_context import ScannerContext
+    from prism.scanner_core.variable_discovery import VariableDiscovery
+from prism.scanner_data.builders import VariableRowBuilder
 
 
 class DIContainer:
@@ -67,7 +67,7 @@ class DIContainer:
 
         key = "variable_discovery"
         if key not in self._cache:
-            from .variable_discovery import VariableDiscovery
+            from prism.scanner_core.variable_discovery import VariableDiscovery
 
             self._cache[key] = VariableDiscovery(
                 self, self._role_path, self._scan_options
@@ -79,7 +79,7 @@ class DIContainer:
         """Create OutputOrchestrator for a specific output path."""
         cache_key = f"output_orchestrator:{output_path}"
         if cache_key not in self._cache:
-            from .output_orchestrator import OutputOrchestrator
+            from prism.scanner_core.output_orchestrator import OutputOrchestrator
 
             self._cache[cache_key] = OutputOrchestrator(
                 di=self,
@@ -100,7 +100,7 @@ class DIContainer:
             return override(self, self._role_path, self._scan_options)
 
         if key not in self._cache:
-            from .feature_detector import FeatureDetector
+            from prism.scanner_core.feature_detector import FeatureDetector
 
             self._cache[key] = FeatureDetector(
                 self, self._role_path, self._scan_options
@@ -112,8 +112,6 @@ class DIContainer:
         """Create cached VariableRowBuilder for row construction helpers."""
         key = "variable_row_builder"
         if key not in self._cache:
-            from ..scanner_data.builders import VariableRowBuilder
-
             self._cache[key] = VariableRowBuilder()
         return self._cache[key]
 

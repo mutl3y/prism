@@ -11,7 +11,7 @@ This module serves as a facade for focused style services:
 from __future__ import annotations
 
 # Re-export public config APIs
-from .style_config import (
+from prism.scanner_readme.style_config import (
     STYLE_SECTION_ALIASES,
     get_style_section_aliases_snapshot,
     refresh_policy_derived_state,
@@ -19,17 +19,17 @@ from .style_config import (
 )
 
 # Re-export public formatter APIs
-from .style_formatter import format_heading, normalize_style_heading
+from prism.scanner_readme.style_formatter import format_heading, normalize_style_heading
 
 # Re-export public parser APIs
-from .style_parser import (
+from prism.scanner_readme.style_parser import (
     build_section_title_stats,
     detect_style_section_level,
     parse_style_readme,
 )
 
 # Re-export public variable renderer APIs
-from .variable_renderer import (
+from prism.scanner_readme.variable_renderer import (
     describe_variable,
     is_role_local_variable_row,
     render_role_variables_for_style,
@@ -40,7 +40,7 @@ from .variable_renderer import (
 )
 
 # Re-export public notes renderer APIs
-from .notes_renderer import (
+from prism.scanner_readme.notes_renderer import (
     render_role_notes_section,
     render_template_overrides_section,
     render_variable_summary_section,
@@ -48,35 +48,37 @@ from .notes_renderer import (
 )
 
 # Internal-only re-export for backward compatibility with private helpers
-from .variable_renderer import (
+from prism.scanner_readme.variable_renderer import (
     is_role_local_variable_row as _is_role_local_variable_row,
 )  # noqa: F401
-from .variable_renderer import describe_variable as _describe_variable  # noqa: F401
-from .variable_renderer import (
+from prism.scanner_readme.variable_renderer import (
+    describe_variable as _describe_variable,  # noqa: F401
+)
+from prism.scanner_readme.variable_renderer import (
     render_role_variables_for_style as _render_role_variables_for_style,
 )  # noqa: F401
-from .variable_renderer import (
+from prism.scanner_readme.variable_renderer import (
     render_role_variables_table_style as _render_role_variables_table_style,
 )  # noqa: F401
-from .variable_renderer import (
+from prism.scanner_readme.variable_renderer import (
     render_role_variables_nested_bullets_style as _render_role_variables_nested_bullets_style,
 )  # noqa: F401
-from .variable_renderer import (
+from prism.scanner_readme.variable_renderer import (
     render_role_variables_yaml_block_style as _render_role_variables_yaml_block_style,
 )  # noqa: F401
-from .variable_renderer import (
+from prism.scanner_readme.variable_renderer import (
     render_role_variables_simple_list_style as _render_role_variables_simple_list_style,
 )  # noqa: F401
-from .notes_renderer import (
+from prism.scanner_readme.notes_renderer import (
     render_role_notes_section as _render_role_notes_section,
 )  # noqa: F401
-from .notes_renderer import (
+from prism.scanner_readme.notes_renderer import (
     render_variable_uncertainty_notes as _render_variable_uncertainty_notes,
 )  # noqa: F401
-from .notes_renderer import (
+from prism.scanner_readme.notes_renderer import (
     render_variable_summary_section as _render_variable_summary_section,
 )  # noqa: F401
-from .notes_renderer import (
+from prism.scanner_readme.notes_renderer import (
     render_template_overrides_section as _render_template_overrides_section,
 )  # noqa: F401
 

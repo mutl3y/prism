@@ -6,8 +6,8 @@ from pathlib import Path
 import re
 from typing import TypedDict
 
-from .style_config import get_style_section_aliases_snapshot
-from .style_formatter import normalize_style_heading
+from prism.scanner_readme.style_config import get_style_section_aliases_snapshot
+from prism.scanner_readme.style_formatter import normalize_style_heading
 
 
 class _SectionTitleBucket(TypedDict):

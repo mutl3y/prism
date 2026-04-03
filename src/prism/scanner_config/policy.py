@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import yaml
 
-from .section import SECTION_CONFIG_FILENAME, SECTION_CONFIG_FILENAMES
-from .readme import resolve_role_config_file
+from prism.scanner_config.section import (
+    SECTION_CONFIG_FILENAME,
+    SECTION_CONFIG_FILENAMES,
+)
+from prism.scanner_config.readme import resolve_role_config_file
 
 POLICY_CONFIG_YAML_INVALID = "POLICY_CONFIG_YAML_INVALID"
 _POLICY_CONFIG_YAML_INVALID_MESSAGE = "policy config YAML is invalid"
