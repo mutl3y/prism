@@ -7,11 +7,9 @@ metadata and variables, and render a README using a Jinja2 template.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 import re
-from typing import Any
 
 from prism._jinja_analyzer import (
     _scan_text_for_all_filters_with_ast,
@@ -505,18 +503,6 @@ def build_variable_insights(
     )
 
 
-def _build_policy_context_for_scan(
-    *,
-    role_path: str,
-    policy_config_path: str | None,
-) -> tuple[dict, _PolicyContext]:
-    """Load immutable per-scan policy state without mutating module globals."""
-    return load_pattern_policy_with_context(
-        override_path=policy_config_path,
-        search_root=role_path,
-    )
-
-
 def get_style_section_aliases_snapshot() -> dict[str, str]:
     """Return an isolated copy of the currently active section alias mapping."""
     return _readme_style.get_style_section_aliases_snapshot()
@@ -909,90 +895,20 @@ def _orchestrate_scan_payload(
     )
 
 
-def _build_runtime_scan_state(
-    *,
-    role_path: str,
-    role_name_override: str | None,
-    readme_config_path: str | None,
-    include_vars_main: bool,
-    exclude_path_patterns: list[str] | None,
-    detailed_catalog: bool,
-    include_task_parameters: bool,
-    include_task_runbooks: bool,
-    inline_task_runbooks: bool,
-    include_collection_checks: bool,
-    keep_unknown_style_sections: bool,
-    adopt_heading_mode: str | None,
-    vars_seed_paths: list[str] | None,
-    style_readme_path: str | None,
-    style_source_path: str | None,
-    style_guide_skeleton: bool,
-    compare_role_path: str | None,
-    policy_config_path: str | None,
-    fail_on_unconstrained_dynamic_includes: bool | None,
-    fail_on_yaml_like_task_annotations: bool | None,
-    ignore_unresolved_internal_underscore_references: bool | None,
-    strict_phase_failures: bool,
-    failure_policy: FailurePolicy | None,
-    runbook_output: str | None,
-    runbook_csv_output: str | None,
-) -> tuple[dict[str, Any], _PolicyContext, _ScanOptionsDict]:
-    """Resolve request-scoped policy and canonical scan options for one run."""
-    loaded_policy, policy_context = _build_policy_context_for_scan(
-        role_path=role_path,
-        policy_config_path=policy_config_path,
-    )
-    if failure_policy is not None and hasattr(failure_policy, "strict"):
-        strict_phase_failures = bool(getattr(failure_policy, "strict"))
-
-    scan_options = scan_request.build_run_scan_options_canonical(
-        role_path=role_path,
-        role_name_override=role_name_override,
-        readme_config_path=readme_config_path,
-        include_vars_main=include_vars_main,
-        exclude_path_patterns=exclude_path_patterns,
-        detailed_catalog=scan_request.resolve_scan_request_for_runtime(
-            detailed_catalog=detailed_catalog,
-            runbook_output=runbook_output,
-            runbook_csv_output=runbook_csv_output,
-        ),
-        include_task_parameters=include_task_parameters,
-        include_task_runbooks=include_task_runbooks,
-        inline_task_runbooks=inline_task_runbooks,
-        include_collection_checks=include_collection_checks,
-        keep_unknown_style_sections=keep_unknown_style_sections,
-        adopt_heading_mode=adopt_heading_mode,
-        vars_seed_paths=vars_seed_paths,
-        style_readme_path=style_readme_path,
-        style_source_path=style_source_path,
-        style_guide_skeleton=style_guide_skeleton,
-        compare_role_path=compare_role_path,
-        fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
-        fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
-        ignore_unresolved_internal_underscore_references=(
-            ignore_unresolved_internal_underscore_references
-        ),
-        policy_context=policy_context,
-    )
-    scan_options["strict_phase_failures"] = bool(strict_phase_failures)
-    return loaded_policy, policy_context, scan_options
+_build_runtime_scan_state = partial(
+    _scan_runtime.build_runtime_scan_state,
+    load_pattern_policy_with_context=load_pattern_policy_with_context,
+    build_run_scan_options_fn=scan_request.build_run_scan_options_canonical,
+    resolve_scan_request_for_runtime_fn=scan_request.resolve_scan_request_for_runtime,
+)
 
 
-@contextmanager
-def _scan_policy_scope(
-    *,
-    loaded_policy: dict[str, Any],
-    policy_context: _PolicyContext,
-):
-    """Apply request-scoped policy overrides used by one scanner execution."""
-    with _variable_extractor.policy_override_scope(
-        loaded_policy
-    ), _readme_style.style_section_aliases_scope(
-        dict(policy_context["section_aliases"])
-    ), _readme_guide.variable_guidance_keywords_scope(
-        tuple(policy_context["variable_guidance_keywords"])
-    ):
-        yield
+_scan_policy_scope = partial(
+    _scan_runtime.scan_policy_scope,
+    variable_policy_scope=_variable_extractor.policy_override_scope,
+    style_section_aliases_scope=_readme_style.style_section_aliases_scope,
+    variable_guidance_keywords_scope=_readme_guide.variable_guidance_keywords_scope,
+)
 
 
 def _run_scan_payload(
