@@ -519,6 +519,70 @@ def _normalize_repo_json_payload(
     return rendered_payload
 
 
+def _finalize_repo_json_output(
+    rendered_or_path: str,
+    *,
+    dry_run: bool,
+    repo_style_readme_path: str | None,
+    scanner_report_relpath: str | None,
+    normalize_repo_json_payload,
+) -> str:
+    """Normalize repo JSON output while preserving dry-run vs file-write semantics."""
+    if dry_run:
+        return normalize_repo_json_payload(
+            rendered_or_path,
+            repo_style_readme_path=repo_style_readme_path,
+            scanner_report_relpath=scanner_report_relpath,
+        )
+
+    output_path = Path(rendered_or_path)
+    try:
+        raw_payload = output_path.read_text(encoding="utf-8")
+    except OSError:
+        raw_payload = ""
+    normalized_payload = normalize_repo_json_payload(
+        raw_payload,
+        repo_style_readme_path=repo_style_readme_path,
+        scanner_report_relpath=scanner_report_relpath,
+    )
+    if normalized_payload and normalized_payload != raw_payload:
+        output_path.write_text(normalized_payload, encoding="utf-8")
+    return rendered_or_path
+
+
+def _resolve_cli_output_path(output: str, output_format: str) -> Path:
+    """Resolve the effective output path for CLI-managed collection outputs."""
+    output_path = Path(output)
+    if output_format == "json" and output_path.suffix.lower() != ".json":
+        return output_path.with_suffix(".json")
+    if output_format == "md" and output_path.suffix.lower() != ".md":
+        return output_path.with_suffix(".md")
+    return output_path
+
+
+def _persist_collection_role_markdown_documents(
+    *,
+    output_path: Path,
+    payload: dict,
+) -> None:
+    """Write per-role markdown documents beside collection markdown output."""
+    roles_dir = output_path.parent / "roles"
+    roles_dir.mkdir(parents=True, exist_ok=True)
+    for role_entry in payload.get("roles", []):
+        if not isinstance(role_entry, dict):
+            continue
+        role_name = str(role_entry.get("role") or "")
+        if not role_name:
+            continue
+        role_doc = role_entry.get("rendered_readme")
+        if not isinstance(role_doc, str) or not role_doc.strip():
+            continue
+        (roles_dir / f"{role_name}.md").write_text(
+            role_doc,
+            encoding="utf-8",
+        )
+
+
 def _map_top_level_exception_to_exit_code(exc: Exception) -> int:
     if isinstance(exc, PrismRuntimeError):
         if exc.category == "network":
@@ -643,25 +707,13 @@ def _handle_repo_command(
                 scanner_report_output=args.scanner_report_output,
                 primary_output_path=args.output,
             )
-            if args.dry_run:
-                outpath = normalize_repo_json_payload(
-                    outpath,
-                    repo_style_readme_path=checkout.resolved_repo_style_readme_path,
-                    scanner_report_relpath=scanner_report_relpath,
-                )
-            else:
-                output_path = Path(outpath)
-                try:
-                    raw_payload = output_path.read_text(encoding="utf-8")
-                except OSError:
-                    raw_payload = ""
-                normalized_payload = normalize_repo_json_payload(
-                    raw_payload,
-                    repo_style_readme_path=checkout.resolved_repo_style_readme_path,
-                    scanner_report_relpath=scanner_report_relpath,
-                )
-                if normalized_payload and normalized_payload != raw_payload:
-                    output_path.write_text(normalized_payload, encoding="utf-8")
+            outpath = _finalize_repo_json_output(
+                outpath,
+                dry_run=args.dry_run,
+                repo_style_readme_path=checkout.resolved_repo_style_readme_path,
+                scanner_report_relpath=scanner_report_relpath,
+                normalize_repo_json_payload=normalize_repo_json_payload,
+            )
 
         if args.dry_run:
             print(outpath, end="")
@@ -737,29 +789,14 @@ def _handle_collection_command(
         print(rendered, end="")
         return emit_success(args, rendered)
 
-    output_path = Path(args.output)
-    if args.format == "json" and output_path.suffix.lower() != ".json":
-        output_path = output_path.with_suffix(".json")
-    if args.format == "md" and output_path.suffix.lower() != ".md":
-        output_path = output_path.with_suffix(".md")
+    output_path = _resolve_cli_output_path(args.output, args.format)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(rendered, encoding="utf-8")
     if args.format == "md":
-        roles_dir = output_path.parent / "roles"
-        roles_dir.mkdir(parents=True, exist_ok=True)
-        for role_entry in payload.get("roles", []):
-            if not isinstance(role_entry, dict):
-                continue
-            role_name = str(role_entry.get("role") or "")
-            if not role_name:
-                continue
-            role_doc = role_entry.get("rendered_readme")
-            if not isinstance(role_doc, str) or not role_doc.strip():
-                continue
-            (roles_dir / f"{role_name}.md").write_text(
-                role_doc,
-                encoding="utf-8",
-            )
+        _persist_collection_role_markdown_documents(
+            output_path=output_path,
+            payload=payload,
+        )
     return emit_success(args, str(output_path.resolve()))
 
 

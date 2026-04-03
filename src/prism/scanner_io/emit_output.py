@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Any, Callable, cast
 
 from .output import resolve_output_path, write_output
-from ..scanner_data.contracts import RunScanOutputPayload, ScanMetadata
+from ..scanner_data.contracts_output import RunScanOutputPayload
+from ..scanner_data.contracts_request import ScanMetadata
 
 
 def build_scanner_report_output_path(

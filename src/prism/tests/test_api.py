@@ -189,12 +189,12 @@ def test_scan_repo_uses_shared_checkout_orchestration(monkeypatch, tmp_path):
 def test_scan_role_forwards_library_options(monkeypatch):
     calls: dict = {}
 
-    def fake_run_scan(role_path, **kwargs):
+    def fake_run_scan_payload(role_path, **kwargs):
         calls["role_path"] = role_path
         calls.update(kwargs)
-        return json.dumps({"role_name": "mock_role", "metadata": {}})
+        return {"role_name": "mock_role", "metadata": {}}
 
-    monkeypatch.setattr(api, "run_scan", fake_run_scan)
+    monkeypatch.setattr(api, "_run_scan_payload", fake_run_scan_payload)
 
     payload = api.scan_role(
         "/tmp/mock_role",
@@ -208,9 +208,6 @@ def test_scan_role_forwards_library_options(monkeypatch):
 
     assert payload["role_name"] == "mock_role"
     assert calls["role_path"] == "/tmp/mock_role"
-    assert calls["output"] == "scan.json"
-    assert calls["output_format"] == "json"
-    assert calls["dry_run"] is True
     assert calls["exclude_path_patterns"] == ["tests/**"]
     assert calls["style_source_path"] == "/tmp/style.md"
     assert calls["policy_config_path"] == "/tmp/policy.yml"
@@ -220,14 +217,14 @@ def test_scan_role_forwards_library_options(monkeypatch):
 
 
 def test_scan_role_classifies_invalid_json_payload(monkeypatch):
-    monkeypatch.setattr(api, "run_scan", lambda *args, **kwargs: "{not-json")
+    monkeypatch.setattr(api, "_run_scan_payload", lambda *args, **kwargs: "{not-json")
 
     with pytest.raises(RuntimeError, match="SCAN_ROLE_PAYLOAD_JSON_INVALID"):
         api.scan_role("/tmp/mock_role")
 
 
 def test_scan_role_classifies_non_mapping_json_payload(monkeypatch):
-    monkeypatch.setattr(api, "run_scan", lambda *args, **kwargs: "[]")
+    monkeypatch.setattr(api, "_run_scan_payload", lambda *args, **kwargs: "[]")
 
     with pytest.raises(RuntimeError, match="SCAN_ROLE_PAYLOAD_TYPE_INVALID"):
         api.scan_role("/tmp/mock_role")
@@ -236,7 +233,7 @@ def test_scan_role_classifies_non_mapping_json_payload(monkeypatch):
 def test_scan_role_classifies_invalid_metadata_shape(monkeypatch):
     monkeypatch.setattr(
         api,
-        "run_scan",
+        "_run_scan_payload",
         lambda *args, **kwargs: json.dumps({"metadata": []}),
     )
 
@@ -246,7 +243,11 @@ def test_scan_role_classifies_invalid_metadata_shape(monkeypatch):
 
 def test_scan_role_accepts_in_memory_payload_without_json_roundtrip(monkeypatch):
     expected_payload = {"role_name": "mock_role", "metadata": {"ok": True}}
-    monkeypatch.setattr(api, "run_scan", lambda *args, **kwargs: expected_payload)
+    monkeypatch.setattr(
+        api,
+        "_run_scan_payload",
+        lambda *args, **kwargs: expected_payload,
+    )
 
     payload = api.scan_role("/tmp/mock_role")
 
@@ -272,11 +273,11 @@ def test_collection_role_failure_uses_typed_runtime_error_code():
 def test_scan_role_forwards_failure_policy_contract(monkeypatch):
     calls: dict[str, object] = {}
 
-    def fake_run_scan(*args, **kwargs):
+    def fake_run_scan_payload(*args, **kwargs):
         calls.update(kwargs)
         return {"role_name": "demo", "metadata": {}}
 
-    monkeypatch.setattr(api, "run_scan", fake_run_scan)
+    monkeypatch.setattr(api, "_run_scan_payload", fake_run_scan_payload)
 
     policy = prism_errors.FailurePolicy(strict=False)
     payload = api.scan_role("/tmp/mock_role", failure_policy=policy)
@@ -1164,12 +1165,12 @@ def test_scan_collection_can_include_rendered_readme(monkeypatch, tmp_path):
         },
     )
 
-    def fail_run_scan(*args, **kwargs):
+    def fail_run_scan_payload(*args, **kwargs):
         raise AssertionError(
-            "run_scan should not be called for collection README rendering"
+            "_run_scan_payload should not be called for collection README rendering"
         )
 
-    monkeypatch.setattr(api, "run_scan", fail_run_scan)
+    monkeypatch.setattr(api, "_run_scan_payload", fail_run_scan_payload)
 
     render_calls = {"count": 0}
 
@@ -1202,11 +1203,11 @@ def test_scan_role_forwards_detailed_catalog(monkeypatch, tmp_path):
     role_path = tmp_path / "role"
     role_path.mkdir()
 
-    def fake_run_scan(role_path_arg, output, output_format, **kwargs):
+    def fake_run_scan_payload(role_path_arg, **kwargs):
         assert kwargs["detailed_catalog"] is True
         return "{}"
 
-    monkeypatch.setattr(api, "run_scan", fake_run_scan)
+    monkeypatch.setattr(api, "_run_scan_payload", fake_run_scan_payload)
     payload = api.scan_role(str(role_path), detailed_catalog=True)
     assert payload == {}
 

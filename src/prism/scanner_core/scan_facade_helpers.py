@@ -7,9 +7,31 @@ dependency injection.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
-from prism.scanner_data.contracts import PolicyContext
+from prism.scanner_data.contracts_output import RunScanOutputPayload
+from prism.scanner_data.contracts_request import PolicyContext
+
+
+def orchestrate_scan_payload(
+    *,
+    role_path: str,
+    scan_options: dict[str, Any],
+    di_container_cls: type,
+    scanner_context_cls: type,
+    build_run_scan_options_fn: Callable[..., dict[str, Any]],
+    prepare_scan_context_fn: Callable[..., dict[str, Any]],
+) -> RunScanOutputPayload:
+    """Execute a scan via ScannerContext and return the in-memory payload."""
+    container = di_container_cls(role_path=role_path, scan_options=scan_options)
+    context = scanner_context_cls(
+        di=container,
+        role_path=role_path,
+        scan_options=scan_options,
+        build_run_scan_options_fn=build_run_scan_options_fn,
+        prepare_scan_context_fn=prepare_scan_context_fn,
+    )
+    return cast(RunScanOutputPayload, context.orchestrate_scan())
 
 
 def execute_scan_with_context(
@@ -33,15 +55,14 @@ def execute_scan_with_context(
     emit_scan_outputs_fn: Callable[[dict[str, Any]], str | bytes],
 ) -> str | bytes:
     """Execute a scan via ScannerContext and forward results to output emission."""
-    container = di_container_cls(role_path=role_path, scan_options=scan_options)
-    context = scanner_context_cls(
-        di=container,
+    payload = orchestrate_scan_payload(
         role_path=role_path,
         scan_options=scan_options,
+        di_container_cls=di_container_cls,
+        scanner_context_cls=scanner_context_cls,
         build_run_scan_options_fn=build_run_scan_options_fn,
         prepare_scan_context_fn=prepare_scan_context_fn,
     )
-    payload = context.orchestrate_scan()
     emit_args = build_emit_scan_outputs_args_fn(
         output=output,
         output_format=output_format,

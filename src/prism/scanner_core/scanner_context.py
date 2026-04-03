@@ -16,7 +16,7 @@ import logging
 from typing import Any, Callable
 
 from ..errors import PrismRuntimeError
-from ..scanner_data.contracts import ScanContextPayload, ScanOptionsDict
+from ..scanner_data.contracts_request import ScanContextPayload, ScanOptionsDict
 from . import scan_request
 from .di import DIContainer
 

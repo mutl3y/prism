@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from ..scanner_data.contracts import FinalOutputPayload
+from ..scanner_data.contracts_output import FinalOutputPayload
 
 
 def build_final_output_payload(

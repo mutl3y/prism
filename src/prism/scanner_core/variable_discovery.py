@@ -18,7 +18,7 @@ from typing import Any
 
 from .di import DIContainer
 from ..scanner_data.builders import VariableRowBuilder
-from ..scanner_data.contracts import VariableRow
+from ..scanner_data.contracts_variables import VariableRow
 from ..scanner_extract.dataload import (
     iter_role_argument_spec_entries,
     load_role_variable_maps,

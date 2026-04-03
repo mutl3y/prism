@@ -16,7 +16,7 @@ from .emit_output import (
     write_optional_runbook_outputs as write_optional_runbook_outputs,
 )
 from .scan_output_primary import render_primary_scan_output
-from ..scanner_data.contracts import (
+from ..scanner_data.contracts_output import (
     EmitScanOutputsArgs,
     RunScanOutputPayload,
 )
