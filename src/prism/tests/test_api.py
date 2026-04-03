@@ -102,6 +102,11 @@ def test_api_repo_service_aliases_bind_to_shared_facade_contract() -> None:
             "_run_repo_scan": api._repo_scan_facade.run_repo_scan,
             "_normalize_repo_scan_payload": api._repo_scan_facade.normalize_repo_scan_payload,
         },
+        expected_owner_modules={
+            "_build_repo_intake_components": "prism.repo_services",
+            "_run_repo_scan": "prism.repo_services",
+            "_normalize_repo_scan_payload": "prism.repo_services",
+        },
     )
 
 

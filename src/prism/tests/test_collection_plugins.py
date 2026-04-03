@@ -2,10 +2,29 @@ import ast
 from pathlib import Path
 
 from prism import collection_plugins as plugins
+from prism.scanner_data import contracts as scanner_contracts
+from prism.scanner_data import contracts_collection
 
 
 def _parse_module(src: str) -> ast.Module:
     return ast.parse(src)
+
+
+def test_collection_plugin_contract_types_use_canonical_contract_module():
+    assert plugins.PluginExtraction is contracts_collection.PluginExtraction
+    assert plugins.PluginRecord is contracts_collection.PluginRecord
+    assert plugins.PluginScanFailure is contracts_collection.PluginScanFailure
+    assert plugins.PluginCatalogSummary is contracts_collection.PluginCatalogSummary
+    assert plugins.PluginCatalog is contracts_collection.PluginCatalog
+
+    assert scanner_contracts.PluginExtraction is contracts_collection.PluginExtraction
+    assert scanner_contracts.PluginRecord is contracts_collection.PluginRecord
+    assert scanner_contracts.PluginScanFailure is contracts_collection.PluginScanFailure
+    assert (
+        scanner_contracts.PluginCatalogSummary
+        is contracts_collection.PluginCatalogSummary
+    )
+    assert scanner_contracts.PluginCatalog is contracts_collection.PluginCatalog
 
 
 def test_extract_filter_symbols_from_direct_return_dict():

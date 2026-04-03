@@ -266,7 +266,10 @@ def run_repo_scan(
 ) -> RepoScanRunResult:
     """Run a repo-backed scan via canonical target resolution and scan callback."""
 
-    del create_style_guide, style_source_path
+    # Compatibility-only parameters are intentionally accepted to preserve
+    # historical API call signatures across API/CLI entrypoints.
+    _ = create_style_guide
+    _ = style_source_path
 
     repo_scan_workspace_fn = repo_scan_workspace_fn or _repo_scan_workspace
     resolve_repo_scan_target_fn = (

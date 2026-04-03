@@ -9,7 +9,18 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 import re
-from typing import TypedDict
+
+from .scanner_data.contracts_collection import (
+    PluginCatalog,
+    PluginCatalogSummary,
+    PluginExtraction,
+    PluginRecord,
+    PluginScanFailure,
+)
+
+# Keep these contract exports bound here for compatibility checks and type surface
+# ownership tests that assert this module re-uses scanner_data.contracts_collection.
+_PLUGIN_CONTRACT_TYPES = (PluginExtraction, PluginCatalogSummary)
 
 PLUGIN_CATALOG_SCHEMA_VERSION = 1
 PLUGIN_EXTRACTION_METHOD_AST = "ast"
@@ -29,36 +40,6 @@ PLUGIN_TYPES: tuple[str, ...] = (
 )
 
 
-class PluginExtraction(TypedDict):
-    method: str
-    ast_version: str | None
-    fallback_used: bool
-
-
-class PluginRecord(TypedDict, total=False):
-    type: str
-    name: str
-    relative_path: str
-    language: str
-    symbols: list[str]
-    summary: str
-    doc_source: str
-    confidence: str
-    confidence_score: float
-    extraction: PluginExtraction
-    capability_hints: list[str]
-    documentation_blocks: dict[str, str]
-
-
-class PluginScanFailure(TypedDict):
-    relative_path: str
-    type: str
-    category: str
-    error_type: str
-    error: str
-    stage: str
-
-
 PluginSummaryExtraction = tuple[
     str,
     str,
@@ -69,20 +50,6 @@ PluginSummaryExtraction = tuple[
     list[str],
     dict[str, str],
 ]
-
-
-class PluginCatalogSummary(TypedDict):
-    total_plugins: int
-    types_present: list[str]
-    files_scanned: int
-    files_failed: int
-
-
-class PluginCatalog(TypedDict):
-    schema_version: int
-    summary: PluginCatalogSummary
-    by_type: dict[str, list[PluginRecord]]
-    failures: list[PluginScanFailure]
 
 
 def build_empty_plugin_catalog() -> PluginCatalog:

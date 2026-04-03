@@ -13,6 +13,13 @@ from .contracts_errors import (
     RoleScanResult as RoleScanResult,
     ScanPhaseStatus as ScanPhaseStatus,
 )
+from .contracts_collection import (
+    PluginCatalog as PluginCatalog,
+    PluginCatalogSummary as PluginCatalogSummary,
+    PluginExtraction as PluginExtraction,
+    PluginRecord as PluginRecord,
+    PluginScanFailure as PluginScanFailure,
+)
 from .contracts_extraction import (
     VariableAnalysisResults as VariableAnalysisResults,
 )
@@ -72,6 +79,11 @@ __all__ = [
     "FinalOutputPayload",
     "NormalizedScannerReportMetadata",
     "OutputConfiguration",
+    "PluginCatalog",
+    "PluginCatalogSummary",
+    "PluginExtraction",
+    "PluginRecord",
+    "PluginScanFailure",
     "ReadmeSectionRenderInput",
     "ReferenceContext",
     "RepoScanResult",

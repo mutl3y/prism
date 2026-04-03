@@ -13,6 +13,8 @@ from typing import Any, Iterable, Mapping
 def assert_callable_aliases_bind_exactly(
     alias_owner: Any,
     expected_aliases: Mapping[str, object],
+    *,
+    expected_owner_modules: Mapping[str, str] | None = None,
 ) -> None:
     """Assert aliased boundary callables are present and identity-bound."""
     for alias_name, expected_callable in expected_aliases.items():
@@ -21,6 +23,13 @@ def assert_callable_aliases_bind_exactly(
         assert (
             actual is expected_callable
         ), f"{alias_name} must bind to shared canonical callable"
+
+        if expected_owner_modules and alias_name in expected_owner_modules:
+            expected_module = expected_owner_modules[alias_name]
+            actual_module = getattr(actual, "__module__", None)
+            assert (
+                actual_module == expected_module
+            ), f"{alias_name} must be owned by {expected_module}"
 
 
 def assert_repo_scan_facade_contract(repo_scan_facade: Any) -> None:

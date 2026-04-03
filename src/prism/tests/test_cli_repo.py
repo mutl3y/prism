@@ -46,6 +46,19 @@ def test_cli_repo_service_aliases_bind_to_shared_canonical_helpers(monkeypatch):
             "_resolve_style_readme_candidate": repo_services.resolve_style_readme_candidate,
             "_normalize_repo_scan_result_payload": repo_services.normalize_repo_scan_result_payload,
         },
+        expected_owner_modules={
+            "_prepare_repo_scan_inputs": "prism.repo_intake",
+            "_resolve_repo_scan_target": "prism.repo_services",
+            "_resolve_repo_scan_scanner_report_relpath": "prism.repo_metadata",
+            "_repo_scan_workspace": "prism.repo_intake",
+            "_repo_name_from_url": "prism.repo_metadata",
+            "_repo_path_looks_like_role": "prism.repo_metadata",
+            "_fetch_repo_directory_names": "prism.cli",
+            "_fetch_repo_file": "prism.cli",
+            "_build_sparse_clone_paths": "prism.repo_intake",
+            "_resolve_style_readme_candidate": "prism.repo_intake",
+            "_normalize_repo_scan_result_payload": "prism.repo_metadata",
+        },
     )
 
 
