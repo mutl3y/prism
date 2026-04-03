@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable
 
@@ -18,6 +19,98 @@ from prism.scanner_data.contracts_request import (
     ScanMetadata,
     ScanOptionsDict,
 )
+
+
+def build_runtime_scan_state(
+    *,
+    role_path: str,
+    role_name_override: str | None,
+    readme_config_path: str | None,
+    include_vars_main: bool,
+    exclude_path_patterns: list[str] | None,
+    detailed_catalog: bool,
+    include_task_parameters: bool,
+    include_task_runbooks: bool,
+    inline_task_runbooks: bool,
+    include_collection_checks: bool,
+    keep_unknown_style_sections: bool,
+    adopt_heading_mode: str | None,
+    vars_seed_paths: list[str] | None,
+    style_readme_path: str | None,
+    style_source_path: str | None,
+    style_guide_skeleton: bool,
+    compare_role_path: str | None,
+    policy_config_path: str | None,
+    fail_on_unconstrained_dynamic_includes: bool | None,
+    fail_on_yaml_like_task_annotations: bool | None,
+    ignore_unresolved_internal_underscore_references: bool | None,
+    strict_phase_failures: bool,
+    failure_policy: Any,
+    runbook_output: str | None,
+    runbook_csv_output: str | None,
+    load_pattern_policy_with_context: Callable[
+        ..., tuple[dict[str, Any], PolicyContext]
+    ],
+    build_run_scan_options_fn: Callable[..., ScanOptionsDict],
+    resolve_scan_request_for_runtime_fn: Callable[..., bool],
+) -> tuple[dict[str, Any], PolicyContext, ScanOptionsDict]:
+    """Resolve request-scoped policy and canonical scan options for one run."""
+    loaded_policy, policy_context = load_pattern_policy_with_context(
+        override_path=policy_config_path,
+        search_root=role_path,
+    )
+    if failure_policy is not None and hasattr(failure_policy, "strict"):
+        strict_phase_failures = bool(getattr(failure_policy, "strict"))
+
+    scan_options = build_run_scan_options_fn(
+        role_path=role_path,
+        role_name_override=role_name_override,
+        readme_config_path=readme_config_path,
+        include_vars_main=include_vars_main,
+        exclude_path_patterns=exclude_path_patterns,
+        detailed_catalog=resolve_scan_request_for_runtime_fn(
+            detailed_catalog=detailed_catalog,
+            runbook_output=runbook_output,
+            runbook_csv_output=runbook_csv_output,
+        ),
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
+        include_collection_checks=include_collection_checks,
+        keep_unknown_style_sections=keep_unknown_style_sections,
+        adopt_heading_mode=adopt_heading_mode,
+        vars_seed_paths=vars_seed_paths,
+        style_readme_path=style_readme_path,
+        style_source_path=style_source_path,
+        style_guide_skeleton=style_guide_skeleton,
+        compare_role_path=compare_role_path,
+        fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
+        fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
+        ignore_unresolved_internal_underscore_references=(
+            ignore_unresolved_internal_underscore_references
+        ),
+        policy_context=policy_context,
+    )
+    scan_options["strict_phase_failures"] = bool(strict_phase_failures)
+    return loaded_policy, policy_context, scan_options
+
+
+@contextmanager
+def scan_policy_scope(
+    *,
+    loaded_policy: dict[str, Any],
+    policy_context: PolicyContext,
+    variable_policy_scope: Callable[..., Any],
+    style_section_aliases_scope: Callable[..., Any],
+    variable_guidance_keywords_scope: Callable[..., Any],
+):
+    """Apply request-scoped policy overrides used by one scanner execution."""
+    with variable_policy_scope(loaded_policy), style_section_aliases_scope(
+        dict(policy_context["section_aliases"])
+    ), variable_guidance_keywords_scope(
+        tuple(policy_context["variable_guidance_keywords"])
+    ):
+        yield
 
 
 def prepare_scan_context(
