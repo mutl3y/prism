@@ -1,4 +1,11 @@
-"""Scanner README package - README rendering and styling utilities."""
+"""Scanner README package - README rendering and styling utilities.
+
+Current capability ownership:
+- style guide parsing and heading normalization
+- README section composition and merge behavior
+- documentation insights and README-input parsing
+- guide, notes, and variable rendering helpers
+"""
 
 from __future__ import annotations
 

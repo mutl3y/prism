@@ -1,4 +1,11 @@
-"""Scanner analysis package - reporting, metrics, and runbook utilities."""
+"""Scanner analysis package - reporting, metrics, and runbook utilities.
+
+Current capability ownership:
+- scanner counters, uncertainty reasoning, and provenance issue shaping
+- scanner report row builders and markdown rendering helpers
+- runbook and runbook CSV generation
+- collection dependency aggregation helpers
+"""
 
 from __future__ import annotations
 
@@ -71,3 +78,18 @@ __all__ = [
     "render_runbook",
     "render_runbook_csv",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Enforce module public API at runtime."""
+    if name.startswith("_"):
+        raise AttributeError(
+            f"module '{__name__}' has no attribute '{name}' "
+            f"(private member; only __all__ symbols are public)"
+        )
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
+def __dir__() -> list[str]:
+    """Expose only public API in dir() and introspection."""
+    return sorted(__all__)

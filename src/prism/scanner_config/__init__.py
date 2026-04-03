@@ -2,6 +2,13 @@
 
 Consolidates README section configuration, scan policies, pattern loading,
 style guide resolution, and marker configuration.
+
+Current capability ownership:
+- README section config loading and section visibility rules
+- marker-prefix loading
+- runtime scan policy loading
+- pattern-policy loading and unknown-heading logging
+- style-guide source, section-title, and selector resolution
 """
 
 from __future__ import annotations
@@ -80,3 +87,18 @@ __all__ = [
     "resolve_default_style_guide_source",
     "resolve_section_selector",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Enforce module public API at runtime."""
+    if name.startswith("_"):
+        raise AttributeError(
+            f"module '{__name__}' has no attribute '{name}' "
+            f"(private member; only __all__ symbols are public)"
+        )
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
+def __dir__() -> list[str]:
+    """Expose only public API in dir() and introspection."""
+    return sorted(__all__)

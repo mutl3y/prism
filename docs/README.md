@@ -83,3 +83,4 @@ Shared quality references:
 ## Developer Docs
 
 Contributor and architecture content is in [dev_docs](./dev_docs/README.md).
+For the current package ownership and submodule capability map, start with [Package Capabilities](./dev_docs/package-capabilities.md).

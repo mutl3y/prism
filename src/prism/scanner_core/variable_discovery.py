@@ -1,11 +1,12 @@
 """VariableDiscovery orchestrator for role variable discovery and analysis.
 
 This module consolidates variable-extraction logic currently spread across:
-- variable_extractor.py — variable tokenization from task files/README
-- task_parser.py — task/include file parsing
-- scanner_dataload.py — YAML loading and preparation
-- scan_discovery.py — variable discovery orchestration
-- scanner_analysis/metrics.py — uncertainty tracking and error reasoning
+- `prism.scanner_extract.variable_extractor` for variable tokenization from task
+  files and README content
+- `prism.scanner_extract.task_parser` for task and include-file parsing helpers
+- `prism.scanner_extract.dataload` and `prism.scanner_extract.discovery` for
+  YAML loading, map discovery, and scan identity inputs
+- `prism.scanner_analysis.metrics` for uncertainty tracking and error reasoning
 
 The VariableDiscovery class provides a cohesive interface for discovering,
 extracting, typing, and resolving all variables in a role.

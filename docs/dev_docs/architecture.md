@@ -21,28 +21,44 @@ It is best understood as a contract-and-governance pipeline, not only a renderer
 - CLI orchestration (`role`, `collection`, `repo`)
 - output rendering (`md`, `json`, `html`, `pdf`)
 
+## Current Architecture Status
+
+The current architecture is no longer in a transition-first state.
+
+- `prism.scanner`, `prism.api`, `prism.cli`, and `prism.repo_services` are the stable top-level facades
+- package-owned implementation is the default home for extension work
+- the `prism-architecture-review-top50-20260401` closure finalized the CLI/API/repo split and froze the intentional facade seam registers
+
+## Package Naming Standard
+
+Use fully qualified package names when describing ownership or extension targets.
+
+- prefer `prism.api_layer`, not `api_layer`, when the import/package contract is what matters
+- prefer `prism.cli_app`, `prism.repo_layer`, and `prism.scanner_core` in architecture docs and tests
+- reserve bare directory names such as `api_layer/` for filesystem-oriented discussion only
+
 ## Scanner Package Decomposition
 
-`scanner.py` remains a public facade and delegates canonical runtime behavior to package-owned modules under `src/prism/`:
+`prism.scanner` remains a public facade and delegates canonical runtime behavior to package-owned modules under `src/prism/`:
 
 | Package | Ownership boundary |
 | --- | --- |
-| `scanner_core/` | request normalization, DI-driven orchestration, scan runtime/context assembly, variable discovery orchestration |
-| `scanner_data/` | typed contracts and builders for request/result envelopes, scan payloads, report metadata, and variable rows |
-| `scanner_extract/` | YAML/task traversal, variable/reference extraction, role feature collection, requirements and discovery loaders |
-| `scanner_readme/` | README rendering, style parsing/normalization, documentation insights, section composition |
-| `scanner_analysis/` | scanner metrics, report shaping, runbook generation, dependency analysis helpers |
-| `scanner_io/` | output rendering/writing, scan output emission, YAML candidate loading and parse-failure reporting |
-| `scanner_config/` | policy/config loading, style/section markers, legacy retirement behavior, runtime scan policy switches |
-| `scanner_compat/` | compatibility bridge helpers isolated from canonical runtime paths |
+| `prism.scanner_core` | request normalization, DI-driven orchestration, scan runtime/context assembly, variable discovery orchestration |
+| `prism.scanner_data` | typed contracts and builders for request/result envelopes, scan payloads, report metadata, and variable rows |
+| `prism.scanner_extract` | YAML/task traversal, variable/reference extraction, role feature collection, requirements and discovery loaders |
+| `prism.scanner_readme` | README rendering, style parsing/normalization, documentation insights, section composition |
+| `prism.scanner_analysis` | scanner metrics, report shaping, runbook generation, dependency analysis helpers |
+| `prism.scanner_io` | output rendering/writing, scan output emission, YAML candidate loading and parse-failure reporting |
+| `prism.scanner_config` | policy/config loading, style/section markers, legacy retirement behavior, runtime scan policy switches |
+| `prism.scanner_compat` | compatibility bridge helpers isolated from canonical runtime paths |
 
 Cross-package architecture guardrails enforce one-way decomposition: canonical scanner packages must not reverse-import `prism.scanner`, and private cross-package imports are blocked except for explicitly whitelisted seams.
 
-`src/prism/repo_services.py` is the stable shared repo facade. Package-owned repository intake and metadata logic now lives under `src/prism/repo_layer/`, and both `api.py` and `cli.py` import the curated facade rather than top-level repo helper modules.
+`src/prism/repo_services.py` is the stable shared repo facade. Package-owned repository intake and metadata logic now lives under `prism.repo_layer`, and both `prism.api` and `prism.cli` import the curated facade rather than top-level repo helper modules.
 
 ## API And CLI Facades
 
-`src/prism/api.py` and `src/prism/cli.py` remain the stable top-level public facades.
+`prism.api` and `prism.cli` remain the stable top-level public facades.
 They should stay small and unsurprising:
 
 - `api.py` owns public API exports and final public-boundary compatibility normalization
@@ -53,28 +69,31 @@ Concrete internal package names are now frozen and in active use:
 
 | Package | Ownership boundary |
 | --- | --- |
-| `api_layer/` | package-owned API orchestration split across `common.py`, `role.py`, `repo.py`, and `collection.py` |
-| `cli_app/` | package-owned CLI parser, dispatch, runtime, presenter, and shared helper ownership in `parser.py`, `commands.py`, `runtime.py`, `presenters.py`, and `shared.py` |
-| `repo_layer/` | package-owned repo clone/workspace orchestration and repo metadata helpers in `intake.py` and `metadata.py` |
+| `prism.api_layer` | package-owned API orchestration split across `common.py`, `role.py`, `repo.py`, and `collection.py` |
+| `prism.cli_app` | package-owned CLI parser, dispatch, runtime, presenter, and shared helper ownership in `parser.py`, `commands.py`, `runtime.py`, `presenters.py`, and `shared.py` |
+| `prism.repo_layer` | package-owned repo clone/workspace orchestration and repo metadata helpers in `intake.py` and `metadata.py` |
 
 Naming rule:
 
 - do not introduce `src/prism/api/` while `src/prism/api.py` remains the stable public module
 - do not introduce `src/prism/cli/` while `src/prism/cli.py` remains the stable public module
-- internal modules under `api_layer/` must not import back through `prism.api`
-- internal modules under `cli_app/` must not import back through `prism.cli`
+- internal modules under `prism.api_layer` must not import back through `prism.api`
+- internal modules under `prism.cli_app` must not import back through `prism.cli`
+- internal modules under `prism.repo_layer` must not import back through `prism.repo_services`
 
 Extension rule:
 
-- add new public API behavior in `api_layer/` first, then expose it from `api.py` only if it belongs on the public surface
-- add new CLI parser, dispatch, and shared runtime helpers under `cli_app/`, not `cli.py`
+- add new public API behavior in `prism.api_layer` first, then expose it from `api.py` only if it belongs on the public surface
+- add new CLI parser, dispatch, and shared runtime helpers under `prism.cli_app`, not `cli.py`
 - keep `cli.py` and `api.py` focused on stable facade seams, compatibility wrappers, and top-level entry handling
 
 Current compatibility note:
 
 - `repo_services.py` remains the shared repo-intake facade used by both `api.py` and `cli.py`
-- package-owned repo internals live under `repo_layer/`, not as top-level `repo_*` modules
+- package-owned repo internals live under `prism.repo_layer`, not as top-level `repo_*` modules
 - boundary tests should prefer callable contract and owner-module checks over exact alias identity unless identity is itself the public contract
+
+For a current capability-by-package inventory, see [Package Capabilities](./package-capabilities.md).
 
 Explicit seam register:
 
@@ -84,7 +103,10 @@ Explicit seam register:
 
 ## Typed Seam Contracts
 
-Typed contracts are centralized in `scanner_data/` and exposed via `scanner_data/contracts.py` and domain split modules (`contracts_request.py`, `contracts_output.py`, `contracts_report.py`, `contracts_variables.py`, `contracts_collection.py`, `contracts_errors.py`).
+Typed contracts are centralized in `prism.scanner_data` and exposed via
+`prism.scanner_data.contracts` and domain split modules
+(`contracts_request.py`, `contracts_output.py`, `contracts_report.py`,
+`contracts_variables.py`, `contracts_collection.py`, `contracts_errors.py`).
 
 Primary scanner boundaries:
 

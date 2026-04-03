@@ -4,6 +4,11 @@ This module consolidates all TypedDict data contracts used throughout the scanne
 pipeline, providing a single source of truth for data structure definitions.
 It also exports builder classes for fluent, type-safe construction of immutable data.
 
+Current capability ownership:
+- request, context, output, report, collection, error, and variable contracts
+- payload and variable-row builder helpers
+- canonical typed seam definitions shared across scanner and API boundaries
+
 **Public API Guardrails:**
 Only symbols in __all__ are considered public. Accessing private symbols (e.g.,
 prefixed with _) will raise AttributeError at runtime. This enforces module boundaries

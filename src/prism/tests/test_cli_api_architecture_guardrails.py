@@ -18,6 +18,9 @@ def _module_name_for_path(
     package_name: str,
     package_dir: Path,
 ) -> str:
+    if not package_name.startswith("prism."):
+        raise ValueError("package_name must use the fully qualified Prism package name")
+
     package_root = Path(*package_name.split("."))
     stem = module_path.with_suffix("")
     try:
@@ -189,11 +192,11 @@ def test_api_reverse_import_detection_catches_absolute_import(tmp_path: Path) ->
 
     offenders = _iter_reverse_import_offenders(
         package_dir=package_dir,
-        package_name="api_layer",
+        package_name="prism.api_layer",
         forbidden_module="prism.api",
     )
 
-    assert offenders == ["api_layer.role:prism.api"]
+    assert offenders == ["prism.api_layer.role:prism.api"]
 
 
 def test_cli_reverse_import_detection_catches_absolute_import(tmp_path: Path) -> None:
@@ -204,11 +207,11 @@ def test_cli_reverse_import_detection_catches_absolute_import(tmp_path: Path) ->
 
     offenders = _iter_reverse_import_offenders(
         package_dir=package_dir,
-        package_name="cli_app",
+        package_name="prism.cli_app",
         forbidden_module="prism.cli",
     )
 
-    assert offenders == ["cli_app.repo:prism.cli"]
+    assert offenders == ["prism.cli_app.repo:prism.cli"]
 
 
 def test_repo_reverse_import_detection_catches_absolute_import(tmp_path: Path) -> None:
@@ -219,8 +222,8 @@ def test_repo_reverse_import_detection_catches_absolute_import(tmp_path: Path) -
 
     offenders = _iter_reverse_import_offenders(
         package_dir=package_dir,
-        package_name="repo_layer",
+        package_name="prism.repo_layer",
         forbidden_module="prism.repo_services",
     )
 
-    assert offenders == ["repo_layer.metadata:prism.repo_services"]
+    assert offenders == ["prism.repo_layer.metadata:prism.repo_services"]

@@ -1,4 +1,11 @@
-"""Scanner I/O package - output rendering and YAML loading utilities."""
+"""Scanner I/O package - output rendering and YAML loading utilities.
+
+Current capability ownership:
+- primary output rendering and output-path resolution
+- scanner-report and runbook sidecar emission
+- collection markdown rendering and runbook artifact persistence
+- YAML candidate iteration and parse-failure collection
+"""
 
 from __future__ import annotations
 
@@ -31,3 +38,18 @@ __all__ = [
     "resolve_output_path",
     "write_output",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Enforce module public API at runtime."""
+    if name.startswith("_"):
+        raise AttributeError(
+            f"module '{__name__}' has no attribute '{name}' "
+            f"(private member; only __all__ symbols are public)"
+        )
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
+def __dir__() -> list[str]:
+    """Expose only public API in dir() and introspection."""
+    return sorted(__all__)

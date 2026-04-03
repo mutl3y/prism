@@ -11,10 +11,72 @@ from __future__ import annotations
 
 import pytest
 
+import prism.api_layer
+import prism.cli_app
+import prism.repo_layer
+import prism.scanner_analysis
+import prism.scanner_compat
+import prism.scanner_config
 import prism.scanner_core
 import prism.scanner_data
 import prism.scanner_extract
+import prism.scanner_io
 import prism.scanner_readme
+
+
+@pytest.mark.parametrize(
+    ("module", "public_symbols", "has_public_exports"),
+    [
+        (prism.api_layer, tuple(), False),
+        (prism.cli_app, tuple(), False),
+        (prism.repo_layer, tuple(), False),
+        (
+            prism.scanner_analysis,
+            ("render_runbook", "build_scanner_report_markdown"),
+            True,
+        ),
+        (
+            prism.scanner_compat,
+            ("render_guide_section_body", "render_readme_with_style_guide"),
+            True,
+        ),
+        (
+            prism.scanner_config,
+            ("load_readme_section_config", "resolve_default_style_guide_source"),
+            True,
+        ),
+        (prism.scanner_core, ("DIContainer", "ScannerContext"), True),
+        (prism.scanner_data, ("Variable", "ScanContext"), True),
+        (prism.scanner_extract, ("load_yaml_file", "TASK_INCLUDE_KEYS"), True),
+        (prism.scanner_io, ("render_final_output", "write_output"), True),
+        (prism.scanner_readme, ("render_readme", "parse_style_readme"), True),
+    ],
+)
+def test_guarded_packages_expose_only_their_declared_public_surface(
+    module,
+    public_symbols: tuple[str, ...],
+    has_public_exports: bool,
+) -> None:
+    """Shared runtime guardrail contract for package roots."""
+    for symbol in public_symbols:
+        assert hasattr(module, symbol)
+
+    with pytest.raises(
+        AttributeError,
+        match="private member; only __all__ symbols are public",
+    ):
+        getattr(module, "_private_helper")
+
+    with pytest.raises(AttributeError, match="has no attribute 'FakeSymbol'"):
+        getattr(module, "FakeSymbol")
+
+    public_dir = dir(module)
+    assert "_private_helper" not in public_dir
+    if has_public_exports:
+        for symbol in public_symbols:
+            assert symbol in public_dir
+    else:
+        assert public_dir == []
 
 
 class TestScannerDataPublicApiGuardrails:

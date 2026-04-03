@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from prism.scanner_data.contracts_request import StyleGuideConfig
 
-from ..scanner_readme import (
+from ..scanner_readme.render import (
     _append_scanner_report_section_if_enabled,
     _compose_section_body,
     _generated_merge_markers,

@@ -1,8 +1,9 @@
 """FeatureDetector orchestrator for role feature analysis.
 
 This module consolidates feature-extraction logic currently scattered in:
-- scanner_extract.task_parser — task/handler catalog, included roles, executed modules
-- scanner_submodules — feature counting and pattern analysis
+- `prism.scanner_extract.task_parser` for task and handler catalogs, included
+  roles, and executed modules
+- `prism.scanner_analysis` helpers for feature shaping and reporting inputs
 
 The FeatureDetector class provides a cohesive interface for detecting,
 analyzing, and reporting on all adaptively-discovered role features
@@ -54,7 +55,7 @@ class FeatureDetector:
     Returns immutable FeaturesContext with complete feature analysis.
 
     **Design Rationale:**
-    - Encapsulates feature detection logic currently in task_parser.py
+    - Encapsulates package-owned feature detection logic behind one orchestrator
     - Provides immutable TypedDict results (FeaturesContext)
     - Enables testable dependency injection via DIContainer
     - Operates at higher abstraction than low-level helpers

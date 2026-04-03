@@ -1,6 +1,13 @@
 """Scanner extraction package - consolidates variable, task, and data extraction logic.
 
 Exports public API for variable discovery orchestation and task feature extraction.
+
+Current capability ownership:
+- YAML and task traversal
+- variable and Jinja reference extraction
+- task catalog and molecule scenario discovery
+- role feature extraction
+- requirements and collection dependency source extraction
 """
 
 from __future__ import annotations

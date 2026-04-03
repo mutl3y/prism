@@ -3,7 +3,12 @@ layout: default
 title: Source Evaluation Matrix
 ---
 
-This matrix confirms every artifact under `docs/` was reviewed and assigned a destination in the current documentation tree.
+This matrix is a historical migration artifact from the original documentation
+restructure. It confirms every legacy artifact under `docs/` was reviewed and
+assigned a destination in the current documentation tree.
+
+For current documentation guidance, start with `docs/README.md` and
+`docs/dev_docs/README.md`.
 
 | Source Item | Type | Evaluated Outcome in current docs |
 | --- | --- | --- |

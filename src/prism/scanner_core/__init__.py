@@ -1,5 +1,11 @@
 """Scanner core module: dependency injection and orchestrator wiring.
 
+Current capability ownership:
+- request normalization and scan context assembly
+- DI container wiring for scanner orchestrators
+- variable discovery orchestration and feature detection
+- output orchestration handoff into rendering and emission layers
+
 This module provides:
 - DIContainer: Lightweight hand-crafted dependency injection for scanner orchestrators
 - ScannerContext: Main orchestrator coordinating all scan phases

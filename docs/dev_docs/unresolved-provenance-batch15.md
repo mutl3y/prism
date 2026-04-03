@@ -3,6 +3,10 @@ layout: default
 title: Unresolved Provenance Issues — Batch 15
 ---
 
+This page is a historical unresolved-provenance snapshot used for earlier
+analysis lanes. It is not the current architecture backlog or the current
+documentation source of truth.
+
 ## Unresolved Provenance Issues — Batch 15
 
 **Batch:** 15 (`overnigh_500-builtins-top20-20260324`)
