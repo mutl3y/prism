@@ -207,84 +207,67 @@ DEFAULT_SECTION_DISPLAY_TITLES_PATH = (
 DEFAULT_DOC_MARKER_PREFIX = READMECFG_DEFAULT_DOC_MARKER_PREFIX
 
 
+def _apply_legacy_policy_derived_state(policy: dict[str, Any]) -> None:
+    """Apply legacy module-level policy compatibility state.
+
+    The main scan runtime now uses per-scan policy loading plus scoped overrides.
+    This helper exists only for compatibility paths that still expect in-process
+    refresh/restore behavior for module-level defaults and tests.
+    """
+    global _POLICY
+    global _SENSITIVITY
+    global _SECRET_NAME_TOKENS
+    global _VAULT_MARKERS
+    global _CREDENTIAL_PREFIXES
+    global _URL_PREFIXES
+    global _VARIABLE_GUIDANCE_KEYWORDS
+
+    applied_policy = copy.deepcopy(policy)
+    _POLICY = applied_policy
+    _SENSITIVITY = applied_policy["sensitivity"]
+    _SECRET_NAME_TOKENS = tuple(_SENSITIVITY["name_tokens"])
+    _VAULT_MARKERS = tuple(_SENSITIVITY["vault_markers"])
+    _CREDENTIAL_PREFIXES = tuple(_SENSITIVITY["credential_prefixes"])
+    _URL_PREFIXES = tuple(_SENSITIVITY["url_prefixes"])
+    _VARIABLE_GUIDANCE_KEYWORDS = tuple(
+        applied_policy["variable_guidance"]["priority_keywords"]
+    )
+
+    from prism.scanner_extract import (
+        refresh_policy_derived_state as _extract_refresh_policy_derived_state,
+    )
+    from prism.scanner_readme import (
+        refresh_policy_derived_state as _readme_refresh_policy_derived_state,
+    )
+
+    _extract_refresh_policy_derived_state(applied_policy)
+    _readme_refresh_policy_derived_state(applied_policy)
+
+
 def _refresh_policy(
     override_path: str | None = None,
     *,
     role_root: str | None = None,
 ) -> None:
-    """Reload policy-derived module globals. Protected by _POLICY_REFRESH_LOCK for thread safety.
+    """Reload legacy module-level policy compatibility state.
 
-    Note: This function mutates module-level state. The lock prevents concurrent scans from
-    observing each other's mid-mutation policy state. Full per-scan encapsulation is a
-    longer-term goal; this lock is the interim thread-safety measure.
+    The main scan runtime no longer relies on this mutable path, but compatibility
+    callers and legacy tests still exercise it. The lock keeps the remaining
+    in-process refresh behavior deterministic while the compatibility seam exists.
     """
     with _POLICY_REFRESH_LOCK:
-        global _POLICY
-        global _SENSITIVITY
-        global _SECRET_NAME_TOKENS
-        global _VAULT_MARKERS
-        global _CREDENTIAL_PREFIXES
-        global _URL_PREFIXES
-        global _VARIABLE_GUIDANCE_KEYWORDS
-
         refresh_kwargs = {"override_path": override_path}
         if role_root is not None:
             refresh_kwargs["search_root"] = role_root
 
-        (
-            _POLICY,
-            _,
-            _SECRET_NAME_TOKENS,
-            _VAULT_MARKERS,
-            _CREDENTIAL_PREFIXES,
-            _URL_PREFIXES,
-            _VARIABLE_GUIDANCE_KEYWORDS,
-            _,
-        ) = _config_refresh_policy(**refresh_kwargs)
-        _SENSITIVITY = _POLICY["sensitivity"]
-
-        from prism.scanner_extract import (
-            refresh_policy_derived_state as _extract_refresh_policy_derived_state,
-        )
-        from prism.scanner_readme import (
-            refresh_policy_derived_state as _readme_refresh_policy_derived_state,
-        )
-
-        _extract_refresh_policy_derived_state(_POLICY)
-        _readme_refresh_policy_derived_state(_POLICY)
+        refreshed_policy, *_rest = _config_refresh_policy(**refresh_kwargs)
+        _apply_legacy_policy_derived_state(refreshed_policy)
 
 
 def _restore_policy_snapshot(policy_snapshot: dict) -> None:
-    """Restore scanner policy-derived globals from an immutable snapshot."""
+    """Restore legacy module-level policy compatibility state from a snapshot."""
     with _POLICY_REFRESH_LOCK:
-        global _POLICY
-        global _SENSITIVITY
-        global _SECRET_NAME_TOKENS
-        global _VAULT_MARKERS
-        global _CREDENTIAL_PREFIXES
-        global _URL_PREFIXES
-        global _VARIABLE_GUIDANCE_KEYWORDS
-
-        restored = copy.deepcopy(policy_snapshot)
-        _POLICY = restored
-        _SENSITIVITY = restored["sensitivity"]
-        _SECRET_NAME_TOKENS = tuple(_SENSITIVITY["name_tokens"])
-        _VAULT_MARKERS = tuple(_SENSITIVITY["vault_markers"])
-        _CREDENTIAL_PREFIXES = tuple(_SENSITIVITY["credential_prefixes"])
-        _URL_PREFIXES = tuple(_SENSITIVITY["url_prefixes"])
-        _VARIABLE_GUIDANCE_KEYWORDS = tuple(
-            restored["variable_guidance"]["priority_keywords"]
-        )
-
-        from prism.scanner_extract import (
-            refresh_policy_derived_state as _extract_refresh_policy_derived_state,
-        )
-        from prism.scanner_readme import (
-            refresh_policy_derived_state as _readme_refresh_policy_derived_state,
-        )
-
-        _extract_refresh_policy_derived_state(restored)
-        _readme_refresh_policy_derived_state(restored)
+        _apply_legacy_policy_derived_state(policy_snapshot)
 
 
 def resolve_default_style_guide_source(explicit_path: str | None = None) -> str:

@@ -4,9 +4,9 @@ These functions are extracted from scanner.py to improve cohesion.
 They depend only on _jinja_analyzer, _task_parser, pattern_config,
 and stdlib.
 
-Policy-derived module-level constants (_SECRET_NAME_TOKENS, etc.) mirror
-scanner.py's globals and are refreshed by scanner._refresh_policy() when
-the policy is reloaded.
+Runtime callers use request-scoped policy overrides via ``policy_override_scope``.
+The module-level constants remain only as compatibility defaults for direct
+imports and legacy in-process refresh paths.
 
 Exported names consumed by scanner.py:
   Constants: DEFAULT_TARGET_RE, JINJA_VAR_RE, JINJA_IDENTIFIER_RE,
