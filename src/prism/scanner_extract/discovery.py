@@ -65,7 +65,9 @@ def load_meta(
             loaded = yaml.safe_load(meta_file.read_text(encoding="utf-8")) or {}
         except yaml.YAMLError as exc:
             if strict:
-                raise RuntimeError(f"{ROLE_METADATA_YAML_INVALID}: {meta_file}: {exc}") from exc
+                raise RuntimeError(
+                    f"{ROLE_METADATA_YAML_INVALID}: {meta_file}: {exc}"
+                ) from exc
             _record_metadata_warning(
                 warning_collector,
                 code=ROLE_METADATA_YAML_INVALID,
@@ -75,7 +77,9 @@ def load_meta(
             return {}
         except (OSError, UnicodeDecodeError) as exc:
             if strict:
-                raise RuntimeError(f"{ROLE_METADATA_IO_ERROR}: {meta_file}: {exc}") from exc
+                raise RuntimeError(
+                    f"{ROLE_METADATA_IO_ERROR}: {meta_file}: {exc}"
+                ) from exc
             _record_metadata_warning(
                 warning_collector,
                 code=ROLE_METADATA_IO_ERROR,

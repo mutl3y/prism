@@ -114,7 +114,9 @@ def _active_ignored_identifiers() -> set[str]:
     return _build_effective_ignored_identifiers(_active_policy())
 
 
-def _active_sensitivity_tokens() -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+def _active_sensitivity_tokens() -> (
+    tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], tuple[str, ...]]
+):
     sensitivity = _active_policy().get("sensitivity") or {}
     return (
         tuple(sensitivity.get("name_tokens") or ()),

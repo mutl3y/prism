@@ -83,6 +83,35 @@ _resolve_style_readme_candidate = _repo_scan_facade.resolve_style_readme_candida
 
 _build_repo_style_readme_candidates = _repo_build_repo_style_readme_candidates
 
+
+def _normalize_repo_style_guide_path(
+    payload: dict[str, Any] | str,
+    repo_style_readme_path: str | None,
+) -> dict[str, Any] | str:
+    """Compatibility shim preserving legacy style-guide-path normalization calls."""
+    if not isinstance(payload, dict):
+        return payload
+
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, dict):
+        return payload
+
+    if not repo_style_readme_path:
+        return payload
+
+    style_guide = metadata.get("style_guide")
+    if not isinstance(style_guide, dict):
+        return payload
+
+    normalized_payload = dict(payload)
+    normalized_metadata = dict(metadata)
+    normalized_style_guide = dict(style_guide)
+    normalized_style_guide["path"] = repo_style_readme_path
+    normalized_metadata["style_guide"] = normalized_style_guide
+    normalized_payload["metadata"] = normalized_metadata
+    return normalized_payload
+
+
 _REQUIRED_ROLE_DIRS = ("defaults", "tasks", "meta")
 
 _COLLECTION_ROLE_CONTENT_RECOVERABLE_ERRORS = (

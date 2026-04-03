@@ -242,7 +242,9 @@ def test_evidence_probability(match_count: int) -> float:
     """Return a bounded confidence score for non-authoritative test evidence."""
     if match_count <= 0:
         return 0.0
-    bounded_count = min(match_count, NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT)
+    bounded_count = min(
+        match_count, NON_AUTHORITATIVE_TEST_EVIDENCE_SATURATION_MATCH_COUNT
+    )
     raw_probability = NON_AUTHORITATIVE_TEST_EVIDENCE_SCORE_BASE + (
         NON_AUTHORITATIVE_TEST_EVIDENCE_SCORE_STEP * bounded_count
     )

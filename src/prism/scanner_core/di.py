@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from .feature_detector import FeatureDetector
@@ -13,22 +13,17 @@ if TYPE_CHECKING:
 
 
 class DIContainer:
-    """Lightweight DI container for scanner orchestrators (no external frameworks).
+    """Lightweight DI container for scanner orchestrators."""
 
-    Provides lazy instantiation of ScannerContext, VariableDiscovery,
-    OutputOrchestrator, FeatureDetector with optional mock injection for testing.
-    """
-
-    def __init__(self, role_path: str, scan_options: dict[str, Any]) -> None:
-        """Initialize container with role path and scan options.
-
-        Args:
-            role_path: Path to Ansible role directory.
-            scan_options: Normalized scan configuration dict.
-
-        Raises:
-            ValueError: If role_path is empty or scan_options is None.
-        """
+    def __init__(
+        self,
+        role_path: str,
+        scan_options: dict[str, Any],
+        *,
+        scanner_context_wiring: dict[str, Any] | None = None,
+        factory_overrides: dict[str, Callable[..., Any]] | None = None,
+    ) -> None:
+        """Initialize container with role path and scan options."""
         if not role_path:
             raise ValueError("role_path must not be empty")
         if scan_options is None:
@@ -38,29 +33,37 @@ class DIContainer:
         self._scan_options = scan_options
         self._cache: dict[str, Any] = {}
         self._mocks: dict[str, Any] = {}
+        self._scanner_context_wiring = scanner_context_wiring or {}
+        self._factory_overrides = factory_overrides or {}
 
     def factory_scanner_context(self) -> ScannerContext:
-        """Block direct ScannerContext factory usage without runtime seam wiring.
+        """Create ScannerContext only when runtime seam wiring is provided."""
+        scanner_context_cls = self._scanner_context_wiring.get("scanner_context_cls")
+        prepare_scan_context_fn = self._scanner_context_wiring.get(
+            "prepare_scan_context_fn"
+        )
+        if scanner_context_cls is None or prepare_scan_context_fn is None:
+            raise RuntimeError(
+                "factory_scanner_context is disabled: scanner_context_wiring is "
+                "not configured. ScannerContext requires prepare_scan_context_fn "
+                "runtime seam injection."
+            )
 
-        ScannerContext requires a canonical ``prepare_scan_context_fn`` runtime seam
-        to orchestrate safely. The DI container intentionally does not infer or
-        auto-wire that seam because doing so would require scanner-facade coupling.
-        """
-        raise RuntimeError(
-            "factory_scanner_context is disabled: ScannerContext requires "
-            "prepare_scan_context_fn runtime seam injection. "
-            "Construct ScannerContext directly with prepare_scan_context_fn."
+        return scanner_context_cls(
+            di=self,
+            role_path=self._role_path,
+            scan_options=self._scan_options,
+            prepare_scan_context_fn=prepare_scan_context_fn,
         )
 
     def factory_variable_discovery(self) -> VariableDiscovery:
-        """Create VariableDiscovery analyzer with caching for reuse.
-
-        Returns cached instance if previously created, or creates new one
-        with role_path and scan_options from container initialization.
-        Allows mock injection for testing.
-        """
+        """Create or return cached VariableDiscovery."""
         if "variable_discovery" in self._mocks:
             return self._mocks["variable_discovery"]
+
+        override = self._factory_overrides.get("variable_discovery_factory")
+        if override is not None:
+            return override(self, self._role_path, self._scan_options)
 
         key = "variable_discovery"
         if key not in self._cache:
@@ -87,14 +90,14 @@ class DIContainer:
         return self._cache[cache_key]
 
     def factory_feature_detector(self) -> FeatureDetector:
-        """Create FeatureDetector (Wave 2 implementation).
-
-        Returns cached instance if previously created, or creates new one
-        with role_path and scan_options from container initialization.
-        """
+        """Create or return cached FeatureDetector."""
         key = "feature_detector"
         if "feature_detector" in self._mocks:
             return self._mocks["feature_detector"]
+
+        override = self._factory_overrides.get("feature_detector_factory")
+        if override is not None:
+            return override(self, self._role_path, self._scan_options)
 
         if key not in self._cache:
             from .feature_detector import FeatureDetector

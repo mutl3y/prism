@@ -258,9 +258,7 @@ def orchestrate_output_emission(
             undocumented_default_filters=args["undocumented_default_filters"],
         )
         metadata["concise_readme"] = True
-        metadata["include_scanner_report_link"] = args[
-            "include_scanner_report_link"
-        ]
+        metadata["include_scanner_report_link"] = args["include_scanner_report_link"]
         if scanner_report_path is not None and not args["dry_run"]:
             metadata["scanner_report_relpath"] = os.path.relpath(
                 scanner_report_path,
