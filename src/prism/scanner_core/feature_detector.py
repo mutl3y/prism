@@ -3,7 +3,7 @@
 This module consolidates feature-extraction logic currently scattered in:
 - `prism.scanner_extract.task_parser` for task and handler catalogs, included
   roles, and executed modules
-- `prism.scanner_analysis` helpers for feature shaping and reporting inputs
+- `prism.scanner_reporting` helpers for feature shaping and reporting inputs
 
 The FeatureDetector class provides a cohesive interface for detecting,
 analyzing, and reporting on all adaptively-discovered role features
@@ -25,7 +25,10 @@ from pathlib import Path
 from typing import Any
 
 from prism.scanner_core.di import DIContainer
-from prism.scanner_data.contracts_request import FeaturesContext
+from prism.scanner_data.contracts_request import (
+    FeaturesContext,
+    validate_feature_detector_inputs,
+)
 from prism.scanner_extract.task_parser import (
     _collect_task_files,
     _load_yaml_file,
@@ -80,12 +83,11 @@ class FeatureDetector:
         Raises:
             ValueError: If di is None, role_path is empty, or options is None.
         """
-        if di is None:
-            raise ValueError("di (DIContainer) must not be None")
-        if not role_path:
-            raise ValueError("role_path must not be empty")
-        if options is None:
-            raise ValueError("options must not be None")
+        validate_feature_detector_inputs(
+            di=di,
+            role_path=role_path,
+            options=options,
+        )
 
         self._di = di
         self._role_path = role_path

@@ -6,7 +6,7 @@ import sys
 
 
 from prism import scanner
-from prism.scanner_analysis import render_runbook
+from prism.scanner_reporting import render_runbook
 from prism.scanner_extract import variable_extractor
 from prism.scanner_extract import task_parser
 from prism.scanner_core import scan_facade_helpers
@@ -37,13 +37,17 @@ def test_readme_render_uses_canonical_styleguide_contract_import():
     render_module_path = HERE.parent / "scanner_readme" / "render.py"
     module_source = render_module_path.read_text(encoding="utf-8")
 
-    assert (
-        "from ..scanner_data.contracts_request import StyleGuideConfig" in module_source
+    assert "from prism.scanner_data.contracts_request import StyleGuideConfig" in (
+        module_source
     )
-    assert "from ..scanner_data.contracts import StyleGuideConfig" not in module_source
-    assert (
-        "from ..scanner_submodules.scan_context import StyleGuideConfig"
-        not in module_source
+    assert "from ..scanner_data.contracts_request import StyleGuideConfig" not in (
+        module_source
+    )
+    assert "from prism.scanner_data.contracts import StyleGuideConfig" not in (
+        module_source
+    )
+    assert "from ..scanner_submodules.scan_context import StyleGuideConfig" not in (
+        module_source
     )
 
 

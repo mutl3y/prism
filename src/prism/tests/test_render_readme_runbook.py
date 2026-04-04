@@ -1,6 +1,6 @@
 """Focused tests for README and runbook render helpers."""
 
-from prism.scanner_analysis import render_runbook
+from prism.scanner_reporting import render_runbook
 from prism.scanner_readme.render import render_readme
 
 

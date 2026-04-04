@@ -1,4 +1,4 @@
-"""Scanner analysis package - reporting, metrics, and runbook utilities.
+"""Scanner reporting package - reporting artifacts, metrics, and runbook utilities.
 
 Current capability ownership:
 - scanner counters, uncertainty reasoning, and provenance issue shaping
@@ -9,12 +9,12 @@ Current capability ownership:
 
 from __future__ import annotations
 
-from prism.scanner_analysis.metrics import (
+from prism.scanner_reporting.metrics import (
     append_non_authoritative_test_evidence_uncertainty_reason,
     build_referenced_variable_uncertainty_reason,
     extract_scanner_counters,
 )
-from prism.scanner_analysis.report import (
+from prism.scanner_reporting.report import (
     AnnotationQualityCounters,
     NormalizedScannerReportMetadata,
     ReadmeSectionBodyRenderer,
@@ -40,7 +40,7 @@ from prism.scanner_analysis.report import (
     render_scanner_report_section,
     render_scanner_report_yaml_parse_failure_row,
 )
-from prism.scanner_analysis.runbook import (
+from prism.scanner_reporting.runbook import (
     build_runbook_rows,
     render_runbook,
     render_runbook_csv,

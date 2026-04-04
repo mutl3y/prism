@@ -258,6 +258,76 @@ def test_scan_role_accepts_in_memory_payload_without_json_roundtrip(monkeypatch)
     assert payload == expected_payload
 
 
+def test_scan_role_normalizes_degraded_scan_warnings(monkeypatch):
+    monkeypatch.setattr(
+        api,
+        "_run_scan_payload",
+        lambda *args, **kwargs: {
+            "role_name": "mock_role",
+            "metadata": {
+                "scan_degraded": True,
+                "scan_errors": [
+                    {
+                        "phase": "discovery",
+                        "error_type": "PrismRuntimeError",
+                        "message": "variable discovery failed",
+                    }
+                ],
+                "yaml_parse_failures": [
+                    {
+                        "file": "tasks/main.yml",
+                        "line": 8,
+                        "column": 3,
+                        "error": "expected <block end>",
+                    }
+                ],
+                "readme_section_config_warnings": [
+                    "README_SECTION_CONFIG_SHAPE_INVALID: .prism.yml: include_sections must be a list"
+                ],
+            },
+        },
+    )
+
+    payload = api.scan_role("/tmp/mock_role")
+
+    warnings = payload["warnings"]
+    assert [warning["code"] for warning in warnings] == [
+        "role_scan_phase_failed",
+        "role_content_yaml_invalid",
+        "readme_section_config_shape_invalid",
+    ]
+    assert warnings[0]["source"] == "scan_phase:discovery"
+    assert warnings[0]["detail_code"] == "discovery"
+    assert warnings[0]["cause_type"] == "PrismRuntimeError"
+    assert warnings[1]["source"] == "tasks/main.yml:8:3"
+    assert warnings[1]["detail_code"] == "yaml_parse_failure"
+    assert warnings[2]["detail_code"] == "README_SECTION_CONFIG_SHAPE_INVALID"
+    assert warnings[2]["source"] == ".prism.yml"
+
+
+def test_scan_role_adds_generic_warning_for_degraded_metadata_without_details(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        api,
+        "_run_scan_payload",
+        lambda *args, **kwargs: {
+            "role_name": "mock_role",
+            "metadata": {"scan_degraded": True},
+        },
+    )
+
+    payload = api.scan_role("/tmp/mock_role")
+
+    assert payload["warnings"] == [
+        {
+            "code": "role_scan_degraded",
+            "category": "runtime",
+            "message": "Scan completed in degraded mode.",
+        }
+    ]
+
+
 def test_collection_role_failure_uses_typed_runtime_error_code():
     exc = prism_errors.PrismRuntimeError(
         code=prism_errors.ROLE_METADATA_YAML_INVALID,

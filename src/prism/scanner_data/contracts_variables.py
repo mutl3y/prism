@@ -184,6 +184,34 @@ class VariableRowBuilder:
                     "provenance_confidence must be in [0.0, 1.0]. " f"Got: {confidence}"
                 )
 
+        for field_name in (
+            "documented",
+            "required",
+            "secret",
+            "is_unresolved",
+            "is_ambiguous",
+        ):
+            field_value = self._row.get(field_name)
+            if field_value is not None and not isinstance(field_value, bool):
+                raise ValueError(
+                    f"{field_name} must be a bool when provided. "
+                    f"Got: {type(field_value).__name__} = {field_value!r}"
+                )
+
+        provenance_line = self._row.get("provenance_line")
+        if provenance_line is not None and not isinstance(provenance_line, int):
+            raise ValueError(
+                "provenance_line must be int or None. "
+                f"Got: {type(provenance_line).__name__} = {provenance_line!r}"
+            )
+
+        uncertainty_reason = self._row.get("uncertainty_reason")
+        if uncertainty_reason is not None and not isinstance(uncertainty_reason, str):
+            raise ValueError(
+                "uncertainty_reason must be str or None. "
+                f"Got: {type(uncertainty_reason).__name__} = {uncertainty_reason!r}"
+            )
+
         result: dict[str, Any] = dict(self._row)
         result.setdefault("required", False)
         result.setdefault("secret", False)

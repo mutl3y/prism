@@ -13,7 +13,7 @@ from types import ModuleType
 
 import prism.scanner_data.contracts_output as contracts_output_mod
 import prism.scanner_data.contracts_variables as contracts_variables_mod
-import prism.scanner_analysis.report as scanner_report_mod
+import prism.scanner_reporting.report as scanner_report_mod
 import prism.scanner_core.feature_detector as feature_detector_mod
 import prism.scanner_core.scan_context_builder as scan_context_builder_mod
 import prism.scanner_core.scan_facade_helpers as scan_facade_helpers_mod

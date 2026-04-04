@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from prism.scanner_analysis import collection_dependencies
+from prism.scanner_reporting import collection_dependencies
 
 
 def test_aggregate_collection_dependencies_tracks_conflicts(tmp_path):

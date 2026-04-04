@@ -14,14 +14,14 @@ CANONICAL_SCANNER_PACKAGE_DIRS = {
     "prism.scanner_core": PROJECT_ROOT / "src" / "prism" / "scanner_core",
     "prism.scanner_extract": PROJECT_ROOT / "src" / "prism" / "scanner_extract",
     "prism.scanner_readme": PROJECT_ROOT / "src" / "prism" / "scanner_readme",
-    "prism.scanner_analysis": PROJECT_ROOT / "src" / "prism" / "scanner_analysis",
+    "prism.scanner_reporting": PROJECT_ROOT / "src" / "prism" / "scanner_reporting",
     "prism.scanner_io": PROJECT_ROOT / "src" / "prism" / "scanner_io",
     "prism.scanner_config": PROJECT_ROOT / "src" / "prism" / "scanner_config",
 }
 SCANNER_PRIVATE_IMPORT_BOUNDARIES = (
     "prism.scanner_extract",
     "prism.scanner_readme",
-    "prism.scanner_analysis",
+    "prism.scanner_reporting",
     "prism.scanner_io",
     "prism.scanner_config",
 )
@@ -76,7 +76,7 @@ ORCHESTRATOR_TELEMETRY_TARGETS: dict[str, dict[str, object]] = {
 }
 
 _ALLOWED_CANONICAL_PRIVATE_CROSS_PACKAGE_TOUCHPOINTS: dict[str, set[str]] = {
-    "prism.scanner_analysis.metrics": {
+    "prism.scanner_reporting.metrics": {
         "prism.scanner_extract.task_parser:_is_path_excluded",
     },
     "prism.scanner_core.feature_detector": {

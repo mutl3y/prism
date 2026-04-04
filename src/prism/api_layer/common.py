@@ -13,6 +13,7 @@ from prism.errors import (
     SCAN_ROLE_PAYLOAD_JSON_INVALID,
     SCAN_ROLE_PAYLOAD_SHAPE_INVALID,
     SCAN_ROLE_PAYLOAD_TYPE_INVALID,
+    normalize_metadata_warnings,
 )
 
 
@@ -72,6 +73,12 @@ def normalize_scan_role_payload_shape(payload: dict[str, Any]) -> dict[str, Any]
         and "undocumented_default_filters" in normalized
     ):
         normalized["default_filters"] = normalized["undocumented_default_filters"]
+    metadata = normalized.get("metadata")
+    warnings = normalize_metadata_warnings(
+        metadata if isinstance(metadata, dict) else {}
+    )
+    if warnings:
+        normalized["warnings"] = warnings
     return normalized
 
 

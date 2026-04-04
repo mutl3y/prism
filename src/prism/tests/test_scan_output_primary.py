@@ -56,6 +56,7 @@ def test_final_output_payload_contract_annotations_and_builder_shape():
         "requirements",
         "default_filters",
         "metadata",
+        "warnings",
     }
 
     render_hints = get_type_hints(output.render_final_output)
@@ -77,7 +78,33 @@ def test_final_output_payload_contract_annotations_and_builder_shape():
         "requirements": ["dep"],
         "default_filters": [{"match": "x | default(1)"}],
         "metadata": {"features": {"tasks_scanned": 1}},
+        "warnings": [],
     }
+
+
+def test_build_final_output_payload_normalizes_metadata_warnings():
+    payload = output.build_final_output_payload(
+        role_name="demo",
+        description="desc",
+        variables={"x": 1},
+        requirements=["dep"],
+        default_filters=[],
+        metadata={
+            "meta_load_warnings": [
+                "ROLE_METADATA_LOAD_FAILED: meta/main.yml: meta parse failed"
+            ]
+        },
+    )
+
+    assert payload["warnings"] == [
+        {
+            "code": "role_metadata_load_failed",
+            "category": "config",
+            "message": "meta parse failed",
+            "detail_code": "ROLE_METADATA_LOAD_FAILED",
+            "source": "meta/main.yml",
+        }
+    ]
 
 
 def test_render_and_write_scan_output_md_non_dry_run_writes(tmp_path):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, TypeVar
 
 from prism.scanner_data.contracts_output import (
     EmitScanOutputsArgs,
@@ -19,6 +19,8 @@ from prism.scanner_data.contracts_request import (
     ScanMetadata,
     ScanOptionsDict,
 )
+
+T = TypeVar("T")
 
 
 def build_runtime_scan_state(
@@ -164,6 +166,76 @@ def prepare_scan_context(
         ),
     )
     return builder.build_scan_context(scan_options)
+
+
+def execute_with_runtime_policy(
+    *,
+    role_path: str,
+    role_name_override: str | None,
+    readme_config_path: str | None,
+    include_vars_main: bool,
+    exclude_path_patterns: list[str] | None,
+    detailed_catalog: bool,
+    include_task_parameters: bool,
+    include_task_runbooks: bool,
+    inline_task_runbooks: bool,
+    include_collection_checks: bool,
+    keep_unknown_style_sections: bool,
+    adopt_heading_mode: str | None,
+    vars_seed_paths: list[str] | None,
+    style_readme_path: str | None,
+    style_source_path: str | None,
+    style_guide_skeleton: bool,
+    compare_role_path: str | None,
+    policy_config_path: str | None,
+    fail_on_unconstrained_dynamic_includes: bool | None,
+    fail_on_yaml_like_task_annotations: bool | None,
+    ignore_unresolved_internal_underscore_references: bool | None,
+    strict_phase_failures: bool,
+    failure_policy: Any,
+    runbook_output: str | None,
+    runbook_csv_output: str | None,
+    build_runtime_scan_state_fn: Callable[
+        ..., tuple[dict[str, Any], PolicyContext, ScanOptionsDict]
+    ],
+    scan_policy_scope_fn: Callable[..., Any],
+    invoke_scan_fn: Callable[[ScanOptionsDict], T],
+) -> T:
+    """Build runtime policy state once, apply request scope, then invoke scan work."""
+    loaded_policy, policy_context, scan_options = build_runtime_scan_state_fn(
+        role_path=role_path,
+        role_name_override=role_name_override,
+        readme_config_path=readme_config_path,
+        include_vars_main=include_vars_main,
+        exclude_path_patterns=exclude_path_patterns,
+        detailed_catalog=detailed_catalog,
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
+        include_collection_checks=include_collection_checks,
+        keep_unknown_style_sections=keep_unknown_style_sections,
+        adopt_heading_mode=adopt_heading_mode,
+        vars_seed_paths=vars_seed_paths,
+        style_readme_path=style_readme_path,
+        style_source_path=style_source_path,
+        style_guide_skeleton=style_guide_skeleton,
+        compare_role_path=compare_role_path,
+        policy_config_path=policy_config_path,
+        fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
+        fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
+        ignore_unresolved_internal_underscore_references=(
+            ignore_unresolved_internal_underscore_references
+        ),
+        strict_phase_failures=strict_phase_failures,
+        failure_policy=failure_policy,
+        runbook_output=runbook_output,
+        runbook_csv_output=runbook_csv_output,
+    )
+    with scan_policy_scope_fn(
+        loaded_policy=loaded_policy,
+        policy_context=policy_context,
+    ):
+        return invoke_scan_fn(scan_options)
 
 
 def collect_scan_base_context(
@@ -425,6 +497,23 @@ def apply_scan_metadata_configuration(
         metadata["readme_section_config_warnings"] = readme_section_config_warnings
     apply_readme_section_config(metadata, readme_section_config)
     return requirements_display
+
+
+def apply_readme_section_config(
+    metadata: ScanMetadata, readme_section_config: dict | None
+) -> None:
+    """Apply resolved README section configuration into scan metadata."""
+    if readme_section_config is None:
+        return
+    metadata["enabled_sections"] = sorted(readme_section_config["enabled_sections"])
+    if readme_section_config["section_title_overrides"]:
+        metadata["section_title_overrides"] = dict(
+            readme_section_config["section_title_overrides"]
+        )
+    if readme_section_config["section_content_modes"]:
+        metadata["section_content_modes"] = dict(
+            readme_section_config["section_content_modes"]
+        )
 
 
 def enrich_scan_context_with_insights(

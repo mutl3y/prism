@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from prism.scanner_analysis.collection_dependencies import (
+from prism.scanner_reporting.collection_dependencies import (
     aggregate_collection_dependencies,
 )
 from prism.scanner_data.contracts_errors import CollectionScanResult

@@ -3,7 +3,8 @@ from pathlib import Path
 import pytest
 
 from prism import scanner
-from prism.scanner_analysis.metrics import (
+import prism.scanner_config.readme as readme_config
+from prism.scanner_reporting.metrics import (
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
@@ -147,7 +148,7 @@ def test_load_fail_on_unconstrained_dynamic_includes_handles_native_bool(tmp_pat
     role = _write_role_prism_config(
         tmp_path, "fail_on_unconstrained_dynamic_includes: true\n"
     )
-    assert scanner.load_fail_on_unconstrained_dynamic_includes(str(role)) is True
+    assert policy_config.load_fail_on_unconstrained_dynamic_includes(str(role)) is True
 
 
 def test_load_fail_on_unconstrained_dynamic_includes_handles_falsey_string(tmp_path):
@@ -156,7 +157,7 @@ def test_load_fail_on_unconstrained_dynamic_includes_handles_falsey_string(tmp_p
         tmp_path,
         "fail_on_unconstrained_dynamic_includes: 'false'\n",
     )
-    assert scanner.load_fail_on_unconstrained_dynamic_includes(str(role)) is False
+    assert policy_config.load_fail_on_unconstrained_dynamic_includes(str(role)) is False
 
 
 def test_load_fail_on_unconstrained_dynamic_includes_raises_on_parse_error(
@@ -165,7 +166,9 @@ def test_load_fail_on_unconstrained_dynamic_includes_raises_on_parse_error(
     """Malformed YAML should fail closed instead of silently using defaults."""
     role = _write_role_prism_config(tmp_path, "key: [\n  unclosed\n")
     with pytest.raises(RuntimeError, match="POLICY_CONFIG_YAML_INVALID"):
-        scanner.load_fail_on_unconstrained_dynamic_includes(str(role), default=True)
+        policy_config.load_fail_on_unconstrained_dynamic_includes(
+            str(role), default=True
+        )
 
 
 def test_load_fail_on_unconstrained_dynamic_includes_returns_default_when_not_dict(
@@ -173,7 +176,7 @@ def test_load_fail_on_unconstrained_dynamic_includes_returns_default_when_not_di
 ):
     """load_fail_on_unconstrained_dynamic_includes falls back when root is a list."""
     role = _write_role_prism_config(tmp_path, "- foo\n- bar\n")
-    assert scanner.load_fail_on_unconstrained_dynamic_includes(str(role)) is False
+    assert policy_config.load_fail_on_unconstrained_dynamic_includes(str(role)) is False
 
 
 def test_load_fail_on_yaml_like_task_annotations_reads_scan_toggle(tmp_path):
@@ -182,7 +185,7 @@ def test_load_fail_on_yaml_like_task_annotations_reads_scan_toggle(tmp_path):
         tmp_path,
         "scan:\n  fail_on_yaml_like_task_annotations: 'yes'\n",
     )
-    assert scanner.load_fail_on_yaml_like_task_annotations(str(role)) is True
+    assert policy_config.load_fail_on_yaml_like_task_annotations(str(role)) is True
 
 
 def test_load_fail_on_yaml_like_task_annotations_raises_on_parse_error(
@@ -191,7 +194,7 @@ def test_load_fail_on_yaml_like_task_annotations_raises_on_parse_error(
     """Malformed YAML should fail closed instead of silently using defaults."""
     role = _write_role_prism_config(tmp_path, "scan: [\n  unclosed\n")
     with pytest.raises(RuntimeError, match="POLICY_CONFIG_YAML_INVALID"):
-        scanner.load_fail_on_yaml_like_task_annotations(str(role), default=True)
+        policy_config.load_fail_on_yaml_like_task_annotations(str(role), default=True)
 
 
 def test_load_ignore_unresolved_internal_underscore_references_reads_scan_toggle(
@@ -203,7 +206,7 @@ def test_load_ignore_unresolved_internal_underscore_references_reads_scan_toggle
         "scan:\n  ignore_unresolved_internal_underscore_references: 'no'\n",
     )
     assert (
-        scanner.load_ignore_unresolved_internal_underscore_references(str(role))
+        policy_config.load_ignore_unresolved_internal_underscore_references(str(role))
         is False
     )
 
@@ -214,7 +217,7 @@ def test_load_ignore_unresolved_internal_underscore_references_raises_on_parse_e
     """Malformed YAML should fail closed instead of silently using defaults."""
     role = _write_role_prism_config(tmp_path, "scan: [\n  unclosed\n")
     with pytest.raises(RuntimeError, match="POLICY_CONFIG_YAML_INVALID"):
-        scanner.load_ignore_unresolved_internal_underscore_references(
+        policy_config.load_ignore_unresolved_internal_underscore_references(
             str(role),
             default=False,
         )
@@ -226,7 +229,7 @@ def test_load_ignore_unresolved_internal_underscore_references_raises_on_parse_e
     """Malformed YAML should raise even when default=True would otherwise apply."""
     role = _write_role_prism_config(tmp_path, "scan: [\n  unclosed\n")
     with pytest.raises(RuntimeError, match="POLICY_CONFIG_YAML_INVALID"):
-        scanner.load_ignore_unresolved_internal_underscore_references(str(role))
+        policy_config.load_ignore_unresolved_internal_underscore_references(str(role))
 
 
 def test_load_non_authoritative_test_evidence_limits_reads_scan_values(tmp_path):
@@ -240,13 +243,15 @@ def test_load_non_authoritative_test_evidence_limits_reads_scan_values(tmp_path)
     )
 
     assert (
-        scanner.load_non_authoritative_test_evidence_max_file_bytes(str(role)) == 12345
+        policy_config.load_non_authoritative_test_evidence_max_file_bytes(str(role))
+        == 12345
     )
     assert (
-        scanner.load_non_authoritative_test_evidence_max_files_scanned(str(role)) == 77
+        policy_config.load_non_authoritative_test_evidence_max_files_scanned(str(role))
+        == 77
     )
     assert (
-        scanner.load_non_authoritative_test_evidence_max_total_bytes(str(role))
+        policy_config.load_non_authoritative_test_evidence_max_total_bytes(str(role))
         == 456789
     )
 
@@ -264,15 +269,15 @@ def test_load_non_authoritative_test_evidence_limits_fallback_on_invalid_values(
     )
 
     assert (
-        scanner.load_non_authoritative_test_evidence_max_file_bytes(str(role))
+        policy_config.load_non_authoritative_test_evidence_max_file_bytes(str(role))
         == NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES
     )
     assert (
-        scanner.load_non_authoritative_test_evidence_max_files_scanned(str(role))
+        policy_config.load_non_authoritative_test_evidence_max_files_scanned(str(role))
         == NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED
     )
     assert (
-        scanner.load_non_authoritative_test_evidence_max_total_bytes(str(role))
+        policy_config.load_non_authoritative_test_evidence_max_total_bytes(str(role))
         == NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES
     )
 
@@ -284,7 +289,7 @@ def test_load_non_authoritative_test_evidence_max_file_bytes_raises_on_parse_err
     role = _write_role_prism_config(tmp_path, "scan: [\n  unclosed\n")
 
     with pytest.raises(RuntimeError, match=POLICY_CONFIG_YAML_INVALID):
-        scanner.load_non_authoritative_test_evidence_max_file_bytes(
+        policy_config.load_non_authoritative_test_evidence_max_file_bytes(
             str(role),
             default=NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES,
         )
@@ -297,7 +302,7 @@ def test_load_non_authoritative_test_evidence_max_files_scanned_raises_on_parse_
     role = _write_role_prism_config(tmp_path, "scan: [\n  unclosed\n")
 
     with pytest.raises(RuntimeError, match=POLICY_CONFIG_YAML_INVALID):
-        scanner.load_non_authoritative_test_evidence_max_files_scanned(
+        policy_config.load_non_authoritative_test_evidence_max_files_scanned(
             str(role),
             default=NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED,
         )
@@ -310,7 +315,7 @@ def test_load_non_authoritative_test_evidence_max_total_bytes_raises_on_parse_er
     role = _write_role_prism_config(tmp_path, "scan: [\n  unclosed\n")
 
     with pytest.raises(RuntimeError, match=POLICY_CONFIG_YAML_INVALID):
-        scanner.load_non_authoritative_test_evidence_max_total_bytes(
+        policy_config.load_non_authoritative_test_evidence_max_total_bytes(
             str(role),
             default=NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES,
         )
@@ -327,7 +332,7 @@ def test_load_readme_section_visibility_returns_enabled_sections_set(tmp_path):
         tmp_path,
         "readme:\n  include_sections:\n    - galaxy_info\n",
     )
-    result = scanner.load_readme_section_visibility(str(role))
+    result = readme_config.load_role_readme_section_visibility(str(role))
     assert isinstance(result, set)
     assert "galaxy_info" in result
 
@@ -335,14 +340,16 @@ def test_load_readme_section_visibility_returns_enabled_sections_set(tmp_path):
 def test_load_readme_section_config_non_dict_raw_returns_none(tmp_path):
     """load_readme_section_config returns None when config root is a list."""
     role = _write_role_prism_config(tmp_path, "- foo\n- bar\n")
-    assert scanner.load_readme_section_config(str(role)) is None
+    assert readme_config.load_role_readme_section_config(str(role)) is None
 
 
 def test_load_readme_section_config_non_dict_raw_collects_warning(tmp_path):
     role = _write_role_prism_config(tmp_path, "- foo\n- bar\n")
 
     warnings: list[str] = []
-    config = scanner.load_readme_section_config(str(role), warning_collector=warnings)
+    config = readme_config.load_role_readme_section_config(
+        str(role), warning_collector=warnings
+    )
 
     assert config is None
     assert len(warnings) == 1
@@ -355,7 +362,7 @@ def test_load_readme_section_config_skips_non_string_include_items(tmp_path):
         tmp_path,
         "readme:\n  include_sections:\n    - 42\n    - galaxy_info\n",
     )
-    config = scanner.load_readme_section_config(str(role))
+    config = readme_config.load_role_readme_section_config(str(role))
     assert config is not None
     assert "galaxy_info" in config["enabled_sections"]
 
@@ -366,7 +373,7 @@ def test_load_readme_section_config_skips_unresolvable_include_items(tmp_path):
         tmp_path,
         "readme:\n  include_sections:\n    - totally_unknown_section_xyz\n    - galaxy_info\n",
     )
-    config = scanner.load_readme_section_config(str(role))
+    config = readme_config.load_role_readme_section_config(str(role))
     assert config is not None
     assert "galaxy_info" in config["enabled_sections"]
     assert "totally_unknown_section_xyz" not in config["enabled_sections"]
@@ -377,12 +384,12 @@ def test_load_readme_section_config_skips_non_string_exclude_items(tmp_path):
     role = _write_role_prism_config(
         tmp_path, "readme:\n  exclude_sections:\n    - 99\n"
     )
-    config = scanner.load_readme_section_config(str(role))
+    config = readme_config.load_role_readme_section_config(str(role))
     assert config is not None
 
 
 def test_load_readme_section_config_popular_mode_applies_display_title_overrides(
-    tmp_path, monkeypatch
+    tmp_path,
 ):
     """Popular adopt_heading_mode copies display titles into title_overrides."""
     role = tmp_path / "role"
@@ -398,8 +405,11 @@ def test_load_readme_section_config_popular_mode_applies_display_title_overrides
         "    - galaxy_info\n"
         "  adopt_heading_mode: popular\n",
     )
-    monkeypatch.setattr(scanner, "DEFAULT_SECTION_DISPLAY_TITLES_PATH", titles)
-    config = scanner.load_readme_section_config(str(role), adopt_heading_mode="popular")
+    config = readme_config.load_role_readme_section_config(
+        str(role),
+        adopt_heading_mode="popular",
+        display_titles_path=titles,
+    )
     assert config is not None
     assert config["section_title_overrides"].get("galaxy_info") == "Galaxy Metadata"
 
@@ -415,7 +425,7 @@ def test_load_readme_section_config_skips_non_string_content_mode_entries(tmp_pa
         "    galaxy_info: generate\n"
         "    123: replace\n",
     )
-    config = scanner.load_readme_section_config(str(role))
+    config = readme_config.load_role_readme_section_config(str(role))
     assert config is not None
     assert config["section_content_modes"].get("galaxy_info") == "generate"
 

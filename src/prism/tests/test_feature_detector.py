@@ -22,7 +22,7 @@ def test_feature_detector_imports_task_parser_from_canonical_module() -> None:
     """FeatureDetector should import task helpers from scanner_extract, not shim."""
     source = inspect.getsource(feature_detector)
     assert "from ..scanner_submodules.task_parser import" not in source
-    assert "from ..scanner_extract.task_parser import" in source
+    assert "from prism.scanner_extract.task_parser import" in source
 
 
 class TestFeatureDetectorInit:
@@ -30,25 +30,47 @@ class TestFeatureDetectorInit:
 
     def test_init_requires_di_container(self, tmp_path):
         """Verify FeatureDetector raises ValueError if di is None."""
-        with pytest.raises(ValueError, match="di .* must not be None"):
+        with pytest.raises(ValueError, match="'di' must not be None"):
             FeatureDetector(None, str(tmp_path), {})
 
-    def test_init_requires_role_path(self):
+    @pytest.mark.parametrize("role_path", ["", "   ", None, 9])
+    def test_init_requires_role_path(self, role_path):
         """Verify FeatureDetector raises ValueError if role_path is empty."""
         di = DIContainer("/fake/role", {})
-        with pytest.raises(ValueError, match="role_path must not be empty"):
-            FeatureDetector(di, "", {})
+        with pytest.raises(ValueError, match="'role_path' must be a non-empty string"):
+            FeatureDetector(di, role_path, {})  # type: ignore[arg-type]
 
-    def test_init_requires_options(self, tmp_path):
+    @pytest.mark.parametrize("options", [None, "bad-options", []])
+    def test_init_requires_options(self, tmp_path, options):
         """Verify FeatureDetector raises ValueError if options is None."""
         di = DIContainer(str(tmp_path), {})
-        with pytest.raises(ValueError, match="options must not be None"):
-            FeatureDetector(di, str(tmp_path), None)
+        with pytest.raises(ValueError, match="'options' must be a dict"):
+            FeatureDetector(di, str(tmp_path), options)  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize(
+        ("options", "message"),
+        [
+            (
+                {"exclude_path_patterns": "**/excluded.yml"},
+                "'options.exclude_path_patterns' must be a list\\[str\\] or None",
+            ),
+            (
+                {"exclude_path_patterns": ["**/excluded.yml", 7]},
+                "'options.exclude_path_patterns' must contain only strings when provided",
+            ),
+        ],
+    )
+    def test_init_rejects_invalid_option_shapes(self, tmp_path, options, message):
+        di = DIContainer(str(tmp_path), {})
+        with pytest.raises(ValueError, match=message):
+            FeatureDetector(di, str(tmp_path), options)
 
     def test_init_accepts_valid_inputs(self, tmp_path):
         """Verify FeatureDetector initializes with valid inputs."""
         di = DIContainer(str(tmp_path), {})
-        detector = FeatureDetector(di, str(tmp_path), {})
+        detector = FeatureDetector(
+            di, str(tmp_path), {"exclude_path_patterns": ["**/ignored.yml"]}
+        )
         assert detector is not None
 
 

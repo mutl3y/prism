@@ -45,6 +45,7 @@ class RoleScanResult(TypedDict, total=False):
     requirements: list[Any]
     default_filters: list[Any]
     metadata: ScanMetadata
+    warnings: list[FailureDetail]
 
 
 class CollectionScanResult(TypedDict, total=False):

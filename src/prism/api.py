@@ -34,8 +34,8 @@ from prism.errors import (
 from prism.repo_services import repo_scan_facade as _repo_scan_facade
 from prism.scanner import _run_scan_payload
 from prism.scanner import run_scan as _scanner_run_scan
-from prism.scanner_analysis import render_runbook, render_runbook_csv
-from prism.scanner_analysis.collection_dependencies import (  # noqa: F401
+from prism.scanner_reporting import render_runbook, render_runbook_csv
+from prism.scanner_reporting.collection_dependencies import (  # noqa: F401
     _collection_dependency_key,
     _role_dependency_key,
     _merge_dependency_entry,

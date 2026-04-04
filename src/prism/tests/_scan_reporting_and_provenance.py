@@ -1,7 +1,7 @@
-from prism.scanner_analysis import metrics as analysis_metrics
-from prism.scanner_analysis import report as scanner_report
-from prism.scanner_analysis.report import classify_provenance_issue
-from prism.scanner_analysis.report import is_unresolved_noise_category
+from prism.scanner_reporting import metrics as analysis_metrics
+from prism.scanner_reporting import report as scanner_report
+from prism.scanner_reporting.report import classify_provenance_issue
+from prism.scanner_reporting.report import is_unresolved_noise_category
 from prism.scanner_readme import guide as readme_guide
 
 

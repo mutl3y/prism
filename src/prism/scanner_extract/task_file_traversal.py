@@ -14,9 +14,12 @@ Functions exported:
 
 from __future__ import annotations
 
-import yaml
+from functools import lru_cache
 from fnmatch import fnmatch
 from pathlib import Path
+import re
+
+import yaml
 
 from prism.scanner_extract import task_line_parsing as tlp
 
@@ -29,9 +32,26 @@ def _normalize_exclude_patterns(exclude_paths: list[str] | None) -> list[str]:
     """Return normalized glob patterns used to exclude role-relative paths."""
     if not exclude_paths:
         return []
-    return [
-        item.strip() for item in exclude_paths if isinstance(item, str) and item.strip()
-    ]
+    normalized_patterns: list[str] = []
+    for item in exclude_paths:
+        if not isinstance(item, str):
+            continue
+        candidate = item.strip().replace("\\", "/")
+        if not candidate:
+            continue
+        if candidate.startswith("/") or re.match(r"^[A-Za-z]:/", candidate):
+            continue
+
+        segments = [
+            segment for segment in candidate.split("/") if segment not in {"", "."}
+        ]
+        if any(segment == ".." for segment in segments):
+            continue
+
+        normalized = "/".join(segments)
+        if normalized:
+            normalized_patterns.append(normalized)
+    return normalized_patterns
 
 
 def _is_relpath_excluded(relpath: str, exclude_paths: list[str] | None) -> bool:
@@ -72,12 +92,41 @@ def _format_inline_yaml(value: object) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _load_yaml_file(file_path: Path) -> object | None:
-    """Load a YAML file and return its contents, or ``None`` on failure."""
+def _yaml_cache_identity(file_path: Path) -> tuple[str, int, int] | None:
+    """Return a cache identity that changes when file contents likely changed."""
     try:
-        return yaml.safe_load(file_path.read_text(encoding="utf-8"))
+        stat = file_path.stat()
+    except OSError:
+        return None
+    return (str(file_path.resolve()), stat.st_mtime_ns, stat.st_size)
+
+
+@lru_cache(maxsize=512)
+def _load_yaml_file_cached(
+    resolved_path: str,
+    modified_time_ns: int,
+    size_bytes: int,
+) -> object | None:
+    """Load and parse YAML for a stat-derived cache identity."""
+    _ = modified_time_ns
+    _ = size_bytes
+    try:
+        return yaml.safe_load(Path(resolved_path).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
         return None
+
+
+def _load_yaml_file(file_path: Path) -> object | None:
+    """Load a YAML file and return its contents, or ``None`` on failure."""
+    identity = _yaml_cache_identity(file_path)
+    if identity is None:
+        return None
+    return _load_yaml_file_cached(*identity)
+
+
+def _clear_yaml_load_cache() -> None:
+    """Clear the in-process YAML load cache used by task traversal helpers."""
+    _load_yaml_file_cached.cache_clear()
 
 
 # ---------------------------------------------------------------------------

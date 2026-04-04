@@ -3,8 +3,8 @@
 import importlib
 import pytest
 
-from prism.scanner_analysis import report as scanner_report
-from prism.scanner_analysis import runbook as scanner_runbook
+from prism.scanner_reporting import report as scanner_report
+from prism.scanner_reporting import runbook as scanner_runbook
 
 
 def _scanner_counters(**overrides):

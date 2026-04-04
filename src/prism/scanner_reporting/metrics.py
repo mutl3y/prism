@@ -10,7 +10,7 @@ from typing import Any
 
 from prism.scanner_extract.task_parser import _is_path_excluded
 
-from prism.scanner_analysis.report import (
+from prism.scanner_reporting.report import (
     ScannerCounters,
     extract_scanner_counters as _report_extract_scanner_counters,
 )

@@ -5,7 +5,7 @@ This module consolidates output-related logic currently spread across:
 - `prism.scanner_io.emit_output` for output orchestration and file emission
 - `prism.scanner_io.output` for format primitives and path resolution
 - `prism.scanner_readme` for README composition
-- `prism.scanner_analysis` for scanner-report and runbook rendering
+- `prism.scanner_reporting` for scanner-report and runbook rendering
 
 The OutputOrchestrator class provides a cohesive interface for:
 - Rendering primary outputs (README, JSON, HTML, PDF)
@@ -21,7 +21,12 @@ from pathlib import Path
 from typing import Any
 
 from prism.scanner_core.di import DIContainer
-from prism.scanner_data.contracts_output import RunScanOutputPayload
+from prism.scanner_data.contracts_output import (
+    RunScanOutputPayload,
+    validate_output_orchestrator_inputs,
+    validate_run_scan_output_payload,
+    validate_runbook_sidecar_inputs,
+)
 from prism.scanner_io.emit_output import (
     build_output_emission_context as _build_output_emission_context,
     orchestrate_output_emission as _orchestrate_output_emission,
@@ -30,8 +35,8 @@ from prism.scanner_io.scan_output_primary import (
     render_and_write_scan_output as _render_and_write_scan_output,
 )
 from prism.scanner_io import render_final_output, write_output
-from prism.scanner_analysis import build_scanner_report_markdown
-from prism.scanner_analysis import render_runbook, render_runbook_csv
+from prism.scanner_reporting import build_scanner_report_markdown
+from prism.scanner_reporting import render_runbook, render_runbook_csv
 from prism.scanner_readme import render_guide_section_body, render_readme
 
 
@@ -69,10 +74,7 @@ class OutputOrchestrator:
                 - runbook_output: Optional runbook output path
                 - runbook_csv_output: Optional runbook CSV output path
         """
-        if not output_path:
-            raise ValueError("output_path must not be empty")
-        if options is None:
-            raise ValueError("options must not be None")
+        validate_output_orchestrator_inputs(output_path=output_path, options=options)
 
         self._di = di
         self._output_path = output_path
@@ -101,6 +103,8 @@ class OutputOrchestrator:
         - Updated metadata is passed via kwargs to render functions
         - New payload structures created as needed (immutable construction)
         """
+        validated_payload = validate_run_scan_output_payload(payload)
+
         output_format = self._options.get("output_format", "md")
         concise_readme = self._options.get("concise_readme", False)
         template = self._options.get("template")
@@ -112,8 +116,8 @@ class OutputOrchestrator:
         runbook_csv_output = self._options.get("runbook_csv_output")
 
         output_payload = {
-            **payload,
-            "metadata": dict(payload["metadata"]),
+            **validated_payload,
+            "metadata": dict(validated_payload["metadata"]),
         }
         emission_args = _build_output_emission_context(
             output_payload=output_payload,
@@ -172,6 +176,13 @@ class OutputOrchestrator:
         Returns:
             Dict mapping file path → bytes written.
         """
+        validate_runbook_sidecar_inputs(
+            md_path=md_path,
+            csv_path=csv_path,
+            role_name=role_name,
+            metadata=metadata,
+        )
+
         result: dict[str, int] = {}
 
         sidecar_metadata: dict[str, Any] = metadata or {}

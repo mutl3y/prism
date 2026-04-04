@@ -3,8 +3,8 @@
 from typing import get_type_hints
 
 from prism import scanner
-from prism.scanner_analysis import metrics as analysis_metrics
-from prism.scanner_analysis import report as scanner_report
+from prism.scanner_reporting import metrics as analysis_metrics
+from prism.scanner_reporting import report as scanner_report
 
 
 def test_build_referenced_variable_uncertainty_reason_shapes_expected_messages():

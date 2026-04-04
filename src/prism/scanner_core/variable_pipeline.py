@@ -9,7 +9,7 @@ from typing import Any
 from prism.scanner_data.contracts_request import PolicyContext
 from prism.scanner_data.contracts_variables import ReferenceContext, VariableRow
 
-from prism.scanner_analysis.metrics import (
+from prism.scanner_reporting.metrics import (
     attach_non_authoritative_test_evidence,
     build_referenced_variable_uncertainty_reason,
     should_suppress_internal_unresolved_reference,

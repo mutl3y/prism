@@ -34,6 +34,9 @@ README_SECTION_DISPLAY_TITLES_IO_ERROR = "README_SECTION_DISPLAY_TITLES_IO_ERROR
 README_SECTION_DISPLAY_TITLES_SHAPE_INVALID = (
     "README_SECTION_DISPLAY_TITLES_SHAPE_INVALID"
 )
+DEFAULT_SECTION_DISPLAY_TITLES_PATH = (
+    Path(__file__).resolve().parent.parent / "data" / "section_display_titles.yml"
+)
 
 
 def _record_readme_config_warning(
@@ -327,10 +330,69 @@ def load_readme_section_visibility(
     return config["enabled_sections"]
 
 
+def load_role_readme_section_config(
+    role_path: str,
+    config_path: str | None = None,
+    adopt_heading_mode: str | None = None,
+    strict: bool = False,
+    warning_collector: list[str] | None = None,
+    display_titles_path: Path = DEFAULT_SECTION_DISPLAY_TITLES_PATH,
+) -> dict | None:
+    """Load README config using Prism's canonical section registry defaults."""
+    from prism.scanner_readme import ALL_SECTION_IDS
+    from prism.scanner_readme.style import (
+        get_style_section_aliases_snapshot,
+        normalize_style_heading,
+    )
+
+    return load_readme_section_config(
+        role_path=role_path,
+        config_path=config_path,
+        adopt_heading_mode=adopt_heading_mode,
+        all_section_ids=ALL_SECTION_IDS,
+        section_aliases=get_style_section_aliases_snapshot(),
+        normalize_heading=normalize_style_heading,
+        display_titles_path=display_titles_path,
+        strict=strict,
+        warning_collector=warning_collector,
+        config_filenames=SECTION_CONFIG_FILENAMES,
+        default_filename=SECTION_CONFIG_FILENAME,
+    )
+
+
+def load_role_readme_section_visibility(
+    role_path: str,
+    config_path: str | None = None,
+    adopt_heading_mode: str | None = None,
+    display_titles_path: Path = DEFAULT_SECTION_DISPLAY_TITLES_PATH,
+) -> set[str] | None:
+    """Load section visibility using Prism's canonical section registry defaults."""
+    from prism.scanner_readme import ALL_SECTION_IDS
+    from prism.scanner_readme.style import (
+        get_style_section_aliases_snapshot,
+        normalize_style_heading,
+    )
+
+    return load_readme_section_visibility(
+        role_path=role_path,
+        config_path=config_path,
+        adopt_heading_mode=adopt_heading_mode,
+        all_section_ids=ALL_SECTION_IDS,
+        section_aliases=get_style_section_aliases_snapshot(),
+        normalize_heading=normalize_style_heading,
+        display_titles_path=display_titles_path,
+        config_filenames=SECTION_CONFIG_FILENAMES,
+        default_filename=SECTION_CONFIG_FILENAME,
+    )
+
+
 __all__ = [
+    "DEFAULT_SECTION_DISPLAY_TITLES_PATH",
     "README_SECTION_CONFIG_YAML_INVALID",
     "README_SECTION_CONFIG_IO_ERROR",
     "resolve_role_config_file",
     "load_readme_section_config",
     "load_readme_section_visibility",
+    "load_role_readme_section_config",
+    "load_role_readme_section_visibility",
 ]

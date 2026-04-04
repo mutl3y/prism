@@ -16,8 +16,8 @@ import threading
 from prism import _jinja_analyzer as jinja_analyzer
 from prism import scanner
 from prism.scanner import scan_for_all_filters, scan_for_default_filters
-from prism.scanner_analysis import metrics as analysis_metrics
-from prism.scanner_analysis import report as scanner_report
+from prism.scanner_reporting import metrics as analysis_metrics
+from prism.scanner_reporting import report as scanner_report
 from prism.scanner_extract import requirements as requirements_helpers
 from prism.scanner_extract import task_parser
 from prism.scanner_extract import (
@@ -34,9 +34,13 @@ from prism.scanner_config import (
     default_style_guide_user_paths as config_default_style_guide_user_paths,
 )
 from prism.scanner_config import (
+    load_fail_on_unconstrained_dynamic_includes as config_load_fail_on_unconstrained_dynamic_includes,
+    load_role_readme_section_visibility as config_load_role_readme_section_visibility,
+    load_role_readme_section_config as config_load_role_readme_section_config,
     load_pattern_config as config_load_pattern_config,
     load_section_display_titles as config_load_section_display_titles,
 )
+from prism.scanner_readme import ALL_SECTION_IDS as README_ALL_SECTION_IDS
 from prism.scanner_config import (
     resolve_section_selector as config_resolve_section_selector,
 )
@@ -662,6 +666,55 @@ def test_load_yaml_file_propagates_unexpected_runtime_error(tmp_path, monkeypatc
 
     with pytest.raises(RuntimeError, match="unexpected"):
         task_parser._load_yaml_file(target)
+
+
+def test_load_yaml_file_reuses_cache_for_unchanged_file(tmp_path, monkeypatch):
+    target = tmp_path / "task.yml"
+    target.write_text("foo: bar\n", encoding="utf-8")
+
+    from prism.scanner_extract import task_file_traversal
+
+    task_file_traversal._clear_yaml_load_cache()
+    calls = 0
+    original_safe_load = task_file_traversal.yaml.safe_load
+
+    def counting_safe_load(text):
+        nonlocal calls
+        calls += 1
+        return original_safe_load(text)
+
+    monkeypatch.setattr(task_file_traversal.yaml, "safe_load", counting_safe_load)
+
+    assert task_parser._load_yaml_file(target) == {"foo": "bar"}
+    assert task_parser._load_yaml_file(target) == {"foo": "bar"}
+    assert calls == 1
+
+    task_file_traversal._clear_yaml_load_cache()
+
+
+def test_load_yaml_file_cache_invalidates_when_file_changes(tmp_path, monkeypatch):
+    target = tmp_path / "task.yml"
+    target.write_text("foo: bar\n", encoding="utf-8")
+
+    from prism.scanner_extract import task_file_traversal
+
+    task_file_traversal._clear_yaml_load_cache()
+    calls = 0
+    original_safe_load = task_file_traversal.yaml.safe_load
+
+    def counting_safe_load(text):
+        nonlocal calls
+        calls += 1
+        return original_safe_load(text)
+
+    monkeypatch.setattr(task_file_traversal.yaml, "safe_load", counting_safe_load)
+
+    assert task_parser._load_yaml_file(target) == {"foo": "bar"}
+    target.write_text("foo: baz\n", encoding="utf-8")
+    assert task_parser._load_yaml_file(target) == {"foo": "baz"}
+    assert calls == 2
+
+    task_file_traversal._clear_yaml_load_cache()
 
 
 def test_load_meta_and_requirements_ignore_malformed_yaml(tmp_path):
@@ -2099,7 +2152,7 @@ def test_resolve_section_selector_handles_blank_canonical_and_alias():
     assert (
         config_resolve_section_selector(
             "   ",
-            all_section_ids=scanner.ALL_SECTION_IDS,
+            all_section_ids=README_ALL_SECTION_IDS,
             style_section_aliases=readme_style.STYLE_SECTION_ALIASES,
             normalize_heading_fn=readme_style.normalize_style_heading,
         )
@@ -2108,7 +2161,7 @@ def test_resolve_section_selector_handles_blank_canonical_and_alias():
     assert (
         config_resolve_section_selector(
             "requirements",
-            all_section_ids=scanner.ALL_SECTION_IDS,
+            all_section_ids=README_ALL_SECTION_IDS,
             style_section_aliases=readme_style.STYLE_SECTION_ALIASES,
             normalize_heading_fn=readme_style.normalize_style_heading,
         )
@@ -2117,7 +2170,7 @@ def test_resolve_section_selector_handles_blank_canonical_and_alias():
     assert (
         config_resolve_section_selector(
             "Role purpose and capabilities",
-            all_section_ids=scanner.ALL_SECTION_IDS,
+            all_section_ids=README_ALL_SECTION_IDS,
             style_section_aliases=readme_style.STYLE_SECTION_ALIASES,
             normalize_heading_fn=readme_style.normalize_style_heading,
         )
@@ -2132,7 +2185,7 @@ def test_style_section_aliases_public_compat_mapping_is_read_only():
 
 def test_get_style_section_aliases_snapshot_isolated_from_canonical_refresh():
     original_policy = config_load_pattern_config()
-    snapshot_before = scanner.get_style_section_aliases_snapshot()
+    snapshot_before = readme_style.get_style_section_aliases_snapshot()
     assert isinstance(snapshot_before, dict)
 
     patched_policy = dict(original_policy)
@@ -2142,7 +2195,7 @@ def test_get_style_section_aliases_snapshot_isolated_from_canonical_refresh():
 
     try:
         readme_style.refresh_policy_derived_state(patched_policy)
-        snapshot_after = scanner.get_style_section_aliases_snapshot()
+        snapshot_after = readme_style.get_style_section_aliases_snapshot()
         assert "bertrum policy alias" not in snapshot_before
         snapshot_before["bertrum policy alias"] = "unknown"
         assert (
@@ -2173,7 +2226,7 @@ def test_load_readme_section_config_parses_include_exclude_and_modes(tmp_path):
         encoding="utf-8",
     )
 
-    config = scanner.load_readme_section_config(str(role))
+    config = config_load_role_readme_section_config(str(role))
 
     assert config is not None
     assert config["adopt_heading_mode"] == "canonical"
@@ -2188,14 +2241,14 @@ def test_load_readme_section_config_and_visibility_handle_invalid_shapes(tmp_pat
     cfg = role / ".prism.yml"
 
     cfg.write_text("readme: {note: true}\n", encoding="utf-8")
-    assert scanner.load_readme_section_config(str(role)) is None
-    assert scanner.load_readme_section_visibility(str(role)) is None
+    assert config_load_role_readme_section_config(str(role)) is None
+    assert config_load_role_readme_section_visibility(str(role)) is None
 
     cfg.write_text("readme: [bad]\n", encoding="utf-8")
-    assert scanner.load_readme_section_config(str(role)) is None
+    assert config_load_role_readme_section_config(str(role)) is None
 
     cfg.write_text("not: [valid\n", encoding="utf-8")
-    assert scanner.load_readme_section_config(str(role)) is None
+    assert config_load_role_readme_section_config(str(role)) is None
 
 
 def test_load_readme_section_config_collects_parse_warning_on_yaml_error(tmp_path):
@@ -2205,7 +2258,9 @@ def test_load_readme_section_config_collects_parse_warning_on_yaml_error(tmp_pat
     cfg.write_text("not: [valid\n", encoding="utf-8")
 
     warnings: list[str] = []
-    config = scanner.load_readme_section_config(str(role), warning_collector=warnings)
+    config = config_load_role_readme_section_config(
+        str(role), warning_collector=warnings
+    )
 
     assert config is None
     assert len(warnings) == 1
@@ -2220,7 +2275,7 @@ def test_load_readme_section_config_raises_in_strict_mode_on_yaml_error(tmp_path
     cfg.write_text("not: [valid\n", encoding="utf-8")
 
     with pytest.raises(RuntimeError, match="README_SECTION_CONFIG_YAML_INVALID"):
-        scanner.load_readme_section_config(str(role), strict=True)
+        config_load_role_readme_section_config(str(role), strict=True)
 
 
 def test_load_fail_on_unconstrained_dynamic_includes_reads_scan_toggle(tmp_path):
@@ -2232,7 +2287,7 @@ def test_load_fail_on_unconstrained_dynamic_includes_reads_scan_toggle(tmp_path)
         encoding="utf-8",
     )
 
-    assert scanner.load_fail_on_unconstrained_dynamic_includes(str(role)) is True
+    assert config_load_fail_on_unconstrained_dynamic_includes(str(role)) is True
 
 
 def test_run_scan_fails_on_unconstrained_dynamic_role_include_when_enabled(tmp_path):
@@ -2482,11 +2537,7 @@ def test_load_section_display_titles_parses_valid_entries_only(tmp_path, monkeyp
         "  role_variables: Role Variables\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(scanner, "DEFAULT_SECTION_DISPLAY_TITLES_PATH", titles)
-
-    loaded = config_load_section_display_titles(
-        scanner.DEFAULT_SECTION_DISPLAY_TITLES_PATH
-    )
+    loaded = config_load_section_display_titles(titles)
 
     assert loaded == {
         "purpose": "Purpose and Scope",

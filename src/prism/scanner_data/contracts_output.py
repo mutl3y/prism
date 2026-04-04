@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Self, TypedDict
 
+from prism.scanner_data.contracts_errors import FailureDetail
 from prism.scanner_data.contracts_request import ScanMetadata
 
 
@@ -102,6 +103,7 @@ class FinalOutputPayload(TypedDict):
     requirements: list[Any]
     default_filters: list[dict[str, Any]]
     metadata: dict[str, Any]
+    warnings: list[FailureDetail]
 
 
 class ScannerCounters(TypedDict):
@@ -196,6 +198,124 @@ class SectionBodyRenderResult(TypedDict):
     has_content: bool
 
 
+def validate_output_orchestrator_inputs(
+    *,
+    output_path: object,
+    options: object,
+) -> None:
+    """Validate OutputOrchestrator constructor inputs."""
+    if not isinstance(output_path, str) or not output_path.strip():
+        raise ValueError(
+            f"'output_path' must be a non-empty string. Got: {output_path!r}"
+        )
+    if not isinstance(options, dict):
+        raise ValueError(f"'options' must be a dict. Got: {options!r}")
+
+    output_format = options.get("output_format")
+    if output_format is not None and not isinstance(output_format, str):
+        raise ValueError(
+            "'options.output_format' must be a string when provided. "
+            f"Got: {output_format!r}"
+        )
+
+    for field_name in ("concise_readme", "include_scanner_report_link"):
+        field_value = options.get(field_name)
+        if field_value is not None and not isinstance(field_value, bool):
+            raise ValueError(
+                f"'options.{field_name}' must be a bool when provided. "
+                f"Got: {field_value!r}"
+            )
+
+    for field_name in (
+        "template",
+        "scanner_report_output",
+        "runbook_output",
+        "runbook_csv_output",
+    ):
+        field_value = options.get(field_name)
+        if field_value is not None and not isinstance(field_value, str):
+            raise ValueError(
+                f"'options.{field_name}' must be a string or None when provided. "
+                f"Got: {field_value!r}"
+            )
+
+
+def validate_runbook_sidecar_inputs(
+    *,
+    md_path: object,
+    csv_path: object,
+    role_name: object,
+    metadata: object,
+) -> None:
+    """Validate explicit runbook sidecar emission inputs."""
+    for field_name, field_value in (("md_path", md_path), ("csv_path", csv_path)):
+        if not isinstance(field_value, str):
+            raise ValueError(f"'{field_name}' must be a string. Got: {field_value!r}")
+
+    if not isinstance(role_name, str) or not role_name.strip():
+        raise ValueError(f"'role_name' must be a non-empty string. Got: {role_name!r}")
+
+    if metadata is not None and not isinstance(metadata, dict):
+        raise ValueError(f"'metadata' must be a dict or None. Got: {metadata!r}")
+
+
+def validate_run_scan_output_payload(payload: object) -> RunScanOutputPayload:
+    """Validate and normalize a run-scan payload at output/render boundaries."""
+    if not isinstance(payload, dict):
+        raise ValueError(
+            "'payload' must be a RunScanOutputPayload-compatible dict. "
+            f"Got: {payload!r}"
+        )
+
+    role_name = payload.get("role_name")
+    if not role_name or not isinstance(role_name, str) or not role_name.strip():
+        raise ValueError(
+            "'role_name' is required and cannot be empty. " f"Got: {role_name!r}"
+        )
+
+    description = payload.get("description")
+    if description is None or not isinstance(description, str):
+        raise ValueError(
+            "'description' is required and must be a string. " f"Got: {description!r}"
+        )
+
+    metadata = payload.get("metadata")
+    if metadata is None or not isinstance(metadata, dict):
+        raise ValueError(
+            "'metadata' is required and must be a dict. " f"Got: {metadata!r}"
+        )
+
+    display_variables = payload.get("display_variables", {})
+    if not isinstance(display_variables, dict):
+        raise ValueError(
+            "'display_variables' must be a dict when provided. "
+            f"Got: {display_variables!r}"
+        )
+
+    requirements_display = payload.get("requirements_display", [])
+    if not isinstance(requirements_display, list):
+        raise ValueError(
+            "'requirements_display' must be a list when provided. "
+            f"Got: {requirements_display!r}"
+        )
+
+    undocumented_default_filters = payload.get("undocumented_default_filters", [])
+    if not isinstance(undocumented_default_filters, list):
+        raise ValueError(
+            "'undocumented_default_filters' must be a list when provided. "
+            f"Got: {undocumented_default_filters!r}"
+        )
+
+    return {
+        "role_name": role_name,
+        "description": description,
+        "display_variables": display_variables,
+        "requirements_display": requirements_display,
+        "undocumented_default_filters": undocumented_default_filters,
+        "metadata": metadata,
+    }
+
+
 class ScanPayloadBuilder:
     """Fluent builder for constructing immutable RunScanOutputPayload TypedDicts.
 
@@ -232,36 +352,7 @@ class ScanPayloadBuilder:
 
     def build(self) -> RunScanOutputPayload:
         """Validate and return immutable RunScanOutputPayload TypedDict."""
-        role_name = self._payload.get("role_name")
-        if not role_name or not isinstance(role_name, str) or not role_name.strip():
-            raise ValueError(
-                "'role_name' is required and cannot be empty. " f"Got: {role_name!r}"
-            )
-
-        description = self._payload.get("description")
-        if description is None or not isinstance(description, str):
-            raise ValueError(
-                "'description' is required and must be a string. "
-                f"Got: {description!r}"
-            )
-
-        metadata = self._payload.get("metadata")
-        if metadata is None or not isinstance(metadata, dict):
-            raise ValueError(
-                "'metadata' is required and must be a dict. " f"Got: {metadata!r}"
-            )
-
-        result: RunScanOutputPayload = {
-            "role_name": role_name,
-            "description": description,
-            "display_variables": self._payload.get("display_variables", {}),
-            "requirements_display": self._payload.get("requirements_display", []),
-            "undocumented_default_filters": self._payload.get(
-                "undocumented_default_filters", []
-            ),
-            "metadata": metadata,
-        }
-        return result
+        return validate_run_scan_output_payload(dict(self._payload))
 
 
 __all__ = [
@@ -283,4 +374,7 @@ __all__ = [
     "ScannerReportSectionRenderInput",
     "ScannerReportYamlParseFailureRow",
     "SectionBodyRenderResult",
+    "validate_output_orchestrator_inputs",
+    "validate_run_scan_output_payload",
+    "validate_runbook_sidecar_inputs",
 ]

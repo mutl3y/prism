@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from prism.errors import normalize_metadata_warnings
 from prism.scanner_data.contracts_output import FinalOutputPayload
 
 
@@ -22,6 +23,7 @@ def build_final_output_payload(
     metadata: dict[str, Any],
 ) -> FinalOutputPayload:
     """Build the typed final-output payload contract."""
+    warnings = normalize_metadata_warnings(metadata)
     return {
         "role_name": role_name,
         "description": description,
@@ -29,6 +31,7 @@ def build_final_output_payload(
         "requirements": requirements,
         "default_filters": default_filters,
         "metadata": metadata,
+        "warnings": warnings,
     }
 
 
