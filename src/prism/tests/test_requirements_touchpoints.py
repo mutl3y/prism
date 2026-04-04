@@ -48,7 +48,7 @@ def test_canonical_scanner_packages_do_not_reverse_import_scanner_facade():
             "scanner_core",
             "scanner_extract",
             "scanner_io",
-            "scanner_analysis",
+            "scanner_reporting",
             "scanner_readme",
             "scanner_config",
         )

@@ -688,9 +688,27 @@ class TestSecretDetectionHelpers:
         assert variable_extractor._resembles_password_like(42) is False
         assert variable_extractor._resembles_password_like(None) is False
 
+    def test_resembles_password_like_detects_common_credential_families(self):
+        samples = [
+            "AKIAIOSFODNN7EXAMPLE",
+            "ghp_abcdefghijklmnopqrstuvwxyz1234567890ABCD",
+            "github_pat_11ABCDEF_abcdefghijklmnopqrstuvwxyz1234567890",
+        ]
+
+        for sample in samples:
+            assert variable_extractor._resembles_password_like(sample) is True
+
     def test_looks_secret_value_detects_vault_marker(self):
         assert (
             variable_extractor._looks_secret_value("$ANSIBLE_VAULT;1.1;AES256\n...")
+            is True
+        )
+
+    def test_looks_secret_value_detects_private_key_marker(self):
+        assert (
+            variable_extractor._looks_secret_value(
+                "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n-----END OPENSSH PRIVATE KEY-----"
+            )
             is True
         )
 
@@ -787,6 +805,37 @@ class TestReadSeedYaml:
         f.write_text("key: !unknown_tag value\n", encoding="utf-8")
         data, secrets = variable_extractor._read_seed_yaml(f)
         assert isinstance(data, dict)
+
+    def test_detects_high_confidence_secret_values_without_secret_name(self, tmp_path):
+        f = tmp_path / "seed.yml"
+        f.write_text("aws_access_key: AKIAIOSFODNN7EXAMPLE\n", encoding="utf-8")
+
+        data, secrets = variable_extractor._read_seed_yaml(f)
+
+        assert data["aws_access_key"] == "AKIAIOSFODNN7EXAMPLE"
+        assert "aws_access_key" in secrets
+
+
+class TestGeneratedJinjaFallbacks:
+    """Generated malformed Jinja snippets should not crash AST scanning."""
+
+    def test_ast_scan_handles_malformed_and_boundary_text(self):
+        snippets = [
+            "",
+            "{{",
+            "}}",
+            "{{ foo | default('x') ",
+            "{{ lookup('env', name='HOME') | default(bar) }}",
+            "{% if broken %}",
+            "{{ 'x' * 10 }}",
+        ]
+
+        for snippet in snippets:
+            results = jinja_analyzer._scan_text_for_default_filters_with_ast(
+                snippet,
+                [snippet],
+            )
+            assert isinstance(results, list)
 
 
 class TestResolveSeedVarFiles:
@@ -1165,7 +1214,7 @@ def test_variable_insights_wrappers_re_export_canonical_implementations():
 
 def test_runbook_bridge_wrappers_re_export_canonical_implementations():
     """Runbook helper bridge keeps canonical module behavior and no facade wrappers."""
-    from prism.scanner_analysis import (
+    from prism.scanner_reporting import (
         build_runbook_rows,
     )
 

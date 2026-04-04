@@ -6,7 +6,7 @@ This module consolidates variable-extraction logic currently spread across:
 - `prism.scanner_extract.task_parser` for task and include-file parsing helpers
 - `prism.scanner_extract.dataload` and `prism.scanner_extract.discovery` for
   YAML loading, map discovery, and scan identity inputs
-- `prism.scanner_analysis.metrics` for uncertainty tracking and error reasoning
+- `prism.scanner_reporting.metrics` for uncertainty tracking and error reasoning
 
 The VariableDiscovery class provides a cohesive interface for discovering,
 extracting, typing, and resolving all variables in a role.
@@ -19,6 +19,7 @@ from typing import Any
 
 from prism.scanner_core.di import DIContainer
 from prism.scanner_data.builders import VariableRowBuilder
+from prism.scanner_data.contracts_request import validate_variable_discovery_inputs
 from prism.scanner_data.contracts_variables import VariableRow
 from prism.scanner_extract.dataload import (
     iter_role_argument_spec_entries,
@@ -69,6 +70,7 @@ class VariableDiscovery:
                 - vars_seed_paths: External variable seed files
                 - ignore_unresolved_internal_underscore_references: Policy flag
         """
+        validate_variable_discovery_inputs(role_path=role_path, options=options)
         self._di = di
         self._role_path = role_path
         self._options = options

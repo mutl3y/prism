@@ -109,6 +109,41 @@ class TestScanPayloadBuilderInvariants:
         with pytest.raises(ValueError, match="description"):
             builder.build()
 
+    def test_build_rejects_non_dict_display_variables(self) -> None:
+        """build() rejects display_variables values that are not dicts."""
+        builder = ScanPayloadBuilder()
+        builder.role_name("test")
+        builder.description("desc")
+        builder.metadata(_build_test_metadata())
+        builder._payload["display_variables"] = ["bad"]  # type: ignore[assignment]
+
+        with pytest.raises(ValueError, match="display_variables"):
+            builder.build()
+
+    def test_build_rejects_non_list_requirements_display(self) -> None:
+        """build() rejects requirements_display values that are not lists."""
+        builder = ScanPayloadBuilder()
+        builder.role_name("test")
+        builder.description("desc")
+        builder.metadata(_build_test_metadata())
+        builder._payload["requirements_display"] = "bad"  # type: ignore[assignment]
+
+        with pytest.raises(ValueError, match="requirements_display"):
+            builder.build()
+
+    def test_build_rejects_non_list_undocumented_default_filters(self) -> None:
+        """build() rejects undocumented_default_filters values that are not lists."""
+        builder = ScanPayloadBuilder()
+        builder.role_name("test")
+        builder.description("desc")
+        builder.metadata(_build_test_metadata())
+        builder._payload["undocumented_default_filters"] = {  # type: ignore[assignment]
+            "bad": True
+        }
+
+        with pytest.raises(ValueError, match="undocumented_default_filters"):
+            builder.build()
+
 
 class TestScanPayloadBuilderDefaults:
     """Test default values applied by builder."""

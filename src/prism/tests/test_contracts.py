@@ -206,3 +206,86 @@ class TestContractsConsistency:
         assert (
             len(contract_classes) >= 14
         ), f"Expected at least 14 public contract classes, found {len(contract_classes)}"
+
+
+class TestContractValidators:
+    """Generated malformed inputs should be rejected at contract seams."""
+
+    @pytest.mark.parametrize(
+        ("role_path", "options"),
+        [
+            ("", {}),
+            ("/tmp/role", []),
+            ("/tmp/role", {"include_vars_main": "yes"}),
+            ("/tmp/role", {"exclude_path_patterns": "tasks/**"}),
+            ("/tmp/role", {"exclude_path_patterns": ["ok", 1]}),
+            ("/tmp/role", {"vars_seed_paths": [object()]}),
+        ],
+    )
+    def test_validate_variable_discovery_inputs_rejects_malformed_shapes(
+        self,
+        role_path: object,
+        options: object,
+    ) -> None:
+        from prism.scanner_data.contracts_request import (
+            validate_variable_discovery_inputs,
+        )
+
+        with pytest.raises(ValueError):
+            validate_variable_discovery_inputs(role_path=role_path, options=options)
+
+    @pytest.mark.parametrize(
+        ("di", "role_path", "options"),
+        [
+            (None, "/tmp/role", {}),
+            (object(), "", {}),
+            (object(), "/tmp/role", []),
+            (object(), "/tmp/role", {"exclude_path_patterns": "tasks/**"}),
+            (object(), "/tmp/role", {"exclude_path_patterns": ["ok", 1]}),
+        ],
+    )
+    def test_validate_feature_detector_inputs_rejects_malformed_shapes(
+        self,
+        di: object,
+        role_path: object,
+        options: object,
+    ) -> None:
+        from prism.scanner_data.contracts_request import (
+            validate_feature_detector_inputs,
+        )
+
+        with pytest.raises(ValueError):
+            validate_feature_detector_inputs(
+                di=di, role_path=role_path, options=options
+            )
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            None,
+            [],
+            {"role_name": "", "description": "desc", "metadata": {}},
+            {"role_name": "demo", "description": None, "metadata": {}},
+            {"role_name": "demo", "description": "desc", "metadata": []},
+            {
+                "role_name": "demo",
+                "description": "desc",
+                "metadata": {},
+                "display_variables": [],
+            },
+            {
+                "role_name": "demo",
+                "description": "desc",
+                "metadata": {},
+                "requirements_display": {},
+            },
+        ],
+    )
+    def test_validate_run_scan_output_payload_rejects_generated_bad_shapes(
+        self,
+        payload: object,
+    ) -> None:
+        from prism.scanner_data.contracts_output import validate_run_scan_output_payload
+
+        with pytest.raises(ValueError):
+            validate_run_scan_output_payload(payload)

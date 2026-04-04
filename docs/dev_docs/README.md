@@ -20,11 +20,13 @@ Reference index for engineering, maintenance, and governance.
 - [Provenance Tracking](./provenance-tracking.md): confidence model and source metadata
 - [CI Starter Workflows](./ci-starter-workflows.md): baseline pipeline templates
 - [CLI Targets](./cli-targets.md): subcommand intent and output strategy
+- [Dependency Hygiene](./dependency-hygiene.md): automated and local dependency vulnerability review path
 
 ## Governance and Plans
 
 - [Developer Changelog](./changelog.md): internal evolution history
 - [Roadmap and Backlog](./roadmap.md): active initiatives and priorities
+- [Review Follow-Up Implementation Plan](./review-followup-implementation-plan-20260403.md): trackable implementation plan derived from the latest broad code review
 - [Completed Plans Archive](./completed-plans.md): closed planning artifacts, including the architecture review/package-split closure
 - [Annotation Quality Workoff](./annotation-quality-workoff.md): quality policy implementation plan (complete)
 - [Style Guide Sources](./style-guide-sources.md): external standards references

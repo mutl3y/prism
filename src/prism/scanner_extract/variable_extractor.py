@@ -83,6 +83,13 @@ _WHEN_OPERATOR_KEYWORDS: frozenset[str] = frozenset(
         "ge",
     }
 )
+_HIGH_CONFIDENCE_SECRET_VALUE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\b(?:AKIA|ASIA|AIDA|AROA|AGPA|AIPA)[A-Z0-9]{16}\b"),
+    re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,255}\b"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
+    re.compile(r"\bxox(?:a|b|p|r|s)-[A-Za-z0-9-]{10,}\b"),
+    re.compile(r"-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----"),
+)
 
 # ---------------------------------------------------------------------------
 # Policy-derived constants (refreshed by scanner._refresh_policy)
@@ -555,6 +562,8 @@ def _resembles_password_like(value: object) -> bool:
 
     if any(marker in lowered for marker in vault_markers):
         return True
+    if any(pattern.search(raw) for pattern in _HIGH_CONFIDENCE_SECRET_VALUE_PATTERNS):
+        return True
     if raw.startswith(credential_prefixes):
         return True
     if raw.startswith(url_prefixes):
@@ -591,8 +600,13 @@ def _looks_secret_value(value: object) -> bool:
             _active_sensitivity_tokens()
         )
         lowered = value.lower()
-        return any(marker in lowered for marker in vault_markers) or lowered.startswith(
-            "vault_"
+        return (
+            any(marker in lowered for marker in vault_markers)
+            or lowered.startswith("vault_")
+            or any(
+                pattern.search(value)
+                for pattern in _HIGH_CONFIDENCE_SECRET_VALUE_PATTERNS
+            )
         )
     return False
 

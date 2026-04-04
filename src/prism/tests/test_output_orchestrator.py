@@ -14,6 +14,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from prism.scanner_core.di import DIContainer
 from prism.scanner_core.output_orchestrator import OutputOrchestrator
 from prism.scanner_data.contracts import RunScanOutputPayload
@@ -73,6 +75,136 @@ class TestOutputOrchestratorInstantiation:
         )
 
         assert orchestrator._options == options
+
+    @pytest.mark.parametrize("output_path", ["", "   ", None, 7])
+    def test_output_orchestrator_rejects_invalid_output_path(
+        self, tmp_path: Path, output_path: object
+    ) -> None:
+        di = DIContainer(
+            role_path="/tmp/test_role",
+            scan_options={"output_format": "md"},
+        )
+
+        with pytest.raises(
+            ValueError, match="'output_path' must be a non-empty string"
+        ):
+            OutputOrchestrator(
+                di=di,
+                output_path=output_path,  # type: ignore[arg-type]
+                options={"output_format": "md"},
+            )
+
+    @pytest.mark.parametrize("options", [None, "bad-options", []])
+    def test_output_orchestrator_rejects_non_dict_options(
+        self, tmp_path: Path, options: object
+    ) -> None:
+        di = DIContainer(
+            role_path="/tmp/test_role",
+            scan_options={"output_format": "md"},
+        )
+
+        with pytest.raises(ValueError, match="'options' must be a dict"):
+            OutputOrchestrator(
+                di=di,
+                output_path=str(tmp_path / "README.md"),
+                options=options,  # type: ignore[arg-type]
+            )
+
+    @pytest.mark.parametrize(
+        ("field_name", "field_value", "message"),
+        [
+            (
+                "output_format",
+                1,
+                "'options.output_format' must be a string when provided",
+            ),
+            (
+                "concise_readme",
+                "yes",
+                "'options.concise_readme' must be a bool when provided",
+            ),
+            (
+                "include_scanner_report_link",
+                "true",
+                "'options.include_scanner_report_link' must be a bool when provided",
+            ),
+            (
+                "template",
+                5,
+                "'options.template' must be a string or None when provided",
+            ),
+            (
+                "scanner_report_output",
+                False,
+                "'options.scanner_report_output' must be a string or None when provided",
+            ),
+            (
+                "runbook_output",
+                {},
+                "'options.runbook_output' must be a string or None when provided",
+            ),
+            (
+                "runbook_csv_output",
+                [],
+                "'options.runbook_csv_output' must be a string or None when provided",
+            ),
+        ],
+    )
+    def test_output_orchestrator_rejects_invalid_option_shapes(
+        self, tmp_path: Path, field_name: str, field_value: object, message: str
+    ) -> None:
+        di = DIContainer(
+            role_path="/tmp/test_role",
+            scan_options={"output_format": "md"},
+        )
+        options = {"output_format": "md", field_name: field_value}
+
+        with pytest.raises(ValueError, match=message):
+            OutputOrchestrator(
+                di=di,
+                output_path=str(tmp_path / "README.md"),
+                options=options,
+            )
+
+    @pytest.mark.parametrize("payload", [None, "bad-payload", []])
+    def test_render_and_emit_rejects_non_dict_payloads(
+        self, tmp_path: Path, payload: object
+    ) -> None:
+        di = DIContainer(
+            role_path="/tmp/test_role",
+            scan_options={"output_format": "md"},
+        )
+        orchestrator = OutputOrchestrator(
+            di=di,
+            output_path=str(tmp_path / "README.md"),
+            options={"output_format": "md"},
+        )
+
+        with pytest.raises(
+            ValueError, match="'payload' must be a RunScanOutputPayload-compatible dict"
+        ):
+            orchestrator.render_and_emit(payload, dry_run=True)  # type: ignore[arg-type]
+
+    def test_render_and_emit_rejects_invalid_payload_shapes(
+        self, tmp_path: Path
+    ) -> None:
+        di = DIContainer(
+            role_path="/tmp/test_role",
+            scan_options={"output_format": "md"},
+        )
+        orchestrator = OutputOrchestrator(
+            di=di,
+            output_path=str(tmp_path / "README.md"),
+            options={"output_format": "md"},
+        )
+
+        invalid_payload = _build_test_payload()
+        invalid_payload["display_variables"] = []  # type: ignore[assignment]
+
+        with pytest.raises(
+            ValueError, match="'display_variables' must be a dict when provided"
+        ):
+            orchestrator.render_and_emit(invalid_payload, dry_run=True)
 
 
 class TestOutputOrchestratorFormatResolution:
@@ -384,6 +516,54 @@ class TestOutputOrchestratorMetadataMutation:
 
 class TestOutputOrchestratorSidecarGeneration:
     """Test sidecar file generation (scanner-report, runbook)."""
+
+    @pytest.mark.parametrize(
+        ("md_path", "csv_path", "role_name", "metadata", "message"),
+        [
+            (None, "runbook.csv", "role", None, "'md_path' must be a string"),
+            ("runbook.md", None, "role", None, "'csv_path' must be a string"),
+            (
+                "runbook.md",
+                "runbook.csv",
+                "",
+                None,
+                "'role_name' must be a non-empty string",
+            ),
+            (
+                "runbook.md",
+                "runbook.csv",
+                "role",
+                "bad",
+                "'metadata' must be a dict or None",
+            ),
+        ],
+    )
+    def test_emit_runbook_sidecars_rejects_invalid_inputs(
+        self,
+        tmp_path: Path,
+        md_path: object,
+        csv_path: object,
+        role_name: object,
+        metadata: object,
+        message: str,
+    ) -> None:
+        di = DIContainer(
+            role_path="/tmp/test_role",
+            scan_options={"output_format": "md"},
+        )
+        orchestrator = OutputOrchestrator(
+            di=di,
+            output_path=str(tmp_path / "README.md"),
+            options={"output_format": "md"},
+        )
+
+        with pytest.raises(ValueError, match=message):
+            orchestrator.emit_runbook_sidecars(  # type: ignore[arg-type]
+                md_path,
+                csv_path,
+                role_name=role_name,
+                metadata=metadata,
+            )
 
     def test_emit_runbook_sidecars_returns_dict(self, tmp_path: Path) -> None:
         """emit_runbook_sidecars should return dict mapping paths to bytes written."""

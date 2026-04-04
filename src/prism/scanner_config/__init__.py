@@ -27,8 +27,11 @@ from prism.scanner_config.marker import (
 
 # README section configuration
 from prism.scanner_config.readme import (
+    DEFAULT_SECTION_DISPLAY_TITLES_PATH,
     load_readme_section_config,
     load_readme_section_visibility,
+    load_role_readme_section_config,
+    load_role_readme_section_visibility,
     resolve_role_config_file,
 )
 
@@ -68,8 +71,11 @@ __all__ = [
     # Marker loading
     "load_readme_marker_prefix",
     # README section configuration
+    "DEFAULT_SECTION_DISPLAY_TITLES_PATH",
     "load_readme_section_config",
     "load_readme_section_visibility",
+    "load_role_readme_section_config",
+    "load_role_readme_section_visibility",
     "resolve_role_config_file",
     # Scan policy loaders
     "load_fail_on_unconstrained_dynamic_includes",

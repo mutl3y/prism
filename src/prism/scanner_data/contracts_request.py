@@ -191,6 +191,221 @@ class ScanContextPayload(TypedDict):
     metadata: ScanMetadata
 
 
+def validate_variable_discovery_inputs(
+    *,
+    role_path: object,
+    options: object,
+) -> None:
+    """Validate VariableDiscovery constructor inputs at the request seam."""
+    if not isinstance(role_path, str) or not role_path.strip():
+        raise ValueError(f"'role_path' must be a non-empty string. Got: {role_path!r}")
+    if not isinstance(options, dict):
+        raise ValueError(f"'options' must be a dict. Got: {options!r}")
+
+    option_role_path = options.get("role_path")
+    if option_role_path is not None and (
+        not isinstance(option_role_path, str) or not option_role_path.strip()
+    ):
+        raise ValueError(
+            "'options.role_path' must be a non-empty string when provided. "
+            f"Got: {option_role_path!r}"
+        )
+
+    include_vars_main = options.get("include_vars_main")
+    if include_vars_main is not None and not isinstance(include_vars_main, bool):
+        raise ValueError(
+            "'options.include_vars_main' must be a bool when provided. "
+            f"Got: {include_vars_main!r}"
+        )
+
+    ignore_internal = options.get("ignore_unresolved_internal_underscore_references")
+    if ignore_internal is not None and not isinstance(ignore_internal, bool):
+        raise ValueError(
+            "'options.ignore_unresolved_internal_underscore_references' "
+            f"must be a bool when provided. Got: {ignore_internal!r}"
+        )
+
+    for field_name in ("exclude_path_patterns", "vars_seed_paths"):
+        field_value = options.get(field_name)
+        if field_value is None:
+            continue
+        if not isinstance(field_value, list):
+            raise ValueError(
+                f"'options.{field_name}' must be a list[str] or None. "
+                f"Got: {field_value!r}"
+            )
+        if any(not isinstance(item, str) for item in field_value):
+            raise ValueError(
+                f"'options.{field_name}' must contain only strings when provided. "
+                f"Got: {field_value!r}"
+            )
+
+
+def validate_feature_detector_inputs(
+    *,
+    di: object,
+    role_path: object,
+    options: object,
+) -> None:
+    """Validate FeatureDetector constructor inputs at the request seam."""
+    if di is None:
+        raise ValueError("'di' must not be None.")
+    if not isinstance(role_path, str) or not role_path.strip():
+        raise ValueError(f"'role_path' must be a non-empty string. Got: {role_path!r}")
+    if not isinstance(options, dict):
+        raise ValueError(f"'options' must be a dict. Got: {options!r}")
+
+    exclude_path_patterns = options.get("exclude_path_patterns")
+    if exclude_path_patterns is not None:
+        if not isinstance(exclude_path_patterns, list):
+            raise ValueError(
+                "'options.exclude_path_patterns' must be a list[str] or None. "
+                f"Got: {exclude_path_patterns!r}"
+            )
+        if any(not isinstance(item, str) for item in exclude_path_patterns):
+            raise ValueError(
+                "'options.exclude_path_patterns' must contain only strings when "
+                f"provided. Got: {exclude_path_patterns!r}"
+            )
+
+
+def validate_run_scan_option_inputs(
+    *,
+    role_path: object,
+    role_name_override: object,
+    readme_config_path: object,
+    include_vars_main: object,
+    exclude_path_patterns: object,
+    detailed_catalog: object,
+    include_task_parameters: object,
+    include_task_runbooks: object,
+    inline_task_runbooks: object,
+    include_collection_checks: object,
+    keep_unknown_style_sections: object,
+    adopt_heading_mode: object,
+    vars_seed_paths: object,
+    style_readme_path: object,
+    style_source_path: object,
+    style_guide_skeleton: object,
+    compare_role_path: object,
+    fail_on_unconstrained_dynamic_includes: object,
+    fail_on_yaml_like_task_annotations: object,
+    ignore_unresolved_internal_underscore_references: object,
+    policy_context: object,
+) -> None:
+    """Validate request-boundary scan options before runtime orchestration."""
+
+    def _require_non_empty_string(field_name: str, value: object) -> None:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(
+                f"'{field_name}' must be a non-empty string. Got: {value!r}"
+            )
+
+    def _require_optional_string(field_name: str, value: object) -> None:
+        if value is not None and not isinstance(value, str):
+            raise ValueError(f"'{field_name}' must be a string or None. Got: {value!r}")
+
+    def _require_bool(field_name: str, value: object) -> None:
+        if not isinstance(value, bool):
+            raise ValueError(f"'{field_name}' must be a bool. Got: {value!r}")
+
+    def _require_optional_bool(field_name: str, value: object) -> None:
+        if value is not None and not isinstance(value, bool):
+            raise ValueError(f"'{field_name}' must be a bool or None. Got: {value!r}")
+
+    def _require_optional_string_list(field_name: str, value: object) -> None:
+        if value is None:
+            return
+        if not isinstance(value, list):
+            raise ValueError(
+                f"'{field_name}' must be a list[str] or None. Got: {value!r}"
+            )
+        if any(not isinstance(item, str) for item in value):
+            raise ValueError(
+                f"'{field_name}' must contain only strings when provided. "
+                f"Got: {value!r}"
+            )
+
+    def _require_policy_context(value: object) -> None:
+        if value is None:
+            return
+        if not isinstance(value, dict):
+            raise ValueError(f"'policy_context' must be a dict or None. Got: {value!r}")
+
+        section_aliases = value.get("section_aliases")
+        if not isinstance(section_aliases, dict) or any(
+            not isinstance(key, str) or not isinstance(alias, str)
+            for key, alias in section_aliases.items()
+        ):
+            raise ValueError(
+                "'policy_context.section_aliases' must be a dict[str, str]. "
+                f"Got: {section_aliases!r}"
+            )
+
+        ignored_identifiers = value.get("ignored_identifiers")
+        if not isinstance(ignored_identifiers, frozenset) or any(
+            not isinstance(token, str) for token in ignored_identifiers
+        ):
+            raise ValueError(
+                "'policy_context.ignored_identifiers' must be a frozenset[str]. "
+                f"Got: {ignored_identifiers!r}"
+            )
+
+        guidance_keywords = value.get("variable_guidance_keywords")
+        if not isinstance(guidance_keywords, tuple) or any(
+            not isinstance(token, str) for token in guidance_keywords
+        ):
+            raise ValueError(
+                "'policy_context.variable_guidance_keywords' must be a tuple[str, ...]. "
+                f"Got: {guidance_keywords!r}"
+            )
+
+    _require_non_empty_string("role_path", role_path)
+
+    for field_name, field_value in (
+        ("role_name_override", role_name_override),
+        ("readme_config_path", readme_config_path),
+        ("adopt_heading_mode", adopt_heading_mode),
+        ("style_readme_path", style_readme_path),
+        ("style_source_path", style_source_path),
+        ("compare_role_path", compare_role_path),
+    ):
+        _require_optional_string(field_name, field_value)
+
+    for field_name, field_value in (
+        ("include_vars_main", include_vars_main),
+        ("detailed_catalog", detailed_catalog),
+        ("include_task_parameters", include_task_parameters),
+        ("include_task_runbooks", include_task_runbooks),
+        ("inline_task_runbooks", inline_task_runbooks),
+        ("include_collection_checks", include_collection_checks),
+        ("keep_unknown_style_sections", keep_unknown_style_sections),
+        ("style_guide_skeleton", style_guide_skeleton),
+    ):
+        _require_bool(field_name, field_value)
+
+    for field_name, field_value in (
+        (
+            "fail_on_unconstrained_dynamic_includes",
+            fail_on_unconstrained_dynamic_includes,
+        ),
+        ("fail_on_yaml_like_task_annotations", fail_on_yaml_like_task_annotations),
+        (
+            "ignore_unresolved_internal_underscore_references",
+            ignore_unresolved_internal_underscore_references,
+        ),
+    ):
+        _require_optional_bool(field_name, field_value)
+
+    for field_name, field_value in (
+        ("exclude_path_patterns", exclude_path_patterns),
+        ("vars_seed_paths", vars_seed_paths),
+    ):
+        _require_optional_string_list(field_name, field_value)
+
+    _require_policy_context(policy_context)
+
+
 __all__ = [
     "FeaturesContext",
     "PolicyContext",
@@ -201,6 +416,9 @@ __all__ = [
     "ScanOptionsDict",
     "ScanPhaseError",
     "StyleGuideConfig",
+    "validate_feature_detector_inputs",
+    "validate_variable_discovery_inputs",
+    "validate_run_scan_option_inputs",
     "_SectionTitleBucket",
     "_StyleSection",
 ]

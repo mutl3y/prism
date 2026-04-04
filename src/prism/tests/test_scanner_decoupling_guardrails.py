@@ -9,7 +9,7 @@ from pathlib import Path
 _SCANNER_DOMAIN_PREFIXES = (
     "prism.scanner_extract",
     "prism.scanner_readme",
-    "prism.scanner_analysis",
+    "prism.scanner_reporting",
     "prism.scanner_io",
     "prism.scanner_config",
     "prism.scanner_core",
@@ -25,7 +25,7 @@ _FORBIDDEN_PRIVATE_HELPERS_BY_DOMAIN: dict[str, set[str]] = {
         "_split_task_annotation_label",
         "_task_anchor",
     },
-    "prism.scanner_analysis": {
+    "prism.scanner_reporting": {
         "_extract_scanner_counters",
     },
 }

@@ -28,6 +28,7 @@ The current architecture is no longer in a transition-first state.
 - `prism.scanner`, `prism.api`, `prism.cli`, and `prism.repo_services` are the stable top-level facades
 - package-owned implementation is the default home for extension work
 - the `prism-architecture-review-top50-20260401` closure finalized the CLI/API/repo split and froze the intentional facade seam registers
+- stable facade does not mean default extension target; new implementation should land in the owning package first and be surfaced through the facade only when the public contract truly needs it
 
 ## Package Naming Standard
 
@@ -47,7 +48,7 @@ Use fully qualified package names when describing ownership or extension targets
 | `prism.scanner_data` | typed contracts and builders for request/result envelopes, scan payloads, report metadata, and variable rows |
 | `prism.scanner_extract` | YAML/task traversal, variable/reference extraction, role feature collection, requirements and discovery loaders |
 | `prism.scanner_readme` | README rendering, style parsing/normalization, documentation insights, section composition |
-| `prism.scanner_analysis` | scanner metrics, report shaping, runbook generation, dependency analysis helpers |
+| `prism.scanner_reporting` | scanner metrics, report shaping, runbook generation, and related reporting/dependency artifacts |
 | `prism.scanner_io` | output rendering/writing, scan output emission, YAML candidate loading and parse-failure reporting |
 | `prism.scanner_config` | policy/config loading, style/section markers, legacy retirement behavior, runtime scan policy switches |
 | `prism.scanner_compat` | compatibility bridge helpers isolated from canonical runtime paths |

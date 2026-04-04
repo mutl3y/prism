@@ -14,7 +14,7 @@ import pytest
 import prism.api_layer
 import prism.cli_app
 import prism.repo_layer
-import prism.scanner_analysis
+import prism.scanner_reporting
 import prism.scanner_compat
 import prism.scanner_config
 import prism.scanner_core
@@ -31,7 +31,7 @@ import prism.scanner_readme
         (prism.cli_app, tuple(), False),
         (prism.repo_layer, tuple(), False),
         (
-            prism.scanner_analysis,
+            prism.scanner_reporting,
             ("render_runbook", "build_scanner_report_markdown"),
             True,
         ),

@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from prism import scanner
 from prism.scanner_core import DIContainer
 from prism.scanner_core import variable_discovery as variable_discovery_module
@@ -20,6 +22,83 @@ from prism.scanner_core.variable_discovery import VariableDiscovery
 
 class TestVariableDiscoveryStaticDiscovery:
     """Static discovery: defaults/vars/meta/include_vars/set_fact."""
+
+    @pytest.mark.parametrize("role_path", ["", "   ", None, 12])
+    def test_variable_discovery_rejects_invalid_role_path(self, tmp_path, role_path):
+        options = {
+            "role_path": str(tmp_path),
+            "include_vars_main": True,
+            "exclude_path_patterns": None,
+            "vars_seed_paths": None,
+            "ignore_unresolved_internal_underscore_references": False,
+        }
+        di = DIContainer(str(tmp_path), options)
+
+        with pytest.raises(ValueError, match="'role_path' must be a non-empty string"):
+            VariableDiscovery(di, role_path, options)  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize("options", [None, "bad-options", []])
+    def test_variable_discovery_rejects_non_dict_options(self, tmp_path, options):
+        di = DIContainer(str(tmp_path), {"role_path": str(tmp_path)})
+
+        with pytest.raises(ValueError, match="'options' must be a dict"):
+            VariableDiscovery(di, str(tmp_path), options)  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize(
+        ("field_name", "field_value", "message"),
+        [
+            (
+                "role_path",
+                "",
+                "'options.role_path' must be a non-empty string when provided",
+            ),
+            (
+                "include_vars_main",
+                "yes",
+                "'options.include_vars_main' must be a bool when provided",
+            ),
+            (
+                "ignore_unresolved_internal_underscore_references",
+                "no",
+                "'options.ignore_unresolved_internal_underscore_references' must be a bool when provided",
+            ),
+            (
+                "exclude_path_patterns",
+                "tasks/*",
+                "'options.exclude_path_patterns' must be a list\\[str\\] or None",
+            ),
+            (
+                "exclude_path_patterns",
+                ["tasks/*", 7],
+                "'options.exclude_path_patterns' must contain only strings when provided",
+            ),
+            (
+                "vars_seed_paths",
+                "vars/seed.yml",
+                "'options.vars_seed_paths' must be a list\\[str\\] or None",
+            ),
+            (
+                "vars_seed_paths",
+                ["vars/seed.yml", 9],
+                "'options.vars_seed_paths' must contain only strings when provided",
+            ),
+        ],
+    )
+    def test_variable_discovery_rejects_invalid_option_shapes(
+        self, tmp_path, field_name, field_value, message
+    ):
+        options = {
+            "role_path": str(tmp_path),
+            "include_vars_main": True,
+            "exclude_path_patterns": None,
+            "vars_seed_paths": None,
+            "ignore_unresolved_internal_underscore_references": False,
+            field_name: field_value,
+        }
+        di = DIContainer(str(tmp_path), options)
+
+        with pytest.raises(ValueError, match=message):
+            VariableDiscovery(di, str(tmp_path), options)
 
     def test_discover_static_empty_role(self, tmp_path):
         """Empty role yields empty variable tuple."""

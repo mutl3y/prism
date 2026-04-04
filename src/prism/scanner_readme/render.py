@@ -26,6 +26,27 @@ DEFAULT_SECTION_SPECS = [
     ("default_filters", "Detected usages of the default() filter"),
 ]
 
+EXTRA_SECTION_IDS = {
+    "basic_authorization",
+    "handlers",
+    "installation",
+    "license",
+    "author_information",
+    "license_author",
+    "sponsors",
+    "template_overrides",
+    "variable_guidance",
+    "local_testing",
+    "faq_pitfalls",
+    "contributing",
+    "scanner_report",
+    "role_notes",
+}
+
+ALL_SECTION_IDS = {
+    section_id for section_id, _ in DEFAULT_SECTION_SPECS
+} | EXTRA_SECTION_IDS
+
 SCANNER_STATS_SECTION_IDS = {
     "task_summary",
     "role_contents",

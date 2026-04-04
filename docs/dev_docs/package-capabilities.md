@@ -30,6 +30,12 @@ Use fully qualified Python package names when documenting ownership, imports, gu
 | `prism.cli` | stable CLI entrypoint, parser export, and top-level exit handling |
 | `prism.repo_services` | stable shared repo-intake facade used by both API and CLI layers |
 
+Facade rule:
+
+- keep these modules stable for users and callers
+- do not treat them as the default home for new multi-step behavior
+- add new implementation in the owning package first, then surface it through a facade only when it is intentionally public
+
 ## Package-Owned Capabilities
 
 ### `prism.api_layer`
@@ -94,9 +100,9 @@ Owns README rendering and documentation composition.
 - documentation insights and README-input parsing
 - guide, notes, and variable rendering helpers
 
-### `prism.scanner_analysis`
+### `prism.scanner_reporting`
 
-Owns reporting and analysis helpers.
+Owns reporting artifacts, counters, and related reporting helpers.
 
 - scanner counters and provenance issue classification
 - scanner report row shaping and markdown rendering

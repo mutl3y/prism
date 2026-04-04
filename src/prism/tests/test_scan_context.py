@@ -13,6 +13,7 @@ from prism.scanner_core import scan_request
 from prism.scanner_core import scan_runtime
 from prism.scanner_data import ScanContextPayload, contracts
 from prism.scanner_extract import variable_extractor
+from prism.scanner_readme import render_guide_section_body
 from prism.scanner_readme import guide as readme_guide
 from prism.scanner_readme import style as readme_style
 from prism.tests import _scan_context_execution_tail as scan_context_execution_tail
@@ -195,7 +196,7 @@ def test_refresh_policy_updates_variable_guidance_rendering_in_process(monkeypat
         ]
     }
 
-    before = scanner._render_guide_section_body(
+    before = render_guide_section_body(
         "variable_guidance",
         "demo",
         "",
@@ -209,7 +210,7 @@ def test_refresh_policy_updates_variable_guidance_rendering_in_process(monkeypat
     readme_guide.refresh_policy_derived_state(patched_policy)
 
     try:
-        after = scanner._render_guide_section_body(
+        after = render_guide_section_body(
             "variable_guidance",
             "demo",
             "",
@@ -326,7 +327,7 @@ def test_render_guide_section_body_uses_request_scoped_variable_guidance_keyword
         ]
     }
 
-    before = scanner._render_guide_section_body(
+    before = render_guide_section_body(
         "variable_guidance",
         "demo",
         "",
@@ -338,7 +339,7 @@ def test_render_guide_section_body_uses_request_scoped_variable_guidance_keyword
     assert "zzzz_nonpriority_alpha" in before
 
     with readme_guide.variable_guidance_keywords_scope(("bertrum_runtime",)):
-        after = scanner._render_guide_section_body(
+        after = render_guide_section_body(
             "variable_guidance",
             "demo",
             "",
@@ -384,7 +385,7 @@ def test_run_scan_payload_scopes_policy_without_mutating_canonical_defaults(
 
     baseline_style = scanner.parse_style_readme(str(style))
     baseline_refs = variable_extractor._collect_referenced_variable_names(str(role))
-    baseline_guidance = scanner._render_guide_section_body(
+    baseline_guidance = render_guide_section_body(
         "variable_guidance",
         "demo",
         "",
@@ -407,7 +408,7 @@ def test_run_scan_payload_scopes_policy_without_mutating_canonical_defaults(
     def _fake_orchestrate_scan_payload(*, role_path: str, scan_options: dict):
         scoped_style = scanner.parse_style_readme(str(style))
         scoped_refs = variable_extractor._collect_referenced_variable_names(role_path)
-        scoped_guidance = scanner._render_guide_section_body(
+        scoped_guidance = render_guide_section_body(
             "variable_guidance",
             "demo",
             "",

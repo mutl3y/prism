@@ -16,13 +16,13 @@ from prism._jinja_analyzer import (
     _scan_text_for_default_filters_with_ast,
 )
 from prism.errors import FailurePolicy
-from prism.scanner_analysis import (
+from prism.scanner_reporting import (
     build_scanner_report_markdown as _runbook_report_build_scanner_report_markdown,
     extract_scanner_counters as _analysis_extract_scanner_counters,
     render_runbook as _runbook_report_render_runbook,
     render_runbook_csv as _runbook_report_render_runbook_csv,
 )
-from prism.scanner_analysis.metrics import (
+from prism.scanner_reporting.metrics import (
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILE_BYTES as _ANALYSIS_MAX_FILE_BYTES,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_FILES_SCANNED as _ANALYSIS_MAX_FILES_SCANNED,
     NON_AUTHORITATIVE_TEST_EVIDENCE_MAX_TOTAL_BYTES as _ANALYSIS_MAX_TOTAL_BYTES,
@@ -39,8 +39,7 @@ from prism.scanner_config import (
     load_non_authoritative_test_evidence_max_total_bytes as _load_non_authoritative_test_evidence_max_total_bytes,
     load_pattern_policy_with_context,
     load_readme_marker_prefix as _load_readme_marker_prefix,
-    load_readme_section_config as _load_readme_section_config,
-    load_readme_section_visibility as _load_readme_section_visibility,
+    load_role_readme_section_config as _load_role_readme_section_config,
     resolve_default_style_guide_source as _config_resolve_default_style_guide_source,
 )
 from prism.scanner_core import DIContainer, ScanContextBuilder, ScannerContext
@@ -50,13 +49,9 @@ from prism.scanner_core import scan_runtime as _scan_runtime
 from prism.scanner_core import variable_insights as _variable_insights
 from prism.scanner_core import variable_pipeline as _variable_pipeline
 from prism.scanner_data.contracts import (
-    ScanMetadata as _scan_context_ScanMetadata,
-)
-from prism.scanner_data.contracts_output import (
     RunScanOutputPayload as _RunScanOutputPayload,
 )
 from prism.scanner_data.contracts_request import PolicyContext as _PolicyContext
-from prism.scanner_data.contracts_request import ScanOptionsDict as _ScanOptionsDict
 from prism.scanner_data.contracts_variables import (
     ReferenceContext as _scan_context_ReferenceContext,
 )
@@ -107,28 +102,12 @@ from prism.scanner_io.scan_output_primary import (
 from prism.scanner_readme import (
     append_scanner_report_section_if_enabled as _readme_append_scanner_report_section_if_enabled,
     build_doc_insights,
-    normalize_style_heading,
     parse_style_readme,
-    render_guide_section_body as _readme_render_guide_section_body,
+    render_guide_section_body,
 )
 from prism.scanner_readme import guide as _readme_guide
 from prism.scanner_readme import render_readme as _readme_render_readme
 from prism.scanner_readme import style as _readme_style
-
-DEFAULT_SECTION_SPECS = [
-    ("galaxy_info", "Galaxy Info"),
-    ("requirements", "Requirements"),
-    ("purpose", "Role purpose and capabilities"),
-    ("role_notes", "Role notes"),
-    ("variable_summary", "Inputs / variables summary"),
-    ("task_summary", "Task/module usage summary"),
-    ("example_usage", "Inferred example usage"),
-    ("role_variables", "Role Variables"),
-    ("role_contents", "Role contents summary"),
-    ("features", "Auto-detected role features"),
-    ("comparison", "Comparison against local baseline role"),
-    ("default_filters", "Detected usages of the default() filter"),
-]
 
 SCANNER_STATS_SECTION_IDS = {
     "task_summary",
@@ -137,26 +116,6 @@ SCANNER_STATS_SECTION_IDS = {
     "comparison",
     "default_filters",
 }
-
-_EXTRA_SECTION_IDS = {
-    "basic_authorization",
-    "handlers",
-    "installation",
-    "license",
-    "author_information",
-    "license_author",
-    "sponsors",
-    "template_overrides",
-    "variable_guidance",
-    "local_testing",
-    "faq_pitfalls",
-    "contributing",
-    "scanner_report",
-    "role_notes",
-}
-ALL_SECTION_IDS = {
-    section_id for section_id, _ in DEFAULT_SECTION_SPECS
-} | _EXTRA_SECTION_IDS
 
 IGNORED_DIRS = (".git", "__pycache__", "venv", ".venv", "node_modules")
 DEFAULT_RE = re.compile(
@@ -174,9 +133,6 @@ XDG_DATA_HOME_ENV = "XDG_DATA_HOME"
 STYLE_GUIDE_DATA_DIRNAME = "prism"
 SYSTEM_STYLE_GUIDE_SOURCE_PATH = (
     Path("/var/lib") / STYLE_GUIDE_DATA_DIRNAME / DEFAULT_STYLE_GUIDE_SOURCE_FILENAME
-)
-DEFAULT_SECTION_DISPLAY_TITLES_PATH = (
-    Path(__file__).parent / "data" / "section_display_titles.yml"
 )
 DEFAULT_DOC_MARKER_PREFIX = READMECFG_DEFAULT_DOC_MARKER_PREFIX
 
@@ -503,167 +459,12 @@ def build_variable_insights(
     )
 
 
-def get_style_section_aliases_snapshot() -> dict[str, str]:
-    """Return an isolated copy of the currently active section alias mapping."""
-    return _readme_style.get_style_section_aliases_snapshot()
-
-
 load_readme_marker_prefix = partial(
     _load_readme_marker_prefix,
     default_prefix=DEFAULT_DOC_MARKER_PREFIX,
     config_filenames=SECTION_CONFIG_FILENAMES,
     default_filename=SECTION_CONFIG_FILENAME,
 )
-
-
-def load_fail_on_unconstrained_dynamic_includes(
-    role_path: str,
-    config_path: str | None = None,
-    default: bool = False,
-) -> bool:
-    """Compatibility wrapper that intentionally preserves loader exceptions."""
-    return _load_fail_on_unconstrained_dynamic_includes(
-        role_path,
-        config_path=config_path,
-        default=default,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
-    )
-
-
-def load_fail_on_yaml_like_task_annotations(
-    role_path: str,
-    config_path: str | None = None,
-    default: bool = False,
-) -> bool:
-    """Compatibility wrapper that intentionally preserves loader exceptions."""
-    return _load_fail_on_yaml_like_task_annotations(
-        role_path,
-        config_path=config_path,
-        default=default,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
-    )
-
-
-def load_ignore_unresolved_internal_underscore_references(
-    role_path: str,
-    config_path: str | None = None,
-    default: bool = True,
-) -> bool:
-    """Compatibility wrapper that intentionally preserves loader exceptions."""
-    return _load_ignore_unresolved_internal_underscore_references(
-        role_path,
-        config_path=config_path,
-        default=default,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
-    )
-
-
-def load_non_authoritative_test_evidence_max_file_bytes(
-    role_path: str,
-    config_path: str | None = None,
-    default: int = _ANALYSIS_MAX_FILE_BYTES,
-) -> int:
-    return _load_non_authoritative_test_evidence_max_file_bytes(
-        role_path,
-        config_path=config_path,
-        default=default,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
-    )
-
-
-def load_non_authoritative_test_evidence_max_files_scanned(
-    role_path: str,
-    config_path: str | None = None,
-    default: int = _ANALYSIS_MAX_FILES_SCANNED,
-) -> int:
-    return _load_non_authoritative_test_evidence_max_files_scanned(
-        role_path,
-        config_path=config_path,
-        default=default,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
-    )
-
-
-def load_non_authoritative_test_evidence_max_total_bytes(
-    role_path: str,
-    config_path: str | None = None,
-    default: int = _ANALYSIS_MAX_TOTAL_BYTES,
-) -> int:
-    return _load_non_authoritative_test_evidence_max_total_bytes(
-        role_path,
-        config_path=config_path,
-        default=default,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
-    )
-
-
-def load_readme_section_visibility(
-    role_path: str,
-    config_path: str | None = None,
-) -> set[str] | None:
-    return _load_readme_section_visibility(
-        role_path=role_path,
-        config_path=config_path,
-        adopt_heading_mode=None,
-        all_section_ids=ALL_SECTION_IDS,
-        section_aliases=get_style_section_aliases_snapshot(),
-        normalize_heading=normalize_style_heading,
-        display_titles_path=DEFAULT_SECTION_DISPLAY_TITLES_PATH,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
-    )
-
-
-def load_readme_section_config(
-    role_path: str,
-    config_path: str | None = None,
-    adopt_heading_mode: str | None = None,
-    strict: bool = False,
-    warning_collector: list[str] | None = None,
-) -> dict | None:
-    return _load_readme_section_config(
-        role_path=role_path,
-        config_path=config_path,
-        adopt_heading_mode=adopt_heading_mode,
-        all_section_ids=ALL_SECTION_IDS,
-        section_aliases=get_style_section_aliases_snapshot(),
-        normalize_heading=normalize_style_heading,
-        display_titles_path=DEFAULT_SECTION_DISPLAY_TITLES_PATH,
-        strict=strict,
-        warning_collector=warning_collector,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
-    )
-
-
-def _render_guide_section_body(
-    section_id: str,
-    role_name: str,
-    description: str,
-    variables: dict,
-    requirements: list,
-    default_filters: list,
-    metadata: dict,
-    *,
-    variable_guidance_keywords: tuple[str, ...] | None = None,
-) -> str:
-    """Render README guide sections using the currently active policy keywords."""
-    return _readme_render_guide_section_body(
-        section_id,
-        role_name,
-        description,
-        variables,
-        requirements,
-        default_filters,
-        metadata,
-        variable_guidance_keywords=variable_guidance_keywords,
-    )
 
 
 _append_scanner_report_section_if_enabled = (
@@ -673,7 +474,7 @@ _append_scanner_report_section_if_enabled = (
 
 _build_scanner_report_markdown = partial(
     _runbook_report_build_scanner_report_markdown,
-    render_section_body=_render_guide_section_body,
+    render_section_body=render_guide_section_body,
 )
 
 
@@ -698,23 +499,6 @@ _collect_scan_artifacts = partial(
     ),
     collect_task_handler_catalog=_collect_task_handler_catalog,
 )
-
-
-def _apply_readme_section_config(
-    metadata: _scan_context_ScanMetadata, readme_section_config: dict | None
-) -> None:
-    """Apply resolved README section configuration into scan metadata."""
-    if readme_section_config is None:
-        return
-    metadata["enabled_sections"] = sorted(readme_section_config["enabled_sections"])
-    if readme_section_config["section_title_overrides"]:
-        metadata["section_title_overrides"] = dict(
-            readme_section_config["section_title_overrides"]
-        )
-    if readme_section_config["section_content_modes"]:
-        metadata["section_content_modes"] = dict(
-            readme_section_config["section_content_modes"]
-        )
 
 
 _build_undocumented_default_filters = partial(
@@ -755,14 +539,14 @@ _render_and_write_scan_output = partial(
 _apply_unconstrained_dynamic_include_policy = partial(
     _scan_runtime.apply_unconstrained_dynamic_include_policy,
     load_fail_on_unconstrained_dynamic_includes=(
-        load_fail_on_unconstrained_dynamic_includes
+        _load_fail_on_unconstrained_dynamic_includes
     ),
 )
 
 
 _apply_yaml_like_task_annotation_policy = partial(
     _scan_runtime.apply_yaml_like_task_annotation_policy,
-    load_fail_on_yaml_like_task_annotations=(load_fail_on_yaml_like_task_annotations),
+    load_fail_on_yaml_like_task_annotations=(_load_fail_on_yaml_like_task_annotations),
 )
 
 
@@ -780,8 +564,8 @@ _collect_scan_identity_and_artifacts = partial(
 _apply_scan_metadata_configuration = partial(
     _scan_runtime.apply_scan_metadata_configuration,
     build_requirements_display=_runbook_report_build_requirements_display,
-    load_readme_section_config=load_readme_section_config,
-    apply_readme_section_config=_apply_readme_section_config,
+    load_readme_section_config=_load_role_readme_section_config,
+    apply_readme_section_config=_scan_runtime.apply_readme_section_config,
 )
 
 
@@ -809,16 +593,16 @@ _prepare_scan_context = partial(
     scan_context_builder_cls=ScanContextBuilder,
     collect_scan_base_context=_collect_scan_base_context,
     load_ignore_unresolved_internal_underscore_references=(
-        load_ignore_unresolved_internal_underscore_references
+        _load_ignore_unresolved_internal_underscore_references
     ),
     load_non_authoritative_test_evidence_max_file_bytes=(
-        load_non_authoritative_test_evidence_max_file_bytes
+        _load_non_authoritative_test_evidence_max_file_bytes
     ),
     load_non_authoritative_test_evidence_max_files_scanned=(
-        load_non_authoritative_test_evidence_max_files_scanned
+        _load_non_authoritative_test_evidence_max_files_scanned
     ),
     load_non_authoritative_test_evidence_max_total_bytes=(
-        load_non_authoritative_test_evidence_max_total_bytes
+        _load_non_authoritative_test_evidence_max_total_bytes
     ),
     enrich_scan_context_with_insights=_enrich_scan_context_with_insights,
     finalize_scan_context_payload=_finalize_scan_context_payload,
@@ -843,56 +627,38 @@ _emit_scan_outputs = partial(
 )
 
 
-def _execute_scan_with_context(
-    *,
-    role_path: str,
-    scan_options: _ScanOptionsDict,
-    output: str,
-    output_format: str,
-    concise_readme: bool,
-    scanner_report_output: str | None,
-    include_scanner_report_link: bool,
-    template: str | None,
-    dry_run: bool,
-    runbook_output: str | None,
-    runbook_csv_output: str | None,
-) -> str | bytes:
-    """Execute scan using ScannerContext orchestration and emit final outputs."""
-    return _scan_facade_helpers.execute_scan_with_context(
-        role_path=role_path,
-        scan_options=scan_options,
-        output=output,
-        output_format=output_format,
-        concise_readme=concise_readme,
-        scanner_report_output=scanner_report_output,
-        include_scanner_report_link=include_scanner_report_link,
-        template=template,
-        dry_run=dry_run,
-        runbook_output=runbook_output,
-        runbook_csv_output=runbook_csv_output,
-        di_container_cls=DIContainer,
-        scanner_context_cls=ScannerContext,
-        build_run_scan_options_fn=scan_request.build_run_scan_options_canonical,
-        prepare_scan_context_fn=_prepare_scan_context,
-        build_emit_scan_outputs_args_fn=_build_emit_scan_outputs_args,
-        emit_scan_outputs_fn=_emit_scan_outputs,
-    )
+class _ExecuteScanWithContextBinding:
+    """Late-bound scanner-context execution seam for facade-level compatibility."""
+
+    def __call__(self, **kwargs):
+        return _scan_facade_helpers.execute_scan_with_context(
+            **kwargs,
+            di_container_cls=DIContainer,
+            scanner_context_cls=ScannerContext,
+            build_run_scan_options_fn=scan_request.build_run_scan_options_canonical,
+            prepare_scan_context_fn=_prepare_scan_context,
+            build_emit_scan_outputs_args_fn=_build_emit_scan_outputs_args,
+            emit_scan_outputs_fn=_emit_scan_outputs,
+        )
 
 
-def _orchestrate_scan_payload(
-    *,
-    role_path: str,
-    scan_options: _ScanOptionsDict,
-) -> _RunScanOutputPayload:
-    """Execute scan orchestration and return the structured payload."""
-    return _scan_facade_helpers.orchestrate_scan_payload(
-        role_path=role_path,
-        scan_options=scan_options,
-        di_container_cls=DIContainer,
-        scanner_context_cls=ScannerContext,
-        build_run_scan_options_fn=scan_request.build_run_scan_options_canonical,
-        prepare_scan_context_fn=_prepare_scan_context,
-    )
+class _OrchestrateScanPayloadBinding:
+    """Late-bound payload orchestration seam for facade-level compatibility."""
+
+    def __call__(self, **kwargs):
+        return _scan_facade_helpers.orchestrate_scan_payload(
+            **kwargs,
+            di_container_cls=DIContainer,
+            scanner_context_cls=ScannerContext,
+            build_run_scan_options_fn=scan_request.build_run_scan_options_canonical,
+            prepare_scan_context_fn=_prepare_scan_context,
+        )
+
+
+_execute_scan_with_context = _ExecuteScanWithContextBinding()
+
+
+_orchestrate_scan_payload = _OrchestrateScanPayloadBinding()
 
 
 _build_runtime_scan_state = partial(
@@ -908,6 +674,13 @@ _scan_policy_scope = partial(
     variable_policy_scope=_variable_extractor.policy_override_scope,
     style_section_aliases_scope=_readme_style.style_section_aliases_scope,
     variable_guidance_keywords_scope=_readme_guide.variable_guidance_keywords_scope,
+)
+
+
+_execute_with_runtime_policy = partial(
+    _scan_runtime.execute_with_runtime_policy,
+    build_runtime_scan_state_fn=_build_runtime_scan_state,
+    scan_policy_scope_fn=_scan_policy_scope,
 )
 
 
@@ -943,7 +716,7 @@ def _run_scan_payload(
     runbook_csv_output: str | None = None,
 ) -> _RunScanOutputPayload:
     """Scan a role and return the structured payload without rendering output."""
-    loaded_policy, policy_context, scan_options = _build_runtime_scan_state(
+    return _execute_with_runtime_policy(
         role_path=role_path,
         role_name_override=role_name_override,
         readme_config_path=readme_config_path,
@@ -971,15 +744,11 @@ def _run_scan_payload(
         failure_policy=failure_policy,
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
-    )
-    with _scan_policy_scope(
-        loaded_policy=loaded_policy,
-        policy_context=policy_context,
-    ):
-        return _orchestrate_scan_payload(
+        invoke_scan_fn=lambda scan_options: _orchestrate_scan_payload(
             role_path=role_path,
             scan_options=scan_options,
-        )
+        ),
+    )
 
 
 def run_scan(
@@ -1020,7 +789,7 @@ def run_scan(
 
     Delegates scan orchestration to ScannerContext and then emits outputs.
     """
-    loaded_policy, policy_context, scan_options = _build_runtime_scan_state(
+    return _execute_with_runtime_policy(
         role_path=role_path,
         role_name_override=role_name_override,
         readme_config_path=readme_config_path,
@@ -1048,12 +817,7 @@ def run_scan(
         failure_policy=failure_policy,
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
-    )
-    with _scan_policy_scope(
-        loaded_policy=loaded_policy,
-        policy_context=policy_context,
-    ):
-        return _execute_scan_with_context(
+        invoke_scan_fn=lambda scan_options: _execute_scan_with_context(
             role_path=role_path,
             scan_options=scan_options,
             output=output,
@@ -1065,4 +829,5 @@ def run_scan(
             dry_run=dry_run,
             runbook_output=runbook_output,
             runbook_csv_output=runbook_csv_output,
-        )
+        ),
+    )

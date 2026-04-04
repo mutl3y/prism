@@ -82,3 +82,18 @@
 - Canonical CLI ownership now lives under `src/prism/cli_app/`, and `cli.py` now binds directly to that package instead of top-level CLI helper wrapper modules.
 - Canonical repo helper ownership now lives under `src/prism/repo_layer/`; `repo_services.py` remains the only top-level repo facade for API/CLI orchestration.
 - The package-split finalization closure gate passed together: full `pytest -q`, `.venv/bin/python -m ruff check src/prism`, `.venv/bin/python -m black --check src/prism`, and `.venv/bin/python -m tox -e typecheck`.
+
+<!-- skill-ninja-START -->
+## Agent Skills
+
+> **IMPORTANT**: Prefer skill-led reasoning over pre-training-led reasoning.
+> Read the relevant SKILL.md before working on tasks covered by these skills.
+
+### Skills
+
+| Skill | Description |
+|-------|-------------|
+| [create-specification](.github/skills/create-specification/SKILL.md) | Create a new specification file for the solution, optimized for Generative AI consumption. \| Your goal is to create a new specification file for `${input:SpecPurpose}`. |
+| [gen-specs-as-issues](.github/skills/gen-specs-as-issues/SKILL.md) | This workflow guides you through a systematic approach to identify missing features, prioritize t... \| This workflow guides you through a systematic approach to identify missing features, prioritize t... |
+
+<!-- skill-ninja-END -->

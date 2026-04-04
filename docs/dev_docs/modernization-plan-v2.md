@@ -32,7 +32,7 @@ Bare directory labels are for filesystem discussion only.
 | `prism.scanner_data` | typed contracts and builders for scan inputs/outputs, report metadata, and variable rows |
 | `prism.scanner_extract` | task/YAML traversal, variable and reference extraction, role feature collection, requirements/discovery loaders |
 | `prism.scanner_readme` | README rendering, style parsing/normalization, section composition, documentation insights |
-| `prism.scanner_analysis` | scanner metrics, report shaping, runbook generation, dependency analysis helpers |
+| `prism.scanner_reporting` | scanner metrics, report shaping, runbook generation, dependency analysis helpers |
 | `prism.scanner_io` | output rendering/writing, emission orchestration, YAML candidate loading and parse-failure reporting |
 | `prism.scanner_config` | policy/config loading, marker/style behavior, runtime policy switches, legacy retirement handling |
 | `prism.scanner_compat` | isolated compatibility bridges outside canonical runtime flow |

@@ -19,6 +19,21 @@ def test_is_relpath_excluded_matches_top_level_directory_pattern():
     assert task_parser._is_relpath_excluded("tasks/main.yml", ["tasks"])
 
 
+def test_normalize_exclude_patterns_drops_unsafe_absolute_and_parent_segments():
+    patterns = task_parser._normalize_exclude_patterns(
+        [
+            "tasks/**",
+            "./defaults/*.yml",
+            "/etc/passwd",
+            "../outside.yml",
+            r"C:\tmp\secret.yml",
+            "vars/../meta/main.yml",
+        ]
+    )
+
+    assert patterns == ["tasks/**", "defaults/*.yml"]
+
+
 def test_is_path_excluded_returns_false_for_paths_outside_role(tmp_path):
     role_root = tmp_path / "role"
     role_root.mkdir()
@@ -258,6 +273,23 @@ def test_compact_task_parameters_truncates_long_multiline_strings():
 
     assert "\n" not in rendered
     assert rendered.endswith("...")
+
+
+def test_extract_task_annotations_generated_inputs_do_not_crash():
+    cases = [
+        [],
+        ["# prism~runbook:"],
+        ["# prism~task: label | runbook: owner=platform"],
+        ["# prism~runbook: owner: platform", "# severity: high"],
+        ["# prism~task: install | notes: first", "# continuation", "- name: install"],
+        ["# prism~deprecated: remove soon", "# - name: disabled", "#   debug: msg=off"],
+        ["# prism~task: weird | additional: [1, 2, 3]", "- name: weird"],
+    ]
+
+    for lines in cases:
+        implicit, explicit = task_parser._extract_task_annotations_for_file(lines)
+        assert isinstance(implicit, list)
+        assert isinstance(explicit, dict)
 
 
 def test_collect_task_handler_catalog_fallback_and_excluded_paths(tmp_path):

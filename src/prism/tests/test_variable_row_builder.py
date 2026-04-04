@@ -174,6 +174,30 @@ class TestVariableRowBuilderInvariants:
         assert row.get("provenance_line") is None
         assert row.get("uncertainty_reason") is None
 
+    def test_build_rejects_non_bool_flags(self) -> None:
+        """build() rejects non-bool values for boolean flags."""
+        builder = VariableRowBuilder().name("my_var").type("string")
+        builder._row["required"] = "yes"  # type: ignore[assignment]
+
+        with pytest.raises(ValueError, match="required"):
+            builder.build()
+
+    def test_build_rejects_non_int_provenance_line(self) -> None:
+        """build() rejects provenance_line values that are not int or None."""
+        builder = VariableRowBuilder().name("my_var").type("string")
+        builder._row["provenance_line"] = "42"  # type: ignore[assignment]
+
+        with pytest.raises(ValueError, match="provenance_line"):
+            builder.build()
+
+    def test_build_rejects_non_string_uncertainty_reason(self) -> None:
+        """build() rejects uncertainty_reason values that are not str or None."""
+        builder = VariableRowBuilder().name("my_var").type("string")
+        builder._row["uncertainty_reason"] = {"bad": True}  # type: ignore[assignment]
+
+        with pytest.raises(ValueError, match="uncertainty_reason"):
+            builder.build()
+
 
 class TestVariableRowBuilderDefaults:
     """Test default values applied by builder."""
