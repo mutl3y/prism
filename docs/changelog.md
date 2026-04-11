@@ -16,6 +16,7 @@ This changelog follows Keep a Changelog and Semantic Versioning conventions.
 - Dedicated Prism-friendly role authoring guidance.
 - Dedicated feedback integration guide for local and API workflows.
 - Source evaluation matrix confirming coverage of all original docs artifacts.
+- Implementation-authorizing plan bundle for a new fsrc/prism build at docs/plan/prism-next-fsrc-build-20260408/.
 
 ### Changed
 

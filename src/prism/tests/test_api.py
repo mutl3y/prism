@@ -1,4 +1,5 @@
 import json
+import inspect
 from pathlib import Path
 import shutil
 
@@ -118,6 +119,23 @@ def test_api_repo_service_aliases_bind_to_shared_facade_contract() -> None:
             "_normalize_repo_scan_payload": "prism.repo_services",
         },
     )
+
+
+def test_api_repo_service_aliases_resolve_from_local_repo_services_module() -> None:
+    repo_services_path = Path(repo_services.__file__).resolve()
+    alias_sources = {
+        "_build_repo_intake_components": inspect.getsourcefile(
+            api._build_repo_intake_components
+        ),
+        "_run_repo_scan": inspect.getsourcefile(api._run_repo_scan),
+        "_normalize_repo_scan_payload": inspect.getsourcefile(
+            api._normalize_repo_scan_payload
+        ),
+    }
+
+    for alias_name, source_file in alias_sources.items():
+        assert source_file is not None, f"{alias_name} source file must resolve"
+        assert Path(source_file).resolve() == repo_services_path
 
 
 def test_api_exposes_repo_scan_facade_contract() -> None:

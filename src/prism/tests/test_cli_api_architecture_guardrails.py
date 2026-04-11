@@ -10,6 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 API_LAYER_DIR = PROJECT_ROOT / "src" / "prism" / "api_layer"
 CLI_APP_DIR = PROJECT_ROOT / "src" / "prism" / "cli_app"
 REPO_LAYER_DIR = PROJECT_ROOT / "src" / "prism" / "repo_layer"
+FSRC_RUNTIME_DIR = PROJECT_ROOT / "fsrc" / "src" / "prism"
 
 
 def _module_name_for_path(
@@ -18,8 +19,10 @@ def _module_name_for_path(
     package_name: str,
     package_dir: Path,
 ) -> str:
-    if not package_name.startswith("prism."):
-        raise ValueError("package_name must use the fully qualified Prism package name")
+    if package_name != "prism" and not package_name.startswith("prism."):
+        raise ValueError(
+            "package_name must be prism or use the fully qualified Prism package name"
+        )
 
     package_root = Path(*package_name.split("."))
     stem = module_path.with_suffix("")
@@ -89,6 +92,46 @@ def _iter_reverse_import_offenders(
     return sorted(set(offenders))
 
 
+def _iter_forbidden_import_offenders(
+    *,
+    package_dir: Path,
+    package_name: str,
+    forbidden_roots: tuple[str, ...],
+) -> list[str]:
+    offenders: list[str] = []
+
+    for module_path in _iter_package_modules(package_dir):
+        if "tests" in module_path.parts:
+            continue
+        module_name = _module_name_for_path(
+            module_path,
+            package_name=package_name,
+            package_dir=package_dir,
+        )
+        tree = ast.parse(module_path.read_text(encoding="utf-8"))
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    target = alias.name
+                    if any(
+                        target == root or target.startswith(f"{root}.")
+                        for root in forbidden_roots
+                    ):
+                        offenders.append(f"{module_name}:{target}")
+            if isinstance(node, ast.ImportFrom):
+                resolved_target = _resolve_import_from(module_name, node)
+                if not resolved_target:
+                    continue
+                if any(
+                    resolved_target == root or resolved_target.startswith(f"{root}.")
+                    for root in forbidden_roots
+                ):
+                    offenders.append(f"{module_name}:{resolved_target}")
+
+    return sorted(set(offenders))
+
+
 def test_api_layer_modules_do_not_import_api_facade() -> None:
     offenders = _iter_reverse_import_offenders(
         package_dir=API_LAYER_DIR,
@@ -125,6 +168,23 @@ def test_repo_layer_modules_do_not_import_repo_services_facade() -> None:
     ), "repo_layer reverse-imports repo_services facade; offenders: " + ", ".join(
         offenders
     )
+
+
+def test_fsrc_runtime_modules_do_not_import_src_facade_packages() -> None:
+    offenders = _iter_forbidden_import_offenders(
+        package_dir=FSRC_RUNTIME_DIR,
+        package_name="prism",
+        forbidden_roots=(
+            "prism.api_layer",
+            "prism.cli_app",
+            "prism.repo_layer",
+            "prism.repo_services",
+        ),
+    )
+
+    assert (
+        not offenders
+    ), "fsrc runtime modules import src facade packages: " + ", ".join(offenders)
 
 
 def test_api_layer_smoke_check_no_api_facade_import_tokens() -> None:
@@ -227,3 +287,20 @@ def test_repo_reverse_import_detection_catches_absolute_import(tmp_path: Path) -
     )
 
     assert offenders == ["prism.repo_layer.metadata:prism.repo_services"]
+
+
+def test_fsrc_cross_path_guardrail_detects_facade_import(tmp_path: Path) -> None:
+    package_dir = tmp_path / "prism"
+    package_dir.mkdir()
+    module_path = package_dir / "cli.py"
+    module_path.write_text(
+        "from prism.cli_app.commands import build_parser\n", encoding="utf-8"
+    )
+
+    offenders = _iter_forbidden_import_offenders(
+        package_dir=package_dir,
+        package_name="prism",
+        forbidden_roots=("prism.cli_app",),
+    )
+
+    assert offenders == ["prism.cli:prism.cli_app.commands"]

@@ -83,6 +83,12 @@
 - Canonical repo helper ownership now lives under `src/prism/repo_layer/`; `repo_services.py` remains the only top-level repo facade for API/CLI orchestration.
 - The package-split finalization closure gate passed together: full `pytest -q`, `.venv/bin/python -m ruff check src/prism`, `.venv/bin/python -m black --check src/prism`, and `.venv/bin/python -m tox -e typecheck`.
 
+## Notable Findings (Plan Closure: fsrc-like-for-like-completion-20260411)
+
+- Phase 0 gate semantics are split by blocker class: required blockers must be resolved before implementation, while deferred blockers remain explicitly tracked and non-blocking for start.
+- Wave 2 established a strict serialization boundary across `W2-T01`/`W2-T02`: source-lane contract shaping and fsrc-lane parity were treated as one boundary seam to prevent drift.
+- Final closure bundle expectation is one green evidence set, passed together: full `pytest -q`, parity bundle `pytest -q src/prism/tests/test_fsrc_scanner_parity.py fsrc/src/prism/tests`, smoke bundle `.venv/bin/python -m tox -r -e smoke-src-lane,smoke-fsrc-lane`, lint (`ruff check src/prism fsrc/src` + `black --check src/prism fsrc/src`), and `.venv/bin/python -m tox -e typecheck`.
+
 <!-- skill-ninja-START -->
 ## Agent Skills
 

@@ -1,0 +1,91 @@
+# RUNBOOK: {{ role_name }}
+{% if description %}
+> {{ description }}
+
+{% endif %}
+---
+
+{% set task_catalog = metadata.task_catalog if metadata.task_catalog is defined else [] %}
+{% set all_tasks = task_catalog %}
+{% set role_notes = metadata.role_notes if metadata.role_notes is defined else {} %}
+{% set has_role_notes = role_notes and (
+    (role_notes.warnings is defined and role_notes.warnings) or
+    (role_notes.deprecations is defined and role_notes.deprecations) or
+    (role_notes.notes is defined and role_notes.notes) or
+    (role_notes.additionals is defined and role_notes.additionals)
+) %}
+
+## Contents
+
+{% if has_role_notes %}
+- [Role Notes](#role-notes)
+{% endif %}
+{% if all_tasks %}
+{% for task in all_tasks %}
+- [{{ task.name }}](#{{ task.anchor }})
+{% endfor %}
+{% else %}
+_No tasks found._
+{% endif %}
+
+{% if has_role_notes %}
+---
+
+## Role Notes
+<a id="role-notes"></a>
+
+{% for warning in role_notes.warnings %}
+- **Warning:** {{ warning }}
+{% endfor %}
+{% for dep in role_notes.deprecations %}
+- **Deprecated:** {{ dep }}
+{% endfor %}
+{% for note in role_notes.notes %}
+- **Note:** {{ note }}
+{% endfor %}
+{% for extra in role_notes.additionals %}
+- **Additional:** {{ extra }}
+{% endfor %}
+
+{% endif %}
+{% if all_tasks %}
+
+---
+
+## Task Runbooks
+
+{% for task in all_tasks %}
+<a id="{{ task.anchor }}"></a>
+
+#### `{{ task.file }}` - {{ task.name }}
+
+{% if task.annotations %}
+{% for note in task.annotations %}
+{% if note.kind == 'runbook' %}
+- {{ note.text }}
+{% else %}
+- {{ note.kind | capitalize }}: {{ note.text }}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+---
+
+{% endfor %}
+{% else %}
+
+---
+
+_No tasks were found in this role._
+
+To add runbook comments, annotate tasks with `# prism~...` comments:
+
+```yaml
+# prism~runbook: restart service, verify with systemctl status
+- name: Restart nginx
+  ansible.builtin.service:
+    name: nginx
+    state: restarted
+```
+
+{% endif %}
