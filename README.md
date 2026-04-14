@@ -1,4 +1,4 @@
-role_override
+demo_role
 =========
 
 
@@ -18,7 +18,7 @@ No additional requirements.
 Role purpose and capabilities
 -----------------------------
 
-The role `role_override` automates setup and configuration tasks with Ansible best-practice structure.
+The role `demo_role` automates setup and configuration tasks with Ansible best-practice structure.
 
 Capabilities:
 - Provides reusable Ansible automation tasks
@@ -48,7 +48,7 @@ Inferred example usage
 ```yaml
 - hosts: all
   roles:
-    - role: role_override
+    - role: demo_role
 ```
 
 Role Variables

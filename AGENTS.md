@@ -89,6 +89,26 @@
 - Wave 2 established a strict serialization boundary across `W2-T01`/`W2-T02`: source-lane contract shaping and fsrc-lane parity were treated as one boundary seam to prevent drift.
 - Final closure bundle expectation is one green evidence set, passed together: full `pytest -q`, parity bundle `pytest -q src/prism/tests/test_fsrc_scanner_parity.py fsrc/src/prism/tests`, smoke bundle `.venv/bin/python -m tox -r -e smoke-src-lane,smoke-fsrc-lane`, lint (`ruff check src/prism fsrc/src` + `black --check src/prism fsrc/src`), and `.venv/bin/python -m tox -e typecheck`.
 
+## Notable Findings (Plan Closure: fsrc-plugin-centralization-waveA-20260412)
+
+- Wave-A closure is complete (2026-04-12): tasks `W1-T01`, `W2-T01`, `W2-T02`, `W3-T01`, and `W4-T01` are closed in the canonical plan.
+- Closure evidence is recorded as one unified gate bundle and passed together: focused fsrc suites (`test_fsrc_comment_doc_plugin_resolution.py`, `test_fsrc_api_cli_entrypoints.py`, `test_fsrc_plugin_kernel_extension_parity.py`), parity suite (`src/prism/tests/test_fsrc_scanner_parity.py` + `fsrc/src/prism/tests`), smoke bundle (`tox -r -e smoke-src-lane,smoke-fsrc-lane`), lint (`ruff check src/prism fsrc/src` + `black --check src/prism fsrc/src`), typecheck (`tox -e typecheck`), and full `pytest -q`.
+
+## Notable Findings (Plan Closure: fsrc-plugin-hardwiring-audit-autopilot-20260412)
+
+- Hardwiring audit/autopilot closure is complete (2026-04-12): W1-W3 plus remediation are completed and validated as one closure stream.
+- Runtime DI seam coverage now includes both task annotation parsing and task-line detection plugin resolution paths.
+- Scanner-context policy enforcement now defines the strict/non-strict behavior boundary for dynamic includes and YAML-like annotation handling.
+- Registry loader cache identity now keys by both module and class, preventing cross-plugin collision on shared class names.
+- Closure gate evidence passed together as one bundle: `pytest -q`, smoke lanes (`tox -r -e smoke-src-lane,smoke-fsrc-lane`), `ruff check src/prism fsrc/src`, `black --check src/prism fsrc/src`, and `tox -e typecheck`.
+
+## Notable Findings (Plan Closure: adhoc-fsrc-plugin-seams-20260412)
+
+- Adhoc seam-promotion closure is complete (2026-04-12): YAML parsing/loading and Jinja analysis were elevated to first-class plugin domains in fsrc.
+- Architecture seams are now explicit across protocol, registry, resolver, and bootstrap layers for both YAML and Jinja, replacing hidden generic/direct resolution paths.
+- Runtime callsites in scanner_extract/scanner_core/scanner_io now consume dedicated YAML and Jinja resolver seams.
+- Validation evidence reported green for focused fsrc suite, parity bundle, `ruff check fsrc/src`, `black --check fsrc/src`, and `tox -r -e smoke-fsrc-lane`.
+
 <!-- skill-ninja-START -->
 ## Agent Skills
 

@@ -5,7 +5,7 @@ import shutil
 
 import pytest
 
-from prism import api, cli, repo_services
+from prism import api, cli, repo_services, scanner
 from prism import errors as prism_errors
 from prism.scanner_io.collection_renderer import write_collection_runbook_artifacts
 from prism.tests._boundary_acceptance import (
@@ -101,7 +101,16 @@ def test_api_declares_curated_compatibility_seam_registers() -> None:
     assert_named_exports_exist(api, api.API_PUBLIC_ENTRYPOINTS)
     assert_named_exports_exist(api, api.API_SHARED_REPO_COMPATIBILITY_SEAMS)
     assert_named_exports_exist(api, api.API_RETAINED_PATCHABLE_SEAMS)
+    assert api.API_SCANNER_COMPATIBILITY_SEAMS == ("run_scan", "_run_scan_payload")
+    assert_named_exports_exist(api, api.API_SCANNER_COMPATIBILITY_SEAMS)
     assert api.API_TRANSITIONAL_COMPATIBILITY_SEAMS == ()
+
+
+def test_api_scanner_compatibility_seams_preserve_scanner_signatures() -> None:
+    for seam_name in api.API_SCANNER_COMPATIBILITY_SEAMS:
+        api_callable = getattr(api, seam_name)
+        scanner_callable = getattr(scanner, seam_name)
+        assert inspect.signature(api_callable) == inspect.signature(scanner_callable)
 
 
 def test_api_repo_service_aliases_bind_to_shared_facade_contract() -> None:

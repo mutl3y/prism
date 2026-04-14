@@ -5,6 +5,81 @@ from __future__ import annotations
 from prism.scanner_data.contracts_request import ScanOptionsDict
 
 
+_DEPRECATED_MARKER_ALIAS_CODE = "deprecated_policy_context_alias"
+
+
+def _build_marker_alias_warning(alias_key: str) -> dict[str, object]:
+    return {
+        "code": _DEPRECATED_MARKER_ALIAS_CODE,
+        "message": "Deprecated marker-prefix policy alias used.",
+        "detail": {"alias_key": alias_key},
+    }
+
+
+def _normalize_policy_context(
+    policy_context: dict[str, object] | None,
+) -> tuple[dict[str, object] | None, list[dict[str, object]]]:
+    if not isinstance(policy_context, dict):
+        return None, []
+
+    normalized: dict[str, object] = dict(policy_context)
+    warnings: list[dict[str, object]] = []
+
+    selected_prefix: str | None = None
+    comment_doc = normalized.get("comment_doc")
+    if isinstance(comment_doc, dict):
+        comment_doc_context = dict(comment_doc)
+        normalized["comment_doc"] = comment_doc_context
+
+        marker_context = comment_doc_context.get("marker")
+        if isinstance(marker_context, dict):
+            marker_mapping = dict(marker_context)
+            comment_doc_context["marker"] = marker_mapping
+            canonical_prefix = marker_mapping.get("prefix")
+            if isinstance(canonical_prefix, str):
+                selected_prefix = canonical_prefix
+
+        if selected_prefix is None:
+            nested_alias_prefix = comment_doc_context.get("marker_prefix")
+            if isinstance(nested_alias_prefix, str):
+                selected_prefix = nested_alias_prefix
+                warnings.append(
+                    _build_marker_alias_warning(
+                        "policy_context.comment_doc.marker_prefix"
+                    )
+                )
+
+        if selected_prefix is None:
+            marker_alias_value = comment_doc_context.get("marker")
+            if isinstance(marker_alias_value, str):
+                selected_prefix = marker_alias_value
+                warnings.append(
+                    _build_marker_alias_warning("policy_context.comment_doc.marker")
+                )
+
+    if selected_prefix is None:
+        flat_alias_prefix = normalized.get("comment_doc_marker_prefix")
+        if isinstance(flat_alias_prefix, str):
+            selected_prefix = flat_alias_prefix
+            warnings.append(
+                _build_marker_alias_warning("policy_context.comment_doc_marker_prefix")
+            )
+
+    if isinstance(selected_prefix, str):
+        comment_doc_context = normalized.get("comment_doc")
+        if not isinstance(comment_doc_context, dict):
+            comment_doc_context = {}
+            normalized["comment_doc"] = comment_doc_context
+
+        marker_context = comment_doc_context.get("marker")
+        if not isinstance(marker_context, dict):
+            marker_context = {}
+            comment_doc_context["marker"] = marker_context
+        marker_context["prefix"] = selected_prefix
+
+    return normalized, warnings
+
+
 def build_run_scan_options_canonical(
     *,
     role_path: str,
@@ -33,7 +108,11 @@ def build_run_scan_options_canonical(
     if not isinstance(role_path, str) or not role_path.strip():
         raise ValueError("'role_path' must be a non-empty string")
 
-    return {
+    normalized_policy_context, policy_warnings = _normalize_policy_context(
+        policy_context
+    )
+
+    options: ScanOptionsDict = {
         "role_path": role_path,
         "role_name_override": role_name_override,
         "readme_config_path": readme_config_path,
@@ -54,5 +133,10 @@ def build_run_scan_options_canonical(
         "fail_on_unconstrained_dynamic_includes": fail_on_unconstrained_dynamic_includes,
         "fail_on_yaml_like_task_annotations": fail_on_yaml_like_task_annotations,
         "ignore_unresolved_internal_underscore_references": ignore_unresolved_internal_underscore_references,
-        "policy_context": policy_context,
+        "policy_context": normalized_policy_context,
     }
+
+    if policy_warnings:
+        options["scan_policy_warnings"] = list(policy_warnings)
+
+    return options

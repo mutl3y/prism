@@ -10,18 +10,16 @@ from prism.scanner_data.contracts_request import (
     FeaturesContext,
     validate_feature_detector_inputs,
 )
-from prism.scanner_extract.task_parser import (
-    _collect_task_files,
-    _collect_task_handler_catalog,
-    _detect_task_module,
-    _extract_collection_from_module_name,
-    _extract_task_annotations_for_file,
-    _iter_dynamic_role_include_targets,
-    _iter_role_include_targets,
-    _iter_task_include_targets,
-    _iter_task_mappings,
-    _load_yaml_file,
-)
+from prism.scanner_core.task_extract_adapters import collect_task_files
+from prism.scanner_core.task_extract_adapters import collect_task_handler_catalog
+from prism.scanner_core.task_extract_adapters import detect_task_module
+from prism.scanner_core.task_extract_adapters import extract_collection_from_module_name
+from prism.scanner_core.task_extract_adapters import extract_task_annotations_for_file
+from prism.scanner_core.task_extract_adapters import iter_dynamic_role_include_targets
+from prism.scanner_core.task_extract_adapters import iter_role_include_targets
+from prism.scanner_core.task_extract_adapters import iter_task_include_targets
+from prism.scanner_core.task_extract_adapters import iter_task_mappings
+from prism.scanner_core.task_extract_adapters import load_task_yaml_file
 
 
 class FeatureDetector:
@@ -41,11 +39,32 @@ class FeatureDetector:
         self._di = di
         self._role_path = role_path
         self._options = options
+        self._plugin: Any | None = None
+        self._plugin_resolved = False
+
+    def _resolve_plugin(self) -> Any | None:
+        if self._plugin_resolved:
+            return self._plugin
+
+        factory = getattr(self._di, "factory_feature_detection_plugin", None)
+        if callable(factory):
+            self._plugin = factory()
+
+        self._plugin_resolved = True
+        return self._plugin
 
     def detect(self) -> FeaturesContext:
+        plugin = self._resolve_plugin()
+        if plugin is not None:
+            return plugin.detect_features(self._role_path, self._options)
+
         role_root = Path(self._role_path).resolve()
         exclude_patterns = self._options.get("exclude_path_patterns")
-        task_files = _collect_task_files(role_root, exclude_paths=exclude_patterns)
+        task_files = collect_task_files(
+            role_root,
+            exclude_paths=exclude_patterns,
+            di=self._di,
+        )
 
         include_count = 0
         tasks_scanned = 0
@@ -61,24 +80,24 @@ class FeatureDetector:
         dynamic_included_roles: set[str] = set()
 
         for task_file in task_files:
-            data = _load_yaml_file(task_file)
-            include_count += len(_iter_task_include_targets(data))
+            data = load_task_yaml_file(task_file, di=self._di)
+            include_count += len(iter_task_include_targets(data, di=self._di))
 
-            for task in _iter_task_mappings(data):
+            for task in iter_task_mappings(data, di=self._di):
                 tasks_scanned += 1
 
-                included_targets = _iter_role_include_targets(task)
+                included_targets = iter_role_include_targets(task, di=self._di)
                 included_role_calls += len(included_targets)
                 included_roles.update(included_targets)
 
-                dynamic_targets = _iter_dynamic_role_include_targets(task)
+                dynamic_targets = iter_dynamic_role_include_targets(task, di=self._di)
                 dynamic_included_role_calls += len(dynamic_targets)
                 dynamic_included_roles.update(dynamic_targets)
 
-                module_name = _detect_task_module(task)
+                module_name = detect_task_module(task, di=self._di)
                 if module_name:
                     modules.add(module_name)
-                    collection = _extract_collection_from_module_name(module_name)
+                    collection = extract_collection_from_module_name(module_name)
                     if collection:
                         external_collections.add(collection)
 
@@ -105,7 +124,10 @@ class FeatureDetector:
             except OSError:
                 raw_lines = []
 
-            impl_anns, expl_anns = _extract_task_annotations_for_file(raw_lines)
+            impl_anns, expl_anns = extract_task_annotations_for_file(
+                raw_lines,
+                di=self._di,
+            )
             disabled_task_annotations += sum(1 for a in impl_anns if a.get("disabled"))
             yaml_like_task_annotations += sum(
                 1 for a in impl_anns if a.get("format_warning")
@@ -148,14 +170,22 @@ class FeatureDetector:
         }
 
     def analyze_task_catalog(self) -> dict[str, dict[str, Any]]:
+        plugin = self._resolve_plugin()
+        if plugin is not None:
+            return plugin.analyze_task_catalog(self._role_path, self._options)
+
         role_root = Path(self._role_path).resolve()
         exclude_patterns = self._options.get("exclude_path_patterns")
-        task_files = _collect_task_files(role_root, exclude_paths=exclude_patterns)
+        task_files = collect_task_files(
+            role_root,
+            exclude_paths=exclude_patterns,
+            di=self._di,
+        )
 
         result: dict[str, dict[str, Any]] = {}
         for task_file in task_files:
             rel_path = str(task_file.relative_to(role_root))
-            data = _load_yaml_file(task_file)
+            data = load_task_yaml_file(task_file, di=self._di)
 
             task_count = 0
             async_count = 0
@@ -166,15 +196,15 @@ class FeatureDetector:
             conditional_in_file = 0
             tagged_in_file = 0
 
-            for task in _iter_task_mappings(data):
+            for task in iter_task_mappings(data, di=self._di):
                 task_count += 1
                 if task.get("async") or task.get("poll") is not None:
                     async_count += 1
 
-                module_name = _detect_task_module(task)
+                module_name = detect_task_module(task, di=self._di)
                 if module_name:
                     modules_in_file.add(module_name)
-                    collection = _extract_collection_from_module_name(module_name)
+                    collection = extract_collection_from_module_name(module_name)
                     if collection:
                         collections_in_file.add(collection)
 
@@ -209,7 +239,8 @@ class FeatureDetector:
     def collect_task_handler_catalog(
         self,
     ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
-        return _collect_task_handler_catalog(
+        return collect_task_handler_catalog(
             self._role_path,
             exclude_paths=self._options.get("exclude_path_patterns"),
+            di=self._di,
         )

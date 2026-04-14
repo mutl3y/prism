@@ -91,6 +91,11 @@ CLI_RETAINED_COMPATIBILITY_SEAMS: tuple[str, ...] = (
     "_render_collection_markdown",
     "_emit_success",
 )
+CLI_SCANNER_COMPATIBILITY_SEAMS: tuple[str, ...] = (
+    "run_scan",
+    "parse_style_readme",
+    "resolve_default_style_guide_source",
+)
 CLI_TRANSITIONAL_COMPATIBILITY_SEAMS: tuple[str, ...] = (
     "_str_presenter",
     "_sanitize_captured_content",

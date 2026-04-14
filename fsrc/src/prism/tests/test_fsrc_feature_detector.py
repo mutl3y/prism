@@ -181,3 +181,59 @@ def test_fsrc_feature_detector_task_catalog_shape_parity(tmp_path) -> None:
         "conditional_tasks",
         "tagged_tasks",
     }
+
+
+def test_fsrc_feature_detector_routes_via_plugin_when_available() -> None:
+    class _Plugin:
+        def detect_features(self, role_path: str, options: dict) -> dict:
+            return {
+                "task_files_scanned": 99,
+                "tasks_scanned": 77,
+                "recursive_task_includes": 0,
+                "unique_modules": "plugin.module",
+                "external_collections": "none",
+                "handlers_notified": "none",
+                "privileged_tasks": 0,
+                "conditional_tasks": 0,
+                "tagged_tasks": 0,
+                "included_role_calls": 0,
+                "included_roles": "none",
+                "dynamic_included_role_calls": 0,
+                "dynamic_included_roles": "none",
+                "disabled_task_annotations": 0,
+                "yaml_like_task_annotations": 0,
+            }
+
+        def analyze_task_catalog(self, role_path: str, options: dict) -> dict:
+            return {
+                "plugin/tasks.yml": {
+                    "task_count": 1,
+                    "async_count": 0,
+                    "modules_used": ["plugin.module"],
+                    "collections_used": [],
+                    "handlers_notified": [],
+                    "privileged_tasks": 0,
+                    "conditional_tasks": 0,
+                    "tagged_tasks": 0,
+                }
+            }
+
+    class _DI:
+        def factory_feature_detection_plugin(self) -> _Plugin:
+            return _Plugin()
+
+    with _prefer_fsrc_prism_on_sys_path():
+        feature_detector_module = importlib.import_module(
+            "prism.scanner_core.feature_detector"
+        )
+        detector = feature_detector_module.FeatureDetector(
+            di=_DI(),
+            role_path="/tmp/role",
+            options={"exclude_path_patterns": None},
+        )
+        features = detector.detect()
+        catalog = detector.analyze_task_catalog()
+
+    assert features["task_files_scanned"] == 99
+    assert features["unique_modules"] == "plugin.module"
+    assert "plugin/tasks.yml" in catalog

@@ -6,8 +6,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-from yaml import YAMLError, safe_load
-
 from prism.scanner_core.di import DIContainer
 from prism.scanner_core.variable_pipeline import IGNORED_IDENTIFIERS
 from prism.scanner_core.variable_pipeline import _format_inline_yaml
@@ -15,30 +13,47 @@ from prism.scanner_core.variable_pipeline import _infer_variable_type
 from prism.scanner_core.variable_pipeline import _is_sensitive_variable
 from prism.scanner_data.contracts_request import validate_variable_discovery_inputs
 from prism.scanner_data.contracts_variables import VariableRow
-from prism.scanner_extract.task_parser import _collect_task_files
-from prism.scanner_extract.task_parser import _is_path_excluded
-from prism.scanner_extract.task_parser import _iter_task_mappings
-from prism.scanner_extract.task_parser import _load_yaml_file
+from prism.scanner_plugins.defaults import resolve_jinja_analysis_policy_plugin
+from prism.scanner_plugins.defaults import resolve_task_line_parsing_policy_plugin
+from prism.scanner_io.loader import load_yaml_file as _load_yaml_loader_file
+from prism.scanner_io.loader import parse_yaml_candidate
+from prism.scanner_core.task_extract_adapters import collect_task_files
+from prism.scanner_core.task_extract_adapters import is_path_excluded
+from prism.scanner_core.task_extract_adapters import iter_task_mappings
+from prism.scanner_core.task_extract_adapters import load_task_yaml_file
+
+
+def _resolve_plugin_registry(di: object | None = None):
+    if di is None:
+        return None
+    registry = getattr(di, "plugin_registry", None)
+    if registry is not None:
+        return registry
+    scan_options = getattr(di, "_scan_options", None)
+    if isinstance(scan_options, dict):
+        return scan_options.get("plugin_registry")
+    return None
+
+
+def _resolve_policy_with_registry(resolver, di: object | None = None):
+    registry = _resolve_plugin_registry(di)
+    if registry is None:
+        return resolver(di)
+    try:
+        return resolver(di, registry=registry)
+    except TypeError:
+        return resolver(di)
+
+
+def _get_task_line_parsing_policy(di: object | None = None) -> Any:
+    return _resolve_policy_with_registry(resolve_task_line_parsing_policy_plugin, di)
+
 
 JINJA_VARIABLE_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_\.]*)")
 JINJA_IDENTIFIER_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
 JINJA_EXPRESSION_RE = re.compile(r"\{\{(.*?)\}\}", re.DOTALL)
 QUOTED_STRING_RE = re.compile(r'"[^"]*"|\'[^\']*\'')
 FILTER_OR_TEST_CONTEXT_RE = re.compile(r"(?:\|\s*|is\s+|is\s+not\s+)$")
-
-INCLUDE_VARS_KEYS: frozenset[str] = frozenset(
-    {
-        "include_vars",
-        "ansible.builtin.include_vars",
-    }
-)
-
-SET_FACT_KEYS: frozenset[str] = frozenset(
-    {
-        "set_fact",
-        "ansible.builtin.set_fact",
-    }
-)
 
 REGISTERED_RESULT_ATTRS: frozenset[str] = frozenset(
     {
@@ -79,11 +94,33 @@ WHEN_OPERATOR_KEYWORDS: frozenset[str] = frozenset(
 
 
 def _load_yaml_mapping(path: Path) -> dict[str, Any]:
+    return _load_yaml_mapping_with_metadata(path)
+
+
+def _load_yaml_mapping_with_metadata(
+    path: Path,
+    *,
+    role_root: Path | None = None,
+    yaml_failure_collector: list[dict[str, object]] | None = None,
+    di: object | None = None,
+) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
-        parsed = safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, YAMLError):
+        parsed = _load_yaml_loader_file(path, di=di)
+    except Exception:
+        if yaml_failure_collector is not None:
+            collector_root = role_root or path.resolve().parent
+            failure = parse_yaml_candidate(path, collector_root, di=di)
+            if isinstance(failure, dict):
+                yaml_failure_collector.append(failure)
+        return {}
+    if parsed is None:
+        if yaml_failure_collector is not None:
+            collector_root = role_root or path.resolve().parent
+            failure = parse_yaml_candidate(path, collector_root, di=di)
+            if isinstance(failure, dict):
+                yaml_failure_collector.append(failure)
         return {}
     if not isinstance(parsed, dict):
         return {}
@@ -125,15 +162,34 @@ def _map_argument_spec_type(spec_type: object) -> str:
     return "documented"
 
 
-def _iter_role_argument_spec_entries(role_root: Path):
+def _iter_role_argument_spec_entries(role_root: Path, *, di: object | None = None):
+    return _iter_role_argument_spec_entries_with_metadata(role_root, di=di)
+
+
+def _iter_role_argument_spec_entries_with_metadata(
+    role_root: Path,
+    *,
+    yaml_failure_collector: list[dict[str, object]] | None = None,
+    di: object | None = None,
+):
     sources: list[tuple[str, dict[str, Any]]] = []
     arg_specs_file = role_root / "meta" / "argument_specs.yml"
     if arg_specs_file.is_file():
-        loaded = _load_yaml_mapping(arg_specs_file)
+        loaded = _load_yaml_mapping_with_metadata(
+            arg_specs_file,
+            role_root=role_root,
+            yaml_failure_collector=yaml_failure_collector,
+            di=di,
+        )
         if loaded:
             sources.append(("meta/argument_specs.yml", loaded))
 
-    meta_main = _load_yaml_mapping(role_root / "meta" / "main.yml")
+    meta_main = _load_yaml_mapping_with_metadata(
+        role_root / "meta" / "main.yml",
+        role_root=role_root,
+        yaml_failure_collector=yaml_failure_collector,
+        di=di,
+    )
     if meta_main:
         sources.append(("meta/main.yml", meta_main))
 
@@ -173,13 +229,26 @@ def _find_variable_line(path: Path, variable_name: str) -> int | None:
 def _collect_include_vars_files(
     role_root: Path,
     exclude_paths: list[str] | None,
+    *,
+    di: object | None = None,
+    yaml_failure_collector: list[dict[str, object]] | None = None,
 ) -> list[Path]:
     result: list[Path] = []
     seen: set[Path] = set()
-    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
-        data = _load_yaml_file(task_file)
-        for task in _iter_task_mappings(data):
-            for key in INCLUDE_VARS_KEYS:
+    include_vars_keys = _get_task_line_parsing_policy(di).INCLUDE_VARS_KEYS
+    for task_file in collect_task_files(
+        role_root,
+        exclude_paths=exclude_paths,
+        di=di,
+    ):
+        data = load_task_yaml_file(
+            task_file,
+            yaml_failure_collector=yaml_failure_collector,
+            role_root=role_root,
+            di=di,
+        )
+        for task in iter_task_mappings(data, di=di):
+            for key in include_vars_keys:
                 if key not in task:
                     continue
                 value = task[key]
@@ -218,6 +287,8 @@ def _read_variable_sources(
     *,
     include_vars_main: bool,
     exclude_paths: list[str] | None,
+    di: object | None = None,
+    yaml_failure_collector: list[dict[str, object]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Path], dict[str, Any], dict[str, Path]]:
     defaults_map: dict[str, Any] = {}
     vars_map: dict[str, Any] = {}
@@ -225,20 +296,40 @@ def _read_variable_sources(
     vars_sources: dict[str, Path] = {}
 
     for candidate in _iter_variable_map_candidates(role_root, "defaults"):
-        loaded = _load_yaml_mapping(candidate)
+        loaded = _load_yaml_mapping_with_metadata(
+            candidate,
+            role_root=role_root,
+            yaml_failure_collector=yaml_failure_collector,
+            di=di,
+        )
         for name in loaded:
             defaults_sources[name] = candidate
         defaults_map.update(loaded)
 
     if include_vars_main:
         for candidate in _iter_variable_map_candidates(role_root, "vars"):
-            loaded = _load_yaml_mapping(candidate)
+            loaded = _load_yaml_mapping_with_metadata(
+                candidate,
+                role_root=role_root,
+                yaml_failure_collector=yaml_failure_collector,
+                di=di,
+            )
             for name in loaded:
                 vars_sources[name] = candidate
             vars_map.update(loaded)
 
-        for candidate in _collect_include_vars_files(role_root, exclude_paths):
-            loaded = _load_yaml_mapping(candidate)
+        for candidate in _collect_include_vars_files(
+            role_root,
+            exclude_paths,
+            di=di,
+            yaml_failure_collector=yaml_failure_collector,
+        ):
+            loaded = _load_yaml_mapping_with_metadata(
+                candidate,
+                role_root=role_root,
+                yaml_failure_collector=yaml_failure_collector,
+                di=di,
+            )
             for name in loaded:
                 vars_sources[name] = candidate
             vars_map.update(loaded)
@@ -249,12 +340,25 @@ def _read_variable_sources(
 def _collect_set_fact_names(
     role_root: Path,
     exclude_paths: list[str] | None,
+    *,
+    di: object | None = None,
+    yaml_failure_collector: list[dict[str, object]] | None = None,
 ) -> set[str]:
     names: set[str] = set()
-    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
-        data = _load_yaml_file(task_file)
-        for task in _iter_task_mappings(data):
-            for key in SET_FACT_KEYS:
+    set_fact_keys = _get_task_line_parsing_policy(di).SET_FACT_KEYS
+    for task_file in collect_task_files(
+        role_root,
+        exclude_paths=exclude_paths,
+        di=di,
+    ):
+        data = load_task_yaml_file(
+            task_file,
+            yaml_failure_collector=yaml_failure_collector,
+            role_root=role_root,
+            di=di,
+        )
+        for task in iter_task_mappings(data, di=di):
+            for key in set_fact_keys:
                 if key not in task:
                     continue
                 value = task[key]
@@ -290,10 +394,25 @@ def _is_when_expression_token_candidate(
     return True
 
 
+def _collect_undeclared_jinja_variables(
+    text: str,
+    *,
+    di: object | None = None,
+) -> set[str]:
+    plugin = _resolve_policy_with_registry(resolve_jinja_analysis_policy_plugin, di)
+    analyzer = getattr(plugin, "collect_undeclared_jinja_variables", None)
+    if callable(analyzer):
+        values = analyzer(text)
+        if isinstance(values, (set, frozenset, list, tuple)):
+            return {item for item in values if isinstance(item, str)}
+    return set(JINJA_VARIABLE_RE.findall(text))
+
+
 def _collect_referenced_variable_names(
     role_root: Path,
     *,
     exclude_paths: list[str] | None,
+    di: object | None = None,
 ) -> set[str]:
     candidates: set[str] = set()
     ignored_identifiers = set(IGNORED_IDENTIFIERS)
@@ -306,36 +425,18 @@ def _collect_referenced_variable_names(
         for file_path in root.rglob("*"):
             if not file_path.is_file():
                 continue
-            if _is_path_excluded(file_path, role_root, exclude_paths):
+            if is_path_excluded(file_path, role_root, exclude_paths):
                 continue
             try:
                 text = file_path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
                 continue
 
-            for expression in JINJA_EXPRESSION_RE.findall(text):
-                expression_without_strings = QUOTED_STRING_RE.sub("", expression)
-                for token_match in JINJA_IDENTIFIER_RE.finditer(
-                    expression_without_strings
-                ):
-                    token = token_match.group(1)
-                    lowered = token.lower()
-                    if (
-                        lowered in ignored_identifiers
-                        or lowered in WHEN_OPERATOR_KEYWORDS
-                    ):
-                        continue
-                    start = token_match.start(1)
-                    end = token_match.end(1)
-                    if start > 0 and expression_without_strings[start - 1] == ".":
-                        continue
-                    before = expression_without_strings[:start].rstrip()
-                    if FILTER_OR_TEST_CONTEXT_RE.search(before):
-                        continue
-                    after = expression_without_strings[end:].lstrip()
-                    if after.startswith("("):
-                        continue
-                    candidates.add(token)
+            for token in _collect_undeclared_jinja_variables(text, di=di):
+                lowered = token.lower()
+                if lowered in ignored_identifiers or lowered in WHEN_OPERATOR_KEYWORDS:
+                    continue
+                candidates.add(token)
 
             if file_path.suffix.lower() in {".yml", ".yaml"}:
                 for line in text.splitlines():
@@ -370,13 +471,37 @@ class VariableDiscovery:
         self._role_path = role_path
         self._options = options
         self._role_root = Path(role_path).resolve()
+        self._plugin: Any | None = None
+        self._plugin_resolved = False
+
+    def _resolve_plugin(self) -> Any | None:
+        if self._plugin_resolved:
+            return self._plugin
+
+        factory = getattr(self._di, "factory_variable_discovery_plugin", None)
+        if callable(factory):
+            self._plugin = factory()
+
+        self._plugin_resolved = True
+        return self._plugin
 
     def discover_static(self) -> tuple[VariableRow, ...]:
         """Discover static variables from defaults/vars/argument_specs/set_fact."""
+        plugin = self._resolve_plugin()
+        if plugin is not None:
+            discovered = plugin.discover_static_variables(
+                self._role_path,
+                self._options,
+            )
+            return tuple(discovered)
+
+        yaml_parse_failures: list[dict[str, object]] = []
         defaults_map, defaults_sources, vars_map, vars_sources = _read_variable_sources(
             self._role_root,
             include_vars_main=bool(self._options.get("include_vars_main", True)),
             exclude_paths=self._options.get("exclude_path_patterns"),
+            di=self._di,
+            yaml_failure_collector=yaml_parse_failures,
         )
 
         rows: list[VariableRow] = []
@@ -434,8 +559,14 @@ class VariableDiscovery:
                 .build()
             )
 
-        for source_file, variable_name, spec in _iter_role_argument_spec_entries(
-            self._role_root
+        for (
+            source_file,
+            variable_name,
+            spec,
+        ) in _iter_role_argument_spec_entries_with_metadata(
+            self._role_root,
+            yaml_failure_collector=yaml_parse_failures,
+            di=self._di,
         ):
             if variable_name in seen_names:
                 continue
@@ -467,6 +598,8 @@ class VariableDiscovery:
         for variable_name in _collect_set_fact_names(
             self._role_root,
             exclude_paths=self._options.get("exclude_path_patterns"),
+            di=self._di,
+            yaml_failure_collector=yaml_parse_failures,
         ):
             if variable_name in seen_names:
                 continue
@@ -488,13 +621,48 @@ class VariableDiscovery:
                 .build()
             )
 
+        if yaml_parse_failures:
+            existing = self._options.get("yaml_parse_failures")
+            merged = list(existing) if isinstance(existing, list) else []
+            seen = {
+                (
+                    str(item.get("file")),
+                    item.get("line"),
+                    item.get("column"),
+                    str(item.get("error")),
+                )
+                for item in merged
+                if isinstance(item, dict)
+            }
+            for failure in yaml_parse_failures:
+                key = (
+                    str(failure.get("file")),
+                    failure.get("line"),
+                    failure.get("column"),
+                    str(failure.get("error")),
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(failure)
+            self._options["yaml_parse_failures"] = merged
+
         return tuple(rows)
 
     def discover_referenced(self) -> frozenset[str]:
         """Discover referenced variable names from tasks/templates/handlers/README."""
+        plugin = self._resolve_plugin()
+        if plugin is not None:
+            discovered = plugin.discover_referenced_variables(
+                self._role_path,
+                self._options,
+            )
+            return frozenset(discovered)
+
         referenced = _collect_referenced_variable_names(
             self._role_root,
             exclude_paths=self._options.get("exclude_path_patterns"),
+            di=self._di,
         )
 
         readme_path = self._role_root / "README.md"
@@ -503,8 +671,8 @@ class VariableDiscovery:
                 readme_text = readme_path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 readme_text = ""
-            for match in JINJA_VARIABLE_RE.findall(readme_text):
-                referenced.add(match.split(".", 1)[0])
+            for token in _collect_undeclared_jinja_variables(readme_text, di=self._di):
+                referenced.add(token.split(".", 1)[0])
 
         return frozenset(referenced)
 
@@ -522,8 +690,22 @@ class VariableDiscovery:
             )
         effective_referenced = referenced or self.discover_referenced()
 
+        plugin = self._resolve_plugin()
+        if plugin is not None:
+            resolved = plugin.resolve_unresolved_variables(
+                effective_static_names,
+                effective_referenced,
+                self._options,
+            )
+            return dict(resolved)
+
         unresolved: dict[str, str] = {}
+        ignore_underscore = bool(
+            self._options.get("ignore_unresolved_internal_underscore_references")
+        )
         for variable_name in effective_referenced:
+            if ignore_underscore and variable_name.startswith("_"):
+                continue
             if variable_name not in effective_static_names:
                 unresolved[variable_name] = self._build_uncertainty_reason(
                     variable_name

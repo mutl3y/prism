@@ -120,3 +120,123 @@ def test_fsrc_di_container_variable_row_builder_is_cached() -> None:
         second = container.factory_variable_row_builder()
 
     assert first is second
+
+
+def test_fsrc_di_container_task_annotation_policy_factory_override() -> None:
+    def _factory(
+        _container: object, _role_path: str, _options: dict[str, object]
+    ) -> str:
+        return "task-annotation-policy"
+
+    with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        container = di_module.DIContainer(
+            role_path="/tmp/role",
+            scan_options={},
+            factory_overrides={
+                "task_annotation_policy_plugin_factory": _factory,
+            },
+        )
+
+    assert container.factory_task_annotation_policy_plugin() == "task-annotation-policy"
+
+
+def test_fsrc_di_container_task_line_parsing_policy_factory_override() -> None:
+    def _factory(
+        _container: object, _role_path: str, _options: dict[str, object]
+    ) -> str:
+        return "task-line-parsing-policy"
+
+    with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        container = di_module.DIContainer(
+            role_path="/tmp/role",
+            scan_options={},
+            factory_overrides={
+                "task_line_parsing_policy_plugin_factory": _factory,
+            },
+        )
+
+    assert (
+        container.factory_task_line_parsing_policy_plugin()
+        == "task-line-parsing-policy"
+    )
+
+
+def test_fsrc_di_container_task_traversal_policy_factory_override() -> None:
+    def _factory(
+        _container: object, _role_path: str, _options: dict[str, object]
+    ) -> str:
+        return "task-traversal-policy"
+
+    with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        container = di_module.DIContainer(
+            role_path="/tmp/role",
+            scan_options={},
+            factory_overrides={
+                "task_traversal_policy_plugin_factory": _factory,
+            },
+        )
+
+    assert container.factory_task_traversal_policy_plugin() == "task-traversal-policy"
+
+
+def test_fsrc_di_container_variable_extractor_policy_factory_override() -> None:
+    def _factory(
+        _container: object, _role_path: str, _options: dict[str, object]
+    ) -> str:
+        return "variable-extractor-policy"
+
+    with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        container = di_module.DIContainer(
+            role_path="/tmp/role",
+            scan_options={},
+            factory_overrides={
+                "variable_extractor_policy_plugin_factory": _factory,
+            },
+        )
+
+    assert (
+        container.factory_variable_extractor_policy_plugin()
+        == "variable-extractor-policy"
+    )
+
+
+def test_fsrc_di_container_yaml_parsing_policy_factory_override() -> None:
+    def _factory(
+        _container: object, _role_path: str, _options: dict[str, object]
+    ) -> str:
+        return "yaml-parsing-policy"
+
+    with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        container = di_module.DIContainer(
+            role_path="/tmp/role",
+            scan_options={},
+            factory_overrides={
+                "yaml_parsing_policy_plugin_factory": _factory,
+            },
+        )
+
+    assert container.factory_yaml_parsing_policy_plugin() == "yaml-parsing-policy"
+
+
+def test_fsrc_di_container_jinja_analysis_policy_factory_override() -> None:
+    def _factory(
+        _container: object, _role_path: str, _options: dict[str, object]
+    ) -> str:
+        return "jinja-analysis-policy"
+
+    with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        container = di_module.DIContainer(
+            role_path="/tmp/role",
+            scan_options={},
+            factory_overrides={
+                "jinja_analysis_policy_plugin_factory": _factory,
+            },
+        )
+
+    assert container.factory_jinja_analysis_policy_plugin() == "jinja-analysis-policy"

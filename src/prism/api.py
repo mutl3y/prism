@@ -88,6 +88,10 @@ API_RETAINED_PATCHABLE_SEAMS: tuple[str, ...] = (
     "_render_collection_role_readme",
     "_write_collection_role_runbook_artifacts",
 )
+API_SCANNER_COMPATIBILITY_SEAMS: tuple[str, ...] = (
+    "run_scan",
+    "_run_scan_payload",
+)
 API_TRANSITIONAL_COMPATIBILITY_SEAMS: tuple[str, ...] = ()
 
 # Compatibility export for downstream imports and parity checks with CLI/helpers.

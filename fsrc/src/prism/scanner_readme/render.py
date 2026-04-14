@@ -5,10 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import jinja2
-
 from prism.scanner_readme.guide import _render_guide_section_body
 from prism.scanner_readme.style import format_heading
+from prism.scanner_shared.rendering_seams import build_render_jinja_environment
 
 
 DEFAULT_SECTION_SPECS = [
@@ -55,6 +54,8 @@ SCANNER_STATS_SECTION_IDS = {
     "default_filters",
 }
 
+DEFAULT_MERGE_GENERATED_CONTENT_LABEL = "Generated content"
+
 
 def _resolve_section_content_mode(
     section: dict[str, Any], modes: dict[str, str]
@@ -80,16 +81,41 @@ def _resolve_section_content_mode(
     return "generate"
 
 
+def _resolve_merge_generated_content_label(
+    section: dict[str, Any],
+    metadata: dict[str, Any],
+) -> str:
+    """Resolve merge generated-content label from section/style metadata."""
+    section_label = str(section.get("merge_generated_content_label") or "").strip()
+    if section_label:
+        return section_label
+
+    style_guide = metadata.get("style_guide") or {}
+    style_label = str(style_guide.get("merge_generated_content_label") or "").strip()
+    if style_label:
+        return style_label
+
+    metadata_label = str(metadata.get("merge_generated_content_label") or "").strip()
+    if metadata_label:
+        return metadata_label
+
+    return DEFAULT_MERGE_GENERATED_CONTENT_LABEL
+
+
 def _compose_section_body(
-    section: dict[str, Any], generated_body: str, mode: str
+    section: dict[str, Any],
+    generated_body: str,
+    mode: str,
+    metadata: dict[str, Any],
 ) -> str:
     """Compose final section body according to configured mode."""
     guide_body = str(section.get("body") or "").strip()
     if mode == "replace":
         return guide_body or generated_body
     if mode == "merge":
+        merge_label = _resolve_merge_generated_content_label(section, metadata)
         if guide_body and generated_body:
-            return f"{guide_body}\n\nGenerated content:\n{generated_body}"
+            return f"{guide_body}\n\n{merge_label}:\n{generated_body}"
         return guide_body or generated_body
     return generated_body
 
@@ -220,7 +246,7 @@ def _render_readme_with_style_guide(
             metadata,
         ).strip()
         mode = _resolve_section_content_mode(section, section_content_modes)
-        body = _compose_section_body(section, body, mode)
+        body = _compose_section_body(section, body, mode, metadata)
         if not body:
             continue
         parts.append(body)
@@ -271,10 +297,9 @@ def render_readme(
         if template
         else Path(__file__).resolve().parent.parent / "templates" / "README.md.j2"
     )
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(tpl_file.parent)),
-        trim_blocks=True,
-        lstrip_blocks=True,
+    env = build_render_jinja_environment(
+        template_dir=tpl_file.parent,
+        metadata=metadata,
     )
     template_obj = env.get_template(tpl_file.name)
     rendered = template_obj.render(

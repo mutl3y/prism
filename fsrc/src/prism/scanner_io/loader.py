@@ -8,6 +8,34 @@ from typing import Callable
 
 import yaml
 
+from prism.scanner_plugins.defaults import resolve_yaml_parsing_policy_plugin
+
+
+def _resolve_plugin_registry(di: object | None = None):
+    if di is None:
+        return None
+    registry = getattr(di, "plugin_registry", None)
+    if registry is not None:
+        return registry
+    scan_options = getattr(di, "_scan_options", None)
+    if isinstance(scan_options, dict):
+        return scan_options.get("plugin_registry")
+    return None
+
+
+def _resolve_policy_with_registry(resolver, di: object | None = None):
+    registry = _resolve_plugin_registry(di)
+    if registry is None:
+        return resolver(di)
+    try:
+        return resolver(di, registry=registry)
+    except TypeError:
+        return resolver(di)
+
+
+def _get_yaml_parsing_policy(di: object | None = None):
+    return _resolve_policy_with_registry(resolve_yaml_parsing_policy_plugin, di)
+
 
 def _role_relative_candidate_path(path: Path, role_root: Path) -> str | None:
     """Return a lexical role-relative path when the candidate lives under the role."""
@@ -53,8 +81,20 @@ def iter_role_yaml_candidates(
             yield candidate
 
 
-def parse_yaml_candidate(candidate: Path, role_root: Path) -> dict[str, object] | None:
+def parse_yaml_candidate(
+    candidate: Path,
+    role_root: Path,
+    *,
+    di: object | None = None,
+) -> dict[str, object] | None:
     """Parse one YAML candidate and return a failure payload when parsing fails."""
+    policy = _get_yaml_parsing_policy(di)
+    parse_fn = getattr(policy, "parse_yaml_candidate", None)
+    if callable(parse_fn):
+        parsed_failure = parse_fn(candidate, role_root)
+        if isinstance(parsed_failure, dict) or parsed_failure is None:
+            return parsed_failure
+
     try:
         text = candidate.read_text(encoding="utf-8")
         yaml.safe_load(text)
@@ -105,6 +145,8 @@ def collect_yaml_parse_failures(
     role_path: str,
     exclude_paths: list[str] | None,
     iter_yaml_candidates_fn: Callable[[Path, list[str] | None], list[Path]],
+    *,
+    di: object | None = None,
 ) -> list[dict[str, object]]:
     """Collect YAML parse failures with file/line context across a role tree."""
     role_root = Path(role_path).resolve()
@@ -114,15 +156,20 @@ def collect_yaml_parse_failures(
         role_root,
         exclude_paths,
     ):
-        failure = parse_yaml_candidate(candidate, role_root)
+        failure = parse_yaml_candidate(candidate, role_root, di=di)
         if failure is not None:
             failures.append(failure)
 
     return failures
 
 
-def load_yaml_file(path: Path) -> object:
+def load_yaml_file(path: Path, *, di: object | None = None) -> object:
     """Load and parse a YAML file safely."""
+    policy = _get_yaml_parsing_policy(di)
+    load_fn = getattr(policy, "load_yaml_file", None)
+    if callable(load_fn):
+        return load_fn(path)
+
     try:
         text = path.read_text(encoding="utf-8")
         return yaml.safe_load(text)

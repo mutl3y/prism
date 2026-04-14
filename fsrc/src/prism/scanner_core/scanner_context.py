@@ -9,6 +9,12 @@ from typing import Any, Callable
 from prism.errors import PrismRuntimeError
 from prism.scanner_core import scan_request
 from prism.scanner_data.contracts_request import ScanContextPayload, ScanOptionsDict
+from prism.scanner_core.dynamic_include_audit import (
+    collect_unconstrained_dynamic_role_includes,
+)
+from prism.scanner_core.dynamic_include_audit import (
+    collect_unconstrained_dynamic_task_includes,
+)
 
 _REQUIRED_SCAN_OPTION_KEYS: set[str] = {
     "role_path",
@@ -198,6 +204,39 @@ class ScannerContext:
         metadata = dict(context_payload.get("metadata") or {})
         if "features" not in metadata and self._detected_features:
             metadata["features"] = dict(self._detected_features)
+
+        option_policy_warnings: list[dict[str, Any]] = []
+        for warning_source in (
+            self._scan_options.get("scan_policy_warnings"),
+            normalized_scan_options.get("scan_policy_warnings"),
+        ):
+            if isinstance(warning_source, list):
+                option_policy_warnings.extend(
+                    warning for warning in warning_source if isinstance(warning, dict)
+                )
+
+        if option_policy_warnings:
+            existing_policy_warnings = metadata.get("scan_policy_warnings")
+            policy_warning_list = (
+                list(existing_policy_warnings)
+                if isinstance(existing_policy_warnings, list)
+                else []
+            )
+            policy_warning_list.extend(option_policy_warnings)
+            metadata["scan_policy_warnings"] = policy_warning_list
+
+        display_variables = dict(context_payload.get("display_variables") or {})
+        display_variables = self._apply_underscore_reference_policy(
+            scan_options=normalized_scan_options,
+            metadata=metadata,
+            display_variables=display_variables,
+        )
+
+        self._enforce_failure_policies(
+            scan_options=normalized_scan_options,
+            metadata=metadata,
+        )
+
         if self._scan_errors:
             metadata["scan_errors"] = list(self._scan_errors)
             metadata["scan_degraded"] = True
@@ -206,13 +245,144 @@ class ScannerContext:
         return {
             "role_name": context_payload["role_name"],
             "description": context_payload["description"],
-            "display_variables": dict(context_payload.get("display_variables") or {}),
+            "display_variables": display_variables,
             "requirements_display": list(context_payload["requirements_display"]),
             "undocumented_default_filters": list(
                 context_payload["undocumented_default_filters"]
             ),
             "metadata": metadata,
         }
+
+    def _append_policy_warning(
+        self,
+        metadata: dict[str, Any],
+        *,
+        code: str,
+        message: str,
+        detail: dict[str, Any],
+    ) -> None:
+        warnings = metadata.get("scan_policy_warnings")
+        warning_list = list(warnings) if isinstance(warnings, list) else []
+        warning_list.append({"code": code, "message": message, "detail": detail})
+        metadata["scan_policy_warnings"] = warning_list
+
+    def _enforce_failure_policies(
+        self,
+        *,
+        scan_options: ScanOptionsDict,
+        metadata: dict[str, Any],
+    ) -> None:
+        features = metadata.get("features")
+        feature_map = dict(features) if isinstance(features, dict) else {}
+
+        if bool(scan_options.get("fail_on_unconstrained_dynamic_includes")):
+            dynamic_task_includes = collect_unconstrained_dynamic_task_includes(
+                str(scan_options["role_path"]),
+                exclude_paths=scan_options.get("exclude_path_patterns"),
+                di=self._di,
+            )
+            dynamic_role_includes = collect_unconstrained_dynamic_role_includes(
+                str(scan_options["role_path"]),
+                exclude_paths=scan_options.get("exclude_path_patterns"),
+                di=self._di,
+            )
+            dynamic_task_count = len(dynamic_task_includes)
+            dynamic_role_count = len(dynamic_role_includes)
+            dynamic_total = dynamic_task_count + dynamic_role_count
+            if dynamic_total > 0:
+                detail = {
+                    "dynamic_task_includes": dynamic_task_count,
+                    "dynamic_role_includes": dynamic_role_count,
+                }
+                if self._strict_phase_failures:
+                    raise PrismRuntimeError(
+                        code="unconstrained_dynamic_includes_detected",
+                        category="runtime",
+                        message="Scan policy failure: unconstrained dynamic include targets were detected.",
+                        detail=detail,
+                    )
+                self._append_policy_warning(
+                    metadata,
+                    code="unconstrained_dynamic_includes_detected",
+                    message="Scan policy warning: unconstrained dynamic include targets were detected.",
+                    detail=detail,
+                )
+
+        yaml_like_count = int(feature_map.get("yaml_like_task_annotations") or 0)
+        if (
+            bool(scan_options.get("fail_on_yaml_like_task_annotations"))
+            and yaml_like_count > 0
+        ):
+            detail = {"yaml_like_task_annotations": yaml_like_count}
+            if self._strict_phase_failures:
+                raise PrismRuntimeError(
+                    code="yaml_like_task_annotations_detected",
+                    category="runtime",
+                    message="Scan policy failure: yaml-like task annotations were detected.",
+                    detail=detail,
+                )
+            self._append_policy_warning(
+                metadata,
+                code="yaml_like_task_annotations_detected",
+                message="Scan policy warning: yaml-like task annotations were detected.",
+                detail=detail,
+            )
+
+    def _apply_underscore_reference_policy(
+        self,
+        *,
+        scan_options: ScanOptionsDict,
+        metadata: dict[str, Any],
+        display_variables: dict[str, Any],
+    ) -> dict[str, Any]:
+        policy_context = scan_options.get("policy_context")
+        include_underscore = None
+        if isinstance(policy_context, dict):
+            raw_include_underscore = policy_context.get(
+                "include_underscore_prefixed_references"
+            )
+            if isinstance(raw_include_underscore, bool):
+                include_underscore = raw_include_underscore
+
+        ignore_flag = bool(
+            scan_options.get("ignore_unresolved_internal_underscore_references")
+        )
+        if include_underscore is not None:
+            ignore_flag = not include_underscore
+
+        if not ignore_flag:
+            return display_variables
+
+        metadata["ignore_unresolved_internal_underscore_references"] = True
+
+        filtered = {
+            name: data
+            for name, data in display_variables.items()
+            if not (
+                isinstance(name, str)
+                and name.startswith("_")
+                and isinstance(data, dict)
+                and bool(data.get("is_unresolved"))
+            )
+        }
+
+        filtered_count = len(display_variables) - len(filtered)
+        if filtered_count > 0:
+            metadata["underscore_filtered_unresolved_count"] = filtered_count
+            insights = metadata.get("variable_insights")
+            if isinstance(insights, list):
+                metadata["variable_insights"] = [
+                    row
+                    for row in insights
+                    if not (
+                        isinstance(row, dict)
+                        and isinstance(row.get("name"), str)
+                        and str(row.get("name")).startswith("_")
+                        and bool(row.get("is_unresolved"))
+                    )
+                ]
+
+        return filtered
 
     @property
     def discovered_variables(self) -> tuple[Any, ...]:

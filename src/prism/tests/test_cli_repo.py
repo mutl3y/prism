@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from prism import cli
+from prism import cli, scanner
 from prism import repo_services
 from prism.tests._boundary_acceptance import (
     assert_callable_aliases_expose_contract,
@@ -71,6 +71,19 @@ def test_cli_declares_curated_compatibility_seam_registers() -> None:
     assert_named_exports_exist(cli, cli.CLI_SHARED_REPO_COMPATIBILITY_SEAMS)
     assert_named_exports_exist(cli, cli.CLI_RETAINED_COMPATIBILITY_SEAMS)
     assert_named_exports_exist(cli, cli.CLI_TRANSITIONAL_COMPATIBILITY_SEAMS)
+    assert cli.CLI_SCANNER_COMPATIBILITY_SEAMS == (
+        "run_scan",
+        "parse_style_readme",
+        "resolve_default_style_guide_source",
+    )
+    assert_named_exports_exist(cli, cli.CLI_SCANNER_COMPATIBILITY_SEAMS)
+
+
+def test_cli_scanner_compatibility_seams_preserve_scanner_signatures() -> None:
+    for seam_name in cli.CLI_SCANNER_COMPATIBILITY_SEAMS:
+        cli_callable = getattr(cli, seam_name)
+        scanner_callable = getattr(scanner, seam_name)
+        assert cli_callable is scanner_callable
 
 
 def _write_generated_output(output: str) -> str:

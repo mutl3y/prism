@@ -179,3 +179,26 @@ def test_fsrc_runbook_rows_and_csv_shape_parity_against_src() -> None:
     csv_lines = [line for line in fsrc_csv.strip().splitlines() if line]
     assert csv_lines[0] == "file,task_name,step"
     assert len(csv_lines) == 4
+
+
+def test_w2_t01_scanner_reporting_import_boundary() -> None:
+    runbook_module = _load_module("prism.scanner_reporting.runbook", FSRC_SOURCE_ROOT)
+
+    imports = set(runbook_module.__dict__.get("__imports__", []))
+    if not imports:
+        imports = {
+            line.strip()
+            for line in Path(runbook_module.__file__)
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip().startswith("from ") or line.strip().startswith("import ")
+        }
+
+    forbidden = [
+        line
+        for line in imports
+        if "prism.scanner_readme." in line
+        and "prism.scanner_shared.rendering_seams" not in line
+    ]
+
+    assert not forbidden

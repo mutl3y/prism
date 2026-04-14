@@ -252,3 +252,49 @@ def test_fsrc_scanner_context_missing_required_keys_raises_shape_error() -> None
             ValueError, match="scan_options missing required canonical keys"
         ):
             context.orchestrate_scan()
+
+
+def test_fsrc_di_plugin_factories_are_explicit_and_overridable() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+
+        class _VarPlugin:
+            pass
+
+        class _FeaturePlugin:
+            pass
+
+        class _DocPlugin:
+            pass
+
+        container = di_module.DIContainer(
+            role_path="/tmp/role",
+            scan_options={"role_path": "/tmp/role"},
+            factory_overrides={
+                "variable_discovery_plugin_factory": lambda *_args: _VarPlugin(),
+                "feature_detection_plugin_factory": lambda *_args: _FeaturePlugin(),
+                "comment_driven_doc_plugin_factory": lambda *_args: _DocPlugin(),
+            },
+        )
+
+        assert (
+            container.factory_variable_discovery_plugin().__class__.__name__
+            == "_VarPlugin"
+        )
+        assert (
+            container.factory_feature_detection_plugin().__class__.__name__
+            == "_FeaturePlugin"
+        )
+        assert (
+            container.factory_comment_driven_doc_plugin().__class__.__name__
+            == "_DocPlugin"
+        )
+
+        container.clear_mocks()
+        container.inject_mock_variable_discovery_plugin("var-plugin")
+        container.inject_mock_feature_detection_plugin("feature-plugin")
+        container.inject_mock_comment_driven_doc_plugin("doc-plugin")
+
+        assert container.factory_variable_discovery_plugin() == "var-plugin"
+        assert container.factory_feature_detection_plugin() == "feature-plugin"
+        assert container.factory_comment_driven_doc_plugin() == "doc-plugin"

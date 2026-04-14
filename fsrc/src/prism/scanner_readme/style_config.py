@@ -8,22 +8,12 @@ from contextvars import ContextVar, Token
 from types import MappingProxyType
 from typing import Any
 
+from prism.scanner_shared.style_aliases import (
+    get_default_style_section_aliases_snapshot,
+)
 
-_STYLE_SECTION_ALIASES: dict[str, str] = {
-    "galaxy info": "galaxy_info",
-    "requirements": "requirements",
-    "role purpose and capabilities": "purpose",
-    "role notes": "role_notes",
-    "inputs variables summary": "variable_summary",
-    "task module usage summary": "task_summary",
-    "inferred example usage": "example_usage",
-    "role variables": "role_variables",
-    "role contents summary": "role_contents",
-    "auto detected role features": "features",
-    "comparison against local baseline role": "comparison",
-    "detected usages of the default() filter": "default_filters",
-    "scanner report": "scanner_report",
-}
+_STYLE_SECTION_ALIASES: dict[str, str] = get_default_style_section_aliases_snapshot()
+
 
 STYLE_SECTION_ALIASES: Mapping[str, str] = MappingProxyType(_STYLE_SECTION_ALIASES)
 _SECTION_ALIAS_OVERRIDE: ContextVar[dict[str, str] | None] = ContextVar(

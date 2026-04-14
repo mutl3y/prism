@@ -11,6 +11,36 @@ class ScanMetadata(TypedDict, total=False):
     features: dict[str, Any]
     scan_errors: list[dict[str, str]]
     scan_degraded: bool
+    scan_policy_warnings: list[dict[str, Any]]
+
+
+class ScanPolicyWarning(TypedDict, total=False):
+    """Structured warning emitted for scan-policy compatibility behavior."""
+
+    code: str
+    message: str
+    detail: dict[str, Any]
+
+
+class CommentDocMarkerContext(TypedDict, total=False):
+    """Canonical comment-doc marker configuration."""
+
+    prefix: str
+
+
+class CommentDocPolicyContext(TypedDict, total=False):
+    """Optional comment-doc behavior overrides within policy context."""
+
+    marker_prefix: str
+    marker: CommentDocMarkerContext | str
+
+
+class ScanPolicyContext(TypedDict, total=False):
+    """Optional policy-context overrides carried with scan options."""
+
+    include_underscore_prefixed_references: bool
+    comment_doc_marker_prefix: str
+    comment_doc: CommentDocPolicyContext
 
 
 class ScanOptionsDict(TypedDict):
@@ -36,7 +66,8 @@ class ScanOptionsDict(TypedDict):
     fail_on_unconstrained_dynamic_includes: bool | None
     fail_on_yaml_like_task_annotations: bool | None
     ignore_unresolved_internal_underscore_references: bool | None
-    policy_context: NotRequired[dict[str, Any] | None]
+    policy_context: NotRequired[ScanPolicyContext | dict[str, Any] | None]
+    scan_policy_warnings: NotRequired[list[ScanPolicyWarning] | list[dict[str, Any]]]
     strict_phase_failures: NotRequired[bool]
 
 

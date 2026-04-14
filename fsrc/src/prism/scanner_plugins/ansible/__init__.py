@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import copy
+from typing import Any
+
+from prism.errors import PrismRuntimeError
+
 from prism.scanner_plugins.ansible.feature_flags import (
     ANSIBLE_PLUGIN_ENABLED_ENV_VAR,
 )
@@ -9,11 +14,133 @@ from prism.scanner_plugins.ansible.feature_flags import is_ansible_plugin_enable
 from prism.scanner_plugins.ansible.kernel import ANSIBLE_KERNEL_PLUGIN_MANIFEST
 from prism.scanner_plugins.ansible.kernel import AnsibleBaselineKernelPlugin
 from prism.scanner_plugins.ansible.kernel import load_ansible_kernel_plugin
+from prism.scanner_plugins.ansible.extract_policies import (
+    AnsibleTaskAnnotationPolicyPlugin,
+)
+from prism.scanner_plugins.ansible.jinja_analyzer import (
+    AnsibleJinjaAnalysisPolicyPlugin,
+)
+from prism.scanner_plugins.ansible.yaml_parsing import (
+    AnsibleYAMLParsingPolicyPlugin,
+)
+
+
+class AnsibleScanPipelinePlugin:
+    """Scan-pipeline plugin that annotates context with ansible kernel capability."""
+
+    @staticmethod
+    def _merge_preserving_existing(
+        existing: dict[str, Any],
+        incoming: dict[str, Any],
+    ) -> dict[str, Any]:
+        merged = dict(existing)
+        for key, value in incoming.items():
+            if key not in merged:
+                merged[key] = value
+                continue
+            existing_value = merged[key]
+            if isinstance(existing_value, dict) and isinstance(value, dict):
+                merged[key] = AnsibleScanPipelinePlugin._merge_preserving_existing(
+                    existing_value,
+                    value,
+                )
+        return merged
+
+    def process_scan_pipeline(
+        self,
+        scan_options: dict,
+        scan_context: dict,
+    ) -> dict:
+        context = dict(scan_context)
+        context.setdefault("plugin_platform", "ansible")
+        context.setdefault("plugin_name", "ansible")
+        plugin_enabled = bool(is_ansible_plugin_enabled())
+        context["plugin_enabled"] = plugin_enabled
+        context["ansible_plugin_enabled"] = plugin_enabled
+        if "role_path" in scan_options and "role_path" not in context:
+            context["role_path"] = scan_options.get("role_path")
+        return context
+
+    def orchestrate_scan_payload(
+        self,
+        *,
+        payload: dict[str, Any],
+        scan_options: dict[str, Any],
+        strict_mode: bool,
+        preflight_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return orchestrate_scan_payload_with_scan_pipeline_plugin(
+            plugin=self,
+            payload=payload,
+            scan_options=scan_options,
+            strict_mode=strict_mode,
+            preflight_context=preflight_context,
+        )
+
+
+def orchestrate_scan_payload_with_scan_pipeline_plugin(
+    *,
+    plugin: Any,
+    payload: dict[str, Any],
+    scan_options: dict[str, Any],
+    strict_mode: bool,
+    preflight_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    metadata = payload.get("metadata")
+    base_metadata = copy.deepcopy(metadata) if isinstance(metadata, dict) else {}
+
+    if isinstance(preflight_context, dict):
+        plugin_output: Any = dict(preflight_context)
+    else:
+        try:
+            plugin_output = plugin.process_scan_pipeline(
+                scan_options=copy.deepcopy(scan_options),
+                scan_context=copy.deepcopy(base_metadata),
+            )
+        except Exception as exc:
+            if strict_mode:
+                raise PrismRuntimeError(
+                    code="scan_pipeline_plugin_failed",
+                    category="runtime",
+                    message="scan-pipeline plugin execution failed",
+                    detail={"plugin": "ansible", "error": str(exc)},
+                ) from exc
+
+            warning_metadata = dict(base_metadata)
+            existing_warnings = warning_metadata.get("plugin_runtime_warnings")
+            warnings_list = (
+                list(existing_warnings) if isinstance(existing_warnings, list) else []
+            )
+            warnings_list.append(
+                {
+                    "code": "scan_pipeline_plugin_failed",
+                    "plugin": "ansible",
+                    "message": str(exc),
+                }
+            )
+            warning_metadata["plugin_runtime_warnings"] = warnings_list
+            payload["metadata"] = warning_metadata
+            return payload
+
+    if not isinstance(plugin_output, dict):
+        return payload
+
+    payload["metadata"] = AnsibleScanPipelinePlugin._merge_preserving_existing(
+        base_metadata,
+        plugin_output,
+    )
+    return payload
+
 
 __all__ = [
     "ANSIBLE_PLUGIN_ENABLED_ENV_VAR",
     "ANSIBLE_KERNEL_PLUGIN_MANIFEST",
     "AnsibleBaselineKernelPlugin",
+    "AnsibleScanPipelinePlugin",
+    "AnsibleYAMLParsingPolicyPlugin",
+    "AnsibleJinjaAnalysisPolicyPlugin",
+    "AnsibleTaskAnnotationPolicyPlugin",
     "is_ansible_plugin_enabled",
     "load_ansible_kernel_plugin",
+    "orchestrate_scan_payload_with_scan_pipeline_plugin",
 ]

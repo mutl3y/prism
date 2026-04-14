@@ -70,6 +70,471 @@ def test_fsrc_api_run_scan_returns_structured_payload(tmp_path: Path) -> None:
     assert payload["metadata"]["features"]["task_files_scanned"] == 1
 
 
+def test_fsrc_api_run_scan_uses_runtime_route_orchestration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        called = {"route": False}
+
+        def _route(
+            *,
+            role_path,
+            scan_options,
+            legacy_orchestrator_fn,
+            kernel_orchestrator_fn,
+            registry=None,
+        ):
+            del role_path
+            del scan_options
+            called["route"] = True
+            return legacy_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
+
+        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+        payload = api_module.run_scan(str(role_path), include_vars_main=True)
+
+    assert called["route"] is True
+    assert payload["role_name"] == "tiny_role"
+
+
+def test_fsrc_api_run_scan_reuses_router_preflight_without_second_plugin_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        def _route(
+            *,
+            role_path,
+            scan_options,
+            legacy_orchestrator_fn,
+            kernel_orchestrator_fn,
+            registry=None,
+        ):
+            del role_path
+            del scan_options
+            del legacy_orchestrator_fn
+            del registry
+            return kernel_orchestrator_fn(
+                role_path="/tmp/ignored",
+                scan_options={
+                    "_scan_pipeline_preflight_context": {
+                        "plugin_runtime_marker": "preflight-used",
+                        "features": {"task_files_scanned": 999},
+                    }
+                },
+            )
+
+        class _Plugin:
+            def process_scan_pipeline(
+                self,
+                scan_options: dict[str, object],
+                scan_context: dict[str, object],
+            ) -> dict[str, object]:
+                del scan_options
+                del scan_context
+                raise AssertionError(
+                    "plugin should not be called when preflight exists"
+                )
+
+        class _Registry:
+            def get_scan_pipeline_plugin(self, _name: str):
+                return _Plugin
+
+        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        payload = api_module.run_scan(str(role_path), include_vars_main=True)
+
+    assert payload["metadata"]["plugin_runtime_marker"] == "preflight-used"
+    assert payload["metadata"]["features"]["task_files_scanned"] == 1
+
+
+def test_fsrc_api_run_scan_consumes_registered_scan_pipeline_plugin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        def _route(
+            *,
+            role_path,
+            scan_options,
+            legacy_orchestrator_fn,
+            kernel_orchestrator_fn,
+            registry=None,
+        ):
+            del role_path
+            del scan_options
+            del legacy_orchestrator_fn
+            del registry
+            return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
+
+        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+
+        class _Plugin:
+            called = False
+
+            def process_scan_pipeline(
+                self,
+                scan_options: dict[str, object],
+                scan_context: dict[str, object],
+            ) -> dict[str, object]:
+                del scan_context
+                _Plugin.called = True
+                assert str(scan_options["role_path"]) == str(role_path)
+                return {
+                    "plugin_runtime_marker": "applied",
+                    "features": {"task_files_scanned": 999},
+                }
+
+        class _Registry:
+            def get_scan_pipeline_plugin(self, name: str):
+                if name == "default":
+                    return _Plugin
+                return None
+
+        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        payload = api_module.run_scan(str(role_path), include_vars_main=True)
+
+    assert _Plugin.called is True
+    assert payload["metadata"]["plugin_runtime_marker"] == "applied"
+    assert payload["metadata"]["features"]["task_files_scanned"] == 1
+
+
+def test_fsrc_api_run_scan_falls_back_when_scan_pipeline_plugin_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        def _route(
+            *,
+            role_path,
+            scan_options,
+            legacy_orchestrator_fn,
+            kernel_orchestrator_fn,
+            registry=None,
+        ):
+            del role_path
+            del scan_options
+            del legacy_orchestrator_fn
+            del registry
+            return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
+
+        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+
+        class _Registry:
+            def get_scan_pipeline_plugin(self, _name: str):
+                return None
+
+        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        payload = api_module.run_scan(str(role_path), include_vars_main=True)
+
+    assert payload["metadata"]["features"]["task_files_scanned"] == 1
+    assert "plugin_runtime_marker" not in payload["metadata"]
+
+
+def test_fsrc_api_run_scan_plugin_failure_raises_when_strict(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+        errors_module = importlib.import_module("prism.errors")
+
+        def _route(
+            *,
+            role_path,
+            scan_options,
+            legacy_orchestrator_fn,
+            kernel_orchestrator_fn,
+            registry=None,
+        ):
+            del role_path
+            del scan_options
+            del legacy_orchestrator_fn
+            del registry
+            return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
+
+        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+
+        class _Plugin:
+            def process_scan_pipeline(
+                self,
+                scan_options: dict[str, object],
+                scan_context: dict[str, object],
+            ) -> dict[str, object]:
+                del scan_options
+                del scan_context
+                raise RuntimeError("plugin boom")
+
+        class _Registry:
+            def get_scan_pipeline_plugin(self, _name: str):
+                return _Plugin
+
+        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+
+        with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+            api_module.run_scan(str(role_path), include_vars_main=True)
+
+    assert "scan-pipeline plugin execution failed" in str(exc_info.value)
+
+
+def test_fsrc_api_run_scan_plugin_failure_falls_back_when_not_strict(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        def _route(
+            *,
+            role_path,
+            scan_options,
+            legacy_orchestrator_fn,
+            kernel_orchestrator_fn,
+            registry=None,
+        ):
+            del role_path
+            del scan_options
+            del legacy_orchestrator_fn
+            del registry
+            return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
+
+        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+
+        class _Plugin:
+            def process_scan_pipeline(
+                self,
+                scan_options: dict[str, object],
+                scan_context: dict[str, object],
+            ) -> dict[str, object]:
+                del scan_options
+                del scan_context
+                raise RuntimeError("plugin boom")
+
+        class _Registry:
+            def get_scan_pipeline_plugin(self, _name: str):
+                return _Plugin
+
+        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        payload = api_module.run_scan(
+            str(role_path),
+            include_vars_main=True,
+            strict_phase_failures=False,
+        )
+
+    warnings = payload["metadata"].get("plugin_runtime_warnings")
+    assert isinstance(warnings, list)
+    assert warnings
+    assert warnings[0]["code"] == "scan_pipeline_plugin_failed"
+    assert payload["metadata"]["features"]["task_files_scanned"] == 1
+
+
+def test_fsrc_api_run_scan_registry_lookup_failure_falls_back_when_not_strict(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        def _route(
+            *,
+            role_path,
+            scan_options,
+            legacy_orchestrator_fn,
+            kernel_orchestrator_fn,
+            registry=None,
+        ):
+            del role_path
+            del scan_options
+            del legacy_orchestrator_fn
+            del registry
+            return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
+
+        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+
+        class _Registry:
+            def get_scan_pipeline_plugin(self, _name: str):
+                raise RuntimeError("registry boom")
+
+        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        payload = api_module.run_scan(
+            str(role_path),
+            include_vars_main=True,
+            strict_phase_failures=False,
+        )
+
+    warnings = payload["metadata"].get("plugin_runtime_warnings")
+    assert isinstance(warnings, list)
+    assert warnings
+    assert warnings[0]["code"] == "scan_pipeline_plugin_failed"
+    assert payload["metadata"]["features"]["task_files_scanned"] == 1
+
+
+def test_fsrc_api_run_scan_registry_lookup_failure_raises_when_strict(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+        errors_module = importlib.import_module("prism.errors")
+
+        def _route(
+            *,
+            role_path,
+            scan_options,
+            legacy_orchestrator_fn,
+            kernel_orchestrator_fn,
+            registry=None,
+        ):
+            del role_path
+            del scan_options
+            del legacy_orchestrator_fn
+            del registry
+            return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
+
+        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+
+        class _Registry:
+            def get_scan_pipeline_plugin(self, _name: str):
+                raise RuntimeError("registry boom")
+
+        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+
+        with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+            api_module.run_scan(str(role_path), include_vars_main=True)
+
+    assert "scan-pipeline plugin execution failed" in str(exc_info.value)
+
+
+def test_fsrc_api_run_scan_plugin_scan_context_mutation_does_not_leak(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        def _route(
+            *,
+            role_path,
+            scan_options,
+            legacy_orchestrator_fn,
+            kernel_orchestrator_fn,
+            registry=None,
+        ):
+            del role_path
+            del scan_options
+            del legacy_orchestrator_fn
+            del registry
+            return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
+
+        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+
+        class _Plugin:
+            def process_scan_pipeline(
+                self,
+                scan_options: dict[str, object],
+                scan_context: dict[str, object],
+            ) -> dict[str, object]:
+                del scan_options
+                features = scan_context.get("features")
+                if isinstance(features, dict):
+                    features["task_files_scanned"] = 999
+                return {"plugin_runtime_marker": "mutated-context"}
+
+        class _Registry:
+            def get_scan_pipeline_plugin(self, _name: str):
+                return _Plugin
+
+        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        payload = api_module.run_scan(str(role_path), include_vars_main=True)
+
+    assert payload["metadata"]["plugin_runtime_marker"] == "mutated-context"
+    assert payload["metadata"]["features"]["task_files_scanned"] == 1
+
+
+def test_fsrc_api_run_scan_plugin_scan_options_mutation_cannot_downgrade_strict(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+        errors_module = importlib.import_module("prism.errors")
+
+        def _route(
+            *,
+            role_path,
+            scan_options,
+            legacy_orchestrator_fn,
+            kernel_orchestrator_fn,
+            registry=None,
+        ):
+            del role_path
+            del scan_options
+            del legacy_orchestrator_fn
+            del registry
+            return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
+
+        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+
+        class _Plugin:
+            def process_scan_pipeline(
+                self,
+                scan_options: dict[str, object],
+                scan_context: dict[str, object],
+            ) -> dict[str, object]:
+                del scan_context
+                scan_options["strict_phase_failures"] = False
+                raise RuntimeError("plugin boom")
+
+        class _Registry:
+            def get_scan_pipeline_plugin(self, _name: str):
+                return _Plugin
+
+        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+
+        with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+            api_module.run_scan(str(role_path), include_vars_main=True)
+
+    assert "scan-pipeline plugin execution failed" in str(exc_info.value)
+
+
 def test_fsrc_cli_main_runs_scan_and_emits_json(tmp_path: Path, capsys) -> None:
     role_path = tmp_path / "tiny_role"
     _build_tiny_role(role_path)
@@ -136,3 +601,58 @@ def test_fsrc_cli_main_parse_error_returns_nonzero_int(capsys) -> None:
     assert isinstance(exit_code, int)
     assert exit_code != 0
     assert "usage:" in captured.err.lower()
+
+
+def test_fsrc_api_run_scan_uses_scan_pipeline_plugin_selector(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        def _route(
+            *,
+            role_path,
+            scan_options,
+            legacy_orchestrator_fn,
+            kernel_orchestrator_fn,
+            registry=None,
+        ):
+            del role_path
+            del scan_options
+            del legacy_orchestrator_fn
+            del registry
+            return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
+
+        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+
+        class _Plugin:
+            def process_scan_pipeline(
+                self,
+                scan_options: dict[str, object],
+                scan_context: dict[str, object],
+            ) -> dict[str, object]:
+                del scan_context
+                assert scan_options.get("scan_pipeline_plugin") == "custom"
+                return {
+                    "plugin_enabled": True,
+                    "plugin_runtime_marker": "custom-selector",
+                }
+
+        class _Registry:
+            def get_scan_pipeline_plugin(self, name: str):
+                if name == "custom":
+                    return _Plugin
+                return None
+
+        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        payload = api_module.run_scan(
+            str(role_path),
+            include_vars_main=True,
+            scan_pipeline_plugin="custom",
+        )
+
+    assert payload["metadata"]["plugin_runtime_marker"] == "custom-selector"

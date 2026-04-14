@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any, Protocol, TypedDict
 
 from prism.scanner_data import RunScanOutputPayload, VariableRow
 
@@ -56,6 +56,16 @@ class OutputOrchestrationPlugin(Protocol):
     ) -> RunScanOutputPayload: ...
 
 
+class ScanPipelinePreflightContext(TypedDict, total=False):
+    """Typed preflight context contract emitted by scan-pipeline plugins."""
+
+    plugin_name: str
+    plugin_platform: str
+    plugin_enabled: bool
+    ansible_plugin_enabled: bool
+    role_path: str
+
+
 class ScanPipelinePlugin(Protocol):
     """Protocol for plugins that can alter scan pipeline context."""
 
@@ -63,7 +73,7 @@ class ScanPipelinePlugin(Protocol):
         self,
         scan_options: dict[str, Any],
         scan_context: dict[str, Any],
-    ) -> dict[str, Any]: ...
+    ) -> ScanPipelinePreflightContext: ...
 
 
 class CommentDrivenDocumentationPlugin(Protocol):
@@ -75,3 +85,21 @@ class CommentDrivenDocumentationPlugin(Protocol):
         exclude_paths: list[str] | None = None,
         marker_prefix: str = "prism",
     ) -> dict[str, list[str]]: ...
+
+
+class YAMLParsingPolicyPlugin(Protocol):
+    """Protocol for YAML parsing/loading policy implementations."""
+
+    def load_yaml_file(self, path: str | Any) -> object: ...
+
+    def parse_yaml_candidate(
+        self,
+        candidate: str | Any,
+        role_root: str | Any,
+    ) -> dict[str, object] | None: ...
+
+
+class JinjaAnalysisPolicyPlugin(Protocol):
+    """Protocol for Jinja variable analysis policy implementations."""
+
+    def collect_undeclared_jinja_variables(self, text: str) -> set[str]: ...

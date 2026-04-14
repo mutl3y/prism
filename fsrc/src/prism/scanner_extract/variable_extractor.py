@@ -6,13 +6,39 @@ import re
 from pathlib import Path
 from typing import Any
 
-import yaml
-
-from prism.scanner_extract.task_line_parsing import INCLUDE_VARS_KEYS
+from prism.scanner_plugins.defaults import resolve_variable_extractor_policy_plugin
 from prism.scanner_extract.task_file_traversal import (
     _collect_task_files,
     _load_yaml_file,
 )
+from prism.scanner_io.loader import load_yaml_file
+
+
+def _resolve_plugin_registry(di: object | None = None):
+    if di is None:
+        return None
+    registry = getattr(di, "plugin_registry", None)
+    if registry is not None:
+        return registry
+    scan_options = getattr(di, "_scan_options", None)
+    if isinstance(scan_options, dict):
+        return scan_options.get("plugin_registry")
+    return None
+
+
+def _resolve_policy_with_registry(resolver, di: object | None = None):
+    registry = _resolve_plugin_registry(di)
+    if registry is None:
+        return resolver(di)
+    try:
+        return resolver(di, registry=registry)
+    except TypeError:
+        return resolver(di)
+
+
+def _get_variable_extractor_policy(di: object | None = None):
+    return _resolve_policy_with_registry(resolve_variable_extractor_policy_plugin, di)
+
 
 DEFAULT_TARGET_RE = re.compile(r"\b(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*\|\s*default\b")
 JINJA_VAR_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)")
@@ -41,35 +67,21 @@ def extract_default_target_var(text: str) -> str | None:
 def collect_include_vars_files(
     role_path: str,
     exclude_paths: list[str] | None = None,
+    *,
+    di: object | None = None,
 ) -> list[Path]:
-    role_root = Path(role_path).resolve()
-    include_files: set[Path] = set()
-    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
-        data = _load_yaml_file(task_file)
-        if not isinstance(data, list):
-            continue
-        for task in data:
-            if not isinstance(task, dict):
-                continue
-            for key in INCLUDE_VARS_KEYS:
-                if key not in task:
-                    continue
-                value = task.get(key)
-                if isinstance(value, str):
-                    include_path = (task_file.parent / value).resolve()
-                    if include_path.is_file():
-                        include_files.add(include_path)
-                elif isinstance(value, dict):
-                    file_value = value.get("file") or value.get("_raw_params")
-                    if isinstance(file_value, str):
-                        include_path = (task_file.parent / file_value).resolve()
-                        if include_path.is_file():
-                            include_files.add(include_path)
-    return sorted(include_files)
+    return _get_variable_extractor_policy(di).collect_include_vars_files(
+        role_path=role_path,
+        exclude_paths=exclude_paths,
+        collect_task_files=_collect_task_files,
+        load_yaml_file=_load_yaml_file,
+    )
 
 
 def load_seed_variables(
     paths: list[str] | None,
+    *,
+    di: object | None = None,
 ) -> tuple[dict[str, Any], set[str], dict[str, str]]:
     seed_values: dict[str, Any] = {}
     seed_secrets: set[str] = set()
@@ -82,8 +94,8 @@ def load_seed_variables(
         if not candidate.is_file():
             continue
         try:
-            loaded = yaml.safe_load(candidate.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
+            loaded = load_yaml_file(candidate, di=di)
+        except Exception:
             continue
         if not isinstance(loaded, dict):
             continue

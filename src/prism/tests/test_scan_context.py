@@ -455,6 +455,34 @@ def test_run_scan_payload_scopes_policy_without_mutating_canonical_defaults(
     assert not variable_extractor._looks_secret_name("bertrum_scope_sentinel_value")
 
 
+def test_run_scan_payload_delegates_to_kernel_orchestrator(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_kernel_run_scan_payload(*, role_path: str, **kwargs):
+        captured["role_path"] = role_path
+        captured.update(kwargs)
+        return {"delegated": True}
+
+    monkeypatch.setattr(
+        scanner._kernel_orchestrator,
+        "run_scan_payload",
+        fake_kernel_run_scan_payload,
+    )
+
+    result = scanner._run_scan_payload("/tmp/demo-role", include_vars_main=False)
+
+    assert result == {"delegated": True}
+    assert captured["role_path"] == "/tmp/demo-role"
+    assert captured["include_vars_main"] is False
+
+
+def test_execute_scan_with_context_binding_owned_by_kernel_orchestrator_module():
+    assert (
+        scanner._execute_scan_with_context.__class__.__module__
+        == "prism.scanner_kernel.orchestrator"
+    )
+
+
 def test_policy_context_annotations_use_typed_contract_across_runtime_seams():
     scan_runtime_hints = get_type_hints(scan_runtime.enrich_scan_context_with_insights)
     scanner_hints = get_type_hints(scanner.build_variable_insights)

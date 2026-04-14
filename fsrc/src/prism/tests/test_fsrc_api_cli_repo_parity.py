@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import argparse
+import inspect
 import importlib
 import json
 import sys
@@ -74,6 +76,36 @@ def test_fsrc_api_declares_objective_critical_entrypoints() -> None:
     for symbol in api_module.API_PUBLIC_ENTRYPOINTS:
         assert hasattr(api_module, symbol)
     assert api_module.__all__ == ["scan_collection", "scan_repo", "scan_role"]
+
+
+def test_fsrc_api_objective_critical_entrypoint_signatures_match_src() -> None:
+    with _prefer_prism_lane_on_sys_path(SRC_SOURCE_ROOT):
+        src_api_module = importlib.import_module("prism.api")
+
+    with _prefer_prism_lane_on_sys_path(FSRC_SOURCE_ROOT):
+        fsrc_api_module = importlib.import_module("prism.api")
+
+    for name in ("scan_collection", "scan_role", "scan_repo"):
+        src_signature = inspect.signature(getattr(src_api_module, name))
+        fsrc_signature = inspect.signature(getattr(fsrc_api_module, name))
+        assert fsrc_signature == src_signature
+
+
+def test_fsrc_repo_services_objective_critical_signature_parity_with_src() -> None:
+    with _prefer_prism_lane_on_sys_path(SRC_SOURCE_ROOT):
+        src_repo_services_module = importlib.import_module("prism.repo_services")
+
+    with _prefer_prism_lane_on_sys_path(FSRC_SOURCE_ROOT):
+        fsrc_repo_services_module = importlib.import_module("prism.repo_services")
+
+    for name in (
+        "resolve_repo_scan_target",
+        "normalize_repo_scan_payload",
+        "run_repo_scan",
+    ):
+        src_signature = inspect.signature(getattr(src_repo_services_module, name))
+        fsrc_signature = inspect.signature(getattr(fsrc_repo_services_module, name))
+        assert fsrc_signature == src_signature
 
 
 def test_fsrc_cli_parser_exposes_collection_and_completion_commands() -> None:
@@ -247,6 +279,60 @@ def _run_cli_main(lane_root: Path, argv: list[str]) -> int:
         return cli_module.main(argv)
 
 
+def _repo_option_contract_for_lane(
+    lane_root: Path,
+) -> tuple[set[str], dict[str, argparse.Action]]:
+    with _prefer_prism_lane_on_sys_path(lane_root):
+        cli_module = importlib.import_module("prism.cli")
+        parser = cli_module.build_parser()
+
+    subparsers_action = next(
+        action
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    repo_parser = subparsers_action.choices["repo"]
+
+    option_strings: set[str] = set()
+    actions_by_option: dict[str, argparse.Action] = {}
+    for action in repo_parser._actions:
+        for option in action.option_strings:
+            option_strings.add(option)
+            actions_by_option[option] = action
+
+    return option_strings, actions_by_option
+
+
+def test_fsrc_repo_parser_option_contract_required_rows() -> None:
+    src_options, src_actions = _repo_option_contract_for_lane(SRC_SOURCE_ROOT)
+    fsrc_options, fsrc_actions = _repo_option_contract_for_lane(FSRC_SOURCE_ROOT)
+
+    src_required_options = {
+        "--repo-url",
+        "--repo-role-path",
+        "--repo-style-readme-path",
+        "--repo-ref",
+        "--repo-timeout",
+        "--style-readme",
+        "-f",
+        "--format",
+    }
+    fsrc_required_options = {
+        "--repo-url",
+        "--repo-role-path",
+        "--repo-style-readme-path",
+        "--style-readme-path",
+        "--repo-ref",
+        "--repo-timeout",
+        "--json",
+    }
+
+    assert src_required_options.issubset(src_options)
+    assert fsrc_required_options.issubset(fsrc_options)
+    assert src_actions["--repo-url"].required is True
+    assert fsrc_actions["--repo-url"].required is True
+
+
 def test_fsrc_cli_top_level_help_exit_semantics_match_src() -> None:
     src_rc = _run_cli_main(SRC_SOURCE_ROOT, ["--help"])
     fsrc_rc = _run_cli_main(FSRC_SOURCE_ROOT, ["--help"])
@@ -261,3 +347,28 @@ def test_fsrc_cli_unknown_first_arg_semantics_match_src() -> None:
 
     assert src_rc == 2
     assert fsrc_rc == src_rc
+
+
+def test_fsrc_api_run_scan_surfaces_role_notes_in_metadata(tmp_path: Path) -> None:
+    role_path = tmp_path / "role"
+    (role_path / "defaults").mkdir(parents=True)
+    (role_path / "tasks").mkdir(parents=True)
+    (role_path / "defaults" / "main.yml").write_text(
+        "---\nexample_name: prism\n",
+        encoding="utf-8",
+    )
+    (role_path / "tasks" / "main.yml").write_text(
+        "# prism~note: emitted from marker comment\n"
+        "- name: Use variable\n"
+        "  debug:\n"
+        '    msg: "{{ example_name }}"\n',
+        encoding="utf-8",
+    )
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+        payload = api_module.run_scan(str(role_path), include_vars_main=True)
+
+    role_notes = payload["metadata"].get("role_notes")
+    assert isinstance(role_notes, dict)
+    assert "emitted from marker comment" in role_notes.get("notes", [])

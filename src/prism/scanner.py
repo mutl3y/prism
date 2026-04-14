@@ -99,6 +99,7 @@ from prism.scanner_io.scan_output_emission import (
 from prism.scanner_io.scan_output_primary import (
     render_and_write_scan_output as _scan_output_primary_render_and_write_scan_output,
 )
+from prism.scanner_kernel import orchestrator as _kernel_orchestrator
 from prism.scanner_readme import (
     append_scanner_report_section_if_enabled as _readme_append_scanner_report_section_if_enabled,
     build_doc_insights,
@@ -627,38 +628,34 @@ _emit_scan_outputs = partial(
 )
 
 
-class _ExecuteScanWithContextBinding:
-    """Late-bound scanner-context execution seam for facade-level compatibility."""
-
-    def __call__(self, **kwargs):
-        return _scan_facade_helpers.execute_scan_with_context(
-            **kwargs,
-            di_container_cls=DIContainer,
-            scanner_context_cls=ScannerContext,
-            build_run_scan_options_fn=scan_request.build_run_scan_options_canonical,
-            prepare_scan_context_fn=_prepare_scan_context,
-            build_emit_scan_outputs_args_fn=_build_emit_scan_outputs_args,
-            emit_scan_outputs_fn=_emit_scan_outputs,
-        )
-
-
-class _OrchestrateScanPayloadBinding:
-    """Late-bound payload orchestration seam for facade-level compatibility."""
-
-    def __call__(self, **kwargs):
-        return _scan_facade_helpers.orchestrate_scan_payload(
-            **kwargs,
-            di_container_cls=DIContainer,
-            scanner_context_cls=ScannerContext,
-            build_run_scan_options_fn=scan_request.build_run_scan_options_canonical,
-            prepare_scan_context_fn=_prepare_scan_context,
-        )
+_execute_scan_with_context = (
+    _kernel_orchestrator.build_execute_scan_with_context_binding(
+        resolve_execute_scan_with_context_fn=(
+            lambda: _scan_facade_helpers.execute_scan_with_context
+        ),
+        resolve_di_container_cls=lambda: DIContainer,
+        resolve_scanner_context_cls=lambda: ScannerContext,
+        resolve_build_run_scan_options_fn=(
+            lambda: scan_request.build_run_scan_options_canonical
+        ),
+        resolve_prepare_scan_context_fn=lambda: _prepare_scan_context,
+        resolve_build_emit_scan_outputs_args_fn=lambda: _build_emit_scan_outputs_args,
+        resolve_emit_scan_outputs_fn=lambda: _emit_scan_outputs,
+    )
+)
 
 
-_execute_scan_with_context = _ExecuteScanWithContextBinding()
-
-
-_orchestrate_scan_payload = _OrchestrateScanPayloadBinding()
+_orchestrate_scan_payload = _kernel_orchestrator.build_orchestrate_scan_payload_binding(
+    resolve_orchestrate_scan_payload_fn=(
+        lambda: _scan_facade_helpers.orchestrate_scan_payload
+    ),
+    resolve_di_container_cls=lambda: DIContainer,
+    resolve_scanner_context_cls=lambda: ScannerContext,
+    resolve_build_run_scan_options_fn=(
+        lambda: scan_request.build_run_scan_options_canonical
+    ),
+    resolve_prepare_scan_context_fn=lambda: _prepare_scan_context,
+)
 
 
 _build_runtime_scan_state = partial(
@@ -716,38 +713,39 @@ def _run_scan_payload(
     runbook_csv_output: str | None = None,
 ) -> _RunScanOutputPayload:
     """Scan a role and return the structured payload without rendering output."""
-    return _execute_with_runtime_policy(
+    return _kernel_orchestrator.run_scan_payload(
         role_path=role_path,
-        role_name_override=role_name_override,
-        readme_config_path=readme_config_path,
-        include_vars_main=include_vars_main,
-        exclude_path_patterns=exclude_path_patterns,
-        detailed_catalog=detailed_catalog,
-        include_task_parameters=include_task_parameters,
-        include_task_runbooks=include_task_runbooks,
-        inline_task_runbooks=inline_task_runbooks,
-        include_collection_checks=include_collection_checks,
-        keep_unknown_style_sections=keep_unknown_style_sections,
-        adopt_heading_mode=adopt_heading_mode,
-        vars_seed_paths=vars_seed_paths,
-        style_readme_path=style_readme_path,
-        style_source_path=style_source_path,
-        style_guide_skeleton=style_guide_skeleton,
         compare_role_path=compare_role_path,
+        style_readme_path=style_readme_path,
+        role_name_override=role_name_override,
+        vars_seed_paths=vars_seed_paths,
+        concise_readme=concise_readme,
+        scanner_report_output=scanner_report_output,
+        include_vars_main=include_vars_main,
+        include_scanner_report_link=include_scanner_report_link,
+        readme_config_path=readme_config_path,
+        adopt_heading_mode=adopt_heading_mode,
+        style_guide_skeleton=style_guide_skeleton,
+        keep_unknown_style_sections=keep_unknown_style_sections,
+        exclude_path_patterns=exclude_path_patterns,
+        style_source_path=style_source_path,
         policy_config_path=policy_config_path,
         fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
         fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),
+        detailed_catalog=detailed_catalog,
+        include_collection_checks=include_collection_checks,
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
         strict_phase_failures=strict_phase_failures,
         failure_policy=failure_policy,
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
-        invoke_scan_fn=lambda scan_options: _orchestrate_scan_payload(
-            role_path=role_path,
-            scan_options=scan_options,
-        ),
+        execute_with_runtime_policy_fn=_execute_with_runtime_policy,
+        orchestrate_scan_payload_fn=_orchestrate_scan_payload,
     )
 
 
@@ -789,45 +787,41 @@ def run_scan(
 
     Delegates scan orchestration to ScannerContext and then emits outputs.
     """
-    return _execute_with_runtime_policy(
+    return _kernel_orchestrator.run_scan(
         role_path=role_path,
-        role_name_override=role_name_override,
-        readme_config_path=readme_config_path,
-        include_vars_main=include_vars_main,
-        exclude_path_patterns=exclude_path_patterns,
-        detailed_catalog=detailed_catalog,
-        include_task_parameters=include_task_parameters,
-        include_task_runbooks=include_task_runbooks,
-        inline_task_runbooks=inline_task_runbooks,
-        include_collection_checks=include_collection_checks,
-        keep_unknown_style_sections=keep_unknown_style_sections,
-        adopt_heading_mode=adopt_heading_mode,
-        vars_seed_paths=vars_seed_paths,
-        style_readme_path=style_readme_path,
-        style_source_path=style_source_path,
-        style_guide_skeleton=style_guide_skeleton,
+        output=output,
+        template=template,
+        output_format=output_format,
         compare_role_path=compare_role_path,
+        style_readme_path=style_readme_path,
+        role_name_override=role_name_override,
+        vars_seed_paths=vars_seed_paths,
+        concise_readme=concise_readme,
+        scanner_report_output=scanner_report_output,
+        include_vars_main=include_vars_main,
+        include_scanner_report_link=include_scanner_report_link,
+        readme_config_path=readme_config_path,
+        adopt_heading_mode=adopt_heading_mode,
+        style_guide_skeleton=style_guide_skeleton,
+        keep_unknown_style_sections=keep_unknown_style_sections,
+        exclude_path_patterns=exclude_path_patterns,
+        style_source_path=style_source_path,
         policy_config_path=policy_config_path,
         fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
         fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),
+        detailed_catalog=detailed_catalog,
+        dry_run=dry_run,
+        include_collection_checks=include_collection_checks,
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
         strict_phase_failures=strict_phase_failures,
         failure_policy=failure_policy,
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
-        invoke_scan_fn=lambda scan_options: _execute_scan_with_context(
-            role_path=role_path,
-            scan_options=scan_options,
-            output=output,
-            output_format=output_format,
-            concise_readme=concise_readme,
-            scanner_report_output=scanner_report_output,
-            include_scanner_report_link=include_scanner_report_link,
-            template=template,
-            dry_run=dry_run,
-            runbook_output=runbook_output,
-            runbook_csv_output=runbook_csv_output,
-        ),
+        execute_with_runtime_policy_fn=_execute_with_runtime_policy,
+        execute_scan_with_context_fn=_execute_scan_with_context,
     )

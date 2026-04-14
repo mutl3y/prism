@@ -15,6 +15,9 @@ from prism.scanner_extract.task_catalog_assembly import (
 )
 from prism.scanner_extract.task_file_traversal import (
     _collect_task_files,
+    _collect_task_files_with_unresolved_includes,
+    _collect_unconstrained_dynamic_role_includes,
+    _collect_unconstrained_dynamic_task_includes,
     _expand_include_target_candidates,
     _format_inline_yaml,
     _is_path_excluded,
@@ -46,6 +49,9 @@ __all__ = [
     "TASK_INCLUDE_KEYS",
     "TASK_META_KEYS",
     "_collect_task_files",
+    "_collect_task_files_with_unresolved_includes",
+    "_collect_unconstrained_dynamic_role_includes",
+    "_collect_unconstrained_dynamic_task_includes",
     "_collect_task_handler_catalog",
     "_compact_task_parameters",
     "_detect_task_module",

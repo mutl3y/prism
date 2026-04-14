@@ -25,7 +25,10 @@ class PluginRegistry:
         self._comment_driven_doc_plugins: dict[
             str, type[CommentDrivenDocumentationPlugin]
         ] = {}
-        self._loaded_plugins: dict[str, Any] = {}
+        self._extract_policy_plugins: dict[str, type[Any]] = {}
+        self._yaml_parsing_policy_plugins: dict[str, type[Any]] = {}
+        self._jinja_analysis_policy_plugins: dict[str, type[Any]] = {}
+        self._loaded_plugins: dict[tuple[str, str], Any] = {}
 
     def register_variable_discovery_plugin(
         self,
@@ -62,6 +65,27 @@ class PluginRegistry:
     ) -> None:
         self._comment_driven_doc_plugins[name] = plugin_class
 
+    def register_extract_policy_plugin(
+        self,
+        name: str,
+        plugin_class: type[Any],
+    ) -> None:
+        self._extract_policy_plugins[name] = plugin_class
+
+    def register_yaml_parsing_policy_plugin(
+        self,
+        name: str,
+        plugin_class: type[Any],
+    ) -> None:
+        self._yaml_parsing_policy_plugins[name] = plugin_class
+
+    def register_jinja_analysis_policy_plugin(
+        self,
+        name: str,
+        plugin_class: type[Any],
+    ) -> None:
+        self._jinja_analysis_policy_plugins[name] = plugin_class
+
     def get_variable_discovery_plugin(
         self,
         name: str,
@@ -89,6 +113,15 @@ class PluginRegistry:
     ) -> type[CommentDrivenDocumentationPlugin] | None:
         return self._comment_driven_doc_plugins.get(name)
 
+    def get_extract_policy_plugin(self, name: str) -> type[Any] | None:
+        return self._extract_policy_plugins.get(name)
+
+    def get_yaml_parsing_policy_plugin(self, name: str) -> type[Any] | None:
+        return self._yaml_parsing_policy_plugins.get(name)
+
+    def get_jinja_analysis_policy_plugin(self, name: str) -> type[Any] | None:
+        return self._jinja_analysis_policy_plugins.get(name)
+
     def list_variable_discovery_plugins(self) -> list[str]:
         return list(self._variable_discovery_plugins.keys())
 
@@ -104,13 +137,23 @@ class PluginRegistry:
     def list_comment_driven_doc_plugins(self) -> list[str]:
         return list(self._comment_driven_doc_plugins.keys())
 
+    def list_extract_policy_plugins(self) -> list[str]:
+        return list(self._extract_policy_plugins.keys())
+
+    def list_yaml_parsing_policy_plugins(self) -> list[str]:
+        return list(self._yaml_parsing_policy_plugins.keys())
+
+    def list_jinja_analysis_policy_plugins(self) -> list[str]:
+        return list(self._jinja_analysis_policy_plugins.keys())
+
     def load_plugin_from_module(self, module_name: str, class_name: str) -> Any:
-        if module_name in self._loaded_plugins:
-            return self._loaded_plugins[module_name]
+        cache_key = (module_name, class_name)
+        if cache_key in self._loaded_plugins:
+            return self._loaded_plugins[cache_key]
 
         module = importlib.import_module(module_name)
         plugin_class = getattr(module, class_name)
-        self._loaded_plugins[module_name] = plugin_class
+        self._loaded_plugins[cache_key] = plugin_class
         return plugin_class
 
 

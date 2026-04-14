@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-import yaml
+from prism.scanner_io.loader import load_yaml_file
+from prism.scanner_io.loader import parse_yaml_candidate
 
 
 ROLE_METADATA_YAML_INVALID = "ROLE_METADATA_YAML_INVALID"
@@ -49,25 +50,50 @@ def load_meta(
     *,
     strict: bool = False,
     warning_collector: list[str] | None = None,
+    di: object | None = None,
 ) -> dict:
     """Load the role metadata file meta/main.yml if present."""
     meta_file = Path(role_path) / "meta" / "main.yml"
     if meta_file.exists():
-        try:
-            loaded = yaml.safe_load(meta_file.read_text(encoding="utf-8")) or {}
-        except yaml.YAMLError as exc:
+        role_root = Path(role_path).resolve()
+        failure = parse_yaml_candidate(meta_file, role_root, di=di)
+        if isinstance(failure, dict):
+            failure_error = str(failure.get("error", "")).strip() or "unknown"
+            failure_line = failure.get("line")
+            failure_column = failure.get("column")
+            failure_detail = (
+                f"{failure_error}"
+                if failure_line is None
+                else f"{failure_error} (line={failure_line}, column={failure_column})"
+            )
+            if str(failure_error).startswith("read_error:"):
+                if strict:
+                    raise RuntimeError(
+                        f"{ROLE_METADATA_IO_ERROR}: {meta_file}: {failure_detail}"
+                    )
+                _record_metadata_warning(
+                    warning_collector,
+                    code=ROLE_METADATA_IO_ERROR,
+                    meta_file=meta_file,
+                    error=failure_detail,
+                )
+                return {}
+
             if strict:
                 raise RuntimeError(
-                    f"{ROLE_METADATA_YAML_INVALID}: {meta_file}: {exc}"
-                ) from exc
+                    f"{ROLE_METADATA_YAML_INVALID}: {meta_file}: {failure_detail}"
+                )
             _record_metadata_warning(
                 warning_collector,
                 code=ROLE_METADATA_YAML_INVALID,
                 meta_file=meta_file,
-                error=exc,
+                error=failure_detail,
             )
             return {}
-        except (OSError, UnicodeDecodeError) as exc:
+
+        try:
+            loaded = load_yaml_file(meta_file, di=di) or {}
+        except Exception as exc:
             if strict:
                 raise RuntimeError(
                     f"{ROLE_METADATA_IO_ERROR}: {meta_file}: {exc}"
@@ -91,14 +117,14 @@ def load_meta(
     return {}
 
 
-def load_requirements(role_path: str) -> list:
+def load_requirements(role_path: str, *, di: object | None = None) -> list:
     """Load meta/requirements.yml as a list, or return an empty list."""
     path = Path(role_path) / "meta" / "requirements.yml"
     if path.exists():
         try:
-            payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+            payload = load_yaml_file(path, di=di)
             return payload if isinstance(payload, list) else []
-        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
+        except Exception:
             return []
     return []
 
@@ -109,6 +135,7 @@ def load_variables(
     include_vars_main: bool = True,
     exclude_paths: list[str] | None = None,
     collect_include_vars_files: Callable[[str, list[str] | None], list[Path]],
+    di: object | None = None,
 ) -> dict:
     """Load role variables from defaults/vars and static include_vars targets."""
     vars_out: dict = {}
@@ -120,18 +147,18 @@ def load_variables(
     for sub in subdirs:
         for path in iter_role_variable_map_candidates(role_root, sub):
             try:
-                data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+                data = load_yaml_file(path, di=di) or {}
                 if isinstance(data, dict):
                     vars_out.update(data)
-            except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
+            except Exception:
                 continue
 
     for extra_path in collect_include_vars_files(role_path, exclude_paths):
         try:
-            data = yaml.safe_load(extra_path.read_text(encoding="utf-8")) or {}
+            data = load_yaml_file(extra_path, di=di) or {}
             if isinstance(data, dict):
                 vars_out.update(data)
-        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
+        except Exception:
             continue
 
     return vars_out

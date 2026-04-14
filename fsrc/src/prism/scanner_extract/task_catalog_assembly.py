@@ -6,31 +6,21 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from prism.scanner_extract import task_annotation_parsing as tap
-from prism.scanner_extract import task_file_traversal as tft
-from prism.scanner_extract import task_line_parsing as tlp
+from prism.scanner_plugins.defaults import resolve_task_line_parsing_policy_plugin
+
+import prism.scanner_extract.task_annotation_parsing as tap
+import prism.scanner_extract.task_file_traversal as tft
+from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
+    DEFAULT_DOC_MARKER_PREFIX,
+)
 
 
-def _detect_task_module(task: dict) -> str | None:
-    for include_key in tlp.TASK_INCLUDE_KEYS:
-        if include_key in task:
-            if "import_tasks" in include_key:
-                return "import_tasks"
-            return "include_tasks"
+def _get_task_line_parsing_policy(di: object | None = None):
+    return resolve_task_line_parsing_policy_plugin(di)
 
-    for include_key in tlp.ROLE_INCLUDE_KEYS:
-        if include_key in task:
-            if "import_role" in include_key:
-                return "import_role"
-            return "include_role"
 
-    for key in task:
-        if key in tlp.TASK_META_KEYS or key in tlp.TASK_BLOCK_KEYS:
-            continue
-        if key.startswith("with_"):
-            continue
-        return key
-    return None
+def _detect_task_module(task: dict, *, di: object | None = None) -> str | None:
+    return _get_task_line_parsing_policy(di).detect_task_module(task)
 
 
 def _extract_collection_from_module_name(module_name: str) -> str | None:
@@ -65,7 +55,9 @@ def _compact_task_parameters(task: dict, module_name: str) -> str:
 def _collect_task_handler_catalog(
     role_path: str,
     exclude_paths: list[str] | None = None,
-    marker_prefix: str = tlp.DEFAULT_DOC_MARKER_PREFIX,
+    marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX,
+    *,
+    di: object | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     role_root = Path(role_path).resolve()
 
@@ -80,7 +72,7 @@ def _collect_task_handler_catalog(
             return
 
         seen_files.add(task_file)
-        data = tft._load_yaml_file(task_file)
+        data = tft._load_yaml_file(task_file, di=di)
         try:
             raw_lines = task_file.read_text(encoding="utf-8").splitlines()
         except OSError:
@@ -90,6 +82,7 @@ def _collect_task_handler_catalog(
                 raw_lines,
                 marker_prefix=marker_prefix,
                 include_task_index=True,
+                di=di,
             )
         )
         implicit_by_task_index: dict[int, list[dict[str, object]]] = defaultdict(list)
@@ -106,8 +99,8 @@ def _collect_task_handler_catalog(
         if relpath.startswith("tasks/"):
             relpath = relpath[6:]
 
-        for task in tft._iter_task_mappings(data):
-            module_name = _detect_task_module(task) or "unknown"
+        for task in tft._iter_task_mappings(data, di=di):
+            module_name = _detect_task_module(task, di=di) or "unknown"
             task_name = str(task.get("name") or "(unnamed task)")
             annotations: list[dict[str, object]] = []
             if task_index in implicit_by_task_index:
@@ -126,7 +119,12 @@ def _collect_task_handler_catalog(
                 if note.get("kind") == "runbook" and note.get("text")
             ]
             runbook = runbook_items[0] if runbook_items else ""
-            anchor = tap._task_anchor(relpath, task_name, len(task_entries) + 1)
+            anchor = tap._task_anchor(
+                relpath,
+                task_name,
+                len(task_entries) + 1,
+                di=di,
+            )
             task_entries.append(
                 {
                     "file": relpath,
@@ -139,14 +137,18 @@ def _collect_task_handler_catalog(
                 }
             )
 
-            for include_key in tlp.TASK_INCLUDE_KEYS:
+            for include_key in _get_task_line_parsing_policy(di).TASK_INCLUDE_KEYS:
                 if include_key not in task:
                     continue
                 include_target = task[include_key]
                 include_paths: list[str] = []
                 if isinstance(include_target, str):
                     include_paths.extend(
-                        tft._expand_include_target_candidates(task, include_target)
+                        tft._expand_include_target_candidates(
+                            task,
+                            include_target,
+                            di=di,
+                        )
                     )
                 elif isinstance(include_target, dict):
                     candidate = include_target.get("file") or include_target.get(
@@ -154,7 +156,11 @@ def _collect_task_handler_catalog(
                     )
                     if isinstance(candidate, str):
                         include_paths.extend(
-                            tft._expand_include_target_candidates(task, candidate)
+                            tft._expand_include_target_candidates(
+                                task,
+                                candidate,
+                                di=di,
+                            )
                         )
 
                 for include_path in include_paths:
@@ -196,12 +202,12 @@ def _collect_task_handler_catalog(
         ):
             if tft._is_path_excluded(handler_file, role_root, exclude_paths):
                 continue
-            data = tft._load_yaml_file(handler_file)
+            data = tft._load_yaml_file(handler_file, di=di)
             relpath = str(handler_file.relative_to(role_root))
             if relpath.startswith("handlers/"):
                 relpath = relpath[9:]
-            for task in tft._iter_task_mappings(data):
-                module_name = _detect_task_module(task) or "unknown"
+            for task in tft._iter_task_mappings(data, di=di):
+                module_name = _detect_task_module(task, di=di) or "unknown"
                 task_name = str(task.get("name") or "(unnamed handler)")
                 handler_entries.append(
                     {
@@ -213,88 +219,12 @@ def _collect_task_handler_catalog(
                             relpath,
                             task_name,
                             len(handler_entries) + 1,
+                            di=di,
                         ),
                     }
                 )
 
     return task_entries, handler_entries
-
-
-def _extract_role_notes_from_comments(
-    role_path: str,
-    exclude_paths: list[str] | None = None,
-    marker_prefix: str = tlp.DEFAULT_DOC_MARKER_PREFIX,
-) -> dict[str, list[str]]:
-    marker_line_re = tlp.get_marker_line_re(marker_prefix)
-    role_root = Path(role_path).resolve()
-    categories: dict[str, list[str]] = {
-        "warnings": [],
-        "deprecations": [],
-        "notes": [],
-        "additionals": [],
-    }
-    files: list[Path] = []
-    files.extend(tft._collect_task_files(role_root, exclude_paths=exclude_paths))
-    for rel in ("defaults/main.yml", "vars/main.yml", "handlers/main.yml"):
-        candidate = role_root / rel
-        if candidate.is_file() and not tft._is_path_excluded(
-            candidate, role_root, exclude_paths
-        ):
-            files.append(candidate)
-
-    for file_path in files:
-        try:
-            lines = file_path.read_text(encoding="utf-8").splitlines()
-        except OSError:
-            continue
-        i = 0
-        while i < len(lines):
-            line = lines[i]
-            match = marker_line_re.match(line)
-            if not match:
-                i += 1
-                continue
-
-            label = (match.group("label") or "").strip().lower()
-            note_type = "note"
-            if label == "warning":
-                note_type = "warning"
-            elif label == "deprecated":
-                note_type = "deprecated"
-            elif label in {"additional", "additionals"}:
-                note_type = "additional"
-            elif label in {"note", "notes"}:
-                note_type = "note"
-            else:
-                i += 1
-                continue
-
-            text = (match.group("body") or "").strip()
-            continuation: list[str] = []
-            j = i + 1
-            while j < len(lines):
-                next_line = lines[j]
-                if marker_line_re.match(next_line):
-                    break
-                cont_match = tlp.COMMENT_CONTINUATION_RE.match(next_line)
-                if not cont_match:
-                    break
-                continuation.append((cont_match.group(1) or "").strip())
-                j += 1
-            if continuation:
-                text = " ".join(part for part in [text, *continuation] if part)
-            if text:
-                if note_type == "warning":
-                    categories["warnings"].append(text)
-                elif note_type == "deprecated":
-                    categories["deprecations"].append(text)
-                elif note_type in {"additional", "additionals"}:
-                    categories["additionals"].append(text)
-                else:
-                    categories["notes"].append(text)
-            i = j if j > i + 1 else i + 1
-
-    return categories
 
 
 def _collect_molecule_scenarios(
@@ -352,9 +282,15 @@ def _collect_molecule_scenarios(
 def extract_role_features(
     role_path: str,
     exclude_paths: list[str] | None = None,
+    *,
+    di: object | None = None,
 ) -> dict[str, Any]:
     role_root = Path(role_path).resolve()
-    task_files = tft._collect_task_files(role_root, exclude_paths=exclude_paths)
+    task_files = tft._collect_task_files(
+        role_root,
+        exclude_paths=exclude_paths,
+        di=di,
+    )
 
     include_count = 0
     tasks_scanned = 0
@@ -370,17 +306,17 @@ def extract_role_features(
     dynamic_included_roles: set[str] = set()
 
     for task_file in task_files:
-        data = tft._load_yaml_file(task_file)
-        include_count += len(tft._iter_task_include_targets(data))
-        for task in tft._iter_task_mappings(data):
+        data = tft._load_yaml_file(task_file, di=di)
+        include_count += len(tft._iter_task_include_targets(data, di=di))
+        for task in tft._iter_task_mappings(data, di=di):
             tasks_scanned += 1
-            included_targets = tft._iter_role_include_targets(task)
+            included_targets = tft._iter_role_include_targets(task, di=di)
             included_role_calls += len(included_targets)
             included_roles.update(included_targets)
-            dynamic_targets = tft._iter_dynamic_role_include_targets(task)
+            dynamic_targets = tft._iter_dynamic_role_include_targets(task, di=di)
             dynamic_included_role_calls += len(dynamic_targets)
             dynamic_included_roles.update(dynamic_targets)
-            module_name = _detect_task_module(task)
+            module_name = _detect_task_module(task, di=di)
             if module_name:
                 modules.add(module_name)
                 collection = _extract_collection_from_module_name(module_name)
@@ -409,7 +345,10 @@ def extract_role_features(
             raw_lines = task_file.read_text(encoding="utf-8").splitlines()
         except OSError:
             raw_lines = []
-        impl_anns, expl_anns = tap._extract_task_annotations_for_file(raw_lines)
+        impl_anns, expl_anns = tap._extract_task_annotations_for_file(
+            raw_lines,
+            di=di,
+        )
         disabled_task_annotations += sum(1 for a in impl_anns if a.get("disabled"))
         yaml_like_task_annotations += sum(
             1 for a in impl_anns if a.get("format_warning")
@@ -445,3 +384,26 @@ def extract_role_features(
         "disabled_task_annotations": disabled_task_annotations,
         "yaml_like_task_annotations": yaml_like_task_annotations,
     }
+
+
+def detect_task_module(task: dict, *, di: object | None = None) -> str | None:
+    return _detect_task_module(task, di=di)
+
+
+def extract_collection_from_module_name(module_name: str) -> str | None:
+    return _extract_collection_from_module_name(module_name)
+
+
+def collect_task_handler_catalog(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+    marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX,
+    *,
+    di: object | None = None,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    return _collect_task_handler_catalog(
+        role_path,
+        exclude_paths=exclude_paths,
+        marker_prefix=marker_prefix,
+        di=di,
+    )

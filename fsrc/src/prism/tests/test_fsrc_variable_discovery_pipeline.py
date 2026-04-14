@@ -139,3 +139,68 @@ def test_fsrc_variable_pipeline_collect_dynamic_include_var_tokens() -> None:
     assert "include_vars_file" in tokens
     assert "role_file" in tokens
     assert "hostvars" not in tokens
+
+
+def test_fsrc_variable_discovery_routes_via_plugin_when_available() -> None:
+    class _Plugin:
+        def discover_static_variables(self, role_path: str, options: dict):
+            return (
+                {
+                    "name": "plugin_static",
+                    "type": "string",
+                    "default": "value",
+                    "source": "plugin",
+                    "documented": True,
+                    "required": False,
+                    "secret": False,
+                    "provenance_source_file": "plugin",
+                    "provenance_line": None,
+                    "provenance_confidence": 1.0,
+                    "uncertainty_reason": None,
+                    "is_unresolved": False,
+                    "is_ambiguous": False,
+                },
+            )
+
+        def discover_referenced_variables(
+            self,
+            role_path: str,
+            options: dict,
+            readme_content: str | None = None,
+        ):
+            return frozenset({"plugin_static", "plugin_unresolved"})
+
+        def resolve_unresolved_variables(
+            self,
+            static_names,
+            referenced,
+            options: dict,
+        ):
+            return {"plugin_unresolved": "plugin resolver"}
+
+    class _DI:
+        def factory_variable_discovery_plugin(self) -> _Plugin:
+            return _Plugin()
+
+        def factory_variable_row_builder(self):
+            raise AssertionError("builder should not be used when plugin is active")
+
+    with _prefer_fsrc_prism_on_sys_path():
+        discovery_module = importlib.import_module(
+            "prism.scanner_core.variable_discovery"
+        )
+        discovery = discovery_module.VariableDiscovery(
+            _DI(),
+            "/tmp/role",
+            {
+                "include_vars_main": True,
+                "exclude_path_patterns": None,
+            },
+        )
+        static_rows = discovery.discover_static()
+        referenced = discovery.discover_referenced()
+        unresolved = discovery.resolve_unresolved()
+
+    assert static_rows[0]["name"] == "plugin_static"
+    assert "plugin_unresolved" in referenced
+    assert unresolved["plugin_unresolved"] == "plugin resolver"

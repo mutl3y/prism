@@ -9,7 +9,39 @@ import re
 
 import yaml
 
-from prism.scanner_extract import task_line_parsing as tlp
+from prism.scanner_plugins.defaults import resolve_task_traversal_policy_plugin
+from prism.scanner_plugins.defaults import resolve_yaml_parsing_policy_plugin
+from prism.scanner_io.loader import parse_yaml_candidate
+
+
+def _resolve_plugin_registry(di: object | None = None):
+    if di is None:
+        return None
+    registry = getattr(di, "plugin_registry", None)
+    if registry is not None:
+        return registry
+    scan_options = getattr(di, "_scan_options", None)
+    if isinstance(scan_options, dict):
+        return scan_options.get("plugin_registry")
+    return None
+
+
+def _resolve_policy_with_registry(resolver, di: object | None = None):
+    registry = _resolve_plugin_registry(di)
+    if registry is None:
+        return resolver(di)
+    try:
+        return resolver(di, registry=registry)
+    except TypeError:
+        return resolver(di)
+
+
+def _get_task_traversal_policy(di: object | None = None):
+    return _resolve_policy_with_registry(resolve_task_traversal_policy_plugin, di)
+
+
+def _get_yaml_parsing_policy(di: object | None = None):
+    return _resolve_policy_with_registry(resolve_yaml_parsing_policy_plugin, di)
 
 
 def _normalize_exclude_patterns(exclude_paths: list[str] | None) -> list[str]:
@@ -78,123 +110,116 @@ def _load_yaml_file_cached(
 ) -> object | None:
     _ = modified_time_ns
     _ = size_bytes
-    try:
-        return yaml.safe_load(Path(resolved_path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
+    parser = _get_yaml_parsing_policy().load_yaml_file
+    return parser(Path(resolved_path))
+
+
+def _load_yaml_file(
+    file_path: Path,
+    *,
+    yaml_failure_collector: list[dict[str, object]] | None = None,
+    role_root: Path | None = None,
+    di: object | None = None,
+) -> object | None:
+    return _load_yaml_file_with_metadata(
+        file_path,
+        yaml_failure_collector=yaml_failure_collector,
+        role_root=role_root,
+        di=di,
+    )
+
+
+def _derive_role_root_from_task_file(file_path: Path) -> Path | None:
+    resolved = file_path.resolve()
+    parts = resolved.parts
+    if "tasks" not in parts:
         return None
+    index = parts.index("tasks")
+    if index <= 0:
+        return None
+    return Path(*parts[:index])
 
 
-def _load_yaml_file(file_path: Path) -> object | None:
+def _load_yaml_file_with_metadata(
+    file_path: Path,
+    *,
+    yaml_failure_collector: list[dict[str, object]] | None = None,
+    role_root: Path | None = None,
+    di: object | None = None,
+) -> object | None:
     identity = _yaml_cache_identity(file_path)
     if identity is None:
+        if yaml_failure_collector is not None:
+            collector_root = role_root or _derive_role_root_from_task_file(file_path)
+            if collector_root is None:
+                collector_root = file_path.resolve().parent
+            failure = parse_yaml_candidate(file_path, collector_root, di=di)
+            if isinstance(failure, dict):
+                yaml_failure_collector.append(failure)
         return None
-    return _load_yaml_file_cached(*identity)
+    parsed = (
+        _load_yaml_file_cached(*identity)
+        if di is None
+        else _get_yaml_parsing_policy(di).load_yaml_file(Path(identity[0]))
+    )
+    if parsed is None and yaml_failure_collector is not None:
+        collector_root = role_root or _derive_role_root_from_task_file(file_path)
+        if collector_root is None:
+            collector_root = file_path.resolve().parent
+        failure = parse_yaml_candidate(file_path, collector_root, di=di)
+        if isinstance(failure, dict):
+            yaml_failure_collector.append(failure)
+    return parsed
 
 
-def _iter_task_mappings(data: object):
-    if isinstance(data, list):
-        for item in data:
-            if not isinstance(item, dict):
-                continue
-            yield item
-            for key in tlp.TASK_BLOCK_KEYS:
-                nested = item.get(key)
-                if nested is not None:
-                    yield from _iter_task_mappings(nested)
+def _iter_task_mappings(data: object, *, di: object | None = None):
+    yield from _get_task_traversal_policy(di).iter_task_mappings(data)
 
 
-def _iter_task_include_targets(data: object) -> list[str]:
-    targets: list[str] = []
-    for task in _iter_task_mappings(data):
-        for key in tlp.TASK_INCLUDE_KEYS:
-            if key not in task:
-                continue
-            value = task[key]
-            if isinstance(value, str):
-                expanded = _expand_include_target_candidates(task, value)
-                if expanded:
-                    targets.extend(expanded)
-                else:
-                    candidate = value.strip()
-                    if candidate:
-                        targets.append(candidate)
-            elif isinstance(value, dict):
-                file_value = value.get("file") or value.get("_raw_params")
-                if isinstance(file_value, str):
-                    expanded = _expand_include_target_candidates(task, file_value)
-                    if expanded:
-                        targets.extend(expanded)
-                    else:
-                        candidate = file_value.strip()
-                        if candidate:
-                            targets.append(candidate)
-    return targets
+def _iter_task_include_targets(data: object, *, di: object | None = None) -> list[str]:
+    return _get_task_traversal_policy(di).iter_task_include_targets(data)
 
 
-def _expand_include_target_candidates(task: dict, include_target: str) -> list[str]:
-    candidate = include_target.strip()
-    if not candidate:
-        return []
-    if "{{" not in candidate and "{%" not in candidate:
-        return [candidate]
-
-    match = tlp.TEMPLATED_INCLUDE_RE.match(candidate)
-    if not match:
-        return []
-
-    variable = (match.group("var") or "").strip()
-    if not variable:
-        return []
-    allowed_values = tlp._extract_constrained_when_values(task, variable)
-    if not allowed_values:
-        return []
-
-    prefix = (match.group("prefix") or "").strip()
-    suffix = (match.group("suffix") or "").strip()
-    return [f"{prefix}{value}{suffix}" for value in allowed_values]
+def _iter_task_include_edges(
+    data: object, *, di: object | None = None
+) -> list[dict[str, str]]:
+    plugin = _get_task_traversal_policy(di)
+    iter_edges = getattr(plugin, "iter_task_include_edges", None)
+    if callable(iter_edges):
+        edges = iter_edges(data)
+        if isinstance(edges, list):
+            return [
+                edge
+                for edge in edges
+                if isinstance(edge, dict) and isinstance(edge.get("target"), str)
+            ]
+    return [
+        {"module": "include_tasks", "target": target}
+        for target in _iter_task_include_targets(data)
+    ]
 
 
-def _iter_role_include_targets(task: dict) -> list[str]:
-    role_targets: list[str] = []
-    for key in tlp.ROLE_INCLUDE_KEYS:
-        if key not in task:
-            continue
-        value = task[key]
-        ref: str | None = None
-        if isinstance(value, str):
-            ref = value
-        elif isinstance(value, dict):
-            candidate = value.get("name") or value.get("_raw_params")
-            if isinstance(candidate, str):
-                ref = candidate
-        if not ref:
-            continue
-        ref = ref.strip()
-        if not ref or "{{" in ref or "{%" in ref:
-            continue
-        role_targets.append(ref)
-    return role_targets
+def _expand_include_target_candidates(
+    task: dict,
+    include_target: str,
+    *,
+    di: object | None = None,
+) -> list[str]:
+    return _get_task_traversal_policy(di).expand_include_target_candidates(
+        task, include_target
+    )
 
 
-def _iter_dynamic_role_include_targets(task: dict) -> list[str]:
-    dynamic_targets: list[str] = []
-    for key in tlp.ROLE_INCLUDE_KEYS:
-        if key not in task:
-            continue
-        value = task[key]
-        ref: str | None = None
-        if isinstance(value, str):
-            ref = value
-        elif isinstance(value, dict):
-            candidate = value.get("name") or value.get("_raw_params")
-            if isinstance(candidate, str):
-                ref = candidate
-        if not ref:
-            continue
-        ref = ref.strip()
-        if ref and ("{{" in ref or "{%" in ref):
-            dynamic_targets.append(ref)
-    return dynamic_targets
+def _iter_role_include_targets(task: dict, *, di: object | None = None) -> list[str]:
+    return _get_task_traversal_policy(di).iter_role_include_targets(task)
+
+
+def _iter_dynamic_role_include_targets(
+    task: dict,
+    *,
+    di: object | None = None,
+) -> list[str]:
+    return _get_task_traversal_policy(di).iter_dynamic_role_include_targets(task)
 
 
 def _resolve_task_include(
@@ -241,25 +266,46 @@ def _resolve_task_include(
 def _collect_task_files(
     role_root: Path,
     exclude_paths: list[str] | None = None,
+    *,
+    di: object | None = None,
 ) -> list[Path]:
+    ordered, _unresolved = _collect_task_files_with_unresolved_includes(
+        role_root,
+        exclude_paths=exclude_paths,
+        di=di,
+    )
+    return ordered
+
+
+def _collect_task_files_with_unresolved_includes(
+    role_root: Path,
+    exclude_paths: list[str] | None = None,
+    *,
+    di: object | None = None,
+) -> tuple[list[Path], list[dict[str, str]]]:
     tasks_dir = role_root / "tasks"
     if not tasks_dir.is_dir():
-        return []
+        return [], []
 
     main_file = tasks_dir / "main.yml"
     if not main_file.is_file() or _is_path_excluded(
         main_file, role_root, exclude_paths
     ):
-        return sorted(
-            path
-            for path in tasks_dir.rglob("*")
-            if path.is_file()
-            and path.suffix in {".yml", ".yaml"}
-            and not _is_path_excluded(path, role_root, exclude_paths)
+        return (
+            sorted(
+                path
+                for path in tasks_dir.rglob("*")
+                if path.is_file()
+                and path.suffix in {".yml", ".yaml"}
+                and not _is_path_excluded(path, role_root, exclude_paths)
+            ),
+            [],
         )
 
     ordered: list[Path] = []
     visited: set[Path] = set()
+    unresolved_edges: list[dict[str, str]] = []
+    unresolved_keys: set[tuple[str, str, str]] = set()
 
     def _visit(task_file: Path) -> None:
         if task_file in visited:
@@ -269,107 +315,145 @@ def _collect_task_files(
         visited.add(task_file)
         ordered.append(task_file)
 
-        data = _load_yaml_file(task_file)
-        for include_target in _iter_task_include_targets(data):
+        data = _load_yaml_file(task_file, di=di)
+        for edge in _iter_task_include_edges(data, di=di):
+            include_target = str(edge.get("target") or "").strip()
+            if not include_target:
+                continue
             resolved = _resolve_task_include(role_root, task_file, include_target)
             if resolved is not None:
                 _visit(resolved)
+                continue
+
+            task_file_rel = task_file.relative_to(role_root).as_posix()
+            unresolved_key = (
+                task_file_rel,
+                str(edge.get("module") or "include_tasks"),
+                include_target,
+            )
+            if unresolved_key in unresolved_keys:
+                continue
+            unresolved_keys.add(unresolved_key)
+            unresolved_edges.append(
+                {
+                    "task_file": task_file_rel,
+                    "module": unresolved_key[1],
+                    "include_target": include_target,
+                    "resolution": "unresolved",
+                }
+            )
 
     _visit(main_file)
-    return ordered
+    return ordered, unresolved_edges
 
 
 def _collect_unconstrained_dynamic_task_includes(
     role_path: str,
     exclude_paths: list[str] | None = None,
+    *,
+    di: object | None = None,
 ) -> list[dict[str, str]]:
     role_root = Path(role_path).resolve()
-    findings: list[dict[str, str]] = []
-    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
-        data = _load_yaml_file(task_file)
-        relpath = str(task_file.relative_to(role_root))
-        for task in _iter_task_mappings(data):
-            task_name = str(task.get("name") or "(unnamed task)")
-            for include_key in tlp.TASK_INCLUDE_KEYS:
-                if include_key not in task:
-                    continue
-                include_target = task[include_key]
-                include_path: str | None = None
-                if isinstance(include_target, str):
-                    include_path = include_target
-                elif isinstance(include_target, dict):
-                    candidate = include_target.get("file") or include_target.get(
-                        "_raw_params"
-                    )
-                    if isinstance(candidate, str):
-                        include_path = candidate
-
-                if not include_path:
-                    continue
-                include_path = include_path.strip()
-                if "{{" not in include_path and "{%" not in include_path:
-                    continue
-                if _expand_include_target_candidates(task, include_path):
-                    continue
-
-                findings.append(
-                    {
-                        "file": relpath,
-                        "task": task_name,
-                        "module": (
-                            "import_tasks"
-                            if "import_tasks" in include_key
-                            else "include_tasks"
-                        ),
-                        "target": include_path,
-                    }
-                )
-    return findings
+    return _get_task_traversal_policy(di).collect_unconstrained_dynamic_task_includes(
+        role_root=role_root,
+        task_files=_collect_task_files(
+            role_root,
+            exclude_paths=exclude_paths,
+            di=di,
+        ),
+        load_yaml_file=lambda file_path: _load_yaml_file(file_path, di=di),
+    )
 
 
 def _collect_unconstrained_dynamic_role_includes(
     role_path: str,
     exclude_paths: list[str] | None = None,
+    *,
+    di: object | None = None,
 ) -> list[dict[str, str]]:
     role_root = Path(role_path).resolve()
-    findings: list[dict[str, str]] = []
-    for task_file in _collect_task_files(role_root, exclude_paths=exclude_paths):
-        data = _load_yaml_file(task_file)
-        relpath = str(task_file.relative_to(role_root))
-        for task in _iter_task_mappings(data):
-            task_name = str(task.get("name") or "(unnamed task)")
-            for include_key in tlp.ROLE_INCLUDE_KEYS:
-                if include_key not in task:
-                    continue
-                include_target = task[include_key]
-                role_ref: str | None = None
-                if isinstance(include_target, str):
-                    role_ref = include_target
-                elif isinstance(include_target, dict):
-                    candidate = include_target.get("name") or include_target.get(
-                        "_raw_params"
-                    )
-                    if isinstance(candidate, str):
-                        role_ref = candidate
+    return _get_task_traversal_policy(di).collect_unconstrained_dynamic_role_includes(
+        role_root=role_root,
+        task_files=_collect_task_files(
+            role_root,
+            exclude_paths=exclude_paths,
+            di=di,
+        ),
+        load_yaml_file=lambda file_path: _load_yaml_file(file_path, di=di),
+    )
 
-                if not role_ref:
-                    continue
-                role_ref = role_ref.strip()
-                if "{{" not in role_ref and "{%" not in role_ref:
-                    continue
-                if _expand_include_target_candidates(task, role_ref):
-                    continue
 
-                findings.append(
-                    {
-                        "file": relpath,
-                        "task": task_name,
-                        "module": (
-                            "import_role"
-                            if "import_role" in include_key
-                            else "include_role"
-                        ),
-                        "target": role_ref,
-                    }
-                )
-    return findings
+def is_path_excluded(
+    path: Path, role_root: Path, exclude_paths: list[str] | None
+) -> bool:
+    return _is_path_excluded(path, role_root, exclude_paths)
+
+
+def load_yaml_file(
+    path: Path,
+    *,
+    yaml_failure_collector: list[dict[str, object]] | None = None,
+    role_root: Path | None = None,
+    di: object | None = None,
+) -> object:
+    return _load_yaml_file(
+        path,
+        yaml_failure_collector=yaml_failure_collector,
+        role_root=role_root,
+        di=di,
+    )
+
+
+def iter_task_mappings(data: object, *, di: object | None = None):
+    yield from _iter_task_mappings(data, di=di)
+
+
+def iter_task_include_targets(data: object, *, di: object | None = None) -> list[str]:
+    return _iter_task_include_targets(data, di=di)
+
+
+def iter_role_include_targets(task: dict, *, di: object | None = None) -> list[str]:
+    return _iter_role_include_targets(task, di=di)
+
+
+def iter_dynamic_role_include_targets(
+    task: dict,
+    *,
+    di: object | None = None,
+) -> list[str]:
+    return _iter_dynamic_role_include_targets(task, di=di)
+
+
+def collect_task_files(
+    role_root: Path,
+    *,
+    exclude_paths: list[str] | None = None,
+    di: object | None = None,
+) -> list[Path]:
+    return _collect_task_files(role_root, exclude_paths=exclude_paths, di=di)
+
+
+def collect_unconstrained_dynamic_task_includes(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+    *,
+    di: object | None = None,
+) -> list[dict[str, str]]:
+    return _collect_unconstrained_dynamic_task_includes(
+        role_path,
+        exclude_paths=exclude_paths,
+        di=di,
+    )
+
+
+def collect_unconstrained_dynamic_role_includes(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+    *,
+    di: object | None = None,
+) -> list[dict[str, str]]:
+    return _collect_unconstrained_dynamic_role_includes(
+        role_path,
+        exclude_paths=exclude_paths,
+        di=di,
+    )

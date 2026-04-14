@@ -103,8 +103,26 @@ def resolve_repo_scan_target(
     repo_ref: str | None,
     repo_timeout: int,
     lightweight_readme_only: bool,
-    clone_repo_fn: Callable[..., Path] | None = None,
+    checkout_repo_lightweight_style_readme_fn=None,
+    checkout_repo_scan_role_fn=None,
+    prepare_repo_scan_inputs_fn=None,
+    fetch_repo_directory_names_fn=None,
+    repo_path_looks_like_role_fn=None,
+    fetch_repo_file_fn=None,
+    clone_repo_fn=None,
+    build_lightweight_sparse_clone_paths_fn=None,
+    build_sparse_clone_paths_fn=None,
+    resolve_style_readme_candidate_fn=None,
 ) -> RepoScanTarget:
+    del checkout_repo_lightweight_style_readme_fn
+    del checkout_repo_scan_role_fn
+    del prepare_repo_scan_inputs_fn
+    del fetch_repo_directory_names_fn
+    del repo_path_looks_like_role_fn
+    del fetch_repo_file_fn
+    del build_lightweight_sparse_clone_paths_fn
+    del build_sparse_clone_paths_fn
+    del resolve_style_readme_candidate_fn
     clone_repo_fn = clone_repo_fn or clone_repo
 
     source_path = Path(repo_url).expanduser()
@@ -147,7 +165,7 @@ def resolve_repo_scan_target(
 def normalize_repo_scan_payload(
     payload: dict[str, Any] | str,
     *,
-    repo_style_readme_path: str | None,
+    repo_style_readme_path: str | None = None,
     scanner_report_relpath: str | None = None,
 ) -> dict[str, Any] | str:
     if isinstance(payload, str):
@@ -196,18 +214,27 @@ def run_repo_scan(
     repo_ref: str | None,
     repo_timeout: int,
     lightweight_readme_only: bool,
-    scan_role_fn: Callable[..., dict[str, Any] | str],
-    resolve_repo_scan_target_fn: Callable[..., RepoScanTarget] | None = None,
-    repo_scan_workspace_fn: Callable[..., Any] | None = None,
-    normalize_repo_scan_payload_fn: Callable[..., dict[str, Any] | str] | None = None,
-) -> dict[str, Any] | str:
+    create_style_guide: bool,
+    style_source_path: str | None,
+    scan_fn: Callable[[str, str | None, str], Any],
+    repo_scan_workspace_fn=None,
+    resolve_repo_scan_target_fn=None,
+    checkout_repo_lightweight_style_readme_fn=None,
+    checkout_repo_scan_role_fn=None,
+    repo_intake_components: dict[str, Callable[..., Any]] | None = None,
+    repo_name_from_url_fn=None,
+) -> RepoScanRunResult:
+    del create_style_guide
+    del style_source_path
+    del checkout_repo_lightweight_style_readme_fn
+    del checkout_repo_scan_role_fn
+    del repo_intake_components
+    del repo_name_from_url_fn
+
     resolve_repo_scan_target_fn = (
         resolve_repo_scan_target_fn or resolve_repo_scan_target
     )
     repo_scan_workspace_fn = repo_scan_workspace_fn or repo_scan_workspace
-    normalize_repo_scan_payload_fn = (
-        normalize_repo_scan_payload_fn or normalize_repo_scan_payload
-    )
 
     with repo_scan_workspace_fn() as workspace:
         checkout = resolve_repo_scan_target_fn(
@@ -220,14 +247,55 @@ def run_repo_scan(
             repo_timeout=repo_timeout,
             lightweight_readme_only=lightweight_readme_only,
         )
-        output = scan_role_fn(
+        role_name_override = Path(repo_role_path.rstrip("/") or ".").name or "role"
+        scan_output = scan_fn(
             str(checkout.role_path),
-            style_readme_path=checkout.effective_style_readme_path,
+            checkout.effective_style_readme_path,
+            role_name_override,
         )
 
+    return RepoScanRunResult(checkout=checkout, scan_output=scan_output)
+
+
+def _run_repo_scan_fsrc_compat(
+    *,
+    repo_url: str,
+    repo_role_path: str,
+    repo_style_readme_path: str | None,
+    style_readme_path: str | None,
+    repo_ref: str | None,
+    repo_timeout: int,
+    lightweight_readme_only: bool,
+    scan_role_fn: Callable[..., dict[str, Any] | str],
+    resolve_repo_scan_target_fn: Callable[..., RepoScanTarget] | None = None,
+    repo_scan_workspace_fn: Callable[..., Any] | None = None,
+    normalize_repo_scan_payload_fn: Callable[..., dict[str, Any] | str] | None = None,
+) -> dict[str, Any] | str:
+    normalize_repo_scan_payload_fn = (
+        normalize_repo_scan_payload_fn or normalize_repo_scan_payload
+    )
+
+    run_result = run_repo_scan(
+        repo_url=repo_url,
+        repo_role_path=repo_role_path,
+        repo_style_readme_path=repo_style_readme_path,
+        style_readme_path=style_readme_path,
+        repo_ref=repo_ref,
+        repo_timeout=repo_timeout,
+        lightweight_readme_only=lightweight_readme_only,
+        create_style_guide=False,
+        style_source_path=None,
+        scan_fn=lambda role_path, effective_style_readme_path, _role_name: scan_role_fn(
+            role_path,
+            style_readme_path=effective_style_readme_path,
+        ),
+        repo_scan_workspace_fn=repo_scan_workspace_fn,
+        resolve_repo_scan_target_fn=resolve_repo_scan_target_fn,
+    )
+
     return normalize_repo_scan_payload_fn(
-        output,
-        repo_style_readme_path=checkout.resolved_repo_style_readme_path,
+        run_result.scan_output,
+        repo_style_readme_path=run_result.checkout.resolved_repo_style_readme_path,
     )
 
 
@@ -257,5 +325,5 @@ repo_scan_facade = RepoScanFacade(
     normalize_repo_scan_payload=normalize_repo_scan_payload,
     repo_scan_workspace=repo_scan_workspace,
     resolve_repo_scan_target=resolve_repo_scan_target,
-    run_repo_scan=run_repo_scan,
+    run_repo_scan=_run_repo_scan_fsrc_compat,
 )

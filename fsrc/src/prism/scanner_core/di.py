@@ -142,6 +142,100 @@ class DIContainer:
             self._cache[key] = VariableRowBuilder()
         return self._cache[key]
 
+    def factory_variable_discovery_plugin(self) -> Any | None:
+        """Resolve optional variable-discovery plugin from DI wiring."""
+        if "variable_discovery_plugin" in self._mocks:
+            return self._mocks["variable_discovery_plugin"]
+
+        override = self._factory_overrides.get("variable_discovery_plugin_factory")
+        if override is not None:
+            return override(self, self._role_path, self._scan_options)
+        return None
+
+    def factory_feature_detection_plugin(self) -> Any | None:
+        """Resolve optional feature-detection plugin from DI wiring."""
+        if "feature_detection_plugin" in self._mocks:
+            return self._mocks["feature_detection_plugin"]
+
+        override = self._factory_overrides.get("feature_detection_plugin_factory")
+        if override is not None:
+            return override(self, self._role_path, self._scan_options)
+        return None
+
+    def factory_comment_driven_doc_plugin(self) -> Any | None:
+        """Resolve optional comment-driven documentation plugin from DI wiring."""
+        if "comment_driven_doc_plugin" in self._mocks:
+            return self._mocks["comment_driven_doc_plugin"]
+
+        override = self._factory_overrides.get("comment_driven_doc_plugin_factory")
+        if override is not None:
+            return override(self, self._role_path, self._scan_options)
+        return None
+
+    def factory_task_annotation_policy_plugin(self) -> Any | None:
+        """Resolve optional task-annotation policy plugin from DI wiring."""
+        if "task_annotation_policy_plugin" in self._mocks:
+            return self._mocks["task_annotation_policy_plugin"]
+
+        override = self._factory_overrides.get("task_annotation_policy_plugin_factory")
+        if override is not None:
+            return override(self, self._role_path, self._scan_options)
+        return None
+
+    def factory_task_line_parsing_policy_plugin(self) -> Any | None:
+        """Resolve optional task-line parsing policy plugin from DI wiring."""
+        if "task_line_parsing_policy_plugin" in self._mocks:
+            return self._mocks["task_line_parsing_policy_plugin"]
+
+        override = self._factory_overrides.get(
+            "task_line_parsing_policy_plugin_factory"
+        )
+        if override is not None:
+            return override(self, self._role_path, self._scan_options)
+        return None
+
+    def factory_task_traversal_policy_plugin(self) -> Any | None:
+        """Resolve optional task-traversal policy plugin from DI wiring."""
+        if "task_traversal_policy_plugin" in self._mocks:
+            return self._mocks["task_traversal_policy_plugin"]
+
+        override = self._factory_overrides.get("task_traversal_policy_plugin_factory")
+        if override is not None:
+            return override(self, self._role_path, self._scan_options)
+        return None
+
+    def factory_variable_extractor_policy_plugin(self) -> Any | None:
+        """Resolve optional variable-extractor policy plugin from DI wiring."""
+        if "variable_extractor_policy_plugin" in self._mocks:
+            return self._mocks["variable_extractor_policy_plugin"]
+
+        override = self._factory_overrides.get(
+            "variable_extractor_policy_plugin_factory"
+        )
+        if override is not None:
+            return override(self, self._role_path, self._scan_options)
+        return None
+
+    def factory_yaml_parsing_policy_plugin(self) -> Any | None:
+        """Resolve optional YAML parsing policy plugin from DI wiring."""
+        if "yaml_parsing_policy_plugin" in self._mocks:
+            return self._mocks["yaml_parsing_policy_plugin"]
+
+        override = self._factory_overrides.get("yaml_parsing_policy_plugin_factory")
+        if override is not None:
+            return override(self, self._role_path, self._scan_options)
+        return None
+
+    def factory_jinja_analysis_policy_plugin(self) -> Any | None:
+        """Resolve optional Jinja analysis policy plugin from DI wiring."""
+        if "jinja_analysis_policy_plugin" in self._mocks:
+            return self._mocks["jinja_analysis_policy_plugin"]
+
+        override = self._factory_overrides.get("jinja_analysis_policy_plugin_factory")
+        if override is not None:
+            return override(self, self._role_path, self._scan_options)
+        return None
+
     def inject_mock_variable_discovery(self, mock: Any) -> None:
         """Inject a mock VariableDiscovery for testing."""
         self._mocks["variable_discovery"] = mock
@@ -149,6 +243,42 @@ class DIContainer:
     def inject_mock_feature_detector(self, mock: Any) -> None:
         """Inject a mock FeatureDetector for testing."""
         self._mocks["feature_detector"] = mock
+
+    def inject_mock_variable_discovery_plugin(self, mock: Any) -> None:
+        """Inject a mock variable-discovery plugin for testing."""
+        self._mocks["variable_discovery_plugin"] = mock
+
+    def inject_mock_feature_detection_plugin(self, mock: Any) -> None:
+        """Inject a mock feature-detection plugin for testing."""
+        self._mocks["feature_detection_plugin"] = mock
+
+    def inject_mock_comment_driven_doc_plugin(self, mock: Any) -> None:
+        """Inject a mock comment-driven documentation plugin for testing."""
+        self._mocks["comment_driven_doc_plugin"] = mock
+
+    def inject_mock_task_annotation_policy_plugin(self, mock: Any) -> None:
+        """Inject a mock task-annotation policy plugin for testing."""
+        self._mocks["task_annotation_policy_plugin"] = mock
+
+    def inject_mock_task_line_parsing_policy_plugin(self, mock: Any) -> None:
+        """Inject a mock task-line parsing policy plugin for testing."""
+        self._mocks["task_line_parsing_policy_plugin"] = mock
+
+    def inject_mock_task_traversal_policy_plugin(self, mock: Any) -> None:
+        """Inject a mock task-traversal policy plugin for testing."""
+        self._mocks["task_traversal_policy_plugin"] = mock
+
+    def inject_mock_variable_extractor_policy_plugin(self, mock: Any) -> None:
+        """Inject a mock variable-extractor policy plugin for testing."""
+        self._mocks["variable_extractor_policy_plugin"] = mock
+
+    def inject_mock_yaml_parsing_policy_plugin(self, mock: Any) -> None:
+        """Inject a mock YAML parsing policy plugin for testing."""
+        self._mocks["yaml_parsing_policy_plugin"] = mock
+
+    def inject_mock_jinja_analysis_policy_plugin(self, mock: Any) -> None:
+        """Inject a mock Jinja analysis policy plugin for testing."""
+        self._mocks["jinja_analysis_policy_plugin"] = mock
 
     def clear_mocks(self) -> None:
         """Clear all injected mocks."""

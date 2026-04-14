@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from prism.scanner_plugins.defaults import resolve_comment_driven_documentation_plugin
 from prism.scanner_extract.task_line_parsing import (
     TASK_INCLUDE_KEYS,
     ROLE_INCLUDE_KEYS,
@@ -25,7 +26,6 @@ from prism.scanner_extract.task_file_traversal import (
 )
 from prism.scanner_extract.task_catalog_assembly import (
     _collect_task_handler_catalog,
-    _extract_role_notes_from_comments,
     _collect_molecule_scenarios,
     extract_role_features,
 )
@@ -87,12 +87,17 @@ collect_task_handler_catalog = _collect_task_handler_catalog
 
 
 def extract_role_notes_from_comments(
-    role_path, exclude_paths=None, marker_prefix="prism"
+    role_path,
+    exclude_paths=None,
+    marker_prefix="prism",
+    *,
+    di=None,
 ):
-    return _extract_role_notes_from_comments(
+    plugin = resolve_comment_driven_documentation_plugin(di)
+    return plugin.extract_role_notes_from_comments(
         role_path,
-        exclude_paths,
-        marker_prefix,
+        exclude_paths=exclude_paths,
+        marker_prefix=marker_prefix,
     )
 
 

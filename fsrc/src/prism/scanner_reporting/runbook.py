@@ -9,7 +9,7 @@ import csv
 import io
 from pathlib import Path
 
-import jinja2
+from prism.scanner_shared.rendering_seams import build_render_jinja_environment
 
 
 def render_runbook(
@@ -26,10 +26,9 @@ def render_runbook(
             Path(__file__).resolve().parent.parent / "templates" / "RUNBOOK.md.j2"
         )
 
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(tpl_file.parent)),
-        trim_blocks=True,
-        lstrip_blocks=True,
+    env = build_render_jinja_environment(
+        template_dir=tpl_file.parent,
+        metadata=metadata,
     )
     template_obj = env.get_template(tpl_file.name)
     return template_obj.render(role_name=role_name, metadata=metadata)
