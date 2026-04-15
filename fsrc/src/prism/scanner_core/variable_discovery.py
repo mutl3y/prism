@@ -45,7 +45,24 @@ def _resolve_policy_with_registry(resolver, di: object | None = None):
         return resolver(di)
 
 
-def _get_task_line_parsing_policy(di: object | None = None) -> Any:
+def _get_prepared_policy(
+    options: dict[str, Any] | None, policy_name: str
+) -> Any | None:
+    if not isinstance(options, dict):
+        return None
+    prepared_policy_bundle = options.get("prepared_policy_bundle")
+    if not isinstance(prepared_policy_bundle, dict):
+        return None
+    return prepared_policy_bundle.get(policy_name)
+
+
+def _get_task_line_parsing_policy(
+    options: dict[str, Any] | None = None,
+    di: object | None = None,
+) -> Any:
+    prepared_policy = _get_prepared_policy(options, "task_line_parsing")
+    if prepared_policy is not None:
+        return prepared_policy
     return _resolve_policy_with_registry(resolve_task_line_parsing_policy_plugin, di)
 
 
@@ -230,12 +247,13 @@ def _collect_include_vars_files(
     role_root: Path,
     exclude_paths: list[str] | None,
     *,
+    options: dict[str, Any] | None = None,
     di: object | None = None,
     yaml_failure_collector: list[dict[str, object]] | None = None,
 ) -> list[Path]:
     result: list[Path] = []
     seen: set[Path] = set()
-    include_vars_keys = _get_task_line_parsing_policy(di).INCLUDE_VARS_KEYS
+    include_vars_keys = _get_task_line_parsing_policy(options, di).INCLUDE_VARS_KEYS
     for task_file in collect_task_files(
         role_root,
         exclude_paths=exclude_paths,
@@ -287,6 +305,7 @@ def _read_variable_sources(
     *,
     include_vars_main: bool,
     exclude_paths: list[str] | None,
+    options: dict[str, Any] | None = None,
     di: object | None = None,
     yaml_failure_collector: list[dict[str, object]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Path], dict[str, Any], dict[str, Path]]:
@@ -321,6 +340,7 @@ def _read_variable_sources(
         for candidate in _collect_include_vars_files(
             role_root,
             exclude_paths,
+            options=options,
             di=di,
             yaml_failure_collector=yaml_failure_collector,
         ):
@@ -341,11 +361,12 @@ def _collect_set_fact_names(
     role_root: Path,
     exclude_paths: list[str] | None,
     *,
+    options: dict[str, Any] | None = None,
     di: object | None = None,
     yaml_failure_collector: list[dict[str, object]] | None = None,
 ) -> set[str]:
     names: set[str] = set()
-    set_fact_keys = _get_task_line_parsing_policy(di).SET_FACT_KEYS
+    set_fact_keys = _get_task_line_parsing_policy(options, di).SET_FACT_KEYS
     for task_file in collect_task_files(
         role_root,
         exclude_paths=exclude_paths,
@@ -397,9 +418,12 @@ def _is_when_expression_token_candidate(
 def _collect_undeclared_jinja_variables(
     text: str,
     *,
+    options: dict[str, Any] | None = None,
     di: object | None = None,
 ) -> set[str]:
-    plugin = _resolve_policy_with_registry(resolve_jinja_analysis_policy_plugin, di)
+    plugin = _get_prepared_policy(options, "jinja_analysis")
+    if plugin is None:
+        plugin = _resolve_policy_with_registry(resolve_jinja_analysis_policy_plugin, di)
     analyzer = getattr(plugin, "collect_undeclared_jinja_variables", None)
     if callable(analyzer):
         values = analyzer(text)
@@ -412,6 +436,7 @@ def _collect_referenced_variable_names(
     role_root: Path,
     *,
     exclude_paths: list[str] | None,
+    options: dict[str, Any] | None = None,
     di: object | None = None,
 ) -> set[str]:
     candidates: set[str] = set()
@@ -432,7 +457,11 @@ def _collect_referenced_variable_names(
             except (UnicodeDecodeError, OSError):
                 continue
 
-            for token in _collect_undeclared_jinja_variables(text, di=di):
+            for token in _collect_undeclared_jinja_variables(
+                text,
+                options=options,
+                di=di,
+            ):
                 lowered = token.lower()
                 if lowered in ignored_identifiers or lowered in WHEN_OPERATOR_KEYWORDS:
                     continue
@@ -500,6 +529,7 @@ class VariableDiscovery:
             self._role_root,
             include_vars_main=bool(self._options.get("include_vars_main", True)),
             exclude_paths=self._options.get("exclude_path_patterns"),
+            options=self._options,
             di=self._di,
             yaml_failure_collector=yaml_parse_failures,
         )
@@ -598,6 +628,7 @@ class VariableDiscovery:
         for variable_name in _collect_set_fact_names(
             self._role_root,
             exclude_paths=self._options.get("exclude_path_patterns"),
+            options=self._options,
             di=self._di,
             yaml_failure_collector=yaml_parse_failures,
         ):
@@ -662,6 +693,7 @@ class VariableDiscovery:
         referenced = _collect_referenced_variable_names(
             self._role_root,
             exclude_paths=self._options.get("exclude_path_patterns"),
+            options=self._options,
             di=self._di,
         )
 
@@ -671,7 +703,11 @@ class VariableDiscovery:
                 readme_text = readme_path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 readme_text = ""
-            for token in _collect_undeclared_jinja_variables(readme_text, di=self._di):
+            for token in _collect_undeclared_jinja_variables(
+                readme_text,
+                options=self._options,
+                di=self._di,
+            ):
                 referenced.add(token.split(".", 1)[0])
 
         return frozenset(referenced)

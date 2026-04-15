@@ -85,6 +85,11 @@ class ScannerContext:
         self._scan_metadata = {}
         self._scan_errors = []
 
+        scan_request.ensure_prepared_policy_bundle(
+            scan_options=self._scan_options,
+            di=self._di,
+        )
+
         self._discovered_variables = self._discover_variables()
         self._detected_features = self._detect_features()
 
@@ -155,6 +160,7 @@ class ScannerContext:
             role_path=str(self._scan_options.get("role_path") or self._role_path),
             role_name_override=self._scan_options.get("role_name_override"),
             readme_config_path=self._scan_options.get("readme_config_path"),
+            policy_config_path=self._scan_options.get("policy_config_path"),
             include_vars_main=bool(self._scan_options.get("include_vars_main", True)),
             exclude_path_patterns=self._scan_options.get("exclude_path_patterns"),
             detailed_catalog=bool(self._scan_options.get("detailed_catalog", False)),
@@ -191,6 +197,7 @@ class ScannerContext:
                 "ignore_unresolved_internal_underscore_references"
             ),
             policy_context=self._scan_options.get("policy_context"),
+            prepared_policy_bundle=self._scan_options.get("prepared_policy_bundle"),
         )
 
         if self._prepare_scan_context_fn is None:

@@ -204,3 +204,89 @@ def test_fsrc_variable_discovery_routes_via_plugin_when_available() -> None:
     assert static_rows[0]["name"] == "plugin_static"
     assert "plugin_unresolved" in referenced
     assert unresolved["plugin_unresolved"] == "plugin resolver"
+
+
+def test_fsrc_variable_discovery_prefers_prepared_policy_bundle(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    role_path = tmp_path
+    (role_path / "tasks").mkdir()
+    (role_path / "vars").mkdir()
+    (role_path / "vars" / "extra.yml").write_text(
+        "---\nfrom_prepared_include: true\n",
+        encoding="utf-8",
+    )
+    (role_path / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: demo\n"
+        "  prepared_include_vars: extra.yml\n"
+        '  debug:\n    msg: "{{ from_prepared_jinja }}"\n',
+        encoding="utf-8",
+    )
+
+    class _PreparedTaskLinePolicy:
+        TASK_INCLUDE_KEYS = {"include_tasks"}
+        ROLE_INCLUDE_KEYS = {"include_role"}
+        INCLUDE_VARS_KEYS = {"prepared_include_vars"}
+        SET_FACT_KEYS = {"set_fact"}
+        TASK_BLOCK_KEYS = {"block"}
+        TASK_META_KEYS = {"meta"}
+
+        @staticmethod
+        def detect_task_module(_task: dict) -> str:
+            return "debug"
+
+    class _PreparedJinjaPolicy:
+        @staticmethod
+        def collect_undeclared_jinja_variables(_text: str) -> set[str]:
+            return {"from_prepared_jinja"}
+
+    with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        discovery_module = importlib.import_module(
+            "prism.scanner_core.variable_discovery"
+        )
+
+        monkeypatch.setattr(
+            discovery_module,
+            "resolve_task_line_parsing_policy_plugin",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("task-line resolver should not be called")
+            ),
+        )
+        monkeypatch.setattr(
+            discovery_module,
+            "resolve_jinja_analysis_policy_plugin",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("jinja resolver should not be called")
+            ),
+        )
+
+        options = {
+            "role_path": str(role_path),
+            "include_vars_main": True,
+            "exclude_path_patterns": None,
+            "vars_seed_paths": None,
+            "ignore_unresolved_internal_underscore_references": False,
+            "prepared_policy_bundle": {
+                "task_line_parsing": _PreparedTaskLinePolicy(),
+                "jinja_analysis": _PreparedJinjaPolicy(),
+            },
+        }
+        container = di_module.DIContainer(
+            role_path=str(role_path),
+            scan_options=options,
+        )
+        discovery = discovery_module.VariableDiscovery(
+            container,
+            str(role_path),
+            options,
+        )
+
+        static_rows = discovery.discover_static()
+        referenced = discovery.discover_referenced()
+
+    static_names = {row["name"] for row in static_rows}
+    assert "from_prepared_include" in static_names
+    assert "from_prepared_jinja" in referenced

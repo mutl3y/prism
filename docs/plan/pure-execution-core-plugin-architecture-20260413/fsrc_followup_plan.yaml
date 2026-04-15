@@ -1,0 +1,377 @@
+plan_id: pure-execution-core-plugin-architecture-20260413
+objective: >-
+  Execute a safe fsrc-only follow-up plan that makes the pure-execution-core design
+  materially truer in seam-based slices by first extracting a neutral scan-pipeline
+  runtime helper boundary, then carrying a prepared policy bundle through one
+  consumer path, and independently aligning router selection with the canonical
+  plugin-selection contract.
+created_at: 2026-04-14T00:00:00Z
+created_by: GitHub Copilot GPT-5.4
+status: completed
+research_confidence: high
+
+plan_relationship:
+  type: follow_up_implementation_slice
+  canonical_plan: docs/plan/pure-execution-core-plugin-architecture-20260413/plan.yaml
+  research_input: docs/plan/pure-execution-core-plugin-architecture-20260413/research_findings_fsrc_lane.yaml
+  authority_rule: >-
+    This file is subordinate to the canonical governance and contract artifacts in
+    plan.yaml and artifacts/contract_matrix.yaml.
+
+scope:
+  in_scope:
+    - fsrc/src/prism/api.py
+    - fsrc/src/prism/scanner_kernel/
+    - fsrc/src/prism/scanner_core/
+    - fsrc/src/prism/tests/
+  out_of_scope:
+    - src_do_not_use/**
+    - src/prism/**
+    - non-fsrc implementation lanes
+    - scanner_extract/scanner_io registry-lookup cleanup beyond interfaces consumed by scanner_core
+
+plan_metrics:
+  wave_1_task_count: 1
+  total_dependencies: 2
+  risk_score: medium
+
+tldr: |
+  This follow-up plan keeps the work fsrc-only and intentionally small:
+  1. Wave 1 extracts only the `_orchestrate_with_scan_pipeline_plugin` ownership seam into a neutral runtime helper boundary, leaving API scan-context construction unchanged.
+  2. Wave 2 introduces a request/schema carrier for a prepared policy bundle and adopts it only in the variable-discovery consumer path; other consumers stay out of scope for this slice.
+  3. Selection-order alignment can follow Wave 1 directly because it only depends on router/carrier seams, not on prepared-policy consumer adoption.
+
+open_questions: []
+
+execution_update:
+  status: completed
+  note: >-
+    The neutral runtime-helper extraction, prepared-policy carrier adoption, and
+    selector-order follow-up are now landed for this fsrc-only plan. No
+    further implementation tasks remain active in this follow-up slice.
+  next_active_implementation_tasks: []
+
+pre_mortem:
+  overall_risk_level: medium
+  critical_failure_modes:
+    - scenario: Helper-boundary extraction changes strict/non-strict fallback envelopes or causes a second plugin preflight invocation.
+      likelihood: medium
+      impact: high
+      mitigation: Keep wave 1 limited to `_orchestrate_with_scan_pipeline_plugin` ownership, leave API context construction untouched, and gate on focused API/kernel orchestration tests.
+    - scenario: Prepared policy bundle drifts from current resolver behavior and regresses the first adopted consumer path.
+      likelihood: medium
+      impact: high
+      mitigation: Limit wave 2 to the request/schema carrier plus variable-discovery adoption only, preserve current DI/default resolution as the preparation source, and gate on focused variable-discovery coverage.
+    - scenario: Implementing policy_context.selection.plugin reorders routing unexpectedly and changes fallback behavior for callers that rely on current platform/default behavior.
+      likelihood: low
+      impact: high
+      mitigation: Land selection-order alignment only after wave 1 centralizes the runtime helper seam, and keep the request-option override plus existing strict/non-strict fallback contracts unchanged.
+  assumptions:
+    - Existing fsrc tests are the authoritative behavior baseline for these slices.
+    - Public callable signatures in fsrc/src/prism/api.py must remain stable across all waves.
+    - src_do_not_use is a hard no-edit boundary and never participates in implementation or verification changes.
+
+implementation_specification:
+  code_structure: >-
+    Keep the plan fsrc-only and seam-first. In wave 1, extract only the
+    `_orchestrate_with_scan_pipeline_plugin` behavior behind a neutral runtime helper
+    boundary while leaving API scan-context construction and higher-level run_scan
+    orchestration ownership unchanged. In wave 2, carry a prepared policy bundle
+    through the canonical request/schema seam and adopt it only in the
+    variable-discovery consumer path. In wave 3, align router selection order with
+    `policy_context.selection.plugin` directly from the wave-1 helper boundary,
+    without waiting on unrelated consumer adoption.
+  affected_areas:
+    - fsrc/src/prism/api.py
+    - fsrc/src/prism/scanner_kernel/orchestrator.py
+    - fsrc/src/prism/scanner_core/scan_request.py
+    - fsrc/src/prism/scanner_core/variable_discovery.py
+    - fsrc/src/prism/tests/test_fsrc_api_cli_entrypoints.py
+    - fsrc/src/prism/tests/test_fsrc_plugin_kernel_extension_parity.py
+    - fsrc/src/prism/tests/test_fsrc_variable_discovery_pipeline.py
+  component_details:
+    - component: API facade boundary
+      responsibility: Preserve public run-scan entrypoints while keeping scan-context construction stable and delegating only the extracted runtime helper seam in wave 1.
+      interfaces:
+        - prism.api.run_scan
+        - prism.api.scan_role
+        - prism.api.scan_collection
+        - prism.api.scan_repo
+    - component: Runtime orchestration helper boundary
+      responsibility: Own the extracted `_orchestrate_with_scan_pipeline_plugin` behavior, including selected-plugin resolution, preflight reuse, strict/non-strict plugin failure handling, and payload merge behavior.
+      interfaces:
+        - prism.scanner_kernel.orchestrator.resolve_scan_pipeline_plugin_name
+        - prism.scanner_kernel.orchestrator.route_scan_payload_orchestration
+        - prism.scanner_kernel.orchestrator.execute_scan_pipeline_plugin
+    - component: Request/schema carrier
+      responsibility: Carry prepared policy state and selection-order inputs through the canonical run-scan options seam without changing public signatures.
+      interfaces:
+        - scan_options.prepared_policy_bundle
+        - prepared_policy_bundle.task_line_parsing
+        - prepared_policy_bundle.jinja_analysis
+        - policy_context.selection.plugin
+    - component: Variable-discovery consumer adoption
+      responsibility: Consume prepared task-line and Jinja policies in variable discovery while leaving other consumers unchanged for this follow-up slice.
+      interfaces:
+        - prism.scanner_core.variable_discovery.VariableDiscovery
+  dependencies:
+    - component: API facade boundary
+      relationship: Delegates only the extracted runtime helper seam while keeping context construction stable in wave 1.
+    - component: Runtime orchestration helper boundary
+      relationship: Reads canonical scan options and preflight context, then executes payload orchestration without owning broader API context shaping.
+    - component: Request/schema carrier
+      relationship: Is populated from existing fsrc DI/default seams and passed forward to both consumer-adoption and selection-order slices.
+    - component: Variable-discovery consumer adoption
+      relationship: Reads prepared policy instances from the request/schema carrier instead of resolving defaults directly.
+  integration_points:
+    - fsrc canonical scan-option builder in prism.scanner_core.scan_request
+    - fsrc runtime DI/plugin resolution seams in prism.scanner_plugins.defaults and prism.scanner_core.di
+    - focused fsrc runtime tests for API routing, kernel routing, and variable discovery
+
+compatibility_constraints:
+  - Preserve public callable signatures and return shapes for prism.api entrypoints.
+  - Preserve existing strict/non-strict fallback behavior and warning/error metadata already asserted by current fsrc tests.
+  - Preserve _scan_pipeline_preflight_context reuse semantics during the routing move.
+  - Do not add imports from fsrc/src/prism into src_do_not_use or src/prism.
+  - Keep rollback granular so wave 1 can be retained even if later selection-order work is reverted.
+
+rollback_checkpoints:
+  - task_id: W1-T01
+    checkpoint_id: CP-W1
+    seam_boundary: runtime bundle/helper assembly
+    trigger: Extracting `_orchestrate_with_scan_pipeline_plugin` changes API routing or plugin-failure behavior.
+    rollback_scope:
+      - Restore the previous helper-assembly seam while keeping API context construction unchanged.
+      - Revert only the extracted runtime helper ownership, not unrelated request/schema work.
+    affected_files:
+      - fsrc/src/prism/api.py
+      - fsrc/src/prism/scanner_kernel/orchestrator.py
+      - fsrc/src/prism/tests/test_fsrc_api_cli_entrypoints.py
+    verify_commands:
+      - .venv/bin/python -m pytest -q fsrc/src/prism/tests/test_fsrc_api_cli_entrypoints.py -k "scan_pipeline_plugin or preflight or selector"
+      - .venv/bin/python -m pytest -q fsrc/src/prism/tests/test_fsrc_plugin_kernel_extension_parity.py -k "route_orchestration or selector"
+  - task_id: W2-T01
+    checkpoint_id: CP-W2
+    seam_boundary: request/schema carrier plus first consumer adoption
+    trigger: Prepared policy-bundle carrier or variable-discovery adoption regresses the first consumer path.
+    rollback_scope:
+      - Revert the prepared-policy carrier under canonical run-scan options.
+      - Revert variable-discovery consumer adoption without touching unrelated consumers.
+    affected_files:
+      - fsrc/src/prism/scanner_core/scan_request.py
+      - fsrc/src/prism/scanner_core/variable_discovery.py
+    verify_commands:
+      - .venv/bin/python -m pytest -q fsrc/src/prism/tests/test_fsrc_variable_discovery_pipeline.py
+  - task_id: W3-T01
+    checkpoint_id: CP-W3
+    seam_boundary: request/schema carrier to router selection adoption
+    trigger: Canonical selection-order alignment changes fallback behavior or destabilizes non-strict routing.
+    rollback_scope:
+      - Revert only the selection input handoff from request/schema carrier to router resolution.
+      - Preserve the wave-1 helper boundary and any independent consumer-adoption work.
+    affected_files:
+      - fsrc/src/prism/scanner_core/scan_request.py
+      - fsrc/src/prism/scanner_kernel/orchestrator.py
+      - fsrc/src/prism/tests/test_fsrc_plugin_kernel_extension_parity.py
+    verify_commands:
+      - .venv/bin/python -m pytest -q fsrc/src/prism/tests/test_fsrc_api_cli_entrypoints.py -k "selector"
+      - .venv/bin/python -m pytest -q fsrc/src/prism/tests/test_fsrc_plugin_kernel_extension_parity.py -k "selector or route_orchestration"
+
+contracts:
+  - from_task: W1-T01
+    to_task: W2-T01
+    interface: The extracted helper boundary preserves the existing preflight-context and plugin-failure contract so the prepared-policy carrier can be introduced without changing runtime orchestration behavior.
+    format: Python dict payload contract with _scan_pipeline_preflight_context, warning metadata, and strict-mode error behavior unchanged
+  - from_task: W1-T01
+    to_task: W3-T01
+    interface: The extracted helper boundary centralizes plugin execution so selection-order alignment can change only carrier-to-router inputs without reopening payload orchestration ownership.
+    format: Python dict routing contract covering selected plugin name, selection_order metadata, and strict/non-strict fallback envelopes
+
+tasks:
+  - id: W1-T01
+    title: Extract `_orchestrate_with_scan_pipeline_plugin` into a neutral runtime helper boundary
+    description: |
+      Extract only the API-owned `_orchestrate_with_scan_pipeline_plugin` behavior
+      behind a neutral runtime helper boundary in
+      fsrc/src/prism/scanner_kernel/orchestrator.py and make prism.api.run_scan
+      delegate to that helper. Keep this slice behavior-neutral: preserve existing
+      selected-plugin resolution, preflight reuse, strict/non-strict failure
+      handling, payload metadata merge behavior, and public API signatures.
+      Keep API scan-context construction and higher-level run_scan orchestration
+      ownership unchanged in this wave.
+    wave: 1
+    agent: gem-implementer
+    prototype: false
+    covers:
+      - kernel_owned_routing_boundary
+      - minimal_behavior_change
+    priority: high
+    status: completed
+    completion_note: run_scan now delegates plugin-orchestration ownership into prism.scanner_kernel.orchestrator via the extracted runtime helper seam.
+    dependencies: []
+    conflicts_with: []
+    context_files:
+      - path: fsrc/src/prism/api.py
+        description: Current API-owned runtime helper logic and stable scan-context construction boundary.
+      - path: fsrc/src/prism/scanner_kernel/orchestrator.py
+        description: Existing router/preflight seam that should absorb only the extracted helper behavior.
+      - path: docs/plan/pure-execution-core-plugin-architecture-20260413/research_findings_fsrc_lane.yaml
+        description: Research evidence describing API-owned orchestration as the first implementation gap and recommending an fsrc-only seam-first move.
+    estimated_effort: medium
+    estimated_files: 3
+    estimated_lines: 220
+    verification:
+      - .venv/bin/python -m pytest -q fsrc/src/prism/tests/test_fsrc_api_cli_entrypoints.py -k "scan_pipeline_plugin or preflight or selector"
+      - .venv/bin/python -m pytest -q fsrc/src/prism/tests/test_fsrc_plugin_kernel_extension_parity.py -k "route_orchestration or selector"
+    acceptance_criteria:
+      - fsrc/src/prism/api.py no longer owns `_orchestrate_with_scan_pipeline_plugin` behavior beyond thin delegation.
+      - fsrc/src/prism/scanner_kernel/orchestrator.py becomes the owner of the extracted runtime helper seam without absorbing API scan-context construction.
+      - Focused fsrc entrypoint/kernel routing tests stay green without changing public signatures.
+    failure_modes:
+      - scenario: Payload plugin preflight runs twice after the move.
+        likelihood: medium
+        impact: high
+        mitigation: Preserve and assert current preflight-context reuse path in focused API tests.
+      - scenario: Non-strict fallback loses warning metadata or changes warning codes.
+        likelihood: medium
+        impact: high
+        mitigation: Reuse current error/warning envelope behavior and gate on plugin-failure tests before proceeding.
+    tech_stack:
+      - Python
+      - pytest
+    test_coverage: Focused fsrc API and kernel routing tests
+
+  - id: W2-T01
+    title: Carry a prepared policy bundle through the request schema and adopt it only in variable discovery
+    description: |
+      Prepare a runtime-scoped policy bundle outside scanner_core and thread it
+      through the canonical scan-request/schema seam so variable_discovery becomes
+      the first and only adopted consumer in this slice. Keep dynamic-include and
+      other consumers out of scope here so rollback stays local to one consumer
+      path. Keep the preparation source aligned with existing DI/default behavior
+      to minimize functional drift.
+    wave: 2
+    agent: gem-implementer
+    prototype: false
+    covers:
+      - reduce_core_registry_lookup
+      - prepared_policy_bundle_boundary
+    priority: high
+    status: completed
+    completion_note: canonical scan options now carry a prepared policy bundle built from runtime DI/default resolution, and variable discovery consumes that bundle as the first adopted consumer path.
+    dependencies:
+      - W1-T01
+    conflicts_with: []
+    context_files:
+      - path: fsrc/src/prism/scanner_core/scan_request.py
+        description: Canonical request/schema seam that can carry prepared policy state without changing public signatures.
+      - path: fsrc/src/prism/scanner_core/variable_discovery.py
+        description: First consumer path currently resolving task-line and Jinja policies directly.
+      - path: docs/plan/pure-execution-core-plugin-architecture-20260413/research_findings_fsrc_lane.yaml
+        description: Research evidence showing registry lookup remains scattered and should be reduced in small consumer slices.
+    estimated_effort: medium
+    estimated_files: 3
+    estimated_lines: 220
+    verification:
+      - .venv/bin/python -m pytest -q fsrc/src/prism/tests/test_fsrc_variable_discovery_pipeline.py
+      - .venv/bin/python -m pytest -q fsrc/src/prism/tests/test_fsrc_scanner_context.py -k "plugin_factories or overridable"
+    acceptance_criteria:
+      - The canonical request/schema seam carries a prepared policy bundle without changing public signatures.
+      - Variable discovery reads prepared task-line and Jinja policy behavior from that carrier instead of resolving defaults directly.
+      - Focused fsrc variable-discovery tests stay green while other consumers remain unchanged.
+    failure_modes:
+      - scenario: Prepared policies become stale or ignore DI overrides.
+        likelihood: medium
+        impact: high
+        mitigation: Build the bundle from runtime DI/default resolution at request time and retain focused DI override coverage.
+      - scenario: Variable-discovery adoption pulls unrelated consumer seams into the same rollback unit.
+        likelihood: low
+        impact: medium
+        mitigation: Keep dynamic-include and other consumer paths explicitly out of scope for this wave.
+    tech_stack:
+      - Python
+      - pytest
+    test_coverage: Focused fsrc variable-discovery and scanner-context tests
+
+  - id: W3-T01
+    title: Align router selection with policy_context.selection.plugin after ownership centralization
+    description: |
+      After wave 1 extracts the runtime helper boundary, implement the missing
+      canonical selection step so the router prefers policy_context.selection.plugin
+      after an explicit request option and before platform/default fallback. This
+      slice can proceed directly from wave 1 because it only changes the
+      request/schema-to-router selection handoff, not prepared-policy consumer
+      adoption. Keep this slice narrow: do not expand into full policy-context
+      unknown-key or alias-conflict governance beyond what is necessary to pass
+      the selected plugin name through the canonical request path.
+    wave: 2
+    agent: gem-implementer
+    prototype: false
+    covers:
+      - canonical_selection_order
+      - narrow_policy_context_alignment
+    priority: medium
+    status: completed
+    completion_note: router selection now honors policy_context.selection.plugin after the explicit selector and before platform/default fallback, with focused selector coverage present.
+    dependencies:
+      - W1-T01
+    conflicts_with: []
+    context_files:
+      - path: fsrc/src/prism/scanner_core/scan_request.py
+        description: Canonical request normalization seam that should project selection-plugin intent.
+      - path: fsrc/src/prism/scanner_kernel/orchestrator.py
+        description: Deterministic router that should consume request option, selection policy, platform, then registry default.
+      - path: docs/plan/pure-execution-core-plugin-architecture-20260413/artifacts/contract_matrix.yaml
+        description: Canonical selection-order contract and strict/non-strict routing requirements.
+    estimated_effort: small
+    estimated_files: 3
+    estimated_lines: 180
+    verification:
+      - .venv/bin/python -m pytest -q fsrc/src/prism/tests/test_fsrc_api_cli_entrypoints.py -k "selector"
+      - .venv/bin/python -m pytest -q fsrc/src/prism/tests/test_fsrc_plugin_kernel_extension_parity.py -k "selector or route_orchestration"
+      - .venv/bin/python -m tox -r -e smoke-fsrc-lane
+    acceptance_criteria:
+      - Router selection order in fsrc becomes request option, policy_context.selection.plugin, platform, then registry default.
+      - Existing strict/non-strict fallback behavior remains deterministic after the new selection input is introduced.
+      - The slice does not broaden into full policy-context governance beyond the selection handoff needed here.
+    failure_modes:
+      - scenario: policy_context.selection.plugin overrides explicit request options.
+        likelihood: low
+        impact: high
+        mitigation: Preserve explicit request-option precedence and cover it in focused selector tests.
+      - scenario: Introducing selection-handling reopens broader policy-context validation churn.
+        likelihood: medium
+        impact: medium
+        mitigation: Restrict this slice to a narrow handoff path and defer alias/unknown-key governance to a later plan if needed.
+    tech_stack:
+      - Python
+      - pytest
+      - tox
+    test_coverage: Focused fsrc selector and smoke validation
+
+planning_pass: 1
+planning_history:
+  - pass: 1
+    reason: Initial fsrc-only follow-up implementation plan created from canonical artifacts, user constraints, and the fsrc-lane research findings.
+    timestamp: 2026-04-14T00:00:00Z
+    estimated_effort: medium
+    estimated_files: 1
+    estimated_lines: 260
+    focus_area: fsrc follow-up DAG authoring
+    verification:
+      - Validate the plan against research_findings_fsrc_lane.yaml, design.md, and artifacts/contract_matrix.yaml.
+      - Keep all implementation slices within fsrc/src/prism and fsrc/src/prism/tests.
+    acceptance_criteria:
+      - Plan defines a seam-first wave 1, a single-consumer-path wave 2, and an explicitly reassessed W3 dependency edge.
+      - Plan includes focused verification commands, seam-based rollback checkpoints, compatibility constraints, and explicit fsrc-only scope with src_do_not_use out of scope.
+    failure_modes:
+      - scenario: Follow-up plan reintroduces src-lane implementation work.
+        likelihood: low
+        impact: high
+        mitigation: Keep scope explicit and limit affected areas to fsrc paths only.
+    tech_stack:
+      - YAML
+    test_coverage: null
+
+first_executable_task_ids:
+  - W2-T01

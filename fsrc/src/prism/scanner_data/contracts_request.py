@@ -35,12 +35,26 @@ class CommentDocPolicyContext(TypedDict, total=False):
     marker: CommentDocMarkerContext | str
 
 
+class SelectionPolicyContext(TypedDict, total=False):
+    """Optional scan-pipeline selection overrides within policy context."""
+
+    plugin: str
+
+
+class PreparedPolicyBundle(TypedDict, total=False):
+    """Runtime-scoped prepared policy instances carried with scan options."""
+
+    task_line_parsing: Any
+    jinja_analysis: Any
+
+
 class ScanPolicyContext(TypedDict, total=False):
     """Optional policy-context overrides carried with scan options."""
 
     include_underscore_prefixed_references: bool
     comment_doc_marker_prefix: str
     comment_doc: CommentDocPolicyContext
+    selection: SelectionPolicyContext
 
 
 class ScanOptionsDict(TypedDict):
@@ -49,6 +63,7 @@ class ScanOptionsDict(TypedDict):
     role_path: str
     role_name_override: str | None
     readme_config_path: str | None
+    policy_config_path: str | None
     include_vars_main: bool
     exclude_path_patterns: list[str] | None
     detailed_catalog: bool
@@ -67,6 +82,7 @@ class ScanOptionsDict(TypedDict):
     fail_on_yaml_like_task_annotations: bool | None
     ignore_unresolved_internal_underscore_references: bool | None
     policy_context: NotRequired[ScanPolicyContext | dict[str, Any] | None]
+    prepared_policy_bundle: NotRequired[PreparedPolicyBundle | dict[str, Any] | None]
     scan_policy_warnings: NotRequired[list[ScanPolicyWarning] | list[dict[str, Any]]]
     strict_phase_failures: NotRequired[bool]
 
@@ -150,6 +166,15 @@ def validate_variable_discovery_inputs(
     ):
         raise ValueError(
             "'options.vars_seed_paths' must contain only strings when provided"
+        )
+
+    prepared_policy_bundle = options.get("prepared_policy_bundle")
+    if prepared_policy_bundle is not None and not isinstance(
+        prepared_policy_bundle,
+        dict,
+    ):
+        raise ValueError(
+            "'options.prepared_policy_bundle' must be a dict when provided"
         )
 
 

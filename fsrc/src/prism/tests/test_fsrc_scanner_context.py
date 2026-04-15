@@ -298,3 +298,76 @@ def test_fsrc_di_plugin_factories_are_explicit_and_overridable() -> None:
         assert container.factory_variable_discovery_plugin() == "var-plugin"
         assert container.factory_feature_detection_plugin() == "feature-plugin"
         assert container.factory_comment_driven_doc_plugin() == "doc-plugin"
+
+
+def test_fsrc_scanner_context_prepares_policy_bundle_before_discovery() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        core_module = importlib.import_module("prism.scanner_core")
+        di_module = importlib.import_module("prism.scanner_core.di")
+
+        class _PreparedTaskLinePolicy:
+            TASK_INCLUDE_KEYS = {"include_tasks"}
+            ROLE_INCLUDE_KEYS = {"include_role"}
+            INCLUDE_VARS_KEYS = {"include_vars"}
+            SET_FACT_KEYS = {"set_fact"}
+            TASK_BLOCK_KEYS = {"block"}
+            TASK_META_KEYS = {"meta"}
+
+            @staticmethod
+            def detect_task_module(_task: dict) -> str:
+                return "debug"
+
+        class _PreparedJinjaPolicy:
+            @staticmethod
+            def collect_undeclared_jinja_variables(_text: str) -> set[str]:
+                return set()
+
+        class _DiscoveryRecorder:
+            def __init__(self, scan_options: dict[str, Any]) -> None:
+                self._scan_options = scan_options
+
+            def discover(self) -> tuple[Any, ...]:
+                prepared_bundle = self._scan_options.get("prepared_policy_bundle")
+                assert isinstance(prepared_bundle, dict)
+                assert prepared_bundle["task_line_parsing"] is task_line_policy
+                assert prepared_bundle["jinja_analysis"] is jinja_policy
+                return tuple()
+
+        options = _canonical_scan_options()
+        recorder = _BuildOptionsRecorder(dict(options))
+        task_line_policy = _PreparedTaskLinePolicy()
+        jinja_policy = _PreparedJinjaPolicy()
+        container = di_module.DIContainer(
+            role_path=options["role_path"],
+            scan_options=options,
+            factory_overrides={
+                "variable_discovery_factory": (
+                    lambda _di, _role_path, scan_options: _DiscoveryRecorder(
+                        scan_options
+                    )
+                ),
+                "feature_detector_factory": (
+                    lambda _di, _role_path, _scan_options: _FeatureStub(
+                        {"task_files_scanned": 0, "tasks_scanned": 0}
+                    )
+                ),
+                "task_line_parsing_policy_plugin_factory": (
+                    lambda *_args: task_line_policy
+                ),
+                "jinja_analysis_policy_plugin_factory": (lambda *_args: jinja_policy),
+            },
+        )
+
+        context = core_module.ScannerContext(
+            di=container,
+            role_path=options["role_path"],
+            scan_options=options,
+            build_run_scan_options_fn=recorder,
+            prepare_scan_context_fn=lambda _scan_options: _context_payload(),
+        )
+        context.orchestrate_scan()
+
+    prepared_bundle = recorder.calls[0].get("prepared_policy_bundle")
+    assert isinstance(prepared_bundle, dict)
+    assert prepared_bundle["task_line_parsing"] is task_line_policy
+    assert prepared_bundle["jinja_analysis"] is jinja_policy
