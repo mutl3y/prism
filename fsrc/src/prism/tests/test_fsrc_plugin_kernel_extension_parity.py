@@ -260,9 +260,17 @@ def test_fsrc_kernel_route_orchestration_uses_registry_plugin_context(
         return {"lane": "legacy", "role_path": role_path, "scan_options": scan_options}
 
     def _kernel_orchestrator(
-        *, role_path: str, scan_options: dict[str, object]
+        *,
+        role_path: str,
+        scan_options: dict[str, object],
+        route_preflight_runtime=None,
     ) -> dict[str, object]:
-        return {"lane": "kernel", "role_path": role_path, "scan_options": scan_options}
+        return {
+            "lane": "kernel",
+            "role_path": role_path,
+            "scan_options": scan_options,
+            "route_preflight_runtime": route_preflight_runtime,
+        }
 
     class _DisabledRegistry:
         def get_scan_pipeline_plugin(self, _name: str):
@@ -294,21 +302,31 @@ def test_fsrc_kernel_route_orchestration_uses_registry_plugin_context(
 
     assert legacy_result["lane"] == "legacy"
     assert kernel_result["lane"] == "kernel"
-    assert (
-        kernel_result["scan_options"]
-        .get("_scan_pipeline_preflight_context", {})
-        .get("ansible_plugin_enabled")
-        is True
-    )
+    assert "_scan_pipeline_preflight_context" not in kernel_result["scan_options"]
+    carrier = kernel_result["route_preflight_runtime"]
+    assert carrier is not None
+    assert carrier.preflight_context["ansible_plugin_enabled"] is True
+    assert carrier.preflight_context["plugin_name"] == "default"
+    assert carrier.routing == {
+        "mode": "scan_pipeline_plugin",
+        "selected_plugin": "default",
+        "selection_order": [
+            "request.option.scan_pipeline_plugin",
+            "policy_context.selection.plugin",
+            "platform",
+            "registry_default",
+        ],
+    }
 
 
-def test_fsrc_kernel_route_orchestration_falls_back_when_registry_plugin_missing(
+def test_fsrc_kernel_route_orchestration_default_unavailable_raises_when_strict(
     monkeypatch,
 ) -> None:
     with _prefer_fsrc_prism_on_sys_path():
         orchestrator_module = importlib.import_module(
             "prism.scanner_kernel.orchestrator"
         )
+        errors_module = importlib.import_module("prism.errors")
 
     def _legacy_orchestrator(
         *, role_path: str, scan_options: dict[str, object]
@@ -316,9 +334,17 @@ def test_fsrc_kernel_route_orchestration_falls_back_when_registry_plugin_missing
         return {"lane": "legacy", "role_path": role_path, "scan_options": scan_options}
 
     def _kernel_orchestrator(
-        *, role_path: str, scan_options: dict[str, object]
+        *,
+        role_path: str,
+        scan_options: dict[str, object],
+        route_preflight_runtime=None,
     ) -> dict[str, object]:
-        return {"lane": "kernel", "role_path": role_path, "scan_options": scan_options}
+        return {
+            "lane": "kernel",
+            "role_path": role_path,
+            "scan_options": scan_options,
+            "route_preflight_runtime": route_preflight_runtime,
+        }
 
     class _MissingRegistry:
         def get_scan_pipeline_plugin(self, _name: str):
@@ -327,14 +353,29 @@ def test_fsrc_kernel_route_orchestration_falls_back_when_registry_plugin_missing
     monkeypatch.setattr(
         orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _MissingRegistry()
     )
-    result = orchestrator_module.route_scan_payload_orchestration(
-        role_path="/tmp/role",
-        scan_options={"x": 1},
-        legacy_orchestrator_fn=_legacy_orchestrator,
-        kernel_orchestrator_fn=_kernel_orchestrator,
-    )
+    with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+        orchestrator_module.route_scan_payload_orchestration(
+            role_path="/tmp/role",
+            scan_options={"x": 1, "strict_phase_failures": True},
+            legacy_orchestrator_fn=_legacy_orchestrator,
+            kernel_orchestrator_fn=_kernel_orchestrator,
+        )
 
-    assert result["lane"] == "legacy"
+    assert exc_info.value.code == "scan_pipeline_default_unavailable"
+    assert exc_info.value.detail == {
+        "metadata": {
+            "routing": {
+                "mode": "legacy_orchestrator",
+                "selection_order": [
+                    "request.option.scan_pipeline_plugin",
+                    "policy_context.selection.plugin",
+                    "platform",
+                    "registry_default",
+                ],
+                "failure_mode": "registry_default_plugin_unavailable",
+            }
+        }
+    }
 
 
 def test_fsrc_kernel_route_orchestration_plugin_error_raises_when_strict(
@@ -352,9 +393,17 @@ def test_fsrc_kernel_route_orchestration_plugin_error_raises_when_strict(
         return {"lane": "legacy", "role_path": role_path, "scan_options": scan_options}
 
     def _kernel_orchestrator(
-        *, role_path: str, scan_options: dict[str, object]
+        *,
+        role_path: str,
+        scan_options: dict[str, object],
+        route_preflight_runtime=None,
     ) -> dict[str, object]:
-        return {"lane": "kernel", "role_path": role_path, "scan_options": scan_options}
+        return {
+            "lane": "kernel",
+            "role_path": role_path,
+            "scan_options": scan_options,
+            "route_preflight_runtime": route_preflight_runtime,
+        }
 
     class _FailingPlugin:
         def process_scan_pipeline(
@@ -501,6 +550,210 @@ def test_fsrc_kernel_route_orchestration_registry_error_falls_back_when_not_stri
     assert result["lane"] == "legacy"
 
 
+def test_fsrc_kernel_route_orchestration_default_unavailable_warns_with_contract_metadata(
+    monkeypatch,
+) -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+
+    def _legacy_orchestrator(
+        *, role_path: str, scan_options: dict[str, object]
+    ) -> dict[str, object]:
+        return {"lane": "legacy", "role_path": role_path, "scan_options": scan_options}
+
+    def _kernel_orchestrator(
+        *, role_path: str, scan_options: dict[str, object]
+    ) -> dict[str, object]:
+        return {"lane": "kernel", "role_path": role_path, "scan_options": scan_options}
+
+    class _DefaultUnavailableRegistry:
+        @staticmethod
+        def list_scan_pipeline_plugins() -> list[str]:
+            return []
+
+        @staticmethod
+        def get_scan_pipeline_plugin(_name: str):
+            return None
+
+    monkeypatch.setattr(
+        orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _DefaultUnavailableRegistry()
+    )
+
+    result = orchestrator_module.route_scan_payload_orchestration(
+        role_path="/tmp/role",
+        scan_options={"strict_phase_failures": False},
+        legacy_orchestrator_fn=_legacy_orchestrator,
+        kernel_orchestrator_fn=_kernel_orchestrator,
+    )
+
+    assert result["lane"] == "legacy"
+    assert result["metadata"]["routing"] == {
+        "mode": "legacy_orchestrator",
+        "selection_order": [
+            "request.option.scan_pipeline_plugin",
+            "policy_context.selection.plugin",
+            "platform",
+            "registry_default",
+        ],
+        "failure_mode": "registry_default_plugin_unavailable",
+        "fallback_reason": "registry_default_plugin_unavailable",
+        "fallback_applied": True,
+    }
+    assert result["metadata"]["plugin_runtime_warnings"] == [
+        {
+            "code": "scan_pipeline_default_unavailable",
+            "message": "no scan-pipeline plugin default is registered",
+            "metadata": {
+                "routing": {
+                    "mode": "legacy_orchestrator",
+                    "selection_order": [
+                        "request.option.scan_pipeline_plugin",
+                        "policy_context.selection.plugin",
+                        "platform",
+                        "registry_default",
+                    ],
+                    "failure_mode": "registry_default_plugin_unavailable",
+                    "fallback_reason": "registry_default_plugin_unavailable",
+                    "fallback_applied": True,
+                }
+            },
+        }
+    ]
+
+
+def test_fsrc_kernel_route_orchestration_selected_plugin_missing_warns_with_metadata(
+    monkeypatch,
+) -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+
+    def _legacy_orchestrator(
+        *, role_path: str, scan_options: dict[str, object]
+    ) -> dict[str, object]:
+        return {"lane": "legacy", "metadata": {"features": {"task_files_scanned": 1}}}
+
+    def _kernel_orchestrator(
+        *, role_path: str, scan_options: dict[str, object]
+    ) -> dict[str, object]:
+        return {"lane": "kernel", "role_path": role_path, "scan_options": scan_options}
+
+    class _MissingRegistry:
+        @staticmethod
+        def get_scan_pipeline_plugin(_name: str):
+            return None
+
+    monkeypatch.setattr(
+        orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _MissingRegistry()
+    )
+    result = orchestrator_module.route_scan_payload_orchestration(
+        role_path="/tmp/role",
+        scan_options={"scan_pipeline_plugin": "custom", "strict_phase_failures": False},
+        legacy_orchestrator_fn=_legacy_orchestrator,
+        kernel_orchestrator_fn=_kernel_orchestrator,
+    )
+
+    assert result["lane"] == "legacy"
+    assert result["metadata"]["routing"] == {
+        "mode": "legacy_orchestrator",
+        "selection_order": [
+            "request.option.scan_pipeline_plugin",
+            "policy_context.selection.plugin",
+            "platform",
+            "registry_default",
+        ],
+        "failure_mode": "selected_plugin_missing",
+        "fallback_reason": "selected_plugin_missing",
+        "fallback_applied": True,
+        "selected_plugin": "custom",
+    }
+    assert result["metadata"]["plugin_runtime_warnings"] == [
+        {
+            "code": "scan_pipeline_plugin_missing",
+            "message": "selected scan-pipeline plugin is not registered",
+            "metadata": {
+                "routing": {
+                    "mode": "legacy_orchestrator",
+                    "selection_order": [
+                        "request.option.scan_pipeline_plugin",
+                        "policy_context.selection.plugin",
+                        "platform",
+                        "registry_default",
+                    ],
+                    "failure_mode": "selected_plugin_missing",
+                    "fallback_reason": "selected_plugin_missing",
+                    "fallback_applied": True,
+                    "selected_plugin": "custom",
+                }
+            },
+        }
+    ]
+
+
+def test_fsrc_kernel_route_orchestration_preflight_failure_warns_with_contract_metadata(
+    monkeypatch,
+) -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+
+    def _legacy_orchestrator(
+        *, role_path: str, scan_options: dict[str, object]
+    ) -> dict[str, object]:
+        return {"lane": "legacy", "metadata": {"features": {"task_files_scanned": 1}}}
+
+    def _kernel_orchestrator(
+        *, role_path: str, scan_options: dict[str, object]
+    ) -> dict[str, object]:
+        return {"lane": "kernel", "role_path": role_path, "scan_options": scan_options}
+
+    class _FailingPlugin:
+        def process_scan_pipeline(
+            self,
+            scan_options: dict[str, object],
+            scan_context: dict[str, object],
+        ) -> dict[str, object]:
+            del scan_options
+            del scan_context
+            raise RuntimeError("preflight boom")
+
+    class _Registry:
+        @staticmethod
+        def get_scan_pipeline_plugin(_name: str):
+            return _FailingPlugin
+
+    monkeypatch.setattr(orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+    result = orchestrator_module.route_scan_payload_orchestration(
+        role_path="/tmp/role",
+        scan_options={"scan_pipeline_plugin": "custom", "strict_phase_failures": False},
+        legacy_orchestrator_fn=_legacy_orchestrator,
+        kernel_orchestrator_fn=_kernel_orchestrator,
+    )
+
+    assert result["lane"] == "legacy"
+    assert result["metadata"]["routing"] == {
+        "mode": "legacy_orchestrator",
+        "selection_order": [
+            "request.option.scan_pipeline_plugin",
+            "policy_context.selection.plugin",
+            "platform",
+            "registry_default",
+        ],
+        "failure_mode": "preflight_execution_exception",
+        "fallback_reason": "preflight_execution_exception",
+        "fallback_applied": True,
+        "selected_plugin": "custom",
+        "preflight_stage": "process_scan_pipeline",
+    }
+    assert result["metadata"]["plugin_runtime_warnings"][0]["code"] == (
+        "scan_pipeline_router_failed"
+    )
+
+
 def test_fsrc_repo_and_collection_context_builders_gate_on_kernel_flag(
     tmp_path: Path,
     monkeypatch,
@@ -606,9 +859,17 @@ def test_fsrc_kernel_route_orchestration_uses_scan_pipeline_plugin_selector() ->
         return {"lane": "legacy", "role_path": role_path, "scan_options": scan_options}
 
     def _kernel_orchestrator(
-        *, role_path: str, scan_options: dict[str, object]
+        *,
+        role_path: str,
+        scan_options: dict[str, object],
+        route_preflight_runtime=None,
     ) -> dict[str, object]:
-        return {"lane": "kernel", "role_path": role_path, "scan_options": scan_options}
+        return {
+            "lane": "kernel",
+            "role_path": role_path,
+            "scan_options": scan_options,
+            "route_preflight_runtime": route_preflight_runtime,
+        }
 
     original_registry = orchestrator_module.DEFAULT_PLUGIN_REGISTRY
     orchestrator_module.DEFAULT_PLUGIN_REGISTRY = _Registry()
@@ -623,6 +884,160 @@ def test_fsrc_kernel_route_orchestration_uses_scan_pipeline_plugin_selector() ->
         orchestrator_module.DEFAULT_PLUGIN_REGISTRY = original_registry
 
     assert result["lane"] == "kernel"
-    preflight = result["scan_options"].get("_scan_pipeline_preflight_context", {})
-    assert preflight.get("plugin_name") == "custom"
-    assert preflight.get("plugin_runtime_marker") == "custom"
+    carrier = result.get("route_preflight_runtime")
+    assert carrier is not None
+    assert carrier.plugin_name == "custom"
+    assert carrier.preflight_context["plugin_runtime_marker"] == "custom"
+    assert carrier.routing == {
+        "mode": "scan_pipeline_plugin",
+        "selected_plugin": "custom",
+        "selection_order": [
+            "request.option.scan_pipeline_plugin",
+            "policy_context.selection.plugin",
+            "platform",
+            "registry_default",
+        ],
+    }
+
+
+def test_fsrc_kernel_route_orchestration_uses_policy_context_selection_plugin() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+
+    class _CustomPlugin:
+        def process_scan_pipeline(
+            self,
+            scan_options: dict[str, object],
+            scan_context: dict[str, object],
+        ) -> dict[str, object]:
+            del scan_context
+            assert scan_options.get("scan_pipeline_plugin") is None
+            policy_context = scan_options.get("policy_context")
+            assert isinstance(policy_context, dict)
+            assert policy_context.get("selection") == {"plugin": "custom"}
+            return {"plugin_enabled": True, "plugin_runtime_marker": "custom"}
+
+    class _Registry:
+        def get_scan_pipeline_plugin(self, name: str):
+            if name == "custom":
+                return _CustomPlugin
+            return None
+
+    def _legacy_orchestrator(
+        *, role_path: str, scan_options: dict[str, object]
+    ) -> dict[str, object]:
+        return {"lane": "legacy", "role_path": role_path, "scan_options": scan_options}
+
+    def _kernel_orchestrator(
+        *,
+        role_path: str,
+        scan_options: dict[str, object],
+        route_preflight_runtime=None,
+    ) -> dict[str, object]:
+        return {
+            "lane": "kernel",
+            "role_path": role_path,
+            "scan_options": scan_options,
+            "route_preflight_runtime": route_preflight_runtime,
+        }
+
+    original_registry = orchestrator_module.DEFAULT_PLUGIN_REGISTRY
+    orchestrator_module.DEFAULT_PLUGIN_REGISTRY = _Registry()
+    try:
+        result = orchestrator_module.route_scan_payload_orchestration(
+            role_path="/tmp/role",
+            scan_options={
+                "policy_context": {"selection": {"plugin": "custom"}},
+                "platform": "ansible",
+            },
+            legacy_orchestrator_fn=_legacy_orchestrator,
+            kernel_orchestrator_fn=_kernel_orchestrator,
+        )
+    finally:
+        orchestrator_module.DEFAULT_PLUGIN_REGISTRY = original_registry
+
+    assert result["lane"] == "kernel"
+    assert "_scan_pipeline_preflight_context" not in result["scan_options"]
+    carrier = result["route_preflight_runtime"]
+    assert carrier is not None
+    assert carrier.plugin_name == "custom"
+    assert carrier.preflight_context["plugin_runtime_marker"] == "custom"
+
+
+def test_fsrc_kernel_route_orchestration_prefers_explicit_selector_over_policy() -> (
+    None
+):
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+
+    class _ExplicitPlugin:
+        def process_scan_pipeline(
+            self,
+            scan_options: dict[str, object],
+            scan_context: dict[str, object],
+        ) -> dict[str, object]:
+            del scan_context
+            assert scan_options.get("scan_pipeline_plugin") == "explicit"
+            return {"plugin_enabled": True, "plugin_runtime_marker": "explicit"}
+
+    class _PolicyPlugin:
+        def process_scan_pipeline(
+            self,
+            scan_options: dict[str, object],
+            scan_context: dict[str, object],
+        ) -> dict[str, object]:
+            del scan_options
+            del scan_context
+            raise AssertionError("explicit selector should win over policy context")
+
+    class _Registry:
+        def get_scan_pipeline_plugin(self, name: str):
+            if name == "explicit":
+                return _ExplicitPlugin
+            if name == "policy":
+                return _PolicyPlugin
+            return None
+
+    def _legacy_orchestrator(
+        *, role_path: str, scan_options: dict[str, object]
+    ) -> dict[str, object]:
+        return {"lane": "legacy", "role_path": role_path, "scan_options": scan_options}
+
+    def _kernel_orchestrator(
+        *,
+        role_path: str,
+        scan_options: dict[str, object],
+        route_preflight_runtime=None,
+    ) -> dict[str, object]:
+        return {
+            "lane": "kernel",
+            "role_path": role_path,
+            "scan_options": scan_options,
+            "route_preflight_runtime": route_preflight_runtime,
+        }
+
+    original_registry = orchestrator_module.DEFAULT_PLUGIN_REGISTRY
+    orchestrator_module.DEFAULT_PLUGIN_REGISTRY = _Registry()
+    try:
+        result = orchestrator_module.route_scan_payload_orchestration(
+            role_path="/tmp/role",
+            scan_options={
+                "scan_pipeline_plugin": "explicit",
+                "policy_context": {"selection": {"plugin": "policy"}},
+            },
+            legacy_orchestrator_fn=_legacy_orchestrator,
+            kernel_orchestrator_fn=_kernel_orchestrator,
+        )
+    finally:
+        orchestrator_module.DEFAULT_PLUGIN_REGISTRY = original_registry
+
+    assert result["lane"] == "kernel"
+    assert "_scan_pipeline_preflight_context" not in result["scan_options"]
+    carrier = result["route_preflight_runtime"]
+    assert carrier is not None
+    assert carrier.plugin_name == "explicit"
+    assert carrier.preflight_context["plugin_runtime_marker"] == "explicit"

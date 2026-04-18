@@ -189,6 +189,32 @@ class _FeatureStub:
         return dict(self._payload)
 
 
+class _PreparedTaskLinePolicy:
+    TASK_INCLUDE_KEYS = {"include_tasks"}
+    ROLE_INCLUDE_KEYS = {"include_role"}
+    INCLUDE_VARS_KEYS = {"include_vars"}
+    SET_FACT_KEYS = {"set_fact"}
+    TASK_BLOCK_KEYS = {"block"}
+    TASK_META_KEYS = {"meta"}
+
+    @staticmethod
+    def detect_task_module(_task: dict[str, Any]) -> str:
+        return "debug"
+
+
+class _PreparedJinjaPolicy:
+    @staticmethod
+    def collect_undeclared_jinja_variables(_text: str) -> set[str]:
+        return set()
+
+
+def _prepared_policy_bundle() -> dict[str, Any]:
+    return {
+        "task_line_parsing": _PreparedTaskLinePolicy(),
+        "jinja_analysis": _PreparedJinjaPolicy(),
+    }
+
+
 def test_w2_t05_variable_discovery_parity_matrix(tmp_path: Path) -> None:
     role_root = tmp_path / "role"
     _write_synthetic_role(role_root)
@@ -317,6 +343,7 @@ def test_w2_t05_feature_detector_parity_matrix(tmp_path: Path) -> None:
 
 def test_w2_t05_scanner_context_payload_shape_parity() -> None:
     options = _canonical_scan_options("/tmp/role")
+    options["prepared_policy_bundle"] = _prepared_policy_bundle()
     payload_template = {
         "rp": "/tmp/role",
         "role_name": "demo",
@@ -374,6 +401,7 @@ def test_w2_t05_scanner_context_payload_shape_parity() -> None:
 def test_w2_t05_scanner_context_error_envelope_parity() -> None:
     options = _canonical_scan_options("/tmp/role")
     options["strict_phase_failures"] = False
+    options["prepared_policy_bundle"] = _prepared_policy_bundle()
     payload_template = {
         "rp": "/tmp/role",
         "role_name": "demo",

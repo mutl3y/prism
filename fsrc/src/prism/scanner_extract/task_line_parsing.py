@@ -12,34 +12,40 @@ from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
 )
 
 
-def _resolve_plugin_registry(di: object | None = None):
+def _scan_options_from_di(di: object | None = None) -> dict[str, object] | None:
     if di is None:
         return None
-    registry = getattr(di, "plugin_registry", None)
-    if registry is not None:
-        return registry
+    scan_options = getattr(di, "scan_options", None)
+    if isinstance(scan_options, dict):
+        return scan_options
     scan_options = getattr(di, "_scan_options", None)
     if isinstance(scan_options, dict):
-        return scan_options.get("plugin_registry")
+        return scan_options
     return None
 
 
-def _resolve_policy_with_registry(resolver, di: object | None = None):
-    registry = _resolve_plugin_registry(di)
-    if registry is None:
-        return resolver(di)
-    try:
-        return resolver(di, registry=registry)
-    except TypeError:
-        return resolver(di)
+def _get_prepared_policy(di: object | None, policy_name: str) -> object | None:
+    scan_options = _scan_options_from_di(di)
+    if not isinstance(scan_options, dict):
+        return None
+    prepared_policy_bundle = scan_options.get("prepared_policy_bundle")
+    if not isinstance(prepared_policy_bundle, dict):
+        return None
+    return prepared_policy_bundle.get(policy_name)
 
 
 def _get_task_line_parsing_policy(di=None):
-    return _resolve_policy_with_registry(resolve_task_line_parsing_policy_plugin, di)
+    prepared_policy = _get_prepared_policy(di, "task_line_parsing")
+    if prepared_policy is not None:
+        return prepared_policy
+    return resolve_task_line_parsing_policy_plugin(di)
 
 
 def _get_task_annotation_policy(di: object | None = None):
-    return _resolve_policy_with_registry(resolve_task_annotation_policy_plugin, di)
+    prepared_policy = _get_prepared_policy(di, "task_annotation_parsing")
+    if prepared_policy is not None:
+        return prepared_policy
+    return resolve_task_annotation_policy_plugin(di)
 
 
 class _PolicyBackedCollectionProxy:
@@ -81,13 +87,13 @@ class _PolicyBackedRegexProxy:
             return current
         return re.compile(r"(?!x)x")
 
-    def match(self, *args: object, **kwargs: object):
+    def match(self, *args: Any, **kwargs: Any):
         return self._current_regex().match(*args, **kwargs)
 
-    def search(self, *args: object, **kwargs: object):
+    def search(self, *args: Any, **kwargs: Any):
         return self._current_regex().search(*args, **kwargs)
 
-    def fullmatch(self, *args: object, **kwargs: object):
+    def fullmatch(self, *args: Any, **kwargs: Any):
         return self._current_regex().fullmatch(*args, **kwargs)
 
     def __getattr__(self, name: str) -> object:
@@ -102,51 +108,64 @@ TASK_BLOCK_KEYS = _PolicyBackedCollectionProxy("TASK_BLOCK_KEYS")
 TASK_META_KEYS = _PolicyBackedCollectionProxy("TASK_META_KEYS")
 
 
-def get_task_include_keys() -> object:
-    return _get_task_line_parsing_policy().TASK_INCLUDE_KEYS
+def get_task_include_keys(di: object | None = None) -> object:
+    return _get_task_line_parsing_policy(di).TASK_INCLUDE_KEYS
 
 
-def get_role_include_keys() -> object:
-    return _get_task_line_parsing_policy().ROLE_INCLUDE_KEYS
+def get_role_include_keys(di: object | None = None) -> object:
+    return _get_task_line_parsing_policy(di).ROLE_INCLUDE_KEYS
 
 
-def get_include_vars_keys() -> object:
-    return _get_task_line_parsing_policy().INCLUDE_VARS_KEYS
+def get_include_vars_keys(di: object | None = None) -> object:
+    return _get_task_line_parsing_policy(di).INCLUDE_VARS_KEYS
 
 
-def get_set_fact_keys() -> object:
-    return _get_task_line_parsing_policy().SET_FACT_KEYS
+def get_set_fact_keys(di: object | None = None) -> object:
+    return _get_task_line_parsing_policy(di).SET_FACT_KEYS
 
 
-def get_task_block_keys() -> object:
-    return _get_task_line_parsing_policy().TASK_BLOCK_KEYS
+def get_task_block_keys(di: object | None = None) -> object:
+    return _get_task_line_parsing_policy(di).TASK_BLOCK_KEYS
 
 
-def get_task_meta_keys() -> object:
-    return _get_task_line_parsing_policy().TASK_META_KEYS
+def get_task_meta_keys(di: object | None = None) -> object:
+    return _get_task_line_parsing_policy(di).TASK_META_KEYS
 
 
-def get_templated_include_re() -> re.Pattern[str] | object:
-    return _get_task_line_parsing_policy().TEMPLATED_INCLUDE_RE
+def get_templated_include_re(di: object | None = None) -> re.Pattern[str] | object:
+    return _get_task_line_parsing_policy(di).TEMPLATED_INCLUDE_RE
 
 
-def _extract_constrained_when_values(task: dict, variable: str) -> list[str]:
-    return _get_task_line_parsing_policy().extract_constrained_when_values(
+def _extract_constrained_when_values(
+    task: dict,
+    variable: str,
+    *,
+    di: object | None = None,
+) -> list[str]:
+    return _get_task_line_parsing_policy(di).extract_constrained_when_values(
         task, variable
     )
 
 
-def _normalize_marker_prefix(marker_prefix: str | None) -> str:
-    return _get_task_annotation_policy().normalize_marker_prefix(marker_prefix)
+def _normalize_marker_prefix(
+    marker_prefix: str | None,
+    *,
+    di: object | None = None,
+) -> str:
+    return _get_task_annotation_policy(di).normalize_marker_prefix(marker_prefix)
 
 
-def _build_marker_line_re(marker_prefix: str | None):
-    normalized_prefix = _normalize_marker_prefix(marker_prefix)
-    return _get_task_annotation_policy().get_marker_line_re(normalized_prefix)
+def _build_marker_line_re(
+    marker_prefix: str | None,
+    *,
+    di: object | None = None,
+):
+    normalized_prefix = _normalize_marker_prefix(marker_prefix, di=di)
+    return _get_task_annotation_policy(di).get_marker_line_re(normalized_prefix)
 
 
-def get_marker_line_re(marker_prefix):
-    return _build_marker_line_re(marker_prefix)
+def get_marker_line_re(marker_prefix, *, di: object | None = None):
+    return _build_marker_line_re(marker_prefix, di=di)
 
 
 ROLE_NOTES_RE = _build_marker_line_re(DEFAULT_DOC_MARKER_PREFIX)
@@ -166,13 +185,13 @@ class _PolicyBackedAnnotationRegexProxy:
             return current
         return self._fallback_regex
 
-    def match(self, *args: object, **kwargs: object):
+    def match(self, *args: Any, **kwargs: Any):
         return self._current_regex().match(*args, **kwargs)
 
-    def search(self, *args: object, **kwargs: object):
+    def search(self, *args: Any, **kwargs: Any):
         return self._current_regex().search(*args, **kwargs)
 
-    def fullmatch(self, *args: object, **kwargs: object):
+    def fullmatch(self, *args: Any, **kwargs: Any):
         return self._current_regex().fullmatch(*args, **kwargs)
 
     def __getattr__(self, name: str) -> object:

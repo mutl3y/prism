@@ -186,6 +186,7 @@ class ScanPayloadBuilder:
 
     def __init__(self) -> None:
         self._payload: dict[str, Any] = {}
+        self._metadata: ScanMetadata = {}
 
     def role_name(self, value: str) -> "ScanPayloadBuilder":
         self._payload["role_name"] = value
@@ -211,7 +212,7 @@ class ScanPayloadBuilder:
         return self
 
     def metadata(self, value: ScanMetadata) -> "ScanPayloadBuilder":
-        self._payload["metadata"] = value
+        self._metadata = value
         return self
 
     def build(self) -> RunScanOutputPayload:
@@ -225,7 +226,7 @@ class ScanPayloadBuilder:
             "undocumented_default_filters": list(
                 self._payload.get("undocumented_default_filters") or []
             ),
-            "metadata": self._payload.get("metadata") or {},
+            "metadata": self._metadata,
         }
 
 

@@ -12,6 +12,11 @@ class ScanMetadata(TypedDict, total=False):
     scan_errors: list[dict[str, str]]
     scan_degraded: bool
     scan_policy_warnings: list[dict[str, Any]]
+    variable_insights: list[dict[str, Any]]
+    yaml_parse_failures: list[Any]
+    role_notes: list[Any]
+    ignore_unresolved_internal_underscore_references: bool
+    underscore_filtered_unresolved_count: int
 
 
 class ScanPolicyWarning(TypedDict, total=False):
@@ -85,6 +90,11 @@ class ScanOptionsDict(TypedDict):
     prepared_policy_bundle: NotRequired[PreparedPolicyBundle | dict[str, Any] | None]
     scan_policy_warnings: NotRequired[list[ScanPolicyWarning] | list[dict[str, Any]]]
     strict_phase_failures: NotRequired[bool]
+    concise_readme: NotRequired[bool]
+    scanner_report_output: NotRequired[str | None]
+    include_scanner_report_link: NotRequired[bool]
+    scan_pipeline_plugin: NotRequired[str]
+    yaml_parse_failures: NotRequired[list[Any]]
 
 
 class ScanContextPayload(TypedDict):

@@ -51,6 +51,9 @@ class DIContainer:
         prepare_scan_context_fn = self._scanner_context_wiring.get(
             "prepare_scan_context_fn"
         )
+        build_run_scan_options_fn = self._scanner_context_wiring.get(
+            "build_run_scan_options_fn"
+        )
         if scanner_context_cls is None or prepare_scan_context_fn is None:
             raise RuntimeError(
                 "factory_scanner_context is disabled: scanner_context_wiring is "
@@ -58,12 +61,18 @@ class DIContainer:
                 "runtime seam injection."
             )
 
-        return scanner_context_cls(
-            di=self,
-            role_path=self._role_path,
-            scan_options=self._scan_options,
-            prepare_scan_context_fn=prepare_scan_context_fn,
-        )
+        scanner_context_kwargs: dict[str, Any] = {
+            "di": self,
+            "role_path": self._role_path,
+            "scan_options": self._scan_options,
+            "prepare_scan_context_fn": prepare_scan_context_fn,
+        }
+        if build_run_scan_options_fn is not None:
+            scanner_context_kwargs["build_run_scan_options_fn"] = (
+                build_run_scan_options_fn
+            )
+
+        return scanner_context_cls(**scanner_context_kwargs)
 
     def factory_variable_discovery(self) -> VariableDiscovery:
         """Create or return cached VariableDiscovery."""
