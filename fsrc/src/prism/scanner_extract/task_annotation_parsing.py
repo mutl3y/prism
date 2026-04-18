@@ -8,30 +8,33 @@ from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
 )
 
 
-def _resolve_plugin_registry(di: object | None = None):
+def _scan_options_from_di(di: object | None = None) -> dict[str, object] | None:
     if di is None:
         return None
-    registry = getattr(di, "plugin_registry", None)
-    if registry is not None:
-        return registry
+    scan_options = getattr(di, "scan_options", None)
+    if isinstance(scan_options, dict):
+        return scan_options
     scan_options = getattr(di, "_scan_options", None)
     if isinstance(scan_options, dict):
-        return scan_options.get("plugin_registry")
+        return scan_options
     return None
 
 
-def _resolve_policy_with_registry(resolver, di: object | None = None):
-    registry = _resolve_plugin_registry(di)
-    if registry is None:
-        return resolver(di)
-    try:
-        return resolver(di, registry=registry)
-    except TypeError:
-        return resolver(di)
+def _get_prepared_policy(di: object | None, policy_name: str) -> object | None:
+    scan_options = _scan_options_from_di(di)
+    if not isinstance(scan_options, dict):
+        return None
+    prepared_policy_bundle = scan_options.get("prepared_policy_bundle")
+    if not isinstance(prepared_policy_bundle, dict):
+        return None
+    return prepared_policy_bundle.get(policy_name)
 
 
 def _get_task_annotation_policy(di: object | None = None):
-    return _resolve_policy_with_registry(resolve_task_annotation_policy_plugin, di)
+    prepared_policy = _get_prepared_policy(di, "task_annotation_parsing")
+    if prepared_policy is not None:
+        return prepared_policy
+    return resolve_task_annotation_policy_plugin(di)
 
 
 def _split_task_annotation_label(

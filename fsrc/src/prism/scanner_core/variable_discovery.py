@@ -4,17 +4,16 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from prism.scanner_core.di import DIContainer
+from prism.scanner_core import scan_request
 from prism.scanner_core.variable_pipeline import IGNORED_IDENTIFIERS
 from prism.scanner_core.variable_pipeline import _format_inline_yaml
 from prism.scanner_core.variable_pipeline import _infer_variable_type
 from prism.scanner_core.variable_pipeline import _is_sensitive_variable
 from prism.scanner_data.contracts_request import validate_variable_discovery_inputs
 from prism.scanner_data.contracts_variables import VariableRow
-from prism.scanner_plugins.defaults import resolve_jinja_analysis_policy_plugin
-from prism.scanner_plugins.defaults import resolve_task_line_parsing_policy_plugin
 from prism.scanner_io.loader import load_yaml_file as _load_yaml_loader_file
 from prism.scanner_io.loader import parse_yaml_candidate
 from prism.scanner_core.task_extract_adapters import collect_task_files
@@ -23,34 +22,28 @@ from prism.scanner_core.task_extract_adapters import iter_task_mappings
 from prism.scanner_core.task_extract_adapters import load_task_yaml_file
 
 
-def _resolve_plugin_registry(di: object | None = None):
-    if di is None:
-        return None
-    registry = getattr(di, "plugin_registry", None)
-    if registry is not None:
-        return registry
-    scan_options = getattr(di, "_scan_options", None)
-    if isinstance(scan_options, dict):
-        return scan_options.get("plugin_registry")
-    return None
-
-
-def _resolve_policy_with_registry(resolver, di: object | None = None):
-    registry = _resolve_plugin_registry(di)
-    if registry is None:
-        return resolver(di)
-    try:
-        return resolver(di, registry=registry)
-    except TypeError:
-        return resolver(di)
-
-
-def _get_prepared_policy(
-    options: dict[str, Any] | None, policy_name: str
-) -> Any | None:
+def _get_prepared_policy_bundle(
+    options: dict[str, Any] | None,
+    di: object | None = None,
+) -> dict[str, Any] | None:
     if not isinstance(options, dict):
         return None
     prepared_policy_bundle = options.get("prepared_policy_bundle")
+    if isinstance(prepared_policy_bundle, dict):
+        return prepared_policy_bundle
+    return cast(
+        dict[str, Any],
+        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=di),
+    )
+
+
+def _get_prepared_policy(
+    options: dict[str, Any] | None,
+    policy_name: str,
+    *,
+    di: object | None = None,
+) -> Any | None:
+    prepared_policy_bundle = _get_prepared_policy_bundle(options, di)
     if not isinstance(prepared_policy_bundle, dict):
         return None
     return prepared_policy_bundle.get(policy_name)
@@ -60,10 +53,7 @@ def _get_task_line_parsing_policy(
     options: dict[str, Any] | None = None,
     di: object | None = None,
 ) -> Any:
-    prepared_policy = _get_prepared_policy(options, "task_line_parsing")
-    if prepared_policy is not None:
-        return prepared_policy
-    return _resolve_policy_with_registry(resolve_task_line_parsing_policy_plugin, di)
+    return _get_prepared_policy(options, "task_line_parsing", di=di)
 
 
 JINJA_VARIABLE_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_\.]*)")
@@ -421,9 +411,7 @@ def _collect_undeclared_jinja_variables(
     options: dict[str, Any] | None = None,
     di: object | None = None,
 ) -> set[str]:
-    plugin = _get_prepared_policy(options, "jinja_analysis")
-    if plugin is None:
-        plugin = _resolve_policy_with_registry(resolve_jinja_analysis_policy_plugin, di)
+    plugin = _get_prepared_policy(options, "jinja_analysis", di=di)
     analyzer = getattr(plugin, "collect_undeclared_jinja_variables", None)
     if callable(analyzer):
         values = analyzer(text)

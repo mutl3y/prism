@@ -840,6 +840,32 @@ def test_task_line_parsing_calls_resolver_each_time(monkeypatch) -> None:
     assert second == ["b"]
 
 
+def test_task_line_parsing_prefers_prepared_policy_bundle(monkeypatch) -> None:
+    class _PreparedPolicy:
+        @staticmethod
+        def extract_constrained_when_values(_task: dict, _variable: str) -> list[str]:
+            return ["prepared"]
+
+    class _DI:
+        _scan_options = {
+            "prepared_policy_bundle": {"task_line_parsing": _PreparedPolicy()}
+        }
+
+    with _prefer_fsrc_prism_on_sys_path():
+        module = importlib.import_module("prism.scanner_extract.task_line_parsing")
+        monkeypatch.setattr(
+            module,
+            "resolve_task_line_parsing_policy_plugin",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("task-line resolver should not be called")
+            ),
+        )
+
+        result = module._extract_constrained_when_values({}, "x", di=_DI())
+
+    assert result == ["prepared"]
+
+
 def test_task_line_parsing_policy_backed_constants_are_dynamic(monkeypatch) -> None:
     class _PolicyA:
         TASK_INCLUDE_KEYS = {"include_a"}
@@ -890,7 +916,7 @@ def test_task_line_parsing_templated_include_regex_is_dynamic(monkeypatch) -> No
     assert second is True
 
 
-def test_task_traversal_calls_resolver_each_time(monkeypatch) -> None:
+def test_task_file_traversal_calls_resolver_each_time(monkeypatch) -> None:
     class _PolicyA:
         @staticmethod
         def iter_task_include_targets(_data: object) -> list[str]:
@@ -915,6 +941,32 @@ def test_task_traversal_calls_resolver_each_time(monkeypatch) -> None:
 
     assert first == ["a.yml"]
     assert second == ["b.yml"]
+
+
+def test_task_file_traversal_prefers_prepared_policy_bundle(monkeypatch) -> None:
+    class _PreparedPolicy:
+        @staticmethod
+        def iter_task_include_targets(_data: object) -> list[str]:
+            return ["prepared.yml"]
+
+    class _DI:
+        _scan_options = {
+            "prepared_policy_bundle": {"task_traversal": _PreparedPolicy()}
+        }
+
+    with _prefer_fsrc_prism_on_sys_path():
+        module = importlib.import_module("prism.scanner_extract.task_file_traversal")
+        monkeypatch.setattr(
+            module,
+            "resolve_task_traversal_policy_plugin",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("task-traversal resolver should not be called")
+            ),
+        )
+
+        result = module._iter_task_include_targets([], di=_DI())
+
+    assert result == ["prepared.yml"]
 
 
 def test_task_annotation_parsing_calls_resolver_each_time(monkeypatch) -> None:
@@ -944,6 +996,36 @@ def test_task_annotation_parsing_calls_resolver_each_time(monkeypatch) -> None:
 
     assert first == ("a", "x")
     assert second == ("b", "x")
+
+
+def test_task_annotation_parsing_prefers_prepared_policy_bundle(
+    monkeypatch,
+) -> None:
+    class _PreparedPolicy:
+        @staticmethod
+        def split_task_annotation_label(text: str) -> tuple[str, str]:
+            return "prepared", text
+
+    class _DI:
+        _scan_options = {
+            "prepared_policy_bundle": {"task_annotation_parsing": _PreparedPolicy()}
+        }
+
+    with _prefer_fsrc_prism_on_sys_path():
+        module = importlib.import_module(
+            "prism.scanner_extract.task_annotation_parsing"
+        )
+        monkeypatch.setattr(
+            module,
+            "resolve_task_annotation_policy_plugin",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("task-annotation resolver should not be called")
+            ),
+        )
+
+        result = module._split_task_annotation_label("x", di=_DI())
+
+    assert result == ("prepared", "x")
 
 
 def test_variable_extractor_calls_resolver_each_time(
@@ -1120,7 +1202,7 @@ def test_extract_role_features_threads_optional_di_into_helper_path(
     assert annotation_di_calls == [di_token]
 
 
-def test_variable_discovery_uses_dedicated_jinja_analysis_resolver(
+def test_variable_discovery_uses_prepared_jinja_analysis_bundle(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -1146,12 +1228,25 @@ def test_variable_discovery_uses_dedicated_jinja_analysis_resolver(
         module = importlib.import_module("prism.scanner_core.variable_discovery")
         monkeypatch.setattr(
             module,
-            "resolve_jinja_analysis_policy_plugin",
-            lambda _di=None: _Plugin(),
+            "scan_request",
+            type(
+                "_ScanRequest",
+                (),
+                {
+                    "ensure_prepared_policy_bundle": staticmethod(
+                        lambda *, scan_options, di: scan_options.setdefault(
+                            "prepared_policy_bundle",
+                            {"jinja_analysis": _Plugin()},
+                        )
+                    )
+                },
+            ),
+            raising=False,
         )
         names = module._collect_referenced_variable_names(
             role_root,
             exclude_paths=None,
+            options={},
         )
 
     assert calls
@@ -1204,6 +1299,36 @@ def test_yaml_parsing_policy_resolver_used_in_loader_and_task_traversal(
     assert traversal_payload == {"traversal": "yes"}
     assert loader_calls == [yaml_file]
     assert traversal_calls == [yaml_file]
+
+
+def test_task_file_traversal_yaml_parsing_prefers_prepared_policy_bundle(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    yaml_file = tmp_path / "main.yml"
+    yaml_file.write_text("k: v\n", encoding="utf-8")
+
+    class _PreparedPolicy:
+        @staticmethod
+        def load_yaml_file(path: Path) -> object:
+            return {"prepared": path.name}
+
+    class _DI:
+        _scan_options = {"prepared_policy_bundle": {"yaml_parsing": _PreparedPolicy()}}
+
+    with _prefer_fsrc_prism_on_sys_path():
+        module = importlib.import_module("prism.scanner_extract.task_file_traversal")
+        monkeypatch.setattr(
+            module,
+            "resolve_yaml_parsing_policy_plugin",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("yaml-parsing resolver should not be called")
+            ),
+        )
+
+        payload = module._load_yaml_file(yaml_file, di=_DI())
+
+    assert payload == {"prepared": "main.yml"}
 
 
 def test_comment_doc_plugin_validation_raises_on_malformed_plugin_in_strict_mode() -> (
@@ -1399,30 +1524,22 @@ def test_task_extract_adapters_resolve_marker_prefix_from_policy_context(
             module, "_extract_task_annotations_for_file", _capture_extract
         )
 
-        class _DirectContextDI:
-            _scan_options = {
-                "policy_context": {
-                    "comment_doc_marker_prefix": "opsdoc",
-                }
-            }
-
-        module.extract_task_annotations_for_file(["# comment"], di=_DirectContextDI())
-        assert captured_prefixes[-1] == "opsdoc"
-
-        class _NestedContextDI:
+        class _CanonicalContextDI:
             _scan_options = {
                 "policy_context": {
                     "comment_doc": {
-                        "marker_prefix": "team.docs",
+                        "marker": {"prefix": "team.docs"},
                     }
                 }
             }
 
-        module.extract_task_annotations_for_file(["# comment"], di=_NestedContextDI())
+        module.extract_task_annotations_for_file(
+            ["# comment"], di=_CanonicalContextDI()
+        )
         assert captured_prefixes[-1] == "team.docs"
 
 
-def test_task_extract_adapters_marker_prefix_precedence_and_legacy_aliases(
+def test_task_extract_adapters_marker_prefix_precedence_and_canonical_boundary(
     monkeypatch,
 ) -> None:
     captured_prefixes: list[str] = []
@@ -1448,10 +1565,8 @@ def test_task_extract_adapters_marker_prefix_precedence_and_legacy_aliases(
         class _CanonicalContextDI:
             _scan_options = {
                 "policy_context": {
-                    "comment_doc_marker_prefix": "flat.alias",
                     "comment_doc": {
                         "marker": {"prefix": "canonical.value"},
-                        "marker_prefix": "nested.alias",
                     },
                 }
             }
@@ -1468,19 +1583,18 @@ def test_task_extract_adapters_marker_prefix_precedence_and_legacy_aliases(
         )
         assert captured_prefixes[-1] == "explicit.value"
 
-        class _StringMarkerAliasDI:
+        class _LegacyAliasOnlyDI:
             _scan_options = {
                 "policy_context": {
+                    "comment_doc_marker_prefix": "flat.alias",
                     "comment_doc": {
-                        "marker": "string.alias",
-                    }
+                        "marker_prefix": "nested.alias",
+                    },
                 }
             }
 
-        module.extract_task_annotations_for_file(
-            ["# comment"], di=_StringMarkerAliasDI()
-        )
-        assert captured_prefixes[-1] == "string.alias"
+        module.extract_task_annotations_for_file(["# comment"], di=_LegacyAliasOnlyDI())
+        assert captured_prefixes[-1] == module.DEFAULT_DOC_MARKER_PREFIX
 
 
 def test_scan_request_normalizes_comment_doc_marker_alias_and_emits_warning() -> None:
@@ -1552,10 +1666,106 @@ def test_run_scan_surfaces_marker_alias_warning_in_scan_policy_warnings(
 
     warnings = payload["metadata"].get("scan_policy_warnings")
     assert isinstance(warnings, list)
-    assert any(
-        warning.get("code") == "deprecated_policy_context_alias"
-        and warning.get("detail")
-        == {"alias_key": "policy_context.comment_doc_marker_prefix"}
+    deprecated_alias_warnings = [
+        warning
         for warning in warnings
         if isinstance(warning, dict)
+        and warning.get("code") == "deprecated_policy_context_alias"
+        and warning.get("detail")
+        == {"alias_key": "policy_context.comment_doc_marker_prefix"}
+    ]
+    assert deprecated_alias_warnings == [
+        {
+            "code": "deprecated_policy_context_alias",
+            "message": "Deprecated marker-prefix policy alias used.",
+            "detail": {"alias_key": "policy_context.comment_doc_marker_prefix"},
+        }
+    ]
+
+
+def test_build_run_scan_options_canonical_policy_context_strips_marker_alias_keys() -> (
+    None
+):
+    with _prefer_fsrc_prism_on_sys_path():
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+        options = scan_request.build_run_scan_options_canonical(
+            role_path="/tmp/role",
+            role_name_override=None,
+            readme_config_path=None,
+            include_vars_main=True,
+            exclude_path_patterns=None,
+            detailed_catalog=False,
+            include_task_parameters=True,
+            include_task_runbooks=True,
+            inline_task_runbooks=True,
+            include_collection_checks=True,
+            keep_unknown_style_sections=True,
+            adopt_heading_mode=None,
+            vars_seed_paths=None,
+            style_readme_path=None,
+            style_source_path=None,
+            style_guide_skeleton=False,
+            compare_role_path=None,
+            fail_on_unconstrained_dynamic_includes=None,
+            fail_on_yaml_like_task_annotations=None,
+            ignore_unresolved_internal_underscore_references=None,
+            policy_context={
+                "comment_doc_marker_prefix": "legacy-flat",
+                "comment_doc": {
+                    "marker_prefix": "legacy-nested",
+                },
+            },
+        )
+
+    policy_context = options["policy_context"]
+    assert isinstance(policy_context, dict)
+    assert "comment_doc_marker_prefix" not in policy_context
+    comment_doc = policy_context["comment_doc"]
+    assert isinstance(comment_doc, dict)
+    assert "marker_prefix" not in comment_doc
+    assert comment_doc["marker"] == {"prefix": "legacy-nested"}
+
+
+@pytest.mark.parametrize(
+    ("include_underscore_prefixed_references", "expected_ignore_flag"),
+    [(True, False), (False, True)],
+)
+def test_scan_request_normalizes_underscore_reference_policy_into_canonical_ignore_flag(
+    include_underscore_prefixed_references: bool,
+    expected_ignore_flag: bool,
+) -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+
+        options = scan_request.build_run_scan_options_canonical(
+            role_path="/tmp/role",
+            role_name_override=None,
+            readme_config_path=None,
+            include_vars_main=True,
+            exclude_path_patterns=None,
+            detailed_catalog=False,
+            include_task_parameters=True,
+            include_task_runbooks=True,
+            inline_task_runbooks=True,
+            include_collection_checks=True,
+            keep_unknown_style_sections=True,
+            adopt_heading_mode=None,
+            vars_seed_paths=None,
+            style_readme_path=None,
+            style_source_path=None,
+            style_guide_skeleton=False,
+            compare_role_path=None,
+            fail_on_unconstrained_dynamic_includes=None,
+            fail_on_yaml_like_task_annotations=None,
+            ignore_unresolved_internal_underscore_references=None,
+            policy_context={
+                "include_underscore_prefixed_references": (
+                    include_underscore_prefixed_references
+                )
+            },
+        )
+
+    assert (
+        options["ignore_unresolved_internal_underscore_references"]
+        is expected_ignore_flag
     )

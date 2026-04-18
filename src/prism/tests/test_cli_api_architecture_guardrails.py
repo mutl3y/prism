@@ -97,6 +97,7 @@ def _iter_forbidden_import_offenders(
     package_dir: Path,
     package_name: str,
     forbidden_roots: tuple[str, ...],
+    allowed_import_pairs: tuple[tuple[str, str], ...] = (),
 ) -> list[str]:
     offenders: list[str] = []
 
@@ -114,6 +115,8 @@ def _iter_forbidden_import_offenders(
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     target = alias.name
+                    if (module_name, target) in allowed_import_pairs:
+                        continue
                     if any(
                         target == root or target.startswith(f"{root}.")
                         for root in forbidden_roots
@@ -122,6 +125,8 @@ def _iter_forbidden_import_offenders(
             if isinstance(node, ast.ImportFrom):
                 resolved_target = _resolve_import_from(module_name, node)
                 if not resolved_target:
+                    continue
+                if (module_name, resolved_target) in allowed_import_pairs:
                     continue
                 if any(
                     resolved_target == root or resolved_target.startswith(f"{root}.")
@@ -180,6 +185,7 @@ def test_fsrc_runtime_modules_do_not_import_src_facade_packages() -> None:
             "prism.repo_layer",
             "prism.repo_services",
         ),
+        allowed_import_pairs=(("prism.api", "prism.api_layer"),),
     )
 
     assert (

@@ -109,6 +109,12 @@
 - Runtime callsites in scanner_extract/scanner_core/scanner_io now consume dedicated YAML and Jinja resolver seams.
 - Validation evidence reported green for focused fsrc suite, parity bundle, `ruff check fsrc/src`, `black --check fsrc/src`, and `tox -r -e smoke-fsrc-lane`.
 
+## Notable Findings (Plan Closure: pure-execution-core-plugin-architecture-20260413)
+
+- NCK1 closure is complete (2026-04-18): the active non-collection execution core-kernel slice is closed.
+- Landed architecture state is now explicit: scanner_core owns non-collection request authority, scanner_kernel owns the route/preflight/runtime carrier contract, and `api.py` plus `api_layer/non_collection.py` remain thin compatibility boundaries.
+- Closure evidence passed together as one bundle: `pytest -q`, parity bundle `pytest -q src/prism/tests/test_fsrc_scanner_parity.py fsrc/src/prism/tests`, smoke lanes `tox -r -e smoke-src-lane,smoke-fsrc-lane`, `ruff check src/prism fsrc/src`, `black --check src/prism fsrc/src`, and `tox -e typecheck`.
+
 <!-- skill-ninja-START -->
 ## Agent Skills
 

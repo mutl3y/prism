@@ -76,18 +76,6 @@ def _resolve_marker_prefix_from_policy_context(di: object | None) -> str | None:
             if isinstance(canonical_prefix, str):
                 return canonical_prefix
 
-        nested_prefix = comment_doc_context.get("marker_prefix")
-        if isinstance(nested_prefix, str):
-            return nested_prefix
-
-        marker_alias = comment_doc_context.get("marker")
-        if isinstance(marker_alias, str):
-            return marker_alias
-
-    direct_prefix = policy_context.get("comment_doc_marker_prefix")
-    if isinstance(direct_prefix, str):
-        return direct_prefix
-
     return None
 
 

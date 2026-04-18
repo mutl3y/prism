@@ -66,6 +66,32 @@ class _BuildOptionsRecorder:
         return dict(self._result)
 
 
+class _PreparedTaskLinePolicy:
+    TASK_INCLUDE_KEYS = {"include_tasks"}
+    ROLE_INCLUDE_KEYS = {"include_role"}
+    INCLUDE_VARS_KEYS = {"include_vars"}
+    SET_FACT_KEYS = {"set_fact"}
+    TASK_BLOCK_KEYS = {"block"}
+    TASK_META_KEYS = {"meta"}
+
+    @staticmethod
+    def detect_task_module(_task: dict[str, Any]) -> str:
+        return "debug"
+
+
+class _PreparedJinjaPolicy:
+    @staticmethod
+    def collect_undeclared_jinja_variables(_text: str) -> set[str]:
+        return set()
+
+
+def _prepared_policy_bundle() -> dict[str, Any]:
+    return {
+        "task_line_parsing": _PreparedTaskLinePolicy(),
+        "jinja_analysis": _PreparedJinjaPolicy(),
+    }
+
+
 def _canonical_scan_options() -> dict[str, Any]:
     return {
         "role_path": "/tmp/role",
@@ -88,6 +114,7 @@ def _canonical_scan_options() -> dict[str, Any]:
         "fail_on_unconstrained_dynamic_includes": None,
         "fail_on_yaml_like_task_annotations": None,
         "ignore_unresolved_internal_underscore_references": None,
+        "prepared_policy_bundle": _prepared_policy_bundle(),
     }
 
 
@@ -149,7 +176,165 @@ def test_fsrc_scanner_context_orchestrates_payload_shape_parity() -> None:
     assert result["undocumented_default_filters"] == []
     assert result["metadata"]["features"]["task_files_scanned"] == 1
     assert result["metadata"]["features"]["tasks_scanned"] == 2
-    assert len(recorder.calls) == 1
+    assert recorder.calls == []
+
+
+def test_fsrc_scanner_context_consumes_existing_canonical_options_without_rebuilding() -> (
+    None
+):
+    with _prefer_fsrc_prism_on_sys_path():
+        core_module = importlib.import_module("prism.scanner_core")
+        di_module = importlib.import_module("prism.scanner_core.di")
+
+        options = _canonical_scan_options()
+        options["scan_policy_warnings"] = [
+            {
+                "code": "deprecated_policy_context_alias",
+                "message": "Deprecated marker-prefix policy alias used.",
+                "detail": {
+                    "alias_key": "policy_context.comment_doc_marker_prefix",
+                },
+            }
+        ]
+        recorder = _BuildOptionsRecorder(options)
+        container = di_module.DIContainer(
+            role_path=options["role_path"], scan_options=options
+        )
+        container.inject_mock_variable_discovery(_DiscoveryStub(tuple()))
+        container.inject_mock_feature_detector(
+            _FeatureStub({"task_files_scanned": 1, "tasks_scanned": 2})
+        )
+
+        observed_scan_options: list[dict[str, Any]] = []
+
+        context = core_module.ScannerContext(
+            di=container,
+            role_path=options["role_path"],
+            scan_options=options,
+            build_run_scan_options_fn=recorder,
+            prepare_scan_context_fn=lambda scan_options: (
+                observed_scan_options.append(scan_options),
+                _context_payload(),
+            )[1],
+        )
+        result = context.orchestrate_scan()
+
+    assert recorder.calls == []
+    assert observed_scan_options == [options]
+    assert result["metadata"]["scan_policy_warnings"] == options["scan_policy_warnings"]
+
+
+def test_fsrc_scanner_context_dedupes_canonical_policy_warnings() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        core_module = importlib.import_module("prism.scanner_core")
+        di_module = importlib.import_module("prism.scanner_core.di")
+
+        ingress_warning = {
+            "code": "deprecated_policy_context_alias",
+            "message": "Deprecated marker-prefix policy alias used.",
+            "detail": {
+                "alias_key": "policy_context.comment_doc_marker_prefix",
+            },
+        }
+        metadata_only_warning = {
+            "code": "metadata_only_warning",
+            "message": "Metadata-local warning.",
+            "detail": {"scope": "prepare_scan_context"},
+        }
+        options = _canonical_scan_options()
+        options["scan_policy_warnings"] = [ingress_warning]
+        recorder = _BuildOptionsRecorder(options)
+        container = di_module.DIContainer(
+            role_path=options["role_path"], scan_options=options
+        )
+        container.inject_mock_variable_discovery(_DiscoveryStub(tuple()))
+        container.inject_mock_feature_detector(
+            _FeatureStub({"task_files_scanned": 1, "tasks_scanned": 2})
+        )
+
+        context = core_module.ScannerContext(
+            di=container,
+            role_path=options["role_path"],
+            scan_options=options,
+            build_run_scan_options_fn=recorder,
+            prepare_scan_context_fn=lambda _scan_options: {
+                **_context_payload(),
+                "metadata": {
+                    "marker_prefix": "NOTE",
+                    "scan_policy_warnings": [
+                        ingress_warning,
+                        metadata_only_warning,
+                    ],
+                },
+            },
+        )
+        result = context.orchestrate_scan()
+
+    assert recorder.calls == []
+    assert result["metadata"]["scan_policy_warnings"] == [
+        ingress_warning,
+        metadata_only_warning,
+    ]
+
+
+def test_fsrc_scanner_context_underscore_filter_uses_canonical_ingress_state() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        core_module = importlib.import_module("prism.scanner_core")
+        di_module = importlib.import_module("prism.scanner_core.di")
+
+        options = _canonical_scan_options()
+        options["ignore_unresolved_internal_underscore_references"] = False
+        options["policy_context"] = {
+            "include_underscore_prefixed_references": False,
+        }
+        recorder = _BuildOptionsRecorder(options)
+        container = di_module.DIContainer(
+            role_path=options["role_path"], scan_options=options
+        )
+        container.inject_mock_variable_discovery(_DiscoveryStub(tuple()))
+        container.inject_mock_feature_detector(
+            _FeatureStub({"task_files_scanned": 1, "tasks_scanned": 2})
+        )
+
+        context = core_module.ScannerContext(
+            di=container,
+            role_path=options["role_path"],
+            scan_options=options,
+            build_run_scan_options_fn=recorder,
+            prepare_scan_context_fn=lambda _scan_options: {
+                **_context_payload(),
+                "display_variables": {
+                    "_internal_value": {
+                        "is_unresolved": True,
+                        "source": "tasks/main.yml",
+                    },
+                    "public_value": {
+                        "is_unresolved": True,
+                        "source": "tasks/main.yml",
+                    },
+                },
+                "metadata": {
+                    "marker_prefix": "NOTE",
+                    "variable_insights": [
+                        {"name": "_internal_value", "is_unresolved": True},
+                        {"name": "public_value", "is_unresolved": True},
+                    ],
+                },
+            },
+        )
+        result = context.orchestrate_scan()
+
+    assert recorder.calls == []
+    assert "_internal_value" in result["display_variables"]
+    assert (
+        result["metadata"].get("ignore_unresolved_internal_underscore_references")
+        is not True
+    )
+    assert "underscore_filtered_unresolved_count" not in result["metadata"]
+    assert result["metadata"]["variable_insights"] == [
+        {"name": "_internal_value", "is_unresolved": True},
+        {"name": "public_value", "is_unresolved": True},
+    ]
 
 
 def test_fsrc_scanner_context_best_effort_records_error_envelope() -> None:
@@ -300,62 +485,44 @@ def test_fsrc_di_plugin_factories_are_explicit_and_overridable() -> None:
         assert container.factory_comment_driven_doc_plugin() == "doc-plugin"
 
 
-def test_fsrc_scanner_context_prepares_policy_bundle_before_discovery() -> None:
+def test_fsrc_scanner_context_requires_prepared_policy_bundle_without_mutating_ingress_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     with _prefer_fsrc_prism_on_sys_path():
         core_module = importlib.import_module("prism.scanner_core")
         di_module = importlib.import_module("prism.scanner_core.di")
 
-        class _PreparedTaskLinePolicy:
-            TASK_INCLUDE_KEYS = {"include_tasks"}
-            ROLE_INCLUDE_KEYS = {"include_role"}
-            INCLUDE_VARS_KEYS = {"include_vars"}
-            SET_FACT_KEYS = {"set_fact"}
-            TASK_BLOCK_KEYS = {"block"}
-            TASK_META_KEYS = {"meta"}
-
-            @staticmethod
-            def detect_task_module(_task: dict) -> str:
-                return "debug"
-
-        class _PreparedJinjaPolicy:
-            @staticmethod
-            def collect_undeclared_jinja_variables(_text: str) -> set[str]:
-                return set()
-
-        class _DiscoveryRecorder:
-            def __init__(self, scan_options: dict[str, Any]) -> None:
-                self._scan_options = scan_options
-
-            def discover(self) -> tuple[Any, ...]:
-                prepared_bundle = self._scan_options.get("prepared_policy_bundle")
-                assert isinstance(prepared_bundle, dict)
-                assert prepared_bundle["task_line_parsing"] is task_line_policy
-                assert prepared_bundle["jinja_analysis"] is jinja_policy
-                return tuple()
-
         options = _canonical_scan_options()
+        options.pop("prepared_policy_bundle")
         recorder = _BuildOptionsRecorder(dict(options))
-        task_line_policy = _PreparedTaskLinePolicy()
-        jinja_policy = _PreparedJinjaPolicy()
         container = di_module.DIContainer(
             role_path=options["role_path"],
             scan_options=options,
             factory_overrides={
-                "variable_discovery_factory": (
-                    lambda _di, _role_path, scan_options: _DiscoveryRecorder(
-                        scan_options
-                    )
-                ),
                 "feature_detector_factory": (
                     lambda _di, _role_path, _scan_options: _FeatureStub(
                         {"task_files_scanned": 0, "tasks_scanned": 0}
                     )
                 ),
-                "task_line_parsing_policy_plugin_factory": (
-                    lambda *_args: task_line_policy
-                ),
-                "jinja_analysis_policy_plugin_factory": (lambda *_args: jinja_policy),
             },
+        )
+        scanner_context_module = importlib.import_module(
+            "prism.scanner_core.scanner_context"
+        )
+        ensure_calls: list[dict[str, Any]] = []
+
+        def _record_ensure_prepared_policy_bundle(
+            *, scan_options: dict[str, Any], di: object | None
+        ) -> dict[str, Any]:
+            del di
+            ensure_calls.append(dict(scan_options))
+            scan_options["prepared_policy_bundle"] = _prepared_policy_bundle()
+            return scan_options["prepared_policy_bundle"]
+
+        monkeypatch.setattr(
+            scanner_context_module.scan_request,
+            "ensure_prepared_policy_bundle",
+            _record_ensure_prepared_policy_bundle,
         )
 
         context = core_module.ScannerContext(
@@ -365,9 +532,209 @@ def test_fsrc_scanner_context_prepares_policy_bundle_before_discovery() -> None:
             build_run_scan_options_fn=recorder,
             prepare_scan_context_fn=lambda _scan_options: _context_payload(),
         )
-        context.orchestrate_scan()
 
-    prepared_bundle = recorder.calls[0].get("prepared_policy_bundle")
+        with pytest.raises(ValueError, match="prepared_policy_bundle"):
+            context.orchestrate_scan()
+
+    assert ensure_calls == []
+    assert "prepared_policy_bundle" not in options
+    assert recorder.calls == []
+
+
+def test_fsrc_scanner_context_prepared_policy_bundle_rejects_invalid_bundle() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        core_module = importlib.import_module("prism.scanner_core")
+        di_module = importlib.import_module("prism.scanner_core.di")
+
+        options = _canonical_scan_options()
+        options["prepared_policy_bundle"] = {
+            "task_line_parsing": object(),
+            "jinja_analysis": object(),
+        }
+        recorder = _BuildOptionsRecorder(dict(options))
+        container = di_module.DIContainer(
+            role_path=options["role_path"],
+            scan_options=options,
+        )
+
+        context = core_module.ScannerContext(
+            di=container,
+            role_path=options["role_path"],
+            scan_options=options,
+            build_run_scan_options_fn=recorder,
+            prepare_scan_context_fn=lambda _scan_options: _context_payload(),
+        )
+
+        with pytest.raises(ValueError, match="prepared_policy_bundle"):
+            context.orchestrate_scan()
+
+
+def test_fsrc_scanner_core_builds_non_collection_execution_request() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        core_module = importlib.import_module("prism.scanner_core")
+
+        class _RecordingVariableDiscovery:
+            def __init__(
+                self,
+                _di: object,
+                _role_path: str,
+                scan_options: dict[str, Any],
+            ) -> None:
+                self._scan_options = scan_options
+
+            def discover(self) -> tuple[dict[str, Any], ...]:
+                prepared_bundle = self._scan_options.get("prepared_policy_bundle")
+                assert isinstance(prepared_bundle, dict)
+                assert callable(
+                    getattr(
+                        prepared_bundle.get("task_line_parsing"),
+                        "detect_task_module",
+                        None,
+                    )
+                )
+                assert callable(
+                    getattr(
+                        prepared_bundle.get("jinja_analysis"),
+                        "collect_undeclared_jinja_variables",
+                        None,
+                    )
+                )
+                return (
+                    {
+                        "name": "demo_var",
+                        "type": "str",
+                        "default": "value",
+                        "source": "defaults/main.yml",
+                        "required": False,
+                        "documented": True,
+                        "secret": False,
+                        "is_unresolved": False,
+                        "is_ambiguous": False,
+                        "uncertainty_reason": None,
+                    },
+                )
+
+        class _RecordingFeatureDetector:
+            def __init__(
+                self,
+                _di: object,
+                _role_path: str,
+                _scan_options: dict[str, Any],
+            ) -> None:
+                pass
+
+            def detect(self) -> dict[str, Any]:
+                return {
+                    "task_files_scanned": 1,
+                    "tasks_scanned": 2,
+                    "external_collections": "community.general",
+                }
+
+        class _DocPlugin:
+            @staticmethod
+            def extract_role_notes_from_comments(
+                role_path: str,
+                *,
+                exclude_paths: list[str] | None = None,
+            ) -> list[str]:
+                del exclude_paths
+                return [f"notes-for:{role_path}"]
+
+        class _Registry:
+            pass
+
+        def _build_run_scan_options_canonical(**kwargs: Any) -> dict[str, Any]:
+            return {
+                "role_path": kwargs["role_path"],
+                "role_name_override": kwargs["role_name_override"],
+                "readme_config_path": kwargs["readme_config_path"],
+                "policy_config_path": kwargs["policy_config_path"],
+                "include_vars_main": kwargs["include_vars_main"],
+                "exclude_path_patterns": kwargs["exclude_path_patterns"],
+                "detailed_catalog": kwargs["detailed_catalog"],
+                "include_task_parameters": kwargs["include_task_parameters"],
+                "include_task_runbooks": kwargs["include_task_runbooks"],
+                "inline_task_runbooks": kwargs["inline_task_runbooks"],
+                "include_collection_checks": kwargs["include_collection_checks"],
+                "keep_unknown_style_sections": kwargs["keep_unknown_style_sections"],
+                "adopt_heading_mode": kwargs["adopt_heading_mode"],
+                "vars_seed_paths": kwargs["vars_seed_paths"],
+                "style_readme_path": kwargs["style_readme_path"],
+                "style_source_path": kwargs["style_source_path"],
+                "style_guide_skeleton": kwargs["style_guide_skeleton"],
+                "compare_role_path": kwargs["compare_role_path"],
+                "fail_on_unconstrained_dynamic_includes": kwargs[
+                    "fail_on_unconstrained_dynamic_includes"
+                ],
+                "fail_on_yaml_like_task_annotations": kwargs[
+                    "fail_on_yaml_like_task_annotations"
+                ],
+                "ignore_unresolved_internal_underscore_references": kwargs[
+                    "ignore_unresolved_internal_underscore_references"
+                ],
+                "policy_context": kwargs["policy_context"],
+                "yaml_parse_failures": [],
+            }
+
+        request = core_module.build_non_collection_run_scan_execution_request(
+            role_path="/tmp/demo-role",
+            role_name_override="demo-role",
+            readme_config_path=None,
+            policy_config_path=None,
+            concise_readme=False,
+            scanner_report_output=None,
+            include_vars_main=True,
+            include_scanner_report_link=True,
+            exclude_path_patterns=None,
+            detailed_catalog=False,
+            include_task_parameters=True,
+            include_task_runbooks=True,
+            inline_task_runbooks=True,
+            include_collection_checks=True,
+            keep_unknown_style_sections=True,
+            adopt_heading_mode=None,
+            vars_seed_paths=None,
+            style_readme_path=None,
+            style_source_path=None,
+            style_guide_skeleton=False,
+            compare_role_path=None,
+            fail_on_unconstrained_dynamic_includes=None,
+            fail_on_yaml_like_task_annotations=None,
+            ignore_unresolved_internal_underscore_references=None,
+            policy_context=None,
+            strict_phase_failures=False,
+            scan_pipeline_plugin=None,
+            validate_role_path_fn=lambda role_path: role_path,
+            extract_role_description_fn=lambda _role_root, role_name: (
+                f"desc:{role_name}"
+            ),
+            build_run_scan_options_canonical_fn=_build_run_scan_options_canonical,
+            di_container_cls=core_module.DIContainer,
+            feature_detector_cls=_RecordingFeatureDetector,
+            scanner_context_cls=core_module.ScannerContext,
+            variable_discovery_cls=_RecordingVariableDiscovery,
+            resolve_comment_driven_documentation_plugin_fn=(lambda _di: _DocPlugin()),
+            default_plugin_registry=_Registry(),
+        )
+
+        payload = request.build_payload_fn()
+
+    prepared_bundle = request.scan_options.get("prepared_policy_bundle")
+    assert request.role_path == "/tmp/demo-role"
+    assert request.strict_mode is False
     assert isinstance(prepared_bundle, dict)
-    assert prepared_bundle["task_line_parsing"] is task_line_policy
-    assert prepared_bundle["jinja_analysis"] is jinja_policy
+    assert callable(
+        getattr(prepared_bundle["task_line_parsing"], "detect_task_module", None)
+    )
+    assert callable(
+        getattr(
+            prepared_bundle["jinja_analysis"],
+            "collect_undeclared_jinja_variables",
+            None,
+        )
+    )
+    assert payload["role_name"] == "demo-role"
+    assert payload["description"] == "desc:demo-role"
+    assert payload["display_variables"]["demo_var"]["default"] == "value"
+    assert payload["metadata"]["role_notes"] == ["notes-for:/tmp/demo-role"]
+    assert payload["metadata"]["features"]["task_files_scanned"] == 1

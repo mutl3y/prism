@@ -114,7 +114,7 @@ def test_fsrc_variable_discovery_collects_yaml_parse_failure_metadata(tmp_path) 
     assert failures[0]["error"]
 
 
-def test_fsrc_task_traversal_exposes_unresolved_include_edges(tmp_path) -> None:
+def test_fsrc_task_file_traversal_exposes_unresolved_include_edges(tmp_path) -> None:
     role_path = tmp_path
     (role_path / "tasks").mkdir()
     (role_path / "tasks" / "main.yml").write_text(
@@ -147,7 +147,7 @@ def test_fsrc_task_traversal_exposes_unresolved_include_edges(tmp_path) -> None:
     assert unresolved_edges[0]["task_file"] == "tasks/main.yml"
 
 
-def test_fsrc_task_traversal_load_yaml_records_failure_metadata(tmp_path) -> None:
+def test_fsrc_task_file_traversal_load_yaml_records_failure_metadata(tmp_path) -> None:
     role_path = tmp_path
     (role_path / "tasks").mkdir()
     bad_file = role_path / "tasks" / "broken.yml"

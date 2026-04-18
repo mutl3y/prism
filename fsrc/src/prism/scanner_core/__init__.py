@@ -6,14 +6,20 @@ from prism.scanner_core.di import DIContainer
 from prism.scanner_core.feature_detector import FeatureDetector
 from prism.scanner_core.output_orchestrator import OutputOrchestrator
 from prism.scanner_core.scan_context_builder import ScanContextBuilder
-from prism.scanner_core.scanner_context import ScannerContext
+from prism.scanner_core.scanner_context import (
+    NonCollectionRunScanExecutionRequest,
+    ScannerContext,
+    build_non_collection_run_scan_execution_request,
+)
 
 __all__ = [
     "DIContainer",
     "FeatureDetector",
+    "NonCollectionRunScanExecutionRequest",
     "OutputOrchestrator",
     "ScanContextBuilder",
     "ScannerContext",
+    "build_non_collection_run_scan_execution_request",
 ]
 
 

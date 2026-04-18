@@ -215,6 +215,9 @@ def test_fsrc_runtime_di_override_changes_include_vars_resolution(
 
     with _prefer_fsrc_prism_on_sys_path():
         api_module = importlib.import_module("prism.api")
+        task_line_parsing_module = importlib.import_module(
+            "prism.scanner_plugins.ansible.task_line_parsing"
+        )
 
         class _CustomLineParsingPolicy:
             TASK_INCLUDE_KEYS = {
@@ -232,6 +235,7 @@ def test_fsrc_runtime_di_override_changes_include_vars_resolution(
             INCLUDE_VARS_KEYS = {"custom_include_vars"}
             SET_FACT_KEYS = {"set_fact", "ansible.builtin.set_fact"}
             TASK_BLOCK_KEYS = {"block", "rescue", "always"}
+            TASK_META_KEYS = task_line_parsing_module.TASK_META_KEYS
 
             @staticmethod
             def detect_task_module(task: dict) -> str | None:
@@ -411,6 +415,9 @@ def test_fsrc_runtime_di_override_changes_task_module_detection_behavior(
 
     with _prefer_fsrc_prism_on_sys_path():
         api_module = importlib.import_module("prism.api")
+        task_line_parsing_module = importlib.import_module(
+            "prism.scanner_plugins.ansible.task_line_parsing"
+        )
 
         class _CustomTaskLineParsingPolicy:
             TASK_INCLUDE_KEYS = {
@@ -431,6 +438,7 @@ def test_fsrc_runtime_di_override_changes_task_module_detection_behavior(
             }
             SET_FACT_KEYS = {"set_fact", "ansible.builtin.set_fact"}
             TASK_BLOCK_KEYS = {"block", "rescue", "always"}
+            TASK_META_KEYS = task_line_parsing_module.TASK_META_KEYS
 
             @staticmethod
             def detect_task_module(task: dict) -> str | None:
@@ -455,3 +463,90 @@ def test_fsrc_runtime_di_override_changes_task_module_detection_behavior(
         == "acme.collection.custom_debug"
     )
     assert payload["metadata"]["features"]["external_collections"] == "acme.collection"
+
+
+def test_runtime_blockers_preserve_strict_failures_and_non_strict_warnings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "role"
+    _build_role_with_debug_task(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+        errors_module = importlib.import_module("prism.errors")
+
+        class _RuntimeFailingPlugin:
+            def process_scan_pipeline(
+                self,
+                scan_options: dict[str, object],
+                scan_context: dict[str, object],
+            ) -> dict[str, object]:
+                del scan_options
+                del scan_context
+                return {"plugin_enabled": True, "plugin_name": "default"}
+
+            def orchestrate_scan_payload(
+                self,
+                *,
+                payload: dict[str, object],
+                scan_options: dict[str, object],
+                strict_mode: bool,
+                preflight_context: dict[str, object] | None = None,
+            ) -> dict[str, object]:
+                del payload
+                del scan_options
+                del strict_mode
+                del preflight_context
+                raise RuntimeError("runtime boom")
+
+        class _Registry:
+            @staticmethod
+            def get_scan_pipeline_plugin(name: str):
+                if name == "default":
+                    return _RuntimeFailingPlugin
+                return None
+
+        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+
+        with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+            api_module.run_scan(
+                str(role_path),
+                include_vars_main=True,
+                scan_pipeline_plugin="default",
+                strict_phase_failures=True,
+            )
+
+        payload = api_module.run_scan(
+            str(role_path),
+            include_vars_main=True,
+            scan_pipeline_plugin="default",
+            strict_phase_failures=False,
+        )
+
+    assert exc_info.value.code == "scan_pipeline_execution_failed"
+    assert exc_info.value.detail == {
+        "metadata": {
+            "routing": {
+                "failure_mode": "runtime_execution_exception",
+                "selected_plugin": "default",
+            }
+        }
+    }
+    warnings = payload["metadata"].get("plugin_runtime_warnings")
+    assert isinstance(warnings, list)
+    assert warnings
+    assert warnings[0]["code"] == "scan_pipeline_plugin_failed"
+    assert payload["metadata"]["routing"] == {
+        "mode": "scan_pipeline_plugin",
+        "selection_order": [
+            "request.option.scan_pipeline_plugin",
+            "policy_context.selection.plugin",
+            "platform",
+            "registry_default",
+        ],
+        "failure_mode": "runtime_execution_exception",
+        "selected_plugin": "default",
+        "fallback_reason": "runtime_execution_exception",
+        "fallback_applied": True,
+    }

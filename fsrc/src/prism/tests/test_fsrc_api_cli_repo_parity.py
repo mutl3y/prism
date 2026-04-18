@@ -245,6 +245,194 @@ def test_fsrc_api_scan_repo_uses_fsrc_repo_services_facade(monkeypatch) -> None:
     assert captured["repo_style_readme_path"] == "README.md"
 
 
+def test_fsrc_api_scan_repo_uses_non_collection_repo_resolver_when_unset(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        class _FakeFacade:
+            def run_repo_scan(self, **kwargs: object) -> object:
+                captured.update(kwargs)
+                return {"role_name": "delegated-role", "metadata": {}}
+
+        monkeypatch.setattr(api_module, "_repo_scan_facade", None)
+        monkeypatch.setattr(
+            api_module.api_non_collection,
+            "_resolve_repo_scan_facade",
+            lambda: _FakeFacade(),
+        )
+
+        payload = api_module.scan_repo("https://example.invalid/demo.git")
+
+    assert payload == {"role_name": "delegated-role", "metadata": {}}
+    assert captured["repo_url"] == "https://example.invalid/demo.git"
+
+
+def test_fsrc_api_scan_repo_forwards_role_name_override_to_scan_role_fn(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        class _FakeFacade:
+            def run_repo_scan(self, **kwargs: object) -> object:
+                captured.update(kwargs)
+                scan_role_fn = kwargs["scan_role_fn"]
+                assert callable(scan_role_fn)
+                return scan_role_fn(
+                    "/tmp/repo-role",
+                    style_readme_path="README.repo.md",
+                    role_name_override="derived-role-name",
+                )
+
+        monkeypatch.setattr(api_module, "_repo_scan_facade", _FakeFacade())
+
+        def _fake_scan_role(
+            role_path: str,
+            **kwargs: object,
+        ) -> dict[str, object]:
+            captured["forwarded_role_path"] = role_path
+            captured["forwarded_kwargs"] = dict(kwargs)
+            return {"role_name": str(kwargs.get("role_name_override") or "role")}
+
+        monkeypatch.setattr(api_module, "scan_role", _fake_scan_role)
+        payload = api_module.scan_repo("https://example.invalid/demo.git")
+
+    assert payload["role_name"] == "derived-role-name"
+    assert captured["forwarded_role_path"] == "/tmp/repo-role"
+    assert captured["forwarded_kwargs"] == {
+        "compare_role_path": None,
+        "style_readme_path": "README.repo.md",
+        "role_name_override": "derived-role-name",
+        "vars_seed_paths": None,
+        "concise_readme": False,
+        "scanner_report_output": None,
+        "include_vars_main": True,
+        "include_scanner_report_link": True,
+        "readme_config_path": None,
+        "adopt_heading_mode": None,
+        "style_guide_skeleton": False,
+        "keep_unknown_style_sections": True,
+        "exclude_path_patterns": None,
+        "style_source_path": None,
+        "policy_config_path": None,
+        "fail_on_unconstrained_dynamic_includes": None,
+        "fail_on_yaml_like_task_annotations": None,
+        "ignore_unresolved_internal_underscore_references": None,
+        "include_collection_checks": False,
+        "include_task_parameters": True,
+        "include_task_runbooks": True,
+        "inline_task_runbooks": True,
+        "failure_policy": None,
+    }
+
+
+def test_fsrc_api_scan_repo_forwards_policy_config_path_to_scan_role_fn(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        class _FakeFacade:
+            def run_repo_scan(self, **kwargs: object) -> object:
+                scan_role_fn = kwargs["scan_role_fn"]
+                assert callable(scan_role_fn)
+                return scan_role_fn("/tmp/repo-role")
+
+        monkeypatch.setattr(api_module, "_repo_scan_facade", _FakeFacade())
+
+        def _fake_scan_role(
+            role_path: str,
+            **kwargs: object,
+        ) -> dict[str, object]:
+            captured["forwarded_role_path"] = role_path
+            captured["forwarded_kwargs"] = dict(kwargs)
+            return {"role_name": "repo-role"}
+
+        monkeypatch.setattr(api_module, "scan_role", _fake_scan_role)
+        payload = api_module.scan_repo(
+            "https://example.invalid/demo.git",
+            policy_config_path="/tmp/policy.yml",
+        )
+
+    assert payload["role_name"] == "repo-role"
+    assert captured["forwarded_role_path"] == "/tmp/repo-role"
+    assert captured["forwarded_kwargs"]["policy_config_path"] == "/tmp/policy.yml"
+
+
+def test_fsrc_api_scan_role_forwards_non_collection_output_options(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        def _fake_run_scan(role_path: str, **kwargs: object) -> dict[str, object]:
+            captured["role_path"] = role_path
+            captured["kwargs"] = dict(kwargs)
+            return {"role_name": "demo-role", "metadata": {}}
+
+        monkeypatch.setattr(api_module, "run_scan", _fake_run_scan)
+        payload = api_module.scan_role(
+            "/tmp/demo-role",
+            concise_readme=True,
+            scanner_report_output="reports/scanner.json",
+            include_scanner_report_link=False,
+        )
+
+    assert payload == {"role_name": "demo-role", "metadata": {}}
+    assert captured["role_path"] == "/tmp/demo-role"
+    assert captured["kwargs"]["concise_readme"] is True
+    assert captured["kwargs"]["scanner_report_output"] == "reports/scanner.json"
+    assert captured["kwargs"]["include_scanner_report_link"] is False
+
+
+def test_fsrc_api_scan_repo_forwards_non_collection_output_options_to_scan_role_fn(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        class _FakeFacade:
+            def run_repo_scan(self, **kwargs: object) -> object:
+                scan_role_fn = kwargs["scan_role_fn"]
+                assert callable(scan_role_fn)
+                return scan_role_fn("/tmp/repo-role", role_name_override="repo-role")
+
+        monkeypatch.setattr(api_module, "_repo_scan_facade", _FakeFacade())
+
+        def _fake_scan_role(
+            role_path: str,
+            **kwargs: object,
+        ) -> dict[str, object]:
+            captured["role_path"] = role_path
+            captured["kwargs"] = dict(kwargs)
+            return {"role_name": str(kwargs.get("role_name_override") or "role")}
+
+        monkeypatch.setattr(api_module, "scan_role", _fake_scan_role)
+        payload = api_module.scan_repo(
+            "https://example.invalid/demo.git",
+            concise_readme=True,
+            scanner_report_output="reports/scanner.json",
+            include_scanner_report_link=False,
+        )
+
+    assert payload["role_name"] == "repo-role"
+    assert captured["role_path"] == "/tmp/repo-role"
+    assert captured["kwargs"]["role_name_override"] == "repo-role"
+    assert captured["kwargs"]["concise_readme"] is True
+    assert captured["kwargs"]["scanner_report_output"] == "reports/scanner.json"
+    assert captured["kwargs"]["include_scanner_report_link"] is False
+
+
 def test_fsrc_cli_repo_command_uses_repo_services_and_emits_json(
     monkeypatch, capsys
 ) -> None:
