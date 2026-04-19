@@ -192,7 +192,7 @@ class _PolicyBackedAnnotationRegexProxy:
         if isinstance(current, re.Pattern):
             return current
         raise ValueError(
-            f"prepared_policy_bundle.task_line_parsing.{self._policy_attr_name} "
+            f"prepared_policy_bundle.task_annotation_parsing.{self._policy_attr_name} "
             f"must be a compiled regex pattern"
         )
 
