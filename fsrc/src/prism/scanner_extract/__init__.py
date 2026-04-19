@@ -20,13 +20,9 @@ from prism.scanner_extract.task_file_traversal import (
     _load_yaml_file,
     _collect_task_files,
     _is_relpath_excluded,
-    _collect_unconstrained_dynamic_role_includes,
-    _collect_unconstrained_dynamic_task_includes,
 )
 from prism.scanner_extract.task_catalog_assembly import (
     _collect_task_handler_catalog,
-    _collect_molecule_scenarios,
-    extract_role_features,
 )
 from prism.scanner_extract.variable_extractor import (
     DEFAULT_TARGET_RE,
@@ -72,59 +68,7 @@ collect_task_files = _collect_task_files
 is_relpath_excluded = _is_relpath_excluded
 
 
-def _make_standalone_di(role_path: str, exclude_paths=None):
-    from prism.scanner_plugins.bundle_resolver import ensure_prepared_policy_bundle
-
-    options: dict = {"role_path": role_path, "exclude_path_patterns": exclude_paths}
-    ensure_prepared_policy_bundle(scan_options=options, di=None)
-
-    class _StandaloneDI:
-        def __init__(self, opts: dict) -> None:
-            self._scan_options = opts
-
-        @property
-        def scan_options(self) -> dict:
-            return self._scan_options
-
-    return _StandaloneDI(options)
-
-
-def collect_unconstrained_dynamic_role_includes(role_path, exclude_paths=None):
-    di = _make_standalone_di(role_path, exclude_paths)
-    return _collect_unconstrained_dynamic_role_includes(role_path, exclude_paths, di=di)
-
-
-def collect_unconstrained_dynamic_task_includes(role_path, exclude_paths=None):
-    di = _make_standalone_di(role_path, exclude_paths)
-    return _collect_unconstrained_dynamic_task_includes(role_path, exclude_paths, di=di)
-
-
 collect_task_handler_catalog = _collect_task_handler_catalog
-
-
-def extract_role_notes_from_comments(
-    role_path,
-    exclude_paths=None,
-    marker_prefix="prism",
-    *,
-    di=None,
-):
-    standalone = _make_standalone_di(role_path, exclude_paths) if di is None else di
-    from prism.scanner_plugins.defaults import (
-        resolve_comment_driven_documentation_plugin,
-    )
-
-    plugin = resolve_comment_driven_documentation_plugin(standalone)
-    return plugin.extract_role_notes_from_comments(
-        role_path,
-        exclude_paths=exclude_paths,
-        marker_prefix=marker_prefix,
-    )
-
-
-def collect_molecule_scenarios(role_path, exclude_paths=None):
-    di = _make_standalone_di(role_path, exclude_paths)
-    return _collect_molecule_scenarios(role_path, exclude_paths, di=di)
 
 
 __all__ = [
@@ -143,12 +87,7 @@ __all__ = [
     "load_yaml_file",
     "collect_task_files",
     "is_relpath_excluded",
-    "extract_role_notes_from_comments",
-    "collect_unconstrained_dynamic_role_includes",
-    "collect_unconstrained_dynamic_task_includes",
     "collect_task_handler_catalog",
-    "collect_molecule_scenarios",
-    "extract_role_features",
     "DEFAULT_TARGET_RE",
     "JINJA_VAR_RE",
     "JINJA_IDENTIFIER_RE",

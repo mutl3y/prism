@@ -6,10 +6,6 @@ import re
 from typing import Any, Iterator
 
 from prism.scanner_core.di_helpers import _get_prepared_policy
-from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
-    get_marker_line_re as _marker_utils_get_marker_line_re,
-    normalize_marker_prefix as _marker_utils_normalize_marker_prefix,
-)
 
 
 def _get_task_line_parsing_policy(di=None):
@@ -139,8 +135,6 @@ def _normalize_marker_prefix(
     *,
     di: object | None = None,
 ) -> str:
-    if di is None:
-        return _marker_utils_normalize_marker_prefix(marker_prefix)
     return _get_task_annotation_policy(di).normalize_marker_prefix(marker_prefix)
 
 
@@ -149,9 +143,6 @@ def _build_marker_line_re(
     *,
     di: object | None = None,
 ):
-    if di is None:
-        normalized = _marker_utils_normalize_marker_prefix(marker_prefix)
-        return _marker_utils_get_marker_line_re(normalized)
     normalized_prefix = _normalize_marker_prefix(marker_prefix, di=di)
     return _get_task_annotation_policy(di).get_marker_line_re(normalized_prefix)
 
@@ -163,18 +154,15 @@ def get_marker_line_re(marker_prefix, *, di: object | None = None):
 class _PolicyBackedMarkerLineRegexProxy:
     """Proxy that resolves marker-line regex from annotation policy at call time."""
 
-    def __init__(self, fallback_pattern: str) -> None:
-        self._fallback_regex = re.compile(fallback_pattern)
-
     def _current_regex(self) -> re.Pattern[str]:
-        try:
-            policy = _get_task_annotation_policy()
-            regex = policy.get_marker_line_re(_normalize_marker_prefix(None, di=None))
-            if isinstance(regex, re.Pattern):
-                return regex
-        except (ValueError, AttributeError):
-            pass
-        return self._fallback_regex
+        policy = _get_task_annotation_policy()
+        regex = policy.get_marker_line_re(policy.normalize_marker_prefix(None))
+        if isinstance(regex, re.Pattern):
+            return regex
+        raise ValueError(
+            "prepared_policy_bundle.task_annotation_parsing.get_marker_line_re "
+            "must return a compiled re.Pattern"
+        )
 
     def match(self, *args: Any, **kwargs: Any):
         return self._current_regex().match(*args, **kwargs)
@@ -189,11 +177,8 @@ class _PolicyBackedMarkerLineRegexProxy:
         return getattr(self._current_regex(), name)
 
 
-_FALLBACK_MARKER_LINE_PATTERN = (
-    r"^\s*#\s*prism\s*~\s*(?P<label>[a-z0-9_-]+)\s*:?\s*(?P<body>.*)$"
-)
-ROLE_NOTES_RE = _PolicyBackedMarkerLineRegexProxy(_FALLBACK_MARKER_LINE_PATTERN)
-TASK_NOTES_LONG_RE = _PolicyBackedMarkerLineRegexProxy(_FALLBACK_MARKER_LINE_PATTERN)
+ROLE_NOTES_RE = _PolicyBackedMarkerLineRegexProxy()
+TASK_NOTES_LONG_RE = _PolicyBackedMarkerLineRegexProxy()
 ROLE_NOTES_SHORT_RE = ROLE_NOTES_RE
 TASK_NOTES_SHORT_RE = TASK_NOTES_LONG_RE
 

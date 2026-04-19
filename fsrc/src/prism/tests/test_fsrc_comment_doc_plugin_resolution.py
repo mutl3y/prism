@@ -242,8 +242,8 @@ def test_extract_role_notes_routes_via_di_plugin() -> None:
     di = _DIWithCommentDocFactory(plugin)
 
     with _prefer_fsrc_prism_on_sys_path():
-        scanner_extract = importlib.import_module("prism.scanner_extract")
-        result = scanner_extract.extract_role_notes_from_comments(
+        plugin_defaults = importlib.import_module("prism.scanner_plugins.defaults")
+        result = plugin_defaults.extract_role_notes_from_comments(
             role_path="/tmp/fake-role",
             exclude_paths=["tasks/ignored.yml"],
             marker_prefix="opsdoc",
@@ -276,8 +276,8 @@ def test_extract_role_notes_default_plugin_preserves_existing_behavior(
     )
 
     with _prefer_fsrc_prism_on_sys_path():
-        scanner_extract = importlib.import_module("prism.scanner_extract")
-        result = scanner_extract.extract_role_notes_from_comments(str(role_path))
+        plugin_defaults = importlib.import_module("prism.scanner_plugins.defaults")
+        result = plugin_defaults.extract_role_notes_from_comments(str(role_path))
 
     assert "check rollback path" in result["warnings"]
     assert "verify service dependencies" in result["notes"]
@@ -289,7 +289,7 @@ def test_extract_role_notes_prefers_di_over_registry_default() -> None:
     di = _DIWithCommentDocFactory(plugin)
 
     with _prefer_fsrc_prism_on_sys_path():
-        scanner_extract = importlib.import_module("prism.scanner_extract")
+        plugin_defaults = importlib.import_module("prism.scanner_plugins.defaults")
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
@@ -299,7 +299,7 @@ def test_extract_role_notes_prefers_di_over_registry_default() -> None:
                 "default",
                 _RegistryOnlyCommentDocPlugin,
             )
-            result = scanner_extract.extract_role_notes_from_comments(
+            result = plugin_defaults.extract_role_notes_from_comments(
                 role_path="/tmp/di-wins",
                 marker_prefix="di",
                 di=di,
@@ -316,7 +316,7 @@ def test_extract_role_notes_prefers_di_over_registry_default() -> None:
 
 def test_extract_role_notes_uses_registry_default_when_di_absent() -> None:
     with _prefer_fsrc_prism_on_sys_path():
-        scanner_extract = importlib.import_module("prism.scanner_extract")
+        plugin_defaults = importlib.import_module("prism.scanner_plugins.defaults")
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
@@ -326,7 +326,7 @@ def test_extract_role_notes_uses_registry_default_when_di_absent() -> None:
                 "default",
                 _RegistryOnlyCommentDocPlugin,
             )
-            result = scanner_extract.extract_role_notes_from_comments(
+            result = plugin_defaults.extract_role_notes_from_comments(
                 role_path="/tmp/registry-wins",
                 marker_prefix="registry",
             )
@@ -355,7 +355,7 @@ def test_extract_role_notes_uses_class_fallback_when_di_and_registry_unavailable
     )
 
     with _prefer_fsrc_prism_on_sys_path():
-        scanner_extract = importlib.import_module("prism.scanner_extract")
+        plugin_defaults = importlib.import_module("prism.scanner_plugins.defaults")
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
@@ -363,7 +363,7 @@ def test_extract_role_notes_uses_class_fallback_when_di_and_registry_unavailable
         original = plugin_registry.get_comment_driven_doc_plugin("default")
         try:
             plugin_registry._comment_driven_doc_plugins.pop("default", None)
-            result = scanner_extract.extract_role_notes_from_comments(str(role_path))
+            result = plugin_defaults.extract_role_notes_from_comments(str(role_path))
         finally:
             if had_default and original is not None:
                 plugin_registry.register_comment_driven_doc_plugin("default", original)
@@ -1050,82 +1050,6 @@ def test_task_catalog_assembly_uses_dynamic_task_include_keys(
 
     assert [entry["name"] for entry in first] == ["Include nested", "Nested task"]
     assert [entry["name"] for entry in second] == ["Include nested"]
-
-
-def test_extract_role_features_threads_optional_di_into_helper_path(
-    monkeypatch, tmp_path: Path
-) -> None:
-    role_root = tmp_path / "role"
-    tasks_dir = role_root / "tasks"
-    tasks_dir.mkdir(parents=True)
-    (tasks_dir / "main.yml").write_text(
-        "- name: Example task\n" "  ansible.builtin.debug:\n" "    msg: hi\n",
-        encoding="utf-8",
-    )
-
-    detect_di_calls: list[object | None] = []
-    annotation_di_calls: list[object | None] = []
-
-    with _prefer_fsrc_prism_on_sys_path():
-        defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
-        module = importlib.import_module("prism.scanner_extract.task_catalog_assembly")
-
-        di_options: dict = {
-            "prepared_policy_bundle": {
-                "task_line_parsing": defaults_module.resolve_task_line_parsing_policy_plugin(
-                    None
-                ),
-                "task_annotation_parsing": defaults_module.resolve_task_annotation_policy_plugin(
-                    None
-                ),
-                "task_traversal": defaults_module.resolve_task_traversal_policy_plugin(
-                    None
-                ),
-                "yaml_parsing": defaults_module.resolve_yaml_parsing_policy_plugin(
-                    None
-                ),
-                "jinja_analysis": defaults_module.resolve_jinja_analysis_policy_plugin(
-                    None
-                ),
-            }
-        }
-
-        class _DI:
-            _scan_options = di_options
-
-        di_token = _DI()
-
-        def _detect_task_module_with_di(
-            _task: dict,
-            *,
-            di: object | None = None,
-        ) -> str:
-            detect_di_calls.append(di)
-            return "ansible.builtin.debug"
-
-        def _extract_task_annotations_with_di(
-            _lines: list[str],
-            marker_prefix: str = "prism",
-            include_task_index: bool = False,
-            *,
-            di: object | None = None,
-        ) -> tuple[list[dict[str, object]], dict[str, list[dict[str, object]]]]:
-            del marker_prefix, include_task_index
-            annotation_di_calls.append(di)
-            return [], {}
-
-        monkeypatch.setattr(module, "_detect_task_module", _detect_task_module_with_di)
-        monkeypatch.setattr(
-            module.tap,
-            "_extract_task_annotations_for_file",
-            _extract_task_annotations_with_di,
-        )
-
-        features = module.extract_role_features(str(role_root), di=di_token)
-
-    assert features["tasks_scanned"] == 1
-    assert detect_di_calls == [di_token]
-    assert annotation_di_calls == [di_token]
 
 
 def test_variable_discovery_uses_prepared_jinja_analysis_bundle(

@@ -434,8 +434,71 @@ def resolve_jinja_analysis_policy_plugin(
     return _JINJA_ANALYSIS_FALLBACK
 
 
+def _make_standalone_di(role_path: str, exclude_paths=None):
+    from prism.scanner_plugins.bundle_resolver import ensure_prepared_policy_bundle
+
+    options: dict = {"role_path": role_path, "exclude_path_patterns": exclude_paths}
+    ensure_prepared_policy_bundle(scan_options=options, di=None)
+
+    class _StandaloneDI:
+        def __init__(self, opts: dict) -> None:
+            self._scan_options = opts
+
+        @property
+        def scan_options(self) -> dict:
+            return self._scan_options
+
+    return _StandaloneDI(options)
+
+
+def extract_role_notes_from_comments(
+    role_path,
+    exclude_paths=None,
+    marker_prefix="prism",
+    *,
+    di=None,
+):
+    standalone = _make_standalone_di(role_path, exclude_paths) if di is None else di
+    plugin = resolve_comment_driven_documentation_plugin(standalone)
+    return plugin.extract_role_notes_from_comments(
+        role_path,
+        exclude_paths=exclude_paths,
+        marker_prefix=marker_prefix,
+    )
+
+
+def collect_unconstrained_dynamic_role_includes(role_path, exclude_paths=None):
+    from prism.scanner_extract.task_file_traversal import (
+        _collect_unconstrained_dynamic_role_includes,
+    )
+
+    di = _make_standalone_di(role_path, exclude_paths)
+    return _collect_unconstrained_dynamic_role_includes(role_path, exclude_paths, di=di)
+
+
+def collect_unconstrained_dynamic_task_includes(role_path, exclude_paths=None):
+    from prism.scanner_extract.task_file_traversal import (
+        _collect_unconstrained_dynamic_task_includes,
+    )
+
+    di = _make_standalone_di(role_path, exclude_paths)
+    return _collect_unconstrained_dynamic_task_includes(role_path, exclude_paths, di=di)
+
+
+def collect_molecule_scenarios(role_path, exclude_paths=None):
+    from prism.scanner_extract.task_catalog_assembly import _collect_molecule_scenarios
+
+    di = _make_standalone_di(role_path, exclude_paths)
+    return _collect_molecule_scenarios(role_path, exclude_paths, di=di)
+
+
 __all__ = [
     "DefaultCommentDrivenDocumentationPlugin",
+    "_make_standalone_di",
+    "collect_molecule_scenarios",
+    "collect_unconstrained_dynamic_role_includes",
+    "collect_unconstrained_dynamic_task_includes",
+    "extract_role_notes_from_comments",
     "resolve_comment_driven_documentation_plugin",
     "resolve_task_annotation_policy_plugin",
     "resolve_jinja_analysis_policy_plugin",

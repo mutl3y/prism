@@ -23,6 +23,7 @@ from prism.scanner_kernel.orchestrator import (
     route_scan_payload_orchestration,
 )
 from prism.scanner_plugins import DEFAULT_PLUGIN_REGISTRY
+from prism.scanner_plugins.bundle_resolver import ensure_prepared_policy_bundle
 from prism.scanner_plugins.defaults import resolve_comment_driven_documentation_plugin
 
 _repo_scan_facade: Any | None = None
@@ -166,6 +167,7 @@ def run_scan(
             resolve_comment_driven_documentation_plugin_fn
         ),
         default_plugin_registry=default_plugin_registry,
+        ensure_prepared_policy_bundle_fn=ensure_prepared_policy_bundle,
     )
 
     def _legacy_orchestrator(

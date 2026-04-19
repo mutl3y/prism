@@ -242,7 +242,7 @@ def test_fsrc_kernel_route_orchestration_uses_registry_plugin_context(
         ) -> dict[str, object]:
             del scan_options
             del scan_context
-            return {"ansible_plugin_enabled": False}
+            return {"plugin_enabled": False}
 
     class _EnabledPlugin:
         def process_scan_pipeline(
@@ -252,7 +252,7 @@ def test_fsrc_kernel_route_orchestration_uses_registry_plugin_context(
         ) -> dict[str, object]:
             del scan_options
             del scan_context
-            return {"ansible_plugin_enabled": True}
+            return {"plugin_enabled": True}
 
     def _legacy_orchestrator(
         *, role_path: str, scan_options: dict[str, object]
@@ -301,7 +301,7 @@ def test_fsrc_kernel_route_orchestration_uses_registry_plugin_context(
     assert "_scan_pipeline_preflight_context" not in kernel_result["scan_options"]
     carrier = kernel_result["route_preflight_runtime"]
     assert carrier is not None
-    assert carrier.preflight_context["ansible_plugin_enabled"] is True
+    assert carrier.preflight_context["plugin_enabled"] is True
     assert carrier.preflight_context["plugin_name"] == "default"
     assert carrier.routing == {
         "mode": "scan_pipeline_plugin",

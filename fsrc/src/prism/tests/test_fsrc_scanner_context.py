@@ -506,24 +506,6 @@ def test_fsrc_scanner_context_requires_prepared_policy_bundle_without_mutating_i
                 ),
             },
         )
-        scanner_context_module = importlib.import_module(
-            "prism.scanner_core.scanner_context"
-        )
-        ensure_calls: list[dict[str, Any]] = []
-
-        def _record_ensure_prepared_policy_bundle(
-            *, scan_options: dict[str, Any], di: object | None
-        ) -> dict[str, Any]:
-            del di
-            ensure_calls.append(dict(scan_options))
-            scan_options["prepared_policy_bundle"] = _prepared_policy_bundle()
-            return scan_options["prepared_policy_bundle"]
-
-        monkeypatch.setattr(
-            scanner_context_module,
-            "ensure_prepared_policy_bundle",
-            _record_ensure_prepared_policy_bundle,
-        )
 
         context = core_module.ScannerContext(
             di=container,
@@ -536,7 +518,6 @@ def test_fsrc_scanner_context_requires_prepared_policy_bundle_without_mutating_i
         with pytest.raises(ValueError, match="prepared_policy_bundle"):
             context.orchestrate_scan()
 
-    assert ensure_calls == []
     assert "prepared_policy_bundle" not in options
     assert recorder.calls == []
 
@@ -886,7 +867,9 @@ def test_fsrc_scanner_core_builds_non_collection_execution_request() -> None:
                 return [f"notes-for:{role_path}"]
 
         class _Registry:
-            pass
+            @staticmethod
+            def get_default_platform_key() -> str:
+                return "ansible"
 
         def _build_run_scan_options_canonical(**kwargs: Any) -> dict[str, Any]:
             return {
@@ -960,6 +943,11 @@ def test_fsrc_scanner_core_builds_non_collection_execution_request() -> None:
             variable_discovery_cls=_RecordingVariableDiscovery,
             resolve_comment_driven_documentation_plugin_fn=(lambda _di: _DocPlugin()),
             default_plugin_registry=_Registry(),
+            ensure_prepared_policy_bundle_fn=(
+                lambda scan_options, di: scan_options.__setitem__(
+                    "prepared_policy_bundle", _prepared_policy_bundle()
+                )
+            ),
         )
 
         payload = request.build_payload_fn()

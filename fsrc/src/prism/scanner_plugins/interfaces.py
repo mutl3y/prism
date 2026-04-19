@@ -67,7 +67,6 @@ class ScanPipelinePreflightContext(TypedDict, total=False):
     plugin_name: str
     plugin_platform: str
     plugin_enabled: bool
-    ansible_plugin_enabled: bool
     role_path: str
 
 

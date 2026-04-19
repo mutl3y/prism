@@ -808,8 +808,6 @@ def route_scan_payload_orchestration(
     plugin_enabled: Any = None
     if isinstance(plugin_context, dict):
         plugin_enabled = plugin_context.get("plugin_enabled")
-        if plugin_enabled is None:
-            plugin_enabled = plugin_context.get("ansible_plugin_enabled")
 
     if plugin_enabled is None:
         plugin_enabled = True

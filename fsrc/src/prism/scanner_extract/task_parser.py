@@ -11,7 +11,6 @@ from prism.scanner_extract.task_catalog_assembly import (
     _compact_task_parameters,
     _detect_task_module,
     _extract_collection_from_module_name,
-    extract_role_features,
 )
 from prism.scanner_extract.task_file_traversal import (
     _collect_task_files,
@@ -38,13 +37,9 @@ from prism.scanner_extract.task_line_parsing import (
     TASK_INCLUDE_KEYS,
     TASK_META_KEYS,
 )
-from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
-    DEFAULT_DOC_MARKER_PREFIX,
-)
 
 __all__ = [
     "COMMENT_CONTINUATION_RE",
-    "DEFAULT_DOC_MARKER_PREFIX",
     "ROLE_INCLUDE_KEYS",
     "TASK_BLOCK_KEYS",
     "TASK_ENTRY_RE",
@@ -71,5 +66,4 @@ __all__ = [
     "_normalize_exclude_patterns",
     "_resolve_task_include",
     "_task_anchor",
-    "extract_role_features",
 ]

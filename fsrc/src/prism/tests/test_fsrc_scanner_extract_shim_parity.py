@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib
-import re
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -91,7 +90,10 @@ platforms:
 
 def _snapshot_scanner_extract(lane_root: Path, role_path: str) -> dict[str, object]:
     with _prefer_prism_lane(lane_root):
-        module = importlib.import_module("prism.scanner_extract")
+        if lane_root == FSRC_SOURCE_ROOT:
+            module = importlib.import_module("prism.scanner_plugins.defaults")
+        else:
+            module = importlib.import_module("prism.scanner_extract")
         return {
             "role_notes": module.extract_role_notes_from_comments(role_path),
             "molecule_scenarios": module.collect_molecule_scenarios(role_path),
@@ -145,19 +147,17 @@ def test_fsrc_scanner_extract_compatibility_exports_match_src_behavior(
     ]
 
 
-def test_task_line_parsing_marker_helpers_route_through_defaults() -> None:
+def test_task_line_parsing_marker_helpers_fail_closed_without_policy() -> None:
+    import pytest
+
     with _prefer_prism_lane(FSRC_SOURCE_ROOT):
         module = importlib.import_module("prism.scanner_extract.task_line_parsing")
-        marker_utils = importlib.import_module(
-            "prism.scanner_plugins.parsers.comment_doc.marker_utils"
-        )
-        default_prefix = marker_utils.DEFAULT_DOC_MARKER_PREFIX
 
-        normalized = module._normalize_marker_prefix(None)
-        marker_re = module.get_marker_line_re(default_prefix)
+        with pytest.raises(ValueError, match="prepared_policy_bundle"):
+            module._normalize_marker_prefix(None)
 
-    assert normalized == default_prefix
-    assert isinstance(marker_re, re.Pattern)
+        with pytest.raises(ValueError, match="prepared_policy_bundle"):
+            module.get_marker_line_re("prism")
 
 
 def test_w3_t01_task_catalog_assembly_no_longer_owns_role_notes_parsing() -> None:

@@ -9,12 +9,12 @@ from pathlib import Path
 from typing import Any, Callable, cast
 
 from prism.errors import PrismRuntimeError
-from prism.scanner_plugins.bundle_resolver import ensure_prepared_policy_bundle
 from prism.scanner_data.contracts_request import ScanContextPayload, ScanOptionsDict
 from prism.scanner_data.contracts_request import ScanPolicyBlockerFacts
 from prism.scanner_core.blocker_fact_evaluator import (
     build_scan_policy_blocker_facts as _build_blocker_facts,
 )
+from prism.scanner_core.di import resolve_platform_key
 
 _REQUIRED_SCAN_OPTION_KEYS: set[str] = {
     "role_path",
@@ -139,6 +139,7 @@ def build_non_collection_run_scan_execution_request(
     variable_discovery_cls: Callable[..., Any],
     resolve_comment_driven_documentation_plugin_fn: Callable[[Any], Any],
     default_plugin_registry: Any,
+    ensure_prepared_policy_bundle_fn: Callable[..., Any] | None = None,
 ) -> NonCollectionRunScanExecutionRequest:
     """Build the scanner_core-owned execution request for non-collection run_scan."""
     validated_role_path = validate_role_path_fn(role_path)
@@ -268,10 +269,15 @@ def build_non_collection_run_scan_execution_request(
             },
         }
 
+    resolved_platform_key = resolve_platform_key(
+        canonical_options, default_plugin_registry
+    )
+
     container = di_container_cls(
         role_path=str(canonical_options["role_path"]),
         scan_options=canonical_options,
         registry=default_plugin_registry,
+        platform_key=resolved_platform_key,
         scanner_context_wiring={
             "scanner_context_cls": scanner_context_cls,
             "prepare_scan_context_fn": _prepare_scan_context_fn,
@@ -282,7 +288,12 @@ def build_non_collection_run_scan_execution_request(
             "feature_detector_factory": _feature_detector_factory,
         },
     )
-    ensure_prepared_policy_bundle(
+    if ensure_prepared_policy_bundle_fn is None:
+        raise ValueError(
+            "ensure_prepared_policy_bundle_fn is required for "
+            "non-collection execution request construction"
+        )
+    ensure_prepared_policy_bundle_fn(
         scan_options=cast(dict[str, Any], canonical_options),
         di=container,
     )

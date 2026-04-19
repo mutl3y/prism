@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
 
 import prism.scanner_extract.task_annotation_parsing as tap
 import prism.scanner_extract.task_file_traversal as tft
@@ -290,124 +289,6 @@ def _collect_molecule_scenarios(
         )
 
     return scenarios
-
-
-def extract_role_features(
-    role_path: str,
-    exclude_paths: list[str] | None = None,
-    *,
-    di: object | None = None,
-) -> dict[str, Any]:
-    role_root = Path(role_path).resolve()
-
-    scan_options = _scan_options_from_di(di)
-    marker_prefix = ""
-    if isinstance(scan_options, dict):
-        bundle = scan_options.get("prepared_policy_bundle")
-        if isinstance(bundle, dict):
-            mp = bundle.get("comment_doc_marker_prefix")
-            if isinstance(mp, str):
-                marker_prefix = mp
-
-    task_files = tft._collect_task_files(
-        role_root,
-        exclude_paths=exclude_paths,
-        di=di,
-    )
-
-    include_count = 0
-    tasks_scanned = 0
-    privileged_tasks = 0
-    conditional_tasks = 0
-    tagged_tasks = 0
-    modules: set[str] = set()
-    external_collections: set[str] = set()
-    handlers_notified: set[str] = set()
-    included_roles: set[str] = set()
-    included_role_calls = 0
-    dynamic_included_role_calls = 0
-    dynamic_included_roles: set[str] = set()
-
-    for task_file in task_files:
-        data = tft._load_yaml_file(task_file, di=di)
-        include_count += len(tft._iter_task_include_targets(data, di=di))
-        for task in tft._iter_task_mappings(data, di=di):
-            tasks_scanned += 1
-            included_targets = tft._iter_role_include_targets(task, di=di)
-            included_role_calls += len(included_targets)
-            included_roles.update(included_targets)
-            dynamic_targets = tft._iter_dynamic_role_include_targets(task, di=di)
-            dynamic_included_role_calls += len(dynamic_targets)
-            dynamic_included_roles.update(dynamic_targets)
-            module_name = _detect_task_module(task, di=di)
-            if module_name:
-                modules.add(module_name)
-                collection = _extract_collection_from_module_name(module_name)
-                if collection:
-                    external_collections.add(collection)
-
-            if bool(task.get("become")):
-                privileged_tasks += 1
-            if "when" in task:
-                conditional_tasks += 1
-            if task.get("tags"):
-                tagged_tasks += 1
-
-            notify = task.get("notify")
-            if isinstance(notify, str):
-                handlers_notified.add(notify)
-            elif isinstance(notify, list):
-                handlers_notified.update(
-                    item for item in notify if isinstance(item, str)
-                )
-
-    disabled_task_annotations = 0
-    yaml_like_task_annotations = 0
-    for task_file in task_files:
-        try:
-            raw_lines = task_file.read_text(encoding="utf-8").splitlines()
-        except OSError:
-            raw_lines = []
-        impl_anns, expl_anns = tap._extract_task_annotations_for_file(
-            raw_lines,
-            marker_prefix=marker_prefix,
-            di=di,
-        )
-        disabled_task_annotations += sum(1 for a in impl_anns if a.get("disabled"))
-        yaml_like_task_annotations += sum(
-            1 for a in impl_anns if a.get("format_warning")
-        )
-        yaml_like_task_annotations += sum(
-            1 for items in expl_anns.values() for a in items if a.get("format_warning")
-        )
-
-    return {
-        "task_files_scanned": len(task_files),
-        "tasks_scanned": tasks_scanned,
-        "recursive_task_includes": include_count,
-        "unique_modules": ", ".join(sorted(modules)) if modules else "none",
-        "external_collections": (
-            ", ".join(sorted(external_collections)) if external_collections else "none"
-        ),
-        "handlers_notified": (
-            ", ".join(sorted(handlers_notified)) if handlers_notified else "none"
-        ),
-        "privileged_tasks": privileged_tasks,
-        "conditional_tasks": conditional_tasks,
-        "tagged_tasks": tagged_tasks,
-        "included_role_calls": included_role_calls,
-        "included_roles": (
-            ", ".join(sorted(included_roles)) if included_roles else "none"
-        ),
-        "dynamic_included_role_calls": dynamic_included_role_calls,
-        "dynamic_included_roles": (
-            ", ".join(sorted(dynamic_included_roles))
-            if dynamic_included_roles
-            else "none"
-        ),
-        "disabled_task_annotations": disabled_task_annotations,
-        "yaml_like_task_annotations": yaml_like_task_annotations,
-    }
 
 
 def detect_task_module(task: dict, *, di: object | None = None) -> str | None:

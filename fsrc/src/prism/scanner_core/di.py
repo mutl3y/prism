@@ -6,6 +6,32 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from prism.scanner_data.builders import VariableRowBuilder
 
+
+def resolve_platform_key(
+    scan_options: dict[str, Any],
+    registry: Any | None = None,
+) -> str:
+    """Resolve platform key: scan_pipeline_plugin > policy_context > registry default."""
+    if isinstance(scan_options, dict):
+        explicit = scan_options.get("scan_pipeline_plugin")
+        if isinstance(explicit, str) and explicit:
+            return explicit
+        policy_context = scan_options.get("policy_context")
+        if isinstance(policy_context, dict):
+            selection = policy_context.get("selection")
+            if isinstance(selection, dict):
+                plugin_key = selection.get("plugin")
+                if isinstance(plugin_key, str) and plugin_key:
+                    return plugin_key
+    if registry is not None:
+        default_key = registry.get_default_platform_key()
+        if default_key is not None:
+            return default_key
+    raise ValueError(
+        "No platform key resolvable from scan_options, policy_context, or registry default."
+    )
+
+
 if TYPE_CHECKING:
     from prism.scanner_core.feature_detector import FeatureDetector
     from prism.scanner_core.output_orchestrator import OutputOrchestrator
@@ -22,6 +48,7 @@ class DIContainer:
         scan_options: dict[str, Any],
         *,
         registry: Any | None = None,
+        platform_key: str | None = None,
         scanner_context_wiring: dict[str, Any] | None = None,
         factory_overrides: dict[str, Callable[..., Any]] | None = None,
     ) -> None:
@@ -34,6 +61,7 @@ class DIContainer:
         self._role_path = role_path
         self._scan_options = scan_options
         self._registry = registry
+        self._platform_key = platform_key
         self._cache: dict[str, Any] = {}
         self._mocks: dict[str, Any] = {}
         self._scanner_context_wiring = scanner_context_wiring or {}
@@ -156,25 +184,10 @@ class DIContainer:
         return self._registry
 
     def _resolve_platform_key(self) -> str:
-        """Resolve platform key from scan_options -> policy_context -> registry default."""
-        if isinstance(self._scan_options, dict):
-            explicit = self._scan_options.get("scan_pipeline_plugin")
-            if isinstance(explicit, str) and explicit:
-                return explicit
-            policy_context = self._scan_options.get("policy_context")
-            if isinstance(policy_context, dict):
-                selection = policy_context.get("selection")
-                if isinstance(selection, dict):
-                    plugin_key = selection.get("plugin")
-                    if isinstance(plugin_key, str) and plugin_key:
-                        return plugin_key
-        registry = self._get_registry()
-        default_key = registry.get_default_platform_key()
-        if default_key is not None:
-            return default_key
-        raise ValueError(
-            "No platform key resolvable from scan_options, policy_context, or registry default."
-        )
+        """Return pre-resolved platform key or delegate to module-level resolver."""
+        if self._platform_key is not None:
+            return self._platform_key
+        return resolve_platform_key(self._scan_options, self._registry)
 
     def factory_variable_discovery_plugin(self) -> Any:
         """Resolve variable-discovery plugin via registry; fail-closed if unregistered."""
