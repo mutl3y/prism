@@ -184,20 +184,17 @@ TASK_NOTES_SHORT_RE = TASK_NOTES_LONG_RE
 
 
 class _PolicyBackedAnnotationRegexProxy:
-    def __init__(self, policy_attr_name: str, fallback_pattern: str) -> None:
+    def __init__(self, policy_attr_name: str) -> None:
         self._policy_attr_name = policy_attr_name
-        self._fallback_regex = re.compile(fallback_pattern)
 
     def _current_regex(self) -> re.Pattern[str]:
-        try:
-            current = getattr(
-                _get_task_annotation_policy(), self._policy_attr_name, None
-            )
-            if isinstance(current, re.Pattern):
-                return current
-        except ValueError:
-            pass
-        return self._fallback_regex
+        current = getattr(_get_task_annotation_policy(), self._policy_attr_name, None)
+        if isinstance(current, re.Pattern):
+            return current
+        raise ValueError(
+            f"prepared_policy_bundle.task_line_parsing.{self._policy_attr_name} "
+            f"must be a compiled regex pattern"
+        )
 
     def match(self, *args: Any, **kwargs: Any):
         return self._current_regex().match(*args, **kwargs)
@@ -214,22 +211,17 @@ class _PolicyBackedAnnotationRegexProxy:
 
 COMMENT_CONTINUATION_RE = _PolicyBackedAnnotationRegexProxy(
     "COMMENT_CONTINUATION_RE",
-    r"^\s*#\s?(.*)$",
 )
 COMMENTED_TASK_ENTRY_RE = _PolicyBackedAnnotationRegexProxy(
     "COMMENTED_TASK_ENTRY_RE",
-    r"^\s*-\s+name:\s*\S",
 )
 TASK_ENTRY_RE = _PolicyBackedAnnotationRegexProxy(
     "TASK_ENTRY_RE",
-    r"^\s*-\s+name:\s*\S",
 )
 YAML_LIKE_KEY_VALUE_RE = _PolicyBackedAnnotationRegexProxy(
     "YAML_LIKE_KEY_VALUE_RE",
-    r"^\s*[A-Za-z_][A-Za-z0-9_-]*\s*:\s*\S",
 )
 YAML_LIKE_LIST_ITEM_RE = _PolicyBackedAnnotationRegexProxy(
     "YAML_LIKE_LIST_ITEM_RE",
-    r"^\s*-\s+[A-Za-z_][A-Za-z0-9_-]*\s*:\s*\S",
 )
 TEMPLATED_INCLUDE_RE = _PolicyBackedRegexProxy("TEMPLATED_INCLUDE_RE")
