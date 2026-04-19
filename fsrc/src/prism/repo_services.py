@@ -285,9 +285,10 @@ def _run_repo_scan_fsrc_compat(
         lightweight_readme_only=lightweight_readme_only,
         create_style_guide=False,
         style_source_path=None,
-        scan_fn=lambda role_path, effective_style_readme_path, _role_name: scan_role_fn(
+        scan_fn=lambda role_path, effective_style_readme_path, role_name_override: scan_role_fn(
             role_path,
             style_readme_path=effective_style_readme_path,
+            role_name_override=role_name_override,
         ),
         repo_scan_workspace_fn=repo_scan_workspace_fn,
         resolve_repo_scan_target_fn=resolve_repo_scan_target_fn,

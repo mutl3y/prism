@@ -5,8 +5,6 @@ from __future__ import annotations
 from typing import Any, TypedDict
 
 from prism.scanner_data.contracts_request import (
-    FeaturesContext,
-    ScanContextPayload,
     ScanMetadata,
     ScanOptionsDict,
 )
@@ -24,7 +22,6 @@ from prism.scanner_data.contracts_output import (
     SectionBodyRenderResult,
 )
 from prism.scanner_data.contracts_variables import ReferenceContext, VariableRow
-from prism.scanner_data.builders import VariableRowBuilder
 
 
 class FailureDetail(TypedDict, total=False):
@@ -49,9 +46,56 @@ class RepoScanResult(TypedDict, total=False):
     payload: dict[str, Any]
 
 
-class CollectionScanResult(TypedDict, total=False):
-    collection: dict[str, Any]
+class CollectionIdentity(TypedDict):
+    path: str
+    metadata: dict[str, Any]
+
+
+class CollectionDependencies(TypedDict):
+    collections: list[dict[str, Any]]
+    roles: list[dict[str, Any]]
+    conflicts: list[dict[str, Any]]
+
+
+class CollectionPluginCatalog(TypedDict):
+    schema_version: int
     summary: dict[str, Any]
+    by_type: dict[str, list[dict[str, Any]]]
+    failures: list[dict[str, Any]]
+
+
+class CollectionRoleEntry(TypedDict):
+    role: str
+    path: str
+    payload: dict[str, Any]
+    rendered_readme: str | None
+
+
+class CollectionFailureRecord(TypedDict, total=False):
+    role: str
+    path: str
+    error_code: str
+    error_category: str
+    error_type: str
+    error: str
+    error_detail_code: str
+    detail_code: str
+    traceback: str
+
+
+class CollectionSummary(TypedDict):
+    total_roles: int
+    scanned_roles: int
+    failed_roles: int
+
+
+class CollectionScanResult(TypedDict, total=False):
+    collection: CollectionIdentity
+    dependencies: CollectionDependencies
+    plugin_catalog: CollectionPluginCatalog
+    roles: list[CollectionRoleEntry]
+    failures: list[CollectionFailureRecord]
+    summary: CollectionSummary
 
 
 class ReportRenderingMetadata(TypedDict, total=False):

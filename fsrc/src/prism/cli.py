@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 import json
+from pathlib import PurePosixPath, PureWindowsPath
 import sys
 from urllib.error import HTTPError, URLError
 
@@ -92,7 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _emit_payload(payload: dict[str, object], *, emit_json: bool) -> None:
+def _emit_payload(payload: Mapping[str, object], *, emit_json: bool) -> None:
     if emit_json:
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
@@ -117,22 +118,57 @@ def _emit_payload(payload: dict[str, object], *, emit_json: bool) -> None:
     print(f"Task files scanned: {task_files_scanned}")
 
 
-def _emit_collection_payload(payload: dict[str, object], *, emit_json: bool) -> None:
+def _collection_name_from_path(collection_path: str) -> str:
+    normalized_path = collection_path.strip()
+    if not normalized_path:
+        return "<unknown>"
+
+    if "\\" in normalized_path:
+        collection_name = PureWindowsPath(normalized_path).name.strip()
+    else:
+        collection_name = PurePosixPath(normalized_path).name.strip()
+
+    if collection_name:
+        return collection_name
+    return (
+        PureWindowsPath(normalized_path).name.strip()
+        or PurePosixPath(normalized_path).name.strip()
+        or "<unknown>"
+    )
+
+
+def _emit_collection_payload(payload: Mapping[str, object], *, emit_json: bool) -> None:
     if emit_json:
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
 
-    collection_name = str(payload.get("collection_name") or "<unknown>")
+    collection = payload.get("collection") if isinstance(payload, dict) else {}
+    collection_data = collection if isinstance(collection, dict) else {}
+    collection_metadata_value = collection_data.get("metadata")
+    collection_metadata = (
+        collection_metadata_value if isinstance(collection_metadata_value, dict) else {}
+    )
     summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
-    roles_total = (
-        summary.get("roles_total", "n/a") if isinstance(summary, dict) else "n/a"
+
+    namespace = str(collection_metadata.get("namespace") or "").strip()
+    name = str(collection_metadata.get("name") or "").strip()
+    if namespace and name:
+        collection_name = f"{namespace}.{name}"
+    elif name:
+        collection_name = name
+    else:
+        collection_path = str(collection_data.get("path") or "").strip()
+        collection_name = _collection_name_from_path(collection_path)
+
+    scanned_roles = (
+        summary.get("scanned_roles", "n/a") if isinstance(summary, dict) else "n/a"
     )
     roles_failed = (
-        summary.get("roles_failed", "n/a") if isinstance(summary, dict) else "n/a"
+        summary.get("failed_roles", "n/a") if isinstance(summary, dict) else "n/a"
     )
 
     print(f"Collection: {collection_name}")
-    print(f"Roles scanned: {roles_total}")
+    print(f"Roles scanned: {scanned_roles}")
     print(f"Roles failed: {roles_failed}")
 
 

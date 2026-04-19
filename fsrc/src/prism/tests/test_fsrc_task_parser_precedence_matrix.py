@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import pytest
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -60,6 +61,9 @@ class _RegistryPolicy:
 
 
 class _DIContainer:
+    def __init__(self) -> None:
+        self.scan_options: dict = {"role_path": "/tmp", "exclude_path_patterns": None}
+
     def factory_task_annotation_policy_plugin(self) -> _DIPolicy:
         return _DIPolicy()
 
@@ -74,6 +78,7 @@ def _sample_lines() -> list[str]:
 def test_task_parser_annotation_policy_precedence_di_over_registry() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         parser_module = importlib.import_module("prism.scanner_extract.task_parser")
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
         registry_module = importlib.import_module("prism.scanner_plugins.registry")
 
         plugin_registry = registry_module.plugin_registry
@@ -84,9 +89,13 @@ def test_task_parser_annotation_policy_precedence_di_over_registry() -> None:
                 "task_annotation_parsing",
                 _RegistryPolicy,
             )
+            container = _DIContainer()
+            scan_request.ensure_prepared_policy_bundle(
+                scan_options=container.scan_options, di=container
+            )
             implicit, explicit = parser_module._extract_task_annotations_for_file(
                 _sample_lines(),
-                di=_DIContainer(),
+                di=container,
             )
         finally:
             if original is None:
@@ -107,6 +116,7 @@ def test_task_parser_annotation_policy_precedence_di_over_registry() -> None:
 def test_task_parser_annotation_policy_precedence_registry_over_fallback() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         parser_module = importlib.import_module("prism.scanner_extract.task_parser")
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
         registry_module = importlib.import_module("prism.scanner_plugins.registry")
 
         plugin_registry = registry_module.plugin_registry
@@ -117,9 +127,17 @@ def test_task_parser_annotation_policy_precedence_registry_over_fallback() -> No
                 "task_annotation_parsing",
                 _RegistryPolicy,
             )
+            options: dict = {"role_path": "/tmp", "exclude_path_patterns": None}
+            scan_request.ensure_prepared_policy_bundle(scan_options=options, di=None)
+
+            class _OptionsContainer:
+                def __init__(self, opts: dict) -> None:
+                    self.scan_options = opts
+
+            container = _OptionsContainer(options)
             implicit, explicit = parser_module._extract_task_annotations_for_file(
                 _sample_lines(),
-                di=None,
+                di=container,
             )
         finally:
             if original is None:
@@ -149,10 +167,11 @@ def test_task_parser_annotation_policy_precedence_fallback_when_no_di_or_registr
 
         try:
             plugin_registry._extract_policy_plugins.pop("task_annotation_parsing", None)
-            implicit, explicit = parser_module._extract_task_annotations_for_file(
-                _sample_lines(),
-                di=None,
-            )
+            with pytest.raises(ValueError):
+                parser_module._extract_task_annotations_for_file(
+                    _sample_lines(),
+                    di=None,
+                )
         finally:
             if original is None:
                 plugin_registry._extract_policy_plugins.pop(
@@ -164,10 +183,6 @@ def test_task_parser_annotation_policy_precedence_fallback_when_no_di_or_registr
                     "task_annotation_parsing",
                     original,
                 )
-
-    assert implicit == []
-    assert explicit["Example task"][0]["kind"] == "runbook"
-    assert explicit["Example task"][0]["text"] == "sample"
 
 
 def test_annotation_policy_methods_delegate_to_strategy_module(monkeypatch) -> None:

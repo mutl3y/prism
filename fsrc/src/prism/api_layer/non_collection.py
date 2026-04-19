@@ -18,6 +18,7 @@ from prism.scanner_core.variable_discovery import VariableDiscovery
 from prism.scanner_data import RepoScanResult, RoleScanResult
 from prism.scanner_kernel.orchestrator import (
     RoutePreflightRuntimeCarrier,
+    apply_scan_policy_blocker_runtime_outcomes,
     orchestrate_scan_payload_with_selected_plugin,
     route_scan_payload_orchestration,
 )
@@ -174,7 +175,10 @@ def run_scan(
     ) -> dict[str, Any]:
         del role_path
         del scan_options
-        return execution_request.build_payload_fn()
+        return apply_scan_policy_blocker_runtime_outcomes(
+            payload=execution_request.build_payload_fn(),
+            strict_mode=execution_request.strict_mode,
+        )
 
     def _kernel_orchestrator(
         *,

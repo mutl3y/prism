@@ -17,11 +17,19 @@ from prism.scanner_plugins.ansible.kernel import load_ansible_kernel_plugin
 from prism.scanner_plugins.ansible.extract_policies import (
     AnsibleTaskAnnotationPolicyPlugin,
 )
+from prism.scanner_plugins.ansible.extract_policies import (
+    AnsibleTaskLineParsingPolicyPlugin,
+)
 from prism.scanner_plugins.ansible.jinja_analyzer import (
     AnsibleJinjaAnalysisPolicyPlugin,
 )
 from prism.scanner_plugins.ansible.yaml_parsing import (
     AnsibleYAMLParsingPolicyPlugin,
+)
+from prism.scanner_data.contracts_request import PreparedPolicyBundle
+from prism.scanner_plugins.interfaces import (
+    PlatformExecutionBundle,
+    PlatformParticipants,
 )
 
 
@@ -132,14 +140,42 @@ def orchestrate_scan_payload_with_scan_pipeline_plugin(
     return payload
 
 
+def build_ansible_execution_bundle(
+    scan_options: dict[str, Any] | None = None,
+) -> PlatformExecutionBundle:
+    """Build the Ansible-owned platform execution bundle from a scan request.
+
+    Produces a PlatformExecutionBundle carrying Ansible-native policy
+    participant instances so scanner_core ingress can receive them through
+    the generic contract without manufacturing Ansible defaults internally.
+    """
+    task_line_parsing = AnsibleTaskLineParsingPolicyPlugin()
+    jinja_analysis = AnsibleJinjaAnalysisPolicyPlugin()
+    participants: PlatformParticipants = {
+        "task_line_parsing": task_line_parsing,
+        "jinja_analysis": jinja_analysis,
+    }
+    prepared_policy: PreparedPolicyBundle = {
+        "task_line_parsing": task_line_parsing,
+        "jinja_analysis": jinja_analysis,
+    }
+    return PlatformExecutionBundle(
+        prepared_policy=prepared_policy,
+        platform_participants=participants,
+    )
+
+
 __all__ = [
     "ANSIBLE_PLUGIN_ENABLED_ENV_VAR",
     "ANSIBLE_KERNEL_PLUGIN_MANIFEST",
     "AnsibleBaselineKernelPlugin",
+    "AnsibleFeatureDetectionPlugin",
     "AnsibleScanPipelinePlugin",
+    "AnsibleVariableDiscoveryPlugin",
     "AnsibleYAMLParsingPolicyPlugin",
     "AnsibleJinjaAnalysisPolicyPlugin",
     "AnsibleTaskAnnotationPolicyPlugin",
+    "build_ansible_execution_bundle",
     "is_ansible_plugin_enabled",
     "load_ansible_kernel_plugin",
     "orchestrate_scan_payload_with_scan_pipeline_plugin",

@@ -2,22 +2,10 @@
 
 from __future__ import annotations
 
-from prism.scanner_plugins.defaults import resolve_task_annotation_policy_plugin
+from prism.scanner_core.di_helpers import _scan_options_from_di
 from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
     DEFAULT_DOC_MARKER_PREFIX,
 )
-
-
-def _scan_options_from_di(di: object | None = None) -> dict[str, object] | None:
-    if di is None:
-        return None
-    scan_options = getattr(di, "scan_options", None)
-    if isinstance(scan_options, dict):
-        return scan_options
-    scan_options = getattr(di, "_scan_options", None)
-    if isinstance(scan_options, dict):
-        return scan_options
-    return None
 
 
 def _get_prepared_policy(di: object | None, policy_name: str) -> object | None:
@@ -34,7 +22,10 @@ def _get_task_annotation_policy(di: object | None = None):
     prepared_policy = _get_prepared_policy(di, "task_annotation_parsing")
     if prepared_policy is not None:
         return prepared_policy
-    return resolve_task_annotation_policy_plugin(di)
+    raise ValueError(
+        "prepared_policy_bundle.task_annotation_parsing must be provided before "
+        "task_annotation_parsing canonical execution"
+    )
 
 
 def _split_task_annotation_label(

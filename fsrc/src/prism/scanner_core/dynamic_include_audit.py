@@ -3,33 +3,25 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
+from prism.scanner_core.di_helpers import _scan_options_from_di
 from prism.scanner_core.task_extract_adapters import collect_task_files
 from prism.scanner_core.task_extract_adapters import load_task_yaml_file
-from prism.scanner_plugins.defaults import resolve_task_traversal_policy_plugin
 
 
-def _resolve_plugin_registry(di: object | None = None) -> Any | None:
-    if di is None:
-        return None
-    registry = getattr(di, "plugin_registry", None)
-    if registry is not None:
-        return registry
-    scan_options = getattr(di, "_scan_options", None)
-    if isinstance(scan_options, dict):
-        return scan_options.get("plugin_registry")
-    return None
-
-
-def _resolve_policy_with_registry(di: object | None = None) -> Any:
-    registry = _resolve_plugin_registry(di)
-    if registry is None:
-        return resolve_task_traversal_policy_plugin(di)
-    try:
-        return resolve_task_traversal_policy_plugin(di, registry=registry)
-    except TypeError:
-        return resolve_task_traversal_policy_plugin(di)
+def _get_task_traversal_policy(di: object | None = None) -> object:
+    if di is not None:
+        scan_options = _scan_options_from_di(di)
+        if isinstance(scan_options, dict):
+            bundle = scan_options.get("prepared_policy_bundle")
+            if isinstance(bundle, dict):
+                policy = bundle.get("task_traversal")
+                if policy is not None:
+                    return policy
+    raise ValueError(
+        "prepared_policy_bundle.task_traversal must be provided before "
+        "dynamic include audit execution"
+    )
 
 
 def collect_unconstrained_dynamic_task_includes(
@@ -38,7 +30,7 @@ def collect_unconstrained_dynamic_task_includes(
     exclude_paths: list[str] | None = None,
     di: object | None = None,
 ) -> list[str]:
-    policy = _resolve_policy_with_registry(di)
+    policy = _get_task_traversal_policy(di)
     role_root = Path(role_path).resolve()
     return policy.collect_unconstrained_dynamic_task_includes(
         role_root=role_root,
@@ -53,7 +45,7 @@ def collect_unconstrained_dynamic_role_includes(
     exclude_paths: list[str] | None = None,
     di: object | None = None,
 ) -> list[str]:
-    policy = _resolve_policy_with_registry(di)
+    policy = _get_task_traversal_policy(di)
     role_root = Path(role_path).resolve()
     return policy.collect_unconstrained_dynamic_role_includes(
         role_root=role_root,

@@ -7,132 +7,37 @@ from typing import Any, cast
 from prism.scanner_data.contracts_request import PreparedPolicyBundle
 from prism.scanner_data.contracts_request import ScanOptionsDict
 from prism.scanner_plugins.defaults import resolve_jinja_analysis_policy_plugin
+from prism.scanner_plugins.defaults import resolve_task_annotation_policy_plugin
 from prism.scanner_plugins.defaults import resolve_task_line_parsing_policy_plugin
+from prism.scanner_plugins.defaults import resolve_task_traversal_policy_plugin
+from prism.scanner_plugins.defaults import resolve_variable_extractor_policy_plugin
+from prism.scanner_plugins.defaults import resolve_yaml_parsing_policy_plugin
 
 
-_DEPRECATED_MARKER_ALIAS_CODE = "deprecated_policy_context_alias"
-_POLICY_CONTEXT_ALIAS_CONFLICT_CODE = "policy_context_alias_conflict"
 _TASK_LINE_REQUIRED_ATTRIBUTES = (
     "TASK_INCLUDE_KEYS",
     "ROLE_INCLUDE_KEYS",
     "INCLUDE_VARS_KEYS",
     "SET_FACT_KEYS",
     "TASK_BLOCK_KEYS",
+    "TASK_META_KEYS",
 )
-
-
-def _build_marker_alias_warning(alias_key: str) -> dict[str, object]:
-    return {
-        "code": _DEPRECATED_MARKER_ALIAS_CODE,
-        "message": "Deprecated marker-prefix policy alias used.",
-        "detail": {"alias_key": alias_key},
-    }
-
-
-def _build_policy_context_alias_conflict_warning(
-    *,
-    alias_key: str,
-    canonical_key: str,
-) -> dict[str, object]:
-    return {
-        "code": _POLICY_CONTEXT_ALIAS_CONFLICT_CODE,
-        "message": "Conflicting policy_context alias ignored in favor of canonical key.",
-        "detail": {
-            "alias_key": alias_key,
-            "canonical_key": canonical_key,
-        },
-    }
 
 
 def _normalize_marker_policy_context(
     normalized: dict[str, object],
 ) -> list[dict[str, object]]:
-    warnings: list[dict[str, object]] = []
-    selected_prefix: str | None = None
-
     comment_doc = normalized.get("comment_doc")
-    comment_doc_context = dict(comment_doc) if isinstance(comment_doc, dict) else None
+    if not isinstance(comment_doc, dict):
+        return []
 
-    canonical_prefix: str | None = None
-    if comment_doc_context is not None:
-        marker_context = comment_doc_context.get("marker")
-        if isinstance(marker_context, dict):
-            marker_mapping = dict(marker_context)
-            comment_doc_context["marker"] = marker_mapping
-            candidate_prefix = marker_mapping.get("prefix")
-            if isinstance(candidate_prefix, str):
-                canonical_prefix = candidate_prefix
-                selected_prefix = candidate_prefix
+    comment_doc_context = dict(comment_doc)
+    marker_context = comment_doc_context.get("marker")
+    if isinstance(marker_context, dict):
+        comment_doc_context["marker"] = dict(marker_context)
 
-    nested_alias_prefix = None
-    if comment_doc_context is not None:
-        raw_nested_alias = comment_doc_context.pop("marker_prefix", None)
-        if isinstance(raw_nested_alias, str):
-            nested_alias_prefix = raw_nested_alias
-            warnings.append(
-                _build_marker_alias_warning("policy_context.comment_doc.marker_prefix")
-            )
-
-    flat_alias_prefix = normalized.pop("comment_doc_marker_prefix", None)
-    if isinstance(flat_alias_prefix, str):
-        warnings.append(
-            _build_marker_alias_warning("policy_context.comment_doc_marker_prefix")
-        )
-
-    marker_string_alias = None
-    if comment_doc_context is not None:
-        raw_marker_alias = comment_doc_context.get("marker")
-        if isinstance(raw_marker_alias, str):
-            marker_string_alias = raw_marker_alias
-            warnings.append(
-                _build_marker_alias_warning("policy_context.comment_doc.marker")
-            )
-
-    alias_candidates = (
-        (
-            "policy_context.comment_doc.marker_prefix",
-            nested_alias_prefix,
-        ),
-        (
-            "policy_context.comment_doc.marker",
-            marker_string_alias,
-        ),
-        (
-            "policy_context.comment_doc_marker_prefix",
-            flat_alias_prefix if isinstance(flat_alias_prefix, str) else None,
-        ),
-    )
-
-    if canonical_prefix is not None:
-        for alias_key, alias_value in alias_candidates:
-            if isinstance(alias_value, str) and alias_value != canonical_prefix:
-                warnings.append(
-                    _build_policy_context_alias_conflict_warning(
-                        alias_key=alias_key,
-                        canonical_key="policy_context.comment_doc.marker.prefix",
-                    )
-                )
-    else:
-        for _, alias_value in alias_candidates:
-            if isinstance(alias_value, str):
-                selected_prefix = alias_value
-                break
-
-    if comment_doc_context is None:
-        comment_doc_context = {}
-
-    if isinstance(selected_prefix, str):
-        marker_context = comment_doc_context.get("marker")
-        marker_mapping = (
-            dict(marker_context) if isinstance(marker_context, dict) else {}
-        )
-        marker_mapping["prefix"] = selected_prefix
-        comment_doc_context["marker"] = marker_mapping
-
-    if comment_doc_context:
-        normalized["comment_doc"] = comment_doc_context
-
-    return warnings
+    normalized["comment_doc"] = comment_doc_context
+    return []
 
 
 def _validate_task_line_policy(plugin: object) -> None:
@@ -182,6 +87,27 @@ def _normalize_policy_context(
     return normalized, warnings
 
 
+def _project_canonical_marker_prefix(
+    policy_context: dict[str, object] | None,
+) -> str | None:
+    if not isinstance(policy_context, dict):
+        return None
+
+    comment_doc_context = policy_context.get("comment_doc")
+    if not isinstance(comment_doc_context, dict):
+        return None
+
+    marker_context = comment_doc_context.get("marker")
+    if not isinstance(marker_context, dict):
+        return None
+
+    prefix = marker_context.get("prefix")
+    if not isinstance(prefix, str):
+        return None
+
+    return prefix
+
+
 def _resolve_canonical_ignore_underscore_references(
     *,
     ignore_unresolved_internal_underscore_references: bool | None,
@@ -221,11 +147,42 @@ def ensure_prepared_policy_bundle(
             di,
             strict_mode=strict_mode,
         )
+    if bundle.get("task_annotation_parsing") is None:
+        bundle["task_annotation_parsing"] = resolve_task_annotation_policy_plugin(
+            di,
+            strict_mode=strict_mode,
+        )
+    if bundle.get("task_traversal") is None:
+        bundle["task_traversal"] = resolve_task_traversal_policy_plugin(
+            di,
+            strict_mode=strict_mode,
+        )
+    if bundle.get("yaml_parsing") is None:
+        bundle["yaml_parsing"] = resolve_yaml_parsing_policy_plugin(
+            di,
+            strict_mode=strict_mode,
+        )
     if bundle.get("jinja_analysis") is None:
         bundle["jinja_analysis"] = resolve_jinja_analysis_policy_plugin(
             di,
             strict_mode=strict_mode,
         )
+    if bundle.get("variable_extractor") is None:
+        bundle["variable_extractor"] = resolve_variable_extractor_policy_plugin(
+            di,
+            strict_mode=strict_mode,
+        )
+
+    if bundle.get("comment_doc_marker_prefix") is None:
+        marker_prefix = scan_options.get("comment_doc_marker_prefix")
+        if isinstance(marker_prefix, str):
+            bundle["comment_doc_marker_prefix"] = marker_prefix
+        else:
+            from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
+                DEFAULT_DOC_MARKER_PREFIX,
+            )
+
+            bundle["comment_doc_marker_prefix"] = DEFAULT_DOC_MARKER_PREFIX
 
     _validate_prepared_policy_bundle(bundle)
 
@@ -274,6 +231,9 @@ def build_run_scan_options_canonical(
             policy_context=normalized_policy_context,
         )
     )
+    canonical_marker_prefix = _project_canonical_marker_prefix(
+        normalized_policy_context
+    )
 
     options: ScanOptionsDict = {
         "role_path": role_path,
@@ -299,6 +259,9 @@ def build_run_scan_options_canonical(
         "ignore_unresolved_internal_underscore_references": canonical_ignore_underscore_references,
         "policy_context": normalized_policy_context,
     }
+
+    if isinstance(canonical_marker_prefix, str):
+        options["comment_doc_marker_prefix"] = canonical_marker_prefix
 
     if isinstance(prepared_policy_bundle, dict):
         options["prepared_policy_bundle"] = dict(prepared_policy_bundle)

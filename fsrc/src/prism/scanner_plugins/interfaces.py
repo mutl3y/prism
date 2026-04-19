@@ -5,6 +5,11 @@ from __future__ import annotations
 from typing import Any, Protocol, TypedDict
 
 from prism.scanner_data import RunScanOutputPayload, VariableRow
+from prism.scanner_data.contracts_request import (
+    PreparedJinjaAnalysisPolicy,
+    PreparedPolicyBundle,
+    PreparedTaskLineParsingPolicy,
+)
 
 
 class VariableDiscoveryPlugin(Protocol):
@@ -103,3 +108,30 @@ class JinjaAnalysisPolicyPlugin(Protocol):
     """Protocol for Jinja variable analysis policy implementations."""
 
     def collect_undeclared_jinja_variables(self, text: str) -> set[str]: ...
+
+
+class PlatformParticipants(TypedDict, total=False):
+    """Named execution participant instances provided by the platform after request-prep."""
+
+    task_line_parsing: PreparedTaskLineParsingPolicy
+    jinja_analysis: PreparedJinjaAnalysisPolicy
+
+
+class PlatformExecutionBundle(TypedDict):
+    """Typed contract for what a platform plugin produces after request-prep.
+
+    Carries the assembled prepared_policy bundle for scanner_core ingress and
+    the named participant instances so consumers can request collaborators
+    through the generic contract without accessing Ansible-concrete types.
+    """
+
+    prepared_policy: PreparedPolicyBundle
+    platform_participants: PlatformParticipants
+
+
+class PlatformExecutionBundleProvider(Protocol):
+    """Protocol for plugins that can produce a platform execution bundle."""
+
+    def build_execution_bundle(
+        self, scan_options: dict[str, Any]
+    ) -> PlatformExecutionBundle: ...

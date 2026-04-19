@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from prism.scanner_plugins.defaults import resolve_variable_extractor_policy_plugin
+from prism.scanner_core.di_helpers import _scan_options_from_di
 from prism.scanner_extract.task_file_traversal import (
     _collect_task_files,
     _load_yaml_file,
@@ -14,30 +14,18 @@ from prism.scanner_extract.task_file_traversal import (
 from prism.scanner_io.loader import load_yaml_file
 
 
-def _resolve_plugin_registry(di: object | None = None):
-    if di is None:
-        return None
-    registry = getattr(di, "plugin_registry", None)
-    if registry is not None:
-        return registry
-    scan_options = getattr(di, "_scan_options", None)
-    if isinstance(scan_options, dict):
-        return scan_options.get("plugin_registry")
-    return None
-
-
-def _resolve_policy_with_registry(resolver, di: object | None = None):
-    registry = _resolve_plugin_registry(di)
-    if registry is None:
-        return resolver(di)
-    try:
-        return resolver(di, registry=registry)
-    except TypeError:
-        return resolver(di)
-
-
 def _get_variable_extractor_policy(di: object | None = None):
-    return _resolve_policy_with_registry(resolve_variable_extractor_policy_plugin, di)
+    scan_options = _scan_options_from_di(di)
+    if isinstance(scan_options, dict):
+        prepared_policy_bundle = scan_options.get("prepared_policy_bundle")
+        if isinstance(prepared_policy_bundle, dict):
+            policy = prepared_policy_bundle.get("variable_extractor")
+            if policy is not None:
+                return policy
+    raise ValueError(
+        "prepared_policy_bundle.variable_extractor must be provided before "
+        "variable_extractor canonical execution"
+    )
 
 
 DEFAULT_TARGET_RE = re.compile(r"\b(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*\|\s*default\b")

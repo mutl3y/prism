@@ -10,17 +10,7 @@ from yaml import safe_dump
 
 from prism.scanner_data.contracts_variables import VariableRow
 
-IGNORED_IDENTIFIERS: frozenset[str] = frozenset(
-    {
-        "ansible_facts",
-        "groups",
-        "hostvars",
-        "inventory_hostname",
-        "item",
-        "omit",
-        "vars",
-    }
-)
+IGNORED_IDENTIFIERS: frozenset[str] = frozenset()
 JINJA_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
@@ -51,12 +41,9 @@ def _format_inline_yaml(value: Any) -> str:
 
 def _is_sensitive_variable(name: str, value: Any) -> bool:
     lowered_name = name.lower()
-    if any(token in lowered_name for token in ("password", "secret", "token", "key")):
-        return True
-    if isinstance(value, str):
-        lowered_value = value.lower()
-        return "$ansible_vault" in lowered_value or "private key" in lowered_value
-    return False
+    return any(
+        token in lowered_name for token in ("password", "secret", "token", "key")
+    )
 
 
 def _find_variable_line_in_yaml(path: Path | None, name: str) -> int | None:

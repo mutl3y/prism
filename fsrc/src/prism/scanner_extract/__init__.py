@@ -75,12 +75,27 @@ collect_task_files = _collect_task_files
 is_relpath_excluded = _is_relpath_excluded
 
 
+def _make_standalone_di(role_path: str, exclude_paths=None):
+    from prism.scanner_core.scan_request import ensure_prepared_policy_bundle
+
+    options: dict = {"role_path": role_path, "exclude_path_patterns": exclude_paths}
+    ensure_prepared_policy_bundle(scan_options=options, di=None)
+
+    class _StandaloneDI:
+        def __init__(self, opts: dict) -> None:
+            self._scan_options = opts
+
+    return _StandaloneDI(options)
+
+
 def collect_unconstrained_dynamic_role_includes(role_path, exclude_paths=None):
-    return _collect_unconstrained_dynamic_role_includes(role_path, exclude_paths)
+    di = _make_standalone_di(role_path, exclude_paths)
+    return _collect_unconstrained_dynamic_role_includes(role_path, exclude_paths, di=di)
 
 
 def collect_unconstrained_dynamic_task_includes(role_path, exclude_paths=None):
-    return _collect_unconstrained_dynamic_task_includes(role_path, exclude_paths)
+    di = _make_standalone_di(role_path, exclude_paths)
+    return _collect_unconstrained_dynamic_task_includes(role_path, exclude_paths, di=di)
 
 
 collect_task_handler_catalog = _collect_task_handler_catalog
@@ -102,7 +117,8 @@ def extract_role_notes_from_comments(
 
 
 def collect_molecule_scenarios(role_path, exclude_paths=None):
-    return _collect_molecule_scenarios(role_path, exclude_paths)
+    di = _make_standalone_di(role_path, exclude_paths)
+    return _collect_molecule_scenarios(role_path, exclude_paths, di=di)
 
 
 __all__ = [

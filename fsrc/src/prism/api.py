@@ -2,32 +2,72 @@
 
 from __future__ import annotations
 
-import importlib
-from pathlib import Path
+import json
 from typing import Any
-import traceback
 
+import yaml
+
+from prism.api_layer import collection as api_collection
 from prism.api_layer import non_collection as api_non_collection
-from prism.errors import PrismRuntimeError, ROLE_SCAN_RUNTIME_ERROR, to_failure_detail
+from prism.errors import PrismRuntimeError
 from prism.errors import FailurePolicy
+from prism.collection_plugins import scan_collection_plugins
+from prism.scanner_io.collection_payload import (
+    build_collection_identity,
+    build_collection_failure_record,
+    build_collection_role_entry,
+    build_collection_scan_result,
+    render_collection_role_readme,
+)
+from prism.scanner_io.collection_renderer import write_collection_runbook_artifacts
+from prism.scanner_reporting.collection_dependencies import (
+    aggregate_collection_dependencies,
+)
+from prism.scanner_readme import render_readme
+from prism.scanner_reporting import render_runbook, render_runbook_csv
+from prism.scanner_core.di import DIContainer
+from prism.scanner_core.feature_detector import FeatureDetector
+from prism.scanner_core.scanner_context import ScannerContext
 from prism.scanner_data import CollectionScanResult, RepoScanResult, RoleScanResult
 
 
 API_PUBLIC_ENTRYPOINTS: tuple[str, ...] = ("scan_collection", "scan_role", "scan_repo")
 API_RETAINED_COMPATIBILITY_SEAMS: tuple[str, ...] = ("run_scan",)
 
+_COLLECTION_ROLE_CONTENT_RECOVERABLE_ERRORS: tuple[type[Exception], ...] = (
+    FileNotFoundError,
+    OSError,
+    UnicodeDecodeError,
+    ValueError,
+    json.JSONDecodeError,
+    yaml.YAMLError,
+)
+
+_COLLECTION_ROLE_RUNTIME_RECOVERABLE_ERRORS: tuple[type[Exception], ...] = (
+    PrismRuntimeError,
+    RuntimeError,
+)
+
 _repo_scan_facade: Any | None = None
+
+build_run_scan_options_canonical = api_non_collection.build_run_scan_options_canonical
+route_scan_payload_orchestration = api_non_collection.route_scan_payload_orchestration
+orchestrate_scan_payload_with_selected_plugin = (
+    api_non_collection.orchestrate_scan_payload_with_selected_plugin
+)
+
+resolve_comment_driven_documentation_plugin = (
+    api_non_collection.resolve_comment_driven_documentation_plugin
+)
+DEFAULT_PLUGIN_REGISTRY = api_non_collection.DEFAULT_PLUGIN_REGISTRY
 
 __all__ = ["scan_collection", "scan_repo", "scan_role"]
 
 
 def _resolve_repo_scan_facade() -> Any:
-    global _repo_scan_facade
-    if _repo_scan_facade is None:
-        _repo_scan_facade = importlib.import_module(
-            "prism.repo_services"
-        ).repo_scan_facade
-    return _repo_scan_facade
+    if _repo_scan_facade is not None:
+        return _repo_scan_facade
+    return api_non_collection._resolve_repo_scan_facade()
 
 
 def run_scan(
@@ -91,6 +131,18 @@ def run_scan(
         policy_context=policy_context,
         strict_phase_failures=strict_phase_failures,
         scan_pipeline_plugin=scan_pipeline_plugin,
+        build_run_scan_options_canonical_fn=build_run_scan_options_canonical,
+        route_scan_payload_orchestration_fn=route_scan_payload_orchestration,
+        orchestrate_scan_payload_with_selected_plugin_fn=(
+            orchestrate_scan_payload_with_selected_plugin
+        ),
+        di_container_cls=DIContainer,
+        feature_detector_cls=FeatureDetector,
+        scanner_context_cls=ScannerContext,
+        resolve_comment_driven_documentation_plugin_fn=(
+            resolve_comment_driven_documentation_plugin
+        ),
+        default_plugin_registry=DEFAULT_PLUGIN_REGISTRY,
     )
 
 
@@ -125,118 +177,60 @@ def scan_collection(
     include_traceback: bool = False,
 ) -> CollectionScanResult:
     """Scan every role under a collection's roles/ folder and return a payload."""
-    del concise_readme
-    del scanner_report_output
-    del include_scanner_report_link
-    del policy_config_path
-    del include_rendered_readme
-    del runbook_output_dir
-    del runbook_csv_output_dir
-
-    normalized_collection_path = (
-        collection_path.strip() if isinstance(collection_path, str) else ""
+    return api_collection.scan_collection(
+        collection_path,
+        compare_role_path=compare_role_path,
+        style_readme_path=style_readme_path,
+        vars_seed_paths=vars_seed_paths,
+        concise_readme=concise_readme,
+        scanner_report_output=scanner_report_output,
+        include_vars_main=include_vars_main,
+        include_scanner_report_link=include_scanner_report_link,
+        readme_config_path=readme_config_path,
+        adopt_heading_mode=adopt_heading_mode,
+        style_guide_skeleton=style_guide_skeleton,
+        keep_unknown_style_sections=keep_unknown_style_sections,
+        exclude_path_patterns=exclude_path_patterns,
+        style_source_path=style_source_path,
+        policy_config_path=policy_config_path,
+        fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
+        fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
+        ignore_unresolved_internal_underscore_references=(
+            ignore_unresolved_internal_underscore_references
+        ),
+        include_rendered_readme=include_rendered_readme,
+        detailed_catalog=detailed_catalog,
+        include_collection_checks=include_collection_checks,
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
+        runbook_output_dir=runbook_output_dir,
+        runbook_csv_output_dir=runbook_csv_output_dir,
+        include_traceback=include_traceback,
+        scan_role_fn=scan_role,
+        build_collection_identity_fn=build_collection_identity,
+        aggregate_collection_dependencies_fn=aggregate_collection_dependencies,
+        scan_collection_plugins_fn=scan_collection_plugins,
+        render_collection_role_readme_fn=lambda *, role_name, payload: render_collection_role_readme(
+            role_name=role_name,
+            payload=payload,
+            render_readme_fn=render_readme,
+        ),
+        write_collection_runbook_artifacts_fn=lambda **kwargs: write_collection_runbook_artifacts(
+            **kwargs,
+            render_runbook_fn=render_runbook,
+            render_runbook_csv_fn=render_runbook_csv,
+        ),
+        build_collection_role_entry_fn=build_collection_role_entry,
+        build_collection_failure_record_fn=build_collection_failure_record,
+        build_collection_scan_result_fn=build_collection_scan_result,
+        collection_role_content_recoverable_errors=(
+            _COLLECTION_ROLE_CONTENT_RECOVERABLE_ERRORS
+        ),
+        collection_role_runtime_recoverable_errors=(
+            _COLLECTION_ROLE_RUNTIME_RECOVERABLE_ERRORS
+        ),
     )
-    if not normalized_collection_path:
-        raise PrismRuntimeError(
-            code="collection_path_invalid",
-            category="validation",
-            message="collection_path must be a non-empty string.",
-            detail={"field": "collection_path"},
-        )
-
-    collection_root = Path(normalized_collection_path)
-    if not collection_root.exists() or not collection_root.is_dir():
-        raise PrismRuntimeError(
-            code="collection_path_not_found",
-            category="validation",
-            message=f"collection_path must be an existing directory: {normalized_collection_path}",
-            detail={"collection_path": normalized_collection_path},
-        )
-
-    roles_root = collection_root / "roles"
-    if not roles_root.exists() or not roles_root.is_dir():
-        raise PrismRuntimeError(
-            code="collection_roles_dir_missing",
-            category="validation",
-            message=f"collection roles directory is missing: {roles_root}",
-            detail={"roles_path": str(roles_root)},
-        )
-
-    roles_payload: list[dict[str, object]] = []
-    scan_errors: list[dict[str, Any]] = []
-    scanned_count = 0
-
-    for role_dir in sorted(path for path in roles_root.iterdir() if path.is_dir()):
-        scanned_count += 1
-        try:
-            role_payload = scan_role(
-                str(role_dir),
-                compare_role_path=compare_role_path,
-                style_readme_path=style_readme_path,
-                vars_seed_paths=vars_seed_paths,
-                include_vars_main=include_vars_main,
-                readme_config_path=readme_config_path,
-                adopt_heading_mode=adopt_heading_mode,
-                style_guide_skeleton=style_guide_skeleton,
-                keep_unknown_style_sections=keep_unknown_style_sections,
-                exclude_path_patterns=exclude_path_patterns,
-                style_source_path=style_source_path,
-                fail_on_unconstrained_dynamic_includes=(
-                    fail_on_unconstrained_dynamic_includes
-                ),
-                fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
-                ignore_unresolved_internal_underscore_references=(
-                    ignore_unresolved_internal_underscore_references
-                ),
-                detailed_catalog=detailed_catalog,
-                include_collection_checks=include_collection_checks,
-                include_task_parameters=include_task_parameters,
-                include_task_runbooks=include_task_runbooks,
-                inline_task_runbooks=inline_task_runbooks,
-            )
-            roles_payload.append(
-                {
-                    "role": role_dir.name,
-                    "role_path": str(role_dir),
-                    "payload": role_payload,
-                    "rendered_readme": str(role_payload.get("output") or ""),
-                }
-            )
-        except (
-            Exception
-        ) as exc:  # pragma: no cover - contract path exercised in CLI parity tests
-            failure_detail = to_failure_detail(
-                code=ROLE_SCAN_RUNTIME_ERROR,
-                message=f"Role scan failed for {role_dir.name}: {exc}",
-                source=f"collection_role:{role_dir.name}",
-                cause=exc,
-                traceback_text=(traceback.format_exc() if include_traceback else None),
-            )
-            scan_errors.append(failure_detail)
-            roles_payload.append(
-                {
-                    "role": role_dir.name,
-                    "role_path": str(role_dir),
-                    "payload": {},
-                    "failure": failure_detail,
-                }
-            )
-
-    metadata: dict[str, object] = {
-        "scan_degraded": bool(scan_errors),
-        "scan_errors": scan_errors,
-    }
-    return {
-        "collection_name": collection_root.name,
-        "collection_path": str(collection_root),
-        "roles": roles_payload,
-        "summary": {
-            "roles_total": scanned_count,
-            "roles_failed": len(scan_errors),
-            "roles_succeeded": scanned_count - len(scan_errors),
-        },
-        "metadata": metadata,
-    }
 
 
 def scan_role(

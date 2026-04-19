@@ -2,7 +2,48 @@
 
 from __future__ import annotations
 
-from typing import Any, NotRequired, TypedDict
+from typing import Any, Collection, NotRequired, Protocol, TypedDict
+
+
+class ScanPolicyWarning(TypedDict, total=False):
+    """Structured warning emitted for scan-policy compatibility behavior."""
+
+    code: str
+    message: str
+    detail: dict[str, Any]
+
+
+class ScanPolicyDynamicIncludeFacts(TypedDict):
+    """Dynamic-include blocker facts emitted by scanner_context."""
+
+    enabled: bool
+    task_count: int
+    role_count: int
+    total_count: int
+
+
+class ScanPolicyYamlLikeAnnotationFacts(TypedDict):
+    """YAML-like annotation blocker facts emitted by scanner_context."""
+
+    enabled: bool
+    count: int
+
+
+class ScanPolicyBlockerProvenance(TypedDict):
+    """Provenance for scanner_context-emitted blocker facts."""
+
+    role_path: str
+    exclude_path_patterns: list[str] | None
+    metadata_feature_source: str
+    dynamic_include_sources: list[str]
+
+
+class ScanPolicyBlockerFacts(TypedDict):
+    """Typed blocker-facts handoff carried after payload assembly."""
+
+    dynamic_includes: ScanPolicyDynamicIncludeFacts
+    yaml_like_annotations: ScanPolicyYamlLikeAnnotationFacts
+    provenance: ScanPolicyBlockerProvenance
 
 
 class ScanMetadata(TypedDict, total=False):
@@ -12,19 +53,12 @@ class ScanMetadata(TypedDict, total=False):
     scan_errors: list[dict[str, str]]
     scan_degraded: bool
     scan_policy_warnings: list[dict[str, Any]]
+    scan_policy_blocker_facts: ScanPolicyBlockerFacts
     variable_insights: list[dict[str, Any]]
     yaml_parse_failures: list[Any]
     role_notes: list[Any]
     ignore_unresolved_internal_underscore_references: bool
     underscore_filtered_unresolved_count: int
-
-
-class ScanPolicyWarning(TypedDict, total=False):
-    """Structured warning emitted for scan-policy compatibility behavior."""
-
-    code: str
-    message: str
-    detail: dict[str, Any]
 
 
 class CommentDocMarkerContext(TypedDict, total=False):
@@ -46,11 +80,31 @@ class SelectionPolicyContext(TypedDict, total=False):
     plugin: str
 
 
+class PreparedTaskLineParsingPolicy(Protocol):
+    """Minimum task-line parsing capability surface required after ingress."""
+
+    TASK_INCLUDE_KEYS: Collection[str]
+    ROLE_INCLUDE_KEYS: Collection[str]
+    INCLUDE_VARS_KEYS: Collection[str]
+    SET_FACT_KEYS: Collection[str]
+    TASK_BLOCK_KEYS: Collection[str]
+    TASK_META_KEYS: Collection[str]
+
+    def detect_task_module(self, task: dict[str, Any]) -> str | None: ...
+
+
+class PreparedJinjaAnalysisPolicy(Protocol):
+    """Minimum Jinja analysis capability surface required after ingress."""
+
+    def collect_undeclared_jinja_variables(self, text: str) -> set[str]: ...
+
+
 class PreparedPolicyBundle(TypedDict, total=False):
     """Runtime-scoped prepared policy instances carried with scan options."""
 
-    task_line_parsing: Any
-    jinja_analysis: Any
+    task_line_parsing: PreparedTaskLineParsingPolicy
+    jinja_analysis: PreparedJinjaAnalysisPolicy
+    comment_doc_marker_prefix: str
 
 
 class ScanPolicyContext(TypedDict, total=False):
@@ -86,6 +140,7 @@ class ScanOptionsDict(TypedDict):
     fail_on_unconstrained_dynamic_includes: bool | None
     fail_on_yaml_like_task_annotations: bool | None
     ignore_unresolved_internal_underscore_references: bool | None
+    comment_doc_marker_prefix: NotRequired[str | None]
     policy_context: NotRequired[ScanPolicyContext | dict[str, Any] | None]
     prepared_policy_bundle: NotRequired[PreparedPolicyBundle | dict[str, Any] | None]
     scan_policy_warnings: NotRequired[list[ScanPolicyWarning] | list[dict[str, Any]]]

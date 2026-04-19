@@ -3,27 +3,13 @@
 from __future__ import annotations
 
 from fnmatch import fnmatch
-from functools import lru_cache
 from pathlib import Path
 import re
 
 import yaml
 
-from prism.scanner_plugins.defaults import resolve_task_traversal_policy_plugin
-from prism.scanner_plugins.defaults import resolve_yaml_parsing_policy_plugin
+from prism.scanner_core.di_helpers import _scan_options_from_di
 from prism.scanner_io.loader import parse_yaml_candidate
-
-
-def _scan_options_from_di(di: object | None = None) -> dict[str, object] | None:
-    if di is None:
-        return None
-    scan_options = getattr(di, "scan_options", None)
-    if isinstance(scan_options, dict):
-        return scan_options
-    scan_options = getattr(di, "_scan_options", None)
-    if isinstance(scan_options, dict):
-        return scan_options
-    return None
 
 
 def _get_prepared_policy(di: object | None, policy_name: str) -> object | None:
@@ -40,14 +26,20 @@ def _get_task_traversal_policy(di: object | None = None):
     prepared_policy = _get_prepared_policy(di, "task_traversal")
     if prepared_policy is not None:
         return prepared_policy
-    return resolve_task_traversal_policy_plugin(di)
+    raise ValueError(
+        "prepared_policy_bundle.task_traversal must be provided before "
+        "task_file_traversal canonical execution"
+    )
 
 
 def _get_yaml_parsing_policy(di: object | None = None):
     prepared_policy = _get_prepared_policy(di, "yaml_parsing")
     if prepared_policy is not None:
         return prepared_policy
-    return resolve_yaml_parsing_policy_plugin(di)
+    raise ValueError(
+        "prepared_policy_bundle.yaml_parsing must be provided before "
+        "yaml_parsing canonical execution"
+    )
 
 
 def _normalize_exclude_patterns(exclude_paths: list[str] | None) -> list[str]:
@@ -108,18 +100,6 @@ def _yaml_cache_identity(file_path: Path) -> tuple[str, int, int] | None:
     return (str(file_path.resolve()), stat.st_mtime_ns, stat.st_size)
 
 
-@lru_cache(maxsize=512)
-def _load_yaml_file_cached(
-    resolved_path: str,
-    modified_time_ns: int,
-    size_bytes: int,
-) -> object | None:
-    _ = modified_time_ns
-    _ = size_bytes
-    parser = _get_yaml_parsing_policy().load_yaml_file
-    return parser(Path(resolved_path))
-
-
 def _load_yaml_file(
     file_path: Path,
     *,
@@ -163,11 +143,7 @@ def _load_yaml_file_with_metadata(
             if isinstance(failure, dict):
                 yaml_failure_collector.append(failure)
         return None
-    parsed = (
-        _load_yaml_file_cached(*identity)
-        if di is None
-        else _get_yaml_parsing_policy(di).load_yaml_file(Path(identity[0]))
-    )
+    parsed = _get_yaml_parsing_policy(di).load_yaml_file(Path(identity[0]))
     if parsed is None and yaml_failure_collector is not None:
         collector_root = role_root or _derive_role_root_from_task_file(file_path)
         if collector_root is None:

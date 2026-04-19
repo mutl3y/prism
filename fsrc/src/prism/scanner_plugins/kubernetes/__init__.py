@@ -34,7 +34,23 @@ def build_reserved_target_capability_response() -> dict[str, object]:
     return {
         "target_type": KUBERNETES_RESERVED_TARGET_CLASSIFIER_ENTRY["target_type"],
         "support_state": KUBERNETES_RESERVED_TARGET_CLASSIFIER_ENTRY["support_state"],
-        "degraded_success": True,
+        "degraded_success": False,
+        "summary": "Kubernetes scanning is not available.",
+        "guidance": (
+            "The reserved Kubernetes package can classify manifests, but it "
+            "does not provide scan execution yet."
+        ),
+        "plugin_id": KUBERNETES_RESERVED_TARGET_CLASSIFIER_ENTRY["plugin_id"],
+        "error_code": UNSUPPORTED_TARGET_CAPABILITY_ERROR_CODE,
+    }
+
+
+def build_unsupported_scan_pipeline_outcome() -> dict[str, object]:
+    return {
+        "target_type": KUBERNETES_RESERVED_TARGET_CLASSIFIER_ENTRY["target_type"],
+        "support_state": KUBERNETES_RESERVED_TARGET_CLASSIFIER_ENTRY["support_state"],
+        "outcome": "PLATFORM_NOT_SUPPORTED",
+        "supported": False,
         "summary": "Kubernetes scanning is not available.",
         "guidance": (
             "The reserved Kubernetes package can classify manifests, but it "
@@ -50,4 +66,5 @@ __all__ = [
     "KUBERNETES_RESERVED_TARGET_PLUGIN_MANIFEST",
     "build_reserved_target_capability_response",
     "build_reserved_target_classifier_entry",
+    "build_unsupported_scan_pipeline_outcome",
 ]

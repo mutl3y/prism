@@ -113,7 +113,47 @@
 
 - NCK1 closure is complete (2026-04-18): the active non-collection execution core-kernel slice is closed.
 - Landed architecture state is now explicit: scanner_core owns non-collection request authority, scanner_kernel owns the route/preflight/runtime carrier contract, and `api.py` plus `api_layer/non_collection.py` remain thin compatibility boundaries.
+- SCB1 closure is complete (2026-04-18): ScannerContext payload-shape parity remains strict except for the single fsrc-only metadata extension `scan_policy_blocker_facts`.
+- SCB1 preserves the boundary established by the slice: scanner_context emits typed blocker facts only, and scanner_kernel translates them into strict failures or non-strict warnings across kernel-routed and legacy fallback paths.
+- MP1 closure is complete (2026-04-18): marker-prefix ownership on the scanner_core hot path now stays ingress-owned, with `scan_request` projecting `comment_doc_marker_prefix` and `task_extract_adapters` consuming only explicit caller input or that canonical top-level key plus the default fallback.
+- Core pure-execution design is now effectively delivered after NCK1 + SCB1 + MP1; remaining `variable_discovery` and prepared-policy follow-ups are residual debt and no longer design blockers.
 - Closure evidence passed together as one bundle: `pytest -q`, parity bundle `pytest -q src/prism/tests/test_fsrc_scanner_parity.py fsrc/src/prism/tests`, smoke lanes `tox -r -e smoke-src-lane,smoke-fsrc-lane`, `ruff check src/prism fsrc/src`, `black --check src/prism fsrc/src`, and `tox -e typecheck`.
+
+## Notable Findings (Plan Closure: ansible-plugin-remediation-wave-20260418)
+
+- Plan closure audit complete (2026-04-19): tasks APR1-T01 through APR6-T01 audited; APR6-T01 is the final closure task.
+- scanner_core is now pure execution-orchestration only; Ansible-specific logic lives in `scanner_plugins.ansible`; `IGNORED_IDENTIFIERS` in `variable_pipeline.py` is `frozenset()` (fully evicted).
+- VariableDiscovery and FeatureDetector are generic delegation wrappers; Ansible implementations are owned by `AnsibleVariableDiscoveryPlugin` and `AnsibleFeatureDetectionPlugin` in `scanner_plugins.ansible`; DI default wiring in `di.py` names these concrete types as the current default, which is expected DI factory wiring, not owned Ansible logic.
+- Fail-closed enforcement: all `_get_*_policy(di)` functions in scanner_core and scanner_extract raise `ValueError` without `prepared_policy_bundle`; no silent fallbacks to late-resolver paths exist outside the single documented retained seam in `variable_extractor.py`.
+- CSR-008 (`VariableDiscovery` re-export from `api.py`) retired in APR5-T01; 17 registered seams remain active (CSR-001 through CSR-007, CSR-009 through CSR-018) with complete records.
+- Platform expansion readiness gate: PASS — all closure checks green after `black fsrc/src/prism` formatting applied (2026-04-19).
+- Closure evidence: fsrc pytest 247 passed (PASS), parity 7 passed (PASS), ruff check PASS, black --check PASS. Gate confirmed PASS.
+- Kubernetes and Terraform expansion is unblocked at the gate level; no Kubernetes/Terraform scan plugins currently implemented — expansion planning can now proceed.
+
+## Notable Findings (Plan Closure: platform-agnostic-remediation-20260419)
+
+- Plan closure is complete (2026-04-19): all 7 tasks (PAR-W1-T01 through PAR-W4-T01) closed across 4 waves.
+- Constraint: `src/` lane frozen throughout execution; all changes targeted `fsrc/src/` only. 6 parity tests skip-marked with PAR-20260419.
+- DI factory defaults are now registry-driven: `factory_variable_discovery_plugin()` and `factory_feature_detection_plugin()` in `di.py` resolve through `PluginRegistry` instead of hardcoded Ansible imports. Zero Ansible imports remain in `scanner_core`.
+- Marker-prefix ownership moved to ingress: `comment_doc_marker_prefix` is now projected into `PreparedPolicyBundle` by `ensure_prepared_policy_bundle()` and consumed from the bundle by `task_extract_adapters`.
+- Variable extractor shim retired: `resolve_variable_extractor_policy_plugin()` fallback removed from `variable_extractor.py`; fail-closed `prepared_policy_bundle` consumption now matches all other extractor modules.
+- 6 compatibility seams retired (CSR-005, CSR-006, CSR-007, CSR-016, CSR-017, CSR-018); 11 active seams remain (CSR-001 through CSR-004, CSR-009 through CSR-015).
+- Expansion readiness gate: 7/7 criteria PASS — zero Ansible in scanner_core, registry-driven DI, 11/11 policy getters fail-closed, parity accounted, seam reduction achieved, K8s/Terraform slots reserved, multi-platform protocols in place.
+- Closure evidence: pytest 1441 passed / 7 skipped, ruff PASS, black PASS.
+
+## Notable Findings (Plan Closure: gf2-full-remediation-20260419)
+
+- GF2 full remediation closure is complete (2026-04-19): 8 of 9 tasks closed across 5 waves; 1 task (GF2-W4-T03, proxy singleton remediation) deferred.
+- Constraint: `src/` lane frozen throughout execution; all changes targeted `fsrc/src/` only.
+- DI platform selection fully decoupled: `di.py` resolves platform key from scan_options → policy_context → registry default; zero hardcoded `"ansible"` strings remain in `scanner_core` or `scanner_extract`.
+- Extraction layer platform-decoupled: Ansible module names moved from `extract_defaults.py` to `scanner_plugins/ansible`; collection namespace filtering is now policy-injectable via `PreparedPolicyBundle`.
+- Shared DI helper: `_scan_options_from_di()` consolidated from 7 duplicate definitions into single `scanner_core/di_helpers.py`.
+- Marker-prefix resolution simplified to bundle-only fail-closed: `_resolve_marker_prefix()` raises `ValueError` on missing data, no `DEFAULT_DOC_MARKER_PREFIX` fallback.
+- Blocker fact assembly extracted: `_build_scan_policy_blocker_facts()` moved from `ScannerContext` to `scanner_core/blocker_fact_evaluator.py`; `ScannerContext` delegates.
+- VariableRowBuilder fallback stub removed: `di.py` uses direct import, no try/except fallback.
+- Deprecated marker alias handling sunset: `_DEPRECATED_MARKER_ALIAS_CODE` and alias normalization logic removed from `scan_request.py`.
+- Deferred: GF2-W4-T03 (proxy singleton remediation) — 18+ consumer call sites; only blocks concurrent multi-platform scanning.
+- Closure evidence: pytest 1441 passed / 7 skipped, ruff PASS, black PASS, 8/8 audit criteria PASS.
 
 <!-- skill-ninja-START -->
 ## Agent Skills

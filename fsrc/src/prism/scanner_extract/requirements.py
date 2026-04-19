@@ -41,8 +41,11 @@ def normalize_included_role_dependencies(features: dict) -> list[str]:
     return sorted(set(values))
 
 
-def extract_declared_collections_from_meta(meta: dict) -> set[str]:
-    """Extract declared non-ansible collections from meta/main.yml content."""
+def extract_declared_collections_from_meta(
+    meta: dict,
+    builtin_collection_prefixes: frozenset[str] = frozenset(),
+) -> set[str]:
+    """Extract declared collections from meta/main.yml, excluding built-in platform prefixes."""
     declared: set[str] = set()
     galaxy = meta.get("galaxy_info") if isinstance(meta, dict) else None
     if not isinstance(galaxy, dict):
@@ -54,15 +57,20 @@ def extract_declared_collections_from_meta(meta: dict) -> set[str]:
         if not isinstance(item, str):
             continue
         candidate = item.strip()
-        if not candidate or candidate.startswith("ansible."):
+        if not candidate or any(
+            candidate.startswith(p) for p in builtin_collection_prefixes
+        ):
             continue
         if re.match(r"^[A-Za-z0-9_]+\.[A-Za-z0-9_]+$", candidate):
             declared.add(candidate)
     return declared
 
 
-def extract_declared_collections_from_requirements(requirements: list) -> set[str]:
-    """Extract declared non-ansible collections from meta/requirements.yml."""
+def extract_declared_collections_from_requirements(
+    requirements: list,
+    builtin_collection_prefixes: frozenset[str] = frozenset(),
+) -> set[str]:
+    """Extract declared collections from meta/requirements.yml, excluding built-in platform prefixes."""
     declared: set[str] = set()
     for item in requirements:
         raw: object = item
@@ -71,7 +79,9 @@ def extract_declared_collections_from_requirements(requirements: list) -> set[st
         if not isinstance(raw, str):
             continue
         candidate = raw.strip().split()[0]
-        if not candidate or candidate.startswith("ansible."):
+        if not candidate or any(
+            candidate.startswith(p) for p in builtin_collection_prefixes
+        ):
             continue
         if re.match(r"^[A-Za-z0-9_]+\.[A-Za-z0-9_]+$", candidate):
             declared.add(candidate)
@@ -83,6 +93,7 @@ def build_collection_compliance_notes(
     features: dict,
     meta: dict,
     requirements: list,
+    builtin_collection_prefixes: frozenset[str] = frozenset(),
 ) -> list[str]:
     """Build human-readable notes about collection declaration coverage."""
     raw_collections = str(features.get("external_collections", "none")).strip()
@@ -93,13 +104,17 @@ def build_collection_compliance_notes(
     if not detected:
         return []
 
-    declared_meta = extract_declared_collections_from_meta(meta)
-    declared_requirements = extract_declared_collections_from_requirements(requirements)
+    declared_meta = extract_declared_collections_from_meta(
+        meta, builtin_collection_prefixes=builtin_collection_prefixes
+    )
+    declared_requirements = extract_declared_collections_from_requirements(
+        requirements, builtin_collection_prefixes=builtin_collection_prefixes
+    )
     missing_meta = sorted(detected - declared_meta)
     missing_requirements = sorted(detected - declared_requirements)
 
     notes = [
-        "Detected non-ansible collections from task usage: "
+        "Detected external collections from task usage: "
         + ", ".join(sorted(detected))
         + "."
     ]
@@ -124,6 +139,7 @@ def build_requirements_display(
     meta: dict,
     features: dict,
     include_collection_checks: bool = True,
+    builtin_collection_prefixes: frozenset[str] = frozenset(),
 ) -> tuple[list[str], list[str]]:
     """Build rendered requirements lines and collection compliance notes."""
     collection_compliance_notes = []
@@ -132,6 +148,7 @@ def build_requirements_display(
             features=features,
             meta=meta,
             requirements=requirements,
+            builtin_collection_prefixes=builtin_collection_prefixes,
         )
     requirements_display = normalize_requirements(requirements)
     meta_dependencies_display = normalize_meta_role_dependencies(meta)

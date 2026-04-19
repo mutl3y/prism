@@ -29,6 +29,8 @@ class PluginRegistry:
         self._yaml_parsing_policy_plugins: dict[str, type[Any]] = {}
         self._jinja_analysis_policy_plugins: dict[str, type[Any]] = {}
         self._loaded_plugins: dict[tuple[str, str], Any] = {}
+        self._deferred_variable_discovery: dict[str, tuple[str, str]] = {}
+        self._deferred_feature_detection: dict[str, tuple[str, str]] = {}
 
     def register_variable_discovery_plugin(
         self,
@@ -37,12 +39,28 @@ class PluginRegistry:
     ) -> None:
         self._variable_discovery_plugins[name] = plugin_class
 
+    def register_deferred_variable_discovery_plugin(
+        self,
+        name: str,
+        module_path: str,
+        class_name: str,
+    ) -> None:
+        self._deferred_variable_discovery[name] = (module_path, class_name)
+
     def register_feature_detection_plugin(
         self,
         name: str,
         plugin_class: type[FeatureDetectionPlugin],
     ) -> None:
         self._feature_detection_plugins[name] = plugin_class
+
+    def register_deferred_feature_detection_plugin(
+        self,
+        name: str,
+        module_path: str,
+        class_name: str,
+    ) -> None:
+        self._deferred_feature_detection[name] = (module_path, class_name)
 
     def register_output_orchestration_plugin(
         self,
@@ -90,13 +108,31 @@ class PluginRegistry:
         self,
         name: str,
     ) -> type[VariableDiscoveryPlugin] | None:
-        return self._variable_discovery_plugins.get(name)
+        result = self._variable_discovery_plugins.get(name)
+        if result is not None:
+            return result
+        deferred = self._deferred_variable_discovery.get(name)
+        if deferred is not None:
+            module_path, class_name = deferred
+            cls = self.load_plugin_from_module(module_path, class_name)
+            self._variable_discovery_plugins[name] = cls
+            return cls
+        return None
 
     def get_feature_detection_plugin(
         self,
         name: str,
     ) -> type[FeatureDetectionPlugin] | None:
-        return self._feature_detection_plugins.get(name)
+        result = self._feature_detection_plugins.get(name)
+        if result is not None:
+            return result
+        deferred = self._deferred_feature_detection.get(name)
+        if deferred is not None:
+            module_path, class_name = deferred
+            cls = self.load_plugin_from_module(module_path, class_name)
+            self._feature_detection_plugins[name] = cls
+            return cls
+        return None
 
     def get_output_orchestration_plugin(
         self,
@@ -123,10 +159,14 @@ class PluginRegistry:
         return self._jinja_analysis_policy_plugins.get(name)
 
     def list_variable_discovery_plugins(self) -> list[str]:
-        return list(self._variable_discovery_plugins.keys())
+        names = set(self._variable_discovery_plugins.keys())
+        names.update(self._deferred_variable_discovery.keys())
+        return sorted(names)
 
     def list_feature_detection_plugins(self) -> list[str]:
-        return list(self._feature_detection_plugins.keys())
+        names = set(self._feature_detection_plugins.keys())
+        names.update(self._deferred_feature_detection.keys())
+        return sorted(names)
 
     def list_output_orchestration_plugins(self) -> list[str]:
         return list(self._output_orchestration_plugins.keys())
@@ -145,6 +185,16 @@ class PluginRegistry:
 
     def list_jinja_analysis_policy_plugins(self) -> list[str]:
         return list(self._jinja_analysis_policy_plugins.keys())
+
+    def get_default_platform_key(self) -> str | None:
+        """Return the first registered variable-discovery plugin key, or None."""
+        all_keys = self.list_variable_discovery_plugins()
+        if all_keys:
+            return all_keys[0]
+        pipeline_keys = self.list_scan_pipeline_plugins()
+        if pipeline_keys:
+            return pipeline_keys[0]
+        return None
 
     def load_plugin_from_module(self, module_name: str, class_name: str) -> Any:
         cache_key = (module_name, class_name)

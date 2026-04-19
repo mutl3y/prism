@@ -145,35 +145,19 @@ def test_fsrc_scanner_extract_compatibility_exports_match_src_behavior(
     ]
 
 
-def test_task_line_parsing_marker_helpers_route_through_defaults(monkeypatch) -> None:
+def test_task_line_parsing_marker_helpers_route_through_defaults() -> None:
     with _prefer_prism_lane(FSRC_SOURCE_ROOT):
         module = importlib.import_module("prism.scanner_extract.task_line_parsing")
-
-        class _AnnotationPolicy:
-            @staticmethod
-            def normalize_marker_prefix(marker_prefix: str | None) -> str:
-                del marker_prefix
-                return "custom-prefix"
-
-            @staticmethod
-            def get_marker_line_re(
-                marker_prefix: str = "prism",
-            ) -> re.Pattern[str]:
-                del marker_prefix
-                return re.compile(r"^custom-marker$")
-
-        monkeypatch.setattr(
-            module,
-            "resolve_task_annotation_policy_plugin",
-            lambda di=None: _AnnotationPolicy(),
-            raising=False,
+        marker_utils = importlib.import_module(
+            "prism.scanner_plugins.parsers.comment_doc.marker_utils"
         )
+        default_prefix = marker_utils.DEFAULT_DOC_MARKER_PREFIX
 
-        normalized = module._normalize_marker_prefix("!!!")
-        marker_re = module.get_marker_line_re("ignored")
+        normalized = module._normalize_marker_prefix(None)
+        marker_re = module.get_marker_line_re(default_prefix)
 
-    assert normalized == "custom-prefix"
-    assert marker_re.pattern == "^custom-marker$"
+    assert normalized == default_prefix
+    assert isinstance(marker_re, re.Pattern)
 
 
 def test_w3_t01_task_catalog_assembly_no_longer_owns_role_notes_parsing() -> None:

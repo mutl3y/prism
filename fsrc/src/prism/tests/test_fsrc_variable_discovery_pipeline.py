@@ -6,7 +6,8 @@ import importlib
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from types import SimpleNamespace
+
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 FSRC_SOURCE_ROOT = PROJECT_ROOT / "fsrc" / "src"
@@ -68,6 +69,7 @@ def test_fsrc_variable_discovery_static_and_referenced_foundation(tmp_path) -> N
         discovery_module = importlib.import_module(
             "prism.scanner_core.variable_discovery"
         )
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
         options = {
             "role_path": str(role_path),
             "include_vars_main": True,
@@ -78,6 +80,7 @@ def test_fsrc_variable_discovery_static_and_referenced_foundation(tmp_path) -> N
         container = di_module.DIContainer(
             role_path=str(role_path), scan_options=options
         )
+        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
         discovery = discovery_module.VariableDiscovery(
             container, str(role_path), options
         )
@@ -245,6 +248,7 @@ def test_fsrc_variable_discovery_prefers_prepared_policy_bundle(
 
     with _prefer_fsrc_prism_on_sys_path():
         di_module = importlib.import_module("prism.scanner_core.di")
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
         discovery_module = importlib.import_module(
             "prism.scanner_core.variable_discovery"
         )
@@ -281,6 +285,7 @@ def test_fsrc_variable_discovery_prefers_prepared_policy_bundle(
             role_path=str(role_path),
             scan_options=options,
         )
+        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
         discovery = discovery_module.VariableDiscovery(
             container,
             str(role_path),
@@ -295,9 +300,8 @@ def test_fsrc_variable_discovery_prefers_prepared_policy_bundle(
     assert "from_prepared_jinja" in referenced
 
 
-def test_fsrc_variable_discovery_uses_scan_request_prepared_bundle(
+def test_fsrc_variable_discovery_requires_ingress_prepared_policy_bundle(
     tmp_path,
-    monkeypatch,
 ) -> None:
     role_path = tmp_path
     (role_path / "tasks").mkdir()
@@ -314,62 +318,10 @@ def test_fsrc_variable_discovery_uses_scan_request_prepared_bundle(
         encoding="utf-8",
     )
 
-    class _PreparedTaskLinePolicy:
-        TASK_INCLUDE_KEYS = {"include_tasks"}
-        ROLE_INCLUDE_KEYS = {"include_role"}
-        INCLUDE_VARS_KEYS = {"scan_request_include_vars"}
-        SET_FACT_KEYS = {"set_fact"}
-        TASK_BLOCK_KEYS = {"block"}
-        TASK_META_KEYS = {"meta"}
-
-        @staticmethod
-        def detect_task_module(_task: dict) -> str:
-            return "debug"
-
-    class _PreparedJinjaPolicy:
-        @staticmethod
-        def collect_undeclared_jinja_variables(_text: str) -> set[str]:
-            return {"from_scan_request_jinja"}
-
     with _prefer_fsrc_prism_on_sys_path():
         di_module = importlib.import_module("prism.scanner_core.di")
         discovery_module = importlib.import_module(
             "prism.scanner_core.variable_discovery"
-        )
-
-        monkeypatch.setattr(
-            discovery_module,
-            "resolve_task_line_parsing_policy_plugin",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                AssertionError("local task-line resolver should not be called")
-            ),
-            raising=False,
-        )
-        monkeypatch.setattr(
-            discovery_module,
-            "resolve_jinja_analysis_policy_plugin",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                AssertionError("local jinja resolver should not be called")
-            ),
-            raising=False,
-        )
-
-        def _ensure_prepared_policy_bundle(*, scan_options: dict, di: object | None):
-            del di
-            bundle = {
-                "task_line_parsing": _PreparedTaskLinePolicy(),
-                "jinja_analysis": _PreparedJinjaPolicy(),
-            }
-            scan_options["prepared_policy_bundle"] = bundle
-            return bundle
-
-        monkeypatch.setattr(
-            discovery_module,
-            "scan_request",
-            SimpleNamespace(
-                ensure_prepared_policy_bundle=_ensure_prepared_policy_bundle
-            ),
-            raising=False,
         )
 
         options = {
@@ -389,10 +341,56 @@ def test_fsrc_variable_discovery_uses_scan_request_prepared_bundle(
             options,
         )
 
-        static_rows = discovery.discover_static()
-        referenced = discovery.discover_referenced()
+        with pytest.raises(ValueError, match="prepared_policy_bundle"):
+            discovery.discover_static()
 
-    static_names = {row["name"] for row in static_rows}
-    assert "from_scan_request_include" in static_names
-    assert "from_scan_request_jinja" in referenced
-    assert isinstance(options.get("prepared_policy_bundle"), dict)
+    assert "prepared_policy_bundle" not in options
+
+
+def test_fsrc_variable_discovery_discover_referenced_requires_ingress_prepared_jinja_policy(
+    tmp_path,
+) -> None:
+    role_path = tmp_path
+    (role_path / "tasks").mkdir()
+    (role_path / "tasks" / "main.yml").write_text(
+        '---\n- name: demo\n  debug:\n    msg: "{{ missing_ingress_policy }}"\n',
+        encoding="utf-8",
+    )
+    task_line_policy = object()
+
+    with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        discovery_module = importlib.import_module(
+            "prism.scanner_core.variable_discovery"
+        )
+
+        options = {
+            "role_path": str(role_path),
+            "include_vars_main": True,
+            "exclude_path_patterns": None,
+            "vars_seed_paths": None,
+            "ignore_unresolved_internal_underscore_references": False,
+            "prepared_policy_bundle": {
+                "task_line_parsing": task_line_policy,
+            },
+        }
+        container = di_module.DIContainer(
+            role_path=str(role_path),
+            scan_options=options,
+        )
+        discovery = discovery_module.VariableDiscovery(
+            container,
+            str(role_path),
+            options,
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=(
+                "prepared_policy_bundle.jinja_analysis must be provided before "
+                "VariableDiscovery native execution"
+            ),
+        ):
+            discovery.discover_referenced()
+
+    assert options["prepared_policy_bundle"] == {"task_line_parsing": task_line_policy}

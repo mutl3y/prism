@@ -6,29 +6,43 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from prism.scanner_plugins.defaults import resolve_task_line_parsing_policy_plugin
-
 import prism.scanner_extract.task_annotation_parsing as tap
 import prism.scanner_extract.task_file_traversal as tft
+from prism.scanner_core.di_helpers import _scan_options_from_di
 from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
     DEFAULT_DOC_MARKER_PREFIX,
 )
 
 
 def _get_task_line_parsing_policy(di: object | None = None):
-    return resolve_task_line_parsing_policy_plugin(di)
+    scan_options = _scan_options_from_di(di)
+    if isinstance(scan_options, dict):
+        bundle = scan_options.get("prepared_policy_bundle")
+        if isinstance(bundle, dict):
+            policy = bundle.get("task_line_parsing")
+            if policy is not None:
+                return policy
+    raise ValueError(
+        "prepared_policy_bundle.task_line_parsing must be provided before "
+        "task_catalog_assembly canonical execution"
+    )
 
 
 def _detect_task_module(task: dict, *, di: object | None = None) -> str | None:
     return _get_task_line_parsing_policy(di).detect_task_module(task)
 
 
-def _extract_collection_from_module_name(module_name: str) -> str | None:
+def _extract_collection_from_module_name(
+    module_name: str,
+    builtin_collection_prefixes: frozenset[str] = frozenset(),
+) -> str | None:
     parts = module_name.split(".")
     if len(parts) < 3:
         return None
     collection = ".".join(parts[:2]).strip()
-    if not collection or collection.startswith("ansible."):
+    if not collection or any(
+        collection.startswith(p) for p in builtin_collection_prefixes
+    ):
         return None
     return collection
 
@@ -230,6 +244,8 @@ def _collect_task_handler_catalog(
 def _collect_molecule_scenarios(
     role_path: str,
     exclude_paths: list[str] | None = None,
+    *,
+    di: object | None = None,
 ) -> list[dict[str, object]]:
     role_root = Path(role_path).resolve()
     molecule_root = role_root / "molecule"
@@ -245,7 +261,7 @@ def _collect_molecule_scenarios(
             molecule_file, role_root, exclude_paths
         ):
             continue
-        doc = tft._load_yaml_file(molecule_file)
+        doc = tft._load_yaml_file(molecule_file, di=di)
         if not isinstance(doc, dict):
             continue
 
@@ -390,8 +406,13 @@ def detect_task_module(task: dict, *, di: object | None = None) -> str | None:
     return _detect_task_module(task, di=di)
 
 
-def extract_collection_from_module_name(module_name: str) -> str | None:
-    return _extract_collection_from_module_name(module_name)
+def extract_collection_from_module_name(
+    module_name: str,
+    builtin_collection_prefixes: frozenset[str] = frozenset(),
+) -> str | None:
+    return _extract_collection_from_module_name(
+        module_name, builtin_collection_prefixes=builtin_collection_prefixes
+    )
 
 
 def collect_task_handler_catalog(
