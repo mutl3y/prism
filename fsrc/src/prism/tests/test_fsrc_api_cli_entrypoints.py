@@ -517,28 +517,16 @@ def test_fsrc_api_run_scan_falls_back_when_scan_pipeline_plugin_missing(
             scan_pipeline_plugin="custom",
         )
 
-    routing = payload["metadata"]["routing"]
-    warnings = payload["metadata"].get("plugin_runtime_warnings")
+    outcome = payload.get("metadata", {}).get("platform_routing_outcome", {})
+    routing = payload.get("metadata", {}).get("routing", {})
 
-    assert payload["metadata"]["features"]["task_files_scanned"] == 1
-    assert "plugin_runtime_marker" not in payload["metadata"]
-    assert routing == {
-        "mode": "legacy_orchestrator",
-        "selection_order": [
-            "request.option.scan_pipeline_plugin",
-            "policy_context.selection.plugin",
-            "platform",
-            "registry_default",
-        ],
-        "selected_plugin": "custom",
-        "failure_mode": "selected_plugin_missing",
-        "fallback_reason": "selected_plugin_missing",
-        "fallback_applied": True,
-    }
-    assert isinstance(warnings, list)
-    assert warnings
-    assert warnings[0]["code"] == "scan_pipeline_plugin_missing"
-    assert warnings[0]["metadata"]["routing"] == routing
+    assert outcome["outcome"] == "PLATFORM_NOT_REGISTERED"
+    assert outcome["platform"] == "custom"
+    assert outcome["supported"] is False
+    assert routing["mode"] == "unsupported"
+    assert routing["failure_mode"] == "platform_not_registered"
+    assert "plugin_runtime_marker" not in payload.get("metadata", {})
+    assert "plugin_runtime_warnings" not in payload.get("metadata", {})
 
 
 def test_fsrc_api_run_scan_plugin_failure_raises_when_strict(

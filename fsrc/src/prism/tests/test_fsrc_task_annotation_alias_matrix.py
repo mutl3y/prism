@@ -48,11 +48,16 @@ def _alias_matrix_lines() -> list[str]:
 
 def test_task_annotation_alias_matrix_via_task_annotation_parsing_shim() -> None:
     with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
         module = importlib.import_module(
             "prism.scanner_extract.task_annotation_parsing"
         )
+        options: dict = {"role_path": "/tmp", "exclude_path_patterns": None}
+        container = di_module.DIContainer(role_path="/tmp", scan_options=options)
+        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
         implicit, explicit = module._extract_task_annotations_for_file(
-            _alias_matrix_lines()
+            _alias_matrix_lines(), di=container
         )
 
     assert implicit == []
@@ -77,9 +82,14 @@ def test_task_annotation_alias_matrix_via_task_annotation_parsing_shim() -> None
 
 def test_task_annotation_alias_matrix_via_task_parser_shim_exports() -> None:
     with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
         parser_module = importlib.import_module("prism.scanner_extract.task_parser")
+        options: dict = {"role_path": "/tmp", "exclude_path_patterns": None}
+        container = di_module.DIContainer(role_path="/tmp", scan_options=options)
+        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
         implicit, explicit = parser_module._extract_task_annotations_for_file(
-            _alias_matrix_lines()
+            _alias_matrix_lines(), di=container
         )
 
     assert implicit == []

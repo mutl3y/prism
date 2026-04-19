@@ -320,6 +320,160 @@ def test_fsrc_runtime_policy_flag_fails_yaml_like_annotation_in_strict_mode(
     assert "yaml-like task annotations" in str(exc_info.value).lower()
 
 
+def test_fsrc_runtime_blocker_translation_after_payload_construction_preserves_strict_and_non_strict_outcomes(
+    tmp_path: Path,
+) -> None:
+    dynamic_role_path = tmp_path / "dynamic_role"
+    yaml_like_role_path = tmp_path / "yaml_like_role"
+    _build_role_with_dynamic_include(dynamic_role_path)
+    _build_role_with_yaml_like_task_annotation(yaml_like_role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+        errors_module = importlib.import_module("prism.errors")
+
+        with pytest.raises(errors_module.PrismRuntimeError) as dynamic_exc_info:
+            api_module.run_scan(
+                str(dynamic_role_path),
+                include_vars_main=True,
+                fail_on_unconstrained_dynamic_includes=True,
+                strict_phase_failures=True,
+            )
+
+        payload = api_module.run_scan(
+            str(yaml_like_role_path),
+            include_vars_main=True,
+            fail_on_yaml_like_task_annotations=True,
+            strict_phase_failures=False,
+        )
+
+    assert dynamic_exc_info.value.code == "unconstrained_dynamic_includes_detected"
+    assert dynamic_exc_info.value.detail == {
+        "dynamic_task_includes": 1,
+        "dynamic_role_includes": 0,
+    }
+    warnings = payload["metadata"].get("scan_policy_warnings")
+    assert warnings == [
+        {
+            "code": "yaml_like_task_annotations_detected",
+            "message": "Scan policy warning: yaml-like task annotations were detected.",
+            "detail": {"yaml_like_task_annotations": 1},
+        }
+    ]
+
+
+def test_fsrc_runtime_blocker_translation_runs_before_route_specific_warning_injection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "role"
+    _build_role_with_dynamic_include(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        class _RuntimeFailingPlugin:
+            def process_scan_pipeline(
+                self,
+                scan_options: dict[str, object],
+                scan_context: dict[str, object],
+            ) -> dict[str, object]:
+                del scan_options
+                del scan_context
+                return {"plugin_enabled": True, "plugin_name": "default"}
+
+            def orchestrate_scan_payload(
+                self,
+                *,
+                payload: dict[str, object],
+                scan_options: dict[str, object],
+                strict_mode: bool,
+                preflight_context: dict[str, object] | None = None,
+            ) -> dict[str, object]:
+                del payload
+                del scan_options
+                del strict_mode
+                del preflight_context
+                raise RuntimeError("runtime boom")
+
+        class _Registry:
+            @staticmethod
+            def get_scan_pipeline_plugin(name: str):
+                if name == "default":
+                    return _RuntimeFailingPlugin
+                return None
+
+        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        payload = api_module.run_scan(
+            str(role_path),
+            include_vars_main=True,
+            fail_on_unconstrained_dynamic_includes=True,
+            strict_phase_failures=False,
+            scan_pipeline_plugin="default",
+        )
+
+    assert payload["metadata"]["scan_policy_warnings"] == [
+        {
+            "code": "unconstrained_dynamic_includes_detected",
+            "message": "Scan policy warning: unconstrained dynamic include targets were detected.",
+            "detail": {
+                "dynamic_task_includes": 1,
+                "dynamic_role_includes": 0,
+            },
+        }
+    ]
+    plugin_runtime_warnings = payload["metadata"]["plugin_runtime_warnings"]
+    assert plugin_runtime_warnings[0]["code"] == "scan_pipeline_plugin_failed"
+    assert plugin_runtime_warnings[0]["message"] == (
+        "scan-pipeline runtime execution failed"
+    )
+    assert plugin_runtime_warnings[0]["metadata"]["routing"] == {
+        "mode": "scan_pipeline_plugin",
+        "selection_order": [
+            "request.option.scan_pipeline_plugin",
+            "policy_context.selection.plugin",
+            "platform",
+            "registry_default",
+        ],
+        "selected_plugin": "default",
+        "failure_mode": "runtime_execution_exception",
+        "fallback_reason": "runtime_execution_exception",
+        "fallback_applied": True,
+    }
+
+
+def test_fsrc_runtime_fallback_route_preserves_blocker_translation_before_legacy_warning_injection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "role"
+    _build_role_with_dynamic_include(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        class _Registry:
+            @staticmethod
+            def get_scan_pipeline_plugin(_name: str):
+                return None
+
+        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        payload = api_module.run_scan(
+            str(role_path),
+            include_vars_main=True,
+            fail_on_unconstrained_dynamic_includes=True,
+            strict_phase_failures=False,
+            scan_pipeline_plugin="custom",
+        )
+
+    assert (
+        payload.get("metadata", {}).get("platform_routing_outcome", {}).get("outcome")
+        == "PLATFORM_NOT_REGISTERED"
+    )
+    assert "scan_policy_warnings" not in payload.get("metadata", {})
+    assert "plugin_runtime_warnings" not in payload.get("metadata", {})
+
+
 def test_fsrc_runtime_underscore_ignore_toggle_filters_unresolved_output(
     tmp_path: Path,
 ) -> None:

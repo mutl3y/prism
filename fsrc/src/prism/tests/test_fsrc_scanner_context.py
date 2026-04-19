@@ -189,10 +189,10 @@ def test_fsrc_scanner_context_consumes_existing_canonical_options_without_rebuil
         options = _canonical_scan_options()
         options["scan_policy_warnings"] = [
             {
-                "code": "deprecated_policy_context_alias",
-                "message": "Deprecated marker-prefix policy alias used.",
+                "code": "sample_policy_warning",
+                "message": "Sample warning for test.",
                 "detail": {
-                    "alias_key": "policy_context.comment_doc_marker_prefix",
+                    "scope": "test",
                 },
             }
         ]
@@ -230,10 +230,10 @@ def test_fsrc_scanner_context_dedupes_canonical_policy_warnings() -> None:
         di_module = importlib.import_module("prism.scanner_core.di")
 
         ingress_warning = {
-            "code": "deprecated_policy_context_alias",
-            "message": "Deprecated marker-prefix policy alias used.",
+            "code": "sample_policy_warning",
+            "message": "Sample warning for test.",
             "detail": {
-                "alias_key": "policy_context.comment_doc_marker_prefix",
+                "scope": "test",
             },
         }
         metadata_only_warning = {
@@ -556,6 +556,10 @@ def test_fsrc_scanner_context_prepared_policy_bundle_rejects_invalid_bundle() ->
             role_path=options["role_path"],
             scan_options=options,
         )
+        container.inject_mock_variable_discovery(_DiscoveryStub(tuple()))
+        container.inject_mock_feature_detector(
+            _FeatureStub({"task_files_scanned": 1, "tasks_scanned": 2})
+        )
 
         context = core_module.ScannerContext(
             di=container,
@@ -565,8 +569,247 @@ def test_fsrc_scanner_context_prepared_policy_bundle_rejects_invalid_bundle() ->
             prepare_scan_context_fn=lambda _scan_options: _context_payload(),
         )
 
-        with pytest.raises(ValueError, match="prepared_policy_bundle"):
-            context.orchestrate_scan()
+        result = context.orchestrate_scan()
+
+    assert result["role_name"] == "demo"
+    assert recorder.calls == []
+
+
+def test_fsrc_scan_request_prepared_policy_bundle_rejects_missing_task_meta_keys_at_ingress() -> (
+    None
+):
+    class _MissingTaskMetaKeysPolicy:
+        TASK_INCLUDE_KEYS = {"include_tasks"}
+        ROLE_INCLUDE_KEYS = {"include_role"}
+        INCLUDE_VARS_KEYS = {"include_vars"}
+        SET_FACT_KEYS = {"set_fact"}
+        TASK_BLOCK_KEYS = {"block"}
+
+        @staticmethod
+        def detect_task_module(_task: dict[str, Any]) -> str:
+            return "debug"
+
+    with _prefer_fsrc_prism_on_sys_path():
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+
+        options = {
+            "prepared_policy_bundle": {
+                "task_line_parsing": _MissingTaskMetaKeysPolicy(),
+                "jinja_analysis": _PreparedJinjaPolicy(),
+            }
+        }
+
+        with pytest.raises(ValueError, match="TASK_META_KEYS"):
+            scan_request.ensure_prepared_policy_bundle(scan_options=options, di=None)
+
+
+def test_fsrc_scanner_context_emits_dynamic_include_blocker_facts_with_contract_counts_and_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        core_module = importlib.import_module("prism.scanner_core")
+        di_module = importlib.import_module("prism.scanner_core.di")
+        blocker_eval_module = importlib.import_module(
+            "prism.scanner_core.blocker_fact_evaluator"
+        )
+
+        options = _canonical_scan_options()
+        options["fail_on_unconstrained_dynamic_includes"] = True
+        options["exclude_path_patterns"] = ["tasks/generated/**"]
+        recorder = _BuildOptionsRecorder(options)
+        container = di_module.DIContainer(
+            role_path=options["role_path"],
+            scan_options=options,
+        )
+        container.inject_mock_variable_discovery(_DiscoveryStub(tuple()))
+        container.inject_mock_feature_detector(
+            _FeatureStub({"task_files_scanned": 1, "tasks_scanned": 2})
+        )
+
+        monkeypatch.setattr(
+            blocker_eval_module,
+            "collect_unconstrained_dynamic_task_includes",
+            lambda *_args, **_kwargs: [
+                {"task_file": "tasks/main.yml", "include_target": "{{ include_task }}"},
+                {
+                    "task_file": "tasks/extra.yml",
+                    "include_target": "{{ include_other }}",
+                },
+            ],
+        )
+        monkeypatch.setattr(
+            blocker_eval_module,
+            "collect_unconstrained_dynamic_role_includes",
+            lambda *_args, **_kwargs: [
+                {"task_file": "tasks/main.yml", "include_target": "{{ role_name }}"}
+            ],
+        )
+
+        context = core_module.ScannerContext(
+            di=container,
+            role_path=options["role_path"],
+            scan_options=options,
+            build_run_scan_options_fn=recorder,
+            prepare_scan_context_fn=lambda _scan_options: {
+                **_context_payload(),
+                "metadata": {
+                    "features": {
+                        "task_files_scanned": 1,
+                        "tasks_scanned": 2,
+                        "yaml_like_task_annotations": 0,
+                    }
+                },
+            },
+        )
+
+        result = context.orchestrate_scan()
+
+    blocker_facts = result["metadata"]["scan_policy_blocker_facts"]
+    assert blocker_facts["dynamic_includes"] == {
+        "enabled": True,
+        "task_count": 2,
+        "role_count": 1,
+        "total_count": 3,
+    }
+    assert blocker_facts["yaml_like_annotations"] == {
+        "enabled": False,
+        "count": 0,
+    }
+    assert blocker_facts["provenance"] == {
+        "role_path": "/tmp/role",
+        "exclude_path_patterns": ["tasks/generated/**"],
+        "metadata_feature_source": "metadata.features.yaml_like_task_annotations",
+        "dynamic_include_sources": [
+            "scanner_core.dynamic_include_audit.collect_unconstrained_dynamic_task_includes",
+            "scanner_core.dynamic_include_audit.collect_unconstrained_dynamic_role_includes",
+        ],
+    }
+    assert "scan_policy_warnings" not in result["metadata"]
+
+
+def test_fsrc_scanner_context_emits_yaml_like_blocker_facts_with_contract_counts_and_provenance() -> (
+    None
+):
+    with _prefer_fsrc_prism_on_sys_path():
+        core_module = importlib.import_module("prism.scanner_core")
+        di_module = importlib.import_module("prism.scanner_core.di")
+
+        options = _canonical_scan_options()
+        options["fail_on_yaml_like_task_annotations"] = True
+        recorder = _BuildOptionsRecorder(options)
+        container = di_module.DIContainer(
+            role_path=options["role_path"],
+            scan_options=options,
+        )
+        container.inject_mock_variable_discovery(_DiscoveryStub(tuple()))
+        container.inject_mock_feature_detector(
+            _FeatureStub({"task_files_scanned": 1, "tasks_scanned": 2})
+        )
+
+        context = core_module.ScannerContext(
+            di=container,
+            role_path=options["role_path"],
+            scan_options=options,
+            build_run_scan_options_fn=recorder,
+            prepare_scan_context_fn=lambda _scan_options: {
+                **_context_payload(),
+                "metadata": {
+                    "features": {
+                        "task_files_scanned": 1,
+                        "tasks_scanned": 2,
+                        "yaml_like_task_annotations": 4,
+                    }
+                },
+            },
+        )
+
+        result = context.orchestrate_scan()
+
+    blocker_facts = result["metadata"]["scan_policy_blocker_facts"]
+    assert blocker_facts["dynamic_includes"] == {
+        "enabled": False,
+        "task_count": 0,
+        "role_count": 0,
+        "total_count": 0,
+    }
+    assert blocker_facts["yaml_like_annotations"] == {
+        "enabled": True,
+        "count": 4,
+    }
+    assert blocker_facts["provenance"] == {
+        "role_path": "/tmp/role",
+        "exclude_path_patterns": None,
+        "metadata_feature_source": "metadata.features.yaml_like_task_annotations",
+        "dynamic_include_sources": [
+            "scanner_core.dynamic_include_audit.collect_unconstrained_dynamic_task_includes",
+            "scanner_core.dynamic_include_audit.collect_unconstrained_dynamic_role_includes",
+        ],
+    }
+    assert "scan_policy_warnings" not in result["metadata"]
+
+
+def test_fsrc_scanner_context_does_not_translate_blocker_outcomes_locally(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        core_module = importlib.import_module("prism.scanner_core")
+        di_module = importlib.import_module("prism.scanner_core.di")
+        blocker_eval_module = importlib.import_module(
+            "prism.scanner_core.blocker_fact_evaluator"
+        )
+
+        options = _canonical_scan_options()
+        options["strict_phase_failures"] = True
+        options["fail_on_unconstrained_dynamic_includes"] = True
+        options["fail_on_yaml_like_task_annotations"] = True
+        recorder = _BuildOptionsRecorder(options)
+        container = di_module.DIContainer(
+            role_path=options["role_path"],
+            scan_options=options,
+        )
+        container.inject_mock_variable_discovery(_DiscoveryStub(tuple()))
+        container.inject_mock_feature_detector(
+            _FeatureStub({"task_files_scanned": 1, "tasks_scanned": 2})
+        )
+
+        monkeypatch.setattr(
+            blocker_eval_module,
+            "collect_unconstrained_dynamic_task_includes",
+            lambda *_args, **_kwargs: [
+                {"task_file": "tasks/main.yml", "include_target": "{{ include_task }}"}
+            ],
+        )
+        monkeypatch.setattr(
+            blocker_eval_module,
+            "collect_unconstrained_dynamic_role_includes",
+            lambda *_args, **_kwargs: [
+                {"task_file": "tasks/main.yml", "include_target": "{{ role_name }}"}
+            ],
+        )
+
+        context = core_module.ScannerContext(
+            di=container,
+            role_path=options["role_path"],
+            scan_options=options,
+            build_run_scan_options_fn=recorder,
+            prepare_scan_context_fn=lambda _scan_options: {
+                **_context_payload(),
+                "metadata": {
+                    "features": {
+                        "task_files_scanned": 1,
+                        "tasks_scanned": 2,
+                        "yaml_like_task_annotations": 2,
+                    }
+                },
+            },
+        )
+
+        result = context.orchestrate_scan()
+
+    blocker_facts = result["metadata"]["scan_policy_blocker_facts"]
+    assert blocker_facts["dynamic_includes"]["total_count"] == 2
+    assert blocker_facts["yaml_like_annotations"]["count"] == 2
+    assert "scan_policy_warnings" not in result["metadata"]
 
 
 def test_fsrc_scanner_core_builds_non_collection_execution_request() -> None:

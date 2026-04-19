@@ -20,6 +20,7 @@ _SCAN_PIPELINE_SELECTION_ORDER: tuple[str, ...] = (
 
 _ROUTING_MODE_PLUGIN = "scan_pipeline_plugin"
 _ROUTING_MODE_LEGACY = "legacy_orchestrator"
+_RESERVED_UNSUPPORTED_PLATFORMS: frozenset[str] = frozenset({"kubernetes", "terraform"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +98,18 @@ def _resolve_policy_context_scan_pipeline_plugin_name(
         return None
 
     return plugin_name.strip()
+
+
+def _is_explicitly_selected_plugin_name(scan_options: dict[str, Any]) -> bool:
+    configured = scan_options.get("scan_pipeline_plugin")
+    if isinstance(configured, str) and configured.strip():
+        return True
+    if _resolve_policy_context_scan_pipeline_plugin_name(scan_options) is not None:
+        return True
+    platform = scan_options.get("platform")
+    if isinstance(platform, str) and platform.strip():
+        return True
+    return False
 
 
 def resolve_scan_pipeline_plugin_name(
@@ -221,6 +234,95 @@ def _append_scan_pipeline_warning(
     return payload
 
 
+def _append_scan_policy_warning(
+    *,
+    payload: dict[str, Any],
+    code: str,
+    message: str,
+    detail: dict[str, Any],
+) -> dict[str, Any]:
+    warning_metadata = _ensure_payload_metadata(payload)
+    existing_warnings = warning_metadata.get("scan_policy_warnings")
+    warnings_list = (
+        list(existing_warnings) if isinstance(existing_warnings, list) else []
+    )
+    warning = {
+        "code": code,
+        "message": message,
+        "detail": copy.deepcopy(detail),
+    }
+    if warning not in warnings_list:
+        warnings_list.append(warning)
+    warning_metadata["scan_policy_warnings"] = warnings_list
+    return payload
+
+
+def apply_scan_policy_blocker_runtime_outcomes(
+    *,
+    payload: dict[str, Any],
+    strict_mode: bool,
+) -> dict[str, Any]:
+    """Translate emitted blocker facts into preserved runtime outcomes."""
+    metadata = _ensure_payload_metadata(payload)
+    blocker_facts = metadata.get("scan_policy_blocker_facts")
+    if not isinstance(blocker_facts, dict):
+        return payload
+
+    blocker_events: list[tuple[str, str, str, dict[str, Any]]] = []
+
+    dynamic_facts = blocker_facts.get("dynamic_includes")
+    if isinstance(dynamic_facts, dict):
+        dynamic_total = int(dynamic_facts.get("total_count") or 0)
+        if bool(dynamic_facts.get("enabled")) and dynamic_total > 0:
+            blocker_events.append(
+                (
+                    "unconstrained_dynamic_includes_detected",
+                    "Scan policy failure: unconstrained dynamic include targets were detected.",
+                    "Scan policy warning: unconstrained dynamic include targets were detected.",
+                    {
+                        "dynamic_task_includes": int(
+                            dynamic_facts.get("task_count") or 0
+                        ),
+                        "dynamic_role_includes": int(
+                            dynamic_facts.get("role_count") or 0
+                        ),
+                    },
+                )
+            )
+
+    yaml_like_facts = blocker_facts.get("yaml_like_annotations")
+    if isinstance(yaml_like_facts, dict):
+        yaml_like_count = int(yaml_like_facts.get("count") or 0)
+        if bool(yaml_like_facts.get("enabled")) and yaml_like_count > 0:
+            blocker_events.append(
+                (
+                    "yaml_like_task_annotations_detected",
+                    "Scan policy failure: yaml-like task annotations were detected.",
+                    "Scan policy warning: yaml-like task annotations were detected.",
+                    {"yaml_like_task_annotations": yaml_like_count},
+                )
+            )
+
+    if strict_mode and blocker_events:
+        code, failure_message, _warning_message, detail = blocker_events[0]
+        raise PrismRuntimeError(
+            code=code,
+            category="runtime",
+            message=failure_message,
+            detail=detail,
+        )
+
+    for code, _failure_message, warning_message, detail in blocker_events:
+        _append_scan_policy_warning(
+            payload=payload,
+            code=code,
+            message=warning_message,
+            detail=detail,
+        )
+
+    return payload
+
+
 def _build_route_preflight_runtime_carrier(
     *,
     plugin_name: str,
@@ -294,17 +396,39 @@ def _fallback_to_legacy_orchestrator(
     legacy_orchestrator_fn: Callable[..., dict[str, Any]],
     role_path: str,
     scan_options: dict[str, Any],
+    strict_mode: bool,
     warning_code: str,
     warning_message: str,
     routing: dict[str, Any],
 ) -> dict[str, Any]:
     payload = legacy_orchestrator_fn(role_path=role_path, scan_options=scan_options)
+    payload = apply_scan_policy_blocker_runtime_outcomes(
+        payload=payload,
+        strict_mode=strict_mode,
+    )
     return _append_scan_pipeline_warning(
         payload=payload,
         code=warning_code,
         message=warning_message,
         routing=routing,
     )
+
+
+def _build_platform_routing_outcome_payload(
+    *,
+    plugin_name: str,
+    outcome_code: str,
+    routing: dict[str, Any],
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    _apply_routing_metadata(payload=payload, routing=routing)
+    metadata = _ensure_payload_metadata(payload)
+    metadata["platform_routing_outcome"] = {
+        "outcome": outcome_code,
+        "platform": plugin_name,
+        "supported": False,
+    }
+    return payload
 
 
 def _orchestrate_scan_payload_with_plugin_instance(
@@ -351,6 +475,10 @@ def orchestrate_scan_payload_with_selected_plugin(
     registry: Any | None = None,
 ) -> dict[str, Any]:
     payload = build_payload_fn()
+    payload = apply_scan_policy_blocker_runtime_outcomes(
+        payload=payload,
+        strict_mode=strict_mode,
+    )
     registry_obj = registry or DEFAULT_PLUGIN_REGISTRY
     plugin_name = "unresolved"
     existing_preflight_routing: dict[str, Any] = {}
@@ -460,10 +588,14 @@ def route_scan_payload_orchestration(
     registry: Any | None = None,
 ) -> dict[str, Any]:
     """Route orchestration using registered scan-pipeline plugin decision context."""
-    if not callable(kernel_orchestrator_fn):
-        return legacy_orchestrator_fn(role_path=role_path, scan_options=scan_options)
-
     strict_mode = bool(scan_options.get("strict_phase_failures", True))
+    if not callable(kernel_orchestrator_fn):
+        payload = legacy_orchestrator_fn(role_path=role_path, scan_options=scan_options)
+        return apply_scan_policy_blocker_runtime_outcomes(
+            payload=payload,
+            strict_mode=strict_mode,
+        )
+
     registry_obj = registry or DEFAULT_PLUGIN_REGISTRY
 
     try:
@@ -491,6 +623,7 @@ def route_scan_payload_orchestration(
             legacy_orchestrator_fn=legacy_orchestrator_fn,
             role_path=role_path,
             scan_options=scan_options,
+            strict_mode=strict_mode,
             warning_code="scan_pipeline_default_unavailable",
             warning_message=exc.message,
             routing=_merge_routing_metadata(
@@ -519,6 +652,7 @@ def route_scan_payload_orchestration(
             legacy_orchestrator_fn=legacy_orchestrator_fn,
             role_path=role_path,
             scan_options=scan_options,
+            strict_mode=strict_mode,
             warning_code="scan_pipeline_router_failed",
             warning_message="scan-pipeline router failed during route resolution",
             routing=_merge_routing_metadata(
@@ -554,6 +688,7 @@ def route_scan_payload_orchestration(
             legacy_orchestrator_fn=legacy_orchestrator_fn,
             role_path=role_path,
             scan_options=scan_options,
+            strict_mode=strict_mode,
             warning_code="scan_pipeline_router_failed",
             warning_message="scan-pipeline router failed during route resolution",
             routing=_merge_routing_metadata(
@@ -566,6 +701,42 @@ def route_scan_payload_orchestration(
         )
 
     if plugin_class is None:
+        if plugin_name in _RESERVED_UNSUPPORTED_PLATFORMS:
+            routing = _build_routing_metadata(
+                mode="unsupported",
+                selected_plugin=plugin_name,
+                failure_mode="platform_not_supported",
+                include_selection_order=True,
+            )
+            if strict_mode:
+                _raise_contract_error(
+                    code="platform_not_supported",
+                    message=f"selected platform '{plugin_name}' is reserved but not supported for scanning",
+                    routing=routing,
+                )
+            return _build_platform_routing_outcome_payload(
+                plugin_name=plugin_name,
+                outcome_code="PLATFORM_NOT_SUPPORTED",
+                routing=routing,
+            )
+        if _is_explicitly_selected_plugin_name(scan_options):
+            routing = _build_routing_metadata(
+                mode="unsupported",
+                selected_plugin=plugin_name,
+                failure_mode="platform_not_registered",
+                include_selection_order=True,
+            )
+            if strict_mode:
+                _raise_contract_error(
+                    code="platform_not_registered",
+                    message=f"selected platform '{plugin_name}' is not registered",
+                    routing=routing,
+                )
+            return _build_platform_routing_outcome_payload(
+                plugin_name=plugin_name,
+                outcome_code="PLATFORM_NOT_REGISTERED",
+                routing=routing,
+            )
         routing = _build_routing_metadata(
             mode=_ROUTING_MODE_LEGACY,
             selected_plugin=plugin_name,
@@ -582,6 +753,7 @@ def route_scan_payload_orchestration(
             legacy_orchestrator_fn=legacy_orchestrator_fn,
             role_path=role_path,
             scan_options=scan_options,
+            strict_mode=strict_mode,
             warning_code="scan_pipeline_plugin_missing",
             warning_message="selected scan-pipeline plugin is not registered",
             routing=_merge_routing_metadata(
@@ -618,6 +790,7 @@ def route_scan_payload_orchestration(
             legacy_orchestrator_fn=legacy_orchestrator_fn,
             role_path=role_path,
             scan_options=scan_options,
+            strict_mode=strict_mode,
             warning_code="scan_pipeline_router_failed",
             warning_message="scan-pipeline router failed during plugin preflight",
             routing=_merge_routing_metadata(

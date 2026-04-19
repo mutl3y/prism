@@ -1,7 +1,8 @@
-"""Domain-neutral default policy implementations.
+"""Generic base default policy implementations.
 
-Defaults are concrete policy classes that expose stable contracts without
-inheriting from platform-labeled policy classes.
+Defaults are concrete policy classes that expose stable, platform-agnostic
+contracts.  Platform plugins (e.g. Ansible) extend these base sets with
+their own collection-qualified module names.
 """
 
 from __future__ import annotations
@@ -18,17 +19,13 @@ from prism.scanner_plugins.parsers.yaml import YAMLParsingPolicyPlugin
 TASK_INCLUDE_KEYS = {
     "include_tasks",
     "import_tasks",
-    "ansible.builtin.include_tasks",
-    "ansible.builtin.import_tasks",
 }
 ROLE_INCLUDE_KEYS = {
     "include_role",
     "import_role",
-    "ansible.builtin.include_role",
-    "ansible.builtin.import_role",
 }
-INCLUDE_VARS_KEYS = {"include_vars", "ansible.builtin.include_vars"}
-SET_FACT_KEYS = {"set_fact", "ansible.builtin.set_fact"}
+INCLUDE_VARS_KEYS = {"include_vars"}
+SET_FACT_KEYS = {"set_fact"}
 TASK_BLOCK_KEYS = ("block", "rescue", "always")
 TASK_META_KEYS = {
     "name",

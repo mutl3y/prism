@@ -34,7 +34,23 @@ def build_reserved_target_capability_response() -> dict[str, object]:
     return {
         "target_type": TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["target_type"],
         "support_state": TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["support_state"],
-        "degraded_success": True,
+        "degraded_success": False,
+        "summary": "Terraform support is reserved but not implemented.",
+        "guidance": (
+            "The reserved Terraform package exposes capability-only metadata; "
+            "scanning is not implemented yet."
+        ),
+        "plugin_id": TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["plugin_id"],
+        "error_code": STUBBED_TARGET_CAPABILITY_ERROR_CODE,
+    }
+
+
+def build_unsupported_scan_pipeline_outcome() -> dict[str, object]:
+    return {
+        "target_type": TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["target_type"],
+        "support_state": TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["support_state"],
+        "outcome": "PLATFORM_NOT_SUPPORTED",
+        "supported": False,
         "summary": "Terraform support is reserved but not implemented.",
         "guidance": (
             "The reserved Terraform package exposes capability-only metadata; "
@@ -50,4 +66,5 @@ __all__ = [
     "TERRAFORM_RESERVED_TARGET_PLUGIN_MANIFEST",
     "build_reserved_target_capability_response",
     "build_reserved_target_classifier_entry",
+    "build_unsupported_scan_pipeline_outcome",
 ]

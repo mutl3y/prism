@@ -623,6 +623,51 @@ def test_fsrc_kernel_route_orchestration_default_unavailable_warns_with_contract
     ]
 
 
+def test_fsrc_kernel_route_orchestration_falls_back_when_registry_plugin_missing(
+    monkeypatch,
+) -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+
+    def _legacy_orchestrator(
+        *, role_path: str, scan_options: dict[str, object]
+    ) -> dict[str, object]:
+        del role_path
+        del scan_options
+        return {"lane": "legacy", "metadata": {}}
+
+    def _kernel_orchestrator(
+        *, role_path: str, scan_options: dict[str, object]
+    ) -> dict[str, object]:
+        return {"lane": "kernel", "role_path": role_path, "scan_options": scan_options}
+
+    class _MissingRegistry:
+        @staticmethod
+        def get_scan_pipeline_plugin(_name: str):
+            return None
+
+    monkeypatch.setattr(
+        orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _MissingRegistry()
+    )
+    result = orchestrator_module.route_scan_payload_orchestration(
+        role_path="/tmp/role",
+        scan_options={"scan_pipeline_plugin": "custom", "strict_phase_failures": False},
+        legacy_orchestrator_fn=_legacy_orchestrator,
+        kernel_orchestrator_fn=_kernel_orchestrator,
+    )
+
+    outcome = result.get("metadata", {}).get("platform_routing_outcome", {})
+    assert outcome["outcome"] == "PLATFORM_NOT_REGISTERED"
+    assert outcome["platform"] == "custom"
+    assert outcome["supported"] is False
+    routing = result.get("metadata", {}).get("routing", {})
+    assert routing["mode"] == "unsupported"
+    assert routing["failure_mode"] == "platform_not_registered"
+    assert "plugin_runtime_warnings" not in result.get("metadata", {})
+
+
 def test_fsrc_kernel_route_orchestration_selected_plugin_missing_warns_with_metadata(
     monkeypatch,
 ) -> None:
@@ -656,41 +701,23 @@ def test_fsrc_kernel_route_orchestration_selected_plugin_missing_warns_with_meta
         kernel_orchestrator_fn=_kernel_orchestrator,
     )
 
-    assert result["lane"] == "legacy"
-    assert result["metadata"]["routing"] == {
-        "mode": "legacy_orchestrator",
+    outcome = result.get("metadata", {}).get("platform_routing_outcome", {})
+    assert outcome["outcome"] == "PLATFORM_NOT_REGISTERED"
+    assert outcome["platform"] == "custom"
+    assert outcome["supported"] is False
+    routing = result.get("metadata", {}).get("routing", {})
+    assert routing == {
+        "mode": "unsupported",
         "selection_order": [
             "request.option.scan_pipeline_plugin",
             "policy_context.selection.plugin",
             "platform",
             "registry_default",
         ],
-        "failure_mode": "selected_plugin_missing",
-        "fallback_reason": "selected_plugin_missing",
-        "fallback_applied": True,
+        "failure_mode": "platform_not_registered",
         "selected_plugin": "custom",
     }
-    assert result["metadata"]["plugin_runtime_warnings"] == [
-        {
-            "code": "scan_pipeline_plugin_missing",
-            "message": "selected scan-pipeline plugin is not registered",
-            "metadata": {
-                "routing": {
-                    "mode": "legacy_orchestrator",
-                    "selection_order": [
-                        "request.option.scan_pipeline_plugin",
-                        "policy_context.selection.plugin",
-                        "platform",
-                        "registry_default",
-                    ],
-                    "failure_mode": "selected_plugin_missing",
-                    "fallback_reason": "selected_plugin_missing",
-                    "fallback_applied": True,
-                    "selected_plugin": "custom",
-                }
-            },
-        }
-    ]
+    assert "plugin_runtime_warnings" not in result.get("metadata", {})
 
 
 def test_fsrc_kernel_route_orchestration_preflight_failure_warns_with_contract_metadata(

@@ -11,11 +11,9 @@ from typing import Any, Callable, cast
 from prism.errors import PrismRuntimeError
 from prism.scanner_core import scan_request
 from prism.scanner_data.contracts_request import ScanContextPayload, ScanOptionsDict
-from prism.scanner_core.dynamic_include_audit import (
-    collect_unconstrained_dynamic_role_includes,
-)
-from prism.scanner_core.dynamic_include_audit import (
-    collect_unconstrained_dynamic_task_includes,
+from prism.scanner_data.contracts_request import ScanPolicyBlockerFacts
+from prism.scanner_core.blocker_fact_evaluator import (
+    build_scan_policy_blocker_facts as _build_blocker_facts,
 )
 
 _REQUIRED_SCAN_OPTION_KEYS: set[str] = {
@@ -42,41 +40,6 @@ _REQUIRED_SCAN_OPTION_KEYS: set[str] = {
 }
 
 _RECOVERABLE_PHASE_ERRORS: tuple[type[Exception], ...] = (PrismRuntimeError,)
-_TASK_LINE_REQUIRED_ATTRIBUTES: tuple[str, ...] = (
-    "TASK_INCLUDE_KEYS",
-    "ROLE_INCLUDE_KEYS",
-    "INCLUDE_VARS_KEYS",
-    "SET_FACT_KEYS",
-    "TASK_BLOCK_KEYS",
-    "TASK_META_KEYS",
-)
-
-
-def _validate_task_line_policy(policy: object) -> None:
-    if not callable(getattr(policy, "detect_task_module", None)):
-        raise ValueError(
-            "prepared_policy_bundle.task_line_parsing must provide "
-            "detect_task_module"
-        )
-
-    missing_attributes = [
-        name
-        for name in _TASK_LINE_REQUIRED_ATTRIBUTES
-        if getattr(policy, name, None) is None
-    ]
-    if missing_attributes:
-        raise ValueError(
-            "prepared_policy_bundle.task_line_parsing is missing required "
-            "attributes: " + ", ".join(missing_attributes)
-        )
-
-
-def _validate_jinja_analysis_policy(policy: object) -> None:
-    if not callable(getattr(policy, "collect_undeclared_jinja_variables", None)):
-        raise ValueError(
-            "prepared_policy_bundle.jinja_analysis must provide "
-            "collect_undeclared_jinja_variables"
-        )
 
 
 def _require_prepared_policy_bundle(
@@ -95,7 +58,6 @@ def _require_prepared_policy_bundle(
             "prepared_policy_bundle.task_line_parsing must be provided before "
             "ScannerContext orchestration"
         )
-    _validate_task_line_policy(task_line_policy)
 
     jinja_analysis_policy = prepared_policy_bundle.get("jinja_analysis")
     if jinja_analysis_policy is None:
@@ -103,7 +65,6 @@ def _require_prepared_policy_bundle(
             "prepared_policy_bundle.jinja_analysis must be provided before "
             "ScannerContext orchestration"
         )
-    _validate_jinja_analysis_policy(jinja_analysis_policy)
 
     return cast(dict[str, Any], prepared_policy_bundle)
 
@@ -474,7 +435,7 @@ class ScannerContext:
             display_variables=display_variables,
         )
 
-        self._enforce_failure_policies(
+        metadata["scan_policy_blocker_facts"] = self._build_scan_policy_blocker_facts(
             scan_options=self._scan_options,
             metadata=metadata,
         )
@@ -495,80 +456,17 @@ class ScannerContext:
             "metadata": metadata,
         }
 
-    def _append_policy_warning(
-        self,
-        metadata: dict[str, Any],
-        *,
-        code: str,
-        message: str,
-        detail: dict[str, Any],
-    ) -> None:
-        warnings = metadata.get("scan_policy_warnings")
-        warning_list = list(warnings) if isinstance(warnings, list) else []
-        warning_list.append({"code": code, "message": message, "detail": detail})
-        metadata["scan_policy_warnings"] = warning_list
-
-    def _enforce_failure_policies(
+    def _build_scan_policy_blocker_facts(
         self,
         *,
         scan_options: ScanOptionsDict,
         metadata: dict[str, Any],
-    ) -> None:
-        features = metadata.get("features")
-        feature_map = dict(features) if isinstance(features, dict) else {}
-
-        if bool(scan_options.get("fail_on_unconstrained_dynamic_includes")):
-            dynamic_task_includes = collect_unconstrained_dynamic_task_includes(
-                str(scan_options["role_path"]),
-                exclude_paths=scan_options.get("exclude_path_patterns"),
-                di=self._di,
-            )
-            dynamic_role_includes = collect_unconstrained_dynamic_role_includes(
-                str(scan_options["role_path"]),
-                exclude_paths=scan_options.get("exclude_path_patterns"),
-                di=self._di,
-            )
-            dynamic_task_count = len(dynamic_task_includes)
-            dynamic_role_count = len(dynamic_role_includes)
-            dynamic_total = dynamic_task_count + dynamic_role_count
-            if dynamic_total > 0:
-                detail = {
-                    "dynamic_task_includes": dynamic_task_count,
-                    "dynamic_role_includes": dynamic_role_count,
-                }
-                if self._strict_phase_failures:
-                    raise PrismRuntimeError(
-                        code="unconstrained_dynamic_includes_detected",
-                        category="runtime",
-                        message="Scan policy failure: unconstrained dynamic include targets were detected.",
-                        detail=detail,
-                    )
-                self._append_policy_warning(
-                    metadata,
-                    code="unconstrained_dynamic_includes_detected",
-                    message="Scan policy warning: unconstrained dynamic include targets were detected.",
-                    detail=detail,
-                )
-
-        yaml_like_count = int(feature_map.get("yaml_like_task_annotations") or 0)
-        if (
-            bool(scan_options.get("fail_on_yaml_like_task_annotations"))
-            and yaml_like_count > 0
-        ):
-            detail = {"yaml_like_task_annotations": yaml_like_count}
-            if self._strict_phase_failures:
-                raise PrismRuntimeError(
-                    code="yaml_like_task_annotations_detected",
-                    category="runtime",
-                    message="Scan policy failure: yaml-like task annotations were detected.",
-                    detail=detail,
-                )
-            self._append_policy_warning(
-                metadata,
-                code="yaml_like_task_annotations_detected",
-                message="Scan policy warning: yaml-like task annotations were detected.",
-                detail=detail,
-            )
+    ) -> ScanPolicyBlockerFacts:
+        return _build_blocker_facts(
+            scan_options=scan_options,
+            metadata=metadata,
+            di=self._di,
+        )
 
     def _apply_underscore_reference_policy(
         self,

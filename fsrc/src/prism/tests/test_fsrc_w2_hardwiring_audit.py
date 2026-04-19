@@ -51,6 +51,7 @@ def test_fsrc_variable_discovery_ignores_jinja_local_bindings(tmp_path) -> None:
         discovery_module = importlib.import_module(
             "prism.scanner_core.variable_discovery"
         )
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
         options = {
             "role_path": str(role_path),
             "include_vars_main": True,
@@ -60,6 +61,7 @@ def test_fsrc_variable_discovery_ignores_jinja_local_bindings(tmp_path) -> None:
             role_path=str(role_path),
             scan_options=options,
         )
+        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
         discovery = discovery_module.VariableDiscovery(
             container,
             str(role_path),
@@ -90,6 +92,7 @@ def test_fsrc_variable_discovery_collects_yaml_parse_failure_metadata(tmp_path) 
         discovery_module = importlib.import_module(
             "prism.scanner_core.variable_discovery"
         )
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
         options = {
             "role_path": str(role_path),
             "include_vars_main": True,
@@ -99,6 +102,7 @@ def test_fsrc_variable_discovery_collects_yaml_parse_failure_metadata(tmp_path) 
             role_path=str(role_path),
             scan_options=options,
         )
+        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
         discovery = discovery_module.VariableDiscovery(
             container,
             str(role_path),
@@ -131,12 +135,24 @@ def test_fsrc_task_file_traversal_exposes_unresolved_include_edges(tmp_path) -> 
     )
 
     with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
         traversal_module = importlib.import_module(
             "prism.scanner_extract.task_file_traversal"
         )
+        options: dict = {
+            "role_path": str(role_path),
+            "exclude_path_patterns": None,
+        }
+        container = di_module.DIContainer(
+            role_path=str(role_path),
+            scan_options=options,
+        )
+        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
         task_files, unresolved_edges = (
             traversal_module._collect_task_files_with_unresolved_includes(
                 role_path.resolve(),
+                di=container,
             )
         )
 
@@ -154,14 +170,26 @@ def test_fsrc_task_file_traversal_load_yaml_records_failure_metadata(tmp_path) -
     bad_file.write_text("bad: [\n", encoding="utf-8")
 
     with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
         traversal_module = importlib.import_module(
             "prism.scanner_extract.task_file_traversal"
         )
+        options: dict = {
+            "role_path": str(role_path),
+            "exclude_path_patterns": None,
+        }
+        container = di_module.DIContainer(
+            role_path=str(role_path),
+            scan_options=options,
+        )
+        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
         failures: list[dict[str, object]] = []
         loaded = traversal_module._load_yaml_file(
             bad_file,
             yaml_failure_collector=failures,
             role_root=role_path.resolve(),
+            di=container,
         )
 
     assert loaded is None

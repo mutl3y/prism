@@ -72,6 +72,7 @@ def test_fsrc_feature_detector_detects_feature_counter_shape(tmp_path) -> None:
 
     with _prefer_fsrc_prism_on_sys_path():
         di_module = importlib.import_module("prism.scanner_core.di")
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
         feature_detector_module = importlib.import_module(
             "prism.scanner_core.feature_detector"
         )
@@ -83,6 +84,7 @@ def test_fsrc_feature_detector_detects_feature_counter_shape(tmp_path) -> None:
             role_path=str(role_path),
             scan_options=options,
         )
+        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
         detector = feature_detector_module.FeatureDetector(
             container,
             str(role_path),
@@ -135,20 +137,33 @@ def test_fsrc_feature_detector_task_catalog_shape_parity(tmp_path) -> None:
     )
 
     with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
         feature_detector_module = importlib.import_module(
             "prism.scanner_core.feature_detector"
         )
         scanner_extract_module = importlib.import_module(
             "prism.scanner_extract.task_parser"
         )
+        options: dict = {
+            "role_path": str(role_path),
+            "exclude_path_patterns": None,
+        }
+        container = di_module.DIContainer(
+            role_path=str(role_path),
+            scan_options=options,
+        )
+        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
 
         task_entries, handler_entries = (
-            scanner_extract_module._collect_task_handler_catalog(str(role_path))
+            scanner_extract_module._collect_task_handler_catalog(
+                str(role_path), di=container
+            )
         )
         detector = feature_detector_module.FeatureDetector(
-            di=object(),
+            di=container,
             role_path=str(role_path),
-            options={"role_path": str(role_path), "exclude_path_patterns": None},
+            options=options,
         )
         catalog = detector.analyze_task_catalog()
 
@@ -237,3 +252,126 @@ def test_fsrc_feature_detector_routes_via_plugin_when_available() -> None:
     assert features["task_files_scanned"] == 99
     assert features["unique_modules"] == "plugin.module"
     assert "plugin/tasks.yml" in catalog
+
+
+def test_fsrc_feature_detector_annotation_hot_path_uses_canonical_comment_doc_marker_prefix(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    role_path = tmp_path
+    (role_path / "tasks").mkdir()
+    (role_path / "tasks" / "main.yml").write_text(
+        "# ignored\n- name: demo\n  debug:\n    msg: ok\n",
+        encoding="utf-8",
+    )
+
+    captured_prefixes: list[str] = []
+
+    with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        feature_detector_module = importlib.import_module(
+            "prism.scanner_core.feature_detector"
+        )
+        adapters_module = importlib.import_module(
+            "prism.scanner_core.task_extract_adapters"
+        )
+
+        def _capture_extract(
+            _raw_lines,
+            *,
+            marker_prefix: str = "prism",
+            include_task_index: bool = False,
+            di=None,
+        ):
+            del include_task_index, di
+            captured_prefixes.append(marker_prefix)
+            return [], {}
+
+        monkeypatch.setattr(
+            adapters_module, "_extract_task_annotations_for_file", _capture_extract
+        )
+
+        options = {
+            "role_path": str(role_path),
+            "exclude_path_patterns": None,
+            "comment_doc_marker_prefix": "canonical.hot.path",
+            "policy_context": {
+                "comment_doc": {"marker": {"prefix": "nested.ignore"}},
+            },
+        }
+        container = di_module.DIContainer(
+            role_path=str(role_path),
+            scan_options=options,
+        )
+        scan_request_module = importlib.import_module("prism.scanner_core.scan_request")
+        scan_request_module.ensure_prepared_policy_bundle(
+            scan_options=options, di=container
+        )
+        detector = feature_detector_module.FeatureDetector(
+            container,
+            str(role_path),
+            options,
+        )
+        detector.detect()
+
+    assert captured_prefixes == ["canonical.hot.path"]
+
+
+def test_fsrc_feature_detector_collect_task_handler_catalog_hot_path_uses_canonical_comment_doc_marker_prefix(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    role_path = tmp_path
+    (role_path / "tasks").mkdir()
+    (role_path / "handlers").mkdir()
+
+    captured_prefixes: list[str] = []
+
+    with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        feature_detector_module = importlib.import_module(
+            "prism.scanner_core.feature_detector"
+        )
+        adapters_module = importlib.import_module(
+            "prism.scanner_core.task_extract_adapters"
+        )
+
+        def _capture_catalog(
+            _role_path,
+            exclude_paths=None,
+            marker_prefix: str = "prism",
+            *,
+            di=None,
+        ):
+            del exclude_paths, di
+            captured_prefixes.append(marker_prefix)
+            return [], []
+
+        monkeypatch.setattr(
+            adapters_module, "_collect_task_handler_catalog", _capture_catalog
+        )
+
+        options = {
+            "role_path": str(role_path),
+            "exclude_path_patterns": None,
+            "comment_doc_marker_prefix": "canonical.catalog",
+            "policy_context": {
+                "comment_doc": {"marker": {"prefix": "nested.ignore"}},
+            },
+        }
+        container = di_module.DIContainer(
+            role_path=str(role_path),
+            scan_options=options,
+        )
+        scan_request_module = importlib.import_module("prism.scanner_core.scan_request")
+        scan_request_module.ensure_prepared_policy_bundle(
+            scan_options=options, di=container
+        )
+        detector = feature_detector_module.FeatureDetector(
+            container,
+            str(role_path),
+            options,
+        )
+        detector.collect_task_handler_catalog()
+
+    assert captured_prefixes == ["canonical.catalog"]

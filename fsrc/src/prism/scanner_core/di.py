@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable
 
-try:
-    from prism.scanner_data.builders import VariableRowBuilder
-except ModuleNotFoundError:
+from prism.scanner_data.builders import VariableRowBuilder
 
-    class VariableRowBuilder:  # pragma: no cover - fallback for fsrc bootstrap only
-        """Minimal fallback builder for fsrc bootstrap wiring."""
 
-        pass
+def _get_plugin_registry() -> Any:
+    """Lazy-import and return the bootstrapped default plugin registry."""
+    from prism.scanner_plugins import DEFAULT_PLUGIN_REGISTRY
+
+    return DEFAULT_PLUGIN_REGISTRY
 
 
 if TYPE_CHECKING:
@@ -151,25 +151,64 @@ class DIContainer:
             self._cache[key] = VariableRowBuilder()
         return self._cache[key]
 
-    def factory_variable_discovery_plugin(self) -> Any | None:
-        """Resolve optional variable-discovery plugin from DI wiring."""
+    def _resolve_platform_key(self) -> str:
+        """Resolve platform key from scan_options -> policy_context -> registry default."""
+        if isinstance(self._scan_options, dict):
+            explicit = self._scan_options.get("scan_pipeline_plugin")
+            if isinstance(explicit, str) and explicit:
+                return explicit
+            policy_context = self._scan_options.get("policy_context")
+            if isinstance(policy_context, dict):
+                selection = policy_context.get("selection")
+                if isinstance(selection, dict):
+                    plugin_key = selection.get("plugin")
+                    if isinstance(plugin_key, str) and plugin_key:
+                        return plugin_key
+        registry = _get_plugin_registry()
+        default_key = registry.get_default_platform_key()
+        if default_key is not None:
+            return default_key
+        raise ValueError(
+            "No platform key resolvable from scan_options, policy_context, or registry default."
+        )
+
+    def factory_variable_discovery_plugin(self) -> Any:
+        """Resolve variable-discovery plugin via registry; fail-closed if unregistered."""
         if "variable_discovery_plugin" in self._mocks:
             return self._mocks["variable_discovery_plugin"]
 
         override = self._factory_overrides.get("variable_discovery_plugin_factory")
         if override is not None:
             return override(self, self._role_path, self._scan_options)
-        return None
 
-    def factory_feature_detection_plugin(self) -> Any | None:
-        """Resolve optional feature-detection plugin from DI wiring."""
+        platform_key = self._resolve_platform_key()
+        registry = _get_plugin_registry()
+        plugin_cls = registry.get_variable_discovery_plugin(platform_key)
+        if plugin_cls is None:
+            raise ValueError(
+                f"No variable_discovery plugin registered under '{platform_key}'. "
+                "Ensure scanner_plugins bootstrap has run."
+            )
+        return plugin_cls(di=self)
+
+    def factory_feature_detection_plugin(self) -> Any:
+        """Resolve feature-detection plugin via registry; fail-closed if unregistered."""
         if "feature_detection_plugin" in self._mocks:
             return self._mocks["feature_detection_plugin"]
 
         override = self._factory_overrides.get("feature_detection_plugin_factory")
         if override is not None:
             return override(self, self._role_path, self._scan_options)
-        return None
+
+        platform_key = self._resolve_platform_key()
+        registry = _get_plugin_registry()
+        plugin_cls = registry.get_feature_detection_plugin(platform_key)
+        if plugin_cls is None:
+            raise ValueError(
+                f"No feature_detection plugin registered under '{platform_key}'. "
+                "Ensure scanner_plugins bootstrap has run."
+            )
+        return plugin_cls(di=self)
 
     def factory_comment_driven_doc_plugin(self) -> Any | None:
         """Resolve optional comment-driven documentation plugin from DI wiring."""

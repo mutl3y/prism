@@ -42,52 +42,32 @@ from prism.scanner_extract.task_file_traversal import (
     iter_task_mappings as _iter_task_mappings,
 )
 from prism.scanner_extract.task_file_traversal import load_yaml_file as _load_yaml_file
+from prism.scanner_core.di_helpers import _scan_options_from_di
 from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
-    DEFAULT_DOC_MARKER_PREFIX,
     normalize_marker_prefix,
 )
 
 
-def _scan_options_from_di(di: object | None) -> dict[str, object] | None:
-    if di is None:
-        return None
-    scan_options = getattr(di, "scan_options", None)
-    if isinstance(scan_options, dict):
-        return scan_options
-    scan_options = getattr(di, "_scan_options", None)
-    if isinstance(scan_options, dict):
-        return scan_options
-    return None
-
-
-def _resolve_marker_prefix_from_policy_context(di: object | None) -> str | None:
+def _resolve_marker_prefix(di: object | None) -> str:
     scan_options = _scan_options_from_di(di)
     if not isinstance(scan_options, dict):
-        return None
-    policy_context = scan_options.get("policy_context")
-    if not isinstance(policy_context, dict):
-        return None
-
-    comment_doc_context = policy_context.get("comment_doc")
-    if isinstance(comment_doc_context, dict):
-        marker_context = comment_doc_context.get("marker")
-        if isinstance(marker_context, dict):
-            canonical_prefix = marker_context.get("prefix")
-            if isinstance(canonical_prefix, str):
-                return canonical_prefix
-
-    return None
-
-
-def _resolve_marker_prefix(marker_prefix: str | None, di: object | None) -> str:
-    if isinstance(marker_prefix, str):
-        return normalize_marker_prefix(marker_prefix)
-
-    configured_prefix = _resolve_marker_prefix_from_policy_context(di)
-    if isinstance(configured_prefix, str):
-        return normalize_marker_prefix(configured_prefix)
-
-    return DEFAULT_DOC_MARKER_PREFIX
+        raise ValueError(
+            "prepared_policy_bundle must be available via DI scan_options "
+            "before marker-prefix resolution"
+        )
+    bundle = scan_options.get("prepared_policy_bundle")
+    if not isinstance(bundle, dict):
+        raise ValueError(
+            "prepared_policy_bundle must be available in scan_options "
+            "before marker-prefix resolution"
+        )
+    bundle_prefix = bundle.get("comment_doc_marker_prefix")
+    if not isinstance(bundle_prefix, str):
+        raise ValueError(
+            "prepared_policy_bundle.comment_doc_marker_prefix must be set "
+            "before marker-prefix resolution"
+        )
+    return normalize_marker_prefix(bundle_prefix)
 
 
 def collect_task_files(role_root, *, exclude_paths=None, di=None):
@@ -127,20 +107,24 @@ def detect_task_module(task, *, di=None):
     return _detect_task_module(task, di=di)
 
 
-def extract_collection_from_module_name(module_name: str):
-    return _extract_collection_from_module_name(module_name)
+def extract_collection_from_module_name(
+    module_name: str,
+    builtin_collection_prefixes: frozenset[str] = frozenset(),
+):
+    return _extract_collection_from_module_name(
+        module_name, builtin_collection_prefixes=builtin_collection_prefixes
+    )
 
 
 def extract_task_annotations_for_file(
     raw_lines,
     *,
-    marker_prefix: str | None = None,
     include_task_index: bool = False,
     di=None,
 ):
     return _extract_task_annotations_for_file(
         raw_lines,
-        marker_prefix=_resolve_marker_prefix(marker_prefix, di),
+        marker_prefix=_resolve_marker_prefix(di),
         include_task_index=include_task_index,
         di=di,
     )
@@ -149,14 +133,13 @@ def extract_task_annotations_for_file(
 def collect_task_handler_catalog(
     role_path,
     exclude_paths=None,
-    marker_prefix: str | None = None,
     *,
     di=None,
 ):
     return _collect_task_handler_catalog(
         role_path,
         exclude_paths=exclude_paths,
-        marker_prefix=_resolve_marker_prefix(marker_prefix, di),
+        marker_prefix=_resolve_marker_prefix(di),
         di=di,
     )
 

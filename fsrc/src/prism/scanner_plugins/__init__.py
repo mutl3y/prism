@@ -90,6 +90,20 @@ def bootstrap_default_plugins(registry: PluginRegistry | None = None) -> PluginR
             DefaultJinjaAnalysisPolicyPlugin,
         )
 
+    if "ansible" not in active_registry.list_variable_discovery_plugins():
+        active_registry.register_deferred_variable_discovery_plugin(
+            "ansible",
+            "prism.scanner_plugins.ansible.variable_discovery",
+            "AnsibleVariableDiscoveryPlugin",
+        )
+
+    if "ansible" not in active_registry.list_feature_detection_plugins():
+        active_registry.register_deferred_feature_detection_plugin(
+            "ansible",
+            "prism.scanner_plugins.ansible.feature_detection",
+            "AnsibleFeatureDetectionPlugin",
+        )
+
     return active_registry
 
 
