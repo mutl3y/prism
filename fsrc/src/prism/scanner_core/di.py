@@ -6,6 +6,12 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from prism.scanner_data.builders import VariableRowBuilder
 
+if TYPE_CHECKING:
+    from prism.scanner_core.feature_detector import FeatureDetector
+    from prism.scanner_core.output_orchestrator import OutputOrchestrator
+    from prism.scanner_core.scanner_context import ScannerContext
+    from prism.scanner_core.variable_discovery import VariableDiscovery
+
 
 def resolve_platform_key(
     scan_options: dict[str, Any],
@@ -30,13 +36,6 @@ def resolve_platform_key(
     raise ValueError(
         "No platform key resolvable from scan_options, policy_context, or registry default."
     )
-
-
-if TYPE_CHECKING:
-    from prism.scanner_core.feature_detector import FeatureDetector
-    from prism.scanner_core.output_orchestrator import OutputOrchestrator
-    from prism.scanner_core.scanner_context import ScannerContext
-    from prism.scanner_core.variable_discovery import VariableDiscovery
 
 
 class DIContainer:
@@ -111,13 +110,7 @@ class DIContainer:
 
         key = "variable_discovery"
         if key not in self._cache:
-            try:
-                from prism.scanner_core.variable_discovery import VariableDiscovery
-            except ModuleNotFoundError as exc:
-                raise RuntimeError(
-                    "factory_variable_discovery is unavailable in fsrc lane until "
-                    "prism.scanner_core.variable_discovery is ported."
-                ) from exc
+            from prism.scanner_core.variable_discovery import VariableDiscovery
 
             self._cache[key] = VariableDiscovery(
                 self, self._role_path, self._scan_options
@@ -129,13 +122,7 @@ class DIContainer:
         """Create OutputOrchestrator for a specific output path."""
         cache_key = f"output_orchestrator:{output_path}"
         if cache_key not in self._cache:
-            try:
-                from prism.scanner_core.output_orchestrator import OutputOrchestrator
-            except ModuleNotFoundError as exc:
-                raise RuntimeError(
-                    "factory_output_orchestrator is unavailable in fsrc lane until "
-                    "prism.scanner_core.output_orchestrator is ported."
-                ) from exc
+            from prism.scanner_core.output_orchestrator import OutputOrchestrator
 
             self._cache[cache_key] = OutputOrchestrator(
                 di=self,
@@ -156,13 +143,7 @@ class DIContainer:
             return override(self, self._role_path, self._scan_options)
 
         if key not in self._cache:
-            try:
-                from prism.scanner_core.feature_detector import FeatureDetector
-            except ModuleNotFoundError as exc:
-                raise RuntimeError(
-                    "factory_feature_detector is unavailable in fsrc lane until "
-                    "prism.scanner_core.feature_detector is ported."
-                ) from exc
+            from prism.scanner_core.feature_detector import FeatureDetector
 
             self._cache[key] = FeatureDetector(
                 self, self._role_path, self._scan_options
