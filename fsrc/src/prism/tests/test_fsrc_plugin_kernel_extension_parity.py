@@ -276,28 +276,24 @@ def test_fsrc_kernel_route_orchestration_uses_registry_plugin_context(
         def get_scan_pipeline_plugin(self, _name: str):
             return _DisabledPlugin
 
-    monkeypatch.setattr(
-        orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _DisabledRegistry()
-    )
     legacy_result = orchestrator_module.route_scan_payload_orchestration(
         role_path="/tmp/role",
         scan_options={"x": 1},
         legacy_orchestrator_fn=_legacy_orchestrator,
         kernel_orchestrator_fn=_kernel_orchestrator,
+        registry=_DisabledRegistry(),
     )
 
     class _EnabledRegistry:
         def get_scan_pipeline_plugin(self, _name: str):
             return _EnabledPlugin
 
-    monkeypatch.setattr(
-        orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _EnabledRegistry()
-    )
     kernel_result = orchestrator_module.route_scan_payload_orchestration(
         role_path="/tmp/role",
         scan_options={"x": 1},
         legacy_orchestrator_fn=_legacy_orchestrator,
         kernel_orchestrator_fn=_kernel_orchestrator,
+        registry=_EnabledRegistry(),
     )
 
     assert legacy_result["lane"] == "legacy"
@@ -350,15 +346,13 @@ def test_fsrc_kernel_route_orchestration_default_unavailable_raises_when_strict(
         def get_scan_pipeline_plugin(self, _name: str):
             return None
 
-    monkeypatch.setattr(
-        orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _MissingRegistry()
-    )
     with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
         orchestrator_module.route_scan_payload_orchestration(
             role_path="/tmp/role",
             scan_options={"x": 1, "strict_phase_failures": True},
             legacy_orchestrator_fn=_legacy_orchestrator,
             kernel_orchestrator_fn=_kernel_orchestrator,
+            registry=_MissingRegistry(),
         )
 
     assert exc_info.value.code == "scan_pipeline_default_unavailable"
@@ -419,16 +413,13 @@ def test_fsrc_kernel_route_orchestration_plugin_error_raises_when_strict(
         def get_scan_pipeline_plugin(self, _name: str):
             return _FailingPlugin
 
-    monkeypatch.setattr(
-        orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _FailingRegistry()
-    )
-
     with pytest.raises(errors_module.PrismRuntimeError):
         orchestrator_module.route_scan_payload_orchestration(
             role_path="/tmp/role",
             scan_options={"x": 1, "strict_phase_failures": True},
             legacy_orchestrator_fn=_legacy_orchestrator,
             kernel_orchestrator_fn=_kernel_orchestrator,
+            registry=_FailingRegistry(),
         )
 
 
@@ -464,15 +455,12 @@ def test_fsrc_kernel_route_orchestration_plugin_error_falls_back_when_not_strict
         def get_scan_pipeline_plugin(self, _name: str):
             return _FailingPlugin
 
-    monkeypatch.setattr(
-        orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _FailingRegistry()
-    )
-
     result = orchestrator_module.route_scan_payload_orchestration(
         role_path="/tmp/role",
         scan_options={"x": 1, "strict_phase_failures": False},
         legacy_orchestrator_fn=_legacy_orchestrator,
         kernel_orchestrator_fn=_kernel_orchestrator,
+        registry=_FailingRegistry(),
     )
 
     assert result["lane"] == "legacy"
@@ -501,16 +489,13 @@ def test_fsrc_kernel_route_orchestration_registry_error_raises_when_strict(
         def get_scan_pipeline_plugin(self, _name: str):
             raise RuntimeError("registry boom")
 
-    monkeypatch.setattr(
-        orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _FailingRegistry()
-    )
-
     with pytest.raises(errors_module.PrismRuntimeError):
         orchestrator_module.route_scan_payload_orchestration(
             role_path="/tmp/role",
             scan_options={"x": 1, "strict_phase_failures": True},
             legacy_orchestrator_fn=_legacy_orchestrator,
             kernel_orchestrator_fn=_kernel_orchestrator,
+            registry=_FailingRegistry(),
         )
 
 
@@ -536,15 +521,12 @@ def test_fsrc_kernel_route_orchestration_registry_error_falls_back_when_not_stri
         def get_scan_pipeline_plugin(self, _name: str):
             raise RuntimeError("registry boom")
 
-    monkeypatch.setattr(
-        orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _FailingRegistry()
-    )
-
     result = orchestrator_module.route_scan_payload_orchestration(
         role_path="/tmp/role",
         scan_options={"x": 1, "strict_phase_failures": False},
         legacy_orchestrator_fn=_legacy_orchestrator,
         kernel_orchestrator_fn=_kernel_orchestrator,
+        registry=_FailingRegistry(),
     )
 
     assert result["lane"] == "legacy"
@@ -577,15 +559,12 @@ def test_fsrc_kernel_route_orchestration_default_unavailable_warns_with_contract
         def get_scan_pipeline_plugin(_name: str):
             return None
 
-    monkeypatch.setattr(
-        orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _DefaultUnavailableRegistry()
-    )
-
     result = orchestrator_module.route_scan_payload_orchestration(
         role_path="/tmp/role",
         scan_options={"strict_phase_failures": False},
         legacy_orchestrator_fn=_legacy_orchestrator,
         kernel_orchestrator_fn=_kernel_orchestrator,
+        registry=_DefaultUnavailableRegistry(),
     )
 
     assert result["lane"] == "legacy"
@@ -648,14 +627,12 @@ def test_fsrc_kernel_route_orchestration_falls_back_when_registry_plugin_missing
         def get_scan_pipeline_plugin(_name: str):
             return None
 
-    monkeypatch.setattr(
-        orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _MissingRegistry()
-    )
     result = orchestrator_module.route_scan_payload_orchestration(
         role_path="/tmp/role",
         scan_options={"scan_pipeline_plugin": "custom", "strict_phase_failures": False},
         legacy_orchestrator_fn=_legacy_orchestrator,
         kernel_orchestrator_fn=_kernel_orchestrator,
+        registry=_MissingRegistry(),
     )
 
     outcome = result.get("metadata", {}).get("platform_routing_outcome", {})
@@ -691,14 +668,12 @@ def test_fsrc_kernel_route_orchestration_selected_plugin_missing_warns_with_meta
         def get_scan_pipeline_plugin(_name: str):
             return None
 
-    monkeypatch.setattr(
-        orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _MissingRegistry()
-    )
     result = orchestrator_module.route_scan_payload_orchestration(
         role_path="/tmp/role",
         scan_options={"scan_pipeline_plugin": "custom", "strict_phase_failures": False},
         legacy_orchestrator_fn=_legacy_orchestrator,
         kernel_orchestrator_fn=_kernel_orchestrator,
+        registry=_MissingRegistry(),
     )
 
     outcome = result.get("metadata", {}).get("platform_routing_outcome", {})
@@ -753,12 +728,12 @@ def test_fsrc_kernel_route_orchestration_preflight_failure_warns_with_contract_m
         def get_scan_pipeline_plugin(_name: str):
             return _FailingPlugin
 
-    monkeypatch.setattr(orchestrator_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
     result = orchestrator_module.route_scan_payload_orchestration(
         role_path="/tmp/role",
         scan_options={"scan_pipeline_plugin": "custom", "strict_phase_failures": False},
         legacy_orchestrator_fn=_legacy_orchestrator,
         kernel_orchestrator_fn=_kernel_orchestrator,
+        registry=_Registry(),
     )
 
     assert result["lane"] == "legacy"
@@ -898,17 +873,13 @@ def test_fsrc_kernel_route_orchestration_uses_scan_pipeline_plugin_selector() ->
             "route_preflight_runtime": route_preflight_runtime,
         }
 
-    original_registry = orchestrator_module.DEFAULT_PLUGIN_REGISTRY
-    orchestrator_module.DEFAULT_PLUGIN_REGISTRY = _Registry()
-    try:
-        result = orchestrator_module.route_scan_payload_orchestration(
-            role_path="/tmp/role",
-            scan_options={"scan_pipeline_plugin": "custom"},
-            legacy_orchestrator_fn=_legacy_orchestrator,
-            kernel_orchestrator_fn=_kernel_orchestrator,
-        )
-    finally:
-        orchestrator_module.DEFAULT_PLUGIN_REGISTRY = original_registry
+    result = orchestrator_module.route_scan_payload_orchestration(
+        role_path="/tmp/role",
+        scan_options={"scan_pipeline_plugin": "custom"},
+        legacy_orchestrator_fn=_legacy_orchestrator,
+        kernel_orchestrator_fn=_kernel_orchestrator,
+        registry=_Registry(),
+    )
 
     assert result["lane"] == "kernel"
     carrier = result.get("route_preflight_runtime")
@@ -970,20 +941,16 @@ def test_fsrc_kernel_route_orchestration_uses_policy_context_selection_plugin() 
             "route_preflight_runtime": route_preflight_runtime,
         }
 
-    original_registry = orchestrator_module.DEFAULT_PLUGIN_REGISTRY
-    orchestrator_module.DEFAULT_PLUGIN_REGISTRY = _Registry()
-    try:
-        result = orchestrator_module.route_scan_payload_orchestration(
-            role_path="/tmp/role",
-            scan_options={
-                "policy_context": {"selection": {"plugin": "custom"}},
-                "platform": "ansible",
-            },
-            legacy_orchestrator_fn=_legacy_orchestrator,
-            kernel_orchestrator_fn=_kernel_orchestrator,
-        )
-    finally:
-        orchestrator_module.DEFAULT_PLUGIN_REGISTRY = original_registry
+    result = orchestrator_module.route_scan_payload_orchestration(
+        role_path="/tmp/role",
+        scan_options={
+            "policy_context": {"selection": {"plugin": "custom"}},
+            "platform": "ansible",
+        },
+        legacy_orchestrator_fn=_legacy_orchestrator,
+        kernel_orchestrator_fn=_kernel_orchestrator,
+        registry=_Registry(),
+    )
 
     assert result["lane"] == "kernel"
     assert "_scan_pipeline_preflight_context" not in result["scan_options"]
@@ -1047,20 +1014,16 @@ def test_fsrc_kernel_route_orchestration_prefers_explicit_selector_over_policy()
             "route_preflight_runtime": route_preflight_runtime,
         }
 
-    original_registry = orchestrator_module.DEFAULT_PLUGIN_REGISTRY
-    orchestrator_module.DEFAULT_PLUGIN_REGISTRY = _Registry()
-    try:
-        result = orchestrator_module.route_scan_payload_orchestration(
-            role_path="/tmp/role",
-            scan_options={
-                "scan_pipeline_plugin": "explicit",
-                "policy_context": {"selection": {"plugin": "policy"}},
-            },
-            legacy_orchestrator_fn=_legacy_orchestrator,
-            kernel_orchestrator_fn=_kernel_orchestrator,
-        )
-    finally:
-        orchestrator_module.DEFAULT_PLUGIN_REGISTRY = original_registry
+    result = orchestrator_module.route_scan_payload_orchestration(
+        role_path="/tmp/role",
+        scan_options={
+            "scan_pipeline_plugin": "explicit",
+            "policy_context": {"selection": {"plugin": "policy"}},
+        },
+        legacy_orchestrator_fn=_legacy_orchestrator,
+        kernel_orchestrator_fn=_kernel_orchestrator,
+        registry=_Registry(),
+    )
 
     assert result["lane"] == "kernel"
     assert "_scan_pipeline_preflight_context" not in result["scan_options"]

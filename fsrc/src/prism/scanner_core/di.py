@@ -6,14 +6,6 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from prism.scanner_data.builders import VariableRowBuilder
 
-
-def _get_plugin_registry() -> Any:
-    """Lazy-import and return the bootstrapped default plugin registry."""
-    from prism.scanner_plugins import DEFAULT_PLUGIN_REGISTRY
-
-    return DEFAULT_PLUGIN_REGISTRY
-
-
 if TYPE_CHECKING:
     from prism.scanner_core.feature_detector import FeatureDetector
     from prism.scanner_core.output_orchestrator import OutputOrchestrator
@@ -29,6 +21,7 @@ class DIContainer:
         role_path: str,
         scan_options: dict[str, Any],
         *,
+        registry: Any | None = None,
         scanner_context_wiring: dict[str, Any] | None = None,
         factory_overrides: dict[str, Callable[..., Any]] | None = None,
     ) -> None:
@@ -40,10 +33,15 @@ class DIContainer:
 
         self._role_path = role_path
         self._scan_options = scan_options
+        self._registry = registry
         self._cache: dict[str, Any] = {}
         self._mocks: dict[str, Any] = {}
         self._scanner_context_wiring = scanner_context_wiring or {}
         self._factory_overrides = factory_overrides or {}
+
+    @property
+    def scan_options(self) -> dict[str, Any]:
+        return self._scan_options
 
     def factory_scanner_context(self) -> ScannerContext:
         """Create ScannerContext only when runtime seam wiring is provided."""
@@ -151,6 +149,12 @@ class DIContainer:
             self._cache[key] = VariableRowBuilder()
         return self._cache[key]
 
+    def _get_registry(self) -> Any:
+        """Return the injected plugin registry or raise."""
+        if self._registry is None:
+            raise ValueError("No plugin registry provided to DIContainer")
+        return self._registry
+
     def _resolve_platform_key(self) -> str:
         """Resolve platform key from scan_options -> policy_context -> registry default."""
         if isinstance(self._scan_options, dict):
@@ -164,7 +168,7 @@ class DIContainer:
                     plugin_key = selection.get("plugin")
                     if isinstance(plugin_key, str) and plugin_key:
                         return plugin_key
-        registry = _get_plugin_registry()
+        registry = self._get_registry()
         default_key = registry.get_default_platform_key()
         if default_key is not None:
             return default_key
@@ -182,7 +186,7 @@ class DIContainer:
             return override(self, self._role_path, self._scan_options)
 
         platform_key = self._resolve_platform_key()
-        registry = _get_plugin_registry()
+        registry = self._get_registry()
         plugin_cls = registry.get_variable_discovery_plugin(platform_key)
         if plugin_cls is None:
             raise ValueError(
@@ -201,7 +205,7 @@ class DIContainer:
             return override(self, self._role_path, self._scan_options)
 
         platform_key = self._resolve_platform_key()
-        registry = _get_plugin_registry()
+        registry = self._get_registry()
         plugin_cls = registry.get_feature_detection_plugin(platform_key)
         if plugin_cls is None:
             raise ValueError(

@@ -5,22 +5,11 @@ from __future__ import annotations
 import re
 from typing import Any, Iterator
 
-from prism.scanner_core.di_helpers import _scan_options_from_di
+from prism.scanner_core.di_helpers import _get_prepared_policy
 from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
-    DEFAULT_DOC_MARKER_PREFIX,
     get_marker_line_re as _marker_utils_get_marker_line_re,
     normalize_marker_prefix as _marker_utils_normalize_marker_prefix,
 )
-
-
-def _get_prepared_policy(di: object | None, policy_name: str) -> object | None:
-    scan_options = _scan_options_from_di(di)
-    if not isinstance(scan_options, dict):
-        return None
-    prepared_policy_bundle = scan_options.get("prepared_policy_bundle")
-    if not isinstance(prepared_policy_bundle, dict):
-        return None
-    return prepared_policy_bundle.get(policy_name)
 
 
 def _get_task_line_parsing_policy(di=None):
@@ -171,8 +160,40 @@ def get_marker_line_re(marker_prefix, *, di: object | None = None):
     return _build_marker_line_re(marker_prefix, di=di)
 
 
-ROLE_NOTES_RE = _build_marker_line_re(DEFAULT_DOC_MARKER_PREFIX)
-TASK_NOTES_LONG_RE = _build_marker_line_re(DEFAULT_DOC_MARKER_PREFIX)
+class _PolicyBackedMarkerLineRegexProxy:
+    """Proxy that resolves marker-line regex from annotation policy at call time."""
+
+    def __init__(self, fallback_pattern: str) -> None:
+        self._fallback_regex = re.compile(fallback_pattern)
+
+    def _current_regex(self) -> re.Pattern[str]:
+        try:
+            policy = _get_task_annotation_policy()
+            regex = policy.get_marker_line_re(_normalize_marker_prefix(None, di=None))
+            if isinstance(regex, re.Pattern):
+                return regex
+        except (ValueError, AttributeError):
+            pass
+        return self._fallback_regex
+
+    def match(self, *args: Any, **kwargs: Any):
+        return self._current_regex().match(*args, **kwargs)
+
+    def search(self, *args: Any, **kwargs: Any):
+        return self._current_regex().search(*args, **kwargs)
+
+    def fullmatch(self, *args: Any, **kwargs: Any):
+        return self._current_regex().fullmatch(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._current_regex(), name)
+
+
+_FALLBACK_MARKER_LINE_PATTERN = (
+    r"^\s*#\s*prism\s*~\s*(?P<label>[a-z0-9_-]+)\s*:?\s*(?P<body>.*)$"
+)
+ROLE_NOTES_RE = _PolicyBackedMarkerLineRegexProxy(_FALLBACK_MARKER_LINE_PATTERN)
+TASK_NOTES_LONG_RE = _PolicyBackedMarkerLineRegexProxy(_FALLBACK_MARKER_LINE_PATTERN)
 ROLE_NOTES_SHORT_RE = ROLE_NOTES_RE
 TASK_NOTES_SHORT_RE = TASK_NOTES_LONG_RE
 

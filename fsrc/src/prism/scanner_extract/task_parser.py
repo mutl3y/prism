@@ -32,12 +32,14 @@ from prism.scanner_extract.task_file_traversal import (
 )
 from prism.scanner_extract.task_line_parsing import (
     COMMENT_CONTINUATION_RE,
-    DEFAULT_DOC_MARKER_PREFIX,
     ROLE_INCLUDE_KEYS,
     TASK_BLOCK_KEYS,
     TASK_ENTRY_RE,
     TASK_INCLUDE_KEYS,
     TASK_META_KEYS,
+)
+from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
+    DEFAULT_DOC_MARKER_PREFIX,
 )
 
 __all__ = [

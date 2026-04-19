@@ -5,8 +5,6 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from prism.errors import PrismRuntimeError
-
 from prism.scanner_plugins.ansible.feature_flags import (
     ANSIBLE_PLUGIN_ENABLED_ENV_VAR,
 )
@@ -77,67 +75,25 @@ class AnsibleScanPipelinePlugin:
         strict_mode: bool,
         preflight_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        return orchestrate_scan_payload_with_scan_pipeline_plugin(
-            plugin=self,
-            payload=payload,
-            scan_options=scan_options,
-            strict_mode=strict_mode,
-            preflight_context=preflight_context,
-        )
+        metadata = payload.get("metadata")
+        base_metadata = copy.deepcopy(metadata) if isinstance(metadata, dict) else {}
 
-
-def orchestrate_scan_payload_with_scan_pipeline_plugin(
-    *,
-    plugin: Any,
-    payload: dict[str, Any],
-    scan_options: dict[str, Any],
-    strict_mode: bool,
-    preflight_context: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    metadata = payload.get("metadata")
-    base_metadata = copy.deepcopy(metadata) if isinstance(metadata, dict) else {}
-
-    if isinstance(preflight_context, dict):
-        plugin_output: Any = dict(preflight_context)
-    else:
-        try:
-            plugin_output = plugin.process_scan_pipeline(
+        if isinstance(preflight_context, dict):
+            plugin_output: Any = dict(preflight_context)
+        else:
+            plugin_output = self.process_scan_pipeline(
                 scan_options=copy.deepcopy(scan_options),
                 scan_context=copy.deepcopy(base_metadata),
             )
-        except Exception as exc:
-            if strict_mode:
-                raise PrismRuntimeError(
-                    code="scan_pipeline_plugin_failed",
-                    category="runtime",
-                    message="scan-pipeline plugin execution failed",
-                    detail={"plugin": "ansible", "error": str(exc)},
-                ) from exc
 
-            warning_metadata = dict(base_metadata)
-            existing_warnings = warning_metadata.get("plugin_runtime_warnings")
-            warnings_list = (
-                list(existing_warnings) if isinstance(existing_warnings, list) else []
-            )
-            warnings_list.append(
-                {
-                    "code": "scan_pipeline_plugin_failed",
-                    "plugin": "ansible",
-                    "message": str(exc),
-                }
-            )
-            warning_metadata["plugin_runtime_warnings"] = warnings_list
-            payload["metadata"] = warning_metadata
+        if not isinstance(plugin_output, dict):
             return payload
 
-    if not isinstance(plugin_output, dict):
+        payload["metadata"] = AnsibleScanPipelinePlugin._merge_preserving_existing(
+            base_metadata,
+            plugin_output,
+        )
         return payload
-
-    payload["metadata"] = AnsibleScanPipelinePlugin._merge_preserving_existing(
-        base_metadata,
-        plugin_output,
-    )
-    return payload
 
 
 def build_ansible_execution_bundle(
@@ -178,5 +134,4 @@ __all__ = [
     "build_ansible_execution_bundle",
     "is_ansible_plugin_enabled",
     "load_ansible_kernel_plugin",
-    "orchestrate_scan_payload_with_scan_pipeline_plugin",
 ]

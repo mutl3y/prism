@@ -2,20 +2,7 @@
 
 from __future__ import annotations
 
-from prism.scanner_core.di_helpers import _scan_options_from_di
-from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
-    DEFAULT_DOC_MARKER_PREFIX,
-)
-
-
-def _get_prepared_policy(di: object | None, policy_name: str) -> object | None:
-    scan_options = _scan_options_from_di(di)
-    if not isinstance(scan_options, dict):
-        return None
-    prepared_policy_bundle = scan_options.get("prepared_policy_bundle")
-    if not isinstance(prepared_policy_bundle, dict):
-        return None
-    return prepared_policy_bundle.get(policy_name)
+from prism.scanner_core.di_helpers import _get_prepared_policy
 
 
 def _get_task_annotation_policy(di: object | None = None):
@@ -54,7 +41,7 @@ def _annotation_payload_looks_yaml(
 
 def _extract_task_annotations_for_file(
     lines: list[str],
-    marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX,
+    marker_prefix: str,
     include_task_index: bool = False,
     *,
     di: object | None = None,
@@ -82,7 +69,7 @@ def _task_anchor(
 
 def extract_task_annotations_for_file(
     lines: list[str],
-    marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX,
+    marker_prefix: str,
     include_task_index: bool = False,
     *,
     di: object | None = None,

@@ -32,7 +32,6 @@ DEFAULT_TARGET_RE = re.compile(r"\b(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*\|\s*defaul
 JINJA_VAR_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)")
 JINJA_IDENTIFIER_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
 VAULT_KEY_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*!vault\b", re.MULTILINE)
-IGNORED_IDENTIFIERS: set[str] = set()
 
 
 def looks_secret_name(name: str) -> bool:
@@ -96,8 +95,3 @@ def load_seed_variables(
                 seed_secrets.add(name)
 
     return seed_values, seed_secrets, seed_sources
-
-
-def refresh_policy_derived_state(_policy: dict[str, Any]) -> None:
-    """Compatibility no-op for parity with src variable extractor API."""
-    return None

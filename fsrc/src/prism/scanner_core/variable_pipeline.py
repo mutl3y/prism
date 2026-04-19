@@ -10,7 +10,6 @@ from yaml import safe_dump
 
 from prism.scanner_data.contracts_variables import VariableRow
 
-IGNORED_IDENTIFIERS: frozenset[str] = frozenset()
 JINJA_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
@@ -67,9 +66,7 @@ def collect_dynamic_include_var_tokens(
 ) -> set[str]:
     """Collect unresolved Jinja identifier tokens from dynamic include_vars refs."""
     effective_ignored = (
-        set(IGNORED_IDENTIFIERS)
-        if ignored_identifiers is None
-        else set(ignored_identifiers)
+        set() if ignored_identifiers is None else set(ignored_identifiers)
     )
     tokens: set[str] = set()
     for ref in dynamic_include_vars_refs:

@@ -36,6 +36,37 @@ def _prefer_fsrc_prism_on_sys_path() -> object:
         sys.modules.update(original_modules)
 
 
+def _make_test_registry(real_registry, scan_pipeline_fn):
+    """Wrap a scan-pipeline-plugin function with DI-compatible registry delegation."""
+
+    class _TestRegistry:
+        def get_scan_pipeline_plugin(self, name):
+            return scan_pipeline_fn(name)
+
+        def get_default_platform_key(self):
+            return real_registry.get_default_platform_key()
+
+        def get_variable_discovery_plugin(self, key):
+            result = real_registry.get_variable_discovery_plugin(key)
+            if result is not None:
+                return result
+            fallback_key = real_registry.get_default_platform_key()
+            if fallback_key and fallback_key != key:
+                return real_registry.get_variable_discovery_plugin(fallback_key)
+            return None
+
+        def get_feature_detection_plugin(self, key):
+            result = real_registry.get_feature_detection_plugin(key)
+            if result is not None:
+                return result
+            fallback_key = real_registry.get_default_platform_key()
+            if fallback_key and fallback_key != key:
+                return real_registry.get_feature_detection_plugin(fallback_key)
+            return None
+
+    return _TestRegistry()
+
+
 def _build_tiny_role(role_path: Path) -> None:
     (role_path / "defaults").mkdir(parents=True)
     (role_path / "tasks").mkdir(parents=True)
@@ -426,12 +457,12 @@ def test_fsrc_api_run_scan_reuses_router_preflight_without_second_plugin_call(
                     "plugin should not be called when preflight exists"
                 )
 
-        class _Registry:
-            def get_scan_pipeline_plugin(self, _name: str):
-                return _Plugin
-
         monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
-        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        monkeypatch.setattr(
+            api_module,
+            "DEFAULT_PLUGIN_REGISTRY",
+            _make_test_registry(api_module.DEFAULT_PLUGIN_REGISTRY, lambda _n: _Plugin),
+        )
         payload = api_module.run_scan(str(role_path), include_vars_main=True)
 
     assert payload["metadata"]["plugin_runtime_marker"] == "preflight-used"
@@ -480,13 +511,14 @@ def test_fsrc_api_run_scan_consumes_registered_scan_pipeline_plugin(
                     "features": {"task_files_scanned": 999},
                 }
 
-        class _Registry:
-            def get_scan_pipeline_plugin(self, name: str):
-                if name == "default":
-                    return _Plugin
-                return None
-
-        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        monkeypatch.setattr(
+            api_module,
+            "DEFAULT_PLUGIN_REGISTRY",
+            _make_test_registry(
+                api_module.DEFAULT_PLUGIN_REGISTRY,
+                lambda name: _Plugin if name == "default" else None,
+            ),
+        )
         payload = api_module.run_scan(str(role_path), include_vars_main=True)
 
     assert _Plugin.called is True
@@ -504,12 +536,14 @@ def test_fsrc_api_run_scan_falls_back_when_scan_pipeline_plugin_missing(
     with _prefer_fsrc_prism_on_sys_path():
         api_module = importlib.import_module("prism.api")
 
-        class _Registry:
-            def get_scan_pipeline_plugin(self, name: str):
-                assert name == "custom"
-                return None
-
-        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        monkeypatch.setattr(
+            api_module,
+            "DEFAULT_PLUGIN_REGISTRY",
+            _make_test_registry(
+                api_module.DEFAULT_PLUGIN_REGISTRY,
+                lambda name: None if name == "custom" else None,
+            ),
+        )
         payload = api_module.run_scan(
             str(role_path),
             include_vars_main=True,
@@ -580,11 +614,11 @@ def test_fsrc_api_run_scan_plugin_failure_raises_when_strict(
                 del scan_context
                 return {"plugin_enabled": True, "plugin_name": "default"}
 
-        class _Registry:
-            def get_scan_pipeline_plugin(self, _name: str):
-                return _Plugin
-
-        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        monkeypatch.setattr(
+            api_module,
+            "DEFAULT_PLUGIN_REGISTRY",
+            _make_test_registry(api_module.DEFAULT_PLUGIN_REGISTRY, lambda _n: _Plugin),
+        )
 
         with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
             api_module.run_scan(str(role_path), include_vars_main=True)
@@ -649,11 +683,11 @@ def test_fsrc_api_run_scan_plugin_failure_falls_back_when_not_strict(
                 del scan_context
                 return {"plugin_enabled": True, "plugin_name": "default"}
 
-        class _Registry:
-            def get_scan_pipeline_plugin(self, _name: str):
-                return _Plugin
-
-        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        monkeypatch.setattr(
+            api_module,
+            "DEFAULT_PLUGIN_REGISTRY",
+            _make_test_registry(api_module.DEFAULT_PLUGIN_REGISTRY, lambda _n: _Plugin),
+        )
         payload = api_module.run_scan(
             str(role_path),
             include_vars_main=True,
@@ -699,11 +733,14 @@ def test_fsrc_api_run_scan_registry_lookup_failure_falls_back_when_not_strict(
 
         monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
 
-        class _Registry:
-            def get_scan_pipeline_plugin(self, _name: str):
-                raise RuntimeError("registry boom")
+        def _boom(_name):
+            raise RuntimeError("registry boom")
 
-        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        monkeypatch.setattr(
+            api_module,
+            "DEFAULT_PLUGIN_REGISTRY",
+            _make_test_registry(api_module.DEFAULT_PLUGIN_REGISTRY, _boom),
+        )
         payload = api_module.run_scan(
             str(role_path),
             include_vars_main=True,
@@ -744,11 +781,14 @@ def test_fsrc_api_run_scan_registry_lookup_failure_raises_when_strict(
 
         monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
 
-        class _Registry:
-            def get_scan_pipeline_plugin(self, _name: str):
-                raise RuntimeError("registry boom")
+        def _boom(_name):
+            raise RuntimeError("registry boom")
 
-        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        monkeypatch.setattr(
+            api_module,
+            "DEFAULT_PLUGIN_REGISTRY",
+            _make_test_registry(api_module.DEFAULT_PLUGIN_REGISTRY, _boom),
+        )
 
         with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
             api_module.run_scan(str(role_path), include_vars_main=True)
@@ -798,11 +838,11 @@ def test_fsrc_api_run_scan_plugin_scan_context_mutation_does_not_leak(
                     features["task_files_scanned"] = 999
                 return {"plugin_runtime_marker": "mutated-context"}
 
-        class _Registry:
-            def get_scan_pipeline_plugin(self, _name: str):
-                return _Plugin
-
-        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        monkeypatch.setattr(
+            api_module,
+            "DEFAULT_PLUGIN_REGISTRY",
+            _make_test_registry(api_module.DEFAULT_PLUGIN_REGISTRY, lambda _n: _Plugin),
+        )
         payload = api_module.run_scan(str(role_path), include_vars_main=True)
 
     assert payload["metadata"]["plugin_runtime_marker"] == "mutated-context"
@@ -846,11 +886,11 @@ def test_fsrc_api_run_scan_plugin_scan_options_mutation_cannot_downgrade_strict(
                 scan_options["strict_phase_failures"] = False
                 raise RuntimeError("plugin boom")
 
-        class _Registry:
-            def get_scan_pipeline_plugin(self, _name: str):
-                return _Plugin
-
-        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        monkeypatch.setattr(
+            api_module,
+            "DEFAULT_PLUGIN_REGISTRY",
+            _make_test_registry(api_module.DEFAULT_PLUGIN_REGISTRY, lambda _n: _Plugin),
+        )
 
         with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
             api_module.run_scan(str(role_path), include_vars_main=True)
@@ -972,13 +1012,14 @@ def test_fsrc_api_run_scan_uses_scan_pipeline_plugin_selector(
                     "plugin_runtime_marker": "custom-selector",
                 }
 
-        class _Registry:
-            def get_scan_pipeline_plugin(self, name: str):
-                if name == "custom":
-                    return _Plugin
-                return None
-
-        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        monkeypatch.setattr(
+            api_module,
+            "DEFAULT_PLUGIN_REGISTRY",
+            _make_test_registry(
+                api_module.DEFAULT_PLUGIN_REGISTRY,
+                lambda name: _Plugin if name == "custom" else None,
+            ),
+        )
         payload = api_module.run_scan(
             str(role_path),
             include_vars_main=True,
@@ -1029,13 +1070,14 @@ def test_fsrc_api_run_scan_uses_policy_context_selection_plugin(
                     "plugin_runtime_marker": "policy-selector",
                 }
 
-        class _Registry:
-            def get_scan_pipeline_plugin(self, name: str):
-                if name == "custom":
-                    return _Plugin
-                return None
-
-        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        monkeypatch.setattr(
+            api_module,
+            "DEFAULT_PLUGIN_REGISTRY",
+            _make_test_registry(
+                api_module.DEFAULT_PLUGIN_REGISTRY,
+                lambda name: _Plugin if name == "custom" else None,
+            ),
+        )
         payload = api_module.run_scan(
             str(role_path),
             include_vars_main=True,

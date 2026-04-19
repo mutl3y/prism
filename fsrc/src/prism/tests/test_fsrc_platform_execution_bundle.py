@@ -141,7 +141,9 @@ def test_ansible_bundle_prepared_policy_accepted_by_ensure_prepared_policy_bundl
 ):
     with _prefer_fsrc_prism_on_sys_path():
         ansible_module = importlib.import_module("prism.scanner_plugins.ansible")
-        scan_request_module = importlib.import_module("prism.scanner_core.scan_request")
+        bundle_resolver_module = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
 
     bundle = ansible_module.build_ansible_execution_bundle()
     prepared_policy = bundle["prepared_policy"]
@@ -152,7 +154,7 @@ def test_ansible_bundle_prepared_policy_accepted_by_ensure_prepared_policy_bundl
         "strict_phase_failures": True,
     }
 
-    result = scan_request_module.ensure_prepared_policy_bundle(
+    result = bundle_resolver_module.ensure_prepared_policy_bundle(
         scan_options=scan_options,
         di=None,
     )

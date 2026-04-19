@@ -9,9 +9,6 @@ from typing import Any
 import prism.scanner_extract.task_annotation_parsing as tap
 import prism.scanner_extract.task_file_traversal as tft
 from prism.scanner_core.di_helpers import _scan_options_from_di
-from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
-    DEFAULT_DOC_MARKER_PREFIX,
-)
 
 
 def _get_task_line_parsing_policy(di: object | None = None):
@@ -69,7 +66,7 @@ def _compact_task_parameters(task: dict, module_name: str) -> str:
 def _collect_task_handler_catalog(
     role_path: str,
     exclude_paths: list[str] | None = None,
-    marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX,
+    marker_prefix: str = "",
     *,
     di: object | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
@@ -302,6 +299,16 @@ def extract_role_features(
     di: object | None = None,
 ) -> dict[str, Any]:
     role_root = Path(role_path).resolve()
+
+    scan_options = _scan_options_from_di(di)
+    marker_prefix = ""
+    if isinstance(scan_options, dict):
+        bundle = scan_options.get("prepared_policy_bundle")
+        if isinstance(bundle, dict):
+            mp = bundle.get("comment_doc_marker_prefix")
+            if isinstance(mp, str):
+                marker_prefix = mp
+
     task_files = tft._collect_task_files(
         role_root,
         exclude_paths=exclude_paths,
@@ -363,6 +370,7 @@ def extract_role_features(
             raw_lines = []
         impl_anns, expl_anns = tap._extract_task_annotations_for_file(
             raw_lines,
+            marker_prefix=marker_prefix,
             di=di,
         )
         disabled_task_annotations += sum(1 for a in impl_anns if a.get("disabled"))
@@ -418,7 +426,7 @@ def extract_collection_from_module_name(
 def collect_task_handler_catalog(
     role_path: str,
     exclude_paths: list[str] | None = None,
-    marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX,
+    marker_prefix: str = "",
     *,
     di: object | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:

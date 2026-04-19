@@ -78,7 +78,9 @@ def _sample_lines() -> list[str]:
 def test_task_parser_annotation_policy_precedence_di_over_registry() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         parser_module = importlib.import_module("prism.scanner_extract.task_parser")
-        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+        bundle_resolver = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
         registry_module = importlib.import_module("prism.scanner_plugins.registry")
 
         plugin_registry = registry_module.plugin_registry
@@ -90,11 +92,15 @@ def test_task_parser_annotation_policy_precedence_di_over_registry() -> None:
                 _RegistryPolicy,
             )
             container = _DIContainer()
-            scan_request.ensure_prepared_policy_bundle(
+            bundle_resolver.ensure_prepared_policy_bundle(
                 scan_options=container.scan_options, di=container
             )
+            marker_prefix = container.scan_options["prepared_policy_bundle"][
+                "comment_doc_marker_prefix"
+            ]
             implicit, explicit = parser_module._extract_task_annotations_for_file(
                 _sample_lines(),
+                marker_prefix=marker_prefix,
                 di=container,
             )
         finally:
@@ -116,7 +122,9 @@ def test_task_parser_annotation_policy_precedence_di_over_registry() -> None:
 def test_task_parser_annotation_policy_precedence_registry_over_fallback() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         parser_module = importlib.import_module("prism.scanner_extract.task_parser")
-        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+        bundle_resolver = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
         registry_module = importlib.import_module("prism.scanner_plugins.registry")
 
         plugin_registry = registry_module.plugin_registry
@@ -128,15 +136,19 @@ def test_task_parser_annotation_policy_precedence_registry_over_fallback() -> No
                 _RegistryPolicy,
             )
             options: dict = {"role_path": "/tmp", "exclude_path_patterns": None}
-            scan_request.ensure_prepared_policy_bundle(scan_options=options, di=None)
+            bundle_resolver.ensure_prepared_policy_bundle(scan_options=options, di=None)
 
             class _OptionsContainer:
                 def __init__(self, opts: dict) -> None:
                     self.scan_options = opts
 
             container = _OptionsContainer(options)
+            marker_prefix = options["prepared_policy_bundle"][
+                "comment_doc_marker_prefix"
+            ]
             implicit, explicit = parser_module._extract_task_annotations_for_file(
                 _sample_lines(),
+                marker_prefix=marker_prefix,
                 di=container,
             )
         finally:
@@ -170,6 +182,7 @@ def test_task_parser_annotation_policy_precedence_fallback_when_no_di_or_registr
             with pytest.raises(ValueError):
                 parser_module._extract_task_annotations_for_file(
                     _sample_lines(),
+                    marker_prefix="prism",
                     di=None,
                 )
         finally:

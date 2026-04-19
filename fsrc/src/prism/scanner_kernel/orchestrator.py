@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from prism.errors import PrismRuntimeError
-from prism.scanner_plugins import DEFAULT_PLUGIN_REGISTRY
 
 
 _SCAN_PIPELINE_SELECTION_ORDER: tuple[str, ...] = (
@@ -20,7 +19,6 @@ _SCAN_PIPELINE_SELECTION_ORDER: tuple[str, ...] = (
 
 _ROUTING_MODE_PLUGIN = "scan_pipeline_plugin"
 _ROUTING_MODE_LEGACY = "legacy_orchestrator"
-_RESERVED_UNSUPPORTED_PLATFORMS: frozenset[str] = frozenset({"kubernetes", "terraform"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,8 +130,9 @@ def resolve_scan_pipeline_plugin_name(
     if isinstance(platform, str) and platform.strip():
         return platform.strip()
 
-    registry_obj = registry or DEFAULT_PLUGIN_REGISTRY
-    return _resolve_default_scan_pipeline_plugin_name(registry_obj)
+    if registry is None:
+        raise ValueError("registry must be provided for plugin name resolution")
+    return _resolve_default_scan_pipeline_plugin_name(registry)
 
 
 def _merge_metadata_preserving_existing(
@@ -479,7 +478,8 @@ def orchestrate_scan_payload_with_selected_plugin(
         payload=payload,
         strict_mode=strict_mode,
     )
-    registry_obj = registry or DEFAULT_PLUGIN_REGISTRY
+    if registry is None:
+        raise ValueError("registry must be provided for scan pipeline orchestration")
     plugin_name = "unresolved"
     existing_preflight_routing: dict[str, Any] = {}
 
@@ -501,10 +501,10 @@ def orchestrate_scan_payload_with_selected_plugin(
         if plugin_name == "unresolved":
             plugin_name = resolve_scan_pipeline_plugin_name(
                 scan_options=scan_options,
-                registry=registry_obj,
+                registry=registry,
             )
         plugin_class = resolve_scan_pipeline_plugin_class(
-            registry=registry_obj,
+            registry=registry,
             plugin_name=plugin_name,
         )
     except Exception as exc:
@@ -596,12 +596,13 @@ def route_scan_payload_orchestration(
             strict_mode=strict_mode,
         )
 
-    registry_obj = registry or DEFAULT_PLUGIN_REGISTRY
+    if registry is None:
+        raise ValueError("registry must be provided for scan pipeline routing")
 
     try:
         plugin_name = resolve_scan_pipeline_plugin_name(
             scan_options=scan_options,
-            registry=registry_obj,
+            registry=registry,
         )
     except PrismRuntimeError as exc:
         if exc.code != "scan_pipeline_default_unavailable":
@@ -666,7 +667,7 @@ def route_scan_payload_orchestration(
 
     try:
         plugin_class = resolve_scan_pipeline_plugin_class(
-            registry=registry_obj,
+            registry=registry,
             plugin_name=plugin_name,
         )
     except Exception as exc:
@@ -701,7 +702,9 @@ def route_scan_payload_orchestration(
         )
 
     if plugin_class is None:
-        if plugin_name in _RESERVED_UNSUPPORTED_PLATFORMS:
+        if hasattr(
+            registry, "is_reserved_unsupported_platform"
+        ) and registry.is_reserved_unsupported_platform(plugin_name):
             routing = _build_routing_metadata(
                 mode="unsupported",
                 selected_plugin=plugin_name,

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Callable, cast
 
 from prism.errors import PrismRuntimeError
-from prism.scanner_core import scan_request
+from prism.scanner_plugins.bundle_resolver import ensure_prepared_policy_bundle
 from prism.scanner_data.contracts_request import ScanContextPayload, ScanOptionsDict
 from prism.scanner_data.contracts_request import ScanPolicyBlockerFacts
 from prism.scanner_core.blocker_fact_evaluator import (
@@ -271,6 +271,7 @@ def build_non_collection_run_scan_execution_request(
     container = di_container_cls(
         role_path=str(canonical_options["role_path"]),
         scan_options=canonical_options,
+        registry=default_plugin_registry,
         scanner_context_wiring={
             "scanner_context_cls": scanner_context_cls,
             "prepare_scan_context_fn": _prepare_scan_context_fn,
@@ -281,7 +282,7 @@ def build_non_collection_run_scan_execution_request(
             "feature_detector_factory": _feature_detector_factory,
         },
     )
-    scan_request.ensure_prepared_policy_bundle(
+    ensure_prepared_policy_bundle(
         scan_options=cast(dict[str, Any], canonical_options),
         di=container,
     )

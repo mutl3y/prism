@@ -69,7 +69,10 @@ def test_fsrc_variable_discovery_static_and_referenced_foundation(tmp_path) -> N
         discovery_module = importlib.import_module(
             "prism.scanner_core.variable_discovery"
         )
-        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+        bundle_resolver = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
+        plugins_module = importlib.import_module("prism.scanner_plugins")
         options = {
             "role_path": str(role_path),
             "include_vars_main": True,
@@ -78,9 +81,13 @@ def test_fsrc_variable_discovery_static_and_referenced_foundation(tmp_path) -> N
             "ignore_unresolved_internal_underscore_references": False,
         }
         container = di_module.DIContainer(
-            role_path=str(role_path), scan_options=options
+            role_path=str(role_path),
+            scan_options=options,
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
-        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
+        bundle_resolver.ensure_prepared_policy_bundle(
+            scan_options=options, di=container
+        )
         discovery = discovery_module.VariableDiscovery(
             container, str(role_path), options
         )
@@ -248,7 +255,10 @@ def test_fsrc_variable_discovery_prefers_prepared_policy_bundle(
 
     with _prefer_fsrc_prism_on_sys_path():
         di_module = importlib.import_module("prism.scanner_core.di")
-        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+        bundle_resolver = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
+        plugins_module = importlib.import_module("prism.scanner_plugins")
         discovery_module = importlib.import_module(
             "prism.scanner_core.variable_discovery"
         )
@@ -284,8 +294,11 @@ def test_fsrc_variable_discovery_prefers_prepared_policy_bundle(
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
-        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
+        bundle_resolver.ensure_prepared_policy_bundle(
+            scan_options=options, di=container
+        )
         discovery = discovery_module.VariableDiscovery(
             container,
             str(role_path),
@@ -323,6 +336,7 @@ def test_fsrc_variable_discovery_requires_ingress_prepared_policy_bundle(
         discovery_module = importlib.import_module(
             "prism.scanner_core.variable_discovery"
         )
+        plugins_module = importlib.import_module("prism.scanner_plugins")
 
         options = {
             "role_path": str(role_path),
@@ -334,6 +348,7 @@ def test_fsrc_variable_discovery_requires_ingress_prepared_policy_bundle(
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
         discovery = discovery_module.VariableDiscovery(
             container,
@@ -363,6 +378,7 @@ def test_fsrc_variable_discovery_discover_referenced_requires_ingress_prepared_j
         discovery_module = importlib.import_module(
             "prism.scanner_core.variable_discovery"
         )
+        plugins_module = importlib.import_module("prism.scanner_plugins")
 
         options = {
             "role_path": str(role_path),
@@ -377,6 +393,7 @@ def test_fsrc_variable_discovery_discover_referenced_requires_ingress_prepared_j
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
         discovery = discovery_module.VariableDiscovery(
             container,

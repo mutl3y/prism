@@ -44,12 +44,14 @@ def _legacy_fn(role_path: str, scan_options: dict[str, Any]) -> dict[str, Any]:
 def test_kubernetes_platform_produces_explicit_not_supported_outcome() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         orchestrator = importlib.import_module("prism.scanner_kernel.orchestrator")
+        scanner_plugins = importlib.import_module("prism.scanner_plugins")
 
     result = orchestrator.route_scan_payload_orchestration(
         role_path="/tmp/role",
         scan_options={"platform": "kubernetes", "strict_phase_failures": False},
         legacy_orchestrator_fn=_legacy_fn,
         kernel_orchestrator_fn=lambda **kw: {},
+        registry=scanner_plugins.DEFAULT_PLUGIN_REGISTRY,
     )
 
     assert (
@@ -64,12 +66,14 @@ def test_kubernetes_platform_produces_explicit_not_supported_outcome() -> None:
 def test_terraform_platform_produces_explicit_not_supported_outcome() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         orchestrator = importlib.import_module("prism.scanner_kernel.orchestrator")
+        scanner_plugins = importlib.import_module("prism.scanner_plugins")
 
     result = orchestrator.route_scan_payload_orchestration(
         role_path="/tmp/role",
         scan_options={"platform": "terraform", "strict_phase_failures": False},
         legacy_orchestrator_fn=_legacy_fn,
         kernel_orchestrator_fn=lambda **kw: {},
+        registry=scanner_plugins.DEFAULT_PLUGIN_REGISTRY,
     )
 
     assert (
@@ -141,6 +145,7 @@ def test_kubernetes_strict_mode_raises_platform_not_supported() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         orchestrator = importlib.import_module("prism.scanner_kernel.orchestrator")
         errors_module = importlib.import_module("prism.errors")
+        scanner_plugins = importlib.import_module("prism.scanner_plugins")
 
     with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
         orchestrator.route_scan_payload_orchestration(
@@ -148,6 +153,7 @@ def test_kubernetes_strict_mode_raises_platform_not_supported() -> None:
             scan_options={"platform": "kubernetes", "strict_phase_failures": True},
             legacy_orchestrator_fn=_legacy_fn,
             kernel_orchestrator_fn=lambda **kw: {},
+            registry=scanner_plugins.DEFAULT_PLUGIN_REGISTRY,
         )
 
     assert exc_info.value.code == "platform_not_supported"
@@ -157,6 +163,7 @@ def test_terraform_strict_mode_raises_platform_not_supported() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         orchestrator = importlib.import_module("prism.scanner_kernel.orchestrator")
         errors_module = importlib.import_module("prism.errors")
+        scanner_plugins = importlib.import_module("prism.scanner_plugins")
 
     with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
         orchestrator.route_scan_payload_orchestration(
@@ -164,6 +171,7 @@ def test_terraform_strict_mode_raises_platform_not_supported() -> None:
             scan_options={"platform": "terraform", "strict_phase_failures": True},
             legacy_orchestrator_fn=_legacy_fn,
             kernel_orchestrator_fn=lambda **kw: {},
+            registry=scanner_plugins.DEFAULT_PLUGIN_REGISTRY,
         )
 
     assert exc_info.value.code == "platform_not_supported"
@@ -235,6 +243,7 @@ def test_ansible_platform_routing_outcome_absent_on_normal_path() -> None:
 def test_no_legacy_fallback_for_kubernetes_regardless_of_strict_mode() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         orchestrator = importlib.import_module("prism.scanner_kernel.orchestrator")
+        scanner_plugins = importlib.import_module("prism.scanner_plugins")
 
     legacy_was_called = []
 
@@ -249,6 +258,7 @@ def test_no_legacy_fallback_for_kubernetes_regardless_of_strict_mode() -> None:
         scan_options={"platform": "kubernetes", "strict_phase_failures": False},
         legacy_orchestrator_fn=_tracking_legacy,
         kernel_orchestrator_fn=lambda **kw: {},
+        registry=scanner_plugins.DEFAULT_PLUGIN_REGISTRY,
     )
 
     assert (

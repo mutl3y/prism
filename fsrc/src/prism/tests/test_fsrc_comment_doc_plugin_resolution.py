@@ -1508,7 +1508,9 @@ def test_resolve_marker_prefix_reads_from_prepared_policy_bundle() -> None:
 def test_ensure_prepared_policy_bundle_sets_marker_prefix() -> None:
     """ensure_prepared_policy_bundle projects comment_doc_marker_prefix into the bundle."""
     with _prefer_fsrc_prism_on_sys_path():
-        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+        bundle_resolver = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
         di_module = importlib.import_module("prism.scanner_core.di")
 
         options: dict = {
@@ -1519,7 +1521,7 @@ def test_ensure_prepared_policy_bundle_sets_marker_prefix() -> None:
             role_path="/tmp/role",
             scan_options=options,
         )
-        bundle = scan_request.ensure_prepared_policy_bundle(
+        bundle = bundle_resolver.ensure_prepared_policy_bundle(
             scan_options=options, di=container
         )
         assert bundle["comment_doc_marker_prefix"] == "ingress.marker"
@@ -1531,7 +1533,7 @@ def test_ensure_prepared_policy_bundle_sets_marker_prefix() -> None:
             role_path="/tmp/role",
             scan_options=options2,
         )
-        bundle2 = scan_request.ensure_prepared_policy_bundle(
+        bundle2 = bundle_resolver.ensure_prepared_policy_bundle(
             scan_options=options2, di=container2
         )
         marker_utils = importlib.import_module(
@@ -1579,9 +1581,14 @@ def test_scan_request_ignores_deprecated_nested_marker_prefix_alias() -> None:
     assert options.get("scan_policy_warnings") is None
 
 
-def test_build_run_scan_options_canonical_projects_marker_prefix_from_canonical_policy_context() -> (
+def test_build_run_scan_options_canonical_does_not_project_marker_prefix_from_policy_context() -> (
     None
 ):
+    """After WB, scan_request no longer owns marker prefix extraction.
+
+    The bundle resolver (scanner_plugins layer) now handles policy_context
+    navigation for comment_doc.marker.prefix.
+    """
     with _prefer_fsrc_prism_on_sys_path():
         scan_request = importlib.import_module("prism.scanner_core.scan_request")
 
@@ -1613,8 +1620,32 @@ def test_build_run_scan_options_canonical_projects_marker_prefix_from_canonical_
             },
         )
 
-    assert options["comment_doc_marker_prefix"] == "canonical.marker"
+    assert "comment_doc_marker_prefix" not in options
     assert options.get("scan_policy_warnings") is None
+
+
+def test_bundle_resolver_projects_marker_prefix_from_policy_context() -> None:
+    """The bundle resolver navigates policy_context.comment_doc.marker.prefix."""
+    with _prefer_fsrc_prism_on_sys_path():
+        di_mod = importlib.import_module("prism.scanner_core.di")
+        bundle_resolver = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
+
+        scan_options: dict = {
+            "role_path": "/tmp/role",
+            "policy_context": {
+                "comment_doc": {
+                    "marker": {"prefix": "canonical.marker"},
+                },
+            },
+        }
+        container = di_mod.DIContainer(role_path="/tmp/role", scan_options=scan_options)
+        bundle = bundle_resolver.ensure_prepared_policy_bundle(
+            scan_options=scan_options, di=container
+        )
+
+    assert bundle["comment_doc_marker_prefix"] == "canonical.marker"
 
 
 def test_run_scan_ignores_flat_marker_alias_in_policy_context() -> None:
@@ -1702,10 +1733,14 @@ def test_build_run_scan_options_canonical_preserves_alias_keys_without_resolving
     ("include_underscore_prefixed_references", "expected_ignore_flag"),
     [(True, False), (False, True)],
 )
-def test_scan_request_normalizes_underscore_reference_policy_into_canonical_ignore_flag(
+def test_scan_request_passes_through_raw_underscore_reference_value_without_policy_resolution(
     include_underscore_prefixed_references: bool,
     expected_ignore_flag: bool,
 ) -> None:
+    """scan_request no longer interprets policy_context for underscore refs.
+
+    The raw caller value (None here) should pass through unchanged.
+    """
     with _prefer_fsrc_prism_on_sys_path():
         scan_request = importlib.import_module("prism.scanner_core.scan_request")
 
@@ -1737,6 +1772,60 @@ def test_scan_request_normalizes_underscore_reference_policy_into_canonical_igno
             },
         )
 
+    assert options["ignore_unresolved_internal_underscore_references"] is None
+
+
+@pytest.mark.parametrize(
+    ("include_underscore_prefixed_references", "expected_ignore_flag"),
+    [(True, False), (False, True)],
+)
+def test_bundle_resolver_resolves_underscore_reference_policy_from_policy_context(
+    include_underscore_prefixed_references: bool,
+    expected_ignore_flag: bool,
+) -> None:
+    """bundle_resolver interprets policy_context.include_underscore_prefixed_references."""
+    with _prefer_fsrc_prism_on_sys_path():
+        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+        bundle_resolver = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
+
+        options = scan_request.build_run_scan_options_canonical(
+            role_path="/tmp/role",
+            role_name_override=None,
+            readme_config_path=None,
+            include_vars_main=True,
+            exclude_path_patterns=None,
+            detailed_catalog=False,
+            include_task_parameters=True,
+            include_task_runbooks=True,
+            inline_task_runbooks=True,
+            include_collection_checks=True,
+            keep_unknown_style_sections=True,
+            adopt_heading_mode=None,
+            vars_seed_paths=None,
+            style_readme_path=None,
+            style_source_path=None,
+            style_guide_skeleton=False,
+            compare_role_path=None,
+            fail_on_unconstrained_dynamic_includes=None,
+            fail_on_yaml_like_task_annotations=None,
+            ignore_unresolved_internal_underscore_references=None,
+            policy_context={
+                "include_underscore_prefixed_references": (
+                    include_underscore_prefixed_references
+                )
+            },
+        )
+
+        bundle = bundle_resolver.ensure_prepared_policy_bundle(
+            scan_options=options, di=None
+        )
+
+    assert (
+        bundle["ignore_unresolved_internal_underscore_references"]
+        is expected_ignore_flag
+    )
     assert (
         options["ignore_unresolved_internal_underscore_references"]
         is expected_ignore_flag

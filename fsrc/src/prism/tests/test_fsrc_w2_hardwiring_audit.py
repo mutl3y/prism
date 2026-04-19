@@ -51,7 +51,10 @@ def test_fsrc_variable_discovery_ignores_jinja_local_bindings(tmp_path) -> None:
         discovery_module = importlib.import_module(
             "prism.scanner_core.variable_discovery"
         )
-        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+        bundle_resolver = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
+        plugins_module = importlib.import_module("prism.scanner_plugins")
         options = {
             "role_path": str(role_path),
             "include_vars_main": True,
@@ -60,8 +63,11 @@ def test_fsrc_variable_discovery_ignores_jinja_local_bindings(tmp_path) -> None:
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
-        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
+        bundle_resolver.ensure_prepared_policy_bundle(
+            scan_options=options, di=container
+        )
         discovery = discovery_module.VariableDiscovery(
             container,
             str(role_path),
@@ -92,7 +98,10 @@ def test_fsrc_variable_discovery_collects_yaml_parse_failure_metadata(tmp_path) 
         discovery_module = importlib.import_module(
             "prism.scanner_core.variable_discovery"
         )
-        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+        bundle_resolver = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
+        plugins_module = importlib.import_module("prism.scanner_plugins")
         options = {
             "role_path": str(role_path),
             "include_vars_main": True,
@@ -101,8 +110,11 @@ def test_fsrc_variable_discovery_collects_yaml_parse_failure_metadata(tmp_path) 
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
-        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
+        bundle_resolver.ensure_prepared_policy_bundle(
+            scan_options=options, di=container
+        )
         discovery = discovery_module.VariableDiscovery(
             container,
             str(role_path),
@@ -136,7 +148,10 @@ def test_fsrc_task_file_traversal_exposes_unresolved_include_edges(tmp_path) -> 
 
     with _prefer_fsrc_prism_on_sys_path():
         di_module = importlib.import_module("prism.scanner_core.di")
-        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+        bundle_resolver = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
+        plugins_module = importlib.import_module("prism.scanner_plugins")
         traversal_module = importlib.import_module(
             "prism.scanner_extract.task_file_traversal"
         )
@@ -147,8 +162,11 @@ def test_fsrc_task_file_traversal_exposes_unresolved_include_edges(tmp_path) -> 
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
-        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
+        bundle_resolver.ensure_prepared_policy_bundle(
+            scan_options=options, di=container
+        )
         task_files, unresolved_edges = (
             traversal_module._collect_task_files_with_unresolved_includes(
                 role_path.resolve(),
@@ -171,7 +189,10 @@ def test_fsrc_task_file_traversal_load_yaml_records_failure_metadata(tmp_path) -
 
     with _prefer_fsrc_prism_on_sys_path():
         di_module = importlib.import_module("prism.scanner_core.di")
-        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+        bundle_resolver = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
+        plugins_module = importlib.import_module("prism.scanner_plugins")
         traversal_module = importlib.import_module(
             "prism.scanner_extract.task_file_traversal"
         )
@@ -182,8 +203,11 @@ def test_fsrc_task_file_traversal_load_yaml_records_failure_metadata(tmp_path) -
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
-        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
+        bundle_resolver.ensure_prepared_policy_bundle(
+            scan_options=options, di=container
+        )
         failures: list[dict[str, object]] = []
         loaded = traversal_module._load_yaml_file(
             bad_file,

@@ -43,9 +43,6 @@ from prism.scanner_extract.task_file_traversal import (
 )
 from prism.scanner_extract.task_file_traversal import load_yaml_file as _load_yaml_file
 from prism.scanner_core.di_helpers import _scan_options_from_di
-from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
-    normalize_marker_prefix,
-)
 
 
 def _resolve_marker_prefix(di: object | None) -> str:
@@ -67,7 +64,7 @@ def _resolve_marker_prefix(di: object | None) -> str:
             "prepared_policy_bundle.comment_doc_marker_prefix must be set "
             "before marker-prefix resolution"
         )
-    return normalize_marker_prefix(bundle_prefix)
+    return bundle_prefix
 
 
 def collect_task_files(role_root, *, exclude_paths=None, di=None):

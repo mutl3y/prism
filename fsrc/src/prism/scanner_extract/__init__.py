@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from prism.scanner_plugins.defaults import resolve_comment_driven_documentation_plugin
 from prism.scanner_extract.task_line_parsing import (
     TASK_INCLUDE_KEYS,
     ROLE_INCLUDE_KEYS,
@@ -34,13 +33,11 @@ from prism.scanner_extract.variable_extractor import (
     JINJA_VAR_RE,
     JINJA_IDENTIFIER_RE,
     VAULT_KEY_RE,
-    IGNORED_IDENTIFIERS,
     collect_include_vars_files,
     looks_secret_name,
     resembles_password_like,
     extract_default_target_var,
     load_seed_variables,
-    refresh_policy_derived_state,
 )
 from prism.scanner_extract.discovery import (
     iter_role_variable_map_candidates,
@@ -76,7 +73,7 @@ is_relpath_excluded = _is_relpath_excluded
 
 
 def _make_standalone_di(role_path: str, exclude_paths=None):
-    from prism.scanner_core.scan_request import ensure_prepared_policy_bundle
+    from prism.scanner_plugins.bundle_resolver import ensure_prepared_policy_bundle
 
     options: dict = {"role_path": role_path, "exclude_path_patterns": exclude_paths}
     ensure_prepared_policy_bundle(scan_options=options, di=None)
@@ -84,6 +81,10 @@ def _make_standalone_di(role_path: str, exclude_paths=None):
     class _StandaloneDI:
         def __init__(self, opts: dict) -> None:
             self._scan_options = opts
+
+        @property
+        def scan_options(self) -> dict:
+            return self._scan_options
 
     return _StandaloneDI(options)
 
@@ -108,7 +109,12 @@ def extract_role_notes_from_comments(
     *,
     di=None,
 ):
-    plugin = resolve_comment_driven_documentation_plugin(di)
+    standalone = _make_standalone_di(role_path, exclude_paths) if di is None else di
+    from prism.scanner_plugins.defaults import (
+        resolve_comment_driven_documentation_plugin,
+    )
+
+    plugin = resolve_comment_driven_documentation_plugin(standalone)
     return plugin.extract_role_notes_from_comments(
         role_path,
         exclude_paths=exclude_paths,
@@ -147,13 +153,11 @@ __all__ = [
     "JINJA_VAR_RE",
     "JINJA_IDENTIFIER_RE",
     "VAULT_KEY_RE",
-    "IGNORED_IDENTIFIERS",
     "looks_secret_name",
     "resembles_password_like",
     "extract_default_target_var",
     "load_seed_variables",
     "collect_include_vars_files",
-    "refresh_policy_derived_state",
     "iter_role_variable_map_candidates",
     "load_meta",
     "load_requirements",
