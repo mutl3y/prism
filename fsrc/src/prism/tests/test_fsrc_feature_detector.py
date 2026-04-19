@@ -72,7 +72,10 @@ def test_fsrc_feature_detector_detects_feature_counter_shape(tmp_path) -> None:
 
     with _prefer_fsrc_prism_on_sys_path():
         di_module = importlib.import_module("prism.scanner_core.di")
-        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+        bundle_resolver = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
+        plugins_module = importlib.import_module("prism.scanner_plugins")
         feature_detector_module = importlib.import_module(
             "prism.scanner_core.feature_detector"
         )
@@ -83,8 +86,11 @@ def test_fsrc_feature_detector_detects_feature_counter_shape(tmp_path) -> None:
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
-        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
+        bundle_resolver.ensure_prepared_policy_bundle(
+            scan_options=options, di=container
+        )
         detector = feature_detector_module.FeatureDetector(
             container,
             str(role_path),
@@ -138,7 +144,10 @@ def test_fsrc_feature_detector_task_catalog_shape_parity(tmp_path) -> None:
 
     with _prefer_fsrc_prism_on_sys_path():
         di_module = importlib.import_module("prism.scanner_core.di")
-        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+        bundle_resolver = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
+        plugins_module = importlib.import_module("prism.scanner_plugins")
         feature_detector_module = importlib.import_module(
             "prism.scanner_core.feature_detector"
         )
@@ -152,8 +161,11 @@ def test_fsrc_feature_detector_task_catalog_shape_parity(tmp_path) -> None:
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
-        scan_request.ensure_prepared_policy_bundle(scan_options=options, di=container)
+        bundle_resolver.ensure_prepared_policy_bundle(
+            scan_options=options, di=container
+        )
 
         task_entries, handler_entries = (
             scanner_extract_module._collect_task_handler_catalog(
@@ -269,6 +281,7 @@ def test_fsrc_feature_detector_annotation_hot_path_uses_canonical_comment_doc_ma
 
     with _prefer_fsrc_prism_on_sys_path():
         di_module = importlib.import_module("prism.scanner_core.di")
+        plugins_module = importlib.import_module("prism.scanner_plugins")
         feature_detector_module = importlib.import_module(
             "prism.scanner_core.feature_detector"
         )
@@ -302,9 +315,12 @@ def test_fsrc_feature_detector_annotation_hot_path_uses_canonical_comment_doc_ma
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
-        scan_request_module = importlib.import_module("prism.scanner_core.scan_request")
-        scan_request_module.ensure_prepared_policy_bundle(
+        bundle_resolver_module = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
+        bundle_resolver_module.ensure_prepared_policy_bundle(
             scan_options=options, di=container
         )
         detector = feature_detector_module.FeatureDetector(
@@ -329,6 +345,7 @@ def test_fsrc_feature_detector_collect_task_handler_catalog_hot_path_uses_canoni
 
     with _prefer_fsrc_prism_on_sys_path():
         di_module = importlib.import_module("prism.scanner_core.di")
+        plugins_module = importlib.import_module("prism.scanner_plugins")
         feature_detector_module = importlib.import_module(
             "prism.scanner_core.feature_detector"
         )
@@ -362,9 +379,12 @@ def test_fsrc_feature_detector_collect_task_handler_catalog_hot_path_uses_canoni
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
-        scan_request_module = importlib.import_module("prism.scanner_core.scan_request")
-        scan_request_module.ensure_prepared_policy_bundle(
+        bundle_resolver_module = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
+        bundle_resolver_module.ensure_prepared_policy_bundle(
             scan_options=options, di=container
         )
         detector = feature_detector_module.FeatureDetector(

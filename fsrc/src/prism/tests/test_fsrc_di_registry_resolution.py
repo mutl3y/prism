@@ -6,8 +6,6 @@ import importlib
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import patch
-
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -40,9 +38,11 @@ def test_di_variable_discovery_plugin_resolves_through_registry():
     """DI default variable-discovery plugin resolves via registry, not hardcoded import."""
     with _prefer_fsrc_prism_on_sys_path():
         di_module = importlib.import_module("prism.scanner_core.di")
+        plugins_module = importlib.import_module("prism.scanner_plugins")
         container = di_module.DIContainer(
             role_path="/tmp/role",
             scan_options={"role_path": "/tmp/role"},
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
         plugin = container.factory_variable_discovery_plugin()
         assert plugin.__class__.__name__ == "AnsibleVariableDiscoveryPlugin"
@@ -52,9 +52,11 @@ def test_di_feature_detection_plugin_resolves_through_registry():
     """DI default feature-detection plugin resolves via registry, not hardcoded import."""
     with _prefer_fsrc_prism_on_sys_path():
         di_module = importlib.import_module("prism.scanner_core.di")
+        plugins_module = importlib.import_module("prism.scanner_plugins")
         container = di_module.DIContainer(
             role_path="/tmp/role",
             scan_options={"role_path": "/tmp/role"},
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
         plugin = container.factory_feature_detection_plugin()
         assert plugin.__class__.__name__ == "AnsibleFeatureDetectionPlugin"
@@ -73,15 +75,13 @@ def test_di_variable_discovery_plugin_fails_closed_on_empty_registry():
         di_module = importlib.import_module("prism.scanner_core.di")
         registry_module = importlib.import_module("prism.scanner_plugins.registry")
         empty_registry = registry_module.PluginRegistry()
-        with patch.object(
-            di_module, "_get_plugin_registry", return_value=empty_registry
-        ):
-            container = di_module.DIContainer(
-                role_path="/tmp/role",
-                scan_options={"role_path": "/tmp/role"},
-            )
-            with pytest.raises(ValueError, match="No platform key resolvable"):
-                container.factory_variable_discovery_plugin()
+        container = di_module.DIContainer(
+            role_path="/tmp/role",
+            scan_options={"role_path": "/tmp/role"},
+            registry=empty_registry,
+        )
+        with pytest.raises(ValueError, match="No platform key resolvable"):
+            container.factory_variable_discovery_plugin()
 
 
 def test_di_feature_detection_plugin_fails_closed_on_empty_registry():
@@ -90,15 +90,13 @@ def test_di_feature_detection_plugin_fails_closed_on_empty_registry():
         di_module = importlib.import_module("prism.scanner_core.di")
         registry_module = importlib.import_module("prism.scanner_plugins.registry")
         empty_registry = registry_module.PluginRegistry()
-        with patch.object(
-            di_module, "_get_plugin_registry", return_value=empty_registry
-        ):
-            container = di_module.DIContainer(
-                role_path="/tmp/role",
-                scan_options={"role_path": "/tmp/role"},
-            )
-            with pytest.raises(ValueError, match="No platform key resolvable"):
-                container.factory_feature_detection_plugin()
+        container = di_module.DIContainer(
+            role_path="/tmp/role",
+            scan_options={"role_path": "/tmp/role"},
+            registry=empty_registry,
+        )
+        with pytest.raises(ValueError, match="No platform key resolvable"):
+            container.factory_feature_detection_plugin()
 
 
 def test_di_mock_precedence_preserved_for_variable_discovery_plugin():
@@ -194,9 +192,11 @@ def test_resolve_platform_key_default_uses_registry():
     """With no explicit scan_options override, _resolve_platform_key falls through to registry."""
     with _prefer_fsrc_prism_on_sys_path():
         di_module = importlib.import_module("prism.scanner_core.di")
+        plugins_module = importlib.import_module("prism.scanner_plugins")
         container = di_module.DIContainer(
             role_path="/tmp/role",
             scan_options={"role_path": "/tmp/role"},
+            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
         )
         key = container._resolve_platform_key()
         assert key == "ansible"
@@ -255,12 +255,10 @@ def test_resolve_platform_key_fails_closed_no_registry_default():
         di_module = importlib.import_module("prism.scanner_core.di")
         registry_module = importlib.import_module("prism.scanner_plugins.registry")
         empty_registry = registry_module.PluginRegistry()
-        with patch.object(
-            di_module, "_get_plugin_registry", return_value=empty_registry
-        ):
-            container = di_module.DIContainer(
-                role_path="/tmp/role",
-                scan_options={"role_path": "/tmp/role"},
-            )
-            with pytest.raises(ValueError, match="No platform key resolvable"):
-                container._resolve_platform_key()
+        container = di_module.DIContainer(
+            role_path="/tmp/role",
+            scan_options={"role_path": "/tmp/role"},
+            registry=empty_registry,
+        )
+        with pytest.raises(ValueError, match="No platform key resolvable"):
+            container._resolve_platform_key()

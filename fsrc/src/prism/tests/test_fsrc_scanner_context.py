@@ -520,7 +520,7 @@ def test_fsrc_scanner_context_requires_prepared_policy_bundle_without_mutating_i
             return scan_options["prepared_policy_bundle"]
 
         monkeypatch.setattr(
-            scanner_context_module.scan_request,
+            scanner_context_module,
             "ensure_prepared_policy_bundle",
             _record_ensure_prepared_policy_bundle,
         )
@@ -590,7 +590,9 @@ def test_fsrc_scan_request_prepared_policy_bundle_rejects_missing_task_meta_keys
             return "debug"
 
     with _prefer_fsrc_prism_on_sys_path():
-        scan_request = importlib.import_module("prism.scanner_core.scan_request")
+        bundle_resolver = importlib.import_module(
+            "prism.scanner_plugins.bundle_resolver"
+        )
 
         options = {
             "prepared_policy_bundle": {
@@ -600,7 +602,7 @@ def test_fsrc_scan_request_prepared_policy_bundle_rejects_missing_task_meta_keys
         }
 
         with pytest.raises(ValueError, match="TASK_META_KEYS"):
-            scan_request.ensure_prepared_policy_bundle(scan_options=options, di=None)
+            bundle_resolver.ensure_prepared_policy_bundle(scan_options=options, di=None)
 
 
 def test_fsrc_scanner_context_emits_dynamic_include_blocker_facts_with_contract_counts_and_provenance(

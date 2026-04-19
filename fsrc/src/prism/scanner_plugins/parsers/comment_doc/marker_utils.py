@@ -1,4 +1,8 @@
-"""Parser-owned marker parsing utilities for comment-driven documentation."""
+"""Canonical marker parsing utilities for comment-driven documentation.
+
+Ownership: comment_doc plugin layer — per design, plugin layers own
+marker behavior; scanner_data owns only schema contracts.
+"""
 
 from __future__ import annotations
 

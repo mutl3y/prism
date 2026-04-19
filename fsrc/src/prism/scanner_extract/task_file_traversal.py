@@ -8,18 +8,8 @@ import re
 
 import yaml
 
-from prism.scanner_core.di_helpers import _scan_options_from_di
+from prism.scanner_core.di_helpers import _get_prepared_policy
 from prism.scanner_io.loader import parse_yaml_candidate
-
-
-def _get_prepared_policy(di: object | None, policy_name: str) -> object | None:
-    scan_options = _scan_options_from_di(di)
-    if not isinstance(scan_options, dict):
-        return None
-    prepared_policy_bundle = scan_options.get("prepared_policy_bundle")
-    if not isinstance(prepared_policy_bundle, dict):
-        return None
-    return prepared_policy_bundle.get(policy_name)
 
 
 def _get_task_traversal_policy(di: object | None = None):

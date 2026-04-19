@@ -17,7 +17,9 @@ def _resolve_plugin_registry(di: object | None = None):
     registry = getattr(di, "plugin_registry", None)
     if registry is not None:
         return registry
-    scan_options = getattr(di, "_scan_options", None)
+    scan_options = getattr(di, "scan_options", None)
+    if not isinstance(scan_options, dict):
+        scan_options = getattr(di, "_scan_options", None)
     if isinstance(scan_options, dict):
         return scan_options.get("plugin_registry")
     return None

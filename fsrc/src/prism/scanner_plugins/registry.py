@@ -22,6 +22,7 @@ class PluginRegistry:
             str, type[OutputOrchestrationPlugin]
         ] = {}
         self._scan_pipeline_plugins: dict[str, type[ScanPipelinePlugin]] = {}
+        self._reserved_unsupported_platforms: set[str] = set()
         self._comment_driven_doc_plugins: dict[
             str, type[CommentDrivenDocumentationPlugin]
         ] = {}
@@ -103,6 +104,12 @@ class PluginRegistry:
         plugin_class: type[Any],
     ) -> None:
         self._jinja_analysis_policy_plugins[name] = plugin_class
+
+    def register_reserved_unsupported_platform(self, name: str) -> None:
+        self._reserved_unsupported_platforms.add(name)
+
+    def is_reserved_unsupported_platform(self, name: str) -> bool:
+        return name in self._reserved_unsupported_platforms
 
     def get_variable_discovery_plugin(
         self,

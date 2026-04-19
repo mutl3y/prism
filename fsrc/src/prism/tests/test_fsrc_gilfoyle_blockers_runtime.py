@@ -396,12 +396,19 @@ def test_fsrc_runtime_blocker_translation_runs_before_route_specific_warning_inj
                 del preflight_context
                 raise RuntimeError("runtime boom")
 
+        plugins_module = importlib.import_module("prism.scanner_plugins")
+        _real = plugins_module.DEFAULT_PLUGIN_REGISTRY
+
         class _Registry:
             @staticmethod
             def get_scan_pipeline_plugin(name: str):
                 if name == "default":
                     return _RuntimeFailingPlugin
                 return None
+
+            get_default_platform_key = _real.get_default_platform_key
+            get_variable_discovery_plugin = _real.get_variable_discovery_plugin
+            get_feature_detection_plugin = _real.get_feature_detection_plugin
 
         monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
         payload = api_module.run_scan(
@@ -451,11 +458,17 @@ def test_fsrc_runtime_fallback_route_preserves_blocker_translation_before_legacy
 
     with _prefer_fsrc_prism_on_sys_path():
         api_module = importlib.import_module("prism.api")
+        plugins_module = importlib.import_module("prism.scanner_plugins")
+        _real = plugins_module.DEFAULT_PLUGIN_REGISTRY
 
         class _Registry:
             @staticmethod
             def get_scan_pipeline_plugin(_name: str):
                 return None
+
+            get_default_platform_key = _real.get_default_platform_key
+            get_variable_discovery_plugin = _real.get_variable_discovery_plugin
+            get_feature_detection_plugin = _real.get_feature_detection_plugin
 
         monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
         payload = api_module.run_scan(
@@ -654,12 +667,19 @@ def test_runtime_blockers_preserve_strict_failures_and_non_strict_warnings(
                 del preflight_context
                 raise RuntimeError("runtime boom")
 
+        plugins_module = importlib.import_module("prism.scanner_plugins")
+        _real = plugins_module.DEFAULT_PLUGIN_REGISTRY
+
         class _Registry:
             @staticmethod
             def get_scan_pipeline_plugin(name: str):
                 if name == "default":
                     return _RuntimeFailingPlugin
                 return None
+
+            get_default_platform_key = _real.get_default_platform_key
+            get_variable_discovery_plugin = _real.get_variable_discovery_plugin
+            get_feature_detection_plugin = _real.get_feature_detection_plugin
 
         monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
 
