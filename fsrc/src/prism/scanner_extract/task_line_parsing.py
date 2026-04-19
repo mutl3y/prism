@@ -179,8 +179,6 @@ class _PolicyBackedMarkerLineRegexProxy:
 
 ROLE_NOTES_RE = _PolicyBackedMarkerLineRegexProxy()
 TASK_NOTES_LONG_RE = _PolicyBackedMarkerLineRegexProxy()
-ROLE_NOTES_SHORT_RE = ROLE_NOTES_RE
-TASK_NOTES_SHORT_RE = TASK_NOTES_LONG_RE
 
 
 class _PolicyBackedAnnotationRegexProxy:

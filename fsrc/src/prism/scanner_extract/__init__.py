@@ -10,9 +10,7 @@ from prism.scanner_extract.task_line_parsing import (
     TASK_BLOCK_KEYS,
     TASK_META_KEYS,
     ROLE_NOTES_RE,
-    ROLE_NOTES_SHORT_RE,
     TASK_NOTES_LONG_RE,
-    TASK_NOTES_SHORT_RE,
     COMMENT_CONTINUATION_RE,
 )
 from prism.scanner_extract.task_file_traversal import (
@@ -79,9 +77,7 @@ __all__ = [
     "TASK_BLOCK_KEYS",
     "TASK_META_KEYS",
     "ROLE_NOTES_RE",
-    "ROLE_NOTES_SHORT_RE",
     "TASK_NOTES_LONG_RE",
-    "TASK_NOTES_SHORT_RE",
     "COMMENT_CONTINUATION_RE",
     "is_path_excluded",
     "load_yaml_file",
