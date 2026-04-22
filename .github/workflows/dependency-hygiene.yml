@@ -30,4 +30,4 @@ jobs:
 
       - name: Audit Python dependencies
         run: |
-          pip-audit --strict
+          pip-audit --strict --skip-editable

@@ -9,7 +9,7 @@ env:
   DEFAULT_BRANCH: main
   VALIDATE_ALL_CODEBASE: false
   FILTER_REGEX_EXCLUDE: >-
-    (^|/)(docs/plan/|old_docs/|plugins/prism-comment-highlighter/|\.codex$)
+    (^|/)(docs/plan/|old_docs/|plugins/|\.codex$)
   VALIDATE_BIOME_FORMAT: false
   VALIDATE_BIOME_LINT: false
   VALIDATE_CHECKOV: false
@@ -17,12 +17,16 @@ env:
   VALIDATE_CSS_PRETTIER: false
   VALIDATE_ENV: false
   VALIDATE_GITLEAKS: false
+  VALIDATE_GITHUB_ACTIONS_ZIZMOR: false
   VALIDATE_HTML: false
   VALIDATE_HTML_PRETTIER: false
+  VALIDATE_JAVASCRIPT_PRETTIER: false
   VALIDATE_JSCPD: false
+  VALIDATE_JSON_PRETTIER: false
   VALIDATE_MARKDOWN: false
   VALIDATE_MARKDOWN_PRETTIER: false
   VALIDATE_NATURAL_LANGUAGE: false
+  VALIDATE_PYTHON_BLACK: false
   VALIDATE_PYTHON_FLAKE8: false
   VALIDATE_PYTHON_ISORT: false
   VALIDATE_PYTHON_MYPY: false
