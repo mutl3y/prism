@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, TypedDict
 
+
 ERROR_CATEGORY_CONFIG = "config"
 ERROR_CATEGORY_RUNTIME = "runtime"
 ERROR_CATEGORY_IO = "io"

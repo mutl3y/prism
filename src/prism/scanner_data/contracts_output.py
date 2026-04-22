@@ -1,96 +1,20 @@
-"""Render, report, and output contracts owned by the output domain."""
+"""Minimal output contracts for fsrc output orchestration foundations."""
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Self, TypedDict
+from typing import Any, TypedDict
 
-from prism.scanner_data.contracts_errors import FailureDetail
 from prism.scanner_data.contracts_request import ScanMetadata
 
 
-class ScanRenderPayload(TypedDict):
-    """Render-stage payload shared by README, report, and primary output flows."""
-
-    role_name: str
-    description: str
-    display_variables: dict[str, Any]
-    requirements_display: list[Any]
-    undocumented_default_filters: list[Any]
-
-
-class OutputConfiguration(TypedDict, total=False):
-    """Output-specific configuration separated from scan metadata.
-
-    Contains only configuration for output rendering and file emission,
-    separate from scan configuration, variable analysis, and error tracking.
-    """
-
-    concise_readme: bool
-    include_scanner_report_link: bool
-    scanner_report_relpath: str
-
-
 class RunScanOutputPayload(TypedDict):
-    """Typed seam payload between run_scan orchestration and output rendering."""
+    """Typed seam payload between scan orchestration and output emission."""
 
     role_name: str
     description: str
     display_variables: dict[str, Any]
     requirements_display: list[Any]
     undocumented_default_filters: list[Any]
-    metadata: ScanMetadata
-
-
-class RunbookSidecarPayload(TypedDict):
-    """Minimal runbook-stage payload containing only role identity and metadata."""
-
-    role_name: str
-    metadata: ScanMetadata
-
-
-class EmitScanOutputsArgs(TypedDict):
-    """Argument bundle for output emission to reduce argument-drift risk."""
-
-    output: str
-    output_format: str
-    concise_readme: bool
-    scanner_report_output: str | None
-    include_scanner_report_link: bool
-    role_name: str
-    description: str
-    display_variables: dict[str, Any]
-    requirements_display: list[Any]
-    undocumented_default_filters: list[Any]
-    metadata: ScanMetadata
-    template: str | None
-    dry_run: bool
-    runbook_output: str | None
-    runbook_csv_output: str | None
-
-
-class ScanReportSidecarArgs(TypedDict):
-    """Argument bundle for concise scanner-report sidecar emission."""
-
-    concise_readme: bool
-    scanner_report_output: str | None
-    out_path: Path
-    include_scanner_report_link: bool
-    role_name: str
-    description: str
-    display_variables: dict[str, Any]
-    requirements_display: list[Any]
-    undocumented_default_filters: list[Any]
-    metadata: ScanMetadata
-    dry_run: bool
-
-
-class RunbookSidecarArgs(TypedDict):
-    """Argument bundle for optional runbook emission."""
-
-    runbook_output: str | None
-    runbook_csv_output: str | None
-    role_name: str
     metadata: ScanMetadata
 
 
@@ -103,7 +27,7 @@ class FinalOutputPayload(TypedDict):
     requirements: list[Any]
     default_filters: list[dict[str, Any]]
     metadata: dict[str, Any]
-    warnings: list[FailureDetail]
+    warnings: list[dict[str, Any]]
 
 
 class ScannerCounters(TypedDict):
@@ -260,7 +184,7 @@ def validate_runbook_sidecar_inputs(
 
 
 def validate_run_scan_output_payload(payload: object) -> RunScanOutputPayload:
-    """Validate and normalize a run-scan payload at output/render boundaries."""
+    """Validate and normalize output payload shape."""
     if not isinstance(payload, dict):
         raise ValueError(
             "'payload' must be a RunScanOutputPayload-compatible dict. "
@@ -316,58 +240,12 @@ def validate_run_scan_output_payload(payload: object) -> RunScanOutputPayload:
     }
 
 
-class ScanPayloadBuilder:
-    """Fluent builder for constructing immutable RunScanOutputPayload TypedDicts.
-
-    Lives in this module because RunScanOutputPayload is defined here and
-    builders should be co-located with the contracts they produce.
-    """
-
-    def __init__(self) -> None:
-        self._payload: dict[str, Any] = {}
-
-    def role_name(self, value: str) -> Self:
-        self._payload["role_name"] = value
-        return self
-
-    def description(self, value: str) -> Self:
-        self._payload["description"] = value
-        return self
-
-    def display_variables(self, value: dict[str, Any]) -> Self:
-        self._payload["display_variables"] = value
-        return self
-
-    def requirements_display(self, value: list[Any]) -> Self:
-        self._payload["requirements_display"] = value
-        return self
-
-    def undocumented_default_filters(self, value: list[Any]) -> Self:
-        self._payload["undocumented_default_filters"] = value
-        return self
-
-    def metadata(self, value: ScanMetadata) -> Self:
-        self._payload["metadata"] = value
-        return self
-
-    def build(self) -> RunScanOutputPayload:
-        """Validate and return immutable RunScanOutputPayload TypedDict."""
-        return validate_run_scan_output_payload(dict(self._payload))
-
-
 __all__ = [
     "AnnotationQualityCounters",
-    "EmitScanOutputsArgs",
     "FinalOutputPayload",
     "NormalizedScannerReportMetadata",
-    "OutputConfiguration",
     "ReadmeSectionRenderInput",
-    "RunbookSidecarArgs",
-    "RunbookSidecarPayload",
     "RunScanOutputPayload",
-    "ScanPayloadBuilder",
-    "ScanRenderPayload",
-    "ScanReportSidecarArgs",
     "ScannerCounters",
     "ScannerReportIssueListRow",
     "ScannerReportMetadata",

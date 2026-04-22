@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 import re
 import shutil
-
 import yaml
 
 from prism.scanner_io.collection_renderer import render_collection_markdown
@@ -16,7 +15,6 @@ CAPTURE_MAX_SECTIONS = 50
 CAPTURE_MAX_CONTENT_CHARS = 20000
 CAPTURE_MAX_TOTAL_CHARS = 1_000_000
 TRUNCATION_MARKER = "\n[truncated]"
-
 REDACTION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(
@@ -105,11 +103,9 @@ def save_style_comparison_artifacts(
 ) -> tuple[str | None, str | None]:
     if not style_readme_path:
         return None, None
-
     source = Path(style_readme_path)
     if not source.is_file():
         raise FileNotFoundError(f"style README not found: {style_readme_path}")
-
     output_path = Path(generated_output)
     style_slug = style_source_name or source.stem
     if style_slug.lower() in {"readme", "source_style_guide", "style_guide_source"}:
@@ -130,72 +126,58 @@ def save_style_comparison_artifacts(
     else:
         style_dir = output_path.parent / expected_style_dir_name
     style_dir.mkdir(parents=True, exist_ok=True)
-
     source_suffix = source.suffix or ".md"
     source_destination = style_dir / f"SOURCE_STYLE_GUIDE{source_suffix}"
     if source.resolve() != source_destination.resolve():
         shutil.copyfile(source, source_destination)
-
     output_suffix = output_path.suffix or ".md"
     demo_destination = style_dir / f"DEMO_GENERATED{output_suffix}"
     if output_path.resolve() != demo_destination.resolve():
         shutil.copyfile(output_path, demo_destination)
-
     if keep_unknown_style_sections:
         keep_demo_destination = (
             style_dir / f"DEMO_GENERATED_KEEP_UNKNOWN{output_suffix}"
         )
         if output_path.resolve() != keep_demo_destination.resolve():
             shutil.copyfile(output_path, keep_demo_destination)
-
     cfg_destination = style_dir / "ROLE_README_CONFIG.yml"
-
     if role_config_path:
         cfg_source = Path(role_config_path)
         if cfg_source.is_file():
             if cfg_source.resolve() != cfg_destination.resolve():
                 shutil.copyfile(cfg_source, cfg_destination)
             return str(source_destination.resolve()), str(demo_destination.resolve())
-
     parsed = parse_style_readme_fn(str(source))
     unknown_sections: list[dict[str, str]] = []
     seen_keys: set[str] = set()
     total_chars = 0
     truncated_any = False
-
     for section in parsed.get("sections", []):
         if section.get("id") != "unknown":
             continue
         if len(unknown_sections) >= capture_max_sections:
             truncated_any = True
             break
-
         title = str(section.get("title") or "").strip()
         key = re.sub(r"\s+", " ", title).lower()
         if not key or key in seen_keys:
             continue
         seen_keys.add(key)
-
         body = str(section.get("body") or "").strip()
         body = sanitize_captured_content(body)
         body, truncated_one = truncate_content(body, capture_max_content_chars)
         if truncated_one:
             truncated_any = True
-
         proposed_chars = total_chars + len(title) + len(body)
         if proposed_chars > capture_max_total_chars:
             remaining = max(0, capture_max_total_chars - total_chars - len(title))
             body, _ = truncate_content(body, remaining)
             truncated_any = True
-
         unknown_sections.append({"title": title, "content": body})
         total_chars += len(title) + len(body)
-
         if total_chars >= capture_max_total_chars:
             break
-
     unknown_sections.sort(key=lambda row: row["title"].lower())
-
     payload = {
         "readme": {
             "capture_metadata": {
@@ -227,5 +209,4 @@ def save_style_comparison_artifacts(
     )
     if existing_cfg != rendered_cfg:
         cfg_destination.write_text(rendered_cfg, encoding="utf-8")
-
     return str(source_destination.resolve()), str(demo_destination.resolve())

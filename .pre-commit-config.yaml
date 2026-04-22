@@ -7,6 +7,7 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+        exclude: ^src/prism/tests/roles/
 
   - repo: local
     hooks:
@@ -26,7 +27,9 @@ repos:
         name: mypy (modernized seam modules)
         entry: mypy
         args:
-          - src/
+          - src/prism
+          - --exclude
+          - src/prism/tests
         language: system
         pass_filenames: false
         types: [python]

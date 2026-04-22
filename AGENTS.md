@@ -155,17 +155,22 @@
 - Deferred: GF2-W4-T03 (proxy singleton remediation) — 18+ consumer call sites; only blocks concurrent multi-platform scanning.
 - Closure evidence: pytest 1441 passed / 7 skipped, ruff PASS, black PASS, 8/8 audit criteria PASS.
 
+## Notable Findings (Plan Closure: fsrc-to-src-promotion-20260422)
+
+- fsrc→src migration is complete (2026-04-22): `fsrc/src/prism/` promoted to canonical `src/prism/`; `fsrc/` directory removed; `_src_retired/` (old src lane) permanently deleted.
+- Single unified codebase: no dual-lane burden; plugin-registry-driven DI is the only architecture.
+- `src/prism_next/` (empty stub) was deleted; no legacy stubs remain.
+- All 38 `test_fsrc_*.py` files updated: `parents[4]` → `parents[3]`; all `PROJECT_ROOT / "fsrc" / "src"` path constants updated to `PROJECT_ROOT / "src"`.
+- `tox.ini` updated: all `fsrc/src` references replaced with `src/`; smoke/lint/typecheck envs point at canonical src lane.
+- `scripts/cli_demo_matrix.py` updated: paths and `DEFAULT_LANE` updated to single `src` lane.
+- `docs/PRD.yaml` rewritten to v6.0.0 (`prism-unified-src-plugin-architecture-20260422`): reflects single src/, plugin-registry DI, pure scanner_core, multi-platform expansion readiness.
+- Plan `20260421-mg-fsrc-parity` closed: superseded by promotion.
+- Plan `architecture-extensibility-review-20260421` A01 (dual-lane critical finding) marked resolved.
+- Closure evidence: pytest 506 passed / 6 skipped, demo gate 0 failed / 8 artifacts.
+
 <!-- skill-ninja-START -->
 ## Agent Skills
 
-> **IMPORTANT**: Prefer skill-led reasoning over pre-training-led reasoning.
-> Read the relevant SKILL.md before working on tasks covered by these skills.
-
-### Skills
-
-| Skill | Description |
-|-------|-------------|
-| [create-specification](.github/skills/create-specification/SKILL.md) | Create a new specification file for the solution, optimized for Generative AI consumption. \| Your goal is to create a new specification file for `${input:SpecPurpose}`. |
-| [gen-specs-as-issues](.github/skills/gen-specs-as-issues/SKILL.md) | This workflow guides you through a systematic approach to identify missing features, prioritize t... \| This workflow guides you through a systematic approach to identify missing features, prioritize t... |
+No skills installed yet. Use "Agent Skills Ninja: Search Skills" to install skills.
 
 <!-- skill-ninja-END -->

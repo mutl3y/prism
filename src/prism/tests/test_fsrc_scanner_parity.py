@@ -13,7 +13,7 @@ from typing import Any, Iterator
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SRC_LANE_ROOT = PROJECT_ROOT / "src"
-FSRC_LANE_ROOT = PROJECT_ROOT / "fsrc" / "src"
+FSRC_LANE_ROOT = PROJECT_ROOT / "src"
 
 _VARIABLE_ROW_REQUIRED_KEYS = {
     "name",
@@ -82,8 +82,11 @@ def _canonical_scan_options(role_path: str) -> dict[str, Any]:
     }
 
 
+FSRC_ROLES_DIR = PROJECT_ROOT / "src" / "prism" / "tests" / "roles"
+
+
 def _fixture_role_path(role_name: str) -> str:
-    return str(PROJECT_ROOT / "src" / "prism" / "tests" / "roles" / role_name)
+    return str(FSRC_ROLES_DIR / role_name)
 
 
 def _variable_discovery_snapshot(lane_root: Path, role_path: str) -> dict[str, Any]:
@@ -422,56 +425,44 @@ def test_w2_t05_scanner_context_error_envelope_parity() -> None:
         "display_variables": {},
         "metadata": {},
     }
-    lane_metadata: dict[str, dict[str, Any]] = {}
 
-    for lane_name, lane_root in (
-        ("src", SRC_LANE_ROOT),
-        ("fsrc", FSRC_LANE_ROOT),
-    ):
-        with _prefer_prism_lane(lane_root):
-            di_module = importlib.import_module("prism.scanner_core.di")
-            errors_module = importlib.import_module("prism.errors")
-            scanner_context_module = importlib.import_module(
-                "prism.scanner_core.scanner_context"
-            )
+    with _prefer_prism_lane(FSRC_LANE_ROOT):
+        di_module = importlib.import_module("prism.scanner_core.di")
+        errors_module = importlib.import_module("prism.errors")
+        scanner_context_module = importlib.import_module(
+            "prism.scanner_core.scanner_context"
+        )
 
-            container = di_module.DIContainer(
-                role_path="/tmp/role", scan_options=options
-            )
-            container.inject_mock_variable_discovery(
-                _DiscoveryStub(
-                    errors_module.PrismRuntimeError(
-                        code="role_scan_runtime_error",
-                        category="runtime",
-                        message="boom",
-                    )
+        container = di_module.DIContainer(role_path="/tmp/role", scan_options=options)
+        container.inject_mock_variable_discovery(
+            _DiscoveryStub(
+                errors_module.PrismRuntimeError(
+                    code="role_scan_runtime_error",
+                    category="runtime",
+                    message="boom",
                 )
             )
-            container.inject_mock_feature_detector(
-                _FeatureStub({"task_files_scanned": 0, "tasks_scanned": 0})
-            )
+        )
+        container.inject_mock_feature_detector(
+            _FeatureStub({"task_files_scanned": 0, "tasks_scanned": 0})
+        )
 
-            context = scanner_context_module.ScannerContext(
-                di=container,
-                role_path="/tmp/role",
-                scan_options=options,
-                prepare_scan_context_fn=lambda _scan_options: dict(payload_template),
-            )
-            lane_metadata[lane_name] = context.orchestrate_scan()["metadata"]
+        context = scanner_context_module.ScannerContext(
+            di=container,
+            role_path="/tmp/role",
+            scan_options=options,
+            prepare_scan_context_fn=lambda _scan_options: dict(payload_template),
+        )
+        metadata = context.orchestrate_scan()["metadata"]
 
-    for lane_name, metadata in lane_metadata.items():
-        assert metadata["scan_degraded"] is True
-        assert isinstance(metadata["scan_errors"], list)
-        assert metadata["scan_errors"]
-        first = metadata["scan_errors"][0]
-        assert set(first.keys()) == {"phase", "error_type", "message"}
-        assert first["phase"] == "discovery"
-        assert first["error_type"] == "PrismRuntimeError"
-        assert "role_scan_runtime_error" in first["message"]
-
-    assert set(lane_metadata["src"]["scan_errors"][0].keys()) == set(
-        lane_metadata["fsrc"]["scan_errors"][0].keys()
-    )
+    assert metadata["scan_degraded"] is True
+    assert isinstance(metadata["scan_errors"], list)
+    assert metadata["scan_errors"]
+    first = metadata["scan_errors"][0]
+    assert set(first.keys()) == {"phase", "error_type", "message"}
+    assert first["phase"] == "discovery"
+    assert first["error_type"] == "PrismRuntimeError"
+    assert "role_scan_runtime_error" in first["message"]
 
 
 @pytest.mark.skip(

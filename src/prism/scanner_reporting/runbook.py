@@ -8,8 +8,9 @@ from __future__ import annotations
 import csv
 import io
 from pathlib import Path
+from typing import Any
 
-import jinja2
+from prism.scanner_data.rendering_seams import build_render_jinja_environment
 
 
 def render_runbook(
@@ -22,21 +23,19 @@ def render_runbook(
     if template:
         tpl_file = Path(template)
     else:
-        # Templates remain in prism/templates when helper modules are relocated.
         tpl_file = (
             Path(__file__).resolve().parent.parent / "templates" / "RUNBOOK.md.j2"
         )
 
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(tpl_file.parent)),
-        trim_blocks=True,
-        lstrip_blocks=True,
+    env = build_render_jinja_environment(
+        template_dir=tpl_file.parent,
+        metadata=metadata,
     )
     template_obj = env.get_template(tpl_file.name)
     return template_obj.render(role_name=role_name, metadata=metadata)
 
 
-def _build_runbook_rows(metadata: dict | None) -> list[tuple[str, str, str]]:
+def build_runbook_rows(metadata: dict[str, Any] | None) -> list[tuple[str, str, str]]:
     """Build normalized runbook rows: (file, task_name, step)."""
     metadata = metadata or {}
     task_catalog = metadata.get("task_catalog") or []
@@ -62,16 +61,11 @@ def _build_runbook_rows(metadata: dict | None) -> list[tuple[str, str, str]]:
     return rows
 
 
-def build_runbook_rows(metadata: dict | None) -> list[tuple[str, str, str]]:
-    """Build normalized runbook rows: (file, task_name, step)."""
-    return _build_runbook_rows(metadata)
-
-
 def render_runbook_csv(metadata: dict | None = None) -> str:
     """Render runbook rows to CSV with columns: file, task_name, step."""
     output = io.StringIO()
     writer = csv.writer(output, lineterminator="\n")
     writer.writerow(["file", "task_name", "step"])
-    for file_name, task_name, step in _build_runbook_rows(metadata):
+    for file_name, task_name, step in build_runbook_rows(metadata):
         writer.writerow([file_name, task_name, step])
     return output.getvalue()

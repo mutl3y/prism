@@ -10,8 +10,7 @@ This guide focuses on two operational goals:
 - translate task context into usable human procedures during incidents
 - expose portfolio-level quality signals for governance decisions
 
-Provenance matters here because policy should be built on findings that are
-auditable, confidence-aware, and explicit about uncertainty.
+Provenance matters here because policy should be built on findings that are auditable, confidence-aware, and explicit about uncertainty.
 
 ## Lane Split
 

@@ -32,7 +32,6 @@ def finalize_repo_json_output(
             repo_style_readme_path=repo_style_readme_path,
             scanner_report_relpath=scanner_report_relpath,
         )
-
     output_path = Path(rendered_or_path)
     try:
         raw_payload = output_path.read_text(encoding="utf-8")
