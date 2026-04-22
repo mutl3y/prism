@@ -5,8 +5,7 @@
 ## Contents
 
 - [Role Notes](#role-notes)
-- [Persist ops state marker](#task-main-yml-persist-ops-state-marker-1)
-- [Report ops retry configuration](#task-main-yml-report-ops-retry-configuration-2)
+_No tasks found._
 
 ---
 
@@ -18,20 +17,14 @@
 
 ---
 
-## Task Runbooks
+_No tasks were found in this role._
 
-<a id="task-main-yml-persist-ops-state-marker-1"></a>
+To add runbook comments, annotate tasks with `# prism~...` comments:
 
-#### `main.yml` - Persist ops state marker
-
-- owner=ops impact=medium
-
----
-
-<a id="task-main-yml-report-ops-retry-configuration-2"></a>
-
-#### `main.yml` - Report ops retry configuration
-
-- Note: This role demonstrates a second collection role for aggregate docs.
-
----
+```yaml
+# prism~runbook: restart service, verify with systemctl status
+- name: Restart nginx
+  ansible.builtin.service:
+    name: nginx
+    state: restarted
+```

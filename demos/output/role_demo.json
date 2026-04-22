@@ -1,68 +1,95 @@
 {
   "default_filters": [],
-  "description": "Minimal role fixture for Prism demos",
-  "metadata": {
-    "collection_compliance_notes": [],
-    "defaults": [
-      "defaults/main.yml"
-    ],
-    "detailed_catalog": false,
-    "doc_insights": {
-      "capabilities": [
-        "Deploy configuration or content files",
-        "Manage users and groups",
-        "Uses nested task includes for modular orchestration",
-        "Triggers role handlers based on task changes"
-      ],
-      "example_playbook": "- hosts: all\n  roles:\n    - role: role_demo\n      vars:\n        demo_allowed_networks: [10.0.0.0/24, 192.168.10.0/24]\n        demo_feature_flags: [docs, reporting]\n        demo_service_enabled: true",
-      "purpose_summary": "Minimal role fixture for Prism demos",
-      "task_summary": {
-        "handler_count": 1,
-        "module_count": 6,
-        "recursive_task_includes": 2,
-        "task_files_scanned": 3,
-        "tasks_scanned": 7
-      }
+  "description": "Auto-generated scan summary for role_demo.",
+  "display_variables": {
+    "demo_allowed_networks": {
+      "default": "[10.0.0.0/24, 192.168.10.0/24]",
+      "documented": true,
+      "is_ambiguous": false,
+      "is_unresolved": false,
+      "required": false,
+      "secret": false,
+      "source": "defaults/main.yml",
+      "type": "list",
+      "uncertainty_reason": null
     },
-    "fail_on_unconstrained_dynamic_includes": false,
-    "fail_on_yaml_like_task_annotations": false,
+    "demo_feature_flags": {
+      "default": "[docs, reporting]",
+      "documented": true,
+      "is_ambiguous": false,
+      "is_unresolved": false,
+      "required": false,
+      "secret": false,
+      "source": "defaults/main.yml",
+      "type": "list",
+      "uncertainty_reason": null
+    },
+    "demo_service_enabled": {
+      "default": "true",
+      "documented": true,
+      "is_ambiguous": false,
+      "is_unresolved": false,
+      "required": false,
+      "secret": false,
+      "source": "defaults/main.yml",
+      "type": "bool",
+      "uncertainty_reason": null
+    },
+    "demo_service_log_level": {
+      "default": "info",
+      "documented": true,
+      "is_ambiguous": false,
+      "is_unresolved": false,
+      "required": false,
+      "secret": false,
+      "source": "defaults/main.yml",
+      "type": "str",
+      "uncertainty_reason": null
+    },
+    "demo_service_name": {
+      "default": "prism-demo",
+      "documented": true,
+      "is_ambiguous": false,
+      "is_unresolved": false,
+      "required": false,
+      "secret": false,
+      "source": "defaults/main.yml",
+      "type": "str",
+      "uncertainty_reason": null
+    },
+    "demo_service_port": {
+      "default": "8080",
+      "documented": true,
+      "is_ambiguous": false,
+      "is_unresolved": false,
+      "required": false,
+      "secret": false,
+      "source": "defaults/main.yml",
+      "type": "int",
+      "uncertainty_reason": null
+    }
+  },
+  "metadata": {
     "features": {
       "conditional_tasks": 0,
       "disabled_task_annotations": 0,
       "dynamic_included_role_calls": 0,
       "dynamic_included_roles": "none",
-      "external_collections": "none",
-      "handlers_notified": "Restart demo service",
+      "external_collections": "ansible.builtin",
+      "handlers_notified": "none",
       "included_role_calls": 0,
       "included_roles": "none",
       "privileged_tasks": 0,
-      "recursive_task_includes": 2,
+      "recursive_task_includes": 0,
       "tagged_tasks": 0,
-      "task_files_scanned": 3,
-      "tasks_scanned": 7,
-      "unique_modules": "ansible.builtin.copy, ansible.builtin.debug, ansible.builtin.group, ansible.builtin.template, ansible.builtin.user, import_tasks",
+      "task_files_scanned": 1,
+      "tasks_scanned": 3,
+      "unique_modules": "ansible.builtin.copy, ansible.builtin.import_tasks",
       "yaml_like_task_annotations": 0
     },
-    "files": [],
-    "handlers": [
-      "handlers/main.yml"
-    ],
-    "include_task_parameters": true,
-    "include_task_runbooks": true,
-    "inline_task_runbooks": true,
-    "keep_unknown_style_sections": true,
-    "marker_prefix": "prism",
-    "meta": {
-      "dependencies": [],
-      "galaxy_info": {
-        "author": "prism",
-        "description": "Minimal role fixture for Prism demos",
-        "license": "MIT",
-        "min_ansible_version": "2.14",
-        "role_name": "role_demo"
-      }
-    },
-    "molecule_scenarios": [],
+    "plugin_enabled": true,
+    "plugin_name": "default",
+    "plugin_platform": "default",
     "role_notes": {
       "additionals": [],
       "deprecations": [],
@@ -73,75 +100,52 @@
         "rollback=manual timeout=60s"
       ]
     },
-    "scanner_counters": {
-      "ambiguous_variables": 0,
-      "disabled_task_annotations": 0,
-      "documented_variables": 6,
-      "dynamic_included_role_calls": 0,
-      "high_confidence_variables": 6,
-      "included_role_calls": 0,
-      "low_confidence_variables": 0,
-      "medium_confidence_variables": 0,
-      "provenance_issue_categories": {
-        "precedence_defaults_overridden_by_vars": 0,
-        "ambiguous_include_vars_sources": 0,
-        "ambiguous_other": 0,
-        "ambiguous_set_fact_runtime": 0,
-        "unresolved_dynamic_include_vars": 0,
-        "unresolved_no_static_definition": 0,
-        "unresolved_other": 0,
-        "unresolved_readme_documented_only": 0
-      },
-      "required_variables": 0,
-      "secret_variables": 0,
-      "total_default_filters": 0,
-      "total_variables": 6,
-      "undocumented_default_filters": 0,
-      "undocumented_variables": 0,
-      "unresolved_variables": 0,
-      "yaml_like_task_annotations": 0,
-      "yaml_parse_failures": 0
+    "role_path": "/raid5/source/test/prism/demos/fixtures/role_demo",
+    "routing": {
+      "mode": "scan_pipeline_plugin",
+      "selected_plugin": "default",
+      "selection_order": [
+        "request.option.scan_pipeline_plugin",
+        "policy_context.selection.plugin",
+        "platform",
+        "registry_default"
+      ]
     },
-    "tasks": [
-      "tasks/deploy.yml",
-      "tasks/main.yml",
-      "tasks/prepare.yml"
-    ],
-    "templates": [
-      "templates/demo-service.conf.j2"
-    ],
-    "tests": [],
-    "unconstrained_dynamic_role_includes": [],
-    "unconstrained_dynamic_task_includes": [],
+    "scan_policy_blocker_facts": {
+      "dynamic_includes": {
+        "enabled": false,
+        "role_count": 0,
+        "task_count": 0,
+        "total_count": 0
+      },
+      "provenance": {
+        "dynamic_include_sources": [
+          "scanner_plugins.audit.dynamic_include_audit.collect_unconstrained_dynamic_task_includes",
+          "scanner_plugins.audit.dynamic_include_audit.collect_unconstrained_dynamic_role_includes"
+        ],
+        "exclude_path_patterns": null,
+        "metadata_feature_source": "metadata.features.yaml_like_task_annotations",
+        "role_path": "/raid5/source/test/prism/demos/fixtures/role_demo"
+      },
+      "yaml_like_annotations": {
+        "count": 0,
+        "enabled": false
+      }
+    },
     "variable_insights": [
       {
-        "default": "[10.0.0.0/24, 192.168.10.0/24]",
+        "default": "prism-demo",
         "documented": true,
         "is_ambiguous": false,
         "is_unresolved": false,
-        "name": "demo_allowed_networks",
+        "name": "demo_service_name",
         "provenance_confidence": 0.95,
-        "provenance_line": 9,
+        "provenance_line": 2,
         "provenance_source_file": "defaults/main.yml",
         "required": false,
         "secret": false,
         "source": "defaults/main.yml",
-        "type": "list",
-        "uncertainty_reason": null
-      },
-      {
-        "default": "[docs, reporting]",
-        "documented": true,
-        "is_ambiguous": false,
-        "is_unresolved": false,
-        "name": "demo_feature_flags",
-        "provenance_confidence": 0.95,
-        "provenance_line": 6,
-        "provenance_source_file": "defaults/main.yml",
-        "required": false,
-        "secret": false,
-        "source": "defaults/main.yml",
-        "type": "list",
+        "type": "str",
         "uncertainty_reason": null
       },
       {
@@ -160,6 +164,21 @@
         "uncertainty_reason": null
       },
       {
+        "default": "8080",
+        "documented": true,
+        "is_ambiguous": false,
+        "is_unresolved": false,
+        "name": "demo_service_port",
+        "provenance_confidence": 0.95,
+        "provenance_line": 4,
+        "provenance_source_file": "defaults/main.yml",
+        "required": false,
+        "secret": false,
+        "source": "defaults/main.yml",
+        "type": "int",
+        "uncertainty_reason": null
+      },
+      {
         "default": "info",
         "documented": true,
         "is_ambiguous": false,
@@ -175,53 +194,116 @@
         "uncertainty_reason": null
       },
       {
-        "default": "prism-demo",
+        "default": "[docs, reporting]",
         "documented": true,
         "is_ambiguous": false,
         "is_unresolved": false,
-        "name": "demo_service_name",
+        "name": "demo_feature_flags",
         "provenance_confidence": 0.95,
-        "provenance_line": 2,
+        "provenance_line": 6,
         "provenance_source_file": "defaults/main.yml",
         "required": false,
         "secret": false,
         "source": "defaults/main.yml",
-        "type": "str",
+        "type": "list",
         "uncertainty_reason": null
       },
       {
-        "default": "8080",
+        "default": "[10.0.0.0/24, 192.168.10.0/24]",
         "documented": true,
         "is_ambiguous": false,
         "is_unresolved": false,
-        "name": "demo_service_port",
+        "name": "demo_allowed_networks",
         "provenance_confidence": 0.95,
-        "provenance_line": 4,
+        "provenance_line": 9,
         "provenance_source_file": "defaults/main.yml",
         "required": false,
         "secret": false,
         "source": "defaults/main.yml",
-        "type": "int",
+        "type": "list",
         "uncertainty_reason": null
       }
     ],
-    "vars": [],
     "yaml_parse_failures": []
   },
-  "requirements": [],
+  "requirements": [
+    {
+      "collection": "ansible.builtin"
+    }
+  ],
+  "requirements_display": [
+    {
+      "collection": "ansible.builtin"
+    }
+  ],
   "role_name": "role_demo",
+  "undocumented_default_filters": [],
   "variables": {
-    "demo_allowed_networks": [
-      "10.0.0.0/24",
-      "192.168.10.0/24"
-    ],
-    "demo_feature_flags": [
-      "docs",
-      "reporting"
-    ],
-    "demo_service_enabled": true,
-    "demo_service_log_level": "info",
-    "demo_service_name": "prism-demo",
-    "demo_service_port": 8080
+    "demo_allowed_networks": {
+      "default": "[10.0.0.0/24, 192.168.10.0/24]",
+      "documented": true,
+      "is_ambiguous": false,
+      "is_unresolved": false,
+      "required": false,
+      "secret": false,
+      "source": "defaults/main.yml",
+      "type": "list",
+      "uncertainty_reason": null
+    },
+    "demo_feature_flags": {
+      "default": "[docs, reporting]",
+      "documented": true,
+      "is_ambiguous": false,
+      "is_unresolved": false,
+      "required": false,
+      "secret": false,
+      "source": "defaults/main.yml",
+      "type": "list",
+      "uncertainty_reason": null
+    },
+    "demo_service_enabled": {
+      "default": "true",
+      "documented": true,
+      "is_ambiguous": false,
+      "is_unresolved": false,
+      "required": false,
+      "secret": false,
+      "source": "defaults/main.yml",
+      "type": "bool",
+      "uncertainty_reason": null
+    },
+    "demo_service_log_level": {
+      "default": "info",
+      "documented": true,
+      "is_ambiguous": false,
+      "is_unresolved": false,
+      "required": false,
+      "secret": false,
+      "source": "defaults/main.yml",
+      "type": "str",
+      "uncertainty_reason": null
+    },
+    "demo_service_name": {
+      "default": "prism-demo",
+      "documented": true,
+      "is_ambiguous": false,
+      "is_unresolved": false,
+      "required": false,
+      "secret": false,
+      "source": "defaults/main.yml",
+      "type": "str",
+      "uncertainty_reason": null
+    },
+    "demo_service_port": {
+      "default": "8080",
+      "documented": true,
+      "is_ambiguous": false,
+      "is_unresolved": false,
+      "required": false,
+      "secret": false,
+      "source": "defaults/main.yml",
+      "type": "int",
+      "uncertainty_reason": null
+    }
   }
 }

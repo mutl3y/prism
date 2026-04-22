@@ -13,7 +13,9 @@ from prism.errors import (
     SCAN_ROLE_PAYLOAD_JSON_INVALID,
     SCAN_ROLE_PAYLOAD_SHAPE_INVALID,
     SCAN_ROLE_PAYLOAD_TYPE_INVALID,
-    normalize_metadata_warnings,
+)
+from prism.scanner_data.payload_helpers import (  # noqa: F401  (re-export)
+    normalize_scan_role_payload_shape,
 )
 
 
@@ -32,7 +34,6 @@ def collection_role_failure_details(
 
 
 def parse_scan_role_payload(payload: str | dict[str, Any]) -> dict[str, Any]:
-    """Parse run_scan JSON payload with explicit classification at the API boundary."""
     if isinstance(payload, dict):
         parsed = payload
     else:
@@ -59,27 +60,6 @@ def parse_scan_role_payload(payload: str | dict[str, Any]) -> dict[str, Any]:
         )
 
     return parsed
-
-
-def normalize_scan_role_payload_shape(payload: dict[str, Any]) -> dict[str, Any]:
-    """Attach stable public field names to the structured scan payload."""
-    normalized = dict(payload)
-    if "variables" not in normalized and "display_variables" in normalized:
-        normalized["variables"] = normalized["display_variables"]
-    if "requirements" not in normalized and "requirements_display" in normalized:
-        normalized["requirements"] = normalized["requirements_display"]
-    if (
-        "default_filters" not in normalized
-        and "undocumented_default_filters" in normalized
-    ):
-        normalized["default_filters"] = normalized["undocumented_default_filters"]
-    metadata = normalized.get("metadata")
-    warnings = normalize_metadata_warnings(
-        metadata if isinstance(metadata, dict) else {}
-    )
-    if warnings:
-        normalized["warnings"] = warnings
-    return normalized
 
 
 def build_failure_record(
@@ -118,6 +98,6 @@ def build_failure_record(
     if error_detail_code is not None:
         failure["error_detail_code"] = error_detail_code
         failure["detail_code"] = error_detail_code
-    if traceback_text:
+    if traceback_text is not None:
         failure["traceback"] = traceback_text
     return failure

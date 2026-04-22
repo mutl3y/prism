@@ -91,6 +91,7 @@ The scanner collected these role subdirectories (counts):
 - **task_catalog**: 4 files
 - **handler_catalog**: 1 files
 - **collection_compliance_notes**: 0 files
+- **non_authoritative_test_evidence_limits**: 3 files
 - **yaml_parse_failures**: 0 files
 
 ### Handlers
@@ -157,6 +158,16 @@ owner=docs impact=low
 | File | Name | Module |
 | --- | --- | --- |
 | `main.yml` | Refresh collection sample role state | ansible.builtin.debug |
+
+### Ignore_unresolved_internal_underscore_references
+
+- True
+### Non_authoritative_test_evidence_limits
+
+- max_file_bytes
+- max_files_scanned
+- max_total_bytes
+
 
 
 Auto-detected role features

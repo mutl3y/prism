@@ -1,0 +1,540 @@
+plan_id: architecture-extensibility-review-20260421
+title: "Architecture & Extensibility — Resumable Execution Plan"
+status: active
+created: "2026-04-21"
+last_updated: "2026-04-22"
+origin: "Fresh full-codebase review, architecture and extensibility focus"
+
+# ---------------------------------------------------------------------------
+# HOW TO USE THIS PLAN
+# ---------------------------------------------------------------------------
+# Each task has a unique id, a status field (not_started | in_progress |
+# blocked | done | superseded), and an `acceptance` block describing what
+# proves it complete. Update status + last_updated as work progresses.
+#
+# Execution order: complete Tier 1 before Tier 2, etc. Within a tier, tasks
+# may be parallelised unless `depends_on` is set. Set status: in_progress
+# when starting, status: done with completed_at when finishing.
+#
+# Pre-promotion findings (legacy migration_gaps) are preserved at the bottom
+# of this file under `legacy_findings:` for audit history.
+# ---------------------------------------------------------------------------
+
+resumption_pointer:
+  current_tier: 1
+  next_action: "T1-02: Raise scanner_core test coverage to >=70% on production paths"
+  blocking_issues: []
+  notes: |
+    Plan rewritten 2026-04-22 after fsrc->src promotion. 13 of 14 original
+    migration gaps were resolved by the promotion itself (see legacy_findings
+    section). T1-01 (audit plugin Wave 1) and T1-03 (--feedback-from-learn
+    retirement) completed 2026-04-22. Remaining Tier 1 work: T1-02 coverage.
+
+# ---------------------------------------------------------------------------
+# TIER 1 — Production hardening (do first)
+# ---------------------------------------------------------------------------
+# Scope: address real production gaps that exist in the unified codebase.
+# These are unblocked and have direct user impact.
+# ---------------------------------------------------------------------------
+
+tier_1_production_hardening:
+
+  - id: T1-01
+    title: "Policy-as-Code audit plugin — Wave 1 (full implementation)"
+    status: done
+    started_at: "2026-04-22"
+    completed_at: "2026-04-22"
+    severity: high
+    supersedes: [MG-03, MG-09]
+    references:
+      prd_feature: "Policy as Code audit plugin layer"
+      prd_decision: "feedback.py / MG-03 / MG-09 deliberately excluded from migration"
+      stub_artefacts:
+        - src/prism/scanner_config/audit_rules.py
+        - src/prism/scanner_plugins/audit/__init__.py
+        - src/prism/scanner_plugins/audit/builtin_rules.py
+        - src/prism/scanner_plugins/audit/dynamic_include_audit.py
+        - src/prism/scanner_plugins/audit/blocker_fact_evaluator.py
+      di_slot: "scanner_core/di.py::factory_audit_plugin / inject_mock_audit_plugin"
+      cli_flags:
+        - "--audit-rules"
+        - "--fail-on-audit-violations"
+    summary: |
+      Wave 0 stubs landed (types, Protocol, DI slot, CLI flags). Wave 1 wires
+      the full evaluation pipeline so --audit-rules <file_or_url> actually
+      loads rules, evaluates them against the scan payload, emits
+      AuditViolations, and exits with EXIT_CODE_AUDIT_VIOLATIONS when
+      --fail-on-audit-violations is set.
+
+      This is the unified replacement for the old feedback.py /
+      --feedback-from-learn integration (MG-03, MG-09). The current
+      --feedback-from-learn flag is documented as a no-op and should either
+      be removed or aliased to --audit-rules in this wave.
+    work_items:
+      - "Rule loader: read AuditRule definitions from local YAML/JSON file"
+      - "Rule loader: HTTP/HTTPS fetch with timeout (replaces feedback URL fetch)"
+      - "Evaluator: walk scan payload, run each enabled rule, collect AuditViolations"
+      - "Reporter: write AuditReport to scan output (markdown + JSON)"
+      - "Exit handling: return EXIT_CODE_AUDIT_VIOLATIONS when --fail-on-audit-violations and any violation severity >= error"
+      - "Decision: remove --feedback-from-learn or alias it to --audit-rules"
+      - "Tests: rule loading (file + URL), evaluation, exit code, payload integration"
+      - "Docs: usage example in docs/ + reference in PRD.yaml status update"
+    acceptance:
+      - "prism role <path> --audit-rules rules.yml --fail-on-audit-violations exits 2 when a violation is found"
+      - "AuditReport appears in scan payload under stable key"
+      - "PRD.yaml feature 'Policy as Code audit plugin layer' status updated to complete"
+      - "All audit plugin tests green; full pytest -q green"
+    estimated_effort: medium
+    depends_on: []
+
+  - id: T1-02
+    title: "Raise scanner_core test coverage to >=70% on production paths"
+    status: not_started
+    severity: high
+    supersedes: [F01]
+    summary: |
+      Coverage is currently 66.0% overall. Hot paths in scanner_core (di,
+      feature_detector, scan_runtime, variable_pipeline, variable_insights,
+      scanner_context, scan_facade_helpers) are below 30%. The 65% CI
+      threshold was a temporary unblock; raise back to 70% on the genuine
+      production execution paths.
+    work_items:
+      - "Identify modules below 50% coverage in scanner_core"
+      - "Write unit tests with mocks (no I/O) for each below-threshold module"
+      - "Re-raise CI --cov-fail-under from 65 to 70 in tox.ini and prism.yml"
+    acceptance:
+      - "All scanner_core modules >= 70% line coverage"
+      - "CI --cov-fail-under raised to 70 and passing"
+    estimated_effort: medium
+    depends_on: []
+
+  - id: T1-03
+    title: "Decide and act on dangling --feedback-from-learn flag"
+    status: done
+    completed_at: "2026-04-22"
+    severity: low
+    summary: |
+      cli.py still defines --feedback-from-learn with help "no-op in fsrc lane".
+      Either remove it (cleanest) or alias it to --audit-rules in T1-01.
+      Quick decision; trivial change either way.
+    work_items:
+      - "Decision: remove vs alias"
+      - "Update cli.py + bash completion strings + docs"
+    acceptance:
+      - "No dead CLI flags; help text consistent"
+    estimated_effort: trivial
+    depends_on: [T1-01]
+
+# ---------------------------------------------------------------------------
+# TIER 2 — Plugin system hardening
+# ---------------------------------------------------------------------------
+
+tier_2_plugin_system:
+
+  - id: T2-01
+    title: "Plugin API versioning + compatibility enforcement"
+    status: not_started
+    severity: high
+    supersedes: [B02]
+    summary: |
+      Plugins implement Protocols but there is no version declaration. If
+      Prism changes a Protocol, old plugins break silently at runtime.
+    work_items:
+      - "Define PRISM_PLUGIN_API_VERSION constant in scanner_plugins package"
+      - "Each Plugin Protocol declares required api_version range"
+      - "PluginRegistry validates version on registration; raises clear error on mismatch"
+      - "Document the plugin API contract"
+    acceptance:
+      - "Registering a plugin with mismatched version raises a typed error"
+      - "Documentation includes a 'Writing a Prism Plugin' section"
+    estimated_effort: small
+    depends_on: []
+
+  - id: T2-02
+    title: "ScanOptionsSchema — single source of truth for scan options"
+    status: not_started
+    severity: medium
+    supersedes: [D01]
+    summary: |
+      Config keys live in 4+ places (scanner_config, scanner_plugins/defaults,
+      scan_request, scanner_context._REQUIRED_SCAN_OPTION_KEYS, hardcoded
+      strings). Define one schema (TypedDict or pydantic) that api.py and
+      cli.py both validate against.
+    work_items:
+      - "Define ScanOptionsSchema with type, default, description for every key"
+      - "Replace _REQUIRED_SCAN_OPTION_KEYS with schema-derived check"
+      - "api.py + cli.py validate inputs against schema at entry"
+      - "Generate documentation table from the schema"
+    acceptance:
+      - "All scan_options keys defined in one place"
+      - "Invalid scan_options raise typed error at boundary, not deep in scanner"
+    estimated_effort: medium
+    depends_on: []
+
+  - id: T2-03
+    title: "Entry-points-based plugin discovery"
+    status: not_started
+    severity: high
+    supersedes: [B01]
+    summary: |
+      Adding a new platform plugin currently requires editing
+      scanner_plugins/defaults.py and shipping a new release. Wire
+      setuptools entry_points (group: prism.scanner_plugins) so external
+      packages can register plugins without core changes.
+    work_items:
+      - "Registry.discover() reads entry_points group prism.scanner_plugins"
+      - "Optional plugin_dirs config key for filesystem-based plugin loading"
+      - "Preserve deferred loading for startup performance"
+      - "Document the entry_points contract for plugin authors"
+    acceptance:
+      - "External package declaring entry_points is auto-discovered at import"
+      - "Documentation includes an example plugin package layout"
+    estimated_effort: medium
+    depends_on: [T2-01, T2-02]
+
+  - id: T2-04
+    title: "Stateless plugin marker + registry enforcement"
+    status: not_started
+    severity: medium
+    supersedes: [B04]
+    summary: |
+      defaults.py holds singleton fallback plugins on the assumption they are
+      stateless. No enforcement. Add a stateless marker and validate it at
+      registration for any plugin used as a singleton.
+    work_items:
+      - "Add PLUGIN_IS_STATELESS class attribute to Protocols"
+      - "Registry validates marker for singleton-eligible plugins"
+      - "Convert any non-marked fallbacks to factory functions"
+    acceptance:
+      - "Registering a non-stateless plugin into a singleton slot raises typed error"
+    estimated_effort: small
+    depends_on: [T2-01]
+
+# ---------------------------------------------------------------------------
+# TIER 3 — Core extensibility & observability
+# ---------------------------------------------------------------------------
+
+tier_3_extensibility:
+
+  - id: T3-01
+    title: "Scan phase event system"
+    status: not_started
+    severity: high
+    supersedes: [C01]
+    summary: |
+      Scan pipeline (extract -> discover -> detect -> render) has no hooks.
+      Add ScanPhaseEvent emission at phase boundaries. Unblocks T3-02 (async
+      I/O telemetry), T3-03 (caching), T4-03 (CLI progress), T3-05 (metrics).
+    work_items:
+      - "Define ScanPhaseEvent Protocol (phase_name, context, metadata)"
+      - "DIContainer accepts event_listeners: list[Callable]"
+      - "Core emits events at pre/post boundaries of each phase"
+      - "First consumer: progress reporter for CLI"
+    acceptance:
+      - "Subscribing a listener captures pre/post events for every phase"
+      - "Existing tests still green; new tests cover event emission contract"
+    estimated_effort: medium
+    depends_on: []
+
+  - id: T3-02
+    title: "Async/parallel file I/O for large repos"
+    status: not_started
+    severity: high
+    supersedes: [C02]
+    summary: |
+      All file reads are synchronous. Large roles (100+ task files) are
+      single-threaded. Benchmark first (depends on T4-01), then adopt
+      ThreadPoolExecutor or asyncio for the load_yaml_file hot path.
+    work_items:
+      - "Run benchmarks on a 100+ task-file role"
+      - "Pick approach: ThreadPoolExecutor (low risk) vs asyncio (bigger refactor)"
+      - "Apply to scanner_extract YAML load hot path"
+      - "Plugin interface remains sync-compatible; async optional"
+    acceptance:
+      - "Wall-clock scan time on benchmark role drops by >=30%"
+      - "No regressions in correctness tests"
+    estimated_effort: large
+    depends_on: [T4-01, T3-01]
+
+  - id: T3-03
+    title: "Optional scan result cache"
+    status: not_started
+    severity: medium
+    supersedes: [C03]
+    summary: |
+      prism-learn refresh batches re-scan identical inputs. Add an opt-in
+      cache backend wired through DI. Cache key = hash(role contents +
+      scan_options).
+    work_items:
+      - "Define cache_backend plugin slot"
+      - "In-memory LRU implementation"
+      - "Filesystem implementation for cross-process reuse"
+      - "Cache hit/miss telemetry via T3-01 events"
+    acceptance:
+      - "Two consecutive scans of unchanged role return cached result"
+      - "Cache invalidates correctly on content change"
+    estimated_effort: medium
+    depends_on: [T3-01]
+
+  - id: T3-04
+    title: "Error boundary audit"
+    status: not_started
+    severity: medium
+    supersedes: [G02]
+    summary: |
+      errors.py defines FailurePolicy + error codes, but raw ValueError /
+      RuntimeError are still thrown across module boundaries in places.
+      scan_degraded is set inconsistently.
+    work_items:
+      - "grep raise ValueError|RuntimeError across scanner_core, scanner_extract, scanner_io"
+      - "Wrap module-boundary raises in PrismRuntimeError with appropriate code"
+      - "Ensure scan_degraded + scan_errors always present in API response on partial failure"
+    acceptance:
+      - "Audit script reports zero raw exceptions at module boundaries"
+      - "All API failures carry a typed error code"
+    estimated_effort: small
+    depends_on: []
+
+  - id: T3-05
+    title: "Structured scan telemetry"
+    status: not_started
+    severity: medium
+    supersedes: [G01]
+    summary: |
+      Logging is plain strings. Add ScanTelemetry TypedDict and emit it at
+      scan completion. Optional metrics sink plugin slot.
+    work_items:
+      - "Define ScanTelemetry: scan_duration_ms, files_read, cache_hits, plugin_key, errors"
+      - "ScannerContext emits telemetry into scan result metadata"
+      - "JSON-mode structured logging for CI consumers"
+      - "Optional metrics_sink plugin slot in DI"
+    acceptance:
+      - "scan_role() result includes telemetry block"
+      - "JSON log mode emits one structured record per scan phase"
+    estimated_effort: small
+    depends_on: [T3-01]
+
+  - id: T3-06
+    title: "Path traversal validation at API boundary"
+    status: not_started
+    severity: medium
+    supersedes: [H01]
+    summary: |
+      role_path is accepted from callers without bounds checking. Add a
+      sanity check at the API boundary; document the trust model.
+    work_items:
+      - "Add path_safety_check utility"
+      - "api.py + cli.py validate role_path is absolute and resolves within bounds"
+      - "Document trust model: 'role_path is caller-trusted; sanitise before calling'"
+    acceptance:
+      - "Path traversal attempts (../../../etc) raise typed error before any I/O"
+    estimated_effort: trivial
+    depends_on: []
+
+# ---------------------------------------------------------------------------
+# TIER 4 — Quality, surface polish
+# ---------------------------------------------------------------------------
+
+tier_4_quality_and_polish:
+
+  - id: T4-01
+    title: "Performance benchmark suite"
+    status: not_started
+    severity: medium
+    supersedes: [F02]
+    summary: |
+      No benchmarks exist. Establish a baseline so T3-02 has a target and
+      future performance regressions are visible.
+    work_items:
+      - "pytest-benchmark suite: single-file parse, small role scan, large role scan"
+      - "CI records results as artifacts (not pass/fail initially)"
+      - "Set budget thresholds after baseline established"
+    acceptance:
+      - "Benchmark CI artifact uploaded on every PR"
+    estimated_effort: small
+    depends_on: []
+
+  - id: T4-02
+    title: "Promote _run_scan_payload to public seam"
+    status: not_started
+    severity: medium
+    supersedes: [E01]
+    summary: |
+      api.py imports _run_scan_payload from scanner.py. Public surface should
+      not depend on private internals.
+    work_items:
+      - "Define proper public seam in scanner_kernel"
+      - "api.py imports from scanner_kernel"
+      - "Remove the private function from scanner.py"
+    acceptance:
+      - "No prism.api -> prism.scanner._private imports"
+    estimated_effort: small
+    depends_on: []
+
+  - id: T4-03
+    title: "CLI streaming progress output"
+    status: not_started
+    severity: low
+    supersedes: [E03]
+    summary: |
+      CLI shows nothing during long scans. Use phase events (T3-01) to
+      stream progress to stderr.
+    work_items:
+      - "Progress reporter consumes T3-01 events"
+      - "CLI flag: --progress / --no-progress"
+      - "Stream to stderr to keep stdout JSON-clean"
+    acceptance:
+      - "Long scans show phase-by-phase progress on stderr"
+    estimated_effort: trivial
+    depends_on: [T3-01]
+
+  - id: T4-04
+    title: "Property/fuzz testing for YAML and Jinja parsers"
+    status: not_started
+    severity: low
+    supersedes: [F03]
+    summary: |
+      Prism parses arbitrary user-controlled YAML and Jinja from roles.
+      Add hypothesis-based property tests.
+    work_items:
+      - "hypothesis property tests for YAML parsing edge cases"
+      - "hypothesis property tests for Jinja template scanning"
+      - "Focus: nested structures, unicode, very large files, circular refs"
+    acceptance:
+      - "Hypothesis test suite green; CI runs default profile"
+    estimated_effort: small
+    depends_on: []
+
+  - id: T4-05
+    title: "Jinja2 sandbox audit"
+    status: not_started
+    severity: low
+    supersedes: [H02]
+    summary: |
+      Confirm role content is never used as Jinja template source (data
+      context only). Use SandboxedEnvironment where any role content reaches
+      a template path.
+    work_items:
+      - "Audit all Jinja Environment instantiations for autoescape + sandbox config"
+      - "Switch to SandboxedEnvironment where role content is evaluated"
+    acceptance:
+      - "Audit findings documented; no unsandboxed evaluation of role content"
+    estimated_effort: small
+    depends_on: []
+
+  - id: T4-06
+    title: "PRISM_* environment variable support"
+    status: not_started
+    severity: low
+    supersedes: [D02]
+    summary: |
+      Add env-var configuration layer for container/CI use. Lower priority
+      than explicit API/CLI options.
+    work_items:
+      - "Define PRISM_* env namespace"
+      - "Wire through ScanOptionsSchema (T2-02)"
+    acceptance:
+      - "Env-var configuration documented and tested"
+    estimated_effort: trivial
+    depends_on: [T2-02]
+
+# ---------------------------------------------------------------------------
+# DEFERRED — out of scope unless demand signal
+# ---------------------------------------------------------------------------
+
+deferred:
+
+  - id: D-01
+    title: "Plugin sandboxing / subprocess isolation"
+    supersedes: [B03]
+    rationale: "Expensive; trust model documents 'plugins are trusted code'."
+
+  - id: D-02
+    title: "DI generic slot registration"
+    supersedes: [C04]
+    rationale: "Premature; DIContainer is fine at current size."
+
+  - id: D-03
+    title: "HTTP/REST API"
+    supersedes: [E02]
+    rationale: "Depends on consumer demand; Python SDK + CLI cover current use."
+
+  - id: D-04
+    title: "scanner_compat.render_compat import path"
+    supersedes: [MG-13]
+    rationale: "Narrow real-world exposure; underlying functions exist in scanner_readme."
+
+# ---------------------------------------------------------------------------
+# LEGACY FINDINGS — pre-promotion audit history
+# ---------------------------------------------------------------------------
+# These are the original findings from the 2026-04-21 review, preserved for
+# audit trail. 13 of 14 migration_gaps are now resolved by the fsrc->src
+# promotion (2026-04-22). The verified status of each is recorded here.
+# Active work has been re-organised into the tier_* sections above.
+# ---------------------------------------------------------------------------
+
+legacy_findings:
+
+  resolved_by_promotion:
+    resolved_at: "2026-04-22"
+    rationale: "fsrc->src promotion brought the better architecture into the canonical lane."
+    items:
+      - id: A01
+        title: "Two codebases in one repo"
+        verified: "Single src/prism/ lane; old src/ deleted."
+      - id: A02
+        title: "scanner.py 827 lines as live runtime path"
+        verified: "Resolved by promotion; canonical scanner.py is the unified version."
+      - id: MG-01
+        title: "CLI argument surface — 29 of 36 src options absent from fsrc"
+        verified: "cli.py has 43 add_argument calls; full surface present."
+      - id: MG-02
+        title: "scanner_config package entirely absent in fsrc"
+        verified: "Full package present including new audit_rules.py."
+      - id: MG-04
+        title: "scan_for_default_filters / scan_for_all_filters absent"
+        verified: "Both exposed in src/prism/api.py:416 and 441."
+      - id: MG-05
+        title: "resolve_default_style_guide_source absent"
+        verified: "Present in src/prism/scanner_config/style.py:26."
+      - id: MG-06
+        title: "collect_role_contents / build_comparison_report absent"
+        verified: "Both exposed in src/prism/api.py:466 and 514."
+      - id: MG-07
+        title: "ignored_identifiers reduced (7 vs 70+)"
+        verified: "84 entries in scanner_plugins/ansible/variable_discovery.py IGNORED_IDENTIFIERS."
+      - id: MG-08
+        title: "Pattern policy override stack / remote fetch absent"
+        verified: "fetch_remote_policy in src/prism/scanner_config/patterns.py:197."
+      - id: MG-10
+        title: "cli_app shared/presenters/runtime helpers absent"
+        verified: "persist_collection_role_markdown_documents in cli_app/runtime.py:60."
+      - id: MG-11
+        title: "scan_role payload field alias normalization absent"
+        verified: "normalize_scan_role_payload_shape in scanner_data/payload_helpers.py:10."
+      - id: MG-12
+        title: "__version__ attribute absent"
+        verified: "Present in src/prism/__init__.py:6-8."
+      - id: MG-14
+        title: "fsrc CLI has no __main__ entry point"
+        verified: "Present at end of src/prism/cli.py."
+
+  superseded_by_audit_plugin:
+    superseded_at: "2026-04-22"
+    rationale: |
+      MG-03 (feedback.py) and MG-09 (--feedback-from-learn integration) were
+      deliberately excluded from the migration. Both are being redesigned as
+      the unified Policy-as-Code audit plugin layer. Wave 0 stubs landed; full
+      implementation tracked as T1-01.
+    items:
+      - id: MG-03
+        title: "feedback.py absent"
+        successor: T1-01
+      - id: MG-09
+        title: "Feedback integration missing from CLI command handlers"
+        successor: T1-01
+
+  archive_note: |
+    Full original plan text (with all 14 MG-* details and the original A/B/C/D/
+    E/F/G/H severity table) is preserved in plan.original-20260421.yaml.bak
+    in this directory.

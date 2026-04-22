@@ -1,87 +1,11 @@
-"""Package-owned collection-scan implementation for the public API facade."""
+"""Package-owned collection-scan implementation for the fsrc public API facade."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
-from prism.scanner_reporting.collection_dependencies import (
-    aggregate_collection_dependencies,
-)
-from prism.scanner_data.contracts_errors import CollectionScanResult
-
-
-def normalize_repo_style_guide_path(
-    payload: dict[str, Any] | str,
-    repo_style_readme_path: str | None,
-) -> dict[str, Any] | str:
-    """Compatibility shim preserving legacy style-guide-path normalization calls."""
-    if not isinstance(payload, dict):
-        return payload
-
-    metadata = payload.get("metadata")
-    if not isinstance(metadata, dict):
-        return payload
-
-    if not repo_style_readme_path:
-        return payload
-
-    style_guide = metadata.get("style_guide")
-    if not isinstance(style_guide, dict):
-        return payload
-
-    normalized_payload = dict(payload)
-    normalized_metadata = dict(metadata)
-    normalized_style_guide = dict(style_guide)
-    normalized_style_guide["path"] = repo_style_readme_path
-    normalized_metadata["style_guide"] = normalized_style_guide
-    normalized_payload["metadata"] = normalized_metadata
-    return normalized_payload
-
-
-def aggregate_collection_dependencies_payload(
-    collection_root: Path,
-) -> dict[str, Any]:
-    """Delegate to the canonical collection_dependencies module."""
-    return aggregate_collection_dependencies(collection_root)
-
-
-def render_collection_role_readme(
-    *,
-    payload: dict[str, Any],
-    role_name: str,
-    render_readme_fn,
-) -> str:
-    return render_readme_fn(
-        output="README.md",
-        role_name=str(payload.get("role_name") or role_name),
-        description=str(payload.get("description") or ""),
-        variables=(payload.get("variables") or {}),
-        requirements=(payload.get("requirements") or []),
-        default_filters=(payload.get("default_filters") or []),
-        metadata=(payload.get("metadata") or {}),
-        write=False,
-    )
-
-
-def write_collection_role_runbook_artifacts_payload(
-    *,
-    role_name: str,
-    payload: dict[str, Any],
-    runbook_output_dir: str | None,
-    runbook_csv_output_dir: str | None,
-    write_collection_runbook_artifacts_fn,
-    render_runbook_fn,
-    render_runbook_csv_fn,
-) -> None:
-    write_collection_runbook_artifacts_fn(
-        role_name=role_name,
-        metadata=(payload.get("metadata") or {}),
-        runbook_output_dir=runbook_output_dir,
-        runbook_csv_output_dir=runbook_csv_output_dir,
-        render_runbook_fn=render_runbook_fn,
-        render_runbook_csv_fn=render_runbook_csv_fn,
-    )
+from prism.scanner_data import CollectionScanResult
 
 
 def scan_collection(
@@ -113,36 +37,45 @@ def scan_collection(
     runbook_output_dir: str | None = None,
     runbook_csv_output_dir: str | None = None,
     include_traceback: bool = False,
-    load_yaml_document_fn,
-    scan_role_fn,
-    render_collection_role_readme_fn,
-    write_collection_role_runbook_artifacts_fn,
-    build_failure_record_fn,
-    aggregate_collection_dependencies_fn,
-    scan_collection_plugins_fn,
+    scan_role_fn: Callable[..., Any],
+    build_collection_identity_fn: Callable[..., Any],
+    aggregate_collection_dependencies_fn: Callable[..., Any],
+    scan_collection_plugins_fn: Callable[..., Any],
+    render_collection_role_readme_fn: Callable[..., Any],
+    write_collection_runbook_artifacts_fn: Callable[..., Any],
+    build_collection_role_entry_fn: Callable[..., Any],
+    build_collection_failure_record_fn: Callable[..., Any],
+    build_collection_scan_result_fn: Callable[..., Any],
     collection_role_content_recoverable_errors: tuple[type[Exception], ...],
+    collection_role_runtime_recoverable_errors: tuple[type[Exception], ...],
 ) -> CollectionScanResult:
-    if (runbook_output_dir or runbook_csv_output_dir) and not detailed_catalog:
-        detailed_catalog = True
-    root = Path(collection_path).resolve()
-    if not root.is_dir():
+    collection_root = Path(collection_path).resolve()
+    if not collection_root.is_dir():
         raise FileNotFoundError(f"collection path not found: {collection_path}")
 
-    galaxy_path = root / "galaxy.yml"
-    roles_dir = root / "roles"
-    if not galaxy_path.is_file() or not roles_dir.is_dir():
+    roles_root = collection_root / "roles"
+    galaxy_path = collection_root / "galaxy.yml"
+    if not galaxy_path.is_file() or not roles_root.is_dir():
         raise FileNotFoundError(
             "collection root must include galaxy.yml and roles/ directory"
         )
 
-    galaxy_doc = load_yaml_document_fn(galaxy_path)
-    galaxy_metadata = galaxy_doc if isinstance(galaxy_doc, dict) else {}
+    collection_identity = build_collection_identity_fn(collection_root)
 
-    role_entries: list[dict[str, Any]] = []
-    failures: list[dict[str, str]] = []
-    for role_dir in sorted(path for path in roles_dir.iterdir() if path.is_dir()):
+    if (runbook_output_dir or runbook_csv_output_dir) and not detailed_catalog:
+        detailed_catalog = True
+
+    recoverable_scan_errors = (
+        collection_role_content_recoverable_errors
+        + collection_role_runtime_recoverable_errors
+    )
+    recoverable_artifact_errors = recoverable_scan_errors
+    roles_payload: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
+
+    for role_dir in sorted(path for path in roles_root.iterdir() if path.is_dir()):
         try:
-            payload = scan_role_fn(
+            role_payload = scan_role_fn(
                 str(role_dir),
                 compare_role_path=compare_role_path,
                 style_readme_path=style_readme_path,
@@ -159,7 +92,9 @@ def scan_collection(
                 exclude_path_patterns=exclude_path_patterns,
                 style_source_path=style_source_path,
                 policy_config_path=policy_config_path,
-                fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
+                fail_on_unconstrained_dynamic_includes=(
+                    fail_on_unconstrained_dynamic_includes
+                ),
                 fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
                 ignore_unresolved_internal_underscore_references=(
                     ignore_unresolved_internal_underscore_references
@@ -170,55 +105,57 @@ def scan_collection(
                 include_task_runbooks=include_task_runbooks,
                 inline_task_runbooks=inline_task_runbooks,
             )
-
-            rendered_readme = None
-            if include_rendered_readme:
-                rendered_readme = render_collection_role_readme_fn(
-                    payload=payload,
-                    role_name=role_dir.name,
-                )
-
-            if runbook_output_dir or runbook_csv_output_dir:
-                write_collection_role_runbook_artifacts_fn(
-                    role_name=role_dir.name,
-                    payload=payload,
-                    runbook_output_dir=runbook_output_dir,
-                    runbook_csv_output_dir=runbook_csv_output_dir,
-                )
-
-            role_entries.append(
-                {
-                    "role": role_dir.name,
-                    "path": str(role_dir),
-                    "payload": payload,
-                    "rendered_readme": rendered_readme,
-                }
-            )
-        except collection_role_content_recoverable_errors as exc:
+        except recoverable_scan_errors as exc:
             failures.append(
-                build_failure_record_fn(
-                    role_name=role_dir.name,
-                    role_path=str(role_dir),
+                build_collection_failure_record_fn(
+                    role_dir=role_dir,
                     exc=exc,
                     include_traceback=include_traceback,
                 )
             )
             continue
 
-    dependencies = aggregate_collection_dependencies_fn(root)
-    plugin_catalog = scan_collection_plugins_fn(root)
-    return {
-        "collection": {
-            "path": str(root),
-            "metadata": galaxy_metadata,
-        },
-        "dependencies": dependencies,
-        "plugin_catalog": plugin_catalog,
-        "roles": role_entries,
-        "failures": failures,
-        "summary": {
-            "total_roles": len(role_entries) + len(failures),
-            "scanned_roles": len(role_entries),
-            "failed_roles": len(failures),
-        },
-    }
+        try:
+            rendered_readme = None
+            if include_rendered_readme:
+                rendered_readme = render_collection_role_readme_fn(
+                    role_name=role_dir.name,
+                    payload=role_payload,
+                )
+
+            if runbook_output_dir or runbook_csv_output_dir:
+                write_collection_runbook_artifacts_fn(
+                    role_name=role_dir.name,
+                    metadata=(role_payload.get("metadata") or {}),
+                    runbook_output_dir=runbook_output_dir,
+                    runbook_csv_output_dir=runbook_csv_output_dir,
+                )
+        except recoverable_artifact_errors as exc:
+            failures.append(
+                build_collection_failure_record_fn(
+                    role_dir=role_dir,
+                    exc=exc,
+                    include_traceback=include_traceback,
+                )
+            )
+            continue
+
+        roles_payload.append(
+            build_collection_role_entry_fn(
+                role_dir=role_dir,
+                payload=role_payload,
+                rendered_readme=rendered_readme,
+            )
+        )
+
+    dependencies = aggregate_collection_dependencies_fn(collection_root)
+    plugin_catalog = scan_collection_plugins_fn(collection_root)
+
+    return build_collection_scan_result_fn(
+        collection_root=collection_root,
+        collection_identity=collection_identity,
+        dependencies=dependencies,
+        plugin_catalog=plugin_catalog,
+        roles=roles_payload,
+        failures=failures,
+    )

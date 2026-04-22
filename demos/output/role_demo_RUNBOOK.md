@@ -31,6 +31,7 @@
 #### `main.yml` - Prepare demo service prerequisites
 
 - owner=platform impact=low
+- Note: This fixture exists only to exercise Prism scanners.
 
 ---
 
@@ -53,7 +54,6 @@
 
 #### `main.yml` - Ensure demo config file is present
 
-- Note: This fixture exists only to exercise Prism scanners.
 
 ---
 

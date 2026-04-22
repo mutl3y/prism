@@ -24,8 +24,10 @@ from prism.scanner_io.output import (
     resolve_output_path,
     write_output,
 )
+from prism.scanner_io.output_orchestrator import OutputOrchestrator
 
 __all__ = [
+    "OutputOrchestrator",
     "collect_yaml_parse_failures",
     "iter_role_yaml_candidates",
     "load_yaml_file",

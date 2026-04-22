@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable, NamedTuple
 
-import yaml
+from prism.scanner_io.loader import load_yaml_file
+from prism.scanner_io.loader import parse_yaml_candidate
+
+
+class ScanIdentity(NamedTuple):
+    role_root: Path
+    meta: dict[str, Any]
+    role_name: str
+    description: str
 
 
 ROLE_METADATA_YAML_INVALID = "ROLE_METADATA_YAML_INVALID"
@@ -26,12 +34,7 @@ def _record_metadata_warning(
 
 
 def iter_role_variable_map_candidates(role_root: Path, subdir: str) -> list[Path]:
-    """Return role variable map files in deterministic merge order.
-
-    Order is:
-    1) ``<subdir>/main.yml`` then ``<subdir>/main.yaml`` fallback
-    2) sorted fragments under ``<subdir>/main/*.yml`` then ``*.yaml``
-    """
+    """Return role variable map files in deterministic merge order."""
     candidates: list[Path] = []
 
     main_yml = role_root / subdir / "main.yml"
@@ -54,28 +57,50 @@ def load_meta(
     *,
     strict: bool = False,
     warning_collector: list[str] | None = None,
+    di: object | None = None,
 ) -> dict:
-    """Load the role metadata file ``meta/main.yml`` if present.
-
-    Returns a mapping (empty if missing or unparsable).
-    """
+    """Load the role metadata file meta/main.yml if present."""
     meta_file = Path(role_path) / "meta" / "main.yml"
     if meta_file.exists():
-        try:
-            loaded = yaml.safe_load(meta_file.read_text(encoding="utf-8")) or {}
-        except yaml.YAMLError as exc:
+        role_root = Path(role_path).resolve()
+        failure = parse_yaml_candidate(meta_file, role_root, di=di)
+        if isinstance(failure, dict):
+            failure_error = str(failure.get("error", "")).strip() or "unknown"
+            failure_line = failure.get("line")
+            failure_column = failure.get("column")
+            failure_detail = (
+                f"{failure_error}"
+                if failure_line is None
+                else f"{failure_error} (line={failure_line}, column={failure_column})"
+            )
+            if str(failure_error).startswith("read_error:"):
+                if strict:
+                    raise RuntimeError(
+                        f"{ROLE_METADATA_IO_ERROR}: {meta_file}: {failure_detail}"
+                    )
+                _record_metadata_warning(
+                    warning_collector,
+                    code=ROLE_METADATA_IO_ERROR,
+                    meta_file=meta_file,
+                    error=failure_detail,
+                )
+                return {}
+
             if strict:
                 raise RuntimeError(
-                    f"{ROLE_METADATA_YAML_INVALID}: {meta_file}: {exc}"
-                ) from exc
+                    f"{ROLE_METADATA_YAML_INVALID}: {meta_file}: {failure_detail}"
+                )
             _record_metadata_warning(
                 warning_collector,
                 code=ROLE_METADATA_YAML_INVALID,
                 meta_file=meta_file,
-                error=exc,
+                error=failure_detail,
             )
             return {}
-        except (OSError, UnicodeDecodeError) as exc:
+
+        try:
+            loaded = load_yaml_file(meta_file, di=di) or {}
+        except Exception as exc:
             if strict:
                 raise RuntimeError(
                     f"{ROLE_METADATA_IO_ERROR}: {meta_file}: {exc}"
@@ -99,16 +124,40 @@ def load_meta(
     return {}
 
 
-def load_requirements(role_path: str) -> list:
-    """Load ``meta/requirements.yml`` as a list, or return an empty list."""
+REQUIREMENTS_IO_ERROR = "REQUIREMENTS_IO_ERROR"
+REQUIREMENTS_YAML_INVALID = "REQUIREMENTS_YAML_INVALID"
+
+
+def load_requirements(
+    role_path: str,
+    *,
+    strict: bool = False,
+    warning_collector: list[str] | None = None,
+    di: object | None = None,
+) -> list:
+    """Load meta/requirements.yml as a list, or return an empty list."""
     path = Path(role_path) / "meta" / "requirements.yml"
-    if path.exists():
-        try:
-            payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-            return payload if isinstance(payload, list) else []
-        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
-            return []
-    return []
+    if not path.exists():
+        return []
+    try:
+        payload = load_yaml_file(path, di=di)
+    except Exception as exc:
+        if strict:
+            raise RuntimeError(f"{REQUIREMENTS_IO_ERROR}: {path}: {exc}") from exc
+        if warning_collector is not None:
+            warning_collector.append(f"{REQUIREMENTS_IO_ERROR}: {path}: {exc}")
+        return []
+    if not isinstance(payload, list):
+        msg = f"{REQUIREMENTS_YAML_INVALID}: {path}: root must be a list"
+        if strict:
+            raise RuntimeError(msg)
+        if warning_collector is not None:
+            warning_collector.append(msg)
+        return []
+    return payload
+
+
+VARIABLE_FILE_IO_ERROR = "VARIABLE_FILE_IO_ERROR"
 
 
 def load_variables(
@@ -117,6 +166,9 @@ def load_variables(
     include_vars_main: bool = True,
     exclude_paths: list[str] | None = None,
     collect_include_vars_files: Callable[[str, list[str] | None], list[Path]],
+    strict: bool = False,
+    warning_collector: list[str] | None = None,
+    di: object | None = None,
 ) -> dict:
     """Load role variables from defaults/vars and static include_vars targets."""
     vars_out: dict = {}
@@ -128,19 +180,31 @@ def load_variables(
     for sub in subdirs:
         for path in iter_role_variable_map_candidates(role_root, sub):
             try:
-                data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+                data = load_yaml_file(path, di=di) or {}
                 if isinstance(data, dict):
                     vars_out.update(data)
-            except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
-                continue
+            except Exception as exc:
+                if strict:
+                    raise RuntimeError(
+                        f"{VARIABLE_FILE_IO_ERROR}: {path}: {exc}"
+                    ) from exc
+                if warning_collector is not None:
+                    warning_collector.append(f"{VARIABLE_FILE_IO_ERROR}: {path}: {exc}")
 
     for extra_path in collect_include_vars_files(role_path, exclude_paths):
         try:
-            data = yaml.safe_load(extra_path.read_text(encoding="utf-8")) or {}
+            data = load_yaml_file(extra_path, di=di) or {}
             if isinstance(data, dict):
                 vars_out.update(data)
-        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
-            continue
+        except Exception as exc:
+            if strict:
+                raise RuntimeError(
+                    f"{VARIABLE_FILE_IO_ERROR}: {extra_path}: {exc}"
+                ) from exc
+            if warning_collector is not None:
+                warning_collector.append(
+                    f"{VARIABLE_FILE_IO_ERROR}: {extra_path}: {exc}"
+                )
 
     return vars_out
 
@@ -149,8 +213,8 @@ def resolve_scan_identity(
     role_path: str,
     role_name_override: str | None,
     *,
-    load_meta_fn: Callable[[str], dict],
-) -> tuple[Path, dict, str, str]:
+    load_meta_fn: Callable[[str], dict[str, Any]],
+) -> ScanIdentity:
     """Resolve role path, metadata, role name, and description."""
     role_root = Path(role_path)
     if not role_root.is_dir():
@@ -163,4 +227,4 @@ def resolve_scan_identity(
         role_name = role_name_override
     description = galaxy.get("description", "")
 
-    return role_root, meta, role_name, description
+    return ScanIdentity(role_root, meta, role_name, description)

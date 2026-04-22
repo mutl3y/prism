@@ -1,19 +1,8 @@
-"""Scanner extraction package - consolidates variable, task, and data extraction logic.
-
-Exports public API for variable discovery orchestation and task feature extraction.
-
-Current capability ownership:
-- YAML and task traversal
-- variable and Jinja reference extraction
-- task catalog and molecule scenario discovery
-- role feature extraction
-- requirements and collection dependency source extraction
-"""
+"""Scanner extraction package - consolidates variable, task, and data extraction logic."""
 
 from __future__ import annotations
 
-# Task parsing constants and functions
-from prism.scanner_extract.task_parser import (
+from prism.scanner_extract.task_line_parsing import (
     TASK_INCLUDE_KEYS,
     ROLE_INCLUDE_KEYS,
     INCLUDE_VARS_KEYS,
@@ -21,38 +10,29 @@ from prism.scanner_extract.task_parser import (
     TASK_BLOCK_KEYS,
     TASK_META_KEYS,
     ROLE_NOTES_RE,
-    ROLE_NOTES_SHORT_RE,
     TASK_NOTES_LONG_RE,
-    TASK_NOTES_SHORT_RE,
     COMMENT_CONTINUATION_RE,
+)
+from prism.scanner_extract.task_file_traversal import (
     is_path_excluded,
+    is_relpath_excluded,
     load_yaml_file,
     collect_task_files,
-    is_relpath_excluded,
-    extract_role_notes_from_comments,
-    collect_unconstrained_dynamic_role_includes,
-    collect_unconstrained_dynamic_task_includes,
-    collect_task_handler_catalog,
-    collect_molecule_scenarios,
-    extract_role_features,
 )
-
-# Variable extraction functions
+from prism.scanner_extract.task_catalog_assembly import (
+    collect_task_handler_catalog,
+)
 from prism.scanner_extract.variable_extractor import (
     DEFAULT_TARGET_RE,
     JINJA_VAR_RE,
     JINJA_IDENTIFIER_RE,
     VAULT_KEY_RE,
-    IGNORED_IDENTIFIERS,
     collect_include_vars_files,
     looks_secret_name,
     resembles_password_like,
     extract_default_target_var,
     load_seed_variables,
-    refresh_policy_derived_state,
 )
-
-# Discovery helpers
 from prism.scanner_extract.discovery import (
     iter_role_variable_map_candidates,
     load_meta,
@@ -60,8 +40,6 @@ from prism.scanner_extract.discovery import (
     load_variables,
     resolve_scan_identity,
 )
-
-# Data loading functions
 from prism.scanner_extract.dataload import (
     iter_role_yaml_candidates,
     parse_yaml_candidate,
@@ -70,8 +48,6 @@ from prism.scanner_extract.dataload import (
     iter_role_argument_spec_entries,
     map_argument_spec_type,
 )
-
-# Requirements functions
 from prism.scanner_extract.requirements import (
     format_requirement_line,
     normalize_requirements,
@@ -83,8 +59,8 @@ from prism.scanner_extract.requirements import (
     build_requirements_display,
 )
 
+
 __all__ = [
-    # Task parsing
     "TASK_INCLUDE_KEYS",
     "ROLE_INCLUDE_KEYS",
     "INCLUDE_VARS_KEYS",
@@ -92,46 +68,33 @@ __all__ = [
     "TASK_BLOCK_KEYS",
     "TASK_META_KEYS",
     "ROLE_NOTES_RE",
-    "ROLE_NOTES_SHORT_RE",
     "TASK_NOTES_LONG_RE",
-    "TASK_NOTES_SHORT_RE",
     "COMMENT_CONTINUATION_RE",
     "is_path_excluded",
     "load_yaml_file",
     "collect_task_files",
     "is_relpath_excluded",
-    "extract_role_notes_from_comments",
-    "collect_unconstrained_dynamic_role_includes",
-    "collect_unconstrained_dynamic_task_includes",
     "collect_task_handler_catalog",
-    "collect_molecule_scenarios",
-    "extract_role_features",
-    # Variables
     "DEFAULT_TARGET_RE",
     "JINJA_VAR_RE",
     "JINJA_IDENTIFIER_RE",
     "VAULT_KEY_RE",
-    "IGNORED_IDENTIFIERS",
     "looks_secret_name",
     "resembles_password_like",
     "extract_default_target_var",
     "load_seed_variables",
     "collect_include_vars_files",
-    "refresh_policy_derived_state",
-    # Discovery
     "iter_role_variable_map_candidates",
     "load_meta",
     "load_requirements",
     "load_variables",
     "resolve_scan_identity",
-    # Data loading
     "iter_role_yaml_candidates",
     "parse_yaml_candidate",
     "collect_yaml_parse_failures",
     "load_role_variable_maps",
     "iter_role_argument_spec_entries",
     "map_argument_spec_type",
-    # Requirements
     "format_requirement_line",
     "normalize_requirements",
     "normalize_meta_role_dependencies",
@@ -144,12 +107,7 @@ __all__ = [
 
 
 def __getattr__(name: str) -> object:
-    """Enforce module public API at runtime.
-
-    Prevents access to private symbols (prefixed with _) that are not in __all__.
-    This reduces reliance on test-only architecture enforcement by making
-    boundary violations raise AttributeError immediately at import/access time.
-    """
+    """Enforce module public API at runtime."""
     if name.startswith("_"):
         raise AttributeError(
             f"module '{__name__}' has no attribute '{name}' "

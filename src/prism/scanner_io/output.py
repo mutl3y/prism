@@ -1,7 +1,4 @@
-"""Output rendering and writing helpers.
-
-This module isolates output-format concerns from scan/discovery logic.
-"""
+"""Output rendering and writing helpers for the fsrc lane."""
 
 from __future__ import annotations
 
@@ -9,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from prism.errors import normalize_metadata_warnings
 from prism.scanner_data.contracts_output import FinalOutputPayload
 
 
@@ -23,7 +19,8 @@ def build_final_output_payload(
     metadata: dict[str, Any],
 ) -> FinalOutputPayload:
     """Build the typed final-output payload contract."""
-    warnings = normalize_metadata_warnings(metadata)
+    warnings = metadata.get("warnings")
+    normalized_warnings = warnings if isinstance(warnings, list) else []
     return {
         "role_name": role_name,
         "description": description,
@@ -31,7 +28,7 @@ def build_final_output_payload(
         "requirements": requirements,
         "default_filters": default_filters,
         "metadata": metadata,
-        "warnings": warnings,
+        "warnings": normalized_warnings,
     }
 
 
@@ -100,3 +97,116 @@ def write_output(path: Path, content: str | bytes) -> str:
     else:
         path.write_text(content, encoding="utf-8")
     return str(path.resolve())
+
+
+def render_role_scan_markdown(payload: dict[str, Any]) -> str:
+    """Render a role scan payload dict to a markdown document.
+
+    Accepts the flat dict returned by ``api.scan_role()`` and produces clean
+    markdown without any Jinja template dependency.
+    """
+    role_name = str(payload.get("role_name") or "role")
+    description = str(payload.get("description") or "").strip()
+    variables: dict[str, Any] = payload.get("display_variables") or {}
+    requirements: list[Any] = payload.get("requirements_display") or []
+    default_filters: list[Any] = payload.get("undocumented_default_filters") or []
+    metadata: dict[str, Any] = payload.get("metadata") or {}
+
+    lines: list[str] = [f"# {role_name}", ""]
+
+    if description:
+        lines.extend([description, ""])
+
+    if variables:
+        lines.extend(["## Role Variables", ""])
+        lines.extend(
+            [
+                "| Variable | Default | Type | Required | Source |",
+                "| --- | --- | --- | --- | --- |",
+            ]
+        )
+        for var_name, var_info in variables.items():
+            if not isinstance(var_info, dict):
+                continue
+            default = str(
+                var_info.get("default") if var_info.get("default") is not None else ""
+            )
+            var_type = str(var_info.get("type") or "")
+            required = "Yes" if var_info.get("required") else "No"
+            source = str(var_info.get("source") or "")
+            lines.append(
+                f"| `{var_name}` | `{default}` | {var_type} | {required} | {source} |"
+            )
+        lines.append("")
+
+    if requirements:
+        lines.extend(["## Requirements", ""])
+        for req in requirements:
+            if isinstance(req, dict):
+                req_name = req.get("name") or req.get("role") or str(req)
+                lines.append(f"- {req_name}")
+            else:
+                lines.append(f"- {req}")
+        lines.append("")
+
+    if default_filters:
+        lines.extend(["## Undocumented Variable Filters", ""])
+        for item in default_filters:
+            label = item.get("name", str(item)) if isinstance(item, dict) else str(item)
+            lines.append(f"- `{label}`")
+        lines.append("")
+
+    variable_insights = (
+        metadata.get("variable_insights") if isinstance(metadata, dict) else None
+    )
+    if isinstance(variable_insights, dict):
+        unresolved = variable_insights.get("unresolved_count") or 0
+        if unresolved:
+            lines.extend(
+                [
+                    f"> **Scanner note:** {unresolved} unresolved variable reference(s) detected.",
+                    "",
+                ]
+            )
+
+    return "\n".join(lines)
+
+
+def write_role_scan_output(
+    payload: dict[str, Any],
+    *,
+    output: str,
+    output_format: str,
+    dry_run: bool = False,
+) -> str | None:
+    """Render and write a role scan payload to the requested output.
+
+    For JSON format the raw payload dict (preserving ``display_variables``) is
+    serialised directly.  For all other formats the payload is rendered to
+    markdown via :func:`render_role_scan_markdown` before format conversion.
+
+    Returns the written file path, or ``None`` when *dry_run* is ``True``
+    (output is printed to stdout instead).
+    """
+    import sys
+
+    if output_format == "json":
+        rendered: str | bytes = (
+            json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n"
+        )
+    else:
+        md_content = render_role_scan_markdown(payload)
+        rendered = render_final_output(
+            md_content, output_format, str(payload.get("role_name") or "")
+        )
+
+    if dry_run:
+        if isinstance(rendered, bytes):
+            sys.stdout.buffer.write(rendered)
+        else:
+            print(rendered, end="")
+        return None
+
+    output_path = resolve_output_path(output, output_format)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    return write_output(output_path, rendered)

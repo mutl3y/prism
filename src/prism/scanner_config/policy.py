@@ -1,10 +1,6 @@
-"""Scan policy configuration loaders.
-
-Provides functions for loading scan-time toggle flags from role configuration.
-"""
+"""Scan policy configuration loaders."""
 
 from __future__ import annotations
-
 
 import yaml
 
@@ -50,7 +46,6 @@ def _load_policy_config_dict(
 
 
 def _coerce_bool(value: object) -> bool | None:
-    """Return a normalized bool for common YAML-friendly truthy/falsey values."""
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -63,7 +58,6 @@ def _coerce_bool(value: object) -> bool | None:
 
 
 def _coerce_positive_int(value: object) -> int | None:
-    """Return a positive integer for integer-like values, otherwise None."""
     if isinstance(value, bool):
         return None
     if isinstance(value, int):
@@ -200,72 +194,23 @@ def load_non_authoritative_test_evidence_max_file_bytes(
     return coerced
 
 
-def load_non_authoritative_test_evidence_max_files_scanned(
+def load_policy_rules_from_config(
     role_path: str,
     config_path: str | None = None,
-    default: int = 400,
     config_filenames: tuple[str, ...] = SECTION_CONFIG_FILENAMES,
     default_filename: str = SECTION_CONFIG_FILENAME,
-) -> int:
-    """Load max number of files scanned for tests/molecule evidence."""
+) -> list[dict]:
+    """Load policy_rules entries from the role's .prism.yml.
+
+    Returns a list of raw rule dicts from the 'policy_rules' key.
+    Returns empty list if no config or no policy_rules key present.
+    """
     raw = _load_policy_config_dict(
-        role_path,
-        config_path,
-        config_filenames,
-        default_filename,
+        role_path, config_path, config_filenames, default_filename
     )
-    if raw is None:
-        return default
-
-    value: object | None = None
-    scan_cfg = raw.get("scan")
-    if isinstance(scan_cfg, dict):
-        value = scan_cfg.get("non_authoritative_test_evidence_max_files_scanned")
-    if value is None:
-        value = raw.get("non_authoritative_test_evidence_max_files_scanned")
-
-    coerced = _coerce_positive_int(value)
-    if coerced is None:
-        return default
-    return coerced
-
-
-def load_non_authoritative_test_evidence_max_total_bytes(
-    role_path: str,
-    config_path: str | None = None,
-    default: int = 8 * 1024 * 1024,
-    config_filenames: tuple[str, ...] = SECTION_CONFIG_FILENAMES,
-    default_filename: str = SECTION_CONFIG_FILENAME,
-) -> int:
-    """Load max aggregate bytes scanned for tests/molecule evidence."""
-    raw = _load_policy_config_dict(
-        role_path,
-        config_path,
-        config_filenames,
-        default_filename,
-    )
-    if raw is None:
-        return default
-
-    value: object | None = None
-    scan_cfg = raw.get("scan")
-    if isinstance(scan_cfg, dict):
-        value = scan_cfg.get("non_authoritative_test_evidence_max_total_bytes")
-    if value is None:
-        value = raw.get("non_authoritative_test_evidence_max_total_bytes")
-
-    coerced = _coerce_positive_int(value)
-    if coerced is None:
-        return default
-    return coerced
-
-
-__all__ = [
-    "POLICY_CONFIG_YAML_INVALID",
-    "load_fail_on_unconstrained_dynamic_includes",
-    "load_fail_on_yaml_like_task_annotations",
-    "load_ignore_unresolved_internal_underscore_references",
-    "load_non_authoritative_test_evidence_max_file_bytes",
-    "load_non_authoritative_test_evidence_max_files_scanned",
-    "load_non_authoritative_test_evidence_max_total_bytes",
-]
+    if not raw:
+        return []
+    policy_rules = raw.get("policy_rules")
+    if not isinstance(policy_rules, list):
+        return []
+    return [r for r in policy_rules if isinstance(r, dict)]
