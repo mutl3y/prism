@@ -1,0 +1,769 @@
+plan_id: architecture-extensibility-review-20260421
+title: "Architecture & Extensibility Review — Backlog for Future Planning"
+status: draft
+created: "2026-04-21"
+origin: "Fresh full-codebase review, architecture and extensibility focus"
+
+notes: |
+  This is a holding plan for identified architectural gaps and extensibility
+  improvements. Items have NOT been sequenced or scoped — they are raw findings
+  for the owner to triage, group, and schedule into execution waves.
+  Severity is architectural impact, not implementation effort.
+
+# ---------------------------------------------------------------------------
+# FINDING AREAS
+# ---------------------------------------------------------------------------
+
+areas:
+  # ────────────────────────────────────────────────────────────────────────
+  # A: Dual-Lane Maintenance Burden (src/ vs fsrc/)
+  # ────────────────────────────────────────────────────────────────────────
+  - id: A01
+    area: dual-lane
+    severity: critical
+    status: resolved
+    resolved_at: "2026-04-22"
+    resolution: >
+      fsrc/src/prism/ promoted to canonical src/prism/. Old src/ lane deleted.
+      Single unified codebase with plugin-registry-driven DI. See PRD v6.0.0.
+    title: "Two codebases in one repo — src/ and fsrc/ must converge"
+    detail: |
+      RESOLVED 2026-04-22: fsrc->src migration complete. Single src/prism/ lane.
+      Original finding: src/prism/ and fsrc/src/prism/ were parallel implementations of the same
+      app. The fsrc lane has better architecture (pure scanner_core, plugin
+      registry, registry-driven DI) but src/ was the production surface
+      (api.py, cli.py, scanner.py at 827 lines).
+
+      This dual-lane situation means:
+        - Every bug fix must land twice.
+        - Tests run twice, diverge silently.
+        - Developers don't know which lane to read for canonical behaviour.
+
+      What needs to happen:
+        - Promote fsrc/ to be the single source of truth.
+        - Port any src/-only behaviour that is genuinely production-necessary.
+        - Delete src/ once parity is confirmed.
+        - Update CI, imports, docs, demos to point at the unified lane.
+
+    blockers:
+      - "scan_kernel/orchestrator.py in src/ has no fsrc equivalent yet"
+      - "api.py/cli.py in src/ import from scanner.py which has no fsrc equivalent"
+      - "Some scanner_compat, scanner_extensions, scanner_analysis surface has no fsrc mapping"
+
+  - id: A02
+    area: dual-lane
+    severity: high
+    title: "scanner.py (827 lines) in src/ is still the live runtime path"
+    detail: |
+      Despite multiple godfile-decomposition waves, src/prism/scanner.py still
+      stands at 827 lines and is the entry point for api.py and cli.py. fsrc
+      has no equivalent runtime entry. Until fsrc takes over, scanner.py cannot
+      be retired and all new features require two implementations.
+
+    what_to_do:
+      - Map all public entry points called from api.py and cli.py into scanner.py
+      - Build equivalent fsrc entry paths through scanner_kernel/orchestrator
+      - Flip api.py and cli.py to fsrc paths behind a feature flag or lane switch
+      - Retire scanner.py
+
+  # ────────────────────────────────────────────────────────────────────────
+  # B: Plugin System Gaps
+  # ────────────────────────────────────────────────────────────────────────
+  - id: B01
+    area: plugin-system
+    severity: high
+    title: "No dynamic plugin discovery — everything is hardcoded at bootstrap"
+    detail: |
+      Plugins (Ansible, Kubernetes, Terraform) are registered in defaults.py and
+      the registry bootstrap. There is no mechanism to discover plugins from
+      installed packages (e.g., setuptools entry_points), from a plugin directory
+      on disk, or from user-supplied config.
+
+      This means adding a new platform requires:
+        - Implementing the plugin classes
+        - Modifying defaults.py or bootstrap code
+        - Shipping a new Prism release
+
+      For a tool intended to be extensible across platforms, this is too rigid.
+
+    what_to_do:
+      - Add entry_points-based plugin discovery (group: prism.scanner_plugins)
+      - Allow a plugin_dirs config key to load plugins from filesystem paths
+      - Registry.discover() method that runs at bootstrap and collects plugins
+      - Ensure deferred loading is preserved for startup performance
+
+  - id: B02
+    area: plugin-system
+    severity: high
+    title: "No plugin versioning or compatibility contract enforcement"
+    detail: |
+      Plugins implement interfaces (VariableDiscoveryPlugin, FeatureDetectionPlugin, etc.)
+      but there is no version declaration on either side. If prism changes an
+      interface, old plugins silently break at runtime.
+
+      Shape validation exists in defaults.py (_validate_plugin_shape) but it
+      is only called for fallback/default paths — not for all registered plugins.
+
+    what_to_do:
+      - Add PRISM_PLUGIN_API_VERSION to interface classes
+      - Registry validates version compatibility on registration
+      - Emit a clear error (not a shape-validation warning) on API mismatch
+      - Document the plugin API contract in docs/
+
+  - id: B03
+    area: plugin-system
+    severity: medium
+    title: "Plugin isolation is zero — all plugins share the same process"
+    detail: |
+      Third-party plugins run in the same Python process as Prism core. A
+      misbehaving plugin can corrupt process state, leak memory, or crash the
+      entire scan. For a tool meant to scan arbitrary Ansible repos with
+      arbitrary plugins, this is a real risk.
+
+    what_to_do:
+      - Evaluate subprocess isolation for untrusted/third-party plugins
+      - At minimum: document the trust model clearly ("plugins are trusted code")
+      - Consider a lightweight plugin sandbox protocol (stdin/stdout JSON RPC)
+
+  - id: B04
+    area: plugin-system
+    severity: medium
+    title: "Singleton plugin instances in defaults.py are a hidden global state risk"
+    detail: |
+      defaults.py holds module-level singleton fallback plugin instances:
+        _TASK_LINE_PARSING_FALLBACK = DefaultTaskLineParsingPolicyPlugin()
+        _YAML_PARSING_FALLBACK = YAMLParsingPolicyPlugin()
+        ...
+      These are intentionally stateless (comment says so), but there is no
+      enforcement. If any plugin class acquires mutable state in the future,
+      this becomes a cross-caller contamination bug.
+
+    what_to_do:
+      - Add a stateless marker (e.g., PLUGIN_IS_STATELESS = True) to plugin classes
+      - Registry validates the marker on registration for singleton-eligible plugins
+      - Alternatively, always use factory functions for fallback plugins
+
+  # ────────────────────────────────────────────────────────────────────────
+  # C: Core Orchestration Gaps
+  # ────────────────────────────────────────────────────────────────────────
+  - id: C01
+    area: core-orchestration
+    severity: high
+    title: "No scan phase event system — cross-cutting concerns can't hook in"
+    detail: |
+      The scan pipeline (extract → discover → detect → render) is a hard-coded
+      sequential call chain. There is no mechanism for plugins or external code
+      to observe or intercept scan phases.
+
+      This makes it impossible to add:
+        - Progress reporting without modifying core
+        - Custom validation steps
+        - Metrics/tracing instrumentation
+        - Caching layers
+
+    what_to_do:
+      - Define a ScanPhaseEvent protocol (phase_name, context, metadata)
+      - DIContainer or ScannerContext accepts optional event_listeners: list[Callable]
+      - Core emits events at phase boundaries (pre/post extract, discover, render, etc.)
+      - First consumer: a progress reporter for CLI streaming output
+
+  - id: C02
+    area: core-orchestration
+    severity: high
+    title: "All I/O is synchronous — large repos will block"
+    detail: |
+      Every file read (YAML, task files, templates, README) is synchronous.
+      For a role with hundreds of task files, scanning is single-threaded I/O.
+      No async, no parallel file loading, no worker pools.
+
+    what_to_do:
+      - Benchmark current performance on a large role (100+ task files)
+      - Evaluate asyncio adoption vs. ThreadPoolExecutor for file I/O
+      - Candidate hot path: load_yaml_file calls in scanner_extract
+      - Ensure plugin interface remains sync-compatible (async plugins optional)
+
+  - id: C03
+    area: core-orchestration
+    severity: medium
+    title: "No scan result caching — identical inputs are re-scanned every time"
+    detail: |
+      Each scan call re-reads all files from disk and re-processes from scratch.
+      For prism-learn workflows that scan the same role repeatedly (e.g., refresh
+      batches), this is pure waste.
+
+    what_to_do:
+      - Define a cache key: hash of role_path contents + scan_options
+      - Optional scan cache backend (in-memory LRU, filesystem, Redis)
+      - DIContainer wires cache backend as an optional plugin seam
+      - Cache is opt-in via scan_options["cache_backend"]
+
+  - id: C04
+    area: core-orchestration
+    severity: medium
+    title: "DIContainer is hand-rolled and grows a new factory per new plugin type"
+    detail: |
+      Every time a new plugin extension point is added, DIContainer gets:
+        - A new factory_X method
+        - A new inject_mock_X method
+        - A new _mocks["X"] check in the factory
+
+      This is the right pattern for explicit wiring, but it doesn't scale. The
+      class is already 360+ lines for ~12 plugin slots.
+
+    what_to_do:
+      - Consider a generic slot registration: di.register_factory("slot_name", fn)
+      - Keep typed convenience methods as thin wrappers over the generic mechanism
+      - Or: accept the growth and enforce a 500-line size budget with a CI check
+
+  # ────────────────────────────────────────────────────────────────────────
+  # D: Configuration
+  # ────────────────────────────────────────────────────────────────────────
+  - id: D01
+    area: configuration
+    severity: medium
+    title: "Configuration constants are scattered — no single config schema"
+    detail: |
+      Config lives in:
+        - scanner_config/ (section, patterns, etc.)
+        - scanner_plugins/defaults.py (fallback singleton instances)
+        - scan_request.py (build_run_scan_options_canonical defaults)
+        - scanner_core/scanner_context.py (_REQUIRED_SCAN_OPTION_KEYS)
+        - Hardcoded strings throughout (e.g., "ansible", "prism")
+
+      There is no single schema for what a valid scan_options dict looks like,
+      no config validation at entry, and no structured defaults layer.
+
+    what_to_do:
+      - Define a ScanOptionsSchema (pydantic or TypedDict with explicit defaults)
+      - All entry points (api.py, cli.py) validate/coerce inputs against schema
+      - Move _REQUIRED_SCAN_OPTION_KEYS into the schema definition
+      - Document every key with type, default, and description
+
+  - id: D02
+    area: configuration
+    severity: low
+    title: "No environment variable support for config keys"
+    detail: |
+      Users can only configure Prism via CLI flags, YAML config files, and
+      API call arguments. There is no PRISM_* environment variable support.
+      This makes it hard to configure in containerised/CI environments.
+
+    what_to_do:
+      - Define a PRISM_* env var namespace for common options
+      - Env vars are lower priority than explicit API/CLI options
+      - Use pydantic-settings or a thin manual layer
+
+  # ────────────────────────────────────────────────────────────────────────
+  # E: API and CLI Surface
+  # ────────────────────────────────────────────────────────────────────────
+  - id: E01
+    area: api-surface
+    severity: medium
+    title: "api.py still imports directly from scanner.py internals (_run_scan_payload)"
+    detail: |
+      src/prism/api.py imports:
+        from prism.scanner import _run_scan_payload
+        from prism.scanner import run_scan as _scanner_run_scan
+
+      _run_scan_payload is a private function. api.py is the public surface
+      and should not depend on private scanner internals.
+
+    what_to_do:
+      - Promote _run_scan_payload to a proper public seam in scanner_kernel
+      - api.py imports from scanner_kernel, not scanner.py directly
+      - Remove the scanner.py private function once API is pointed at the seam
+
+  - id: E02
+    area: api-surface
+    severity: medium
+    title: "No OpenAPI/REST API — programmatic consumers must use Python SDK"
+    detail: |
+      Prism has a Python API (api.py) and a CLI (cli.py), but no HTTP API.
+      prism-learn and other consumers must either shell out to the CLI or
+      import the Python package directly. This tightly couples consumers to
+      the Python implementation.
+
+    what_to_do:
+      - Evaluate a lightweight FastAPI/Flask wrapper exposing scan_role, scan_collection, scan_repo
+      - JSON request/response matching existing TypedDict contracts
+      - OpenAPI spec auto-generated from the route definitions
+      - CLI could optionally start a local API server for tooling integration
+
+  - id: E03
+    area: api-surface
+    severity: low
+    title: "CLI lacks streaming output / progress for large scans"
+    detail: |
+      The CLI produces no progress output during a scan. For large roles, users
+      see nothing until the scan completes. This is poor UX and makes it hard
+      to diagnose slow scans.
+
+    what_to_do:
+      - Implement a progress reporter using scan phase events (see C01)
+      - CLI option: --progress / --no-progress
+      - Stream phase names and timing to stderr (not stdout, to preserve JSON output)
+
+  # ────────────────────────────────────────────────────────────────────────
+  # F: Testing and Quality
+  # ────────────────────────────────────────────────────────────────────────
+  - id: F01
+    area: testing
+    severity: high
+    title: "src/ scanner_core has 10-30% coverage — it is live production code"
+    detail: |
+      The src/ lane is still production. src/prism/scanner_core/ modules have:
+        - di.py: 17.6%
+        - feature_detector.py: 6.8%
+        - scan_runtime.py: 22.6%
+        - variable_pipeline.py: 13.5%
+        - variable_insights.py: 16.7%
+        - scanner_context.py: 20.7%
+        - scan_facade_helpers.py: 9.0%
+
+      These are not untested edge cases — these are the core execution paths.
+
+    what_to_do:
+      - Either migrate fully to fsrc (then src/ coverage becomes irrelevant)
+      - Or write unit tests for src/ scanner_core before next production use
+      - Minimum target: 70% line coverage for production execution paths
+
+  - id: F02
+    area: testing
+    severity: medium
+    title: "No performance benchmarks for scan hot paths"
+    detail: |
+      There are no benchmarks measuring how long a full role scan takes, how
+      YAML loading scales with file count, or what the marginal cost of
+      additional task files is. This makes performance regressions invisible.
+
+    what_to_do:
+      - Add pytest-benchmark suite for: single task file parse, full small role scan, full large role scan
+      - CI records benchmark results as artifacts (not as pass/fail initially)
+      - Set budget thresholds once baseline is established
+
+  - id: F03
+    area: testing
+    severity: low
+    title: "No fuzz testing for YAML and Jinja parsers"
+    detail: |
+      Prism parses arbitrary user-controlled YAML and Jinja2 templates from
+      Ansible roles. Malformed or adversarial inputs could cause crashes or
+      unexpected behaviour. There is no fuzz test coverage.
+
+    what_to_do:
+      - Add hypothesis-based property tests for YAML parsing edge cases
+      - Add hypothesis-based property tests for Jinja template scanning
+      - Focus on: nested structures, unicode, very large files, circular refs
+
+  # ────────────────────────────────────────────────────────────────────────
+  # G: Observability and Operations
+  # ────────────────────────────────────────────────────────────────────────
+  - id: G01
+    area: observability
+    severity: medium
+    title: "Logging is ad-hoc — no structured scan telemetry"
+    detail: |
+      Logging uses standard Python logging with plain string messages in hot
+      paths. There is no structured log schema, no scan-level telemetry (duration,
+      file counts, cache hit/miss), and no hook for external observability tools.
+
+    what_to_do:
+      - Define a ScanTelemetry TypedDict: scan_duration_ms, files_read, cache_hits, plugin_key, errors
+      - ScannerContext emits telemetry at completion into scan result metadata
+      - Structured logging in JSON mode for CI/CD consumers
+      - Optional metrics sink plugin slot in DI
+
+  - id: G02
+    area: observability
+    severity: low
+    title: "Error codes exist but error handling is inconsistent at boundaries"
+    detail: |
+      errors.py defines a good FailurePolicy and error code system, but:
+        - Some paths raise raw ValueError/RuntimeError without error codes
+        - scan_degraded flag is set but not consistently surfaced to API callers
+        - No error aggregation — first failure terminates, others may be swallowed
+
+    what_to_do:
+      - Audit all raise statements in fsrc/ for raw exceptions (grep: raise ValueError, raise RuntimeError)
+      - Wrap in PrismRuntimeError with an appropriate code where they cross module boundaries
+      - Ensure scan_degraded + scan_errors is always present in API response on partial failure
+
+  # ────────────────────────────────────────────────────────────────────────
+  # H: Security
+  # ────────────────────────────────────────────────────────────────────────
+  - id: H01
+    area: security
+    severity: medium
+    title: "No input path validation — role_path is trusted without sanitisation"
+    detail: |
+      role_path is accepted from API/CLI callers and used directly to construct
+      filesystem paths for file reads. There is no validation that role_path is
+      within expected bounds (e.g., no path traversal checks).
+
+      For a library used programmatically, a caller could pass role_path="../../../etc"
+      and Prism would happily read it.
+
+    what_to_do:
+      - Validate role_path is an absolute path and resolves within expected bounds
+      - Add a path_safety_check utility at the API boundary
+      - Document the trust model: "role_path is caller-trusted; sanitise before calling"
+
+  - id: H02
+    area: security
+    severity: low
+    title: "Jinja2 template rendering from role content is not sandboxed"
+    detail: |
+      Prism uses Jinja2 for rendering README output. If any role content is
+      interpolated unsanitised into Jinja2 templates, server-side template injection
+      is possible. Needs an audit to confirm scope.
+
+    what_to_do:
+      - Audit all Jinja2 Environment instantiations for autoescape and sandboxing config
+      - Ensure role content is passed as data context, never as template source
+      - Use jinja2.sandbox.SandboxedEnvironment for any path that evaluates role content
+
+# ---------------------------------------------------------------------------
+# SEQUENCING NOTES (to fill in when planning)
+# ---------------------------------------------------------------------------
+
+sequencing_notes: |
+  Suggested grouping for planning waves:
+
+  Wave 0 — Prerequisite (unblocks everything):
+    A01, A02 — dual-lane convergence. Until fsrc is the single lane,
+    every other fix must land twice.
+
+  Wave 1 — Plugin system hardening (independent of lane convergence):
+    B01, B02, B04 — makes plugins reliable and discoverable
+    D01 — config schema, needed before B01 entry_points work
+
+  Wave 2 — Core extensibility (depends on Wave 0 + Wave 1):
+    C01 — event system (unlocks C02, C03, E03)
+    C02 — async I/O
+    C03 — caching
+
+  Wave 3 — API and surface polish:
+    E01, E02, E03 — API/CLI improvements
+    G01, G02 — observability
+
+  Wave 4 — Quality and security:
+    F01, F02, F03 — testing
+    H01, H02 — security
+
+  Deferred / optional:
+    B03 — plugin sandboxing (expensive, low immediate risk)
+    C04 — DI generics (low priority unless DI grows past 500 lines)
+    D02 — env vars (nice to have)
+    E02 — HTTP API (depends on consumer demand)
+
+# ---------------------------------------------------------------------------
+# MIGRATION GAP FINDINGS (src/ → fsrc/ functional audit, 2026-04-21)
+# ---------------------------------------------------------------------------
+# These are functional gaps identified by comparing src/ (production) and
+# fsrc/ (future lane) at the behaviour level, not just package names.
+# Nothing has been fixed — this is a review-only finding list.
+# ---------------------------------------------------------------------------
+
+migration_gaps:
+
+  - id: MG-01
+    severity: critical
+    title: "CLI argument surface — 29 of 36 src options absent from fsrc"
+    area: cli
+    known_renames:
+      - src: "--style-readme"
+        fsrc: "--style-readme-path"
+        note: "Renamed and moved to repo subcommand only in fsrc"
+      - src: "--format json"
+        fsrc: "--json"
+        note: "format flag collapsed to a boolean --json flag; other formats (md/html/pdf) dropped"
+    options_shared_unchanged:
+      - "--repo-url"
+      - "--repo-ref"
+      - "--repo-role-path"
+      - "--repo-style-readme-path"
+      - "--repo-timeout"
+    options_absent_from_fsrc:
+      - "--compare-role-path"
+      - "--style-source"
+      - "--create-style-guide"
+      - "--vars-context-path"
+      - "--vars-seed"
+      - "--concise-readme"
+      - "--scanner-report-output"
+      - "--include-scanner-report-link"
+      - "--variable-sources"
+      - "--readme-config"
+      - "--adopt-heading-mode"
+      - "--keep-unknown-style-sections"
+      - "--policy-config"
+      - "--fail-on-unconstrained-dynamic-includes"
+      - "--fail-on-yaml-like-task-annotations"
+      - "--ignore-unresolved-internal-underscore-references"
+      - "--detailed-catalog"
+      - "--task-parameters"
+      - "--task-runbooks"
+      - "--inline-task-runbooks"
+      - "--runbook-output"
+      - "--runbook-csv-output"
+      - "--include-collection-checks"
+      - "--feedback-from-learn"
+      - "--output"
+      - "--template"
+      - "--dry-run"
+      - "--verbose"
+      - "--exclude-path"
+    fsrc_equivalent: partial
+    api_status: COMPLETE
+    notes: >
+      5 repo options are present unchanged. 2 options are renamed (--style-readme
+      → --style-readme-path; --format json → --json). 29 options are entirely
+      absent from the fsrc CLI parser.
+
+      IMPORTANT: fsrc api.py scan_role() and scan_collection() already accept
+      the full parameter set: detailed_catalog, concise_readme, runbook_output_dir,
+      runbook_csv_output_dir, style_readme_path, policy_config_path, compare_role_path,
+      vars_seed_paths, exclude_path_patterns, adopt_heading_mode, etc.
+      The gap is purely in fsrc/src/prism/cli.py (parser + command dispatch)
+      not wiring those parameters through to the API calls. No new API work needed.
+
+  - id: MG-02
+    severity: critical
+    title: "scanner_config package entirely absent in fsrc"
+    area: configuration
+    what_is_missing: >
+      src/prism/scanner_config/ (policy.py, patterns.py, readme.py,
+      style.py, marker.py, section.py, legacy_retirement.py) handles:
+        - Loading .prism.yml policy toggles from disk
+        - 5-tier pattern override stack (built-in + system + XDG +
+          repo-local + env-var PRISM_PATTERNS_PATH)
+        - Remote community pattern fetch (fetch_remote_policy)
+        - Style guide XDG/env/cwd/system/bundled precedence resolution
+        - README section config and section visibility loading
+        - Custom comment-doc marker prefix loading
+    fsrc_equivalent: not_found
+    notes: >
+      fsrc scanners always run with hardcoded defaults. Users cannot
+      override sensitivity, section aliases, variable guidance keywords,
+      ignored identifiers, or style guide source via external config files.
+      --policy-config is accepted by the API signature but silently ignored.
+
+  - id: MG-03
+    severity: high
+    title: "feedback.py (prism-learn integration) absent in fsrc"
+    area: feedback-integration
+    what_is_missing: >
+      src/prism/feedback.py defines FeedbackPayload, FeedbackRecommendation,
+      FeedbackDefectCategory TypedDicts. load_feedback() loads a feedback
+      JSON document from a local file or HTTP/HTTPS API endpoint (a
+      prism-learn server). apply_feedback_recommendations() applies
+      recommendations to scanner behaviour — currently driving override of
+      include_collection_checks. Enables the prism-learn feedback loop.
+    fsrc_equivalent: not_found
+    notes: >
+      --feedback-from-learn CLI option does not exist in fsrc CLI.
+      fsrc cli_app modules do not reference feedback at all.
+
+  - id: MG-04
+    severity: high
+    title: "scan_for_default_filters / scan_for_all_filters public APIs absent"
+    area: api-surface
+    what_is_missing: >
+      src exposes scan_for_default_filters(role_path, exclude_paths) and
+      scan_for_all_filters(role_path, exclude_paths) as standalone public
+      API functions. They walk task files and return per-occurrence dicts
+      (file, line_no, line, match, args, filter_name) for Jinja filter
+      usage auditing without requiring a full scan.
+    fsrc_equivalent: not_found
+    notes: >
+      The underlying _filter_scanner module exists in scanner_extract in
+      both lanes but is not exposed at prism.api or any public surface
+      in fsrc.
+
+  - id: MG-05
+    severity: high
+    title: "resolve_default_style_guide_source absent in fsrc"
+    area: configuration
+    what_is_missing: >
+      Implements XDG/env/cwd/system/bundled precedence resolution for
+      STYLE_GUIDE_SOURCE.md: $PRISM_STYLE_SOURCE → ./STYLE_GUIDE_SOURCE.md
+      → $XDG_DATA_HOME/prism/ → /var/lib/prism/ → bundled template.
+      Used by both CLI and API when --create-style-guide is requested.
+    fsrc_equivalent: not_found
+    notes: >
+      style_guide_skeleton=True flows through fsrc API parameters but
+      there is no XDG-aware path resolution to find the source file.
+
+  - id: MG-06
+    severity: high
+    title: "collect_role_contents / build_comparison_report public APIs absent"
+    area: api-surface
+    what_is_missing: >
+      collect_role_contents(role_path, exclude_paths) returns a dict of
+      files in common role subdirectories (tasks, handlers, vars, defaults,
+      templates, files, meta, molecule). build_comparison_report(target,
+      baseline, exclude_paths) computes quality metrics for two roles and
+      returns a comparison dict. Standalone public analysis utilities.
+    fsrc_equivalent: not_found
+    notes: >
+      scan_facade_helpers.py exists only in src/prism/scanner_core/.
+      fsrc has no equivalent public comparison API.
+
+  - id: MG-07
+    severity: high
+    title: "ignored_identifiers drastically reduced in fsrc (7 vs 70+ entries)"
+    area: scan-quality
+    what_is_missing: >
+      src/prism/data/ignored_identifiers.yml contains 70+ Jinja2/Ansible
+      built-in identifiers suppressed during variable reference discovery:
+      Jinja builtins (callable, cycler, defined, float, joiner, keys,
+      lipsum, lower, range, sequence, string, upper, values), Ansible
+      keywords (apt, dnf, git, iptables, names, pip, rpm, yum),
+      YAML/flow-control tokens (false, no, null, true, yes, absent,
+      always, changed, description, failed, loop_var, msg, name, never,
+      not, now, present, query, rc, required, results, skipped, stderr,
+      stdout, undef, undefined, warnings), and more.
+    fsrc_equivalent: partial
+    fsrc_location: "fsrc/src/prism/scanner_plugins/ansible/variable_discovery.py IGNORED_IDENTIFIERS"
+    notes: >
+      fsrc IGNORED_IDENTIFIERS has only 7 entries: ansible_facts, groups,
+      hostvars, inventory_hostname, item, omit, vars. The fsrc lane will
+      produce dramatically more spurious undocumented-variable false-positives.
+      Identifiers like name, when, results, stdout, stderr, rc, msg,
+      changed, failed, skipped, defined will all appear as unresolved
+      variable references in fsrc scans.
+
+  - id: MG-08
+    severity: high
+    title: "Pattern policy override stack / remote fetch absent in fsrc"
+    area: configuration
+    what_is_missing: >
+      src/prism/scanner_config/patterns.py implements a 5-tier policy
+      stack: built-in YAML data files + /var/lib/prism/.prism_patterns.yml
+      + $XDG_DATA_HOME/prism/.prism_patterns.yml + <repo>/.prism_patterns.yml
+      + $PRISM_PATTERNS_PATH. fetch_remote_policy(url) downloads the
+      community pattern repository. write_unknown_headings_log() logs
+      unmatched section headings. sensitivity, section_aliases,
+      variable_guidance_keywords, and ignored_identifiers are all
+      configurable via this stack.
+    fsrc_equivalent: not_found
+    notes: >
+      --policy-config is accepted by fsrc API signatures but not connected
+      to any loader. Custom org-wide sensitivity patterns, credential
+      prefixes, section aliases, and variable guidance are silently ignored.
+
+  - id: MG-09
+    severity: high
+    title: "Feedback integration missing from CLI command handlers"
+    area: cli
+    what_is_missing: >
+      src handle_collection_command and handle_role_command both call
+      resolve_include_collection_checks(args.feedback_from_learn,
+      args.include_collection_checks) which loads prism-learn feedback
+      and overrides the include_collection_checks flag based on aggregate
+      scan intelligence.
+    fsrc_equivalent: not_found
+    notes: >
+      Compounds MG-03 (missing feedback module) and MG-01 (missing CLI
+      args). Even if feedback were available, fsrc command handlers
+      would not call it.
+
+  - id: MG-10
+    severity: medium
+    title: "cli_app shared/presenters/runtime helpers absent in fsrc"
+    area: cli
+    what_is_missing: >
+      cli_app/shared.py: resolve_effective_readme_config(),
+      resolve_vars_context_paths(), save_style_comparison_artifacts().
+      cli_app/presenters.py: REDACTION_PATTERNS (credential sanitization),
+      YAML multiline block dumper, content truncation with markers.
+      cli_app/runtime.py: persist_collection_role_markdown_documents()
+      (writes roles/<name>.md beside collection output),
+      finalize_repo_json_output().
+    fsrc_equivalent: not_found
+    notes: >
+      Absence of persist_collection_role_markdown_documents means running
+      prism collection in fsrc will not write individual role markdown
+      files under roles/ directory. REDACTION_PATTERNS absence means
+      credential-like strings in style comparison captures are not sanitized.
+
+  - id: MG-11
+    severity: medium
+    title: "scan_role payload field alias normalization absent in fsrc"
+    area: api-surface
+    what_is_missing: >
+      src api_layer/common.py normalize_scan_role_payload_shape() adds
+      stable public field name aliases to the scan payload:
+        variables       <- display_variables
+        requirements    <- requirements_display
+        default_filters <- undocumented_default_filters
+      Consumers can always access stable public key names regardless of
+      internal payload naming.
+    fsrc_equivalent: not_found
+    notes: >
+      fsrc api_layer/non_collection.py scan_role() returns raw run_scan()
+      output without normalization. API consumers using
+      payload["variables"] or payload["requirements"] will get KeyError
+      on fsrc but succeed on src.
+
+  - id: MG-12
+    severity: low
+    title: "__version__ attribute absent from fsrc package"
+    area: packaging
+    what_is_missing: >
+      src/prism/init.py exposes __version__ = "0.1.0" at the package
+      level for packaging and tests.
+    fsrc_equivalent: not_found
+    notes: >
+      fsrc/src/prism/__init__.py exists with a docstring but no
+      __version__ attribute. import prism; prism.__version__ raises
+      AttributeError on fsrc.
+
+  - id: MG-13
+    severity: low
+    title: "scanner_compat.render_compat import path absent in fsrc"
+    area: compatibility
+    what_is_missing: >
+      src/prism/scanner_compat/render_compat.py re-exports internal
+      scanner_readme functions at the prism.scanner_compat.render_compat
+      import path for downstream consumers using the pre-refactor path.
+    fsrc_equivalent: partial
+    notes: >
+      The underlying functions exist in fsrc scanner_readme but the
+      compatibility import path prism.scanner_compat.render_compat
+      does not exist. Narrow real-world exposure expected.
+
+  - id: MG-14
+    severity: critical
+    title: "fsrc CLI has no __main__ entry point — all demos silently do nothing"
+    area: demos
+    root_cause: >
+      fsrc/src/prism/cli.py has no 'if __name__ == "__main__": sys.exit(main())'
+      block at the bottom. Running 'python -m prism.cli' imports the module and
+      exits 0 without ever calling main(). argparse is never invoked, no scan
+      runs, no files are written. Every invocation exits 0 silently.
+    demo_failure_count: "8 of 8 scenarios produce zero output files against fsrc"
+    confirmed_by: >
+      Running 'python -m prism.cli role /tmp/nonexistent_role' against fsrc
+      exits 0 with no output and no error. Running src exits non-zero (role not
+      found). debug_readmes/option_demos/ directory is empty after a full fsrc
+      demo run; src produces 6+ files in the same run.
+    additional_issues: >
+      Even after adding the __main__ entry point, 7 of 8 demo scenarios will
+      still fail because the fsrc CLI parser lacks the args they use:
+        - role-concise: --concise-readme (not in fsrc parser)
+        - role-detailed-catalog: --detailed-catalog (not in fsrc parser)
+        - role-styled: --style-readme (not in fsrc parser)
+        - role-html: -f html (not in fsrc parser)
+        - role-json: -f json (not in fsrc parser; --json is boolean only)
+        - collection-md: -f md (not in fsrc parser)
+        - collection-json: -f json (not in fsrc parser)
+      Only role-default (role_path with no extra flags) would succeed after the
+      __main__ fix alone.
+    what_to_do: >
+      Step 1 (immediate, unblocks 1/8): Add __main__ entry point to
+      fsrc/src/prism/cli.py.
+      Step 2 (depends on MG-01 CLI work, unblocks 7/8): Wire the 29 absent CLI
+      options through the fsrc parser and command dispatch.
+      Step 3: Validate demo parity between src and fsrc lanes.
+    dependency: MG-01
