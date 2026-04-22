@@ -176,11 +176,6 @@ def _add_shared_scan_arguments(parser: argparse.ArgumentParser) -> None:
         help="Include collection compliance audit notes in requirements sections.",
     )
     parser.add_argument(
-        "--feedback-from-learn",
-        default=None,
-        help="Optional feedback source for guided audit recommendations (no-op in fsrc lane).",
-    )
-    parser.add_argument(
         "--audit-rules",
         default=None,
         metavar="PATH",
@@ -311,6 +306,47 @@ def _resolve_vars_context_paths(args: argparse.Namespace) -> list[str] | None:
     return paths if paths else None
 
 
+def _maybe_run_audit(args: argparse.Namespace, payload: dict) -> int:
+    """Evaluate audit rules against payload; return CLI exit-code addition (0 if ok)."""
+    rules_path = getattr(args, "audit_rules", None)
+    if not rules_path:
+        return 0
+
+    from prism.scanner_plugins.audit.loader import load_audit_rules_from_file
+    from prism.scanner_plugins.audit.runner import run_audit
+
+    rules = load_audit_rules_from_file(rules_path)
+    report = run_audit(payload, rules)
+
+    payload["audit_report"] = {
+        "summary": report.summary,
+        "passed": report.passed,
+        "violations": [
+            {
+                "rule_id": v.rule_id,
+                "severity": v.severity,
+                "message": v.message,
+                "role_path": v.role_path,
+                "evidence": list(v.evidence),
+            }
+            for v in report.violations
+        ],
+    }
+
+    print(report.summary)
+    for violation in report.violations:
+        print(
+            f"[{violation.severity}] {violation.rule_id}: {violation.message}",
+            file=sys.stderr if violation.severity == "error" else sys.stdout,
+        )
+
+    if getattr(args, "fail_on_audit_violations", False) and any(
+        v.severity == "error" for v in report.violations
+    ):
+        return EXIT_CODE_AUDIT_VIOLATIONS
+    return 0
+
+
 def _handle_role_command(args: argparse.Namespace) -> int:
     vars_context_paths = _resolve_vars_context_paths(args)
 
@@ -346,6 +382,10 @@ def _handle_role_command(args: argparse.Namespace) -> int:
         output_format=args.format,
         dry_run=args.dry_run,
     )
+
+    audit_exit = _maybe_run_audit(args, dict(result))
+    if audit_exit != 0:
+        return audit_exit
 
     if args.verbose and written_path is not None:
         print(f"Written: {written_path}")
@@ -402,6 +442,10 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
 
     print(format_collection_summary(dict(payload)))
 
+    audit_exit = _maybe_run_audit(args, dict(payload))
+    if audit_exit != 0:
+        return audit_exit
+
     if args.verbose:
         print(f"Written: {written_path}")
     return 0
@@ -444,8 +488,8 @@ def _build_bash_completion_script() -> str:
             "    fi",
             "",
             '    case "$cmd" in',
-            '        role) opts="-f --format -o --output -t --template -v --verbose --adopt-heading-mode --compare-role-path --concise-readme --create-style-guide --detailed-catalog --dry-run --exclude-path --fail-on-unconstrained-dynamic-includes --fail-on-yaml-like-task-annotations --feedback-from-learn --ignore-unresolved-internal-underscore-references --include-collection-checks --include-scanner-report-link --inline-task-runbooks --keep-unknown-style-sections --policy-config --readme-config --runbook-csv-output --runbook-output --scanner-report-output --style-readme --style-source --task-parameters --task-runbooks --variable-sources --vars-context-path --vars-seed" ;;',
-            '        collection) opts="-f --format -o --output -v --verbose --adopt-heading-mode --compare-role-path --concise-readme --create-style-guide --detailed-catalog --dry-run --exclude-path --fail-on-unconstrained-dynamic-includes --fail-on-yaml-like-task-annotations --feedback-from-learn --ignore-unresolved-internal-underscore-references --include-collection-checks --include-scanner-report-link --inline-task-runbooks --keep-unknown-style-sections --policy-config --readme-config --runbook-csv-output --runbook-output --scanner-report-output --style-readme --style-source --task-parameters --task-runbooks --variable-sources --vars-context-path --vars-seed" ;;',
+            '        role) opts="-f --format -o --output -t --template -v --verbose --adopt-heading-mode --audit-rules --compare-role-path --concise-readme --create-style-guide --detailed-catalog --dry-run --exclude-path --fail-on-audit-violations --fail-on-unconstrained-dynamic-includes --fail-on-yaml-like-task-annotations --ignore-unresolved-internal-underscore-references --include-collection-checks --include-scanner-report-link --inline-task-runbooks --keep-unknown-style-sections --policy-config --readme-config --runbook-csv-output --runbook-output --scanner-report-output --style-readme --style-source --task-parameters --task-runbooks --variable-sources --vars-context-path --vars-seed" ;;',
+            '        collection) opts="-f --format -o --output -v --verbose --adopt-heading-mode --audit-rules --compare-role-path --concise-readme --create-style-guide --detailed-catalog --dry-run --exclude-path --fail-on-audit-violations --fail-on-unconstrained-dynamic-includes --fail-on-yaml-like-task-annotations --ignore-unresolved-internal-underscore-references --include-collection-checks --include-scanner-report-link --inline-task-runbooks --keep-unknown-style-sections --policy-config --readme-config --runbook-csv-output --runbook-output --scanner-report-output --style-readme --style-source --task-parameters --task-runbooks --variable-sources --vars-context-path --vars-seed" ;;',
             '        repo) opts="--json --repo-ref --repo-role-path --repo-style-readme-path --repo-timeout --repo-url --style-readme-path" ;;',
             "    esac",
             "",

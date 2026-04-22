@@ -73,11 +73,15 @@ features:
 
   - name: Policy as Code audit plugin layer
     overview: >
-      Stub artefacts landed (wave 0): AuditRule / AuditViolation / AuditReport TypedDicts,
-      AuditPlugin Protocol, three builtin stub rule classes, factory_audit_plugin() DI slot,
-      CLI flags --audit-rules / --fail-on-audit-violations. Full implementation (wave 1)
-      deferred until scanner_config MG-02/08 is complete.
-    status: in_progress
+      Wave 1 complete: rule loader (YAML/JSON), BuiltinAuditPlugin orchestrator
+      dispatching by rule.id, CLI hook in role + collection handlers attaching
+      AuditReport to scan payload, --fail-on-audit-violations exits with
+      EXIT_CODE_AUDIT_VIOLATIONS (2) on any error-severity violation. Three
+      builtin rule classes (no-shell-without-runbook, runbook-coverage-min,
+      dependency-compliance) remain stubs requiring scanner_config payload
+      additions; unimplemented evaluators surface as warning-severity
+      violations rather than silent skips. --feedback-from-learn flag retired.
+    status: complete
 
   - name: Collection scanning and rendering
     overview: >

@@ -22,12 +22,13 @@ origin: "Fresh full-codebase review, architecture and extensibility focus"
 
 resumption_pointer:
   current_tier: 1
-  next_action: "T1-01: Audit Plugin Wave 1 implementation"
+  next_action: "T1-02: Raise scanner_core test coverage to >=70% on production paths"
   blocking_issues: []
   notes: |
     Plan rewritten 2026-04-22 after fsrc->src promotion. 13 of 14 original
     migration gaps were resolved by the promotion itself (see legacy_findings
-    section). Remaining work organised into 4 tiers.
+    section). T1-01 (audit plugin Wave 1) and T1-03 (--feedback-from-learn
+    retirement) completed 2026-04-22. Remaining Tier 1 work: T1-02 coverage.
 
 # ---------------------------------------------------------------------------
 # TIER 1 — Production hardening (do first)
@@ -40,7 +41,9 @@ tier_1_production_hardening:
 
   - id: T1-01
     title: "Policy-as-Code audit plugin — Wave 1 (full implementation)"
-    status: not_started
+    status: done
+    started_at: "2026-04-22"
+    completed_at: "2026-04-22"
     severity: high
     supersedes: [MG-03, MG-09]
     references:
@@ -107,7 +110,8 @@ tier_1_production_hardening:
 
   - id: T1-03
     title: "Decide and act on dangling --feedback-from-learn flag"
-    status: not_started
+    status: done
+    completed_at: "2026-04-22"
     severity: low
     summary: |
       cli.py still defines --feedback-from-learn with help "no-op in fsrc lane".
