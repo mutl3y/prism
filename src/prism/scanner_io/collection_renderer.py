@@ -201,6 +201,34 @@ def render_collection_markdown(payload: dict) -> str:
     return "\n".join(lines)
 
 
+def _resolve_collection_display_name(payload: dict) -> str:
+    """Return a human-readable collection name for summary output."""
+    collection = payload.get("collection", {}) if isinstance(payload, dict) else {}
+    metadata = _as_dict(collection.get("metadata", {}))
+    namespace = str(metadata.get("namespace") or "").strip()
+    name = str(metadata.get("name") or "").strip()
+    if namespace and name:
+        return f"{namespace}.{name}"
+    path = str(collection.get("path") or "")
+    basename = path.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+    return basename or "collection"
+
+
+def format_collection_summary(payload: dict) -> str:
+    """Return a compact plain-text summary of a collection scan result.
+
+    Suitable for printing to stdout after writing the rendered output to disk,
+    giving the user a quick confirmation of what was scanned.
+    """
+    display_name = _resolve_collection_display_name(payload)
+    summary = payload.get("summary", {}) if isinstance(payload, dict) else {}
+    scanned = int(summary.get("scanned_roles") or 0)
+    failed = int(summary.get("failed_roles") or 0)
+    return (
+        f"Collection: {display_name}\nRoles scanned: {scanned}\nRoles failed: {failed}"
+    )
+
+
 def write_collection_runbook_artifacts(
     *,
     role_name: str,

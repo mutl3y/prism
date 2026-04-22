@@ -1,7 +1,4 @@
-"""Marker configuration loading.
-
-Provides functions for loading marker/prefix configuration from role files.
-"""
+"""Marker configuration loading."""
 
 from __future__ import annotations
 

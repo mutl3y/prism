@@ -83,17 +83,94 @@
 - Canonical repo helper ownership now lives under `src/prism/repo_layer/`; `repo_services.py` remains the only top-level repo facade for API/CLI orchestration.
 - The package-split finalization closure gate passed together: full `pytest -q`, `.venv/bin/python -m ruff check src/prism`, `.venv/bin/python -m black --check src/prism`, and `.venv/bin/python -m tox -e typecheck`.
 
+## Notable Findings (Plan Closure: fsrc-like-for-like-completion-20260411)
+
+- Phase 0 gate semantics are split by blocker class: required blockers must be resolved before implementation, while deferred blockers remain explicitly tracked and non-blocking for start.
+- Wave 2 established a strict serialization boundary across `W2-T01`/`W2-T02`: source-lane contract shaping and fsrc-lane parity were treated as one boundary seam to prevent drift.
+- Final closure bundle expectation is one green evidence set, passed together: full `pytest -q`, parity bundle `pytest -q src/prism/tests/test_fsrc_scanner_parity.py fsrc/src/prism/tests`, smoke bundle `.venv/bin/python -m tox -r -e smoke-src-lane,smoke-fsrc-lane`, lint (`ruff check src/prism fsrc/src` + `black --check src/prism fsrc/src`), and `.venv/bin/python -m tox -e typecheck`.
+
+## Notable Findings (Plan Closure: fsrc-plugin-centralization-waveA-20260412)
+
+- Wave-A closure is complete (2026-04-12): tasks `W1-T01`, `W2-T01`, `W2-T02`, `W3-T01`, and `W4-T01` are closed in the canonical plan.
+- Closure evidence is recorded as one unified gate bundle and passed together: focused fsrc suites (`test_fsrc_comment_doc_plugin_resolution.py`, `test_fsrc_api_cli_entrypoints.py`, `test_fsrc_plugin_kernel_extension_parity.py`), parity suite (`src/prism/tests/test_fsrc_scanner_parity.py` + `fsrc/src/prism/tests`), smoke bundle (`tox -r -e smoke-src-lane,smoke-fsrc-lane`), lint (`ruff check src/prism fsrc/src` + `black --check src/prism fsrc/src`), typecheck (`tox -e typecheck`), and full `pytest -q`.
+
+## Notable Findings (Plan Closure: fsrc-plugin-hardwiring-audit-autopilot-20260412)
+
+- Hardwiring audit/autopilot closure is complete (2026-04-12): W1-W3 plus remediation are completed and validated as one closure stream.
+- Runtime DI seam coverage now includes both task annotation parsing and task-line detection plugin resolution paths.
+- Scanner-context policy enforcement now defines the strict/non-strict behavior boundary for dynamic includes and YAML-like annotation handling.
+- Registry loader cache identity now keys by both module and class, preventing cross-plugin collision on shared class names.
+- Closure gate evidence passed together as one bundle: `pytest -q`, smoke lanes (`tox -r -e smoke-src-lane,smoke-fsrc-lane`), `ruff check src/prism fsrc/src`, `black --check src/prism fsrc/src`, and `tox -e typecheck`.
+
+## Notable Findings (Plan Closure: adhoc-fsrc-plugin-seams-20260412)
+
+- Adhoc seam-promotion closure is complete (2026-04-12): YAML parsing/loading and Jinja analysis were elevated to first-class plugin domains in fsrc.
+- Architecture seams are now explicit across protocol, registry, resolver, and bootstrap layers for both YAML and Jinja, replacing hidden generic/direct resolution paths.
+- Runtime callsites in scanner_extract/scanner_core/scanner_io now consume dedicated YAML and Jinja resolver seams.
+- Validation evidence reported green for focused fsrc suite, parity bundle, `ruff check fsrc/src`, `black --check fsrc/src`, and `tox -r -e smoke-fsrc-lane`.
+
+## Notable Findings (Plan Closure: pure-execution-core-plugin-architecture-20260413)
+
+- NCK1 closure is complete (2026-04-18): the active non-collection execution core-kernel slice is closed.
+- Landed architecture state is now explicit: scanner_core owns non-collection request authority, scanner_kernel owns the route/preflight/runtime carrier contract, and `api.py` plus `api_layer/non_collection.py` remain thin compatibility boundaries.
+- SCB1 closure is complete (2026-04-18): ScannerContext payload-shape parity remains strict except for the single fsrc-only metadata extension `scan_policy_blocker_facts`.
+- SCB1 preserves the boundary established by the slice: scanner_context emits typed blocker facts only, and scanner_kernel translates them into strict failures or non-strict warnings across kernel-routed and legacy fallback paths.
+- MP1 closure is complete (2026-04-18): marker-prefix ownership on the scanner_core hot path now stays ingress-owned, with `scan_request` projecting `comment_doc_marker_prefix` and `task_extract_adapters` consuming only explicit caller input or that canonical top-level key plus the default fallback.
+- Core pure-execution design is now effectively delivered after NCK1 + SCB1 + MP1; remaining `variable_discovery` and prepared-policy follow-ups are residual debt and no longer design blockers.
+- Closure evidence passed together as one bundle: `pytest -q`, parity bundle `pytest -q src/prism/tests/test_fsrc_scanner_parity.py fsrc/src/prism/tests`, smoke lanes `tox -r -e smoke-src-lane,smoke-fsrc-lane`, `ruff check src/prism fsrc/src`, `black --check src/prism fsrc/src`, and `tox -e typecheck`.
+
+## Notable Findings (Plan Closure: ansible-plugin-remediation-wave-20260418)
+
+- Plan closure audit complete (2026-04-19): tasks APR1-T01 through APR6-T01 audited; APR6-T01 is the final closure task.
+- scanner_core is now pure execution-orchestration only; Ansible-specific logic lives in `scanner_plugins.ansible`; `IGNORED_IDENTIFIERS` in `variable_pipeline.py` is `frozenset()` (fully evicted).
+- VariableDiscovery and FeatureDetector are generic delegation wrappers; Ansible implementations are owned by `AnsibleVariableDiscoveryPlugin` and `AnsibleFeatureDetectionPlugin` in `scanner_plugins.ansible`; DI default wiring in `di.py` names these concrete types as the current default, which is expected DI factory wiring, not owned Ansible logic.
+- Fail-closed enforcement: all `_get_*_policy(di)` functions in scanner_core and scanner_extract raise `ValueError` without `prepared_policy_bundle`; no silent fallbacks to late-resolver paths exist outside the single documented retained seam in `variable_extractor.py`.
+- CSR-008 (`VariableDiscovery` re-export from `api.py`) retired in APR5-T01; 17 registered seams remain active (CSR-001 through CSR-007, CSR-009 through CSR-018) with complete records.
+- Platform expansion readiness gate: PASS — all closure checks green after `black fsrc/src/prism` formatting applied (2026-04-19).
+- Closure evidence: fsrc pytest 247 passed (PASS), parity 7 passed (PASS), ruff check PASS, black --check PASS. Gate confirmed PASS.
+- Kubernetes and Terraform expansion is unblocked at the gate level; no Kubernetes/Terraform scan plugins currently implemented — expansion planning can now proceed.
+
+## Notable Findings (Plan Closure: platform-agnostic-remediation-20260419)
+
+- Plan closure is complete (2026-04-19): all 7 tasks (PAR-W1-T01 through PAR-W4-T01) closed across 4 waves.
+- Constraint: `src/` lane frozen throughout execution; all changes targeted `fsrc/src/` only. 6 parity tests skip-marked with PAR-20260419.
+- DI factory defaults are now registry-driven: `factory_variable_discovery_plugin()` and `factory_feature_detection_plugin()` in `di.py` resolve through `PluginRegistry` instead of hardcoded Ansible imports. Zero Ansible imports remain in `scanner_core`.
+- Marker-prefix ownership moved to ingress: `comment_doc_marker_prefix` is now projected into `PreparedPolicyBundle` by `ensure_prepared_policy_bundle()` and consumed from the bundle by `task_extract_adapters`.
+- Variable extractor shim retired: `resolve_variable_extractor_policy_plugin()` fallback removed from `variable_extractor.py`; fail-closed `prepared_policy_bundle` consumption now matches all other extractor modules.
+- 6 compatibility seams retired (CSR-005, CSR-006, CSR-007, CSR-016, CSR-017, CSR-018); 11 active seams remain (CSR-001 through CSR-004, CSR-009 through CSR-015).
+- Expansion readiness gate: 7/7 criteria PASS — zero Ansible in scanner_core, registry-driven DI, 11/11 policy getters fail-closed, parity accounted, seam reduction achieved, K8s/Terraform slots reserved, multi-platform protocols in place.
+- Closure evidence: pytest 1441 passed / 7 skipped, ruff PASS, black PASS.
+
+## Notable Findings (Plan Closure: gf2-full-remediation-20260419)
+
+- GF2 full remediation closure is complete (2026-04-19): 8 of 9 tasks closed across 5 waves; 1 task (GF2-W4-T03, proxy singleton remediation) deferred.
+- Constraint: `src/` lane frozen throughout execution; all changes targeted `fsrc/src/` only.
+- DI platform selection fully decoupled: `di.py` resolves platform key from scan_options → policy_context → registry default; zero hardcoded `"ansible"` strings remain in `scanner_core` or `scanner_extract`.
+- Extraction layer platform-decoupled: Ansible module names moved from `extract_defaults.py` to `scanner_plugins/ansible`; collection namespace filtering is now policy-injectable via `PreparedPolicyBundle`.
+- Shared DI helper: `_scan_options_from_di()` consolidated from 7 duplicate definitions into single `scanner_core/di_helpers.py`.
+- Marker-prefix resolution simplified to bundle-only fail-closed: `_resolve_marker_prefix()` raises `ValueError` on missing data, no `DEFAULT_DOC_MARKER_PREFIX` fallback.
+- Blocker fact assembly extracted: `_build_scan_policy_blocker_facts()` moved from `ScannerContext` to `scanner_core/blocker_fact_evaluator.py`; `ScannerContext` delegates.
+- VariableRowBuilder fallback stub removed: `di.py` uses direct import, no try/except fallback.
+- Deprecated marker alias handling sunset: `_DEPRECATED_MARKER_ALIAS_CODE` and alias normalization logic removed from `scan_request.py`.
+- Deferred: GF2-W4-T03 (proxy singleton remediation) — 18+ consumer call sites; only blocks concurrent multi-platform scanning.
+- Closure evidence: pytest 1441 passed / 7 skipped, ruff PASS, black PASS, 8/8 audit criteria PASS.
+
+## Notable Findings (Plan Closure: fsrc-to-src-promotion-20260422)
+
+- fsrc→src migration is complete (2026-04-22): `fsrc/src/prism/` promoted to canonical `src/prism/`; `fsrc/` directory removed; `_src_retired/` (old src lane) permanently deleted.
+- Single unified codebase: no dual-lane burden; plugin-registry-driven DI is the only architecture.
+- `src/prism_next/` (empty stub) was deleted; no legacy stubs remain.
+- All 38 `test_fsrc_*.py` files updated: `parents[4]` → `parents[3]`; all `PROJECT_ROOT / "fsrc" / "src"` path constants updated to `PROJECT_ROOT / "src"`.
+- `tox.ini` updated: all `fsrc/src` references replaced with `src/`; smoke/lint/typecheck envs point at canonical src lane.
+- `scripts/cli_demo_matrix.py` updated: paths and `DEFAULT_LANE` updated to single `src` lane.
+- `docs/PRD.yaml` rewritten to v6.0.0 (`prism-unified-src-plugin-architecture-20260422`): reflects single src/, plugin-registry DI, pure scanner_core, multi-platform expansion readiness.
+- Plan `20260421-mg-fsrc-parity` closed: superseded by promotion.
+- Plan `architecture-extensibility-review-20260421` A01 (dual-lane critical finding) marked resolved.
+- Closure evidence: pytest 506 passed / 6 skipped, demo gate 0 failed / 8 artifacts.
+
 <!-- skill-ninja-START -->
 ## Agent Skills
 
-> **IMPORTANT**: Prefer skill-led reasoning over pre-training-led reasoning.
-> Read the relevant SKILL.md before working on tasks covered by these skills.
-
-### Skills
-
-| Skill | Description |
-|-------|-------------|
-| [create-specification](.github/skills/create-specification/SKILL.md) | Create a new specification file for the solution, optimized for Generative AI consumption. \| Your goal is to create a new specification file for `${input:SpecPurpose}`. |
-| [gen-specs-as-issues](.github/skills/gen-specs-as-issues/SKILL.md) | This workflow guides you through a systematic approach to identify missing features, prioritize t... \| This workflow guides you through a systematic approach to identify missing features, prioritize t... |
+No skills installed yet. Use "Agent Skills Ninja: Search Skills" to install skills.
 
 <!-- skill-ninja-END -->

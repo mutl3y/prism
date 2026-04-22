@@ -3,21 +3,18 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 import sys
-from urllib.error import HTTPError, URLError
 
-from prism.feedback import apply_feedback_recommendations, load_feedback
-from prism.scanner import SECTION_CONFIG_FILENAMES, parse_style_readme
-
-from prism.cli_app import presenters as cli_presenters
 from prism.errors import (
     PrismRuntimeError,
     REPO_SCAN_PAYLOAD_JSON_INVALID,
     REPO_SCAN_PAYLOAD_SHAPE_INVALID,
     REPO_SCAN_PAYLOAD_TYPE_INVALID,
 )
+from prism.scanner_config.section import SECTION_CONFIG_FILENAMES
+from prism.scanner_readme.style import parse_style_readme
+from . import presenters as cli_presenters
 
 
 def resolve_effective_readme_config(
@@ -44,29 +41,6 @@ def resolve_vars_context_paths(args: argparse.Namespace) -> list[str] | None:
         )
         context_paths.extend(legacy_paths)
     return context_paths or None
-
-
-def resolve_include_collection_checks(
-    feedback_source: str | None,
-    include_collection_checks: bool,
-    *,
-    load_feedback_fn=load_feedback,
-    apply_feedback_recommendations_fn=apply_feedback_recommendations,
-) -> bool | None:
-    try:
-        feedback = load_feedback_fn(feedback_source)
-    except (
-        FileNotFoundError,
-        HTTPError,
-        URLError,
-        json.JSONDecodeError,
-        ValueError,
-    ) as exc:
-        print(f"Error loading feedback: {exc}", file=sys.stderr)
-        return None
-
-    applied = apply_feedback_recommendations_fn(feedback, include_collection_checks)
-    return bool(applied["include_collection_checks"])
 
 
 def normalize_repo_json_payload(

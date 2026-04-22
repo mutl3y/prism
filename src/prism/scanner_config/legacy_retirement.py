@@ -1,8 +1,4 @@
-"""Public legacy-retirement error contract definitions.
-
-This module centralizes user-facing legacy retirement codes/messages so
-scanner and config loaders emit a consistent contract.
-"""
+"""Public legacy-retirement error contract definitions."""
 
 from __future__ import annotations
 

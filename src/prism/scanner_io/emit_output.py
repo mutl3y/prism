@@ -1,18 +1,44 @@
-"""Output emission and orchestration helpers.
-
-This module centralizes output rendering orchestration, including primary output
-rendering and optional sidecar generation (scanner reports, runbooks).
-"""
+"""Output emission and orchestration helpers for fsrc."""
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, Callable, Protocol, cast
 
-from prism.scanner_io.output import resolve_output_path, write_output
 from prism.scanner_data.contracts_output import RunScanOutputPayload
 from prism.scanner_data.contracts_request import ScanMetadata
+from prism.scanner_io.output import resolve_output_path, write_output
+
+
+class ScanOutputRenderer(Protocol):
+    """Callable protocol for primary scan output renderers."""
+
+    def __call__(
+        self,
+        *,
+        out_path: Path,
+        output_format: str,
+        template: str | None,
+        dry_run: bool,
+        metadata: dict[str, Any],
+        **kwargs: Any,
+    ) -> str | bytes: ...
+
+
+class ScanReportRenderer(Protocol):
+    """Callable protocol for scanner sidecar report renderers."""
+
+    def __call__(
+        self,
+        *,
+        role_name: str,
+        description: str,
+        variables: dict[str, Any],
+        requirements: list[Any],
+        default_filters: list[Any],
+        metadata: Any,
+    ) -> str: ...
 
 
 def build_scanner_report_output_path(
@@ -20,7 +46,7 @@ def build_scanner_report_output_path(
     scanner_report_output: str | None,
     out_path: Path,
 ) -> Path:
-    """Return the scanner sidecar path from explicit output or default suffix."""
+    """Return scanner sidecar path from explicit output or default suffix."""
     if scanner_report_output:
         return Path(scanner_report_output)
     return out_path.with_suffix(".scan-report.md")
@@ -39,7 +65,7 @@ def write_concise_scanner_report_if_enabled(
     undocumented_default_filters: list[Any],
     metadata: ScanMetadata,
     dry_run: bool,
-    build_scanner_report_markdown: Callable[..., str],
+    build_scanner_report_markdown: ScanReportRenderer,
 ) -> Path | None:
     """Write scanner sidecar report when concise mode is enabled."""
     if not concise_readme:
@@ -82,16 +108,13 @@ def write_optional_runbook_outputs(
     if runbook_output:
         rb_path = Path(runbook_output)
         rb_path.parent.mkdir(parents=True, exist_ok=True)
-        render_runbook_any = cast(Any, render_runbook)
-        try:
-            rb_content = render_runbook_any(role_name=role_name, metadata=metadata)
-        except TypeError:
-            rb_content = render_runbook(role_name, metadata)
+        rb_content = render_runbook(role_name, cast(dict[str, Any], metadata))
         rb_path.write_text(rb_content, encoding="utf-8")
+
     if runbook_csv_output:
         rb_csv_path = Path(runbook_csv_output)
         rb_csv_path.parent.mkdir(parents=True, exist_ok=True)
-        rb_csv_content = render_runbook_csv(metadata)
+        rb_csv_content = render_runbook_csv(cast(dict[str, Any], metadata))
         rb_csv_path.write_text(rb_csv_content, encoding="utf-8")
 
 
@@ -109,26 +132,14 @@ def write_output_file(path: Path, content: str | bytes) -> str:
     return write_output(path, content)
 
 
-def resolve_scanner_report_path(
-    *,
-    scanner_report_output: str | None,
-    out_path: Path,
-) -> Path:
-    """Return the scanner sidecar path from explicit output or default suffix."""
-    return build_scanner_report_output_path(
-        scanner_report_output=scanner_report_output,
-        out_path=out_path,
-    )
-
-
 def emit_primary_output(
     *,
     out_path: Path,
     output_format: str,
     template: str | None,
     dry_run: bool,
-    metadata: dict,
-    render_and_write: Callable[..., str | bytes],
+    metadata: ScanMetadata,
+    render_and_write: ScanOutputRenderer,
 ) -> str | bytes:
     """Emit primary scan output in the specified format."""
     return render_and_write(
@@ -136,7 +147,7 @@ def emit_primary_output(
         output_format=output_format,
         template=template,
         dry_run=dry_run,
-        metadata=metadata,
+        metadata=cast(dict[str, Any], metadata),
     )
 
 
@@ -148,7 +159,7 @@ def emit_scanner_report_sidecar(
     include_scanner_report_link: bool,
     metadata: ScanMetadata,
     dry_run: bool,
-    render_scanner_report: Callable[..., str],
+    render_scanner_report: ScanReportRenderer,
     role_name: str | None = None,
     description: str | None = None,
     display_variables: dict[str, Any] | None = None,
@@ -208,7 +219,7 @@ def build_output_emission_context(
     runbook_output: str | None,
     runbook_csv_output: str | None,
 ) -> dict[str, Any]:
-    """Build a context dictionary for output emission orchestration."""
+    """Build context dictionary for output emission orchestration."""
     return {
         "role_name": output_payload["role_name"],
         "description": output_payload["description"],
@@ -231,12 +242,12 @@ def build_output_emission_context(
 def orchestrate_output_emission(
     *,
     args: dict[str, Any],
-    render_and_write: Callable[..., str | bytes],
-    render_scanner_report: Callable[..., str],
+    render_and_write: ScanOutputRenderer,
+    render_scanner_report: ScanReportRenderer,
     render_runbook: Callable[[str, dict[str, Any] | None], str],
     render_runbook_csv: Callable[[dict[str, Any] | None], str],
 ) -> str | bytes:
-    """Orchestrate coordinated output emission (primary + sidecars)."""
+    """Orchestrate coordinated output emission (primary plus sidecars)."""
     out_path = resolve_output_file_path(Path(args["output"]), args["output_format"])
     metadata: ScanMetadata = cast(ScanMetadata, dict(args["metadata"]))
 
@@ -280,7 +291,7 @@ def orchestrate_output_emission(
             display_variables=args["display_variables"],
             requirements_display=args["requirements_display"],
             undocumented_default_filters=args["undocumented_default_filters"],
-            metadata=metadata,
+            metadata=cast(dict[str, Any], metadata),
             template=kw["template"],
             dry_run=kw["dry_run"],
         ),

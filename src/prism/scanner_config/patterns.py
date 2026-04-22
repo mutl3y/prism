@@ -1,8 +1,4 @@
-"""Pattern policy loader for prism.
-
-Loads the built-in token lists and alias mappings from YAML files in ``data/``.
-Supports override files and remote pattern repositories.
-"""
+"""Pattern policy loader for prism."""
 
 from __future__ import annotations
 
@@ -19,29 +15,33 @@ import yaml
 
 from prism.scanner_data.contracts_request import PolicyContext
 
-# Directory containing the built-in per-topic YAML files shipped with the package
-_BUILTIN_DATA_DIR = Path(__file__).parent.parent / "data"
+# Try fsrc data dir first, fall back to src data dir (sibling in repo)
+_CANDIDATE_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+if not _CANDIDATE_DATA_DIR.is_dir():
+    _CANDIDATE_DATA_DIR = (
+        Path(__file__).resolve().parent.parent.parent.parent.parent
+        / "src"
+        / "prism"
+        / "data"
+    )
+_BUILTIN_DATA_DIR = _CANDIDATE_DATA_DIR
 
-# Override filename constants
 REPO_OVERRIDE_FILENAME = ".prism_patterns.yml"
 CWD_OVERRIDE_FILENAME = ".prism_patterns.yml"
 ENV_PATTERNS_OVERRIDE_PATH = "PRISM_PATTERNS_PATH"
 
-# System mutable-data locations
 XDG_DATA_HOME_ENV = "XDG_DATA_HOME"
 APP_DATA_DIRNAME = "prism"
 SYSTEM_PATTERN_OVERRIDE_PATH = (
     Path("/var/lib") / APP_DATA_DIRNAME / CWD_OVERRIDE_FILENAME
 )
 
-# Default remote source (community-curated patterns repo)
 DEFAULT_REMOTE_URL = (
     "https://raw.githubusercontent.com/mutl3y/prism_patterns" "/main/pattern_policy.yml"
 )
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
-    """Load a YAML file, returning an empty dict on any failure."""
     try:
         with path.open(encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
@@ -51,7 +51,6 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """Recursively merge *override* into a copy of *base*."""
     result = copy.deepcopy(base)
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
@@ -62,8 +61,6 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
 
 
 def _normalise(policy: dict[str, Any]) -> dict[str, Any]:
-    """Ensure expected keys exist and convert sets."""
-
     def _normalise_token_collection(raw: Any) -> set[str]:
         if isinstance(raw, str):
             value = raw.strip()
@@ -99,6 +96,8 @@ def _normalise(policy: dict[str, Any]) -> dict[str, Any]:
 
 def _load_builtin_policy() -> dict[str, Any]:
     """Load and merge all per-topic YAML files from the data directory."""
+    if not _BUILTIN_DATA_DIR.is_dir():
+        return {}
     policy: dict[str, Any] = {}
     for yml_file in sorted(_BUILTIN_DATA_DIR.glob("*.yml")):
         chunk = _load_yaml(yml_file)
@@ -107,7 +106,6 @@ def _load_builtin_policy() -> dict[str, Any]:
 
 
 def _default_user_data_home() -> Path:
-    """Return the user data home path honoring ``XDG_DATA_HOME`` when set."""
     raw = os.environ.get(XDG_DATA_HOME_ENV)
     if raw:
         return Path(raw).expanduser()
@@ -115,7 +113,6 @@ def _default_user_data_home() -> Path:
 
 
 def _resolve_search_root(search_root: str | Path | None) -> Path | None:
-    """Return the deterministic root used for repo-local pattern overrides."""
     if search_root is None:
         return None
     root_path = Path(search_root).expanduser()
@@ -128,30 +125,16 @@ def _iter_default_override_paths(
     *,
     search_root: str | Path | None = None,
 ) -> list[Path]:
-    """Return default mutable override paths in merge order.
-
-    Returned in low -> high precedence order (later ones override earlier ones).
-    """
     paths = []
-
-    # system-level mutable defaults (lowest precedence)
     paths.append(SYSTEM_PATTERN_OVERRIDE_PATH)
-
-    # user-level mutable defaults (XDG)
     user_data_home = _default_user_data_home()
     paths.append(user_data_home / APP_DATA_DIRNAME / CWD_OVERRIDE_FILENAME)
-
-    # repo-local override is only considered when the caller provides an
-    # explicit deterministic root.
     local_override_root = _resolve_search_root(search_root)
     if local_override_root is not None:
         paths.append(local_override_root / REPO_OVERRIDE_FILENAME)
-
-    # optional env var override (highest precedence among implicit defaults)
     env_override = os.environ.get(ENV_PATTERNS_OVERRIDE_PATH)
     if env_override:
         paths.append(Path(env_override).expanduser())
-
     return paths
 
 
@@ -160,25 +143,7 @@ def load_pattern_config(
     *,
     search_root: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Load pattern configuration policy from built-in and override sources.
-
-    Loads all built-in policy YAML files, then applies overrides in precedence
-    order. Returns all state needed for pattern detection and policy queries.
-
-    Parameters
-    ----------
-    override_path:
-        Path to a YAML override file. Non-existent paths are ignored.
-    search_root:
-        Deterministic root used for implicit repo-local override resolution.
-        When omitted, no repo-local implicit override is consulted.
-
-    Returns
-    -------
-    dict with keys:
-        ``section_aliases``, ``sensitivity``, ``variable_guidance``,
-        ``ansible_builtin_variables``, ``ignored_identifiers``
-    """
+    """Load pattern configuration policy from built-in and override sources."""
     policy = _load_builtin_policy()
 
     for override_file in _iter_default_override_paths(search_root=search_root):
@@ -235,15 +200,7 @@ def fetch_remote_policy(
     timeout: int = 10,
     expected_integrity: str | None = None,
 ) -> dict[str, Any]:
-    """Fetch a ``pattern_policy.yml`` from *url* and return the parsed policy.
-
-    If *cache_path* is provided the raw YAML bytes are written there.
-
-    When *expected_integrity* is provided, it must be in the form
-    ``sha256:<64 lowercase-hex>`` and the fetched/cached bytes must match.
-
-    Raises ``RuntimeError`` if the fetch fails and no cached copy exists.
-    """
+    """Fetch a ``pattern_policy.yml`` from *url* and return the parsed policy."""
 
     def _parse_expected_sha256(integrity: str | None) -> str | None:
         if integrity is None:

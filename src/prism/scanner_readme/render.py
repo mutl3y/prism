@@ -1,15 +1,14 @@
-"""README composition and template rendering helpers extracted from scanner."""
+"""README composition and template rendering helpers for the fsrc lane."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
+from typing import Any, NamedTuple
 
-import jinja2
-
-from prism.scanner_readme.guide import _render_guide_section_body
+from prism.scanner_readme.guide import render_guide_section_body
 from prism.scanner_readme.style import format_heading
-from prism.scanner_data.contracts_request import StyleGuideConfig
+from prism.scanner_data.rendering_seams import build_render_jinja_environment
+
 
 DEFAULT_SECTION_SPECS = [
     ("galaxy_info", "Galaxy Info"),
@@ -55,6 +54,8 @@ SCANNER_STATS_SECTION_IDS = {
     "default_filters",
 }
 
+DEFAULT_MERGE_GENERATED_CONTENT_LABEL = "Generated content"
+
 
 def _generated_merge_markers(section_id: str) -> list[tuple[str, str]]:
     """Return supported hidden marker pairs for generated merge payloads."""
@@ -70,7 +71,7 @@ def _generated_merge_markers(section_id: str) -> list[tuple[str, str]]:
     ]
 
 
-def _strip_prior_generated_merge_block(section: dict, guide_body: str) -> str:
+def _strip_prior_generated_merge_block(section: dict[str, Any], guide_body: str) -> str:
     """Remove previously generated merge payload for a section, if present."""
     section_id = str(section.get("id") or "")
     cleaned = guide_body
@@ -95,7 +96,9 @@ def _strip_prior_generated_merge_block(section: dict, guide_body: str) -> str:
     return cleaned
 
 
-def _resolve_section_content_mode(section: dict, modes: dict[str, str]) -> str:
+def _resolve_section_content_mode(
+    section: dict[str, Any], modes: dict[str, str]
+) -> str:
     """Resolve content handling mode for a style section."""
     section_id = str(section.get("id") or "")
     guide_body = str(section.get("body") or "").strip()
@@ -117,49 +120,46 @@ def _resolve_section_content_mode(section: dict, modes: dict[str, str]) -> str:
     return "generate"
 
 
-def _merge_section_body(
-    section: dict,
-    generated_body: str,
-    guide_body: str,
+def _resolve_merge_generated_content_label(
+    section: dict[str, Any],
+    metadata: dict[str, Any],
 ) -> str:
-    """Merge scanner-generated and style-guide content for a section."""
-    cleaned_guide_body = _strip_prior_generated_merge_block(section, guide_body)
-    if not cleaned_guide_body:
-        return generated_body
-    if not generated_body:
-        return cleaned_guide_body
-    if generated_body in cleaned_guide_body:
-        return cleaned_guide_body
-    section_id = str(section.get("id") or "")
-    start_marker, end_marker = _generated_merge_markers(section_id)[0]
-    if section_id == "requirements":
-        return (
-            f"{cleaned_guide_body}\n\n"
-            "Detected requirements from scanner:\n"
-            f"{start_marker}\n"
-            f"{generated_body}\n"
-            f"{end_marker}"
-        )
-    return (
-        f"{cleaned_guide_body}\n\n"
-        "Generated content:\n"
-        f"{start_marker}\n"
-        f"{generated_body}\n"
-        f"{end_marker}"
-    )
+    """Resolve merge generated-content label from section/style metadata."""
+    section_label = str(section.get("merge_generated_content_label") or "").strip()
+    if section_label:
+        return section_label
+
+    style_guide = metadata.get("style_guide") or {}
+    style_label = str(style_guide.get("merge_generated_content_label") or "").strip()
+    if style_label:
+        return style_label
+
+    metadata_label = str(metadata.get("merge_generated_content_label") or "").strip()
+    if metadata_label:
+        return metadata_label
+
+    return DEFAULT_MERGE_GENERATED_CONTENT_LABEL
 
 
-def _compose_section_body(section: dict, generated_body: str, mode: str) -> str:
+def _compose_section_body(
+    section: dict[str, Any],
+    generated_body: str,
+    mode: str,
+    metadata: dict[str, Any],
+) -> str:
     """Compose final section body according to configured mode."""
     guide_body = str(section.get("body") or "").strip()
     if mode == "replace":
         return guide_body or generated_body
     if mode == "merge":
-        return _merge_section_body(section, generated_body, guide_body)
+        merge_label = _resolve_merge_generated_content_label(section, metadata)
+        if guide_body and generated_body:
+            return f"{guide_body}\n\n{merge_label}:\n{generated_body}"
+        return guide_body or generated_body
     return generated_body
 
 
-def _default_ordered_style_sections() -> list[dict]:
+def _default_ordered_style_sections() -> list[dict[str, Any]]:
     """Return default style sections when no style guide sections are supplied."""
     return [
         {"id": section_id, "title": title}
@@ -167,181 +167,49 @@ def _default_ordered_style_sections() -> list[dict]:
     ]
 
 
-def _apply_section_title_overrides(
-    ordered_sections: list[dict],
-    section_title_overrides: dict[str, str],
-) -> list[dict]:
-    """Apply metadata-driven section title overrides to a copied section list."""
-    overridden_sections = [dict(section) for section in ordered_sections]
-    for section in overridden_sections:
-        section_id = section.get("id")
-        override_title = (
-            section_title_overrides.get(str(section_id))
-            if section_id is not None
-            else None
-        )
-        if override_title:
-            section["title"] = override_title
-    return overridden_sections
-
-
-def _filter_ordered_sections_by_metadata(
-    ordered_sections: list[dict],
-    enabled_sections: set[str],
-    keep_unknown_style_sections: bool,
-) -> list[dict]:
-    """Filter sections by unknown/enabled metadata controls."""
-    filtered_sections = ordered_sections
-    if not keep_unknown_style_sections:
-        filtered_sections = [
-            section for section in filtered_sections if section.get("id") != "unknown"
-        ]
-    if enabled_sections:
-        filtered_sections = [
-            section
-            for section in filtered_sections
-            if section.get("id") in enabled_sections
-        ]
-    return filtered_sections
-
-
-def _filter_concise_readme_sections(ordered_sections: list[dict]) -> list[dict]:
-    """Drop verbose sections and duplicate variable detail rows for concise output."""
-    concise_sections = [
-        section
-        for section in ordered_sections
-        if section.get("id") not in SCANNER_STATS_SECTION_IDS
-    ]
-    section_ids = [section.get("id") for section in concise_sections]
-    if "variable_summary" in section_ids and "role_variables" in section_ids:
-        concise_sections = [
-            section
-            for section in concise_sections
-            if section.get("id") != "role_variables"
-        ]
-    return concise_sections
+class OrderedStyleSections(NamedTuple):
+    sections: list[dict[str, Any]]
+    enabled_sections: set[str]
+    content_modes: dict[str, str]
+    skeleton: bool
 
 
 def _resolve_ordered_style_sections(
-    style_guide: StyleGuideConfig,
-    metadata: dict,
-) -> tuple[list[dict], set[str], dict[str, str], bool]:
+    style_guide: dict[str, Any],
+    metadata: dict[str, Any],
+) -> OrderedStyleSections:
     """Resolve ordered style-guide sections after scanner/readme config filters."""
     ordered_sections = [dict(section) for section in style_guide.get("sections") or []]
     enabled_sections = set(metadata.get("enabled_sections") or [])
-    section_title_overrides = metadata.get("section_title_overrides") or {}
+    section_content_modes = metadata.get("section_content_modes") or {}
     keep_unknown_style_sections = bool(metadata.get("keep_unknown_style_sections"))
 
     if not ordered_sections:
         ordered_sections = _default_ordered_style_sections()
 
-    ordered_sections = _apply_section_title_overrides(
-        ordered_sections,
-        section_title_overrides,
-    )
-    ordered_sections = _filter_ordered_sections_by_metadata(
+    if not keep_unknown_style_sections:
+        ordered_sections = [
+            section for section in ordered_sections if section.get("id") != "unknown"
+        ]
+
+    if enabled_sections:
+        ordered_sections = [
+            section
+            for section in ordered_sections
+            if section.get("id") in enabled_sections
+        ]
+
+    return OrderedStyleSections(
         ordered_sections,
         enabled_sections,
-        keep_unknown_style_sections,
-    )
-
-    if metadata.get("concise_readme"):
-        ordered_sections = _filter_concise_readme_sections(ordered_sections)
-
-    return (
-        ordered_sections,
-        enabled_sections,
-        metadata.get("section_content_modes") or {},
+        section_content_modes,
         bool(metadata.get("style_guide_skeleton")),
     )
 
 
-def _append_style_guide_section_heading(
+def append_scanner_report_section_if_enabled(
     parts: list[str],
-    section: dict,
-    style_guide: StyleGuideConfig,
-) -> None:
-    """Append a formatted heading for a style-guide section."""
-    heading_level = int(section.get("level") or style_guide.get("section_level") or 2)
-    parts.append(
-        format_heading(
-            section["title"],
-            heading_level,
-            style_guide.get("section_style", "setext"),
-        )
-    )
-    parts.append("")
-
-
-def _resolve_rendered_style_guide_section_body(
-    section: dict,
-    section_content_modes: dict[str, str],
-    role_name: str,
-    description: str,
-    variables: dict,
-    requirements: list,
-    default_filters: list,
-    metadata: dict,
-) -> str:
-    """Return rendered section body after merge/unknown handling."""
-    body = _render_guide_section_body(
-        section["id"],
-        role_name,
-        description,
-        variables,
-        requirements,
-        default_filters,
-        metadata,
-    ).strip()
-    mode = _resolve_section_content_mode(section, section_content_modes)
-    body = _compose_section_body(section, body, mode)
-    if section["id"] != "unknown":
-        return body
-    unknown_guide_body = str(section.get("body") or "").strip()
-    if unknown_guide_body:
-        return unknown_guide_body
-    return "Style section retained from guide; scanner does not map this section yet."
-
-
-def _render_style_guide_sections_into_parts(
-    parts: list[str],
-    ordered_sections: list[dict],
-    style_guide: StyleGuideConfig,
-    style_guide_skeleton: bool,
-    section_content_modes: dict[str, str],
-    role_name: str,
-    description: str,
-    variables: dict,
-    requirements: list,
-    default_filters: list,
-    metadata: dict,
-) -> None:
-    """Append rendered style-guide sections into the markdown parts list."""
-    for section in ordered_sections:
-        _append_style_guide_section_heading(parts, section, style_guide)
-
-        if style_guide_skeleton:
-            continue
-
-        body = _resolve_rendered_style_guide_section_body(
-            section,
-            section_content_modes,
-            role_name,
-            description,
-            variables,
-            requirements,
-            default_filters,
-            metadata,
-        )
-        if not body:
-            continue
-        parts.append(body)
-        parts.append("")
-
-
-def _append_scanner_report_section_if_enabled(
-    parts: list[str],
-    style_guide: StyleGuideConfig,
+    style_guide: dict[str, Any],
     style_guide_skeleton: bool,
     scanner_report_relpath: str | None,
     include_scanner_report_link: bool,
@@ -355,6 +223,7 @@ def _append_scanner_report_section_if_enabled(
         or (enabled_sections and "scanner_report" not in enabled_sections)
     ):
         return
+
     parts.append(
         format_heading(
             "Scanner report",
@@ -372,13 +241,13 @@ def _append_scanner_report_section_if_enabled(
 def _render_readme_with_style_guide(
     role_name: str,
     description: str,
-    variables: dict,
-    requirements: list,
-    default_filters: list,
-    metadata: dict,
+    variables: dict[str, Any],
+    requirements: list[Any],
+    default_filters: list[dict[str, Any]],
+    metadata: dict[str, Any],
 ) -> str:
     """Render markdown following the structure of a guide README."""
-    style_guide = cast(StyleGuideConfig, metadata.get("style_guide") or {})
+    style_guide = metadata.get("style_guide") or {}
     (
         ordered_sections,
         enabled_sections,
@@ -396,21 +265,40 @@ def _render_readme_with_style_guide(
         description,
         "",
     ]
-    _render_style_guide_sections_into_parts(
-        parts=parts,
-        ordered_sections=ordered_sections,
-        style_guide=style_guide,
-        style_guide_skeleton=style_guide_skeleton,
-        section_content_modes=section_content_modes,
-        role_name=role_name,
-        description=description,
-        variables=variables,
-        requirements=requirements,
-        default_filters=default_filters,
-        metadata=metadata,
-    )
 
-    _append_scanner_report_section_if_enabled(
+    for section in ordered_sections:
+        heading_level = int(
+            section.get("level") or style_guide.get("section_level") or 2
+        )
+        parts.append(
+            format_heading(
+                str(section.get("title") or ""),
+                heading_level,
+                style_guide.get("section_style", "setext"),
+            )
+        )
+        parts.append("")
+
+        if style_guide_skeleton:
+            continue
+
+        body = render_guide_section_body(
+            str(section.get("id") or ""),
+            role_name,
+            description,
+            variables,
+            requirements,
+            default_filters,
+            metadata,
+        ).strip()
+        mode = _resolve_section_content_mode(section, section_content_modes)
+        body = _compose_section_body(section, body, mode, metadata)
+        if not body:
+            continue
+        parts.append(body)
+        parts.append("")
+
+    append_scanner_report_section_if_enabled(
         parts=parts,
         style_guide=style_guide,
         style_guide_skeleton=style_guide_skeleton,
@@ -427,11 +315,11 @@ def render_readme(
     output: str,
     role_name: str,
     description: str,
-    variables: dict,
-    requirements: list,
-    default_filters: list,
+    variables: dict[str, Any],
+    requirements: list[Any],
+    default_filters: list[dict[str, Any]],
     template: str | None = None,
-    metadata: dict | None = None,
+    metadata: dict[str, Any] | None = None,
     write: bool = True,
 ) -> str:
     """Render README markdown using either a style guide or Jinja template."""
@@ -455,10 +343,9 @@ def render_readme(
         if template
         else Path(__file__).resolve().parent.parent / "templates" / "README.md.j2"
     )
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(tpl_file.parent)),
-        trim_blocks=True,
-        lstrip_blocks=True,
+    env = build_render_jinja_environment(
+        template_dir=tpl_file.parent,
+        metadata=metadata,
     )
     template_obj = env.get_template(tpl_file.name)
     rendered = template_obj.render(
@@ -472,4 +359,4 @@ def render_readme(
     if write:
         Path(output).write_text(rendered, encoding="utf-8")
         return str(Path(output).resolve())
-    return rendered
+    return str(rendered)

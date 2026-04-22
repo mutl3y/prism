@@ -1,8 +1,4 @@
-"""Section configuration constants and metadata.
-
-This module defines the filenames and markers used for README section
-configuration within Ansible roles.
-"""
+"""Section configuration constants and metadata."""
 
 from __future__ import annotations
 

@@ -1,178 +1,215 @@
-"""Task file line parsing and marker detection.
-
-This module handles low-level text parsing: regex patterns, marker detection,
-and line-by-line analysis without file I/O or complex control flow.
-
-Constants exported:
-  TASK_INCLUDE_KEYS, INCLUDE_VARS_KEYS, SET_FACT_KEYS,
-  TASK_BLOCK_KEYS, TASK_META_KEYS, ROLE_INCLUDE_KEYS,
-  ROLE_NOTES_RE, TASK_NOTES_LONG_RE, COMMENT_CONTINUATION_RE,
-  COMMENTED_TASK_ENTRY_RE, TASK_ENTRY_RE, YAML_LIKE_KEY_VALUE_RE,
-  YAML_LIKE_LIST_ITEM_RE, WHEN_IN_LIST_RE, TEMPLATED_INCLUDE_RE
-
-Functions exported:
-  _normalize_marker_prefix, _build_marker_line_re, get_marker_line_re,
-  _extract_constrained_when_values
-"""
+"""Task-file line parsing constants and marker helpers for fsrc."""
 
 from __future__ import annotations
 
 import re
-import yaml
+from typing import Any, Iterator
 
-# ---------------------------------------------------------------------------
-# Task key sets (constants)
-# ---------------------------------------------------------------------------
-
-TASK_INCLUDE_KEYS = {
-    "include_tasks",
-    "import_tasks",
-    "ansible.builtin.include_tasks",
-    "ansible.builtin.import_tasks",
-}
-ROLE_INCLUDE_KEYS = {
-    "include_role",
-    "import_role",
-    "ansible.builtin.include_role",
-    "ansible.builtin.import_role",
-}
-INCLUDE_VARS_KEYS = {
-    "include_vars",
-    "ansible.builtin.include_vars",
-}
-SET_FACT_KEYS = {
-    "set_fact",
-    "ansible.builtin.set_fact",
-}
-TASK_BLOCK_KEYS = ("block", "rescue", "always")
-TASK_META_KEYS = {
-    "name",
-    "when",
-    "tags",
-    "register",
-    "notify",
-    "vars",
-    "become",
-    "become_user",
-    "become_method",
-    "check_mode",
-    "changed_when",
-    "failed_when",
-    "ignore_errors",
-    "ignore_unreachable",
-    "delegate_to",
-    "run_once",
-    "loop",
-    "loop_control",
-    "with_items",
-    "with_dict",
-    "with_fileglob",
-    "with_first_found",
-    "with_nested",
-    "with_sequence",
-    "environment",
-    "args",
-    "retries",
-    "delay",
-    "until",
-    "throttle",
-    "no_log",
-}
-
-# ---------------------------------------------------------------------------
-# Regex patterns
-# ---------------------------------------------------------------------------
-
-DEFAULT_DOC_MARKER_PREFIX = "prism"
+from prism.scanner_data.di_helpers import require_prepared_policy
 
 
-def _normalize_marker_prefix(marker_prefix: str | None) -> str:
-    """Return a safe marker prefix, falling back to the default."""
-    if not isinstance(marker_prefix, str):
-        return DEFAULT_DOC_MARKER_PREFIX
-    prefix = marker_prefix.strip()
-    if not prefix:
-        return DEFAULT_DOC_MARKER_PREFIX
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+", prefix):
-        return DEFAULT_DOC_MARKER_PREFIX
-    return prefix
+def _get_task_line_parsing_policy(di=None):
+    return require_prepared_policy(di, "task_line_parsing", "task_line_parsing")
 
 
-def _build_marker_line_re(marker_prefix: str):
-    """Build a regex for ``# <prefix>~<label>: ...`` marker comments."""
-    escaped_prefix = re.escape(_normalize_marker_prefix(marker_prefix))
-    return re.compile(
-        rf"^\s*#\s*{escaped_prefix}\s*~\s*(?P<label>[a-z0-9_-]+)\s*:?\s*(?P<body>.*)$",
-        flags=re.IGNORECASE,
+def _get_task_annotation_policy(di: object | None = None):
+    return require_prepared_policy(
+        di, "task_annotation_parsing", "task_annotation_parsing"
     )
 
 
-def get_marker_line_re(marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX):
-    """Get the compiled marker line regex for the given prefix."""
-    return _build_marker_line_re(marker_prefix)
+class _PolicyBackedCollectionProxy:
+    def __init__(self, policy_attr_name: str) -> None:
+        self._policy_attr_name = policy_attr_name
+
+    def _current_value(self) -> object:
+        return getattr(_get_task_line_parsing_policy(), self._policy_attr_name)
+
+    def __iter__(self) -> Iterator[Any]:
+        value = self._current_value()
+        if isinstance(value, (set, tuple, list, frozenset)):
+            return iter(value)
+        return iter(())
+
+    def __contains__(self, item: object) -> bool:
+        value = self._current_value()
+        if isinstance(value, (set, tuple, list, frozenset)):
+            return item in value
+        return False
+
+    def __len__(self) -> int:
+        value = self._current_value()
+        if isinstance(value, (set, tuple, list, frozenset)):
+            return len(value)
+        return 0
+
+    def __repr__(self) -> str:
+        return repr(self._current_value())
 
 
-# Default compiled regexes kept for backwards import compatibility.
-ROLE_NOTES_RE = _build_marker_line_re(DEFAULT_DOC_MARKER_PREFIX)
-TASK_NOTES_LONG_RE = _build_marker_line_re(DEFAULT_DOC_MARKER_PREFIX)
-ROLE_NOTES_SHORT_RE = ROLE_NOTES_RE
-TASK_NOTES_SHORT_RE = TASK_NOTES_LONG_RE
-COMMENT_CONTINUATION_RE = re.compile(r"^\s*#\s?(.*)$")
-# Matches a stripped (de-commented) line that begins a YAML task list entry.
-# Used to detect commented-out task blocks following an annotation.
-COMMENTED_TASK_ENTRY_RE = re.compile(r"^\s*-\s+name:\s*\S")
-# Matches a non-comment YAML task entry in source files.
-TASK_ENTRY_RE = re.compile(r"^\s*-\s+name:\s*\S")
-# Heuristic markers for YAML-like payloads in annotation comments.
-YAML_LIKE_KEY_VALUE_RE = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_-]*\s*:\s*\S")
-YAML_LIKE_LIST_ITEM_RE = re.compile(r"^\s*-\s+[A-Za-z_][A-Za-z0-9_-]*\s*:\s*\S")
-WHEN_IN_LIST_RE = re.compile(
-    r"^\s*(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s+in\s+(?P<values>\[[^\]]*\])\s*$"
+class _PolicyBackedRegexProxy:
+    def __init__(self, policy_attr_name: str) -> None:
+        self._policy_attr_name = policy_attr_name
+
+    def _current_regex(self) -> re.Pattern[str]:
+        current = getattr(_get_task_line_parsing_policy(), self._policy_attr_name)
+        if isinstance(current, re.Pattern):
+            return current
+        raise ValueError(
+            f"prepared_policy_bundle.task_line_parsing.{self._policy_attr_name} "
+            f"must be a compiled re.Pattern, got {type(current).__name__}"
+        )
+
+    def match(self, *args: Any, **kwargs: Any):
+        return self._current_regex().match(*args, **kwargs)
+
+    def search(self, *args: Any, **kwargs: Any):
+        return self._current_regex().search(*args, **kwargs)
+
+    def fullmatch(self, *args: Any, **kwargs: Any):
+        return self._current_regex().fullmatch(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._current_regex(), name)
+
+
+TASK_INCLUDE_KEYS = _PolicyBackedCollectionProxy("TASK_INCLUDE_KEYS")
+ROLE_INCLUDE_KEYS = _PolicyBackedCollectionProxy("ROLE_INCLUDE_KEYS")
+INCLUDE_VARS_KEYS = _PolicyBackedCollectionProxy("INCLUDE_VARS_KEYS")
+SET_FACT_KEYS = _PolicyBackedCollectionProxy("SET_FACT_KEYS")
+TASK_BLOCK_KEYS = _PolicyBackedCollectionProxy("TASK_BLOCK_KEYS")
+TASK_META_KEYS = _PolicyBackedCollectionProxy("TASK_META_KEYS")
+
+
+def get_task_include_keys(di: object | None = None) -> object:
+    return _get_task_line_parsing_policy(di).TASK_INCLUDE_KEYS
+
+
+def get_role_include_keys(di: object | None = None) -> object:
+    return _get_task_line_parsing_policy(di).ROLE_INCLUDE_KEYS
+
+
+def get_include_vars_keys(di: object | None = None) -> object:
+    return _get_task_line_parsing_policy(di).INCLUDE_VARS_KEYS
+
+
+def get_set_fact_keys(di: object | None = None) -> object:
+    return _get_task_line_parsing_policy(di).SET_FACT_KEYS
+
+
+def get_task_block_keys(di: object | None = None) -> object:
+    return _get_task_line_parsing_policy(di).TASK_BLOCK_KEYS
+
+
+def get_task_meta_keys(di: object | None = None) -> object:
+    return _get_task_line_parsing_policy(di).TASK_META_KEYS
+
+
+def get_templated_include_re(di: object | None = None) -> re.Pattern[str] | object:
+    return _get_task_line_parsing_policy(di).TEMPLATED_INCLUDE_RE
+
+
+def _extract_constrained_when_values(
+    task: dict,
+    variable: str,
+    *,
+    di: object | None = None,
+) -> list[str]:
+    return _get_task_line_parsing_policy(di).extract_constrained_when_values(
+        task, variable
+    )
+
+
+def _normalize_marker_prefix(
+    marker_prefix: str | None,
+    *,
+    di: object | None = None,
+) -> str:
+    return _get_task_annotation_policy(di).normalize_marker_prefix(marker_prefix)
+
+
+def _build_marker_line_re(
+    marker_prefix: str | None,
+    *,
+    di: object | None = None,
+):
+    normalized_prefix = _normalize_marker_prefix(marker_prefix, di=di)
+    return _get_task_annotation_policy(di).get_marker_line_re(normalized_prefix)
+
+
+def get_marker_line_re(marker_prefix, *, di: object | None = None):
+    return _build_marker_line_re(marker_prefix, di=di)
+
+
+class _PolicyBackedMarkerLineRegexProxy:
+    """Proxy that resolves marker-line regex from annotation policy at call time."""
+
+    def _current_regex(self) -> re.Pattern[str]:
+        policy = _get_task_annotation_policy()
+        regex = policy.get_marker_line_re(policy.normalize_marker_prefix(None))
+        if isinstance(regex, re.Pattern):
+            return regex
+        raise ValueError(
+            "prepared_policy_bundle.task_annotation_parsing.get_marker_line_re "
+            "must return a compiled re.Pattern"
+        )
+
+    def match(self, *args: Any, **kwargs: Any):
+        return self._current_regex().match(*args, **kwargs)
+
+    def search(self, *args: Any, **kwargs: Any):
+        return self._current_regex().search(*args, **kwargs)
+
+    def fullmatch(self, *args: Any, **kwargs: Any):
+        return self._current_regex().fullmatch(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._current_regex(), name)
+
+
+ROLE_NOTES_RE = _PolicyBackedMarkerLineRegexProxy()
+TASK_NOTES_LONG_RE = _PolicyBackedMarkerLineRegexProxy()
+
+
+class _PolicyBackedAnnotationRegexProxy:
+    def __init__(self, policy_attr_name: str) -> None:
+        self._policy_attr_name = policy_attr_name
+
+    def _current_regex(self) -> re.Pattern[str]:
+        current = getattr(_get_task_annotation_policy(), self._policy_attr_name, None)
+        if isinstance(current, re.Pattern):
+            return current
+        raise ValueError(
+            f"prepared_policy_bundle.task_annotation_parsing.{self._policy_attr_name} "
+            f"must be a compiled regex pattern"
+        )
+
+    def match(self, *args: Any, **kwargs: Any):
+        return self._current_regex().match(*args, **kwargs)
+
+    def search(self, *args: Any, **kwargs: Any):
+        return self._current_regex().search(*args, **kwargs)
+
+    def fullmatch(self, *args: Any, **kwargs: Any):
+        return self._current_regex().fullmatch(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._current_regex(), name)
+
+
+COMMENT_CONTINUATION_RE = _PolicyBackedAnnotationRegexProxy(
+    "COMMENT_CONTINUATION_RE",
 )
-TEMPLATED_INCLUDE_RE = re.compile(
-    r"^\s*(?P<prefix>[^{}]*)\{\{\s*(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*\}\}(?P<suffix>[^{}]*)\s*$"
+COMMENTED_TASK_ENTRY_RE = _PolicyBackedAnnotationRegexProxy(
+    "COMMENTED_TASK_ENTRY_RE",
 )
-
-
-# ---------------------------------------------------------------------------
-# Constrained when value extraction
-# ---------------------------------------------------------------------------
-
-
-def _extract_constrained_when_values(task: dict, variable: str) -> list[str]:
-    """Return constrained values for ``variable`` from simple ``when`` clauses.
-
-    Supported form:
-        when: variable in ["a", "b"]
-        when:
-          - variable in ["a", "b"]
-    """
-    when_value = task.get("when")
-    conditions: list[str] = []
-    if isinstance(when_value, str):
-        conditions.append(when_value)
-    elif isinstance(when_value, list):
-        conditions.extend(item for item in when_value if isinstance(item, str))
-
-    values: list[str] = []
-    for condition in conditions:
-        match = WHEN_IN_LIST_RE.match(condition.strip())
-        if not match:
-            continue
-        if (match.group("var") or "").strip() != variable:
-            continue
-        parsed = yaml.safe_load(match.group("values"))
-        if not isinstance(parsed, list):
-            continue
-        for item in parsed:
-            if isinstance(item, str):
-                values.append(item)
-
-    deduped: list[str] = []
-    seen: set[str] = set()
-    for item in values:
-        if item in seen:
-            continue
-        seen.add(item)
-        deduped.append(item)
-    return deduped
+TASK_ENTRY_RE = _PolicyBackedAnnotationRegexProxy(
+    "TASK_ENTRY_RE",
+)
+YAML_LIKE_KEY_VALUE_RE = _PolicyBackedAnnotationRegexProxy(
+    "YAML_LIKE_KEY_VALUE_RE",
+)
+YAML_LIKE_LIST_ITEM_RE = _PolicyBackedAnnotationRegexProxy(
+    "YAML_LIKE_LIST_ITEM_RE",
+)
+TEMPLATED_INCLUDE_RE = _PolicyBackedRegexProxy("TEMPLATED_INCLUDE_RE")

@@ -23,6 +23,7 @@ prism = "prism.cli:main"
 dev = [
   "pytest",
   "pytest-cov",
+  "pyfakefs",
   "tox",
   "mypy",
   "pip-audit",

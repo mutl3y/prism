@@ -89,6 +89,7 @@ The scanner collected these role subdirectories (counts):
 - **task_catalog**: 2 files
 - **handler_catalog**: 1 files
 - **collection_compliance_notes**: 0 files
+- **non_authoritative_test_evidence_limits**: 3 files
 - **yaml_parse_failures**: 0 files
 
 ### Handlers
@@ -140,12 +141,6 @@ The scanner collected these role subdirectories (counts):
 owner=ops impact=medium
 
 </details>
-
-<a id="task-main-yml-report-ops-retry-configuration-2"></a>
-**`main.yml` • Report ops retry configuration**
-
-- Parameters: `msg=ops_role retries set to {{ ops_role_retries }}`
-
 - Note: This role demonstrates a second collection role for aggregate docs.
 
 
@@ -154,6 +149,16 @@ owner=ops impact=medium
 | File | Name | Module |
 | --- | --- | --- |
 | `main.yml` | Emit ops role refresh notice | ansible.builtin.debug |
+
+### Ignore_unresolved_internal_underscore_references
+
+- True
+### Non_authoritative_test_evidence_limits
+
+- max_file_bytes
+- max_files_scanned
+- max_total_bytes
+
 
 
 Auto-detected role features

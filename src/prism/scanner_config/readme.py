@@ -1,8 +1,4 @@
-"""README section configuration loading helpers.
-
-Provides functions for resolving and loading README section configuration
-from role-level YAML files.
-"""
+"""README section configuration loading helpers."""
 
 from __future__ import annotations
 
@@ -46,7 +42,6 @@ def _record_readme_config_warning(
     cfg_file: Path,
     error: Exception | str,
 ) -> None:
-    """Append a stable warning string for non-strict config parsing failures."""
     if warning_collector is None:
         return
     warning_collector.append(f"{code}: {cfg_file}: {error}")
@@ -91,7 +86,6 @@ def _load_section_display_titles(
     strict: bool = False,
     warning_collector: list[str] | None = None,
 ) -> dict[str, str]:
-    """Load optional section display-title overrides from bundled data YAML."""
     return load_section_display_titles(
         path,
         strict=strict,
@@ -108,7 +102,6 @@ def _resolve_section_selector(
     section_aliases: dict[str, str],
     normalize_heading: Callable[[str], str],
 ) -> str | None:
-    """Resolve a section selector to a canonical section id."""
     value = selector.strip()
     if not value:
         return None
@@ -298,101 +291,3 @@ def load_readme_section_config(
         "adopt_heading_mode": adopt_heading_mode,
         "section_content_modes": section_content_modes,
     }
-
-
-def load_readme_section_visibility(
-    role_path: str,
-    config_path: str | None,
-    adopt_heading_mode: str | None,
-    all_section_ids: set[str],
-    section_aliases: dict[str, str],
-    normalize_heading: Callable[[str], str],
-    display_titles_path: Path,
-    config_filenames: tuple[str, ...] = SECTION_CONFIG_FILENAMES,
-    default_filename: str = SECTION_CONFIG_FILENAME,
-) -> set[str] | None:
-    """Return enabled section ids from README config, if configured."""
-    config = load_readme_section_config(
-        role_path=role_path,
-        config_path=config_path,
-        adopt_heading_mode=adopt_heading_mode,
-        all_section_ids=all_section_ids,
-        section_aliases=section_aliases,
-        normalize_heading=normalize_heading,
-        display_titles_path=display_titles_path,
-        strict=False,
-        warning_collector=None,
-        config_filenames=config_filenames,
-        default_filename=default_filename,
-    )
-    if config is None:
-        return None
-    return config["enabled_sections"]
-
-
-def load_role_readme_section_config(
-    role_path: str,
-    config_path: str | None = None,
-    adopt_heading_mode: str | None = None,
-    strict: bool = False,
-    warning_collector: list[str] | None = None,
-    display_titles_path: Path = DEFAULT_SECTION_DISPLAY_TITLES_PATH,
-) -> dict | None:
-    """Load README config using Prism's canonical section registry defaults."""
-    from prism.scanner_readme import ALL_SECTION_IDS
-    from prism.scanner_readme.style import (
-        get_style_section_aliases_snapshot,
-        normalize_style_heading,
-    )
-
-    return load_readme_section_config(
-        role_path=role_path,
-        config_path=config_path,
-        adopt_heading_mode=adopt_heading_mode,
-        all_section_ids=ALL_SECTION_IDS,
-        section_aliases=get_style_section_aliases_snapshot(),
-        normalize_heading=normalize_style_heading,
-        display_titles_path=display_titles_path,
-        strict=strict,
-        warning_collector=warning_collector,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
-    )
-
-
-def load_role_readme_section_visibility(
-    role_path: str,
-    config_path: str | None = None,
-    adopt_heading_mode: str | None = None,
-    display_titles_path: Path = DEFAULT_SECTION_DISPLAY_TITLES_PATH,
-) -> set[str] | None:
-    """Load section visibility using Prism's canonical section registry defaults."""
-    from prism.scanner_readme import ALL_SECTION_IDS
-    from prism.scanner_readme.style import (
-        get_style_section_aliases_snapshot,
-        normalize_style_heading,
-    )
-
-    return load_readme_section_visibility(
-        role_path=role_path,
-        config_path=config_path,
-        adopt_heading_mode=adopt_heading_mode,
-        all_section_ids=ALL_SECTION_IDS,
-        section_aliases=get_style_section_aliases_snapshot(),
-        normalize_heading=normalize_style_heading,
-        display_titles_path=display_titles_path,
-        config_filenames=SECTION_CONFIG_FILENAMES,
-        default_filename=SECTION_CONFIG_FILENAME,
-    )
-
-
-__all__ = [
-    "DEFAULT_SECTION_DISPLAY_TITLES_PATH",
-    "README_SECTION_CONFIG_YAML_INVALID",
-    "README_SECTION_CONFIG_IO_ERROR",
-    "resolve_role_config_file",
-    "load_readme_section_config",
-    "load_readme_section_visibility",
-    "load_role_readme_section_config",
-    "load_role_readme_section_visibility",
-]

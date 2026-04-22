@@ -1,66 +1,278 @@
-"""Scanner data contracts, builders, and types.
-
-This module consolidates all TypedDict data contracts used throughout the scanner
-pipeline, providing a single source of truth for data structure definitions.
-It also exports builder classes for fluent, type-safe construction of immutable data.
-
-Current capability ownership:
-- request, context, output, report, collection, error, and variable contracts
-- payload and variable-row builder helpers
-- canonical typed seam definitions shared across scanner and API boundaries
-
-**Public API Guardrails:**
-Only symbols in __all__ are considered public. Accessing private symbols (e.g.,
-prefixed with _) will raise AttributeError at runtime. This enforces module boundaries
-without relying solely on tests.
-"""
+"""Scanner data contracts, builders, and types."""
 
 from __future__ import annotations
 
-from prism.scanner_data.contracts_output import ScanPayloadBuilder as ScanPayloadBuilder
-from prism.scanner_data.contracts_variables import (
-    VariableRowBuilder as VariableRowBuilder,
+from typing import Any, TypedDict
+
+from prism.scanner_data.contracts_request import (
+    ScanMetadata,
+    ScanOptionsDict,
 )
-from prism.scanner_data.contracts import (
-    AnnotationQualityCounters as AnnotationQualityCounters,
-    CollectionScanResult as CollectionScanResult,
-    EmitScanOutputsArgs as EmitScanOutputsArgs,
-    FailureDetail as FailureDetail,
-    FailurePolicyContract as FailurePolicyContract,
-    FeaturesContext as FeaturesContext,
-    FinalOutputPayload as FinalOutputPayload,
-    NormalizedScannerReportMetadata as NormalizedScannerReportMetadata,
-    OutputConfiguration as OutputConfiguration,
-    ReadmeSectionRenderInput as ReadmeSectionRenderInput,
-    ReferenceContext as ReferenceContext,
-    RepoScanResult as RepoScanResult,
-    ReportRenderingMetadata as ReportRenderingMetadata,
-    RoleScanResult as RoleScanResult,
-    RunbookSidecarPayload as RunbookSidecarPayload,
-    RunbookSidecarArgs as RunbookSidecarArgs,
-    RunScanOutputPayload as RunScanOutputPayload,
-    ScanRenderPayload as ScanRenderPayload,
-    ScanBaseContext as ScanBaseContext,
-    ScanContext as ScanContext,
-    ScanContextPayload as ScanContextPayload,
-    ScanMetadata as ScanMetadata,
-    ScanOptionsDict as ScanOptionsDict,
-    ScanPhaseError as ScanPhaseError,
-    ScanPhaseStatus as ScanPhaseStatus,
-    ScanReportSidecarArgs as ScanReportSidecarArgs,
-    ScannerCounters as ScannerCounters,
-    ScannerReportIssueListRow as ScannerReportIssueListRow,
-    ScannerReportMetadata as ScannerReportMetadata,
-    ScannerReportSectionRenderInput as ScannerReportSectionRenderInput,
-    ScannerReportYamlParseFailureRow as ScannerReportYamlParseFailureRow,
-    SectionBodyRenderResult as SectionBodyRenderResult,
-    StyleGuideConfig as StyleGuideConfig,
-    Variable as Variable,
-    VariableAnalysisResults as VariableAnalysisResults,
-    VariableProvenance as VariableProvenance,
-    VariableRow as VariableRow,
-    VariableRowWithMeta as VariableRowWithMeta,
+from prism.scanner_data.contracts_output import (
+    AnnotationQualityCounters,
+    FinalOutputPayload,
+    NormalizedScannerReportMetadata,
+    ReadmeSectionRenderInput,
+    RunScanOutputPayload,
+    ScannerCounters,
+    ScannerReportIssueListRow,
+    ScannerReportMetadata,
+    ScannerReportSectionRenderInput,
+    ScannerReportYamlParseFailureRow,
+    SectionBodyRenderResult,
 )
+from prism.scanner_data.contracts_variables import ReferenceContext, VariableRow
+
+
+class FailureDetail(TypedDict, total=False):
+    code: str
+    message: str
+    category: str
+
+
+class FailurePolicyContract(TypedDict, total=False):
+    strict_phase_failures: bool
+    fail_on_unconstrained_dynamic_includes: bool
+    fail_on_yaml_like_task_annotations: bool
+
+
+class RoleScanResult(TypedDict, total=False):
+    role_name: str
+    payload: dict[str, Any]
+
+
+class RepoScanResult(TypedDict, total=False):
+    repo_url: str
+    payload: dict[str, Any]
+
+
+class CollectionIdentity(TypedDict):
+    path: str
+    metadata: dict[str, Any]
+
+
+class CollectionDependencies(TypedDict):
+    collections: list[dict[str, Any]]
+    roles: list[dict[str, Any]]
+    conflicts: list[dict[str, Any]]
+
+
+class CollectionPluginCatalog(TypedDict):
+    schema_version: int
+    summary: dict[str, Any]
+    by_type: dict[str, list[dict[str, Any]]]
+    failures: list[dict[str, Any]]
+
+
+class CollectionRoleEntry(TypedDict):
+    role: str
+    path: str
+    payload: dict[str, Any]
+    rendered_readme: str | None
+
+
+class CollectionFailureRecord(TypedDict, total=False):
+    role: str
+    path: str
+    error_code: str
+    error_category: str
+    error_type: str
+    error: str
+    error_detail_code: str
+    detail_code: str
+    traceback: str
+
+
+class CollectionSummary(TypedDict):
+    total_roles: int
+    scanned_roles: int
+    failed_roles: int
+
+
+class CollectionScanResult(TypedDict, total=False):
+    collection: CollectionIdentity
+    dependencies: CollectionDependencies
+    plugin_catalog: CollectionPluginCatalog
+    roles: list[CollectionRoleEntry]
+    failures: list[CollectionFailureRecord]
+    summary: CollectionSummary
+
+
+class ReportRenderingMetadata(TypedDict, total=False):
+    scanner_counters: dict[str, Any]
+    variable_insights: list[dict[str, Any]]
+    features: dict[str, Any]
+
+
+class RunbookSidecarPayload(TypedDict):
+    role_name: str
+    metadata: ScanMetadata
+
+
+class RunbookSidecarArgs(TypedDict):
+    runbook_output: str | None
+    runbook_csv_output: str | None
+    role_name: str
+    metadata: ScanMetadata
+
+
+class ScanRenderPayload(TypedDict):
+    role_name: str
+    description: str
+    display_variables: dict[str, Any]
+    requirements_display: list[Any]
+    undocumented_default_filters: list[Any]
+
+
+class ScanBaseContext(TypedDict, total=False):
+    rp: str
+    role_name: str
+    description: str
+    marker_prefix: str
+    variables: dict[str, Any]
+    found: list[Any]
+    metadata: ScanMetadata
+    requirements_display: list[Any]
+
+
+class ScanContext(TypedDict):
+    display_variables: dict[str, Any]
+    metadata: ScanMetadata
+
+
+class ScanPhaseError(TypedDict):
+    phase: str
+    error_type: str
+    message: str
+
+
+class EmitScanOutputsArgs(TypedDict, total=False):
+    output: str
+    output_format: str
+    concise_readme: bool
+    scanner_report_output: str | None
+    include_scanner_report_link: bool
+    role_name: str
+    description: str
+    display_variables: dict[str, Any]
+    requirements_display: list[Any]
+    undocumented_default_filters: list[Any]
+    metadata: ScanMetadata
+    template: str | None
+    dry_run: bool
+    runbook_output: str | None
+    runbook_csv_output: str | None
+
+
+class ScanReportSidecarArgs(TypedDict, total=False):
+    concise_readme: bool
+    scanner_report_output: str | None
+    out_path: str
+    include_scanner_report_link: bool
+    role_name: str
+    description: str
+    display_variables: dict[str, Any]
+    requirements_display: list[Any]
+    undocumented_default_filters: list[Any]
+    metadata: ScanMetadata
+    dry_run: bool
+
+
+class OutputConfiguration(TypedDict, total=False):
+    concise_readme: bool
+    include_scanner_report_link: bool
+    scanner_report_relpath: str
+
+
+class ScanPhaseStatus(TypedDict, total=False):
+    scan_errors: list[ScanPhaseError]
+    scan_degraded: bool
+
+
+class StyleGuideConfig(TypedDict, total=False):
+    path: str
+    title_text: str
+    title_style: str
+    section_style: str
+    section_level: int
+    sections: list[dict[str, Any]]
+
+
+class Variable(TypedDict, total=False):
+    name: str
+    type: str
+    default: str
+    description: str
+    required: bool
+    secret: bool
+
+
+class VariableProvenance(TypedDict, total=False):
+    source_file: str
+    line: int | None
+    confidence: float
+    source_type: str
+
+
+class VariableRowWithMeta(VariableRow, total=False):
+    external_evidence: list[dict[str, Any]]
+    precedence_category: str
+
+
+class VariableAnalysisResults(TypedDict, total=False):
+    display_variables: dict[str, Any]
+    undocumented_default_filters: list[dict[str, Any]]
+    metadata: dict[str, Any]
+
+
+class ScanPayloadBuilder:
+    """Compatibility payload builder for scanner_data public surface."""
+
+    def __init__(self) -> None:
+        self._payload: dict[str, Any] = {}
+        self._metadata: ScanMetadata = {}
+
+    def role_name(self, value: str) -> "ScanPayloadBuilder":
+        self._payload["role_name"] = value
+        return self
+
+    def description(self, value: str) -> "ScanPayloadBuilder":
+        self._payload["description"] = value
+        return self
+
+    def display_variables(self, value: dict[str, Any]) -> "ScanPayloadBuilder":
+        self._payload["display_variables"] = value
+        return self
+
+    def requirements_display(self, value: list[Any]) -> "ScanPayloadBuilder":
+        self._payload["requirements_display"] = value
+        return self
+
+    def undocumented_default_filters(
+        self,
+        value: list[Any],
+    ) -> "ScanPayloadBuilder":
+        self._payload["undocumented_default_filters"] = value
+        return self
+
+    def metadata(self, value: ScanMetadata) -> "ScanPayloadBuilder":
+        self._metadata = value
+        return self
+
+    def build(self) -> RunScanOutputPayload:
+        return {
+            "role_name": str(self._payload.get("role_name") or ""),
+            "description": str(self._payload.get("description") or ""),
+            "display_variables": dict(self._payload.get("display_variables") or {}),
+            "requirements_display": list(
+                self._payload.get("requirements_display") or []
+            ),
+            "undocumented_default_filters": list(
+                self._payload.get("undocumented_default_filters") or []
+            ),
+            "metadata": self._metadata,
+        }
+
 
 __all__ = [
     "AnnotationQualityCounters",
@@ -107,12 +319,7 @@ __all__ = [
 
 
 def __getattr__(name: str) -> object:
-    """Enforce module public API at runtime.
-
-    Prevents access to private symbols (prefixed with _) that are not in __all__.
-    This reduces reliance on test-only architecture enforcement by making
-    boundary violations raise AttributeError immediately at import/access time.
-    """
+    """Enforce module public API at runtime."""
     if name.startswith("_"):
         raise AttributeError(
             f"module '{__name__}' has no attribute '{name}' "

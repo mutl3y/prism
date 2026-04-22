@@ -21,9 +21,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = ROOT / "debug_readmes" / "option_demos"
-ENHANCED_ROLE_SOURCE = ROOT / "src" / "prism" / "tests" / "enhanced_mock_role"
-BASE_ROLE_SOURCE = ROOT / "src" / "prism" / "tests" / "mock_role"
+ENHANCED_ROLE_SOURCE = ROOT / "src" / "prism" / "tests" / "roles" / "enhanced_mock_role"
+BASE_ROLE_SOURCE = ROOT / "src" / "prism" / "tests" / "roles" / "base_mock_role"
 DEFAULT_LOCAL_PYTHON = ROOT / ".venv" / "bin" / "python"
+DEFAULT_LANE = "src"
 DEFAULT_CONTAINER_PYTHON = "/workspace/.venv/bin/python"
 DEFAULT_SERVICE = "learning-base"
 DEFAULT_COMPOSE_FILE = ROOT / "podman-compose.yml"
@@ -191,17 +192,25 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Continue through later scenarios after a failure.",
     )
+    parser.add_argument(
+        "--lane",
+        choices=("src",),
+        default=DEFAULT_LANE,
+        help="Which source lane to run against.",
+    )
     return parser
 
 
-def _run(cmd: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
+def _run(
+    cmd: list[str], *, cwd: Path, lane: str = DEFAULT_LANE
+) -> subprocess.CompletedProcess[str]:
     printable = " ".join(cmd)
     print(f"$ {printable}", flush=True)
     env = dict(os.environ)
-    src_path = str(ROOT / "src")
+    lane_path = str(ROOT / "src")
     existing_pythonpath = env.get("PYTHONPATH")
     env["PYTHONPATH"] = (
-        f"{src_path}:{existing_pythonpath}" if existing_pythonpath else src_path
+        f"{lane_path}:{existing_pythonpath}" if existing_pythonpath else lane_path
     )
     return subprocess.run(cmd, cwd=str(cwd), check=True, text=True, env=env)
 
@@ -318,6 +327,7 @@ def run_local_scenarios(
     scenarios: list[Scenario],
     python_command: str,
     continue_on_error: bool,
+    lane: str = DEFAULT_LANE,
 ) -> int:
     failures = 0
     for scenario in scenarios:
@@ -336,6 +346,7 @@ def run_local_scenarios(
                     *scenario.build_args(output_dir),
                 ],
                 cwd=ROOT,
+                lane=lane,
             )
         except subprocess.CalledProcessError:
             failures += 1
@@ -422,6 +433,7 @@ def main(argv: list[str] | None = None) -> int:
             scenarios,
             _local_python_command(args.python_command),
             args.continue_on_error,
+            lane=args.lane,
         )
     else:
         print(

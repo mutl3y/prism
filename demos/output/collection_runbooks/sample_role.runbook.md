@@ -4,41 +4,19 @@
 
 ## Contents
 
-- [Write collection demo marker file](#task-main-yml-write-collection-demo-marker-file-1)
-- [Configure sample role artifacts](#task-main-yml-configure-sample-role-artifacts-2)
-- [Render sample role template output](#task-configure-yml-render-sample-role-template-output-3)
-- [Print collection demo tags](#task-configure-yml-print-collection-demo-tags-4)
+_No tasks found._
 
 
 ---
 
-## Task Runbooks
+_No tasks were found in this role._
 
-<a id="task-main-yml-write-collection-demo-marker-file-1"></a>
+To add runbook comments, annotate tasks with `# prism~...` comments:
 
-#### `main.yml` - Write collection demo marker file
-
-- owner=docs impact=low
-
----
-
-<a id="task-main-yml-configure-sample-role-artifacts-2"></a>
-
-#### `main.yml` - Configure sample role artifacts
-
-
----
-
-<a id="task-configure-yml-render-sample-role-template-output-3"></a>
-
-#### `configure.yml` - Render sample role template output
-
-
----
-
-<a id="task-configure-yml-print-collection-demo-tags-4"></a>
-
-#### `configure.yml` - Print collection demo tags
-
-
----
+```yaml
+# prism~runbook: restart service, verify with systemctl status
+- name: Restart nginx
+  ansible.builtin.service:
+    name: nginx
+    state: restarted
+```

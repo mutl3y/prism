@@ -8,6 +8,45 @@ from typing import Callable
 
 import yaml
 
+from prism.scanner_data.di_helpers import get_prepared_policy_or_none
+
+
+def _resolve_plugin_registry(di: object | None = None):
+    if di is None:
+        return None
+    registry = getattr(di, "plugin_registry", None)
+    if registry is not None:
+        return registry
+    scan_options = getattr(di, "scan_options", None)
+    if isinstance(scan_options, dict):
+        return scan_options.get("plugin_registry")
+    return None
+
+
+def _resolve_policy_with_registry(resolver, di: object | None = None):
+    registry = _resolve_plugin_registry(di)
+    if registry is None:
+        return resolver(di)
+    try:
+        return resolver(di, registry=registry)
+    except TypeError:
+        return resolver(di)
+
+
+def _get_yaml_parsing_policy(di: object | None = None):
+    policy = get_prepared_policy_or_none(di, "yaml_parsing")
+    if policy is not None:
+        return policy
+
+    # NOTE: Intentional dual-path — soft fallback to registry-resolved default.
+    # Loader runs in discovery paths that execute before a prepared_policy_bundle
+    # is threaded through (e.g. standalone file-load helpers, pre-scan discovery).
+    # Unlike other policy getters, this path does NOT raise on a missing bundle.
+    # See FIND-04 in docs/plan/fsrc-gilfoyle-review-20260422/findings.yaml.
+    from prism.scanner_plugins.defaults import resolve_yaml_parsing_policy_plugin
+
+    return _resolve_policy_with_registry(resolve_yaml_parsing_policy_plugin, di)
+
 
 def _role_relative_candidate_path(path: Path, role_root: Path) -> str | None:
     """Return a lexical role-relative path when the candidate lives under the role."""
@@ -33,18 +72,7 @@ def iter_role_yaml_candidates(
     is_relpath_excluded_fn: Callable[[str, list[str] | None], bool],
     is_path_excluded_fn: Callable[[Path, Path, list[str] | None], bool],
 ):
-    """Yield role-local YAML files while honoring ignored and excluded paths.
-
-    Args:
-        role_root: Role root directory path
-        exclude_paths: List of path patterns to exclude
-        ignored_dirs: Set of directory names to skip
-        is_relpath_excluded_fn: Function to check if relative path is excluded
-        is_path_excluded_fn: Function to check if absolute path is excluded
-
-    Yields:
-        Path objects for each YAML candidate file
-    """
+    """Yield role-local YAML files while honoring ignored and excluded paths."""
     for root, dirs, files in os.walk(str(role_root)):
         dirs[:] = [
             d
@@ -64,16 +92,20 @@ def iter_role_yaml_candidates(
             yield candidate
 
 
-def parse_yaml_candidate(candidate: Path, role_root: Path) -> dict[str, object] | None:
-    """Parse one YAML candidate and return a failure payload when parsing fails.
+def parse_yaml_candidate(
+    candidate: Path,
+    role_root: Path,
+    *,
+    di: object | None = None,
+) -> dict[str, object] | None:
+    """Parse one YAML candidate and return a failure payload when parsing fails."""
+    policy = _get_yaml_parsing_policy(di)
+    parse_fn = getattr(policy, "parse_yaml_candidate", None)
+    if callable(parse_fn):
+        parsed_failure = parse_fn(candidate, role_root)
+        if isinstance(parsed_failure, dict) or parsed_failure is None:
+            return parsed_failure
 
-    Args:
-        candidate: Path to YAML file to parse
-        role_root: Role root directory (for relative path calculation)
-
-    Returns:
-        None if parsing succeeds, dict with error details if parsing fails
-    """
     try:
         text = candidate.read_text(encoding="utf-8")
         yaml.safe_load(text)
@@ -101,14 +133,7 @@ def parse_yaml_candidate(candidate: Path, role_root: Path) -> dict[str, object] 
 
 
 def map_argument_spec_type(spec_type: object) -> str:
-    """Map argument-spec type labels into scanner variable type labels.
-
-    Args:
-        spec_type: Type specification from argument_specs YAML
-
-    Returns:
-        Normalized type label for scanner variable classification
-    """
+    """Map argument-spec type labels into scanner variable type labels."""
     if not isinstance(spec_type, str):
         return "documented"
     normalized = spec_type.strip().lower()
@@ -131,17 +156,10 @@ def collect_yaml_parse_failures(
     role_path: str,
     exclude_paths: list[str] | None,
     iter_yaml_candidates_fn: Callable[[Path, list[str] | None], list[Path]],
+    *,
+    di: object | None = None,
 ) -> list[dict[str, object]]:
-    """Collect YAML parse failures with file/line context across a role tree.
-
-    Args:
-        role_path: Path to role directory
-        exclude_paths: List of path patterns to exclude
-        iter_yaml_candidates_fn: Function to find YAML candidates
-
-    Returns:
-        List of error dictionaries, one per parsing failure
-    """
+    """Collect YAML parse failures with file/line context across a role tree."""
     role_root = Path(role_path).resolve()
     failures: list[dict[str, object]] = []
 
@@ -149,22 +167,20 @@ def collect_yaml_parse_failures(
         role_root,
         exclude_paths,
     ):
-        failure = parse_yaml_candidate(candidate, role_root)
+        failure = parse_yaml_candidate(candidate, role_root, di=di)
         if failure is not None:
             failures.append(failure)
 
     return failures
 
 
-def load_yaml_file(path: Path) -> object:
-    """Load and parse a YAML file safely.
+def load_yaml_file(path: Path, *, di: object | None = None) -> object:
+    """Load and parse a YAML file safely."""
+    policy = _get_yaml_parsing_policy(di)
+    load_fn = getattr(policy, "load_yaml_file", None)
+    if callable(load_fn):
+        return load_fn(path)
 
-    Args:
-        path: Path to YAML file
-
-    Returns:
-        Parsed YAML content (dict, list, or None on empty file)
-    """
     try:
         text = path.read_text(encoding="utf-8")
         return yaml.safe_load(text)

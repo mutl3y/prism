@@ -1,19 +1,7 @@
-"""Scanner reporting package - reporting artifacts, metrics, and runbook utilities.
-
-Current capability ownership:
-- scanner counters, uncertainty reasoning, and provenance issue shaping
-- scanner report row builders and markdown rendering helpers
-- runbook and runbook CSV generation
-- collection dependency aggregation helpers
-"""
+"""Scanner reporting package for fsrc sidecar and runbook renderers."""
 
 from __future__ import annotations
 
-from prism.scanner_reporting.metrics import (
-    append_non_authoritative_test_evidence_uncertainty_reason,
-    build_referenced_variable_uncertainty_reason,
-    extract_scanner_counters,
-)
 from prism.scanner_reporting.report import (
     AnnotationQualityCounters,
     NormalizedScannerReportMetadata,
@@ -33,6 +21,7 @@ from prism.scanner_reporting.report import (
     classify_provenance_issue,
     coerce_annotation_quality_counters_from_features,
     coerce_optional_scanner_report_metadata_fields,
+    extract_scanner_counters,
     invoke_readme_section_renderer,
     is_unresolved_noise_category,
     normalize_section_body_render_result,
@@ -47,9 +36,6 @@ from prism.scanner_reporting.runbook import (
 )
 
 __all__ = [
-    "append_non_authoritative_test_evidence_uncertainty_reason",
-    "build_referenced_variable_uncertainty_reason",
-    "extract_scanner_counters",
     "AnnotationQualityCounters",
     "NormalizedScannerReportMetadata",
     "ReadmeSectionBodyRenderer",
@@ -61,6 +47,7 @@ __all__ = [
     "ScannerReportYamlParseFailureRow",
     "SectionBodyRenderResult",
     "build_readme_section_render_input",
+    "build_runbook_rows",
     "build_scanner_report_issue_list_row",
     "build_scanner_report_markdown",
     "build_scanner_report_section_render_input",
@@ -68,20 +55,19 @@ __all__ = [
     "classify_provenance_issue",
     "coerce_annotation_quality_counters_from_features",
     "coerce_optional_scanner_report_metadata_fields",
+    "extract_scanner_counters",
     "invoke_readme_section_renderer",
     "is_unresolved_noise_category",
     "normalize_section_body_render_result",
+    "render_runbook",
+    "render_runbook_csv",
     "render_scanner_report_issue_list_row",
     "render_scanner_report_section",
     "render_scanner_report_yaml_parse_failure_row",
-    "build_runbook_rows",
-    "render_runbook",
-    "render_runbook_csv",
 ]
 
 
 def __getattr__(name: str) -> object:
-    """Enforce module public API at runtime."""
     if name.startswith("_"):
         raise AttributeError(
             f"module '{__name__}' has no attribute '{name}' "
@@ -91,5 +77,4 @@ def __getattr__(name: str) -> object:
 
 
 def __dir__() -> list[str]:
-    """Expose only public API in dir() and introspection."""
     return sorted(__all__)

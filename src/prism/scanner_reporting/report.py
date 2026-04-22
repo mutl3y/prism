@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, cast
+from typing import Any, Protocol, cast
 
 from prism.scanner_data.contracts_output import (
     AnnotationQualityCounters,
@@ -17,10 +17,8 @@ from prism.scanner_data.contracts_output import (
 )
 
 PRECEDENCE_DEFAULTS_OVERRIDDEN_BY_VARS = "precedence_defaults_overridden_by_vars"
-LEGACY_AMBIGUOUS_DEFAULTS_VARS_OVERRIDE = "ambiguous_defaults_vars_override"
+AMBIGUOUS_DEFAULTS_VARS_OVERRIDE = "ambiguous_defaults_vars_override"
 
-# Explicit unresolved-noise categories used by downstream metric gates.
-# Informational precedence categories must stay out of this set.
 UNRESOLVED_NOISE_CATEGORY_KEYS = frozenset(
     {
         "unresolved_readme_documented_only",
@@ -31,18 +29,19 @@ UNRESOLVED_NOISE_CATEGORY_KEYS = frozenset(
 )
 
 
-ReadmeSectionBodyRenderer = Callable[
-    [
-        str,
-        str,
-        str,
-        dict[str, Any],
-        list[Any],
-        list[Any],
-        ScannerReportMetadata,
-    ],
-    str,
-]
+class ReadmeSectionBodyRenderer(Protocol):
+    """Callable protocol for README section body renderers."""
+
+    def __call__(
+        self,
+        section_id: str,
+        role_name: str,
+        description: str,
+        variables: dict[str, Any],
+        requirements: list[Any],
+        default_filters: list[Any],
+        metadata: ScannerReportMetadata,
+    ) -> str: ...
 
 
 def build_readme_section_render_input(
@@ -185,14 +184,12 @@ def coerce_optional_scanner_report_metadata_fields(
 
 
 def _normalize_provenance_issue_category(category: str | None) -> str | None:
-    """Map legacy category labels onto current stable labels."""
-    if category == LEGACY_AMBIGUOUS_DEFAULTS_VARS_OVERRIDE:
+    if category == AMBIGUOUS_DEFAULTS_VARS_OVERRIDE:
         return PRECEDENCE_DEFAULTS_OVERRIDDEN_BY_VARS
     return category
 
 
 def is_unresolved_noise_category(category: str | None) -> bool:
-    """Return True when a category should contribute to unresolved-noise metrics."""
     normalized = _normalize_provenance_issue_category(category)
     return normalized in UNRESOLVED_NOISE_CATEGORY_KEYS
 
@@ -216,7 +213,6 @@ def classify_provenance_issue(row: dict[str, Any]) -> str | None:
             return PRECEDENCE_DEFAULTS_OVERRIDDEN_BY_VARS
         if "include_vars" in reason:
             return "ambiguous_include_vars_sources"
-        # Keep this bucket specific to set_fact-derived ambiguity.
         if "set_fact" in reason:
             return "ambiguous_set_fact_runtime"
         return "ambiguous_other"
@@ -273,7 +269,7 @@ def extract_scanner_counters(
             "unresolved_no_static_definition": 0,
             "unresolved_other": 0,
             PRECEDENCE_DEFAULTS_OVERRIDDEN_BY_VARS: 0,
-            LEGACY_AMBIGUOUS_DEFAULTS_VARS_OVERRIDE: 0,
+            AMBIGUOUS_DEFAULTS_VARS_OVERRIDE: 0,
             "ambiguous_include_vars_sources": 0,
             "ambiguous_set_fact_runtime": 0,
             "ambiguous_other": 0,
@@ -300,14 +296,13 @@ def extract_scanner_counters(
         if issue_category:
             counters["provenance_issue_categories"].setdefault(issue_category, 0)
             counters["provenance_issue_categories"][issue_category] += 1
-            # Backward-compat alias for downstream consumers; remove after migration.
             if issue_category == PRECEDENCE_DEFAULTS_OVERRIDDEN_BY_VARS:
                 counters["provenance_issue_categories"].setdefault(
-                    LEGACY_AMBIGUOUS_DEFAULTS_VARS_OVERRIDE,
+                    AMBIGUOUS_DEFAULTS_VARS_OVERRIDE,
                     0,
                 )
                 counters["provenance_issue_categories"][
-                    LEGACY_AMBIGUOUS_DEFAULTS_VARS_OVERRIDE
+                    AMBIGUOUS_DEFAULTS_VARS_OVERRIDE
                 ] += 1
             if is_unresolved_noise_category(issue_category):
                 counters["unresolved_noise_variables"] += 1
@@ -416,6 +411,17 @@ def build_scanner_report_markdown(
                     )
                 )
             lines.append("")
+        if ambiguous_rows:
+            lines.append("Ambiguous variables:")
+            for row in ambiguous_rows:
+                issue_row = build_scanner_report_issue_list_row(row=row)
+                lines.append(
+                    render_scanner_report_issue_list_row(
+                        row=issue_row,
+                        fallback_reason="Multiple possible sources.",
+                    )
+                )
+            lines.append("")
 
     if parse_failures:
         lines.extend(["YAML parse failures", "-------------------", ""])
@@ -429,17 +435,6 @@ def build_scanner_report_markdown(
                 )
             )
         lines.append("")
-        if ambiguous_rows:
-            lines.append("Ambiguous variables:")
-            for row in ambiguous_rows:
-                issue_row = build_scanner_report_issue_list_row(row=row)
-                lines.append(
-                    render_scanner_report_issue_list_row(
-                        row=issue_row,
-                        fallback_reason="Multiple possible sources.",
-                    )
-                )
-            lines.append("")
 
     sections = [
         ("task_summary", "Task/module usage summary"),

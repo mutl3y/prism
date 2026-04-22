@@ -1,0 +1,12 @@
+{
+    "chat.mcp.serverSampling": {
+        "prism/.vscode/mcp.json: io.github.upstash/context7": {
+            "allowedModels": [
+                "copilot/auto",
+                "copilotcli/claude-sonnet-4.6"
+            ]
+        }
+    },
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
+}

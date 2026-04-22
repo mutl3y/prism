@@ -7,7 +7,6 @@ import re
 
 def normalize_style_heading(heading: str) -> str:
     """Normalize markdown heading text for style-guide matching."""
-    # Strip markdown inline links so `[Title](#anchor)` normalizes like `Title`.
     cleaned = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", heading)
     normalized = re.sub(r"[^a-z0-9()]+", " ", cleaned.lower()).strip()
     return re.sub(r"\s+", " ", normalized)
