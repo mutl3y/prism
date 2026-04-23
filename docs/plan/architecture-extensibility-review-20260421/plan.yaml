@@ -22,7 +22,7 @@ origin: "Fresh full-codebase review, architecture and extensibility focus"
 
 resumption_pointer:
   current_tier: 1
-  next_action: "T2-02: ScanOptionsSchema — single source of truth for scan options"
+  next_action: "T2-03: Entry-points-based plugin discovery"
   blocking_issues: []
   notes: |
     Plan rewritten 2026-04-22 after fsrc->src promotion. 13 of 14 original
@@ -154,7 +154,8 @@ tier_2_plugin_system:
 
   - id: T2-02
     title: "ScanOptionsSchema — single source of truth for scan options"
-    status: not_started
+    status: done
+    completed_at: "2026-04-23"
     severity: medium
     supersedes: [D01]
     summary: |
@@ -347,6 +348,7 @@ tier_4_quality_and_polish:
     summary: |
       No benchmarks exist. Establish a baseline so T3-02 has a target and
       future performance regressions are visible.
+      user provided docs/dev_docs/scan-performance-baseline-20260404.md as possible benchmark source; need to extract concrete scenarios and metrics from it.
     work_items:
       - "pytest-benchmark suite: single-file parse, small role scan, large role scan"
       - "CI records results as artifacts (not pass/fail initially)"

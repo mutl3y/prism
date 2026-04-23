@@ -6,6 +6,7 @@ from typing import Any
 
 from prism.scanner_data.contracts_request import PreparedPolicyBundle
 from prism.scanner_data.contracts_request import ScanOptionsDict
+from prism.scanner_data.scan_options_schema import validate_scan_options
 
 
 def _normalize_policy_context(
@@ -81,4 +82,5 @@ def build_run_scan_options_canonical(
     if policy_warnings:
         options["scan_policy_warnings"] = list(policy_warnings)
 
+    validate_scan_options(options)
     return options
