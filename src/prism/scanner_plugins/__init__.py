@@ -34,6 +34,11 @@ from prism.scanner_plugins.registry import (
     PluginAPIVersionMismatch,
     validate_plugin_api_version,
 )
+from prism.scanner_plugins.discovery import (
+    PRISM_PLUGIN_ENTRY_POINT_GROUP,
+    EntryPointPluginLoadError,
+    discover_entry_point_plugins,
+)
 from prism.scanner_plugins.interfaces import ScanPipelinePlugin
 
 
@@ -126,6 +131,11 @@ def bootstrap_default_plugins(registry: PluginRegistry | None = None) -> PluginR
         if not active_registry.is_reserved_unsupported_platform(platform_name):
             active_registry.register_reserved_unsupported_platform(platform_name)
 
+    # Auto-discover externally distributed plugins via entry points. Failures
+    # are logged (not raised) so a broken third-party plugin cannot block
+    # built-in scanner usage. PluginAPIVersionMismatch still propagates.
+    discover_entry_point_plugins(registry=active_registry)
+
     return active_registry
 
 
@@ -133,9 +143,12 @@ DEFAULT_PLUGIN_REGISTRY = bootstrap_default_plugins()
 
 __all__ = [
     "DEFAULT_PLUGIN_REGISTRY",
+    "EntryPointPluginLoadError",
     "PRISM_PLUGIN_API_VERSION",
+    "PRISM_PLUGIN_ENTRY_POINT_GROUP",
     "PluginAPIVersionMismatch",
     "bootstrap_default_plugins",
+    "discover_entry_point_plugins",
     "interfaces",
     "registry",
     "validate_plugin_api_version",
