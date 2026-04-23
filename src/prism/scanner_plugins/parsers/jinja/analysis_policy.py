@@ -5,8 +5,13 @@ from __future__ import annotations
 import jinja2
 import jinja2.nodes
 from jinja2 import meta
+from jinja2.sandbox import SandboxedEnvironment
 
-_JINJA_ENV = jinja2.Environment()
+# T4-05: SandboxedEnvironment used as defense-in-depth. This module only calls
+# .parse() (AST-only inspection); no template is ever rendered or evaluated
+# from role content. Sandbox guards against future regressions where a render
+# path is added by mistake.
+_JINJA_ENV = SandboxedEnvironment()
 
 
 class JinjaAnalysisPolicyPlugin:

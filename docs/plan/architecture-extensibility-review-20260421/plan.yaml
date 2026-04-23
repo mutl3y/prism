@@ -23,7 +23,7 @@ origin: "Fresh full-codebase review, architecture and extensibility focus"
 
 resumption_pointer:
   current_tier: 1
-  next_action: "T3-02: Async I/O in scanner read paths (Wave C candidate)"
+  next_action: "T3-02: Async I/O in scanner read paths (Wave D candidate)"
   blocking_issues: []
   notes: |
     Plan rewritten 2026-04-22 after fsrc->src promotion. 13 of 14 original
@@ -265,7 +265,8 @@ tier_3_extensibility:
 
   - id: T3-03
     title: "Optional scan result cache"
-    status: not_started
+    status: done
+    completed_at: "2026-04-24"
     severity: medium
     supersedes: [C03]
     summary: |
@@ -282,6 +283,15 @@ tier_3_extensibility:
       - "Cache invalidates correctly on content change"
     estimated_effort: medium
     depends_on: [T3-01]
+    resolution: |
+      Added scanner_core/scan_cache.py: ScanCacheBackend Protocol,
+      InMemoryLRUScanCache implementation (with hits/misses counters,
+      maxsize=0 disables, LRU recency promotion on get), and
+      compute_scan_cache_key() helper (sha256 of sorted scan_options +
+      role content hash). 10 new tests cover cache semantics, eviction,
+      key stability, and disabled mode. Pipeline integration into the
+      scan path and filesystem backend deferred (seam-only delivery to
+      keep wave size small); consumers can wire through DI directly.
 
   - id: T3-04
     title: "Error boundary audit"
@@ -444,7 +454,8 @@ tier_4_quality_and_polish:
 
   - id: T4-05
     title: "Jinja2 sandbox audit"
-    status: not_started
+    status: done
+    completed_at: "2026-04-24"
     severity: low
     supersedes: [H02]
     summary: |
@@ -458,10 +469,23 @@ tier_4_quality_and_polish:
       - "Audit findings documented; no unsandboxed evaluation of role content"
     estimated_effort: small
     depends_on: []
+    resolution: |
+      Audit findings: (1) scanner_plugins/parsers/jinja/analysis_policy.py
+      uses jinja2 only via .parse() for AST inspection on role content -
+      no template rendering or evaluation occurs. Switched its module-level
+      env to SandboxedEnvironment as defense-in-depth. (2) scanner_data/
+      rendering_seams.build_render_jinja_environment renders Prism's own
+      bundled .j2 templates with role-derived data passed as context (not
+      as template source); standard Environment is appropriate.
+      4 guardrail tests in test_t4_05_jinja_sandbox_audit.py lock the
+      invariants: analysis env is SandboxedEnvironment, analysis module
+      contains no .render or .from_string call, and no raw
+      jinja2.Environment() instantiation in role-content paths.
 
   - id: T4-06
     title: "PRISM_* environment variable support"
-    status: not_started
+    status: done
+    completed_at: "2026-04-24"
     severity: low
     supersedes: [D02]
     summary: |
@@ -474,6 +498,18 @@ tier_4_quality_and_polish:
       - "Env-var configuration documented and tested"
     estimated_effort: trivial
     depends_on: [T2-02]
+    resolution: |
+      Added prism/env_config.py: PRISM_ENV_BINDINGS table with EnvBinding
+      records, load_env_overlay() returning a partial scan_options dict,
+      merge_with_env_overlay() (explicit options always win), and
+      get_env_var_documentation() markdown helper. Initial bindings cover
+      PRISM_POLICY_CONFIG, PRISM_README_CONFIG,
+      PRISM_FAIL_ON_UNCONSTRAINED_DYNAMIC_INCLUDES,
+      PRISM_FAIL_ON_YAML_LIKE_TASK_ANNOTATIONS plus consumer-only
+      advisory bindings (PRISM_PROGRESS, PRISM_TELEMETRY_JSON_LOG).
+      9 new tests cover overlay mapping, explicit-wins merge, schema
+      alignment, validate_scan_options compatibility, bool coercion, and
+      doc generation.
 
 # ---------------------------------------------------------------------------
 # DEFERRED — out of scope unless demand signal
