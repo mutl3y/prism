@@ -1,0 +1,33 @@
+{
+  "name": "agent-development",
+  "version": "2.1.0",
+  "description": "Development-oriented skills for planning agent projects and improving runtime context strategy and briefing patterns.",
+  "author": {
+    "name": "Muratcan Koylan",
+    "url": "https://github.com/muratcankoylan"
+  },
+  "homepage": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+  "repository": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+  "license": "MIT",
+  "keywords": [
+    "agent-development",
+    "project-development",
+    "context-optimization",
+    "latent-briefing"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Agent Development",
+    "shortDescription": "Build and operationalize agent projects.",
+    "longDescription": "A development bundle for project design, context optimization, and latent briefing patterns used to make agent systems more effective in practice.",
+    "developerName": "Muratcan Koylan",
+    "category": "Productivity",
+    "websiteURL": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+    "defaultPrompt": [
+      "Plan an agent project from prototype to production.",
+      "Optimize the runtime context strategy for this workflow.",
+      "Explain when latent briefing is useful between agents."
+    ],
+    "brandColor": "#D97706"
+  }
+}

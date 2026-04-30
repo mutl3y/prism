@@ -1,0 +1,33 @@
+{
+  "name": "cognitive-architecture",
+  "version": "2.1.0",
+  "description": "Cognitive architecture skills centered on formal BDI mental-state modeling for deliberate agent reasoning.",
+  "author": {
+    "name": "Muratcan Koylan",
+    "url": "https://github.com/muratcankoylan"
+  },
+  "homepage": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+  "repository": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+  "license": "MIT",
+  "keywords": [
+    "cognitive-architecture",
+    "bdi",
+    "mental-states",
+    "reasoning"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Cognitive Architecture",
+    "shortDescription": "BDI mental-state modeling for agents.",
+    "longDescription": "A focused bundle for modeling beliefs, desires, and intentions in agent systems using formal cognitive architecture patterns.",
+    "developerName": "Muratcan Koylan",
+    "category": "Productivity",
+    "websiteURL": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+    "defaultPrompt": [
+      "Model this agent workflow with BDI mental states.",
+      "Explain how beliefs, desires, and intentions map to system behavior.",
+      "Design a cognitive architecture for a deliberate agent."
+    ],
+    "brandColor": "#BE123C"
+  }
+}

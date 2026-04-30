@@ -1,0 +1,33 @@
+{
+  "name": "agent-evaluation",
+  "version": "2.1.0",
+  "description": "Evaluation skills for measuring agent quality, building test frameworks, and using LLM-as-a-judge patterns.",
+  "author": {
+    "name": "Muratcan Koylan",
+    "url": "https://github.com/muratcankoylan"
+  },
+  "homepage": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+  "repository": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+  "license": "MIT",
+  "keywords": [
+    "agent-evaluation",
+    "evaluation",
+    "llm-as-judge",
+    "testing"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Agent Evaluation",
+    "shortDescription": "Measure, compare, and improve agent quality.",
+    "longDescription": "A focused evaluation bundle covering test framework design, measurement strategy, and advanced LLM-as-a-judge techniques.",
+    "developerName": "Muratcan Koylan",
+    "category": "Productivity",
+    "websiteURL": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+    "defaultPrompt": [
+      "Design an evaluation plan for this agent system.",
+      "Compare outputs with an LLM-as-a-judge rubric.",
+      "Help me build a repeatable quality benchmark for an agent."
+    ],
+    "brandColor": "#9333EA"
+  }
+}

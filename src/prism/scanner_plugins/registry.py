@@ -125,7 +125,7 @@ class PluginRegistry:
             str, type[OutputOrchestrationPlugin]
         ] = {}
         self._scan_pipeline_plugins: dict[str, type[ScanPipelinePlugin]] = {}
-        self._reserved_unsupported_platforms: set[str] = set()
+        self._reserved_unsupported_platforms: frozenset[str] = frozenset()
         self._comment_driven_doc_plugins: dict[
             str, type[CommentDrivenDocumentationPlugin]
         ] = {}
@@ -250,7 +250,9 @@ class PluginRegistry:
 
     def register_reserved_unsupported_platform(self, name: str) -> None:
         with self._lock:
-            self._reserved_unsupported_platforms.add(name)
+            self._reserved_unsupported_platforms = (
+                self._reserved_unsupported_platforms | {name}
+            )
 
     def is_reserved_unsupported_platform(self, name: str) -> bool:
         with self._lock:

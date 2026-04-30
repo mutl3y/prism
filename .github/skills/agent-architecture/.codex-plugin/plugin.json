@@ -1,0 +1,33 @@
+{
+  "name": "agent-architecture",
+  "version": "2.1.0",
+  "description": "Architectural skills for designing multi-agent systems, memory, tool interfaces, filesystem context, and hosted agents.",
+  "author": {
+    "name": "Muratcan Koylan",
+    "url": "https://github.com/muratcankoylan"
+  },
+  "homepage": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+  "repository": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+  "license": "MIT",
+  "keywords": [
+    "agent-architecture",
+    "multi-agent",
+    "memory",
+    "tool-design"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Agent Architecture",
+    "shortDescription": "Patterns for robust agent system design.",
+    "longDescription": "A bundle of architectural skills for multi-agent coordination, memory systems, tool design, filesystem context, and hosted agent execution.",
+    "developerName": "Muratcan Koylan",
+    "category": "Productivity",
+    "websiteURL": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+    "defaultPrompt": [
+      "Design a multi-agent architecture for a coding workflow.",
+      "Recommend a memory architecture for a long-running agent.",
+      "Help me design tools an agent can use reliably."
+    ],
+    "brandColor": "#0F766E"
+  }
+}
