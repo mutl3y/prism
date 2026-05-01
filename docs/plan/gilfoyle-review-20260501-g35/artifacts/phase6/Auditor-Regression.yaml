@@ -1,0 +1,75 @@
+agent_name: Auditor-Regression
+plan_id: gilfoyle-review-20260501-g35
+wave_scope: registry-authority fix wave
+audit_mode: static_regression_audit
+generated_at: 2026-05-01
+inputs:
+  findings_yaml: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g35/findings.yaml
+  prior_wave_summary: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g35/artifacts/phase5/Builder-Ownership-summary.yaml
+  touched_files:
+    - /raid5/source/test/prism/src/prism/scanner_core/execution_request_builder.py
+    - /raid5/source/test/prism/src/prism/scanner_io/loader.py
+    - /raid5/source/test/prism/src/prism/tests/test_di_registry_resolution.py
+    - /raid5/source/test/prism/src/prism/tests/test_scanner_guardrails.py
+scope_notes:
+  - Audit constrained to the user-specified files and artifacts only.
+  - No dynamic test execution was re-run during this audit; validation claims below are based on static inspection of the touched files plus the recorded phase5 validation summary.
+executive_summary:
+  verdict: pass_with_follow_up
+  regression_findings_written: 1
+  key_result: Builder-side registry authority is correctly single-sourced, but loader-side regression coverage still stops short of the live YAML-policy resolution path.
+checks:
+  registry_injection_semantics:
+    verdict: pass_with_gap
+    details:
+      - execution_request_builder now hard-binds runtime_registry from the injected default_plugin_registry and threads that same object into DI container construction, platform-key resolution, prepared-policy bundling, and the returned execution request (/raid5/source/test/prism/src/prism/scanner_core/execution_request_builder.py#L479-L528).
+      - loader no longer reads registry authority from scan_options payload data; the only local registry lookup in the touched file is DI.plugin_registry via _resolve_plugin_registry (/raid5/source/test/prism/src/prism/scanner_io/loader.py#L37-L44).
+      - Focused builder coverage proves conflicting canonical_options.plugin_registry data does not override the authoritative injected registry (/raid5/source/test/prism/src/prism/tests/test_di_registry_resolution.py#L267-L351).
+  accidental_fail_open_behavior:
+    verdict: no_new_accidental_fail_open_identified_in_wave
+    details:
+      - execution_request_builder now fails closed when ensure_prepared_policy_bundle_fn is missing, rather than silently constructing a partially wired request (/raid5/source/test/prism/src/prism/scanner_core/execution_request_builder.py#L515-L520).
+      - loader still retains a documented soft fallback when prepared_policy_bundle is absent; it resolves YAML parsing policy via the default resolver path instead of failing closed (/raid5/source/test/prism/src/prism/scanner_io/loader.py#L63-L90). This is a pre-existing loader behavior, not a regression introduced by the registry-authority fix wave.
+      - load_yaml_file also preserves its existing soft-fail contract by returning null on IO, decode, YAML, or ValueError exceptions (/raid5/source/test/prism/src/prism/scanner_io/loader.py#L261-L272). The wave did not widen that behavior.
+  removed_scan_options_bypass_tests:
+    verdict: incomplete
+    details:
+      - The builder slice has both a behavior test and a post-change identity assertion for the removed bypass (/raid5/source/test/prism/src/prism/tests/test_di_registry_resolution.py#L267-L332).
+      - The loader slice only verifies the private _resolve_plugin_registry helper and a static AST guardrail; it does not execute _get_yaml_parsing_policy, parse_yaml_candidate, or load_yaml_file with conflicting DI and scan_options registry values (/raid5/source/test/prism/src/prism/tests/test_di_registry_resolution.py#L335-L351, /raid5/source/test/prism/src/prism/tests/test_scanner_guardrails.py#L104-L126, /raid5/source/test/prism/src/prism/tests/test_scanner_guardrails.py#L430-L444).
+  ownership_and_typing:
+    verdict: no_obvious_new_regression_found
+    details:
+      - The wave narrows ownership in the touched slice: execution_request_builder owns runtime registry injection, and loader owns only DI.plugin_registry lookup for this seam.
+      - The touched code still uses broad object-typed registry seams, but this appears unchanged rather than newly regressed in the wave.
+findings:
+  - id: AUDIT-REG-01
+    severity: low
+    category: regression_test_gap
+    status: confirmed
+    title: Loader regression coverage does not prove DI registry authority on the live YAML-policy resolution path
+    summary: The new loader coverage verifies only the helper-level bypass removal and a narrow AST guardrail. It does not behavior-test the actual unprepared-bundle YAML policy resolution path with conflicting DI.plugin_registry versus scan_options.plugin_registry inputs.
+    why_this_matters:
+      - The wave goal was to make DI injection the sole registry authority for the live loader path.
+      - The current loader test stops at _resolve_plugin_registry and therefore would not catch a future regression where _get_yaml_parsing_policy stops threading DI.plugin_registry into the resolver while still avoiding direct scan_options.get("plugin_registry") lookups.
+      - The AST guardrail only matches .get("plugin_registry") calls, so it would not detect equivalent bypass reintroduction via subscript access or an indirect helper inside the live resolution path (/raid5/source/test/prism/src/prism/tests/test_scanner_guardrails.py#L104-L126).
+    evidence:
+      - _get_yaml_parsing_policy is the real live decision point for loader policy resolution and the place where registry override threading matters (/raid5/source/test/prism/src/prism/scanner_io/loader.py#L63-L90).
+      - parse_yaml_candidate and load_yaml_file are the touched live entrypoints that depend on that policy resolution (/raid5/source/test/prism/src/prism/scanner_io/loader.py#L154-L199, /raid5/source/test/prism/src/prism/scanner_io/loader.py#L261-L272).
+      - Current focused test coverage for loader ends at helper-level assertions (/raid5/source/test/prism/src/prism/tests/test_di_registry_resolution.py#L335-L351).
+      - Current static guardrail is pattern-based rather than behavior-based (/raid5/source/test/prism/src/prism/tests/test_scanner_guardrails.py#L430-L444).
+    recommended_follow_up:
+      - Add one loader behavior test that injects an authoritative registry on the DI container, a conflicting plugin_registry object in scan_options, and a resolver/plugin spy that proves parse_yaml_candidate or load_yaml_file consumes only DI.plugin_registry on the no-prepared-bundle path.
+non_findings:
+  - Builder runtime registry ownership is internally consistent in the touched slice: the same authoritative registry object flows into platform resolution, DI construction, prepared-policy wiring, and the returned request (/raid5/source/test/prism/src/prism/scanner_core/execution_request_builder.py#L479-L528).
+  - No new fail-open behavior was introduced in execution_request_builder by the wave; the newly mandatory ensure_prepared_policy_bundle_fn check is fail-closed (/raid5/source/test/prism/src/prism/scanner_core/execution_request_builder.py#L515-L520).
+  - The focused test wave did add a useful static guardrail that prevents direct scan_options.get("plugin_registry") lookups from reappearing in the two touched modules (/raid5/source/test/prism/src/prism/tests/test_scanner_guardrails.py#L430-L444).
+prior_wave_validation_record:
+  - command: .venv/bin/python -m pytest -q src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_scanner_guardrails.py
+    source: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g35/artifacts/phase5/Builder-Ownership-summary.yaml
+    result: passed
+    details: 30 passed in 1.61s
+follow_up_resolution:
+  status: resolved_by_foreman_follow_up
+  evidence:
+    - src/prism/tests/test_di_registry_resolution.py:354 adds a live load_yaml_file regression test with conflicting DI and scan_options registry values.
+    - Foreman rerun of the same narrow pytest gate passed with 31 tests.

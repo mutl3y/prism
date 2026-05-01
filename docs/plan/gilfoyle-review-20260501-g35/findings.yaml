@@ -1,0 +1,81 @@
+plan_id: gilfoyle-review-20260501-g35
+cycle: g35
+target: src/prism
+review_type: thorough
+focus_axis: architecture
+status: completed
+decision_summary:
+  - "Promote the cross-cutting registry-authority split for immediate repair."
+  - "Carry the api.py facade leak and malformed policy-context fallback as verified medium findings."
+carried_open_findings:
+  - FIND-G35-ARCH-02
+  - CF-02
+suppressed_highs:
+  - id: FIND-G35-T01
+    rationale_code: duplicate_of
+    duplicate_of: FIND-G35-T02
+  - id: FIND-G35-T02
+    rationale_code: deferred
+  - id: FIND-G35-O01
+    rationale_code: deferred
+  - id: FIND-G35-T07
+    rationale_code: deferred
+findings:
+  - id: FIND-G35-ARCH-01
+    status: closed
+    decision: fixed_in_g35_w1
+    severity: high
+    category: registry_authority
+    fingerprint: registry_authority_split:loader_di_defaults_paths
+    title: "Split registry authority across loader, execution_request_builder, and defaults"
+    files:
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/scanner_io/loader.py
+      - src/prism/tests/test_di_registry_resolution.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g35/artifacts/phase0/Synthesizer-Architecture.yaml
+    related_ledger_entries:
+      - FIND-G2-LOADER-DUAL-PATH
+      - FIND-G4-01-loader-defaults-lazy-import
+    summary: "scan_options['plugin_registry'] remains a non-standard bypass path in loader.py and execution_request_builder.py, creating split registry authority inside one request."
+    decision_deadline: g35
+    suggested_narrow_gate: pytest -q src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_scanner_guardrails.py
+    closed_at: "2026-05-01"
+    closed_evidence:
+      - "Code: src/prism/scanner_core/execution_request_builder.py:479 hard-binds runtime_registry to default_plugin_registry."
+      - "Code: src/prism/scanner_io/loader.py:37 keeps loader registry resolution on DI.plugin_registry only; no scan_options bypass remains."
+      - "Tests: src/prism/tests/test_di_registry_resolution.py:267 proves execution-request authority ignores canonical_options['plugin_registry']; src/prism/tests/test_di_registry_resolution.py:354 proves live load_yaml_file resolution uses DI.plugin_registry."
+      - "Guardrail: src/prism/tests/test_scanner_guardrails.py:430 fails if execution_request_builder or loader reintroduce scan_options plugin_registry lookups."
+      - "Gate: pytest -q src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_scanner_guardrails.py => 31 passed; ruff check on touched files => PASS; anti-pattern gate clean; mypy reported baseline-transitive noise only from non-owned files."
+
+  - id: FIND-G35-ARCH-02
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: facade_leakage
+    fingerprint: api:assembly_helper_leak:build_run_scan_canonical_route_orchestration
+    title: "api.py leaks internal assembly helpers and registry singleton through module globals"
+    files:
+      - src/prism/api.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g35/artifacts/phase0/Synthesizer-Architecture.yaml
+    summary: "Internal assembly helpers and DEFAULT_PLUGIN_REGISTRY are top-level api.py symbols and tests patch them through the facade."
+    decision_deadline: g36
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py
+
+  - id: CF-02
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: policy_coercion
+    fingerprint: policy_coercion:src/prism/scanner_core:scan-request-policy-context-fallback
+    title: "Malformed policy_context silently falls back to registry-default routing"
+    files:
+      - src/prism/scanner_core/scan_request.py
+      - src/prism/scanner_core/di.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g35/artifacts/phase0/Scout-ControlFlow.yaml
+    summary: "Non-dict policy_context is normalized away and can route a scan through the wrong plugin without diagnostic failure."
+    decision_deadline: g36
+    suggested_narrow_gate: pytest -q src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_t2_02_scan_options_schema.py

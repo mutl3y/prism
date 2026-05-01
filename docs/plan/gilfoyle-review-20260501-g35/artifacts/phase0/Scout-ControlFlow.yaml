@@ -1,0 +1,53 @@
+- id: CF-01
+  severity: medium
+  category: orchestration_seam
+  confidence: high
+  summary: ScannerContext coerces invalid metadata/display_variables payloads to empty containers instead of surfacing a contract violation, so a bad prepare_scan_context_fn can erase scan metadata without failing the scan.
+  evidence:
+    - file: /raid5/source/test/prism/src/prism/scanner_core/scanner_context.py
+      line: 62
+      note: _copy_scan_metadata returns empty ScanMetadata for non-dict input
+    - file: /raid5/source/test/prism/src/prism/scanner_core/scanner_context.py
+      line: 74
+      note: _copy_display_variables returns {}
+    - file: /raid5/source/test/prism/src/prism/scanner_core/scanner_context.py
+      line: 239
+      note: orchestration path copies context_payload.metadata through the silent fallback
+    - file: /raid5/source/test/prism/src/prism/scanner_core/scanner_context.py
+      line: 245
+      note: orchestration path copies display_variables through the silent fallback
+  runtime_risk: Missing metadata or display variables on an otherwise successful scan result.
+
+- id: CF-02
+  severity: medium
+  category: policy_coercion
+  confidence: high
+  summary: build_run_scan_options_canonical drops any non-dict policy_context to None, and resolve_platform_key then falls back to the registry default platform, so malformed caller input can route the scan through the wrong plugin without an explicit error.
+  evidence:
+    - file: /raid5/source/test/prism/src/prism/scanner_core/scan_request.py
+      line: 29
+      note: non-dict policy_context is normalized away
+    - file: /raid5/source/test/prism/src/prism/scanner_core/scan_request.py
+      line: 90
+      note: normalized_policy_context is written back as None
+    - file: /raid5/source/test/prism/src/prism/scanner_core/di.py
+      line: 76
+      note: platform key resolution consults policy_context before the registry default
+    - file: /raid5/source/test/prism/src/prism/scanner_core/di.py
+      line: 82
+      note: only dict-shaped policy_context participates
+  runtime_risk: The scan can execute under the wrong platform selection instead of failing fast.
+
+- id: CF-03
+  severity: medium
+  category: silent_fallback
+  confidence: high
+  summary: load_variables only merges YAML payloads that are dicts and silently skips any other parsed shape for defaults/vars/include_vars files, so a malformed variables file can disappear from the scan with no warning.
+  evidence:
+    - file: /raid5/source/test/prism/src/prism/scanner_extract/discovery.py
+      line: 207
+      note: defaults/vars file payloads are only merged when dict-shaped
+    - file: /raid5/source/test/prism/src/prism/scanner_extract/discovery.py
+      line: 226
+      note: include_vars payloads are only merged when dict-shaped
+  runtime_risk: Role variables can be lost silently, changing downstream discovery and rendering output.

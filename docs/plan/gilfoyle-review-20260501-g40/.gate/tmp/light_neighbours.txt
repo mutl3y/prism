@@ -1,0 +1,2 @@
+src/prism/scanner_kernel/plugin_name_resolver.py
+src/prism/scanner_kernel/scan_payload_helpers.py

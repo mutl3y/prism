@@ -1,189 +1,48 @@
-# Gilfoyle review-loop digest — index for next cycle's Phase 0 sweep
-# Last updated: g18 close (2026-04-26)
-
+generated_at: '2026-05-01T13:43:02.158655+00:00'
+memory_source: docs/plan/.gilfoyle-lessons
 model_usage_history_path: docs/plan/.gilfoyle-lessons/model-usage-history.yaml
 model_usage_rollup_path: docs/plan/.gilfoyle-lessons/model-usage-rollup.yaml
-
-closed_findings_count: 76  # g1=7 + g2=5 + g3=1 + g4=1 + g5=2 + g6=5 + g7b=1 + g8=6 + g9=5 + g10=2 + g11=1 + g12=2 + g13=3 + g14=8 + g15=7(+1 false positive) + g16=9 + g17=5 + g18=5
-deferred_findings_count: 11  # prior 10 + g18 deferred process finding FIND-G18-D01 (missing import-graph.json artifact)
-
-open_in_other_cycles:
-  - id: FIND-G2-LOADER-DUAL-PATH
-    deferred_to: gilfoyle-g5
-    note: "Still bundled with FIND-G3-04 / FIND-G4-01 for any future registry-routed defaults slice; G4-01 confirmed routing already passes through the registry, so the slice would be a contract reshape, not a leak fix."
-  - id: FIND-G3-04
-    deferred_to: gilfoyle-g5
-    note: "loader.py:46 — superseded by FIND-G4-01 do_not_re_flag ruling; only re-flag bundled with FIND-G2-LOADER-DUAL-PATH for a contract reshape."
-  - id: FIND-G3-05
-    deferred_to: future_planning_slice
-    note: "Boilerplate component closed in g5 as FIND-G5-01 (data-driven table). True decorator self-registration component remains open as FIND-G5-02 — needs replay-safe-binding design before implementation."
-  - id: FIND-G5-02
-    deferred_to: future_planning_slice
-    note: "Decorator-based plugin self-registration. Phase 0 sweep blockers: bootstrap_default_plugins(registry=...) replay onto alternate registries; FQCN-resolution timing for deferred registrations."
-  - id: FIND-G6-06
-    deferred_to: dedicated_planning_slice_readme_platform_agnostic
-    design_slice: docs/plan/20260425-readme-renderer-plugin-design/plan.yaml
-    design_slice_status: design_only_awaiting_user_review
-    cycle_link: g7
-    note: >
-      scanner_readme/* hardcodes Ansible role rendering (meta/main.yml, Galaxy install,
-      role variables/tasks/handlers sections, ansible-role-doc legacy markers). Product
-      vision (confirmed by user 2026-04-25) is plug-and-play platform support across
-      Ansible, Terraform, Kubernetes, AAP — each plugin must own input + scanning logic
-      + output rendering. Required before code: ReadmeRendererPlugin protocol design,
-      section/style/marker ownership matrix per platform, DI/registry wiring plan,
-      Ansible plugin migration as reference impl, parity tests vs. current Ansible-only
-      output. Mechanical in-loop refactor would prematurely freeze the protocol shape.
-      g7 (2026-04-25) delivered all 5 pre-code artefacts in the design slice above.
-  # FIND-G7B-01: closed in g7b implementation cycle (2026-04-25, commit 2182bb4).
-  #   Canonical homes created: scanner_plugins/ansible/{task_vocabulary,task_regex},
-  #   scanner_plugins/parsers/yaml/line_shape, scanner_plugins/parsers/comment_doc/
-  #   {annotation_parsing,runbook_renderer,templates/RUNBOOK.md.j2}.
-  #   Deprecation shims (one-release grace, REVERSING earlier no-shim plan per
-  #   user 2026-04-25): scanner_plugins/policies/{constants,extract_defaults,
-  #   annotation_parsing} + scanner_reporting/runbook.py — each emits
-  #   DeprecationWarning(stacklevel=2). Public facades unchanged.
-  #   W2 TaskBoundaryDetector protocol DROPPED (annotation parsing ships as-is).
-  #   W5 policies/→defaults/ rename DROPPED.
-  # FIND-G9-01..G9-05: closed in g9 implementation cycle (2026-04-25, commit 6e2090f).
-  #   Honoured the g7b 'one release later' deletion schedule. Removed the entire
-  #   scanner_plugins/policies/ directory: facade __init__.py + 3 deprecation shims
-  #   (annotation_parsing, constants, extract_defaults). DefaultScanPipelinePlugin
-  #   relocated to scanner_plugins/default_scan_pipeline.py (top-level neutral home).
-  #   Rewired 9 imports across scanner_plugins/__init__.py, defaults.py, and
-  #   test_plugin_kernel_extension_parity.py. Deleted TestPoliciesShimContract
-  #   (4 vacuous shim tests). 751 passed, mypy delta=0.
-  # FIND-G10-01..G10-02: closed in g10 implementation cycle (2026-04-25, commit 9880c0a).
-  #   Both g9 carry-overs eliminated. Deleted scanner_reporting/runbook.py
-  #   (32-line deprecation shim) and scanner_core/standalone_di.py (25-line
-  #   parallel DI surface). _make_standalone_di in scanner_plugins/defaults.py
-  #   now constructs DIContainer directly. 740 passed, mypy delta=0.
-  # FIND-10: closed (subsumed by FIND-G3-01 close + FIND-G3-03 do_not_re_flag rulings).
-
+closed_findings_count: 37
+deferred_findings_count: 8
 active_lessons:
-  - LESSON-01
-  - LESSON-02
-  - LESSON-03
-  - LESSON-04
-  - LESSON-05
-  - LESSON-06
-  - LESSON-07
-  - LESSON-08
-  - LESSON-09  # subagent artifact-existence gate — MUST be enforced in every dispatch prompt
-  - LESSON-10  # ledger write after every dispatch, not batched at cycle end
-  - LESSON-11  # builder must run tests from ALL layers above changed callsite, not just owned files
-  - LESSON-12  # test mocks must match Protocol return types exactly — silent mismatches survive until normalization is added
-
+- LESSON-01
+- LESSON-02
+- LESSON-03
+- LESSON-04
+- LESSON-05
+- LESSON-06
+- LESSON-07
+- LESSON-08
+- LESSON-09
+- LESSON-10
+- LESSON-11
+- LESSON-12
+- LESSON-13
 do_not_re_flag:
-  - find_id: FIND-G3-02-typecheck-import
-    reason: >
-      `scanner_core/di.py` TYPE_CHECKING-block import of
-      `scanner_plugins.interfaces` is type-only. Zero runtime cost and zero
-      runtime layer dependency. Do not re-flag as a layer leak.
-  - find_id: FIND-G3-03-di-lazy-seams
-    reason: >
-      Lazy imports of `scanner_plugins` inside DI factory bodies
-      (di.py:204 factory_blocker_fact_builder, standalone_di.py:20
-      bundle_resolver) are intentional DI seams. Re-flag only with a
-      registry-routed alternative on the table; a naive top-level import
-      re-introduces LESSON-08 load-time cycles.
-  - find_id: FIND-06
-    reason: >
-      All 4 broad-except sites (scanner_plugins/discovery.py x2, defaults.py,
-      ansible/variable_discovery.py) are intentional 3rd-party plugin / YAML loader
-      isolation perimeters with inline rationale comments. Per LESSON-04, do not
-      re-raise without a new contract change.
-  - find_id: FIND-07
-    reason: >
-      All 4 kernel broad-except sites (orchestrator.py L122/L170/L321,
-      kernel_plugin_runner.py L49) are SCB1-contract plugin/kernel boundary protections.
-      AGENTS.md SCB1 closure record is the rationale. Per LESSON-04, do not re-raise.
-  - find_id: FIND-08
-    reason: >
-      Both scanner_context.py broad-except sites (L147, L166) are the SCB1
-      `scan_policy_blocker_facts` translation paths. Tightening regresses the SCB1
-      contract. Per LESSON-04, do not re-raise.
-  - find_id: FIND-G2-04-as-tasks-literal
-    reason: >
-      The `provenance_source_file("tasks/")` literal in scanner_core/variable_discovery.py
-      has been replaced with `None` (G2-04 closure). Do not re-introduce platform-shaped
-      path literals into scanner_core; ownership belongs to the platform plugin.
-  - find_id: FIND-G2-03-jinja-canonical-location
-    reason: >
-      Canonical JINJA_VAR_RE / JINJA_IDENTIFIER_RE definitions live in
-      scanner_data/patterns_jinja.py (side-effect-free). Do not re-locate them under
-      scanner_plugins/parsers/jinja/ — that path is eagerly loaded and triggers a
-      load-time cycle for any consumer below the plugin layer (LESSON-08).
-  - find_id: FIND-G4-01-loader-defaults-lazy-import
-    reason: >
-      scanner_io/loader.py:46 lazy imports scanner_plugins.defaults.resolve_yaml_parsing_policy_plugin —
-      a generic resolver that already routes through the plugin registry via
-      _resolve_plugin_with_precedence. The "soft fallback" is intentional pre-scan-path
-      semantics, not a layer leak. Only re-flag bundled with FIND-G2-LOADER-DUAL-PATH
-      for a registry-routed defaults contract reshape.
-  - find_id: FIND-G4-03-inject-mock-wrappers
-    reason: >
-      The 12 inject_mock_* wrappers on DIContainer were collapsed to the generic
-      inject_mock(name, mock) helper in g4. Do not re-introduce per-key wrappers —
-      the generic helper is the single shape, per LESSON-04 (generic-helper-first
-      surface design).
-  - find_id: FIND-G5-01-bootstrap-table
-    reason: >
-      bootstrap_default_plugins() in scanner_plugins/__init__.py is now data-driven
-      via _DIRECT_REGISTRATIONS / _DEFERRED_REGISTRATIONS / _RESERVED_UNSUPPORTED_PLATFORMS
-      tables and slot->method dispatch maps. Adding a built-in is a single tuple
-      addition — do not re-flag the dispatch indirection as 'too clever'; the
-      previous imperative form was 80 lines of duplicated `if not in: register`.
-  - find_id: FIND-G6-01-format-candidate-failure-path-canonical
-    reason: >
-      `_format_candidate_failure_path` (and its helper `_role_relative_candidate_path`)
-      live in scanner_io/loader.py. parsing_policy.py imports from there. Do not
-      re-add a local copy in plugin packages; if behaviour changes, change the
-      canonical site.
-  - find_id: FIND-G6-02-comment-continuation-re-canonical
-    reason: >
-      `COMMENT_CONTINUATION_RE` is defined in scanner_plugins/parsers/comment_doc/marker_utils.py.
-      policies/constants.py re-exports via top-level import. Do not redefine the
-      regex elsewhere — divergence between two compiled patterns is silent.
-  - find_id: FIND-G6-03-ansible-builtin-variables-removed
-    reason: >
-      The `ansible_builtin_variables` policy schema key was deleted in g6 (zero
-      readers, zero data). Do not re-introduce platform-shaped keys in
-      scanner_config/patterns.py; ownership belongs to the platform plugin.
-  - find_id: FIND-G6-04-seed-load-narrow-except
-    reason: >
-      `load_seed_variables` catches (OSError, yaml.YAMLError, UnicodeDecodeError,
-      ValueError) — programmer errors (TypeError, AttributeError) intentionally
-      propagate. Do not widen back to `except Exception`.
-  - find_id: FIND-G6-05-meta-load-narrow-except
-    reason: >
-      `collect_role_contents` catches RuntimeError (load_meta's documented
-      hard-failure surface). Do not widen to bare `Exception` — that masks
-      regressions in load_meta's contract.
-
-open_questions_for_next_cycle:
-  focus_axis_due_next: architecture  # covered so far: typing(g1), architecture(g2), coupling(g3), registry_lifecycle(g4), registry_boilerplate(g5), ownership(g6+g7), dedup/layer/TypedDict(g13), typing+error_handling(g14), security(g15), concurrency(g16), performance(g17), test_gaps(g18) — all primary axes have at least one thorough pass; rotate to architecture for next deep sweep
-  items:
-    - >
-      FIND-10 (coupling / g3): with G2-01 closing the AnsibleDefault* ownership leak and
-      G2-02 protocoling the DI/kernel boundary, the residual scanner_core→scanner_plugins
-      imports are: standalone_di.py:21 (bundle_resolver), scanner_context.py
-      (filters.underscore_policy), and the existing g1-flagged seams. g3 question: rewire
-      via DI/registry (push the bundle resolver and underscore-policy filter through the
-      registry seam) or relocate to a `scanner_kernel_contracts/` namespace?
-    - >
-      DIContainer (~397 lines) shrink to runtime carrier only: lazy-factory methods belong
-      on plugin objects, not on the container itself. g3 candidate work.
-    - >
-      Built-in plugins should self-register through the registry rather than being imported
-      eagerly by `scanner_plugins/__init__.py` — would close LESSON-08 at the source.
-    - >
-      FIND-G6-06 (architecture / g6, deferred): scanner_readme/* must become
-      platform-agnostic before Terraform/Kubernetes/AAP README generation lands.
-      Design slice should produce: ReadmeRendererPlugin protocol (parallel to
-      VariableDiscoveryPlugin / FeatureDetectionPlugin / YAMLParsingPolicyPlugin
-      seams), per-platform section/style/marker ownership matrix, DI/registry
-      wiring, Ansible plugin migration as reference implementation, parity test
-      strategy against current Ansible-only output. AGENTS.md note required:
-      plugin contract must own input parsing AND output rendering, not just
-      intake.
+- find_id: FIND-G4-01
+  fingerprint: null
+  reason: Routing already passes through the registry via _resolve_plugin_with_precedence; the lazy import
+    is to a generic resolver, not a platform plugin. Marked do_not_re_flag in digest.yaml; only re-flag
+    bundled with FIND-G2-LOADER-DUAL-PATH for a contract reshape.
+- find_id: FIND-G5-02
+  fingerprint: null
+  reason: 'Both blockers confirmed permanent (g13 research): registry-replay tests require alternate-registry
+    injection into bootstrap_default_plugins(registry=...); deferred-string FQCN resolution has load-order
+    coupling. Not axis-bounded. Closed as deferred_final.'
+- find_id: FIND-G3-02
+  fingerprint: null
+  reason: "Type-only TYPE_CHECKING import \u2014 zero runtime cost / zero runtime layer dependency. Required\
+    \ for static analysis of injected plugin classes."
+- find_id: FIND-G3-03
+  fingerprint: null
+  reason: "di.py:204 (factory_blocker_fact_builder) and standalone_di.py:20 (bundle_resolver) are intentional\
+    \ DI seams \u2014 late binding inside factory bodies is what the container exists to provide. Re-flag\
+    \ only with a registry-routed alternative."
+focus_axis_due_next: ownership
+routing_recommendations:
+  degraded_models:
+  - GPT-5.4 mini
+  watch_models: []
+  notes:
+  - Prefer healthy models in the same tier before escalating.
+  - If a watched model is used for file-writing work, require artifact_exists confirmation.

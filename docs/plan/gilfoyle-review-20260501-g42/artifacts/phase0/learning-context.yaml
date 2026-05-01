@@ -1,0 +1,10 @@
+memory_source: docs/plan/.gilfoyle-lessons
+active_lessons: []
+do_not_re_flag_count: 0
+focus_axis_due_next: ownership
+model_route_notes:
+  - Scout batch should continue using GPT-5.4 mini; recent light-cycle scouts have been stable and usable.
+stale_or_missing_memory: []
+readiness_check:
+  continued_from_cycle: g41
+  review_type: light

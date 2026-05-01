@@ -1,0 +1,19 @@
+agent: Foreman-Gate
+validation_status: pass
+commands:
+  pytest_kernel_slice:
+    command: .venv/bin/python -m pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k scan_pipeline
+    exit_code: 0
+    details: 6 passed, 20 deselected in 0.57s
+  pytest_platform_slice:
+    command: .venv/bin/python -m pytest -q src/prism/tests/test_platform_routing_fail_closed.py -k scan_pipeline
+    exit_code: 0
+    details: 3 passed, 9 deselected in 0.42s
+  ruff:
+    command: .venv/bin/python -m ruff check src/prism/scanner_kernel/orchestrator.py src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_platform_routing_fail_closed.py
+    exit_code: 0
+    details: All checks passed!
+  black:
+    command: .venv/bin/python -m black --check src/prism/scanner_kernel/orchestrator.py src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_platform_routing_fail_closed.py
+    exit_code: 0
+    details: 3 files would be left unchanged.

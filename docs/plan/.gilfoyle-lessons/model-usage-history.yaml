@@ -1,104 +1,123 @@
-# Persistent model reliability/quality history for gilfoyle cycles.
-# Keep this file compact; append one snapshot per cycle.
-
 version: 1
-updated_at: "2026-04-28"
-policy:
-  source_of_truth: "docs/plan/<plan-id>/artifacts/model-usage-ledger.yaml"
-  offload_rule: "Store detailed dispatch/recovery telemetry on filesystem; keep chat status to short barrier summaries only."
-  demotion_triggers:
-    - "route-failure-rate >= 20% in-cycle with >= 5 attempts"
-    - "quality-failure-rate (quality_score<=2) >= 25% over last 3 cycles with >= 8 attempts"
-    - "needed_reedit=true for 3 consecutive attempts in same task class"
-  recovery_triggers:
-    - "3 consecutive successes with quality_score>=4"
-  prompt_vs_model_rule:
-    - "low-signal but on-topic: tighten prompt then reroute in-tier"
-    - "mis-scoped/empty: reroute immediately and tighten prompt"
-    - "two retries with heavy re-edit burden: escalate tier"
-
 cycles:
-  - cycle: g30
-    plan_id: gilfoyle-review-20260427-g30
-    ledger_path: docs/plan/gilfoyle-review-20260427-g30/artifacts/model-usage-ledger.yaml
-    highlights:
-      - "Scout-ControlFlow failed twice (GPT-5 mini, GPT-4.1) with empty responses; recovered on Claude Haiku 4.5 with tightened prompt."
-      - "Barrier recovered from STALL to OK after artifact backfill via reroute."
-    model_snapshot:
-      GPT-5 mini:
-        attempts: 4
-        successes: 2
-        route_failures: 1
-        quality_failures: 1
-        quality_avg: 2.5
-        status: degraded
-      GPT-4.1:
-        attempts: 1
-        successes: 0
-        route_failures: 1
-        quality_avg: 1.0
-        status: watch
-      Claude Haiku 4.5:
-        attempts: 1
-        successes: 1
-        route_failures: 0
-        quality_avg: 4.0
-        status: healthy
-
-next_cycle_defaults:
-  low_cost_start: "GPT-5 mini unless degraded for task class"
-  preferred_recovery_model: "Claude Haiku 4.5 for scout recovery after empty responses"
-  note: "Model choice remains capability-first and vendor-agnostic; use the next healthy ladder candidate."
-
-  - cycle: g34
-    plan_id: gilfoyle-review-20260429-g32-refresh
-    ledger_path: docs/plan/gilfoyle-review-20260429-g32-refresh/artifacts/model-usage-ledger.yaml
-    highlights:
-      - "Scout-Ownership (GPT-4.1) and Scout-ControlFlow (GPT-5 mini) both failed to write artifacts on first dispatch despite reporting success — LESSON-09 confirmed live."
-      - "Model-usage-ledger not updated between g33 close and g34 wave-1 barrier — LESSON-10 violated and corrected."
-      - "Recovery on both scouts: re-dispatch with explicit artifact_exists tail gate in prompt; second attempt succeeded."
-    model_snapshot:
-      Claude Haiku 4.5:
-        attempts: 2
-        successes: 2
-        route_failures: 0
-        quality_failures: 0
-        quality_avg: 4.0
-        status: healthy
-      GPT-4.1:
-        attempts: 2
-        successes: 1
-        route_failures: 0
-        quality_failures: 1
-        quality_avg: 2.5
-        status: watch
-        note: "artifact_not_written failure on Scout-Ownership attempt 1"
-      GPT-5.4 mini:
-        attempts: 1
-        successes: 1
-        route_failures: 0
-        quality_failures: 0
-        quality_avg: 3.0
-        status: healthy
-      GPT-5 mini:
-        attempts: 2
-        successes: 1
-        route_failures: 0
-        quality_failures: 1
-        quality_avg: 2.0
-        status: watch
-        note: "artifact_not_written failure on Scout-ControlFlow attempt 1"
-      Claude Sonnet 4.5:
-        attempts: 1
-        successes: 1
-        route_failures: 0
-        quality_failures: 0
-        quality_avg: 4.0
-        status: healthy
-      GPT-5.4:
-        attempts: 1
-        successes: 1
-        route_failures: 0
-        quality_failures: 0
-        quality_avg: 4.0
-        status: healthy
+- cycle: g35
+  plan_id: gilfoyle-review-20260501-g35
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g35/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T07:39:53.403496+00:00'
+  model_snapshot:
+    Claude Haiku 4.5:
+      attempts: 2
+      successes: 2
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 2
+      quality_avg: 3.0
+      status: healthy
+    GPT-5.4 mini:
+      attempts: 3
+      successes: 3
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+    Claude Sonnet 4.5:
+      attempts: 1
+      successes: 1
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+    GPT-5.4:
+      attempts: 2
+      successes: 2
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+- cycle: g36
+  plan_id: gilfoyle-review-20260501-g36
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g36/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T07:59:27.280255+00:00'
+  model_snapshot:
+    GPT-5.4 mini:
+      attempts: 4
+      successes: 4
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+    Claude Sonnet 4.5:
+      attempts: 1
+      successes: 1
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+- cycle: g40
+  plan_id: gilfoyle-review-20260501-g40
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g40/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T13:08:35.000801+00:00'
+  model_snapshot:
+    GPT-5.4 mini:
+      attempts: 4
+      successes: 4
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+- cycle: g41
+  plan_id: gilfoyle-review-20260501-g41
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g41/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T13:08:35.424453+00:00'
+  model_snapshot:
+    GPT-5.4 mini:
+      attempts: 4
+      successes: 4
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+- cycle: g42
+  plan_id: gilfoyle-review-20260501-g42
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g42/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T13:08:35.887362+00:00'
+  model_snapshot: {}
+- cycle: g43
+  plan_id: gilfoyle-review-20260501-g43
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g43/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T13:08:36.362714+00:00'
+  model_snapshot: {}
+- cycle: g44
+  plan_id: gilfoyle-review-20260501-g44
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g44/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T13:08:36.785706+00:00'
+  model_snapshot: {}
+- cycle: g45
+  plan_id: gilfoyle-review-20260501-g45
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g45/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T13:43:02.052661+00:00'
+  model_snapshot:
+    GPT-5.4 mini:
+      attempts: 4
+      successes: 2
+      route_failures: 0
+      quality_failures: 2
+      reedit_count: 2
+      quality_avg: 3.0
+      status: watch
+    Claude Haiku 4.5:
+      attempts: 2
+      successes: 2
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+updated_at: '2026-05-01T13:43:02.052674+00:00'

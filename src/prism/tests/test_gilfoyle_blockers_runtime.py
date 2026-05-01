@@ -410,6 +410,14 @@ def test_fsrc_runtime_di_override_changes_annotation_parsing_behavior(
                 return "custom remediation" in payload
 
             @staticmethod
+            def normalize_marker_prefix(marker_prefix: str | None) -> str:
+                return marker_prefix or "prism"
+
+            @staticmethod
+            def get_marker_line_re(marker_prefix: str = "prism") -> object:
+                return __import__("re").compile(marker_prefix)
+
+            @staticmethod
             def extract_task_annotations_for_file(
                 lines: list[str],
                 marker_prefix: str = "prism",
@@ -560,7 +568,9 @@ def test_runtime_blockers_preserve_strict_failures(
             get_variable_discovery_plugin = _real.get_variable_discovery_plugin
             get_feature_detection_plugin = _real.get_feature_detection_plugin
 
-        monkeypatch.setattr(api_module, "DEFAULT_PLUGIN_REGISTRY", _Registry())
+        monkeypatch.setattr(
+            api_module.plugin_facade, "get_default_plugin_registry", lambda: _Registry()
+        )
 
         with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
             api_module.run_scan(

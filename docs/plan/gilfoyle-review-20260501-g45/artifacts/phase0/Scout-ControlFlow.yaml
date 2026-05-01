@@ -1,0 +1,232 @@
+- id: "Scout-ControlFlow-01"
+  category: "silent_fallback"
+  fingerprint: "silent_fallback|api_layer.non_collection|prepared_policy_bundle coercion|or {}"
+  file: "/raid5/source/test/prism/src/prism/api_layer/non_collection.py"
+  line: 244
+  severity_hint: "high"
+  confidence: "high"
+  detector: "grep"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: '_bundle: PreparedPolicyBundle | dict[str, Any] = (execution_request.scan_options.get("prepared_policy_bundle") or {})'
+  evidence_command: "sed -n '240,250p' src/prism/api_layer/non_collection.py"
+  related_symbols:
+    - "_bundle"
+    - "prepared_policy_bundle"
+    - "execution_request.scan_options"
+  fix_group_key: "policy-bundle-coercion-silent-fallback"
+  proposed_fix_class: "fail_closed_coercion"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: "Scout-ControlFlow-02"
+  category: "error_channel"
+  fingerprint: "error_channel|scanner_config.readme|yaml.safe_load or {}|silent parse coercion"
+  file: "/raid5/source/test/prism/src/prism/scanner_config/readme.py"
+  line: 141
+  severity_hint: "high"
+  confidence: "high"
+  detector: "grep"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: 'raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}'
+  evidence_command: "sed -n '138,145p' src/prism/scanner_config/readme.py"
+  related_symbols:
+    - "raw"
+    - "yaml.safe_load"
+    - "_load_readme_section_config"
+  fix_group_key: "yaml-load-silent-coercion"
+  proposed_fix_class: "typed_error_channel"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: "Scout-ControlFlow-03"
+  category: "guard"
+  fingerprint: "guard|scanner_kernel.plugin_name_resolver|policy_context nested access|silent None on type mismatch"
+  file: "/raid5/source/test/prism/src/prism/scanner_kernel/plugin_name_resolver.py"
+  line: 73
+  severity_hint: "medium"
+  confidence: "high"
+  detector: "neighbor_read"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: 'policy_context = scan_options.get("policy_context"); if not isinstance(policy_context, dict): return None; selection_context = policy_context.get("selection"); if not isinstance(selection_context, dict): return None'
+  evidence_command: "sed -n '71,85p' src/prism/scanner_kernel/plugin_name_resolver.py"
+  related_symbols:
+    - "_resolve_policy_context_scan_pipeline_plugin_name"
+    - "policy_context"
+    - "selection_context"
+    - "plugin_name"
+  fix_group_key: "nested-dict-access-silent-returns"
+  proposed_fix_class: "guard_input"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: "Scout-ControlFlow-04"
+  category: "silent_fallback"
+  fingerprint: "silent_fallback|scanner_kernel.orchestrator|preflight_context coercion|silent empty dict"
+  file: "/raid5/source/test/prism/src/prism/scanner_kernel/orchestrator.py"
+  line: 276
+  severity_hint: "medium"
+  confidence: "high"
+  detector: "neighbor_read"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: 'preflight_context = dict(plugin_context) if isinstance(plugin_context, dict) else {}'
+  evidence_command: "sed -n '274,282p' src/prism/scanner_kernel/orchestrator.py"
+  related_symbols:
+    - "_build_route_preflight_runtime_carrier"
+    - "preflight_context"
+    - "plugin_context"
+  fix_group_key: "preflight-context-silent-coercion"
+  proposed_fix_class: "fail_closed_coercion"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: "Scout-ControlFlow-05"
+  category: "silent_fallback"
+  fingerprint: "silent_fallback|scanner_io.loader|yaml_parsing_policy soft fallback|undocumented dual-path without raise"
+  file: "/raid5/source/test/prism/src/prism/scanner_io/loader.py"
+  line: 56
+  severity_hint: "high"
+  confidence: "high"
+  detector: "neighbor_read"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: '# NOTE: Intentional dual-path — soft fallback to registry-resolved default. Unlike other policy getters, this path does NOT raise on a missing bundle.'
+  evidence_command: "sed -n '50,70p' src/prism/scanner_io/loader.py"
+  related_symbols:
+    - "_get_yaml_parsing_policy"
+    - "get_prepared_policy_or_none"
+    - "resolve_yaml_parsing_policy_plugin"
+  fix_group_key: "yaml-parsing-undocumented-soft-fallback"
+  proposed_fix_class: "fail_closed_coercion"
+  blocking_preconditions:
+    - "FIND-G8-D-G: runbook_renderer layer violation must be closed first"
+    - "Pure-execution MP1: marker-prefix ownership boundary must be established"
+  suggested_narrow_gate: ""
+
+- id: "Scout-ControlFlow-06"
+  category: "error_channel"
+  fingerprint: "error_channel|scanner_kernel.kernel_plugin_runner|broad except Exception with fail_fast fallback|no immediate raise"
+  file: "/raid5/source/test/prism/src/prism/scanner_kernel/kernel_plugin_runner.py"
+  line: 120
+  severity_hint: "medium"
+  confidence: "medium"
+  detector: "grep"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: 'except Exception as exc: logger.error(...); response.setdefault("errors", []).append(...); if fail_fast: break'
+  evidence_command: "sed -n '118,142p' src/prism/scanner_kernel/kernel_plugin_runner.py"
+  related_symbols:
+    - "run_kernel_lifecycle_plugin"
+    - "phase_output"
+    - "upstream_phase_failed"
+    - "fail_fast"
+  fix_group_key: "kernel-exception-swallowing"
+  proposed_fix_class: "tighten_except"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: "Scout-ControlFlow-07"
+  category: "policy_coercion"
+  fingerprint: "policy_coercion|scanner_config.policy|_coerce_bool silent None return|logger.warning only on non-string"
+  file: "/raid5/source/test/prism/src/prism/scanner_config/policy.py"
+  line: 73
+  severity_hint: "medium"
+  confidence: "high"
+  detector: "neighbor_read"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: '_coerce_bool returns None on unrecognized string value; logs warning only for string case and other types'
+  evidence_command: "sed -n '65,100p' src/prism/scanner_config/policy.py"
+  related_symbols:
+    - "_coerce_bool"
+    - "logger.warning"
+  fix_group_key: "policy-coercion-silent-defaults"
+  proposed_fix_class: "fail_closed_coercion"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: "Scout-ControlFlow-08"
+  category: "error_channel"
+  fingerprint: "error_channel|scanner_config.policy|_load_policy_config silent coercion|returns empty dict on parse failure in non-strict mode"
+  file: "/raid5/source/test/prism/src/prism/scanner_config/policy.py"
+  line: 51
+  severity_hint: "high"
+  confidence: "high"
+  detector: "neighbor_read"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: 'return {} # after logger.warning when non-dict parse result'
+  evidence_command: "sed -n '46,60p' src/prism/scanner_config/policy.py"
+  related_symbols:
+    - "_load_policy_config"
+    - "logger.warning"
+  fix_group_key: "policy-config-silent-empty-fallback"
+  proposed_fix_class: "typed_error_channel"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: "Scout-ControlFlow-09"
+  category: "error_channel"
+  fingerprint: "error_channel|scanner_core.events|EventBus broad except with conditional raise|listener exceptions swallowed unless strict"
+  file: "/raid5/source/test/prism/src/prism/scanner_core/events.py"
+  line: 114
+  severity_hint: "medium"
+  confidence: "high"
+  detector: "grep"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: 'except Exception as exc: logger.error(...); if self._strict: raise'
+  evidence_command: "sed -n '108,118p' src/prism/scanner_core/events.py"
+  related_symbols:
+    - "EventBus.emit"
+    - "self._strict"
+    - "listener"
+  fix_group_key: "event-bus-conditional-exception"
+  proposed_fix_class: "tighten_except"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: "Scout-ControlFlow-10"
+  category: "silent_fallback"
+  fingerprint: "silent_fallback|scanner_config.marker|yaml.safe_load or {}|pattern match with readme.py"
+  file: "/raid5/source/test/prism/src/prism/scanner_config/marker.py"
+  line: 53
+  severity_hint: "high"
+  confidence: "high"
+  detector: "grep"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: 'raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}'
+  evidence_command: "sed -n '50,60p' src/prism/scanner_config/marker.py"
+  related_symbols:
+    - "raw"
+    - "yaml.safe_load"
+    - "_load_marker_config"
+  fix_group_key: "yaml-load-silent-coercion"
+  proposed_fix_class: "typed_error_channel"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: "Scout-ControlFlow-11"
+  category: "silent_fallback"
+  fingerprint: "silent_fallback|scanner_config.style|yaml.safe_load or {}|pattern match with readme.py/marker.py"
+  file: "/raid5/source/test/prism/src/prism/scanner_config/style.py"
+  line: 110
+  severity_hint: "high"
+  confidence: "high"
+  detector: "grep"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: 'raw = yaml.safe_load(display_titles_path.read_text(encoding="utf-8")) or {}'
+  evidence_command: "sed -n '108,115p' src/prism/scanner_config/style.py"
+  related_symbols:
+    - "raw"
+    - "yaml.safe_load"
+    - "_load_display_titles"
+  fix_group_key: "yaml-load-silent-coercion"
+  proposed_fix_class: "typed_error_channel"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""

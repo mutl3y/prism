@@ -1,0 +1,29 @@
+context_budget: "live_context = stable_rules + current_phase + active_findings + short_excerpts"
+memory_source: docs/plan/.gilfoyle-lessons
+active_lessons:
+  - LESSON-01
+  - LESSON-02
+  - LESSON-03
+  - LESSON-04
+  - LESSON-05
+  - LESSON-06
+  - LESSON-07
+  - LESSON-08
+  - LESSON-09
+  - LESSON-10
+  - LESSON-11
+  - LESSON-12
+  - LESSON-13
+do_not_re_flag_count: 4
+focus_axis_due_next: typing
+model_route_notes:
+  - "Claude Haiku 4.5 is watch-only for file-writing scout tasks due to repeated schema-reedit burden."
+  - "GPT-5.4 mini is the healthiest low-cost scout writer in the current rollup."
+  - "Claude Sonnet 4.5 remains the preferred deep-review synthesis route."
+stale_or_missing_memory: []
+readiness_check:
+  ready: true
+  missing: []
+  watch_models:
+    - Claude Haiku 4.5
+  degraded_models: []

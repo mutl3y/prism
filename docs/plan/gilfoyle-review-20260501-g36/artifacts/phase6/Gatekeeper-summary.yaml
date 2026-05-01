@@ -1,0 +1,25 @@
+agent: Foreman-Gate
+validation_status: pass
+commands:
+  pytest_api_runtime:
+    command: .venv/bin/python -m pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_gilfoyle_blockers_runtime.py -k 'fsrc_api_run_scan or fsrc_cli_main or runtime_boom'
+    exit_code: 0
+    details: 18 passed, 28 deselected in 1.61s
+  pytest_registry_cross_path:
+    command: .venv/bin/python -m pytest -q src/prism/tests/test_di_registry_resolution.py
+    exit_code: 0
+    details: 19 passed in 1.28s
+  ruff:
+    command: .venv/bin/python -m ruff check src/prism/api.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_gilfoyle_blockers_runtime.py
+    exit_code: 0
+    details: All checks passed!
+  mypy:
+    command: .venv/bin/python -m mypy --no-error-summary src/prism/api.py
+    exit_code: 1
+    interpretation: baseline-transitive-noise-only
+    note: Raw output mentioned only src/prism/scanner_core/metadata_merger.py and src/prism/scanner_extract/task_line_parsing.py; no owned-file diagnostics were present.
+follow_up_validation:
+  mypy_owned_file_filter:
+    command: .venv/bin/python -m mypy --no-error-summary src/prism/api.py 2>&1 | rg '^src/prism/api.py' || true
+    exit_code: 0
+    details: No output

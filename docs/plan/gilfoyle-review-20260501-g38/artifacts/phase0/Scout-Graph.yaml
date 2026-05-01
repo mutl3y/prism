@@ -1,0 +1,80 @@
+- id: SG-01
+  category: singleton_pollution
+  fingerprint: variable_row_builder_shared_mutable_state
+  file: src/prism/scanner_data/builders.py
+  line: 93
+  severity_hint: medium
+  confidence: high
+  detector: live_source
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: self._payload = {}
+  evidence_command: read_file src/prism/scanner_data/builders.py 1 120; python snippet proving stale state
+  related_symbols:
+    - VariableRowBuilder
+    - DIContainer.factory_variable_row_builder
+    - VariableDiscovery.discover
+  fix_group_key: variable_row_builder_shared_state
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: .venv/bin/python -m pytest src/prism/tests/test_scanner_core_di.py -q -k variable_row_builder
+- id: SG-02
+  category: singleton_pollution
+  fingerprint: marker_line_re_unbounded_cache
+  file: src/prism/scanner_plugins/parsers/comment_doc/marker_utils.py
+  line: 36
+  severity_hint: low
+  confidence: high
+  detector: live_source
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: '@functools.cache'
+  evidence_command: read_file src/prism/scanner_plugins/parsers/comment_doc/marker_utils.py 1 80; cache_info probe
+  related_symbols:
+    - get_marker_line_re
+    - normalize_marker_prefix
+    - ensure_prepared_policy_bundle
+  fix_group_key: marker_prefix_regex_cache
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: .venv/bin/python -m pytest src/prism/tests/test_t1_02_coverage_lift.py -q -k marker_prefix
+- id: SG-03
+  category: registry_authority
+  fingerprint: api_default_plugin_registry_public_alias
+  file: src/prism/api.py
+  line: 63
+  severity_hint: low
+  confidence: medium
+  detector: test_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: DEFAULT_PLUGIN_REGISTRY = _get_default_plugin_registry()
+  evidence_command: read_file src/prism/api.py 1 170; read_file src/prism/tests/test_api_cli_entrypoints.py 930 980
+  related_symbols:
+    - _get_default_plugin_registry
+    - DEFAULT_PLUGIN_REGISTRY
+    - run_scan
+  fix_group_key: api_public_registry_alias
+  proposed_fix_class: registry_property
+  blocking_preconditions: []
+  suggested_narrow_gate: .venv/bin/python -m pytest src/prism/tests/test_api_cli_entrypoints.py -q -k DEFAULT_PLUGIN_REGISTRY
+- id: SG-04
+  category: test_fixture_coupling
+  fingerprint: repo_scan_facade_private_cache
+  file: src/prism/api_layer/non_collection.py
+  line: 32
+  severity_hint: low
+  confidence: medium
+  detector: test_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: '_repo_scan_facade: repo_services.RepoScanFacade | None = None'
+  evidence_command: read_file src/prism/api_layer/non_collection.py 1 460; read_file src/prism/tests/test_api_cli_repo_parity.py 220 340
+  related_symbols:
+    - _resolve_repo_scan_facade
+    - run_scan
+    - scan_repo
+  fix_group_key: repo_scan_facade_injection
+  proposed_fix_class: isolate_test_fixture
+  blocking_preconditions: []
+  suggested_narrow_gate: .venv/bin/python -m pytest src/prism/tests/test_api_cli_repo_parity.py -q -k scan_repo

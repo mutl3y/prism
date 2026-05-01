@@ -1,0 +1,27 @@
+agent: Gatekeeper
+validation_status: pass
+commands:
+  pytest:
+    command: .venv/bin/python -m pytest -q src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_scanner_guardrails.py
+    exit_code: 0
+    log: docs/plan/gilfoyle-review-20260501-g35/artifacts/phase6/.gate/pytest.log
+  ruff:
+    command: .venv/bin/python -m ruff check src/prism/scanner_core/execution_request_builder.py src/prism/scanner_io/loader.py src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_scanner_guardrails.py
+    exit_code: 0
+    log: docs/plan/gilfoyle-review-20260501-g35/artifacts/phase6/.gate/ruff.log
+  mypy:
+    command: .venv/bin/python -m mypy --no-error-summary src/prism/scanner_core/execution_request_builder.py src/prism/scanner_io/loader.py
+    exit_code: 1
+    log: docs/plan/gilfoyle-review-20260501-g35/artifacts/phase6/.gate/mypy.log
+    interpretation: baseline-transitive-noise-only
+    note: Output mentioned only non-owned files (src/prism/scanner_core/metadata_merger.py and src/prism/scanner_extract/task_line_parsing.py); no owned-file failures.
+follow_up_validation:
+  pytest:
+    command: .venv/bin/python -m pytest -q src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_scanner_guardrails.py
+    exit_code: 0
+    details: 31 passed in 1.67s
+    note: Foreman reran the same narrow gate after adding one adjacent loader behavior test.
+  ruff:
+    command: .venv/bin/python -m ruff check src/prism/tests/test_di_registry_resolution.py
+    exit_code: 0
+    details: All checks passed.

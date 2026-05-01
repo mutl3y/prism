@@ -1,0 +1,72 @@
+- id: ST-01
+  category: typing
+  severity: medium
+  fix_group_key: task-line-contract
+  title: PreparedTaskLineParsingPolicy omits runtime members used by task-line helpers
+  evidence:
+    - file: /raid5/source/test/prism/src/prism/scanner_data/contracts_request.py
+      line: 158
+    - file: /raid5/source/test/prism/src/prism/scanner_extract/task_line_parsing.py
+      line: 115
+    - file: /raid5/source/test/prism/src/prism/scanner_extract/task_line_parsing.py
+      line: 246
+    - file: /raid5/source/test/prism/src/prism/scanner_plugins/ansible/default_policies.py
+      line: 73
+    - file: /raid5/source/test/prism/src/prism/scanner_plugins/ansible/default_policies.py
+      line: 76
+  observation: >
+    The typed task-line contract only declares the key collections plus detect_task_module, but the runtime wrapper still dispatches through
+    extract_constrained_when_values and the TEMPLATED_INCLUDE_RE proxy. A custom policy can therefore satisfy the declared protocol and still
+    fail later when task traversal or include parsing touches members that were never part of the contract.
+  recommendation: >
+    Extend the protocol to include the callable and regex members that scanner_extract/task_line_parsing.py already consumes, then tighten
+    resolver validation so malformed task-line policies fail at ingress instead of at first use.
+
+- id: ST-02
+  category: typing
+  severity: medium
+  fix_group_key: task-annotation-contract
+  title: PreparedTaskAnnotationPolicy is incomplete and the resolver under-validates it
+  evidence:
+    - file: /raid5/source/test/prism/src/prism/scanner_data/contracts_request.py
+      line: 208
+    - file: /raid5/source/test/prism/src/prism/scanner_extract/task_annotation_parsing.py
+      line: 19
+    - file: /raid5/source/test/prism/src/prism/scanner_extract/task_annotation_parsing.py
+      line: 29
+    - file: /raid5/source/test/prism/src/prism/scanner_extract/task_annotation_parsing.py
+      line: 86
+    - file: /raid5/source/test/prism/src/prism/scanner_extract/task_line_parsing.py
+      line: 126
+    - file: /raid5/source/test/prism/src/prism/scanner_extract/task_line_parsing.py
+      line: 147
+    - file: /raid5/source/test/prism/src/prism/scanner_plugins/defaults.py
+      line: 349
+  observation: >
+    The protocol omits split_task_target_payload and annotation_payload_looks_yaml, yet scanner_extract/task_annotation_parsing.py calls both
+    members directly. The defaults resolver also only requires split_task_annotation_label or extract_task_annotations_for_file, so a custom
+    plugin can pass resolution while still lacking normalize_marker_prefix, get_marker_line_re, or task_anchor and then fail when the helper
+    layer reaches those code paths.
+  recommendation: >
+    Add the missing helper methods to the protocol, and expand resolver shape checks to require the full annotation surface that the helper
+    wrappers already assume.
+
+- id: ST-03
+  category: orchestration_seam
+  severity: medium
+  fix_group_key: yaml-parsing-contract
+  title: YAML parsing resolver validates load_yaml_file but not parse_yaml_candidate
+  evidence:
+    - file: /raid5/source/test/prism/src/prism/scanner_data/contracts_request.py
+      line: 223
+    - file: /raid5/source/test/prism/src/prism/scanner_io/loader.py
+      line: 142
+    - file: /raid5/source/test/prism/src/prism/scanner_plugins/defaults.py
+      line: 420
+  observation: >
+    PreparedYAMLParsingPolicy declares both load_yaml_file and parse_yaml_candidate, and scanner_io.loader will call parse_yaml_candidate when
+    available. The defaults resolver only checks load_yaml_file, so a custom YAML policy can be accepted even if it omits the parse path that
+    discovery and file loading depend on.
+  recommendation: >
+    Require parse_yaml_candidate during YAML policy resolution or make the fallback behavior explicit at the contract boundary so malformed
+    policies fail predictably.

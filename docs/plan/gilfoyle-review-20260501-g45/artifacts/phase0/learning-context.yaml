@@ -1,0 +1,23 @@
+memory_source: docs/plan/.gilfoyle-lessons
+active_lessons:
+  - LESSON-01
+  - LESSON-02
+  - LESSON-03
+  - LESSON-04
+  - LESSON-05
+  - LESSON-06
+  - LESSON-07
+  - LESSON-08
+  - LESSON-09
+  - LESSON-10
+  - LESSON-11
+  - LESSON-12
+  - LESSON-13
+do_not_re_flag_count: 4
+focus_axis_due_next: architecture
+model_route_notes:
+  - Prefer healthy low-cost routes first; GPT-5.4 mini remains healthy in the refreshed rollup.
+stale_or_missing_memory: []
+readiness_check:
+  continued_from_cycle: g44
+  review_type: thorough

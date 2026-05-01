@@ -1,0 +1,41 @@
+- id: SCF-01
+  category: silent_fallback
+  fingerprint: orchestrator:scan_pipeline_plugin_output_non_dict_noop
+  file: src/prism/scanner_kernel/orchestrator.py
+  line: 177
+  severity_hint: high
+  confidence: high
+  detector: live_source
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: 'if not isinstance(plugin_output, dict): return payload'
+  evidence_command: src/prism/scanner_kernel/orchestrator.py:154-177
+  related_symbols:
+    - _orchestrate_scan_payload_with_plugin_instance
+    - orchestrate_scan_payload_with_selected_plugin
+    - ScanPipelinePlugin
+  fix_group_key: scan_pipeline_plugin_contract_shape
+  proposed_fix_class: typed_error_channel
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k scan_pipeline
+- id: SCF-02
+  category: policy_coercion
+  fingerprint: policy_config:non_dict_root_coerces_to_empty_dict
+  file: src/prism/scanner_config/policy.py
+  line: 51
+  severity_hint: medium
+  confidence: medium
+  detector: live_source
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: return {}
+  evidence_command: src/prism/scanner_config/policy.py:35-51
+  related_symbols:
+    - _load_policy_config_dict
+    - load_fail_on_unconstrained_dynamic_includes
+    - load_fail_on_yaml_like_task_annotations
+    - load_ignore_unresolved_internal_underscore_references
+  fix_group_key: policy_config_malformed_root_defaults
+  proposed_fix_class: guard_input
+  blocking_preconditions: []
+  suggested_narrow_gate: ""

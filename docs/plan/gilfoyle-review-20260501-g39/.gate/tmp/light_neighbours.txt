@@ -1,0 +1,4 @@
+src/prism/api_layer/non_collection.py
+src/prism/api_layer/plugin_facade.py
+src/prism/scanner_kernel/plugin_name_resolver.py
+src/prism/scanner_kernel/scan_payload_helpers.py

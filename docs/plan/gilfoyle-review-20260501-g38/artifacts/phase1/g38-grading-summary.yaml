@@ -1,0 +1,44 @@
+plan_id: gilfoyle-review-20260501-g38
+cycle: g38
+phase: P1
+status: completed
+review_type: thorough
+focus_axis: ownership
+raw_observation_count: 15
+promoted_findings:
+  - id: FIND-G38-CF-01
+    source:
+      - docs/plan/gilfoyle-review-20260501-g38/artifacts/phase0/Scout-ControlFlow.yaml#SCF-01
+    severity: high
+    rationale: Silent non-dict scan-pipeline plugin output currently degrades to an unchanged payload, which violates fail-closed runtime contract handling.
+  - id: FIND-G38-ARCH-01
+    source:
+      - docs/plan/gilfoyle-review-20260501-g38/artifacts/phase0/Synthesizer-Architecture.yaml#ARCH-01
+      - docs/plan/gilfoyle-review-20260501-g38/artifacts/phase0/Synthesizer-Architecture.yaml#ARCH-05
+    severity: high
+    rationale: Registry authority is still split across API-local aliases and facade/default-resolution paths, so the canonical registry seam remains ambiguous end-to-end.
+  - id: FIND-G35-ARCH-02
+    source:
+      - docs/plan/gilfoyle-review-20260501-g35/artifacts/phase0/Synthesizer-Architecture.yaml
+      - docs/plan/gilfoyle-review-20260501-g38/artifacts/phase0/Synthesizer-Architecture.yaml#ARCH-02
+    severity: high
+    rationale: The carried facade-leakage finding is now promoted to high because the leaked helpers are still active API-module attributes and remain part of the live patch seam.
+carried_medium_findings:
+  - FIND-G36-ARCH-03
+  - FIND-G36-ARCH-04
+  - FIND-G36-ST-01
+  - FIND-G36-ST-02
+  - FIND-G36-ST-03
+  - FIND-G36-CF-API-002
+  - FIND-G36-CF-TASK-003
+  - SO-01
+  - SO-02
+  - SCF-02
+  - SG-01
+  - SG-02
+  - SG-04
+suppressed_highs: []
+decision_summary:
+  - Fix the isolated kernel plugin-contract high first because it has one clear control point and a cheap targeted gate.
+  - Fix the API registry-authority and facade-leakage highs together because both are caused by redundant API-module aliases that can be removed in one slice.
+  - Carry remaining medium findings forward; do not widen scope beyond the two high-severity fix groups until the focused gates are green.

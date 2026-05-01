@@ -1,0 +1,249 @@
+diff --git a/src/prism/cli.py b/src/prism/cli.py
+index 5424b35..181b99c 100644
+--- a/src/prism/cli.py
++++ b/src/prism/cli.py
+@@ -304,42 +304,42 @@ def build_parser() -> argparse.ArgumentParser:
+     )
+ 
+     return parser
+ 
+ 
+ def _resolve_vars_context_paths(args: argparse.Namespace) -> list[str] | None:
+     paths: list[str] = []
+     if getattr(args, "vars_context_path", None):
+         paths.extend(args.vars_context_path)
+     if getattr(args, "vars_seed", None):
+         paths.extend(args.vars_seed)
+     return paths if paths else None
+ 
+ 
+ def _maybe_run_audit(args: argparse.Namespace, payload: dict) -> int:
+     """Evaluate audit rules against payload; return CLI exit-code addition (0 if ok)."""
+     rules_path = getattr(args, "audit_rules", None)
+     if not rules_path:
+         return 0
+ 
+-    from prism.scanner_plugins.audit import load_audit_rules_from_file
+-    from prism.scanner_plugins.audit import run_audit
++    from prism.api_layer.plugin_facade import load_audit_rules_from_file
++    from prism.api_layer.plugin_facade import run_audit
+ 
+     rules = load_audit_rules_from_file(rules_path)
+     report = run_audit(payload, rules)
+ 
+     payload["audit_report"] = {
+         "summary": report.summary,
+         "passed": report.passed,
+         "violations": [
+             {
+                 "rule_id": v.rule_id,
+                 "severity": v.severity,
+                 "message": v.message,
+                 "role_path": v.role_path,
+                 "evidence": list(v.evidence),
+             }
+             for v in report.violations
+         ],
+     }
+ 
+     print(report.summary)
+diff --git a/src/prism/tests/test_scanner_guardrails.py b/src/prism/tests/test_scanner_guardrails.py
+index 32f9ea8..f64a36b 100644
+--- a/src/prism/tests/test_scanner_guardrails.py
++++ b/src/prism/tests/test_scanner_guardrails.py
+@@ -84,40 +84,69 @@ def _iter_forbidden_import_offenders(
+         tree = ast.parse(module_path.read_text(encoding="utf-8"))
+ 
+         for node in ast.walk(tree):
+             if isinstance(node, ast.Import):
+                 for alias in node.names:
+                     target = alias.name
+                     if _is_external_forbidden_target(target):
+                         offenders.append(f"{module_name}:{target}")
+                 continue
+ 
+             if isinstance(node, ast.ImportFrom):
+                 resolved_target = _resolve_import_from(module_name, node)
+                 if not resolved_target:
+                     continue
+                 if _is_external_forbidden_target(resolved_target):
+                     offenders.append(f"{module_name}:{resolved_target}")
+ 
+     return sorted(set(offenders))
+ 
+ 
++def _iter_scan_options_registry_bypass_offenders(
++    module_path: Path,
++    *,
++    option_names: tuple[str, ...],
++) -> list[str]:
++    tree = ast.parse(module_path.read_text(encoding="utf-8"))
++    offenders: list[str] = []
++
++    for node in ast.walk(tree):
++        if not isinstance(node, ast.Call):
++            continue
++        if not isinstance(node.func, ast.Attribute) or node.func.attr != "get":
++            continue
++        if not isinstance(node.func.value, ast.Name):
++            continue
++        if node.func.value.id not in option_names:
++            continue
++        if not node.args:
++            continue
++        key_arg = node.args[0]
++        if not isinstance(key_arg, ast.Constant) or key_arg.value != "plugin_registry":
++            continue
++        offenders.append(
++            f"{module_path.relative_to(PROJECT_ROOT / 'src')}:{node.lineno}"
++        )
++
++    return offenders
++
++
+ def test_fsrc_runtime_modules_do_not_import_src_scanner_packages() -> None:
+     offenders = _iter_forbidden_import_offenders(
+         package_dir=FSRC_RUNTIME_DIR,
+         package_name="prism",
+         forbidden_roots=(
+             "prism.scanner",
+             "prism.scanner_core",
+             "prism.scanner_extract",
+             "prism.scanner_readme",
+             "prism.scanner_reporting",
+             "prism.scanner_io",
+             "prism.scanner_config",
+             "prism.scanner_plugins",
+             "prism.scanner_kernel",
+             "prism.scanner_extensions",
+         ),
+     )
+ 
+     assert (
+         not offenders
+@@ -185,83 +214,73 @@ def test_fsrc_cross_path_guardrail_detects_src_only_resolution_when_local_module
+     assert offenders == ["prism.api:prism.scanner_reporting.report"]
+ 
+ 
+ def test_scanner_reporting_does_not_import_scanner_plugins_internals() -> None:
+     offenders = _iter_forbidden_import_offenders(
+         package_dir=FSRC_RUNTIME_DIR / "scanner_reporting",
+         package_name="prism.scanner_reporting",
+         forbidden_roots=(
+             "prism.scanner_plugins.parsers",
+             "prism.scanner_plugins.ansible",
+         ),
+     )
+ 
+     assert not offenders, (
+         "scanner_reporting imports scanner_plugins internals directly "
+         "(use scanner_plugins.defaults seam): " + ", ".join(offenders)
+     )
+ 
+ 
+ def test_api_cli_entrypoints_do_not_import_scanner_plugins_directly() -> None:
+-    """Verify entrypoints avoid direct scanner_plugins imports except approved CLI audit seam."""
++    """Verify entrypoints route plugin access through approved facade seams."""
+     api_py = FSRC_RUNTIME_DIR / "api.py"
+     cli_py = FSRC_RUNTIME_DIR / "cli.py"
+ 
+     offenders: list[str] = []
+ 
+     for module_path in [api_py, cli_py]:
+         if not module_path.exists():
+             continue
+ 
+         module_name = f"prism.{module_path.stem}"
+         tree = ast.parse(module_path.read_text(encoding="utf-8"))
+ 
+         for node in ast.walk(tree):
+             if isinstance(node, ast.Import):
+                 for alias in node.names:
+                     target = alias.name
+-                    if (
+-                        module_name == "prism.cli"
+-                        and target == "prism.scanner_plugins.audit"
+-                    ):
+-                        continue
+                     if target == "prism.scanner_plugins" or target.startswith(
+                         "prism.scanner_plugins."
+                     ):
+                         offenders.append(f"{module_name}:{target}")
+ 
+             if isinstance(node, ast.ImportFrom):
+                 resolved_target = _resolve_import_from(module_name, node)
+-                if (
+-                    module_name == "prism.cli"
+-                    and resolved_target == "prism.scanner_plugins.audit"
+-                ):
+-                    continue
+                 if resolved_target and (
+                     resolved_target == "prism.scanner_plugins"
+                     or resolved_target.startswith("prism.scanner_plugins.")
+                 ):
+                     offenders.append(f"{module_name}:{resolved_target}")
+ 
+     assert not offenders, (
+         "entrypoint modules must not import scanner_plugins directly; "
+-        "the only allowed exception is prism.cli -> prism.scanner_plugins.audit: "
++        "use api_layer.plugin_facade or another approved facade seam: "
+         + ", ".join(offenders)
+     )
+ 
+ 
+ def test_api_layer_non_collection_does_not_import_scanner_plugins_directly() -> None:
+     """Verify api_layer/non_collection.py routes plugin access through plugin_facade."""
+     non_collection_py = FSRC_RUNTIME_DIR / "api_layer" / "non_collection.py"
+ 
+     if not non_collection_py.exists():
+         pytest.skip("api_layer/non_collection.py does not exist")
+ 
+     module_name = "prism.api_layer.non_collection"
+     tree = ast.parse(non_collection_py.read_text(encoding="utf-8"))
+ 
+     offenders: list[str] = []
+ 
+     for node in ast.walk(tree):
+         if isinstance(node, ast.Import):
+             for alias in node.names:
+                 target = alias.name
+@@ -379,20 +398,39 @@ def test_plugin_registry_bootstrap_initialization_smoke() -> None:
+     ), "Registry should have at least 2 scan_pipeline plugins (default, ansible)"
+     assert "ansible" in registry.list_scan_pipeline_plugins()
+     assert "default" in registry.list_scan_pipeline_plugins()
+ 
+     # Should have extract policy plugins
+     assert "task_line_parsing" in registry.list_extract_policy_plugins()
+     assert "task_traversal" in registry.list_extract_policy_plugins()
+     assert "variable_extractor" in registry.list_extract_policy_plugins()
+     assert "task_annotation_parsing" in registry.list_extract_policy_plugins()
+ 
+ 
+ def test_plugin_registry_bootstrap_idempotence() -> None:
+     """Bootstrap initialization is idempotent; safe to call multiple times."""
+     from prism.scanner_plugins.bootstrap import initialize_default_registry
+ 
+     registry1 = initialize_default_registry()
+     registry2 = initialize_default_registry()
+ 
+     # Should return the same singleton instance
+     assert registry1 is registry2, "initialize_default_registry() should be idempotent"
++
++
++def test_registry_identity_does_not_reopen_scan_options_bypass_paths() -> None:
++    """Registry identity must come from DI wiring, not scan_options payload lookups."""
++    offenders = _iter_scan_options_registry_bypass_offenders(
++        FSRC_RUNTIME_DIR / "scanner_core" / "execution_request_builder.py",
++        option_names=("canonical_options",),
++    )
++    offenders.extend(
++        _iter_scan_options_registry_bypass_offenders(
++            FSRC_RUNTIME_DIR / "scanner_io" / "loader.py",
++            option_names=("scan_options",),
++        )
++    )
++
++    assert not offenders, (
++        "registry identity must not be sourced from scan_options payloads: "
++        + ", ".join(offenders)
++    )

@@ -1,0 +1,23 @@
+agent_name: Foreman-Local
+plan_id: gilfoyle-review-20260501-g36
+wave_id: g36-w1
+finding: FIND-G36-ARCH-01
+status: completed
+owned_file_set:
+  - /raid5/source/test/prism/src/prism/api.py
+  - /raid5/source/test/prism/src/prism/tests/test_api_cli_entrypoints.py
+  - /raid5/source/test/prism/src/prism/tests/test_gilfoyle_blockers_runtime.py
+summary:
+  - api.run_scan now resolves default_plugin_registry through _get_default_plugin_registry() at call time instead of freezing api.DEFAULT_PLUGIN_REGISTRY into the canonical non-collection path.
+  - API runtime tests now patch the per-call resolver seam, matching the production authority path instead of the stale module-level singleton.
+  - New regression coverage proves run_scan honors the per-call resolver even when DEFAULT_PLUGIN_REGISTRY is poisoned.
+changed_files:
+  - /raid5/source/test/prism/src/prism/api.py
+  - /raid5/source/test/prism/src/prism/tests/test_api_cli_entrypoints.py
+  - /raid5/source/test/prism/src/prism/tests/test_gilfoyle_blockers_runtime.py
+validation:
+  - command: .venv/bin/python -m pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_gilfoyle_blockers_runtime.py -k 'fsrc_api_run_scan or fsrc_cli_main or runtime_boom'
+    result: passed
+    details: 18 passed, 28 deselected in 1.61s
+notes:
+  - Foreman-local fallback was used because the slice was a single API-boundary fix with two directly-coupled regression suites; no disjoint builder split existed.

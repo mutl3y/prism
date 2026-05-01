@@ -70,6 +70,10 @@ class _StubPlugin:
         self.di = di
 
 
+class _NoDIPlugin:
+    pass
+
+
 # ---------------------------------------------------------------------------
 # resolve_platform_key
 # ---------------------------------------------------------------------------
@@ -277,6 +281,22 @@ def test_factory_variable_discovery_plugin_uses_override():
         assert c.factory_variable_discovery_plugin() is sentinel
 
 
+def test_factory_variable_discovery_plugin_fail_closed_on_bad_constructor():
+    with _prefer_fsrc_prism_on_sys_path():
+        di = _load_di_module()
+        errors = importlib.import_module("prism.errors")
+        c = di.DIContainer(
+            role_path="/r",
+            scan_options={"scan_pipeline_plugin": "ansible"},
+            registry=_FakeRegistry(variable_plugin=_NoDIPlugin),
+        )
+        with pytest.raises(errors.PrismRuntimeError) as exc_info:
+            c.factory_variable_discovery_plugin()
+
+    detail = exc_info.value.detail or {}
+    assert detail.get("plugin_class") == "_NoDIPlugin"
+
+
 def test_factory_feature_detection_plugin_fail_closed_unregistered():
     with _prefer_fsrc_prism_on_sys_path():
         di = _load_di_module()
@@ -320,6 +340,22 @@ def test_factory_feature_detection_plugin_uses_mock_and_override():
             },
         )
         assert c2.factory_feature_detection_plugin() is sentinel2
+
+
+def test_factory_feature_detection_plugin_fail_closed_on_bad_constructor():
+    with _prefer_fsrc_prism_on_sys_path():
+        di = _load_di_module()
+        errors = importlib.import_module("prism.errors")
+        c = di.DIContainer(
+            role_path="/r",
+            scan_options={"scan_pipeline_plugin": "ansible"},
+            registry=_FakeRegistry(feature_plugin=_NoDIPlugin),
+        )
+        with pytest.raises(errors.PrismRuntimeError) as exc_info:
+            c.factory_feature_detection_plugin()
+
+    detail = exc_info.value.detail or {}
+    assert detail.get("plugin_class") == "_NoDIPlugin"
 
 
 # ---------------------------------------------------------------------------

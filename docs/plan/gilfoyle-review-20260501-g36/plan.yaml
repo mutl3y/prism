@@ -1,0 +1,26 @@
+plan_id: gilfoyle-review-20260501-g36
+cycle: g36
+title: "Mutl3y/Gilfoyle review cycle for src/prism"
+status: completed
+created_at: "2026-05-01"
+review_type: thorough
+target: src/prism
+focus_axis: typing
+origin: "Follow-on thorough cycle after g35 closed the active high registry-authority seam"
+
+resumption_pointer:
+  current_phase: P7
+  next_action: "Carry the remaining medium findings into g37 or a follow-on targeted wave."
+  blocking_issues: []
+  notes: |
+    g36 scouting stayed medium-only until the required deep-review synthesis
+    surfaced one additional high registry-authority seam in the package API.
+    That seam was repaired in g36-w1 by removing the frozen api.py registry
+    override from the runtime path and replacing the test seam with a per-call
+    resolver patch. Remaining findings are verified mediums carried forward.
+
+artifacts:
+  learning_context: docs/plan/gilfoyle-review-20260501-g36/artifacts/phase0/learning-context.yaml
+  findings: docs/plan/gilfoyle-review-20260501-g36/findings.yaml
+  model_usage_ledger: docs/plan/gilfoyle-review-20260501-g36/artifacts/model-usage-ledger.yaml
+  model_scorecard: docs/plan/gilfoyle-review-20260501-g36/artifacts/model-scorecard.yaml

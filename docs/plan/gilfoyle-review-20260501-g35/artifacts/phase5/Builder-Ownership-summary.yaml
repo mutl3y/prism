@@ -1,0 +1,27 @@
+agent_name: Builder-Ownership
+plan_id: gilfoyle-review-20260501-g35
+wave_id: g35-w1
+finding: FIND-G35-ARCH-01
+status: completed
+owned_file_set:
+  - /raid5/source/test/prism/src/prism/scanner_core/execution_request_builder.py
+  - /raid5/source/test/prism/src/prism/scanner_io/loader.py
+  - /raid5/source/test/prism/src/prism/tests/test_di_registry_resolution.py
+  - /raid5/source/test/prism/src/prism/tests/test_scanner_guardrails.py
+summary:
+  - execution_request_builder now treats the injected default_plugin_registry as the sole runtime registry authority when assembling non-collection execution requests.
+  - loader no longer consults di.scan_options["plugin_registry"], leaving DIContainer.plugin_registry as the only registry source in the live YAML-policy resolution path.
+  - focused regression coverage now proves the scan_options bypass is ignored while DI-injected registry identity still propagates through request assembly and loader resolution.
+  - a static guardrail test now fails if execution_request_builder or loader reintroduce plugin_registry lookups on canonical_options or scan_options payloads.
+changed_files:
+  - /raid5/source/test/prism/src/prism/scanner_core/execution_request_builder.py
+  - /raid5/source/test/prism/src/prism/scanner_io/loader.py
+  - /raid5/source/test/prism/src/prism/tests/test_di_registry_resolution.py
+  - /raid5/source/test/prism/src/prism/tests/test_scanner_guardrails.py
+validation:
+  - command: .venv/bin/python -m pytest -q src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_scanner_guardrails.py
+    result: passed
+    details: 30 passed in 1.61s
+notes:
+  - No scope expansion was required.
+  - No model fallback occurred.

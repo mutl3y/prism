@@ -1,0 +1,73 @@
+plan_id: gilfoyle-review-20260501-g35
+cycle: g35
+phase: P1
+review_type: thorough
+focus_axis: architecture
+
+raw_observation_counts:
+  Scout-Typing: 14
+  Scout-Ownership: 0
+  Scout-ControlFlow: 3
+  Scout-Graph: 0
+  Synthesizer-Architecture: 3
+  total: 20
+
+protocol_misses:
+  - worker: Scout-Typing
+    issue: artifact_schema_miss
+    note: "Returned a dict with findings: [...] instead of a strict YAML list; artifact still usable."
+  - worker: Scout-Ownership
+    issue: artifact_schema_miss
+    note: "Returned a dict with findings: [] instead of a strict YAML list; artifact still usable."
+
+deep_review:
+  required: true
+  trigger: "Previous wave touched plugin bootstrap / DI / registry wiring."
+  artifact: docs/plan/gilfoyle-review-20260501-g35/artifacts/phase0/Synthesizer-Architecture.yaml
+  additional_high: 1
+  additional_medium: 1
+  top_missed_area: registry_authority
+
+promoted_findings:
+  - id: FIND-G35-ARCH-01
+    severity: high
+    category: registry_authority
+    decision: fix_now
+    rationale: "Cross-cutting high finding; exact deferred family allowed to re-open only when bundled as the registry-authority contract reshape."
+  - id: FIND-G35-ARCH-02
+    severity: medium
+    category: facade_leakage
+    decision: carry_forward
+    rationale: "Verified facade leak with direct test dependencies; real but lower leverage than registry-authority split."
+  - id: CF-02
+    severity: medium
+    category: policy_coercion
+    decision: carry_forward
+    rationale: "Concrete malformed-input fallback to wrong plugin route; retain for next wave after the registry authority slice."
+
+suppressed_highs:
+  - id: FIND-G35-T01
+    rationale_code: duplicate_of
+    duplicate_of: FIND-G35-T02
+    note: "Same kernel phase-handler contract family; keep the narrower callback-signature entry as the representative if revisited."
+  - id: FIND-G35-T02
+    rationale_code: deferred
+    note: "Real contract debt, but not the highest-leverage seam for this cycle after the deep review surfaced a cross-cutting registry split."
+  - id: FIND-G35-O01
+    rationale_code: deferred
+    note: "run_scan is a retained compatibility seam in api.py; typed primary facades already exist and this is not the most urgent architecture risk."
+  - id: FIND-G35-T07
+    rationale_code: deferred
+    note: "Private protocol annotation debt in non_collection.py; lower impact than active registry-authority split and policy-routing drift."
+
+suppressed_non_highs:
+  - id: FIND-G35-C02
+    rationale_code: false_positive
+    note: "ScanOptionsDict and schema validation already exist in scanner_data.contracts_request and scanner_data.scan_options_schema."
+
+next_wave:
+  wave_id: g35-w1
+  owned_fix_group_keys:
+    - registry_authority_unification
+  builder_count: 1
+  serial_exception: "Single builder required because loader.py and execution_request_builder.py participate in one contract seam."

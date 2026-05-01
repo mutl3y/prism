@@ -1,0 +1,180 @@
+plan_id: gilfoyle-review-20260501-g36
+cycle: g36
+target: src/prism
+review_type: thorough
+focus_axis: typing
+status: completed
+decision_summary:
+  - "Promote the remaining high registry-authority seam in api.run_scan for immediate repair."
+  - "Carry the verified medium seams in api facade leakage, shell/plugin boundary, loader late fallback, task-policy contracts, and API/task-catalog behavior into the next cycle."
+  - "Collapse the duplicate API quality scout pair into one carried medium finding."
+carried_open_findings:
+  - FIND-G35-ARCH-02
+  - FIND-G36-ARCH-03
+  - FIND-G36-ARCH-04
+  - FIND-G36-ST-01
+  - FIND-G36-ST-02
+  - FIND-G36-ST-03
+  - FIND-G36-CF-API-002
+  - FIND-G36-CF-TASK-003
+suppressed_highs: []
+findings:
+  - id: FIND-G36-ARCH-01
+    status: closed
+    decision: fixed_in_g36_w1
+    severity: high
+    category: registry_authority
+    fingerprint: registry_authority_split:api-run-scan-default-registry-override
+    title: "api.run_scan froze a module-level registry into the canonical non-collection runtime path"
+    files:
+      - src/prism/api.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+      - src/prism/tests/test_gilfoyle_blockers_runtime.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g36/artifacts/phase0/Synthesizer-Architecture.yaml
+    summary: "The package API wrapper was passing api.DEFAULT_PLUGIN_REGISTRY into api_non_collection.run_scan, creating a stale registry-authority seam outside the canonical per-call resolver."
+    decision_deadline: g36
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_gilfoyle_blockers_runtime.py -k 'fsrc_api_run_scan or fsrc_cli_main or runtime_boom'
+    closed_at: "2026-05-01"
+    closed_evidence:
+      - "Code: src/prism/api.py:143 now resolves default_plugin_registry via _get_default_plugin_registry() at call time instead of the frozen DEFAULT_PLUGIN_REGISTRY module global."
+      - "Tests: src/prism/tests/test_api_cli_entrypoints.py:74 moves the test seam to _get_default_plugin_registry, and src/prism/tests/test_api_cli_entrypoints.py:908 proves run_scan uses the per-call resolver even when DEFAULT_PLUGIN_REGISTRY is poisoned."
+      - "Tests: src/prism/tests/test_gilfoyle_blockers_runtime.py:563 now patches the per-call resolver instead of the stale module singleton."
+      - "Gate: focused pytest on API runtime slice => 18 passed; cross-path pytest on src/prism/tests/test_di_registry_resolution.py => 19 passed; ruff check on touched files => PASS; narrow mypy produced only non-owned baseline-transitive noise."
+
+  - id: FIND-G35-ARCH-02
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: facade_leakage
+    fingerprint: api:assembly_helper_leak:build_run_scan_canonical_route_orchestration
+    title: "api.py still leaks internal assembly helpers and registry singleton through module globals"
+    files:
+      - src/prism/api.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g35/artifacts/phase0/Synthesizer-Architecture.yaml
+      - docs/plan/gilfoyle-review-20260501-g36/artifacts/phase0/Synthesizer-Architecture.yaml
+    summary: "g36 removed the runtime use of DEFAULT_PLUGIN_REGISTRY inside run_scan, but api.py still re-exports build_run_scan_options_canonical, route_scan_payload_orchestration, and DEFAULT_PLUGIN_REGISTRY as top-level facade symbols."
+    decision_deadline: g37
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py
+
+  - id: FIND-G36-ARCH-03
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: shell_boundary
+    fingerprint: shell_boundary:scanner-reporting-direct-plugin-import
+    title: "scanner_reporting shell layer imports scanner_plugins directly"
+    files:
+      - src/prism/scanner_reporting/__init__.py
+      - src/prism/api_layer/plugin_facade.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g36/artifacts/phase0/Synthesizer-Architecture.yaml
+    summary: "scanner_reporting reaches into scanner_plugins.defaults directly instead of going through an approved facade seam."
+    decision_deadline: g37
+    suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_reporting.py src/prism/tests/test_plugin_kernel_extension_parity.py
+
+  - id: FIND-G36-ARCH-04
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: control_flow
+    fingerprint: control_flow:loader-soft-yaml-fallback-without-bundle
+    title: "loader.py retains a silent late-resolver fallback when prepared_policy_bundle is absent"
+    files:
+      - src/prism/scanner_io/loader.py
+      - src/prism/tests/test_di_registry_resolution.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g36/artifacts/phase0/Synthesizer-Architecture.yaml
+    summary: "_get_yaml_parsing_policy is still the outlier policy getter that silently late-resolves from the registry instead of fail-closing or making the dual-path contract explicit."
+    decision_deadline: g37
+    suggested_narrow_gate: pytest -q src/prism/tests/test_di_registry_resolution.py
+
+  - id: FIND-G36-ST-01
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: typing
+    fingerprint: typing:task-line-policy-missing-runtime-members
+    title: "PreparedTaskLineParsingPolicy omits members that task-line helpers consume at runtime"
+    files:
+      - src/prism/scanner_data/contracts_request.py
+      - src/prism/scanner_extract/task_line_parsing.py
+      - src/prism/scanner_plugins/ansible/default_policies.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g36/artifacts/phase0/Scout-Typing.yaml
+    summary: "The task-line policy protocol does not declare extract_constrained_when_values or the templated-include regex proxy even though helper wrappers dispatch through those members."
+    decision_deadline: g37
+    suggested_narrow_gate: pytest -q src/prism/tests/test_fsrc_comment_doc_plugin_resolution.py
+
+  - id: FIND-G36-ST-02
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: typing
+    fingerprint: typing:task-annotation-policy-under-validated-surface
+    title: "PreparedTaskAnnotationPolicy omits helper members and the resolver under-validates them"
+    files:
+      - src/prism/scanner_data/contracts_request.py
+      - src/prism/scanner_extract/task_annotation_parsing.py
+      - src/prism/scanner_plugins/defaults.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g36/artifacts/phase0/Scout-Typing.yaml
+    summary: "The protocol and defaults resolver both accept a narrower surface than the helper layer actually calls, so malformed custom policies can pass ingress and fail later."
+    decision_deadline: g37
+    suggested_narrow_gate: pytest -q src/prism/tests/test_fsrc_comment_doc_plugin_resolution.py
+
+  - id: FIND-G36-ST-03
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: orchestration_seam
+    fingerprint: orchestration_seam:yaml-policy-parse-candidate-under-validation
+    title: "YAML parsing resolver validates load_yaml_file but not parse_yaml_candidate"
+    files:
+      - src/prism/scanner_data/contracts_request.py
+      - src/prism/scanner_io/loader.py
+      - src/prism/scanner_plugins/defaults.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g36/artifacts/phase0/Scout-Typing.yaml
+    summary: "PreparedYAMLParsingPolicy declares parse_yaml_candidate, but the defaults resolver still accepts policies that only implement load_yaml_file."
+    decision_deadline: g37
+    suggested_narrow_gate: pytest -q src/prism/tests/test_di_registry_resolution.py
+
+  - id: FIND-G36-CF-API-002
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: orchestration_seam
+    fingerprint: orchestration_seam:api-quality-metrics-feature-variable-undercount
+    title: "Public quality metrics path strips features and variables before computing score"
+    files:
+      - src/prism/api.py
+      - src/prism/scanner_core/scan_facade_helpers.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g36/artifacts/phase0/Scout-ControlFlow.yaml
+    summary: "compute_quality_metrics() is routed through collect_role_contents() and a local variable loader that suppress the feature and variable inputs the shared helper expects."
+    decision_deadline: g37
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py
+
+  - id: FIND-G36-CF-TASK-003
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: error_channel
+    fingerprint: error_channel:task-catalog-raw-lines-oserror-swallow
+    title: "task_catalog_assembly swallows task-file read failures and drops annotation data"
+    files:
+      - src/prism/scanner_extract/task_catalog_assembly.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g36/artifacts/phase0/Scout-ControlFlow.yaml
+    summary: "An OSError while reading raw task lines is converted into [], so implicit annotations and runbook extraction are silently lost while scan execution continues."
+    decision_deadline: g37
+    suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_reporting.py
+
+suppressed_non_highs:
+  - id: CF-API-001
+    rationale_code: duplicate_of
+    duplicate_of: FIND-G36-CF-API-002
+    note: "Both API findings share the same public quality/feature suppression seam; keep the broader metrics entry as the representative."

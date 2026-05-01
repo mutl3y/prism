@@ -1,0 +1,11 @@
+- id: SO-L-01
+  category: shell_boundary
+  file: src/prism/scanner_kernel/orchestrator.py
+  line: 269
+  severity_hint: high
+  confidence: high
+  evidence_snippet: 'if _is_orchestrate_scan_payload_plugin(plugin_instance):'
+  evidence_command: src/prism/scanner_kernel/orchestrator.py:267-301
+  fix_group_key: scan_pipeline_runtime_result_validation
+  suggested_narrow_gate: pytest -q src/prism/tests/test_platform_routing_fail_closed.py -k scan_pipeline
+  summary: The new invalid-output contract check only runs in the fallback helper path. Plugins that implement orchestrate_scan_payload directly can still return a non-dict result and bypass the failure, so the runtime shell boundary is not enforced on the primary plugin path.

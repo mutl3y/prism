@@ -1,0 +1,80 @@
+- id: Scout-Typing-01
+  category: typing
+  fingerprint: typing|scanner_core/protocols_runtime.py|kernel-loader-and-orchestrator|Any-boundary
+  file: src/prism/scanner_core/protocols_runtime.py
+  line: 19
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def __call__(self, platform: str) -> Any: ...'
+  evidence_command: 'nl -ba src/prism/scanner_core/protocols_runtime.py | sed -n ''19,34p'''
+  related_symbols:
+    - PluginLoader
+    - KernelOrchestrator
+    - KernelLifecyclePlugin
+  fix_group_key: kernel_protocol_boundary_tightening
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: 'pytest -q src/prism/tests/test_kernel_plugin_runner.py src/prism/tests/test_plugin_kernel_extension_parity.py'
+- id: Scout-Typing-02
+  category: protocol_gap
+  fingerprint: protocol_gap|scanner_kernel/kernel_plugin_runner.py|kernel-lifecycle-optional-handler-contract
+  file: src/prism/scanner_kernel/kernel_plugin_runner.py
+  line: 87
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'phase_handlers: list[tuple[str, Callable[..., dict[str, Any] | None] | None]] = ['
+  evidence_command: 'nl -ba src/prism/scanner_kernel/kernel_plugin_runner.py | sed -n ''84,119p'''
+  related_symbols:
+    - KernelLifecyclePlugin
+    - run_kernel_plugin_orchestrator
+    - phase_handlers
+  fix_group_key: kernel_lifecycle_phase_contract_split
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: 'pytest -q src/prism/tests/test_kernel_plugin_runner.py src/prism/tests/test_plugin_kernel_extension_parity.py'
+- id: Scout-Typing-03
+  category: typing
+  fingerprint: typing|scanner_io/output_orchestrator.py|runbook-renderer-losy-cast
+  file: src/prism/scanner_io/output_orchestrator.py
+  line: 73
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'render_runbook=cast(Callable[[str, ScanMetadata], str], render_runbook),'
+  evidence_command: 'nl -ba src/prism/scanner_io/output_orchestrator.py | sed -n ''69,75p'''
+  related_symbols:
+    - render_runbook
+    - render_runbook_csv
+    - ScanMetadata
+  fix_group_key: output_renderer_metadata_contract
+  proposed_fix_class: update_all
+  blocking_preconditions: []
+  suggested_narrow_gate: 'pytest -q src/prism/tests/test_output_orchestration.py src/prism/tests/test_scanner_reporting.py'
+- id: Scout-Typing-04
+  category: typing
+  fingerprint: typing|api_layer/non_collection.py|ensure-prepared-fn-typed-as-any
+  file: src/prism/api_layer/non_collection.py
+  line: 185
+  severity_hint: low
+  confidence: medium
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: '_resolved_ensure_fn: Any'
+  evidence_command: 'nl -ba src/prism/api_layer/non_collection.py | sed -n ''185,232p'''
+  related_symbols:
+    - _resolved_ensure_fn
+    - _EnsurePreparedPolicyBundleFn
+    - build_non_collection_run_scan_execution_request
+  fix_group_key: non_collection_ensure_fn_typing
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: 'pytest -q src/prism/tests/test_scanner_context.py src/prism/tests/test_variable_discovery_pipeline.py'

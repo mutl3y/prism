@@ -321,8 +321,8 @@ def _maybe_run_audit(args: argparse.Namespace, payload: dict) -> int:
     if not rules_path:
         return 0
 
-    from prism.scanner_plugins.audit import load_audit_rules_from_file
-    from prism.scanner_plugins.audit import run_audit
+    from prism.api_layer.plugin_facade import load_audit_rules_from_file
+    from prism.api_layer.plugin_facade import run_audit
 
     rules = load_audit_rules_from_file(rules_path)
     report = run_audit(payload, rules)

@@ -381,3 +381,23 @@ registry_boilerplate → ownership → ownership-impl) all GREEN. Sign-off bar e
 - **FIND-G18-D01** missing `docs/plan/.gilfoyle-lessons/import-graph.json` protocol artifact (process/ledger maintenance slice).
 
 **Gates:** pytest 977 passed / 7 skipped, ruff clean, black clean, mypy 99 errors (delta=0).
+
+- g35 (2026-05-01): gilfoyle-review-20260501-g35; gate=GREEN; promoted_lessons=1
+
+- g35 (2026-05-01): gilfoyle-review-20260501-g35; gate=GREEN; promoted_lessons=0
+
+- g36 (2026-05-01): gilfoyle-review-20260501-g36; gate=GREEN; promoted_lessons=0
+
+- g36 (2026-05-01): gilfoyle-review-20260501-g36; gate=GREEN; promoted_lessons=0
+
+- g40 (2026-05-01): gilfoyle-review-20260501-g40; gate=ACCEPTED; promoted_lessons=0
+
+- g41 (2026-05-01): gilfoyle-review-20260501-g41; gate=GREEN; promoted_lessons=0
+
+- g42 (2026-05-01): gilfoyle-review-20260501-g42; gate=ACCEPTED; promoted_lessons=0
+
+- g43 (2026-05-01): gilfoyle-review-20260501-g43; gate=ACCEPTED; promoted_lessons=0
+
+- g44 (2026-05-01): gilfoyle-review-20260501-g44; gate=ACCEPTED; promoted_lessons=0
+
+- g45 (2026-05-01): gilfoyle-review-20260501-g45; gate=ACCEPTED; promoted_lessons=0

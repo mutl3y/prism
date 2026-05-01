@@ -1,0 +1,11 @@
+- id: SO-01
+  category: facade_leakage
+  file: src/prism/cli.py
+  line: 324
+  severity_hint: medium
+  confidence: high
+  evidence_snippet: from prism.scanner_plugins.audit import load_audit_rules_from_file
+  evidence_command: rg -n "from prism\.scanner_plugins\.audit" src/prism/cli.py
+  fix_group_key: cli-audit-facade-bypass
+  suggested_narrow_gate: rg -n "from prism\.scanner_plugins\.audit" src/prism/cli.py
+  summary: The CLI audit helper imports scanner_plugins.audit directly even though api_layer.plugin_facade already exposes wrappers for load_audit_rules_from_file and run_audit. That bypass weakens the intended top-level API/CLI import boundary.

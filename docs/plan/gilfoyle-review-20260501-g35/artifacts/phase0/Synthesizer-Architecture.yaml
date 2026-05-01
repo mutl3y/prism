@@ -1,0 +1,230 @@
+# Synthesizer-Architecture Deep Review
+# Plan: gilfoyle-review-20260501-g35
+# Date: 2026-05-01
+# Protocol: deep-review-protocol.md (7-check architecture sweep)
+
+findings:
+  - id: FIND-G35-ARCH-01
+    severity: high
+    category: registry_authority_split
+    cross_cutting: true
+    scouts_that_missed:
+      - Scout-Ownership
+      - Scout-Typing
+    title: "Split registry authority across three resolver paths with non-standard bypass"
+    description: |
+      Registry resolution authority is split across three different resolver functions
+      with inconsistent fallback semantics:
+      
+      1. di.py:71-89 resolve_platform_key(scan_options, registry) reads explicit
+         registry parameter or scan_options paths
+      2. loader.py:46 _resolve_plugin_registry(di) reads di.plugin_registry, then
+         falls back to scan_options["plugin_registry"] with WARNING about bypassing
+         DI contract boundary
+      3. defaults.py:54 _resolve_registry(di, registry) reads registry param >
+         di.plugin_registry > bootstrap singleton
+      
+      The loader.py path is particularly concerning because scan_options["plugin_registry"]
+      bypasses the DI container boundary. The WARNING comment at loader.py:46-53 explicitly
+      states: "Registry ownership belongs at the container/bootstrap boundary (DIContainer
+      constructor), not in scan_options payloads. This path is retained for deferred
+      contract reshape (FIND-G2-LOADER-DUAL-PATH)."
+      
+      This creates three potential sources of truth for registry identity within a single
+      scan request: the explicit registry parameter, di.plugin_registry, and the
+      scan_options["plugin_registry"] bypass.
+    verification_evidence: |
+      loader.py:46-53: _resolve_plugin_registry() WARNING comment explicitly documents
+      bypass path; defaults.py:54: _resolve_registry() has different precedence chain;
+      di.py:71-89: resolve_platform_key() third independent path
+    file: src/prism/scanner_io/loader.py
+    line_range: [46, 90]
+    stable_fingerprint: "registry_authority_split:loader_di_defaults_paths"
+    fix_group_key: "registry_authority_unification"
+    proposed_fix_class: "architecture_boundary_unification"
+    suggested_narrow_gate: |
+      1. Eliminate scan_options["plugin_registry"] bypass path
+      2. Route all registry resolution through single di.plugin_registry attribute
+      3. Ensure DIContainer constructor is the only composition root that wires registry
+      4. Update loader.py, defaults.py to read only from di.plugin_registry
+      5. Document FIND-G2-LOADER-DUAL-PATH closure as resolved
+    confidence: high
+    runtime_risk: |
+      Registry override via scan_options can silently route loader operations through
+      a different plugin registry than the DI container, scanner_core, and kernel
+      orchestration are using, causing plugin resolution inconsistency across scan phases
+
+  - id: FIND-G35-ARCH-02
+    severity: medium
+    category: facade_leakage
+    cross_cutting: true
+    scouts_that_missed:
+      - Scout-Ownership
+    title: "api.py exports internal assembly helpers as top-level module symbols"
+    description: |
+      api.py lines 55-56 re-export two internal orchestration functions at module top level:
+      - build_run_scan_options_canonical (from scanner_core.scan_request)
+      - route_scan_payload_orchestration (from scanner_kernel.orchestrator)
+      
+      These are internal assembly helpers, not user-facing APIs. They are used internally
+      by api.py:run_scan() at lines 132-133, but they are also exposed as module-level
+      symbols accessible via prism.api.build_run_scan_options_canonical and
+      prism.api.route_scan_payload_orchestration.
+      
+      Test evidence shows tests are patching these through the api module facade
+      (test_api_cli_entrypoints.py:359-360, 397, 460), which means the leak is
+      now a test dependency.
+      
+      Scout-Ownership verified that __all__ is properly restricted to
+      ["scan_collection", "scan_repo", "scan_role"] at api.py:66, so these symbols
+      are NOT part of the declared public contract. However, Python's module system
+      makes them accessible anyway.
+    verification_evidence: |
+      api.py:55-56: top-level re-exports; api.py:66: __all__ excludes them;
+      api.py:132-133: internal usage; test_api_cli_entrypoints.py:359-360:
+      test patching through facade
+    file: src/prism/api.py
+    line_range: [55, 56]
+    stable_fingerprint: "api:assembly_helper_leak:build_run_scan_canonical_route_orchestration"
+    fix_group_key: "api_facade_tightening"
+    proposed_fix_class: "facade_boundary_cleanup"
+    suggested_narrow_gate: |
+      1. Move build_run_scan_options_canonical and route_scan_payload_orchestration
+         imports into run_scan() function body as local imports
+      2. Update test_api_cli_entrypoints.py to patch api_non_collection module
+         directly instead of through api facade
+      3. Document that api.py should only expose symbols in __all__
+      4. Consider adding runtime __getattr__ guard to raise AttributeError for
+         non-__all__ symbol access (matches scanner_reporting pattern at line 70)
+    confidence: high
+    runtime_risk: |
+      Low immediate runtime risk (tests catch direct API breakage), but facade leak
+      creates implicit public contract — external code could depend on these symbols,
+      blocking future refactoring of internal assembly composition
+
+  - id: FIND-G35-ARCH-03
+    severity: low
+    category: singleton_pollution
+    cross_cutting: true
+    scouts_that_missed:
+      - Scout-Ownership
+      - Scout-Typing
+    title: "DEFAULT_PLUGIN_REGISTRY module-level singleton in api.py"
+    description: |
+      api.py:62-64 constructs a module-level singleton:
+      
+        def _get_default_plugin_registry():
+            return plugin_facade.get_default_plugin_registry()
+        
+        DEFAULT_PLUGIN_REGISTRY = _get_default_plugin_registry()
+      
+      This is a module-level singleton that is evaluated at import time and remains
+      fixed for the lifetime of the api module. The symbol is excluded from __all__
+      at line 66, so it is not part of the declared public contract, but it is
+      still accessible as prism.api.DEFAULT_PLUGIN_REGISTRY.
+      
+      The do_not_re_flag list does not include this symbol, and no comment in api.py
+      documents why this singleton exists at module level rather than being retrieved
+      on-demand.
+      
+      Scout-Ownership verified __all__ was clean but did not flag module-level
+      singletons outside __all__. Scout-Typing did not check for singleton pollution
+      patterns.
+    verification_evidence: |
+      api.py:62-64: module-level singleton definition; api.py:66: __all__ excludes it;
+      grep shows zero usages of DEFAULT_PLUGIN_REGISTRY within api.py
+    file: src/prism/api.py
+    line: 64
+    stable_fingerprint: "api:DEFAULT_PLUGIN_REGISTRY:module_level_singleton"
+    fix_group_key: "api_facade_tightening"
+    proposed_fix_class: "facade_boundary_cleanup"
+    suggested_narrow_gate: |
+      1. Remove DEFAULT_PLUGIN_REGISTRY module-level singleton
+      2. If external code requires registry access, add explicit public API:
+         get_default_plugin_registry() function in __all__
+      3. If no external usage exists, delete lines 62-64 entirely
+    confidence: medium
+    runtime_risk: |
+      Very low runtime risk — symbol is not in __all__ and has zero internal usage.
+      Risk is primarily pollution of module namespace and potential for future
+      accidental dependency by external code
+
+summary:
+  total_observations: 3
+  critical_issues: 0
+  high_severity_issues: 1
+  medium_severity_issues: 1
+  low_severity_issues: 1
+
+deep_review_checks_performed:
+  - check_id: 1
+    check_name: composition_root_placement
+    status: clean
+    finding_count: 0
+    note: |
+      DIContainer construction only appears in tests; production composition
+      happens via _DIContainerFactory protocol injection in execution_request_builder
+
+  - check_id: 2
+    check_name: registry_authority_split
+    status: violation
+    finding_count: 1
+    finding_ids:
+      - FIND-G35-ARCH-01
+    note: |
+      Three different resolver paths (di.py, loader.py, defaults.py) with
+      non-standard scan_options["plugin_registry"] bypass in loader.py
+
+  - check_id: 3
+    check_name: facade_leakage_audit
+    status: violation
+    finding_count: 2
+    finding_ids:
+      - FIND-G35-ARCH-02
+      - FIND-G35-ARCH-03
+    note: |
+      api.py exports two internal assembly helpers and one singleton outside __all__;
+      test dependencies on the leak exist
+
+  - check_id: 4
+    check_name: shell_layer_plugin_boundary_audit
+    status: clean
+    finding_count: 0
+    note: |
+      Zero direct imports from scanner_plugins.{ansible,audit,parsers} in
+      cli.py, api.py, or scanner_reporting
+
+  - check_id: 5
+    check_name: error_channel_and_control_flow_audit
+    status: addressed_by_scouts
+    finding_count: 0
+    note: |
+      Scout-ControlFlow already flagged CF-01, CF-02, CF-03 for silent coercion
+      patterns in ScannerContext and scan_request; no new cross-cutting findings
+
+  - check_id: 6
+    check_name: seam_contract_quality_at_architecture_boundaries
+    status: addressed_by_scouts
+    finding_count: 0
+    note: |
+      Scout-Typing already flagged FIND-G35-T01 through FIND-G35-C03 for
+      dict[str, Any]/Callable[..., Any] contract weaknesses; no new cross-cutting findings
+
+  - check_id: 7
+    check_name: audit_and_reporting_boundary_ownership
+    status: clean
+    finding_count: 0
+    note: |
+      scanner_plugins/audit/ and scanner_reporting/ own their logic or delegate
+      to scanner_plugins.defaults; zero imports from scanner_extract
+
+scout_coverage_assessment:
+  missed_high_severity: 1
+  missed_medium_severity: 1
+  missed_low_severity: 1
+  primary_gap: |
+    Standard scouts operate in isolated category silos and cannot synthesize
+    cross-cutting findings that require reading multiple modules simultaneously.
+    Registry authority split (ARCH-01) required reading di.py, loader.py, and
+    defaults.py together. Facade leakage (ARCH-02/ARCH-03) required cross-checking
+    __all__ declarations against module-level symbol definitions and test patching patterns.

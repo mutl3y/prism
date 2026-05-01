@@ -1,0 +1,163 @@
+- id: Scout-Graph-01
+  category: registry_authority
+  fingerprint: registry_authority|plugin_facade.get_default_plugin_registry|multi-path
+    resolution|api.py and non_collection.py
+  file: /raid5/source/test/prism/src/prism/api.py
+  line: 137
+  severity_hint: high
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: default_plugin_registry=plugin_facade.get_default_plugin_registry(),
+  evidence_command: sed -n '130,145p' src/prism/api.py && sed -n '180,190p' src/prism/api_layer/non_collection.py
+  related_symbols:
+  - get_default_plugin_registry
+  - DEFAULT_PLUGIN_REGISTRY
+  - plugin_facade
+  - route_scan_payload_orchestration
+  fix_group_key: registry-authority-ingress-injection
+  proposed_fix_class: registry_property
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -xvs src/prism/tests/test_di_registry_resolution.py
+    -k 'registry'
+- id: Scout-Graph-02
+  category: composition_root
+  fingerprint: composition_root|_repo_scan_facade|module-level singleton|non_collection.py:33-37
+  file: /raid5/source/test/prism/src/prism/api_layer/non_collection.py
+  line: 33
+  severity_hint: high
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: '_repo_scan_facade: repo_services.RepoScanFacade | None = None
+
+    _repo_scan_facade_lock = threading.Lock()'
+  evidence_command: sed -n '30,45p' src/prism/api_layer/non_collection.py
+  related_symbols:
+  - _repo_scan_facade
+  - _repo_scan_facade_lock
+  - _resolve_repo_scan_facade
+  - repo_services.RepoScanFacade
+  fix_group_key: singleton-composition-root-promotion
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -xvs src/prism/tests/test_api_cli_entrypoints.py::test_scan_collection
+- id: Scout-Graph-03
+  category: singleton_pollution
+  fingerprint: singleton_pollution|DEFAULT_PLUGIN_REGISTRY|module-level initialization|bootstrap
+    idempotency
+  file: /raid5/source/test/prism/src/prism/scanner_plugins/__init__.py
+  line: 202
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: DEFAULT_PLUGIN_REGISTRY = initialize_default_registry()
+  evidence_command: sed -n '195,210p' src/prism/scanner_plugins/__init__.py && sed
+    -n '23,60p' src/prism/scanner_plugins/bootstrap.py
+  related_symbols:
+  - DEFAULT_PLUGIN_REGISTRY
+  - initialize_default_registry
+  - _DEFAULT_REGISTRY
+  - get_default_plugin_registry
+  fix_group_key: singleton-registry-isolation
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions:
+  - registry_authority patterns must be resolved first
+  suggested_narrow_gate: pytest -xvs src/prism/tests/test_plugin_kernel_extension_parity.py::test_fsrc_default_plugin_registry_aligns_with_canonical_singleton
+- id: Scout-Graph-04
+  category: test_fixture_coupling
+  fingerprint: test_fixture_coupling|DEFAULT_PLUGIN_REGISTRY|direct import in tests|multiple
+    test modules
+  file: /raid5/source/test/prism/src/prism/tests/test_w2_hardwiring_audit.py
+  line: 66
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
+  evidence_command: grep -n 'DEFAULT_PLUGIN_REGISTRY' src/prism/tests/test_w2_hardwiring_audit.py
+    src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_t2_01_plugin_api_version.py
+  related_symbols:
+  - DEFAULT_PLUGIN_REGISTRY
+  - plugins_module
+  - scanner_plugins
+  fix_group_key: test-fixture-isolation-registry
+  proposed_fix_class: isolate_test_fixture
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -xvs src/prism/tests/test_w2_hardwiring_audit.py src/prism/tests/test_plugin_kernel_extension_parity.py
+- id: Scout-Graph-05
+  category: orchestration_seam
+  fingerprint: orchestration_seam|route_scan_payload_orchestration_fn|optional Callable
+    parameter|lazy-load default
+  file: /raid5/source/test/prism/src/prism/api_layer/non_collection.py
+  line: 126
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: "route_scan_payload_orchestration_fn=None,\n    if route_scan_payload_orchestration_fn\
+    \ is None:\n        from prism.scanner_kernel.orchestrator import route_scan_payload_orchestration"
+  evidence_command: sed -n '120,150p' src/prism/api_layer/non_collection.py
+  related_symbols:
+  - route_scan_payload_orchestration_fn
+  - build_run_scan_options_canonical_fn
+  - orchestrate_scan_payload_with_selected_plugin_fn
+  - di_container_cls
+  - feature_detector_cls
+  fix_group_key: orchestration-callable-protocol-extraction
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -xvs src/prism/tests/test_api_cli_entrypoints.py -k
+    orchestration
+- id: Scout-Graph-06
+  category: graph
+  fingerprint: graph|plugin-resolver-duck-typing|getattr-based dispatch|plugin_name_resolver.py:44-45
+  file: /raid5/source/test/prism/src/prism/scanner_kernel/plugin_name_resolver.py
+  line: 44
+  severity_hint: low
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: "list_plugins = getattr(registry, 'list_scan_pipeline_plugins',\
+    \ None)\n    get_plugin = getattr(registry, 'get_scan_pipeline_plugin', None)"
+  evidence_command: sed -n '40,65p' src/prism/scanner_kernel/plugin_name_resolver.py
+  related_symbols:
+  - _resolve_default_scan_pipeline_plugin_name
+  - getattr
+  - registry
+  - callable
+  fix_group_key: typed-registry-contract
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: ''
+- id: Scout-Graph-07
+  category: facade_leakage
+  fingerprint: facade_leakage|plugin_facade.py|wrapping DEFAULT_PLUGIN_REGISTRY|pass-through
+    seam
+  file: /raid5/source/test/prism/src/prism/api_layer/plugin_facade.py
+  line: 32
+  severity_hint: low
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: "def get_default_plugin_registry() -> PluginRegistry:\n    \"\"\
+    \"Return the default plugin registry instance.\n\n    This is a pass-through to\
+    \ scanner_plugins.DEFAULT_PLUGIN_REGISTRY.\n    \"\"\"\n    from prism.scanner_plugins\
+    \ import DEFAULT_PLUGIN_REGISTRY\n\n    return DEFAULT_PLUGIN_REGISTRY"
+  evidence_command: sed -n '25,45p' src/prism/api_layer/plugin_facade.py
+  related_symbols:
+  - get_default_plugin_registry
+  - DEFAULT_PLUGIN_REGISTRY
+  - scanner_plugins
+  fix_group_key: reporting-public-facade
+  proposed_fix_class: seam_facade
+  blocking_preconditions: []
+  suggested_narrow_gate: ''

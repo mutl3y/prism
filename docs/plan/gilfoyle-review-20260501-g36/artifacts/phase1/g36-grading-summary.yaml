@@ -1,0 +1,85 @@
+plan_id: gilfoyle-review-20260501-g36
+cycle: g36
+phase: P1
+review_type: thorough
+focus_axis: typing
+
+raw_observation_counts:
+  Scout-Typing: 3
+  Scout-Ownership: 0
+  Scout-ControlFlow: 3
+  Scout-Graph: 0
+  Synthesizer-Architecture: 4
+  total: 10
+
+protocol_misses: []
+
+deep_review:
+  required: true
+  trigger: "Every third thorough cycle requires a deep-review synthesis pass."
+  artifact: docs/plan/gilfoyle-review-20260501-g36/artifacts/phase0/Synthesizer-Architecture.yaml
+  additional_high: 1
+  additional_medium: 3
+  top_missed_area: registry_authority
+
+promoted_findings:
+  - id: FIND-G36-ARCH-01
+    severity: high
+    category: registry_authority
+    decision: fix_now
+    rationale: "The public api.run_scan wrapper still overrode the canonical default-registry resolver with a frozen module singleton, leaving one live split-authority seam after g35."
+  - id: FIND-G35-ARCH-02
+    severity: medium
+    category: facade_leakage
+    decision: carry_forward
+    rationale: "The runtime leak was reduced in g36, but the top-level api.py assembly-helper and singleton exports remain."
+  - id: FIND-G36-ARCH-03
+    severity: medium
+    category: shell_boundary
+    decision: carry_forward
+    rationale: "Direct scanner_reporting imports from scanner_plugins are a verified shell/plugin boundary violation, but lower leverage than the live high seam."
+  - id: FIND-G36-ARCH-04
+    severity: medium
+    category: control_flow
+    decision: carry_forward
+    rationale: "loader.py remains the only policy getter with a silent late-resolver fallback; keep it for a dedicated follow-on slice."
+  - id: FIND-G36-ST-01
+    severity: medium
+    category: typing
+    decision: carry_forward
+    rationale: "The task-line policy contract is observably narrower than the helper layer's runtime surface."
+  - id: FIND-G36-ST-02
+    severity: medium
+    category: typing
+    decision: carry_forward
+    rationale: "The task-annotation contract and resolver jointly under-validate the helper surface."
+  - id: FIND-G36-ST-03
+    severity: medium
+    category: orchestration_seam
+    decision: carry_forward
+    rationale: "YAML policy resolution still accepts a narrower contract than loader entrypoints depend on."
+  - id: FIND-G36-CF-API-002
+    severity: medium
+    category: orchestration_seam
+    decision: carry_forward
+    rationale: "The public quality-metrics facade undercounts score inputs in a user-visible path."
+  - id: FIND-G36-CF-TASK-003
+    severity: medium
+    category: error_channel
+    decision: carry_forward
+    rationale: "task_catalog_assembly silently drops annotation/runbook inputs when raw-line reads fail."
+
+suppressed_highs: []
+
+suppressed_non_highs:
+  - id: CF-API-001
+    rationale_code: duplicate_of
+    duplicate_of: FIND-G36-CF-API-002
+    note: "Both API observations describe the same quality-metrics suppression seam; keep the broader score path finding."
+
+next_wave:
+  wave_id: g36-w1
+  owned_fix_group_keys:
+    - registry_authority_api_resolver
+  builder_count: 1
+  serial_exception: "Single narrow slice because api.py and the two directly-coupled tests form one runtime-authority seam."

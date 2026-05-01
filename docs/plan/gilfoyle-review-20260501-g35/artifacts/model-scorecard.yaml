@@ -1,0 +1,47 @@
+cycle: g35
+phase: P1
+models:
+  Claude Haiku 4.5:
+    attempts: 2
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 2
+    rolling_quality_avg: 3.0
+    lane_tags:
+      - discovery
+    status: watch
+  GPT-5.4 mini:
+    attempts: 3
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.0
+    lane_tags:
+      - discovery
+      - validation
+    status: healthy
+  Claude Sonnet 4.5:
+    attempts: 1
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.0
+    lane_tags:
+      - discovery
+      - synthesis
+    status: healthy
+  GPT-5.4:
+    attempts: 2
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.0
+    lane_tags:
+      - builder
+      - validation
+    status: healthy
+notes:
+  - "Claude Haiku 4.5 remains usable, but the two P0 scout artifacts both required foreman schema recovery."
+  - "GPT-5.4 mini is the healthiest low-cost writer after the P0 barrier."
+  - "Claude Sonnet 4.5 is healthy for architecture synthesis work in this cycle."
+  - "GPT-5.4 landed the builder slice cleanly and the regression audit returned one low-severity, immediately-addressed follow-up."

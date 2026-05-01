@@ -1,0 +1,18 @@
+models:
+  GPT-5.4 mini:
+    attempts: 4
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.0
+    lane_tags:
+      - discovery
+  GPT-5.4:
+    attempts: 1
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 5.0
+    lane_tags:
+      - builder
+      - validation

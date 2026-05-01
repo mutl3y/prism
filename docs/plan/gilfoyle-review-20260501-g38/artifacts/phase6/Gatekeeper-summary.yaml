@@ -1,0 +1,19 @@
+agent: Foreman-Gate
+validation_status: pass
+commands:
+  pytest_touched_slice:
+    command: .venv/bin/python -m pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_platform_routing_fail_closed.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_gilfoyle_blockers_runtime.py
+    exit_code: 0
+    details: 82 passed, 1 warning in 4.94s
+  ruff:
+    command: .venv/bin/python -m ruff check src/prism/api.py src/prism/scanner_kernel/orchestrator.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_gilfoyle_blockers_runtime.py src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_platform_routing_fail_closed.py
+    exit_code: 0
+    details: All checks passed!
+  black:
+    command: .venv/bin/python -m black --check src/prism/api.py src/prism/scanner_kernel/orchestrator.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_gilfoyle_blockers_runtime.py src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_platform_routing_fail_closed.py
+    exit_code: 0
+    details: 6 files would be left unchanged.
+  mypy_owned_filter:
+    command: .venv/bin/python -m mypy --no-error-summary src/prism/api.py src/prism/scanner_kernel/orchestrator.py 2>&1 | rg '^src/prism/(api.py|scanner_kernel/orchestrator.py)' || true
+    exit_code: 0
+    details: No owned-file diagnostics

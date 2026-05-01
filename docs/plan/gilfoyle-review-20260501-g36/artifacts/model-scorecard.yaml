@@ -1,0 +1,26 @@
+cycle: g36
+phase: P0
+models:
+  GPT-5.4 mini:
+    attempts: 4
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.0
+    lane_tags:
+      - discovery
+    status: healthy
+  Claude Sonnet 4.5:
+    attempts: 1
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.0
+    lane_tags:
+      - discovery
+      - synthesis
+    status: healthy
+notes:
+  - "GPT-5.4 mini produced schema-clean scout artifacts across all four Phase 0 lanes."
+  - "Claude Sonnet 4.5 surfaced the only high-severity finding in the required deep-review pass."
+  - "Foreman-local fallback handled the narrow api.py registry-authority slice after the deep review; no model-route failures occurred in g36."

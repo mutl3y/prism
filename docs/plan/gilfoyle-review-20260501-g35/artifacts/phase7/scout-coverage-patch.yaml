@@ -1,0 +1,12 @@
+- kind: missed_finding
+  missed_by:
+    - Scout-Ownership
+    - Scout-Typing
+  found_by: Synthesizer-Architecture
+  severity: high
+  pattern: "Registry-authority split required combining execution_request_builder runtime_registry wiring with loader's former scan_options bypass path."
+  why_missed: "The scout lanes inspected local seams but did not synthesize registry origin in execution_request_builder with downstream loader/defaults consumers."
+  new_probe: "rg -n \"plugin_registry|default_plugin_registry|resolve_platform_key|_resolve_plugin_registry\" src/prism/scanner_core/execution_request_builder.py src/prism/scanner_io/loader.py src/prism/scanner_plugins/defaults.py src/prism/scanner_core/di.py"
+  prompt_target: references/scout-scan-patterns.md
+  proposed_memory_update: "Have Scout-Graph pair registry origin in execution_request_builder with downstream loader/defaults resolver consumers whenever plugin_registry appears outside DIContainer."
+  evidence: docs/plan/gilfoyle-review-20260501-g35/artifacts/phase0/Synthesizer-Architecture.yaml

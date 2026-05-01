@@ -1,0 +1,28 @@
+plan_id: gilfoyle-review-20260501-g37
+phase: P0
+status: OK
+expected_workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+returned_workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+artifact_recovery:
+  mode: foreman_local
+  reason: scout agents in this runtime cannot write files directly
+  recovered_artifacts:
+    - docs/plan/gilfoyle-review-20260501-g37/artifacts/phase0/Scout-Typing.yaml
+    - docs/plan/gilfoyle-review-20260501-g37/artifacts/phase0/Scout-Ownership.yaml
+    - docs/plan/gilfoyle-review-20260501-g37/artifacts/phase0/Scout-ControlFlow.yaml
+    - docs/plan/gilfoyle-review-20260501-g37/artifacts/phase0/Scout-Graph.yaml
+observation_counts:
+  Scout-Typing: 0
+  Scout-Ownership: 0
+  Scout-ControlFlow: 0
+  Scout-Graph: 0
+notes:
+  - No scout returned a critical, high, or medium issue in the bounded g36 slice.

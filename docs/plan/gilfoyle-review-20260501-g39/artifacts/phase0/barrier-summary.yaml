@@ -1,0 +1,27 @@
+plan_id: gilfoyle-review-20260501-g39
+phase: P0
+status: OK
+expected_workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+returned_workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+artifact_recovery:
+  mode: foreman_local
+  reason: scout agents return inline YAML in this runtime; foreman persists artifacts locally
+observation_counts:
+  Scout-Typing: 0
+  Scout-Ownership: 1
+  Scout-ControlFlow: 0
+  Scout-Graph: 2
+  total: 3
+high_or_critical_counts:
+  high: 1
+  critical: 0
+notes:
+  - Light review found one new high in the direct orchestrate_scan_payload runtime path on the same kernel slice touched in g38.

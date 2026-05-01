@@ -1,0 +1,27 @@
+plan_id: gilfoyle-review-20260501-g40
+phase: P0
+status: OK
+expected_workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+returned_workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+artifact_recovery:
+  mode: foreman_local
+  reason: scout agents return inline YAML in this runtime; foreman persists artifacts locally
+observation_counts:
+  Scout-Typing: 0
+  Scout-Ownership: 1
+  Scout-ControlFlow: 0
+  Scout-Graph: 0
+  total: 1
+high_or_critical_counts:
+  high: 0
+  critical: 0
+notes:
+  - Light review found no critical or high regressions on the narrowed g39 kernel slice.

@@ -1,0 +1,77 @@
+- id: ARCH-01
+  category: registry_authority
+  severity_hint: high
+  title: Split Registry Authority Across Execution Paths
+  files:
+    - src/prism/api.py
+    - src/prism/api_layer/plugin_facade.py
+    - src/prism/api_layer/non_collection.py
+    - src/prism/scanner_core/execution_request_builder.py
+    - src/prism/scanner_core/di.py
+  related_scouts:
+    - Scout-Ownership
+    - Scout-Graph
+  verification_evidence: 'api.py:63 DEFAULT_PLUGIN_REGISTRY = _get_default_plugin_registry(); execution_request_builder.py:479 runtime_registry = default_plugin_registry; di.py has registry param + plugin_registry property'
+  evidence_command: "grep -n 'DEFAULT_PLUGIN_REGISTRY\\|default_plugin_registry\\|runtime_registry\\|plugin_registry' src/prism/api.py src/prism/api_layer/non_collection.py src/prism/scanner_core/execution_request_builder.py src/prism/scanner_core/di.py"
+  fingerprint: registry-authority-split-five-resolution-paths
+  fix_group_key: registry_composition_root
+  suggested_narrow_gate: pytest -q src/prism/tests/test_di_registry_resolution.py
+  summary: The plugin registry still resolves through multiple authorities across the public API, facade, non-collection runtime, and DI path. The split is observable in tests that patch API-local registry globals separately from the facade resolver, which means injected registry authority is still not singular end-to-end.
+- id: ARCH-02
+  category: facade_leakage
+  severity_hint: high
+  title: Internal Assembly Helpers Exposed at Public API Boundary
+  files:
+    - src/prism/api.py
+  related_scouts:
+    - Scout-Ownership
+  verification_evidence: 'api.py:55-56 build_run_scan_options_canonical = api_non_collection.build_run_scan_options_canonical; route_scan_payload_orchestration = api_non_collection.route_scan_payload_orchestration'
+  evidence_command: "nl -ba src/prism/api.py | sed -n '54,66p'"
+  fingerprint: api-facade-internal-assembly-helpers-exposed
+  fix_group_key: api_public_contract_cleanup
+  suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k public
+  summary: api.py still leaks non-collection assembly helpers as top-level module attributes. Those aliases are not part of the declared public contract, but they remain patchable and keep internal orchestration seams frozen at the API boundary.
+- id: ARCH-03
+  category: shell_boundary
+  severity_hint: medium
+  title: Shell Layer Imports Directly from Plugin Layer
+  files:
+    - src/prism/scanner_reporting/__init__.py
+  related_scouts:
+    - Scout-Graph
+  verification_evidence: 'scanner_reporting/__init__.py:32 from prism.scanner_plugins.defaults import (resolve_render_runbook, resolve_render_runbook_csv, resolve_runbook_rows)'
+  evidence_command: "nl -ba src/prism/scanner_reporting/__init__.py | sed -n '32,35p'"
+  fingerprint: scanner-reporting-direct-plugin-import
+  fix_group_key: shell_plugin_facade_boundary
+  suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_guardrails.py -k shell_boundary
+  summary: scanner_reporting still imports plugin-layer helpers directly instead of going through the API/plugin facade seam.
+- id: ARCH-04
+  category: composition_root
+  severity_hint: medium
+  title: Hidden Composition Root via Mutable Forward Reference Slot
+  files:
+    - src/prism/scanner_core/execution_request_builder.py
+  related_scouts:
+    - Scout-ControlFlow
+    - Scout-Ownership
+  verification_evidence: 'execution_request_builder.py:484 _bridge_slot: list[_ScanStateBridge] = []; container construction receives factory_overrides referencing _bridge_slot[0] before bridge is appended at line 514'
+  evidence_command: "nl -ba src/prism/scanner_core/execution_request_builder.py | sed -n '484,515p'"
+  fingerprint: bridge-slot-forward-reference-composition
+  fix_group_key: execution_request_composition_clarity
+  suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_core_di.py
+  summary: Execution-request assembly still uses a mutable forward-reference slot to break a circular construction dependency, which obscures composition order and ownership.
+- id: ARCH-05
+  category: ownership
+  severity_hint: medium
+  title: Module-Level Registry Singleton Eager Construction
+  files:
+    - src/prism/api.py
+    - src/prism/api_layer/plugin_facade.py
+  related_scouts:
+    - Scout-Ownership
+  verification_evidence: 'api.py:63 DEFAULT_PLUGIN_REGISTRY = _get_default_plugin_registry()'
+  evidence_command: "nl -ba src/prism/api.py | sed -n '59,64p'"
+  fingerprint: api-module-level-registry-eager-init
+  fix_group_key: registry_composition_root
+  suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k DEFAULT_PLUGIN_REGISTRY
+  summary: api.py still eagerly constructs a module-level registry alias during import, which couples initialization order to the public API module and keeps tests patching an API-local singleton seam.

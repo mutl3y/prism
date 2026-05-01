@@ -1,0 +1,60 @@
+- timestamp: '2026-05-01T08:15:00Z'
+  cycle: g37
+  phase: P0
+  worker: Scout-Typing
+  task_id: g37-light-scout-typing
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g37/artifacts/phase0/Scout-Typing.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_recovery
+  notes: scout returned zero findings but could not persist the artifact because scout mode has no edit tool in this runtime
+- timestamp: '2026-05-01T08:15:00Z'
+  cycle: g37
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g37-light-scout-ownership
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g37/artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_recovery
+  notes: scout returned zero findings but could not persist the artifact because scout mode has no edit tool in this runtime
+- timestamp: '2026-05-01T08:15:00Z'
+  cycle: g37
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g37-light-scout-controlflow
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g37/artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_recovery
+  notes: scout returned zero findings but could not persist the artifact because scout mode has no edit tool in this runtime
+- timestamp: '2026-05-01T08:15:00Z'
+  cycle: g37
+  phase: P0
+  worker: Scout-Graph
+  task_id: g37-light-scout-graph
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g37/artifacts/phase0/Scout-Graph.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_recovery
+  notes: scout returned zero findings but could not persist the artifact because scout mode has no edit tool in this runtime

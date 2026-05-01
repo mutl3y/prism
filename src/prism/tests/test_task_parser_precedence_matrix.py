@@ -36,6 +36,26 @@ def _prefer_fsrc_prism_on_sys_path() -> object:
 
 class _DIPolicy:
     @staticmethod
+    def split_task_annotation_label(text: str) -> tuple[str, str]:
+        return "task", text
+
+    @staticmethod
+    def split_task_target_payload(text: str) -> tuple[str, str]:
+        return "", text
+
+    @staticmethod
+    def annotation_payload_looks_yaml(payload: str) -> bool:
+        return ":" in payload
+
+    @staticmethod
+    def normalize_marker_prefix(marker_prefix: str | None) -> str:
+        return marker_prefix or "prism"
+
+    @staticmethod
+    def get_marker_line_re(marker_prefix: str = "prism") -> object:
+        return __import__("re").compile(marker_prefix)
+
+    @staticmethod
     def extract_task_annotations_for_file(
         lines: list[str],
         marker_prefix: str = "prism",
@@ -46,8 +66,32 @@ class _DIPolicy:
         del include_task_index
         return [{"kind": "di", "text": "from-di"}], {}
 
+    @staticmethod
+    def task_anchor(file_path: str, task_name: str, index: int) -> str:
+        return f"{file_path}:{task_name}:{index}"
+
 
 class _RegistryPolicy:
+    @staticmethod
+    def split_task_annotation_label(text: str) -> tuple[str, str]:
+        return "task", text
+
+    @staticmethod
+    def split_task_target_payload(text: str) -> tuple[str, str]:
+        return "", text
+
+    @staticmethod
+    def annotation_payload_looks_yaml(payload: str) -> bool:
+        return ":" in payload
+
+    @staticmethod
+    def normalize_marker_prefix(marker_prefix: str | None) -> str:
+        return marker_prefix or "prism"
+
+    @staticmethod
+    def get_marker_line_re(marker_prefix: str = "prism") -> object:
+        return __import__("re").compile(marker_prefix)
+
     @staticmethod
     def extract_task_annotations_for_file(
         lines: list[str],
@@ -58,6 +102,10 @@ class _RegistryPolicy:
         del marker_prefix
         del include_task_index
         return [{"kind": "registry", "text": "from-registry"}], {}
+
+    @staticmethod
+    def task_anchor(file_path: str, task_name: str, index: int) -> str:
+        return f"{file_path}:{task_name}:{index}"
 
 
 class _DIContainer:

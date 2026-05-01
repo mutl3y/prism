@@ -551,6 +551,213 @@ def test_fsrc_kernel_route_orchestration_preflight_failure_raises(
         )
 
 
+def test_fsrc_scan_pipeline_runtime_invalid_output_raises_contract_error() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+        errors_module = importlib.import_module("prism.errors")
+
+    class _InvalidPlugin:
+        def process_scan_pipeline(
+            self,
+            scan_options: dict[str, object],
+            scan_context: dict[str, object],
+        ) -> object:
+            assert scan_options.get("scan_pipeline_plugin") == "custom"
+            assert scan_context == {"existing": True}
+            return "invalid-output"
+
+    class _Registry:
+        @staticmethod
+        def get_scan_pipeline_plugin(name: str):
+            if name == "custom":
+                return _InvalidPlugin
+            return None
+
+    with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+        orchestrator_module.orchestrate_scan_payload_with_selected_plugin(
+            build_payload_fn=lambda: {"metadata": {"existing": True}},
+            scan_options={"scan_pipeline_plugin": "custom"},
+            strict_mode=False,
+            registry=_Registry(),
+        )
+
+    assert exc_info.value.code == "scan_pipeline_execution_failed"
+    assert exc_info.value.message == (
+        "scan-pipeline plugin 'custom' returned invalid runtime output "
+        "type 'str'; expected dict"
+    )
+    assert exc_info.value.detail == {
+        "metadata": {
+            "routing": {
+                "mode": "scan_pipeline_plugin",
+                "selected_plugin": "custom",
+                "failure_mode": "invalid_plugin_output",
+            }
+        }
+    }
+
+
+def test_fsrc_scan_pipeline_runtime_dict_output_preserves_existing_metadata() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+
+    class _ValidPlugin:
+        def process_scan_pipeline(
+            self,
+            scan_options: dict[str, object],
+            scan_context: dict[str, object],
+        ) -> dict[str, object]:
+            assert scan_options.get("scan_pipeline_plugin") == "custom"
+            assert scan_context == {
+                "existing": True,
+                "nested": {"from_payload": True},
+            }
+            return {
+                "existing": False,
+                "nested": {"from_plugin": True},
+                "plugin_runtime_marker": "custom",
+            }
+
+    class _Registry:
+        @staticmethod
+        def get_scan_pipeline_plugin(name: str):
+            if name == "custom":
+                return _ValidPlugin
+            return None
+
+    result = orchestrator_module.orchestrate_scan_payload_with_selected_plugin(
+        build_payload_fn=lambda: {
+            "metadata": {
+                "existing": True,
+                "nested": {"from_payload": True},
+            }
+        },
+        scan_options={"scan_pipeline_plugin": "custom"},
+        strict_mode=False,
+        registry=_Registry(),
+    )
+
+    assert result == {
+        "metadata": {
+            "existing": True,
+            "nested": {
+                "from_payload": True,
+                "from_plugin": True,
+            },
+            "plugin_runtime_marker": "custom",
+        }
+    }
+
+
+def test_fsrc_scan_pipeline_direct_runtime_invalid_output_raises_contract_error() -> (
+    None
+):
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+        errors_module = importlib.import_module("prism.errors")
+
+    class _InvalidDirectPlugin:
+        def orchestrate_scan_payload(
+            self,
+            *,
+            payload: dict[str, object],
+            scan_options: dict[str, object],
+            strict_mode: bool,
+            preflight_context: dict[str, object] | None = None,
+        ) -> object:
+            assert payload == {"metadata": {"existing": True}}
+            assert scan_options.get("scan_pipeline_plugin") == "custom"
+            assert strict_mode is False
+            assert preflight_context is None
+            return "invalid-output"
+
+    class _Registry:
+        @staticmethod
+        def get_scan_pipeline_plugin(name: str):
+            if name == "custom":
+                return _InvalidDirectPlugin
+            return None
+
+    with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+        orchestrator_module.orchestrate_scan_payload_with_selected_plugin(
+            build_payload_fn=lambda: {"metadata": {"existing": True}},
+            scan_options={"scan_pipeline_plugin": "custom"},
+            strict_mode=False,
+            registry=_Registry(),
+        )
+
+    assert exc_info.value.code == "scan_pipeline_execution_failed"
+    assert exc_info.value.message == (
+        "scan-pipeline plugin 'custom' returned invalid runtime output "
+        "type 'str'; expected dict"
+    )
+    assert exc_info.value.detail == {
+        "metadata": {
+            "routing": {
+                "mode": "scan_pipeline_plugin",
+                "selected_plugin": "custom",
+                "failure_mode": "invalid_plugin_output",
+            }
+        }
+    }
+
+
+def test_fsrc_scan_pipeline_direct_runtime_dict_output_passes_through() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+
+    class _DirectPlugin:
+        def orchestrate_scan_payload(
+            self,
+            *,
+            payload: dict[str, object],
+            scan_options: dict[str, object],
+            strict_mode: bool,
+            preflight_context: dict[str, object] | None = None,
+        ) -> dict[str, object]:
+            assert payload == {"metadata": {"existing": True}}
+            assert scan_options.get("scan_pipeline_plugin") == "custom"
+            assert strict_mode is False
+            assert preflight_context is None
+            return {
+                "metadata": {
+                    "existing": False,
+                    "direct_plugin_marker": "custom",
+                },
+                "role_name": "direct-plugin-role",
+            }
+
+    class _Registry:
+        @staticmethod
+        def get_scan_pipeline_plugin(name: str):
+            if name == "custom":
+                return _DirectPlugin
+            return None
+
+    result = orchestrator_module.orchestrate_scan_payload_with_selected_plugin(
+        build_payload_fn=lambda: {"metadata": {"existing": True}},
+        scan_options={"scan_pipeline_plugin": "custom"},
+        strict_mode=False,
+        registry=_Registry(),
+    )
+
+    assert result == {
+        "metadata": {
+            "existing": False,
+            "direct_plugin_marker": "custom",
+        },
+        "role_name": "direct-plugin-role",
+    }
+
+
 def test_fsrc_repo_and_collection_context_builders_gate_on_kernel_flag(
     tmp_path: Path,
     monkeypatch,

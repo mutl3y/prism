@@ -1,0 +1,118 @@
+- id: ARCH-01
+  category: registry_authority
+  severity: high
+  cross_cutting: true
+  scouts_that_missed:
+  - Scout-Ownership
+  - Scout-Graph
+  title: Split-brain registry authority across four independent resolution paths
+  evidence:
+  - file: /raid5/source/test/prism/src/prism/scanner_plugins/defaults.py
+    line: 40
+    note: _resolve_registry resolves via di.plugin_registry > bootstrap.get_default_plugin_registry()
+  - file: /raid5/source/test/prism/src/prism/scanner_io/loader.py
+    line: 48
+    note: _resolve_plugin_registry resolves via getattr(di, "plugin_registry", None)
+  - file: /raid5/source/test/prism/src/prism/scanner_core/di.py
+    line: 71
+    note: resolve_platform_key resolves via scan_options > policy_context > registry default
+  - file: /raid5/source/test/prism/src/prism/api.py
+    line: 63
+    note: DEFAULT_PLUGIN_REGISTRY module singleton at api.py top level
+  verification_evidence: "grep 'def _resolve.*registry' shows four distinct resolution functions"
+  observation: >
+    Four independent registry resolution paths exist without a single canonical authority.
+    defaults._resolve_registry, loader._resolve_plugin_registry, di.resolve_platform_key,
+    and the api.DEFAULT_PLUGIN_REGISTRY module singleton all resolve the registry through
+    different precedence chains. A custom injected registry can propagate through some
+    paths (di.plugin_registry > defaults resolver) but not others (loader fallback,
+    api.DEFAULT_PLUGIN_REGISTRY). There is no test proving that a custom injected registry
+    propagates consistently through bundle prep, loader fallback, and runtime routing.
+  recommendation: >
+    Consolidate registry resolution to a single canonical path with explicit precedence:
+    injected > DI-stored > bootstrap singleton. Add an architecture test proving that
+    a custom registry injected into execution_request_builder propagates through all
+    downstream consumers without leaking back to DEFAULT_PLUGIN_REGISTRY.
+
+- id: ARCH-02
+  category: facade_leakage
+  severity: medium
+  cross_cutting: true
+  scouts_that_missed:
+  - Scout-Ownership
+  title: api.py re-exports internal runtime assembly helpers as top-level facade symbols
+  evidence:
+  - file: /raid5/source/test/prism/src/prism/api.py
+    line: 52
+    note: build_run_scan_options_canonical re-exported from api_non_collection
+  - file: /raid5/source/test/prism/src/prism/api.py
+    line: 53
+    note: route_scan_payload_orchestration re-exported from api_non_collection
+  - file: /raid5/source/test/prism/src/prism/api.py
+    line: 63
+    note: DEFAULT_PLUGIN_REGISTRY singleton re-exported at module level
+  verification_evidence: "api.py lines 52-63: three internal helpers/singletons exposed at top level"
+  observation: >
+    api.py re-exports three internal runtime symbols at the top level without listing them
+    in __all__. build_run_scan_options_canonical and route_scan_payload_orchestration are
+    composition helpers used internally by run_scan orchestration; DEFAULT_PLUGIN_REGISTRY
+    is a module singleton instance. None of these are part of the documented public contract
+    (API_PUBLIC_ENTRYPOINTS lists scan_collection, scan_role, scan_repo only). Tests that
+    patch these re-exported symbols through the public facade freeze the leak as a test
+    dependency.
+  recommendation: >
+    Remove the three re-exports from api.py top level. Keep them as internal imports within
+    run_scan/scan_collection/scan_role. Add an architecture guardrail test asserting that
+    api.__all__ contains only the three public entry points and no assembly/singleton leaks.
+
+- id: ARCH-03
+  category: shell_boundary
+  severity: medium
+  cross_cutting: true
+  scouts_that_missed:
+  - Scout-Ownership
+  title: scanner_reporting shell layer imports directly from scanner_plugins without facade
+  evidence:
+  - file: /raid5/source/test/prism/src/prism/scanner_reporting/__init__.py
+    line: 32
+    note: "from prism.scanner_plugins.defaults import resolve_render_runbook, ..."
+  verification_evidence: "scanner_reporting/__init__.py:32 direct scanner_plugins import"
+  observation: >
+    scanner_reporting is a shell layer package (reporting facades for CLI/API consumers)
+    and should not import directly from scanner_plugins. The import crosses the shell-to-plugin
+    boundary without going through an approved seam like api_layer.plugin_facade. This
+    pattern, if allowed to spread, permits any shell layer to reach into plugin internals
+    without architecture control.
+  recommendation: >
+    Add resolve_render_runbook, resolve_render_runbook_csv, and resolve_runbook_rows to
+    api_layer/plugin_facade.py as thin pass-through wrappers. Update scanner_reporting to
+    import from the facade. Add an architecture guardrail test enforcing that scanner_reporting
+    and cli_app have zero direct imports from scanner_plugins.
+
+- id: ARCH-04
+  category: control_flow
+  severity: medium
+  cross_cutting: true
+  scouts_that_missed:
+  - Scout-ControlFlow
+  title: loader.py YAML policy resolution has silent late-resolver fallback without diagnostic
+  evidence:
+  - file: /raid5/source/test/prism/src/prism/scanner_io/loader.py
+    line: 77
+    note: Comment states "Intentional dual-path — soft fallback to registry-resolved default"
+  - file: /raid5/source/test/prism/src/prism/scanner_io/loader.py
+    line: 91
+    note: Resolves from registry when prepared_policy_bundle is absent, unlike other policy getters
+  verification_evidence: "loader.py:77-91 dual-path with soft fallback, no raise on missing bundle"
+  observation: >
+    _get_yaml_parsing_policy in loader.py is the only policy getter that does NOT raise when
+    prepared_policy_bundle is absent. Instead, it silently falls back to registry-resolved default.
+    The comment explains this is "intentional" for discovery paths that execute before a bundle
+    is prepared, but the dual-path behavior is not enforced by any contract or test. A caller
+    expecting fail-closed prepared-policy enforcement gets silent late resolution instead.
+  recommendation: >
+    Make the dual-path contract explicit: either require prepared_policy_bundle for all loader
+    paths and push discovery-time YAML parsing into a separate pre-scan helper, or type the
+    loader contract to return PreparedYAMLParsingPolicy | None and force callers to handle
+    the None case explicitly. Add a test proving that loader fails closed when strict_mode=True
+    and prepared_policy_bundle is absent.

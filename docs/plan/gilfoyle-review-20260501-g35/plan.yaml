@@ -1,0 +1,26 @@
+plan_id: gilfoyle-review-20260501-g35
+cycle: g35
+title: "Mutl3y/Gilfoyle review cycle for src/prism"
+status: completed
+created_at: "2026-05-01"
+review_type: thorough
+target: src/prism
+focus_axis: architecture
+origin: "Post-g34 closure and plan-cleanup continuation"
+
+resumption_pointer:
+  current_phase: P7
+  next_action: "Carry FIND-G35-ARCH-02 and CF-02 into the next wave or next cycle."
+  blocking_issues: []
+  notes: |
+    Thorough review selected because the prior implementation cycle closed its
+    active findings. Focus axis comes from docs/plan/.gilfoyle-lessons/digest.yaml
+    and is architecture for this cycle. Wave g35-w1 closed the high-priority
+    registry-authority bypass seam and left two verified medium findings carried.
+
+artifacts:
+  readiness_check: docs/plan/gilfoyle-review-20260501-g35/artifacts/phase0/readiness-check.json
+  learning_context: docs/plan/gilfoyle-review-20260501-g35/artifacts/phase0/learning-context.yaml
+  findings: docs/plan/gilfoyle-review-20260501-g35/findings.yaml
+  model_usage_ledger: docs/plan/gilfoyle-review-20260501-g35/artifacts/model-usage-ledger.yaml
+  model_scorecard: docs/plan/gilfoyle-review-20260501-g35/artifacts/model-scorecard.yaml

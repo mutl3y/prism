@@ -151,6 +151,25 @@ def _raise_contract_error(
     ) from cause
 
 
+def _raise_invalid_plugin_output_error(
+    *,
+    plugin_name: str,
+    plugin_output: object,
+) -> NoReturn:
+    _raise_contract_error(
+        code="scan_pipeline_execution_failed",
+        message=(
+            f"scan-pipeline plugin '{plugin_name}' returned invalid runtime "
+            f"output type '{type(plugin_output).__name__}'; expected dict"
+        ),
+        routing=_build_routing_metadata(
+            mode=_ROUTING_MODE_PLUGIN,
+            selected_plugin=plugin_name,
+            failure_mode="invalid_plugin_output",
+        ),
+    )
+
+
 def _orchestrate_scan_payload_with_plugin_instance(
     *,
     plugin: object,
@@ -175,7 +194,10 @@ def _orchestrate_scan_payload_with_plugin_instance(
             plugin_output = {}
 
     if not isinstance(plugin_output, dict):
-        return payload
+        _raise_invalid_plugin_output_error(
+            plugin_name=plugin_name,
+            plugin_output=plugin_output,
+        )
 
     payload["metadata"] = _merge_metadata_preserving_existing(
         base_metadata,
@@ -271,6 +293,8 @@ def orchestrate_scan_payload_with_selected_plugin(
                 strict_mode=strict_mode,
                 preflight_context=preflight_context,
             )
+    except PrismRuntimeError:
+        raise
     except Exception as exc:
         routing = _build_routing_metadata(
             failure_mode="runtime_execution_exception",
@@ -281,6 +305,12 @@ def orchestrate_scan_payload_with_selected_plugin(
             message="scan-pipeline runtime execution failed",
             routing=routing,
             cause=exc,
+        )
+
+    if not isinstance(result, dict):
+        _raise_invalid_plugin_output_error(
+            plugin_name=plugin_name,
+            plugin_output=result,
         )
 
     if isinstance(result, dict) and existing_preflight_routing:

@@ -1,0 +1,75 @@
+- timestamp: '2026-05-01T09:05:00Z'
+  cycle: g39
+  phase: P0
+  worker: Scout-Typing
+  task_id: g39-light-scout-typing
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g39/artifacts/phase0/Scout-Typing.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_recovery
+  notes: scout returned inline YAML and foreman persisted the artifact locally
+- timestamp: '2026-05-01T09:05:00Z'
+  cycle: g39
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g39-light-scout-ownership
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g39/artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_recovery
+  notes: scout returned inline YAML and foreman persisted the artifact locally
+- timestamp: '2026-05-01T09:05:00Z'
+  cycle: g39
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g39-light-scout-controlflow
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g39/artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_recovery
+  notes: scout returned inline YAML and foreman persisted the artifact locally
+- timestamp: '2026-05-01T09:05:00Z'
+  cycle: g39
+  phase: P0
+  worker: Scout-Graph
+  task_id: g39-light-scout-graph
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g39/artifacts/phase0/Scout-Graph.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_recovery
+  notes: scout returned inline YAML and foreman persisted the artifact locally
+- timestamp: '2026-05-01T09:18:00Z'
+  cycle: g39
+  phase: P5
+  worker: Builder-ControlFlow
+  task_id: FIND-G39-CF-01
+  requested_tier: balanced
+  requested_model: GPT-5.4
+  actual_model: GPT-5.4
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g39/artifacts/phase5/Builder-ControlFlow-summary.md
+  quality_score: 5
+  needed_reedit: false
+  recovery_action: none
+  notes: closed the direct orchestrate_scan_payload invalid-output bypass and passed the focused kernel gate

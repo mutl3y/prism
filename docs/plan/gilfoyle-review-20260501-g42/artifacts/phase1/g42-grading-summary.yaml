@@ -1,0 +1,22 @@
+phase: P1
+status: completed
+cycle: g42
+review_type: light
+focus_axis: ownership
+coverage_proof:
+  files_examined:
+    - src/prism/cli.py
+    - src/prism/tests/test_scanner_guardrails.py
+    - src/prism/api_layer/plugin_facade.py
+    - src/prism/api.py
+category_proof:
+  typing: examined_none_found
+  ownership: examined_none_found
+  control_flow: examined_none_found
+  graph: examined_none_found
+critical_high_summary:
+  count: 0
+  findings: []
+raw_observation_count: 0
+verdict: clean_light_checkpoint
+next_step: open_g43_thorough

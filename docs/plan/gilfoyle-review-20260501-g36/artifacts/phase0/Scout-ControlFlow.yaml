@@ -1,0 +1,48 @@
+- id: CF-API-002
+  severity: medium
+  confidence: high
+  category: orchestration_seam
+  summary: "compute_quality_metrics() is routed through a public collector that strips features and a local loader that always returns {}, so the reported score never sees task/module counts or variables."
+  evidence:
+    - file: /raid5/source/test/prism/src/prism/api.py
+      line: 518
+      note: "_collect delegates to collect_role_contents(), and _load_variables returns {}."
+    - file: /raid5/source/test/prism/src/prism/api.py
+      line: 529
+      note: "the facade passes both stubs into scan_facade_helpers.compute_quality_metrics()."
+    - file: /raid5/source/test/prism/src/prism/scanner_core/scan_facade_helpers.py
+      line: 64
+      note: "the shared helper consumes features and variables when computing score and counts."
+  impact: "public quality metrics undercount the role and can produce misleading comparison scores without any warning."
+  fix_group_key: api_quality_facade
+- id: CF-TASK-003
+  severity: medium
+  confidence: high
+  category: error_channel
+  summary: "task_catalog_assembly silently converts task-file read failures into an empty raw_lines list, so implicit annotations and runbook extraction are dropped instead of being surfaced."
+  evidence:
+    - file: /raid5/source/test/prism/src/prism/scanner_extract/task_catalog_assembly.py
+      line: 76
+      note: "the task YAML is loaded first, then raw_lines is read separately for annotation extraction."
+    - file: /raid5/source/test/prism/src/prism/scanner_extract/task_catalog_assembly.py
+      line: 79
+      note: "OSError is swallowed and raw_lines is replaced with []."
+    - file: /raid5/source/test/prism/src/prism/scanner_extract/task_catalog_assembly.py
+      line: 81
+      note: "annotation extraction and runbook derivation continue against the empty line list."
+  impact: "a transient permissions/IO problem on one task file can erase annotation data from the catalog while the scan continues."
+  fix_group_key: task_catalog_annotation_io
+- id: CF-API-001
+  severity: medium
+  confidence: medium
+  category: orchestration_seam
+  summary: "collect_role_contents() suppresses feature extraction entirely by wiring extract_role_features to an empty dict, so callers of the public API never receive the feature metadata that the shared helper supports."
+  evidence:
+    - file: /raid5/source/test/prism/src/prism/api.py
+      line: 505
+      note: "the public wrapper hardcodes extract_role_features=lambda rp, **kw: {}."
+    - file: /raid5/source/test/prism/src/prism/scanner_core/scan_facade_helpers.py
+      line: 64
+      note: 'the helper stores whatever extract_role_features() returns under result["features"].'
+  impact: "any caller that expects file-derived feature metadata from the API gets an empty feature map with no diagnostic signal."
+  fix_group_key: api_quality_facade

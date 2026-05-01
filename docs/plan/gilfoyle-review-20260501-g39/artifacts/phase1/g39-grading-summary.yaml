@@ -1,0 +1,20 @@
+plan_id: gilfoyle-review-20260501-g39
+cycle: g39
+phase: P1
+status: completed
+review_type: light
+focus_axis: ownership
+raw_observation_count: 3
+promoted_findings:
+  - id: FIND-G39-CF-01
+    source:
+      - docs/plan/gilfoyle-review-20260501-g39/artifacts/phase0/Scout-Ownership.yaml#SO-L-01
+    severity: high
+    rationale: The g38 runtime contract fix covered only the fallback process_scan_pipeline path. Direct orchestrate_scan_payload plugins could still return non-dict results and bypass the same fail-closed boundary, so the changed kernel slice remained high severity.
+non_blocking_observations:
+  - SG-L-01
+  - SG-L-02
+suppressed_highs: []
+decision_summary:
+  - Repair the direct orchestrate_scan_payload bypass in the same kernel slice immediately and rerun the identical focused gate.
+  - Treat the graph and test-fixture observations as non-blocking for this light cycle because they do not change the high-severity stop/go decision.

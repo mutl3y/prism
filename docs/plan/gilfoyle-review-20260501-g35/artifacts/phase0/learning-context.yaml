@@ -1,0 +1,28 @@
+context_budget: "live_context = stable_rules + current_phase + active_findings + short_excerpts"
+memory_source: docs/plan/.gilfoyle-lessons
+active_lessons:
+  - LESSON-01
+  - LESSON-02
+  - LESSON-03
+  - LESSON-04
+  - LESSON-05
+  - LESSON-06
+  - LESSON-07
+  - LESSON-08
+  - LESSON-09
+  - LESSON-10
+  - LESSON-11
+  - LESSON-12
+do_not_re_flag_count: 15
+focus_axis_due_next: architecture
+model_route_notes:
+  - "Claude Haiku 4.5 is healthy for scout lanes in the current rollup."
+  - "GPT-4.1 and GPT-5 mini are watch-only on scout writing tasks due to prior artifact-missing failures."
+stale_or_missing_memory: []
+readiness_check:
+  ready: true
+  missing: []
+  watch_models:
+    - GPT-4.1
+    - GPT-5 mini
+  degraded_models: []

@@ -1,0 +1,59 @@
+- id: SO-01
+  category: ownership
+  fingerprint: repo_services.normalize_repo_scan_payload.in_place_mutation
+  file: src/prism/repo_services.py
+  line: 175
+  severity_hint: medium
+  confidence: high
+  detector: live_source
+  memory_status: needs_recheck
+  memory_match: ""
+  evidence_snippet: 'payload["metadata"] = metadata'
+  evidence_command: "nl -ba src/prism/repo_services.py | sed -n '172,189p'"
+  related_symbols:
+    - normalize_repo_scan_payload
+    - RepoScanRunResult
+  fix_group_key: repo_scan_payload_ownership
+  proposed_fix_class: seam_facade
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_repo_parity.py -k repo_scan
+- id: SO-02
+  category: ownership
+  fingerprint: repo_services._run_repo_scan.drops_effective_style_readme_path
+  file: src/prism/repo_services.py
+  line: 270
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: needs_recheck
+  memory_match: ""
+  evidence_snippet: 'repo_style_readme_path=run_result.checkout.resolved_repo_style_readme_path,'
+  evidence_command: "nl -ba src/prism/repo_services.py | sed -n '251,271p'"
+  related_symbols:
+    - _run_repo_scan
+    - run_repo_scan
+    - resolve_repo_scan_target
+  fix_group_key: repo_scan_payload_ownership
+  proposed_fix_class: update_all
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_repo_parity.py -k repo_scan
+- id: SO-03
+  category: facade_leakage
+  fingerprint: api_layer.plugin_facade.uses_package_root_registry_singleton
+  file: src/prism/api_layer/plugin_facade.py
+  line: 37
+  severity_hint: medium
+  confidence: medium
+  detector: neighbor_read
+  memory_status: needs_recheck
+  memory_match: ""
+  evidence_snippet: from prism.scanner_plugins import DEFAULT_PLUGIN_REGISTRY
+  evidence_command: "nl -ba src/prism/api_layer/plugin_facade.py | sed -n '32,39p'"
+  related_symbols:
+    - get_default_plugin_registry
+    - DEFAULT_PLUGIN_REGISTRY
+    - initialize_default_registry
+  fix_group_key: plugin_registry_access_facade
+  proposed_fix_class: seam_facade
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_guardrails.py -k registry

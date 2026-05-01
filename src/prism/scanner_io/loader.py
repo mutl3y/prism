@@ -44,21 +44,6 @@ def _resolve_plugin_registry(di: object | None = None):
             "YAML parsing policy resolution: using DI.plugin_registry override"
         )
         return registry
-    scan_options = getattr(di, "scan_options", None)
-    if isinstance(scan_options, dict):
-        registry = scan_options.get("plugin_registry")
-        if registry is not None:
-            # WARNING: scan_options["plugin_registry"] is a non-standard bypass path that
-            # circumvents the DI container boundary. Registry ownership belongs at
-            # the container/bootstrap boundary (DIContainer constructor), not in scan_options
-            # payloads. This path is retained for deferred contract reshape
-            # (FIND-G2-LOADER-DUAL-PATH). If you are hitting this warning, thread registry
-            # through the DI container instead.
-            logger.warning(
-                "YAML parsing policy resolution: registry override via scan_options "
-                "bypasses DI contract boundary; use DIContainer(registry=...) instead"
-            )
-        return registry
     return None
 
 

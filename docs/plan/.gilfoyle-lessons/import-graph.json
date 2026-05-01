@@ -1,0 +1,4074 @@
+{
+  "generated_at": "2026-05-01T00:16:55.801240+00:00",
+  "repo_root": "/raid5/source/test/prism",
+  "module_count": 250,
+  "modules": [
+    {
+      "file": "conftest.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "sys"
+      ]
+    },
+    {
+      "file": "demos/api_demo.py",
+      "imports": [
+        "__future__",
+        "json",
+        "pathlib",
+        "prism.api"
+      ]
+    },
+    {
+      "file": "demos/api_runbook_demo.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.api"
+      ]
+    },
+    {
+      "file": "demos/fixtures/collection_demo/plugins/callback/audit_callback.py",
+      "imports": []
+    },
+    {
+      "file": "demos/fixtures/collection_demo/plugins/callback/demo_callback.py",
+      "imports": []
+    },
+    {
+      "file": "demos/fixtures/collection_demo/plugins/connection/demo_connection.py",
+      "imports": []
+    },
+    {
+      "file": "demos/fixtures/collection_demo/plugins/doc_fragments/common_options.py",
+      "imports": []
+    },
+    {
+      "file": "demos/fixtures/collection_demo/plugins/filter/demo_filters.py",
+      "imports": []
+    },
+    {
+      "file": "demos/fixtures/collection_demo/plugins/inventory/demo_inventory.py",
+      "imports": []
+    },
+    {
+      "file": "demos/fixtures/collection_demo/plugins/lookup/demo_lookup.py",
+      "imports": []
+    },
+    {
+      "file": "demos/fixtures/collection_demo/plugins/lookup/environment_lookup.py",
+      "imports": []
+    },
+    {
+      "file": "demos/fixtures/collection_demo/plugins/module_utils/http_helpers.py",
+      "imports": []
+    },
+    {
+      "file": "demos/fixtures/collection_demo/plugins/modules/demo_ping.py",
+      "imports": []
+    },
+    {
+      "file": "demos/fixtures/collection_demo/plugins/modules/demo_report.py",
+      "imports": []
+    },
+    {
+      "file": "demos/fixtures/collection_demo/plugins/strategy/demo_strategy.py",
+      "imports": []
+    },
+    {
+      "file": "demos/fixtures/collection_demo/plugins/test/demo_tests.py",
+      "imports": []
+    },
+    {
+      "file": "scripts/audit_error_boundaries.py",
+      "imports": [
+        "__future__",
+        "argparse",
+        "json",
+        "pathlib",
+        "re",
+        "sys"
+      ]
+    },
+    {
+      "file": "scripts/check_barrier_status.py",
+      "imports": [
+        "__future__",
+        "argparse",
+        "datetime",
+        "pathlib",
+        "typing",
+        "yaml"
+      ]
+    },
+    {
+      "file": "scripts/cli_demo_matrix.py",
+      "imports": [
+        "__future__",
+        "argparse",
+        "dataclasses",
+        "os",
+        "pathlib",
+        "shutil",
+        "subprocess"
+      ]
+    },
+    {
+      "file": "scripts/profile_role_scan.py",
+      "imports": [
+        "__future__",
+        "argparse",
+        "json",
+        "os",
+        "pathlib",
+        "statistics",
+        "subprocess",
+        "time"
+      ]
+    },
+    {
+      "file": "scripts/rollup_model_usage.py",
+      "imports": [
+        "__future__",
+        "argparse",
+        "datetime",
+        "pathlib",
+        "typing",
+        "yaml"
+      ]
+    },
+    {
+      "file": "scripts/summarise_messages.py",
+      "imports": [
+        "json",
+        "openai",
+        "os",
+        "time",
+        "typing",
+        "uuid"
+      ]
+    },
+    {
+      "file": "src/prism/__init__.py",
+      "imports": [
+        "importlib.metadata"
+      ]
+    },
+    {
+      "file": "src/prism/api.py",
+      "imports": [
+        "__future__",
+        "json",
+        "pathlib",
+        "prism.api_layer",
+        "prism.errors",
+        "prism.path_safety",
+        "prism.scanner_config.style",
+        "prism.scanner_core",
+        "prism.scanner_core.scan_facade_helpers",
+        "prism.scanner_data",
+        "prism.scanner_extract",
+        "prism.scanner_extract.filter_scanner",
+        "prism.scanner_io.collection_payload",
+        "prism.scanner_io.collection_plugins",
+        "prism.scanner_io.collection_renderer",
+        "prism.scanner_readme",
+        "prism.scanner_reporting",
+        "prism.scanner_reporting.collection_dependencies",
+        "re",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/api_layer/__init__.py",
+      "imports": []
+    },
+    {
+      "file": "src/prism/api_layer/collection.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_data",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/api_layer/common.py",
+      "imports": [
+        "__future__",
+        "json",
+        "prism.api_layer.payload_helpers",
+        "prism.errors",
+        "traceback",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/api_layer/non_collection.py",
+      "imports": [
+        "__future__",
+        "logging",
+        "pathlib",
+        "prism",
+        "prism.api_layer.payload_helpers",
+        "prism.errors",
+        "prism.scanner_core.di",
+        "prism.scanner_core.feature_detector",
+        "prism.scanner_core.scan_cache",
+        "prism.scanner_core.scan_request",
+        "prism.scanner_core.scanner_context",
+        "prism.scanner_core.variable_discovery",
+        "prism.scanner_data",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_kernel.orchestrator",
+        "threading",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/api_layer/payload_helpers.py",
+      "imports": [
+        "__future__",
+        "prism.errors",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/api_layer/plugin_facade.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_config.audit_rules",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_plugins",
+        "prism.scanner_plugins.audit.loader",
+        "prism.scanner_plugins.audit.runner",
+        "prism.scanner_plugins.bundle_resolver",
+        "prism.scanner_plugins.defaults",
+        "prism.scanner_plugins.interfaces",
+        "prism.scanner_plugins.registry",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/cli.py",
+      "imports": [
+        "__future__",
+        "argparse",
+        "collections.abc",
+        "json",
+        "logging",
+        "prism.api",
+        "prism.errors",
+        "prism.progress",
+        "prism.scanner_io.collection_renderer",
+        "prism.scanner_io.output",
+        "prism.scanner_plugins.audit",
+        "sys",
+        "urllib.error"
+      ]
+    },
+    {
+      "file": "src/prism/cli_app/__init__.py",
+      "imports": []
+    },
+    {
+      "file": "src/prism/cli_app/presenters.py",
+      "imports": [
+        "__future__",
+        "datetime",
+        "pathlib",
+        "prism.scanner_io.collection_renderer",
+        "re",
+        "shutil",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/cli_app/runtime.py",
+      "imports": [
+        "__future__",
+        "json",
+        "pathlib",
+        "prism.errors",
+        "urllib.error"
+      ]
+    },
+    {
+      "file": "src/prism/cli_app/shared.py",
+      "imports": [
+        "__future__",
+        "argparse",
+        "pathlib",
+        "prism.errors",
+        "prism.scanner_config.section",
+        "prism.scanner_readme.style",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/env_config.py",
+      "imports": [
+        "__future__",
+        "os",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/errors.py",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/path_safety.py",
+      "imports": [
+        "__future__",
+        "os",
+        "pathlib",
+        "prism.errors"
+      ]
+    },
+    {
+      "file": "src/prism/progress.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "prism.scanner_core.events",
+        "sys",
+        "threading",
+        "time",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/repo_services.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "dataclasses",
+        "json",
+        "os",
+        "pathlib",
+        "prism.errors",
+        "subprocess",
+        "tempfile",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_config/__init__.py",
+      "imports": [
+        "prism.scanner_config.audit_rules",
+        "prism.scanner_config.legacy_retirement",
+        "prism.scanner_config.marker",
+        "prism.scanner_config.patterns",
+        "prism.scanner_config.policy",
+        "prism.scanner_config.readme",
+        "prism.scanner_config.section",
+        "prism.scanner_config.style"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_config/audit_rules.py",
+      "imports": [
+        "__future__",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_config/legacy_retirement.py",
+      "imports": [
+        "__future__"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_config/marker.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_config.readme",
+        "prism.scanner_config.section",
+        "re",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_config/patterns.py",
+      "imports": [
+        "__future__",
+        "copy",
+        "functools",
+        "hashlib",
+        "json",
+        "logging",
+        "os",
+        "pathlib",
+        "prism.scanner_data.contracts_request",
+        "typing",
+        "urllib.error",
+        "urllib.request",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_config/policy.py",
+      "imports": [
+        "__future__",
+        "logging",
+        "prism.scanner_config.readme",
+        "prism.scanner_config.section",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_config/readme.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_config.legacy_retirement",
+        "prism.scanner_config.section",
+        "prism.scanner_config.style",
+        "typing",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_config/section.py",
+      "imports": [
+        "__future__"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_config/style.py",
+      "imports": [
+        "__future__",
+        "os",
+        "pathlib",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_config/style_aliases.py",
+      "imports": [
+        "__future__"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_config/style_parser.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_config.style_aliases",
+        "re",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/__init__.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_core.di",
+        "prism.scanner_core.feature_detector",
+        "prism.scanner_core.scan_cache",
+        "prism.scanner_core.scan_request",
+        "prism.scanner_core.scanner_context",
+        "prism.scanner_core.variable_discovery"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/di.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_core.events",
+        "prism.scanner_core.feature_detector",
+        "prism.scanner_core.protocols_runtime",
+        "prism.scanner_core.scan_cache",
+        "prism.scanner_core.scanner_context",
+        "prism.scanner_core.variable_discovery",
+        "prism.scanner_data.builders",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_plugins.defaults",
+        "prism.scanner_plugins.interfaces",
+        "prism.scanner_plugins.registry",
+        "threading",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/di_helpers.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "logging",
+        "prism.scanner_plugins.interfaces",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/events.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "dataclasses",
+        "logging",
+        "threading",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/execution_request_builder.py",
+      "imports": [
+        "__future__",
+        "copy",
+        "dataclasses",
+        "pathlib",
+        "prism.scanner_core.di",
+        "prism.scanner_core.protocols_runtime",
+        "prism.scanner_core.scanner_context",
+        "prism.scanner_data",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_plugins.interfaces",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/feature_detector.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_core.di",
+        "prism.scanner_core.di_helpers",
+        "prism.scanner_core.events",
+        "prism.scanner_core.task_extract_adapters",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_plugins.interfaces",
+        "threading",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/filters/__init__.py",
+      "imports": []
+    },
+    {
+      "file": "src/prism/scanner_core/filters/underscore_policy.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_data.contracts_request"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/metadata_merger.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_data.contracts_request"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/protocols_runtime.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_core.di",
+        "prism.scanner_data.contracts_request",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/scan_cache.py",
+      "imports": [
+        "__future__",
+        "collections",
+        "hashlib",
+        "json",
+        "os",
+        "threading",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/scan_facade_helpers.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/scan_request.py",
+      "imports": [
+        "__future__",
+        "copy",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_data.scan_options_schema",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/scanner_context.py",
+      "imports": [
+        "__future__",
+        "copy",
+        "logging",
+        "prism.errors",
+        "prism.scanner_core.di",
+        "prism.scanner_core.execution_request_builder",
+        "prism.scanner_core.filters.underscore_policy",
+        "prism.scanner_core.metadata_merger",
+        "prism.scanner_data.contracts_request",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/task_extract_adapters.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_core.di_helpers",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_extract.task_annotation_parsing",
+        "prism.scanner_extract.task_catalog_assembly",
+        "prism.scanner_extract.task_file_traversal"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/telemetry.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "json",
+        "logging",
+        "os",
+        "prism.scanner_core.events",
+        "sys",
+        "threading",
+        "time",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_core/variable_discovery.py",
+      "imports": [
+        "__future__",
+        "logging",
+        "prism.scanner_core.di",
+        "prism.scanner_core.di_helpers",
+        "prism.scanner_core.events",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_data.contracts_variables",
+        "prism.scanner_plugins.interfaces",
+        "threading",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_data/__init__.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_data.contracts_output",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_data.contracts_variables",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_data/builders.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_data.contracts_variables",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_data/contracts_output.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_data.contracts_request",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_data/contracts_request.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_data/contracts_variables.py",
+      "imports": [
+        "__future__",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_data/patterns_jinja.py",
+      "imports": [
+        "__future__",
+        "re"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_data/scan_options_schema.py",
+      "imports": [
+        "__future__",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_extract/__init__.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_extract.dataload",
+        "prism.scanner_extract.discovery",
+        "prism.scanner_extract.requirements",
+        "prism.scanner_extract.task_catalog_assembly",
+        "prism.scanner_extract.task_file_traversal",
+        "prism.scanner_extract.task_line_parsing",
+        "prism.scanner_extract.variable_extractor"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_extract/dataload.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_io.loader",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_extract/discovery.py",
+      "imports": [
+        "__future__",
+        "logging",
+        "pathlib",
+        "prism.scanner_io.loader",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_extract/filter_scanner.py",
+      "imports": [
+        "__future__",
+        "logging",
+        "os",
+        "pathlib",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_extract/requirements.py",
+      "imports": [
+        "__future__",
+        "re"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_extract/task_annotation_parsing.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_core.di_helpers",
+        "prism.scanner_data.contracts_request"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_extract/task_catalog_assembly.py",
+      "imports": [
+        "__future__",
+        "collections",
+        "pathlib",
+        "prism.scanner_core.di_helpers",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_extract.task_annotation_parsing",
+        "prism.scanner_extract.task_file_traversal",
+        "prism.scanner_extract.variable_helpers",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_extract/task_file_traversal.py",
+      "imports": [
+        "__future__",
+        "fnmatch",
+        "pathlib",
+        "prism.scanner_core.di_helpers",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_io.loader",
+        "re"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_extract/task_line_parsing.py",
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "prism.scanner_core.di_helpers",
+        "re",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_extract/variable_extractor.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_core.di_helpers",
+        "prism.scanner_data.patterns_jinja",
+        "prism.scanner_extract.task_file_traversal",
+        "prism.scanner_extract.variable_helpers",
+        "prism.scanner_io.loader",
+        "re",
+        "typing",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_extract/variable_helpers.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_data.contracts_variables",
+        "prism.scanner_data.patterns_jinja",
+        "re",
+        "typing",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_io/__init__.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_io.collection_renderer",
+        "prism.scanner_io.loader",
+        "prism.scanner_io.output",
+        "prism.scanner_io.output_orchestrator"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_io/collection_payload.py",
+      "imports": [
+        "__future__",
+        "json",
+        "pathlib",
+        "prism.errors",
+        "prism.scanner_data",
+        "prism.scanner_io.collection_plugins",
+        "traceback",
+        "typing",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_io/collection_plugins.py",
+      "imports": [
+        "__future__",
+        "ast",
+        "pathlib",
+        "re",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_io/collection_renderer.py",
+      "imports": [
+        "__future__",
+        "pathlib"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_io/emit_output.py",
+      "imports": [
+        "__future__",
+        "copy",
+        "os",
+        "pathlib",
+        "prism.scanner_data.contracts_output",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_io.output",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_io/loader.py",
+      "imports": [
+        "__future__",
+        "logging",
+        "os",
+        "pathlib",
+        "prism.scanner_core.di_helpers",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_plugins.defaults",
+        "typing",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_io/output.py",
+      "imports": [
+        "__future__",
+        "html",
+        "json",
+        "markdown",
+        "pathlib",
+        "prism.scanner_data.contracts_output",
+        "sys",
+        "typing",
+        "weasyprint"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_io/output_orchestrator.py",
+      "imports": [
+        "__future__",
+        "copy",
+        "pathlib",
+        "prism.scanner_core.events",
+        "prism.scanner_data.contracts_output",
+        "prism.scanner_io.emit_output",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_kernel/__init__.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_kernel.orchestrator"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_kernel/collection_context.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_kernel.repo_context",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_kernel/kernel_plugin_runner.py",
+      "imports": [
+        "__future__",
+        "copy",
+        "logging",
+        "prism.scanner_core.protocols_runtime",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_kernel/orchestrator.py",
+      "imports": [
+        "__future__",
+        "copy",
+        "prism.errors",
+        "prism.scanner_core.protocols_runtime",
+        "prism.scanner_kernel.plugin_name_resolver",
+        "prism.scanner_kernel.scan_payload_helpers",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_kernel/plugin_name_resolver.py",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "prism.errors",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_kernel/repo_context.py",
+      "imports": [
+        "__future__",
+        "logging",
+        "os",
+        "pathlib",
+        "typing",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_kernel/scan_payload_helpers.py",
+      "imports": [
+        "__future__",
+        "copy",
+        "prism.errors",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/__init__.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.ansible",
+        "prism.scanner_plugins.ansible.default_policies",
+        "prism.scanner_plugins.bootstrap",
+        "prism.scanner_plugins.default_scan_pipeline",
+        "prism.scanner_plugins.discovery",
+        "prism.scanner_plugins.interfaces",
+        "prism.scanner_plugins.parsers.comment_doc.role_notes_parser",
+        "prism.scanner_plugins.parsers.jinja",
+        "prism.scanner_plugins.parsers.yaml",
+        "prism.scanner_plugins.registry",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/__init__.py",
+      "imports": [
+        "__future__",
+        "copy",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_plugins.ansible.extract_policies",
+        "prism.scanner_plugins.ansible.feature_detection",
+        "prism.scanner_plugins.ansible.feature_flags",
+        "prism.scanner_plugins.ansible.kernel",
+        "prism.scanner_plugins.ansible.readme_renderer",
+        "prism.scanner_plugins.ansible.variable_discovery",
+        "prism.scanner_plugins.interfaces",
+        "prism.scanner_plugins.parsers.jinja",
+        "prism.scanner_plugins.parsers.yaml",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/default_policies.py",
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "pathlib",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_plugins.ansible.task_traversal_bare",
+        "prism.scanner_plugins.ansible.task_vocabulary",
+        "prism.scanner_plugins.parsers.comment_doc.annotation_parsing",
+        "prism.scanner_plugins.parsers.comment_doc.marker_utils",
+        "prism.scanner_plugins.parsers.yaml.line_shape",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/extract_policies.py",
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_plugins.ansible",
+        "prism.scanner_plugins.parsers.comment_doc.marker_utils",
+        "prism.scanner_plugins.parsers.jinja"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/extract_utils.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_extract.discovery",
+        "prism.scanner_extract.requirements",
+        "prism.scanner_extract.task_annotation_parsing",
+        "prism.scanner_extract.task_catalog_assembly",
+        "prism.scanner_extract.task_file_traversal",
+        "prism.scanner_extract.variable_helpers"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/feature_detection.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_plugins.ansible.extract_utils",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/feature_flags.py",
+      "imports": [
+        "__future__",
+        "os",
+        "prism.scanner_kernel.repo_context"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/kernel.py",
+      "imports": [
+        "__future__",
+        "types",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/readme_renderer.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_plugins.ansible.extract_utils",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/task_annotation_strategy.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.parsers.comment_doc.annotation_parsing",
+        "prism.scanner_plugins.parsers.comment_doc.marker_utils",
+        "prism.scanner_plugins.parsers.yaml.line_shape"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/task_keywords.py",
+      "imports": [
+        "__future__"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/task_line_parsing.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.ansible.task_traversal_bare"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/task_regex.py",
+      "imports": [
+        "__future__",
+        "re"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/task_traversal_bare.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.ansible.task_keywords",
+        "prism.scanner_plugins.ansible.task_regex",
+        "typing",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/task_vocabulary.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.ansible.task_keywords"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/variable_discovery.py",
+      "imports": [
+        "__future__",
+        "logging",
+        "pathlib",
+        "prism.scanner_data.builders",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_data.contracts_variables",
+        "prism.scanner_io.loader",
+        "prism.scanner_plugins.ansible",
+        "prism.scanner_plugins.ansible.extract_utils",
+        "re",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/ansible/variable_extractor.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_plugins.ansible.task_line_parsing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/audit/__init__.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_config.audit_rules",
+        "prism.scanner_plugins.audit.loader",
+        "prism.scanner_plugins.audit.runner",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/audit/blocker_fact_evaluator.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_plugins.audit.dynamic_include_audit",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/audit/builtin_rules.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_config.audit_rules"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/audit/dynamic_include_audit.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.ansible.extract_utils"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/audit/loader.py",
+      "imports": [
+        "__future__",
+        "json",
+        "pathlib",
+        "prism.scanner_config.audit_rules",
+        "typing",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/audit/runner.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_config.audit_rules",
+        "prism.scanner_plugins.audit.builtin_rules",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/bootstrap.py",
+      "imports": [
+        "__future__",
+        "logging",
+        "prism.scanner_plugins.ansible",
+        "prism.scanner_plugins.ansible.default_policies",
+        "prism.scanner_plugins.default_scan_pipeline",
+        "prism.scanner_plugins.defaults",
+        "prism.scanner_plugins.discovery",
+        "prism.scanner_plugins.parsers.comment_doc.role_notes_parser",
+        "prism.scanner_plugins.parsers.jinja",
+        "prism.scanner_plugins.parsers.yaml",
+        "prism.scanner_plugins.registry",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/bundle_resolver.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_plugins.defaults",
+        "prism.scanner_plugins.parsers.comment_doc.marker_utils",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/default_scan_pipeline.py",
+      "imports": [
+        "__future__",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/defaults.py",
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "logging",
+        "prism.errors",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_plugins.ansible.default_policies",
+        "prism.scanner_plugins.ansible.extract_utils",
+        "prism.scanner_plugins.audit.blocker_fact_evaluator",
+        "prism.scanner_plugins.bootstrap",
+        "prism.scanner_plugins.bundle_resolver",
+        "prism.scanner_plugins.interfaces",
+        "prism.scanner_plugins.parsers.comment_doc.role_notes_parser",
+        "prism.scanner_plugins.parsers.comment_doc.runbook_renderer",
+        "prism.scanner_plugins.parsers.jinja",
+        "prism.scanner_plugins.parsers.yaml",
+        "prism.scanner_plugins.registry",
+        "types",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/discovery.py",
+      "imports": [
+        "__future__",
+        "importlib.metadata",
+        "logging",
+        "prism.scanner_plugins.registry",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/filters/__init__.py",
+      "imports": []
+    },
+    {
+      "file": "src/prism/scanner_plugins/filters/underscore_policy.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_data.contracts_request"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/interfaces.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_data",
+        "prism.scanner_data.contracts_request",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/kubernetes/__init__.py",
+      "imports": [
+        "__future__",
+        "types",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/__init__.py",
+      "imports": [
+        "__future__"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/comment_doc/__init__.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.parsers.comment_doc.role_notes_parser"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/comment_doc/annotation_parsing.py",
+      "imports": [
+        "__future__",
+        "bisect",
+        "collections",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_plugins.parsers.comment_doc.marker_utils",
+        "prism.scanner_plugins.parsers.yaml.line_shape",
+        "re"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/comment_doc/jinja_utils.py",
+      "imports": [
+        "__future__",
+        "jinja2",
+        "pathlib",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/comment_doc/marker_utils.py",
+      "imports": [
+        "__future__",
+        "functools",
+        "prism.scanner_config.section",
+        "re"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/comment_doc/role_notes_parser.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_plugins.interfaces",
+        "prism.scanner_plugins.parsers.comment_doc.marker_utils"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/comment_doc/runbook_renderer.py",
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "csv",
+        "io",
+        "pathlib",
+        "prism.scanner_plugins.parsers.comment_doc.jinja_utils",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/jinja/__init__.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.parsers.jinja.analysis_policy",
+        "prism.scanner_plugins.parsers.jinja.patterns"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/jinja/analysis_policy.py",
+      "imports": [
+        "__future__",
+        "jinja2",
+        "jinja2.nodes",
+        "jinja2.sandbox",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/jinja/patterns.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_data.patterns_jinja"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/markdown/__init__.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.parsers.markdown.style_parser"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/markdown/style_parser.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_config.style_aliases",
+        "prism.scanner_config.style_parser"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/yaml/__init__.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.parsers.yaml.parsing_policy"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/yaml/line_shape.py",
+      "imports": [
+        "__future__",
+        "re"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/parsers/yaml/parsing_policy.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_data.contracts_request",
+        "prism.scanner_io.loader",
+        "typing",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/registry.py",
+      "imports": [
+        "__future__",
+        "importlib",
+        "prism.scanner_plugins.interfaces",
+        "threading",
+        "typing",
+        "warnings"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_plugins/terraform/__init__.py",
+      "imports": [
+        "__future__",
+        "types",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_readme/__init__.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_readme.doc_insights",
+        "prism.scanner_readme.guide",
+        "prism.scanner_readme.render",
+        "prism.scanner_readme.style"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_readme/doc_insights.py",
+      "imports": [
+        "__future__"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_readme/guide.py",
+      "imports": [
+        "__future__",
+        "logging",
+        "prism.scanner_plugins.defaults",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_readme/render.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_plugins.defaults",
+        "prism.scanner_readme.guide",
+        "prism.scanner_readme.rendering_seams",
+        "prism.scanner_readme.style",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_readme/rendering_seams.py",
+      "imports": [
+        "__future__",
+        "jinja2",
+        "pathlib",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_readme/style.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_config.style_parser",
+        "prism.scanner_readme.style_config",
+        "prism.scanner_readme.style_formatter"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_readme/style_config.py",
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "contextlib",
+        "contextvars",
+        "prism.scanner_config.style_aliases",
+        "types",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_readme/style_formatter.py",
+      "imports": [
+        "__future__",
+        "re"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_reporting/__init__.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.defaults",
+        "prism.scanner_reporting.report"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_reporting/collection_dependencies.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.errors",
+        "typing",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/scanner_reporting/report.py",
+      "imports": [
+        "__future__",
+        "copy",
+        "prism.scanner_data.contracts_output",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_ansible_task_traversal_bare.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.ansible"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_api_cli_entrypoints.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "json",
+        "pathlib",
+        "pytest",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_api_cli_repo_parity.py",
+      "imports": [
+        "__future__",
+        "argparse",
+        "contextlib",
+        "importlib",
+        "inspect",
+        "json",
+        "pathlib",
+        "prism.repo_services",
+        "pytest",
+        "subprocess",
+        "sys",
+        "unittest.mock",
+        "urllib.error"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_api_layer_common.py",
+      "imports": [
+        "__future__",
+        "prism.api_layer.common",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_audit_modules.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.audit.blocker_fact_evaluator",
+        "prism.scanner_plugins.audit.dynamic_include_audit",
+        "typing",
+        "unittest.mock"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_audit_plugin.py",
+      "imports": [
+        "__future__",
+        "json",
+        "pathlib",
+        "prism.scanner_config.audit_rules",
+        "prism.scanner_plugins.audit.loader",
+        "prism.scanner_plugins.audit.runner",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_audit_rules.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_config.audit_rules"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_blocker_fact_evaluator.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.audit.blocker_fact_evaluator",
+        "typing",
+        "unittest.mock"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_cli_api_guardrails.py",
+      "imports": [
+        "__future__",
+        "ast",
+        "pathlib"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_cli_app.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.cli_app.presenters",
+        "prism.cli_app.runtime",
+        "prism.cli_app.shared"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_collection_contract.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "pytest",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_collection_payload.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.errors",
+        "prism.scanner_io.collection_payload",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_collection_renderer.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_io.collection_renderer"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_comment_doc_plugin_resolution.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "pytest",
+        "re",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_dataload.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_extract.dataload"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_di_container.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "pytest",
+        "sys",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_di_helpers.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_di_registry_resolution.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "pytest",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_errors.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_execution_request_builder.py",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "prism.scanner_core.execution_request_builder"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_extract_defaults_ansible_ownership.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.ansible.default_policies",
+        "prism.scanner_plugins.ansible.extract_policies",
+        "prism.scanner_plugins.ansible.task_vocabulary"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_extract_policies.py",
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "prism.scanner_plugins.ansible.extract_policies"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_feature_detector.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_feature_flags.py",
+      "imports": [
+        "__future__",
+        "os",
+        "pathlib",
+        "prism.scanner_plugins.ansible.feature_flags",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_filter_scanner.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.api",
+        "prism.scanner_extract.filter_scanner",
+        "re"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_g02_thread_safety.py",
+      "imports": [
+        "prism.scanner_core.di",
+        "prism.scanner_core.events",
+        "threading"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_g03_scan_cache_integration.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.api_layer.non_collection",
+        "prism.scanner_core.scan_cache"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_gf2_collection_namespace_filtering.py",
+      "imports": [
+        "__future__",
+        "importlib",
+        "inspect"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_gilfoyle_blockers_runtime.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "logging",
+        "pathlib",
+        "prism.scanner_config.patterns",
+        "prism.scanner_extract.discovery",
+        "prism.scanner_extract.variable_extractor",
+        "prism.scanner_plugins.defaults",
+        "prism.scanner_plugins.registry",
+        "prism.scanner_readme.guide",
+        "pytest",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_hypothesis_jinja_scanner.py",
+      "imports": [
+        "__future__",
+        "hypothesis",
+        "prism.scanner_plugins.ansible.task_line_parsing",
+        "prism.scanner_plugins.parsers.jinja.analysis_policy"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_hypothesis_yaml_parser.py",
+      "imports": [
+        "__future__",
+        "hypothesis",
+        "os",
+        "prism.scanner_plugins.parsers.yaml.parsing_policy",
+        "tempfile",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_import_style_guardrails.py",
+      "imports": [
+        "__future__",
+        "pathlib"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_kernel.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.ansible.kernel",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_kernel_plugin_runner.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_kernel.kernel_plugin_runner",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_legacy_retirement.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_config",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_output_orchestration.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "sys",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_package_export_parity.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "sys",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_package_import_smoke.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "pytest",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_platform_execution_bundle.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "sys",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_platform_routing_fail_closed.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "pytest",
+        "sys",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_plugin_extract_boundary.py",
+      "imports": [
+        "__future__",
+        "ast",
+        "pathlib",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_plugin_kernel_extension_parity.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "pytest",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_plugin_name_resolver.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_kernel.plugin_name_resolver",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_policy_as_code_stubs.py",
+      "imports": [
+        "__future__",
+        "prism.cli",
+        "prism.scanner_config",
+        "prism.scanner_config.audit_rules",
+        "prism.scanner_core.di",
+        "prism.scanner_plugins.audit",
+        "prism.scanner_plugins.audit.builtin_rules",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_readme_parity.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "jinja2",
+        "pathlib",
+        "sys",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_readme_renderer_plugin_isolation.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_plugins.ansible.readme_renderer",
+        "prism.scanner_plugins.registry",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_readme_renderer_plugin_parity.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.ansible.readme_renderer",
+        "pytest",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_readme_renderer_plugin_protocol.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_plugins.ansible.readme_renderer",
+        "prism.scanner_plugins.interfaces"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_readme_renderer_registry_wiring.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_plugins",
+        "prism.scanner_plugins.ansible.readme_renderer",
+        "prism.scanner_plugins.defaults",
+        "prism.scanner_plugins.registry",
+        "prism.scanner_readme.guide",
+        "prism.scanner_readme.render",
+        "pytest",
+        "tempfile"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_registry_reserved_platforms.py",
+      "imports": [
+        "prism.scanner_plugins.registry"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_render_compat.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_readme.guide",
+        "prism.scanner_readme.render"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_requirements.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_extract.requirements"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_scan_facade_helpers.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.api",
+        "prism.scanner_core.scan_facade_helpers"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_scanner_config.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_config",
+        "prism.scanner_config.legacy_retirement",
+        "prism.scanner_config.marker",
+        "prism.scanner_config.patterns",
+        "prism.scanner_config.policy",
+        "prism.scanner_config.readme",
+        "prism.scanner_config.section",
+        "prism.scanner_config.style",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_scanner_config_style.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.api",
+        "prism.scanner_config.style",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_scanner_context.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "pytest",
+        "sys",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_scanner_core_di.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "pytest",
+        "sys",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_scanner_core_small_surfaces.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "prism.scanner_data.builders",
+        "pytest",
+        "sys",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_scanner_extract_shim_parity.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "pytest",
+        "sys",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_scanner_guardrails.py",
+      "imports": [
+        "__future__",
+        "ast",
+        "pathlib",
+        "prism.scanner_plugins.bootstrap",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_scanner_parity.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "pytest",
+        "sys",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_scanner_readme_init.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_readme",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_scanner_reporting.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "sys",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_section.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_config"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t1_02_coverage_lift.py",
+      "imports": [
+        "__future__",
+        "prism.api_layer.payload_helpers",
+        "prism.scanner_core.di_helpers",
+        "prism.scanner_io",
+        "prism.scanner_plugins",
+        "prism.scanner_plugins.audit",
+        "prism.scanner_plugins.parsers.comment_doc.marker_utils",
+        "prism.scanner_readme",
+        "prism.scanner_readme.style_config",
+        "prism.scanner_readme.style_formatter",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t1_02_coverage_lift_batch2.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_config.marker",
+        "prism.scanner_plugins.ansible",
+        "prism.scanner_plugins.ansible.task_line_parsing",
+        "prism.scanner_plugins.parsers.comment_doc.runbook_renderer",
+        "prism.scanner_plugins.parsers.yaml.parsing_policy",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t1_02_coverage_lift_batch3.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_extract.dataload",
+        "prism.scanner_io.loader",
+        "prism.scanner_io.output",
+        "pytest",
+        "typing",
+        "yaml"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t1_02_coverage_lift_batch4.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "prism.scanner_config.policy",
+        "prism.scanner_extract.variable_extractor",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t2_01_plugin_api_version.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins",
+        "prism.scanner_plugins.registry",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t2_02_scan_options_schema.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_core.scan_request",
+        "prism.scanner_data.scan_options_schema",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t2_03_entry_point_discovery.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins",
+        "prism.scanner_plugins.registry",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t2_04_stateless_marker.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.registry",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t3_01_scan_phase_events.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_core.di",
+        "prism.scanner_core.events",
+        "prism.scanner_core.feature_detector",
+        "prism.scanner_core.variable_discovery",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t3_03_scan_cache.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_core.scan_cache",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t3_04_error_boundary_audit.py",
+      "imports": [
+        "__future__",
+        "importlib.util",
+        "json",
+        "pathlib",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t3_05_scan_telemetry.py",
+      "imports": [
+        "__future__",
+        "io",
+        "json",
+        "prism.scanner_core.di",
+        "prism.scanner_core.events",
+        "prism.scanner_core.telemetry"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t3_06_path_safety.py",
+      "imports": [
+        "__future__",
+        "prism",
+        "prism.errors",
+        "prism.path_safety",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t4_01_perf_benchmarks.py",
+      "imports": [
+        "__future__",
+        "os",
+        "pathlib",
+        "prism",
+        "prism.scanner_io.loader",
+        "pytest",
+        "shutil"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t4_02_public_seam_guardrail.py",
+      "imports": [
+        "__future__",
+        "ast",
+        "pathlib",
+        "prism",
+        "pytest",
+        "re"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t4_03_cli_progress.py",
+      "imports": [
+        "__future__",
+        "io",
+        "prism.progress",
+        "prism.scanner_core.di",
+        "prism.scanner_core.events",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t4_05_jinja_sandbox_audit.py",
+      "imports": [
+        "__future__",
+        "ast",
+        "jinja2",
+        "jinja2.sandbox",
+        "pathlib",
+        "prism.scanner_plugins.parsers.jinja.analysis_policy",
+        "prism.scanner_readme.rendering_seams"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_t4_06_env_config.py",
+      "imports": [
+        "__future__",
+        "prism.env_config",
+        "prism.scanner_data.scan_options_schema"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_task_annotation_alias_matrix.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_task_line_parsing.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_extract",
+        "pytest"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_task_parser_precedence_matrix.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "pytest",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_test_output_safety_guard.py",
+      "imports": [
+        "__future__",
+        "pathlib",
+        "re"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_underscore_policy_filter.py",
+      "imports": [
+        "__future__",
+        "prism.scanner_plugins.filters.underscore_policy",
+        "typing"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_variable_discovery_pipeline.py",
+      "imports": [
+        "__future__",
+        "ast",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "pytest",
+        "sys"
+      ]
+    },
+    {
+      "file": "src/prism/tests/test_w2_hardwiring_audit.py",
+      "imports": [
+        "__future__",
+        "contextlib",
+        "importlib",
+        "pathlib",
+        "sys"
+      ]
+    }
+  ],
+  "importers": {
+    "__future__": [
+      "conftest.py",
+      "demos/api_demo.py",
+      "demos/api_runbook_demo.py",
+      "scripts/audit_error_boundaries.py",
+      "scripts/check_barrier_status.py",
+      "scripts/cli_demo_matrix.py",
+      "scripts/profile_role_scan.py",
+      "scripts/rollup_model_usage.py",
+      "src/prism/api.py",
+      "src/prism/api_layer/collection.py",
+      "src/prism/api_layer/common.py",
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/api_layer/payload_helpers.py",
+      "src/prism/api_layer/plugin_facade.py",
+      "src/prism/cli.py",
+      "src/prism/cli_app/presenters.py",
+      "src/prism/cli_app/runtime.py",
+      "src/prism/cli_app/shared.py",
+      "src/prism/env_config.py",
+      "src/prism/errors.py",
+      "src/prism/path_safety.py",
+      "src/prism/progress.py",
+      "src/prism/repo_services.py",
+      "src/prism/scanner_config/audit_rules.py",
+      "src/prism/scanner_config/legacy_retirement.py",
+      "src/prism/scanner_config/marker.py",
+      "src/prism/scanner_config/patterns.py",
+      "src/prism/scanner_config/policy.py",
+      "src/prism/scanner_config/readme.py",
+      "src/prism/scanner_config/section.py",
+      "src/prism/scanner_config/style.py",
+      "src/prism/scanner_config/style_aliases.py",
+      "src/prism/scanner_config/style_parser.py",
+      "src/prism/scanner_core/__init__.py",
+      "src/prism/scanner_core/di.py",
+      "src/prism/scanner_core/di_helpers.py",
+      "src/prism/scanner_core/events.py",
+      "src/prism/scanner_core/execution_request_builder.py",
+      "src/prism/scanner_core/feature_detector.py",
+      "src/prism/scanner_core/filters/underscore_policy.py",
+      "src/prism/scanner_core/metadata_merger.py",
+      "src/prism/scanner_core/protocols_runtime.py",
+      "src/prism/scanner_core/scan_cache.py",
+      "src/prism/scanner_core/scan_facade_helpers.py",
+      "src/prism/scanner_core/scan_request.py",
+      "src/prism/scanner_core/scanner_context.py",
+      "src/prism/scanner_core/task_extract_adapters.py",
+      "src/prism/scanner_core/telemetry.py",
+      "src/prism/scanner_core/variable_discovery.py",
+      "src/prism/scanner_data/__init__.py",
+      "src/prism/scanner_data/builders.py",
+      "src/prism/scanner_data/contracts_output.py",
+      "src/prism/scanner_data/contracts_request.py",
+      "src/prism/scanner_data/contracts_variables.py",
+      "src/prism/scanner_data/patterns_jinja.py",
+      "src/prism/scanner_data/scan_options_schema.py",
+      "src/prism/scanner_extract/__init__.py",
+      "src/prism/scanner_extract/dataload.py",
+      "src/prism/scanner_extract/discovery.py",
+      "src/prism/scanner_extract/filter_scanner.py",
+      "src/prism/scanner_extract/requirements.py",
+      "src/prism/scanner_extract/task_annotation_parsing.py",
+      "src/prism/scanner_extract/task_catalog_assembly.py",
+      "src/prism/scanner_extract/task_file_traversal.py",
+      "src/prism/scanner_extract/task_line_parsing.py",
+      "src/prism/scanner_extract/variable_extractor.py",
+      "src/prism/scanner_extract/variable_helpers.py",
+      "src/prism/scanner_io/__init__.py",
+      "src/prism/scanner_io/collection_payload.py",
+      "src/prism/scanner_io/collection_plugins.py",
+      "src/prism/scanner_io/collection_renderer.py",
+      "src/prism/scanner_io/emit_output.py",
+      "src/prism/scanner_io/loader.py",
+      "src/prism/scanner_io/output.py",
+      "src/prism/scanner_io/output_orchestrator.py",
+      "src/prism/scanner_kernel/__init__.py",
+      "src/prism/scanner_kernel/collection_context.py",
+      "src/prism/scanner_kernel/kernel_plugin_runner.py",
+      "src/prism/scanner_kernel/orchestrator.py",
+      "src/prism/scanner_kernel/plugin_name_resolver.py",
+      "src/prism/scanner_kernel/repo_context.py",
+      "src/prism/scanner_kernel/scan_payload_helpers.py",
+      "src/prism/scanner_plugins/__init__.py",
+      "src/prism/scanner_plugins/ansible/__init__.py",
+      "src/prism/scanner_plugins/ansible/default_policies.py",
+      "src/prism/scanner_plugins/ansible/extract_policies.py",
+      "src/prism/scanner_plugins/ansible/extract_utils.py",
+      "src/prism/scanner_plugins/ansible/feature_detection.py",
+      "src/prism/scanner_plugins/ansible/feature_flags.py",
+      "src/prism/scanner_plugins/ansible/kernel.py",
+      "src/prism/scanner_plugins/ansible/readme_renderer.py",
+      "src/prism/scanner_plugins/ansible/task_annotation_strategy.py",
+      "src/prism/scanner_plugins/ansible/task_keywords.py",
+      "src/prism/scanner_plugins/ansible/task_line_parsing.py",
+      "src/prism/scanner_plugins/ansible/task_regex.py",
+      "src/prism/scanner_plugins/ansible/task_traversal_bare.py",
+      "src/prism/scanner_plugins/ansible/task_vocabulary.py",
+      "src/prism/scanner_plugins/ansible/variable_discovery.py",
+      "src/prism/scanner_plugins/ansible/variable_extractor.py",
+      "src/prism/scanner_plugins/audit/__init__.py",
+      "src/prism/scanner_plugins/audit/blocker_fact_evaluator.py",
+      "src/prism/scanner_plugins/audit/builtin_rules.py",
+      "src/prism/scanner_plugins/audit/dynamic_include_audit.py",
+      "src/prism/scanner_plugins/audit/loader.py",
+      "src/prism/scanner_plugins/audit/runner.py",
+      "src/prism/scanner_plugins/bootstrap.py",
+      "src/prism/scanner_plugins/bundle_resolver.py",
+      "src/prism/scanner_plugins/default_scan_pipeline.py",
+      "src/prism/scanner_plugins/defaults.py",
+      "src/prism/scanner_plugins/discovery.py",
+      "src/prism/scanner_plugins/filters/underscore_policy.py",
+      "src/prism/scanner_plugins/interfaces.py",
+      "src/prism/scanner_plugins/kubernetes/__init__.py",
+      "src/prism/scanner_plugins/parsers/__init__.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/__init__.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/annotation_parsing.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/jinja_utils.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/marker_utils.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/role_notes_parser.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/runbook_renderer.py",
+      "src/prism/scanner_plugins/parsers/jinja/__init__.py",
+      "src/prism/scanner_plugins/parsers/jinja/analysis_policy.py",
+      "src/prism/scanner_plugins/parsers/jinja/patterns.py",
+      "src/prism/scanner_plugins/parsers/markdown/__init__.py",
+      "src/prism/scanner_plugins/parsers/markdown/style_parser.py",
+      "src/prism/scanner_plugins/parsers/yaml/__init__.py",
+      "src/prism/scanner_plugins/parsers/yaml/line_shape.py",
+      "src/prism/scanner_plugins/parsers/yaml/parsing_policy.py",
+      "src/prism/scanner_plugins/registry.py",
+      "src/prism/scanner_plugins/terraform/__init__.py",
+      "src/prism/scanner_readme/__init__.py",
+      "src/prism/scanner_readme/doc_insights.py",
+      "src/prism/scanner_readme/guide.py",
+      "src/prism/scanner_readme/render.py",
+      "src/prism/scanner_readme/rendering_seams.py",
+      "src/prism/scanner_readme/style.py",
+      "src/prism/scanner_readme/style_config.py",
+      "src/prism/scanner_readme/style_formatter.py",
+      "src/prism/scanner_reporting/__init__.py",
+      "src/prism/scanner_reporting/collection_dependencies.py",
+      "src/prism/scanner_reporting/report.py",
+      "src/prism/tests/test_ansible_task_traversal_bare.py",
+      "src/prism/tests/test_api_cli_entrypoints.py",
+      "src/prism/tests/test_api_cli_repo_parity.py",
+      "src/prism/tests/test_api_layer_common.py",
+      "src/prism/tests/test_audit_modules.py",
+      "src/prism/tests/test_audit_plugin.py",
+      "src/prism/tests/test_audit_rules.py",
+      "src/prism/tests/test_blocker_fact_evaluator.py",
+      "src/prism/tests/test_cli_api_guardrails.py",
+      "src/prism/tests/test_cli_app.py",
+      "src/prism/tests/test_collection_contract.py",
+      "src/prism/tests/test_collection_payload.py",
+      "src/prism/tests/test_collection_renderer.py",
+      "src/prism/tests/test_comment_doc_plugin_resolution.py",
+      "src/prism/tests/test_dataload.py",
+      "src/prism/tests/test_di_container.py",
+      "src/prism/tests/test_di_helpers.py",
+      "src/prism/tests/test_di_registry_resolution.py",
+      "src/prism/tests/test_errors.py",
+      "src/prism/tests/test_execution_request_builder.py",
+      "src/prism/tests/test_extract_defaults_ansible_ownership.py",
+      "src/prism/tests/test_extract_policies.py",
+      "src/prism/tests/test_feature_detector.py",
+      "src/prism/tests/test_feature_flags.py",
+      "src/prism/tests/test_filter_scanner.py",
+      "src/prism/tests/test_g03_scan_cache_integration.py",
+      "src/prism/tests/test_gf2_collection_namespace_filtering.py",
+      "src/prism/tests/test_gilfoyle_blockers_runtime.py",
+      "src/prism/tests/test_hypothesis_jinja_scanner.py",
+      "src/prism/tests/test_hypothesis_yaml_parser.py",
+      "src/prism/tests/test_import_style_guardrails.py",
+      "src/prism/tests/test_kernel.py",
+      "src/prism/tests/test_kernel_plugin_runner.py",
+      "src/prism/tests/test_legacy_retirement.py",
+      "src/prism/tests/test_output_orchestration.py",
+      "src/prism/tests/test_package_export_parity.py",
+      "src/prism/tests/test_package_import_smoke.py",
+      "src/prism/tests/test_platform_execution_bundle.py",
+      "src/prism/tests/test_platform_routing_fail_closed.py",
+      "src/prism/tests/test_plugin_extract_boundary.py",
+      "src/prism/tests/test_plugin_kernel_extension_parity.py",
+      "src/prism/tests/test_plugin_name_resolver.py",
+      "src/prism/tests/test_policy_as_code_stubs.py",
+      "src/prism/tests/test_readme_parity.py",
+      "src/prism/tests/test_readme_renderer_plugin_isolation.py",
+      "src/prism/tests/test_readme_renderer_plugin_parity.py",
+      "src/prism/tests/test_readme_renderer_plugin_protocol.py",
+      "src/prism/tests/test_readme_renderer_registry_wiring.py",
+      "src/prism/tests/test_render_compat.py",
+      "src/prism/tests/test_requirements.py",
+      "src/prism/tests/test_scan_facade_helpers.py",
+      "src/prism/tests/test_scanner_config.py",
+      "src/prism/tests/test_scanner_config_style.py",
+      "src/prism/tests/test_scanner_context.py",
+      "src/prism/tests/test_scanner_core_di.py",
+      "src/prism/tests/test_scanner_core_small_surfaces.py",
+      "src/prism/tests/test_scanner_extract_shim_parity.py",
+      "src/prism/tests/test_scanner_guardrails.py",
+      "src/prism/tests/test_scanner_parity.py",
+      "src/prism/tests/test_scanner_readme_init.py",
+      "src/prism/tests/test_scanner_reporting.py",
+      "src/prism/tests/test_section.py",
+      "src/prism/tests/test_t1_02_coverage_lift.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch2.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch3.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch4.py",
+      "src/prism/tests/test_t2_01_plugin_api_version.py",
+      "src/prism/tests/test_t2_02_scan_options_schema.py",
+      "src/prism/tests/test_t2_03_entry_point_discovery.py",
+      "src/prism/tests/test_t2_04_stateless_marker.py",
+      "src/prism/tests/test_t3_01_scan_phase_events.py",
+      "src/prism/tests/test_t3_03_scan_cache.py",
+      "src/prism/tests/test_t3_04_error_boundary_audit.py",
+      "src/prism/tests/test_t3_05_scan_telemetry.py",
+      "src/prism/tests/test_t3_06_path_safety.py",
+      "src/prism/tests/test_t4_01_perf_benchmarks.py",
+      "src/prism/tests/test_t4_02_public_seam_guardrail.py",
+      "src/prism/tests/test_t4_03_cli_progress.py",
+      "src/prism/tests/test_t4_05_jinja_sandbox_audit.py",
+      "src/prism/tests/test_t4_06_env_config.py",
+      "src/prism/tests/test_task_annotation_alias_matrix.py",
+      "src/prism/tests/test_task_line_parsing.py",
+      "src/prism/tests/test_task_parser_precedence_matrix.py",
+      "src/prism/tests/test_test_output_safety_guard.py",
+      "src/prism/tests/test_underscore_policy_filter.py",
+      "src/prism/tests/test_variable_discovery_pipeline.py",
+      "src/prism/tests/test_w2_hardwiring_audit.py"
+    ],
+    "argparse": [
+      "scripts/audit_error_boundaries.py",
+      "scripts/check_barrier_status.py",
+      "scripts/cli_demo_matrix.py",
+      "scripts/profile_role_scan.py",
+      "scripts/rollup_model_usage.py",
+      "src/prism/cli.py",
+      "src/prism/cli_app/shared.py",
+      "src/prism/tests/test_api_cli_repo_parity.py"
+    ],
+    "ast": [
+      "src/prism/scanner_io/collection_plugins.py",
+      "src/prism/tests/test_cli_api_guardrails.py",
+      "src/prism/tests/test_plugin_extract_boundary.py",
+      "src/prism/tests/test_scanner_guardrails.py",
+      "src/prism/tests/test_t4_02_public_seam_guardrail.py",
+      "src/prism/tests/test_t4_05_jinja_sandbox_audit.py",
+      "src/prism/tests/test_variable_discovery_pipeline.py"
+    ],
+    "bisect": [
+      "src/prism/scanner_plugins/parsers/comment_doc/annotation_parsing.py"
+    ],
+    "collections": [
+      "src/prism/scanner_core/scan_cache.py",
+      "src/prism/scanner_extract/task_catalog_assembly.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/annotation_parsing.py"
+    ],
+    "collections.abc": [
+      "src/prism/cli.py",
+      "src/prism/scanner_extract/task_line_parsing.py",
+      "src/prism/scanner_plugins/ansible/default_policies.py",
+      "src/prism/scanner_plugins/ansible/extract_policies.py",
+      "src/prism/scanner_plugins/defaults.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/runbook_renderer.py",
+      "src/prism/scanner_readme/style_config.py",
+      "src/prism/tests/test_extract_policies.py"
+    ],
+    "contextlib": [
+      "src/prism/progress.py",
+      "src/prism/repo_services.py",
+      "src/prism/scanner_core/di_helpers.py",
+      "src/prism/scanner_core/events.py",
+      "src/prism/scanner_core/telemetry.py",
+      "src/prism/scanner_readme/style_config.py",
+      "src/prism/tests/test_api_cli_entrypoints.py",
+      "src/prism/tests/test_api_cli_repo_parity.py",
+      "src/prism/tests/test_collection_contract.py",
+      "src/prism/tests/test_comment_doc_plugin_resolution.py",
+      "src/prism/tests/test_di_container.py",
+      "src/prism/tests/test_di_helpers.py",
+      "src/prism/tests/test_di_registry_resolution.py",
+      "src/prism/tests/test_errors.py",
+      "src/prism/tests/test_feature_detector.py",
+      "src/prism/tests/test_gilfoyle_blockers_runtime.py",
+      "src/prism/tests/test_output_orchestration.py",
+      "src/prism/tests/test_package_export_parity.py",
+      "src/prism/tests/test_package_import_smoke.py",
+      "src/prism/tests/test_platform_execution_bundle.py",
+      "src/prism/tests/test_platform_routing_fail_closed.py",
+      "src/prism/tests/test_plugin_kernel_extension_parity.py",
+      "src/prism/tests/test_readme_parity.py",
+      "src/prism/tests/test_scanner_context.py",
+      "src/prism/tests/test_scanner_core_di.py",
+      "src/prism/tests/test_scanner_core_small_surfaces.py",
+      "src/prism/tests/test_scanner_extract_shim_parity.py",
+      "src/prism/tests/test_scanner_parity.py",
+      "src/prism/tests/test_scanner_reporting.py",
+      "src/prism/tests/test_task_annotation_alias_matrix.py",
+      "src/prism/tests/test_task_parser_precedence_matrix.py",
+      "src/prism/tests/test_variable_discovery_pipeline.py",
+      "src/prism/tests/test_w2_hardwiring_audit.py"
+    ],
+    "contextvars": [
+      "src/prism/scanner_readme/style_config.py"
+    ],
+    "copy": [
+      "src/prism/scanner_config/patterns.py",
+      "src/prism/scanner_core/execution_request_builder.py",
+      "src/prism/scanner_core/scan_request.py",
+      "src/prism/scanner_core/scanner_context.py",
+      "src/prism/scanner_io/emit_output.py",
+      "src/prism/scanner_io/output_orchestrator.py",
+      "src/prism/scanner_kernel/kernel_plugin_runner.py",
+      "src/prism/scanner_kernel/orchestrator.py",
+      "src/prism/scanner_kernel/scan_payload_helpers.py",
+      "src/prism/scanner_plugins/ansible/__init__.py",
+      "src/prism/scanner_reporting/report.py"
+    ],
+    "csv": [
+      "src/prism/scanner_plugins/parsers/comment_doc/runbook_renderer.py"
+    ],
+    "dataclasses": [
+      "scripts/cli_demo_matrix.py",
+      "src/prism/errors.py",
+      "src/prism/repo_services.py",
+      "src/prism/scanner_core/events.py",
+      "src/prism/scanner_core/execution_request_builder.py",
+      "src/prism/scanner_kernel/plugin_name_resolver.py",
+      "src/prism/tests/test_execution_request_builder.py"
+    ],
+    "datetime": [
+      "scripts/check_barrier_status.py",
+      "scripts/rollup_model_usage.py",
+      "src/prism/cli_app/presenters.py"
+    ],
+    "fnmatch": [
+      "src/prism/scanner_extract/task_file_traversal.py"
+    ],
+    "functools": [
+      "src/prism/scanner_config/patterns.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/marker_utils.py"
+    ],
+    "hashlib": [
+      "src/prism/scanner_config/patterns.py",
+      "src/prism/scanner_core/scan_cache.py"
+    ],
+    "html": [
+      "src/prism/scanner_io/output.py"
+    ],
+    "hypothesis": [
+      "src/prism/tests/test_hypothesis_jinja_scanner.py",
+      "src/prism/tests/test_hypothesis_yaml_parser.py"
+    ],
+    "importlib": [
+      "src/prism/scanner_plugins/registry.py",
+      "src/prism/tests/test_api_cli_entrypoints.py",
+      "src/prism/tests/test_api_cli_repo_parity.py",
+      "src/prism/tests/test_collection_contract.py",
+      "src/prism/tests/test_comment_doc_plugin_resolution.py",
+      "src/prism/tests/test_di_container.py",
+      "src/prism/tests/test_di_helpers.py",
+      "src/prism/tests/test_di_registry_resolution.py",
+      "src/prism/tests/test_errors.py",
+      "src/prism/tests/test_feature_detector.py",
+      "src/prism/tests/test_gf2_collection_namespace_filtering.py",
+      "src/prism/tests/test_gilfoyle_blockers_runtime.py",
+      "src/prism/tests/test_output_orchestration.py",
+      "src/prism/tests/test_package_export_parity.py",
+      "src/prism/tests/test_package_import_smoke.py",
+      "src/prism/tests/test_platform_execution_bundle.py",
+      "src/prism/tests/test_platform_routing_fail_closed.py",
+      "src/prism/tests/test_plugin_kernel_extension_parity.py",
+      "src/prism/tests/test_readme_parity.py",
+      "src/prism/tests/test_scanner_context.py",
+      "src/prism/tests/test_scanner_core_di.py",
+      "src/prism/tests/test_scanner_core_small_surfaces.py",
+      "src/prism/tests/test_scanner_extract_shim_parity.py",
+      "src/prism/tests/test_scanner_parity.py",
+      "src/prism/tests/test_scanner_reporting.py",
+      "src/prism/tests/test_task_annotation_alias_matrix.py",
+      "src/prism/tests/test_task_parser_precedence_matrix.py",
+      "src/prism/tests/test_variable_discovery_pipeline.py",
+      "src/prism/tests/test_w2_hardwiring_audit.py"
+    ],
+    "importlib.metadata": [
+      "src/prism/__init__.py",
+      "src/prism/scanner_plugins/discovery.py"
+    ],
+    "importlib.util": [
+      "src/prism/tests/test_t3_04_error_boundary_audit.py"
+    ],
+    "inspect": [
+      "src/prism/tests/test_api_cli_repo_parity.py",
+      "src/prism/tests/test_gf2_collection_namespace_filtering.py"
+    ],
+    "io": [
+      "src/prism/scanner_plugins/parsers/comment_doc/runbook_renderer.py",
+      "src/prism/tests/test_t3_05_scan_telemetry.py",
+      "src/prism/tests/test_t4_03_cli_progress.py"
+    ],
+    "jinja2": [
+      "src/prism/scanner_plugins/parsers/comment_doc/jinja_utils.py",
+      "src/prism/scanner_plugins/parsers/jinja/analysis_policy.py",
+      "src/prism/scanner_readme/rendering_seams.py",
+      "src/prism/tests/test_readme_parity.py",
+      "src/prism/tests/test_t4_05_jinja_sandbox_audit.py"
+    ],
+    "jinja2.nodes": [
+      "src/prism/scanner_plugins/parsers/jinja/analysis_policy.py"
+    ],
+    "jinja2.sandbox": [
+      "src/prism/scanner_plugins/parsers/jinja/analysis_policy.py",
+      "src/prism/tests/test_t4_05_jinja_sandbox_audit.py"
+    ],
+    "json": [
+      "demos/api_demo.py",
+      "scripts/audit_error_boundaries.py",
+      "scripts/profile_role_scan.py",
+      "scripts/summarise_messages.py",
+      "src/prism/api.py",
+      "src/prism/api_layer/common.py",
+      "src/prism/cli.py",
+      "src/prism/cli_app/runtime.py",
+      "src/prism/repo_services.py",
+      "src/prism/scanner_config/patterns.py",
+      "src/prism/scanner_core/scan_cache.py",
+      "src/prism/scanner_core/telemetry.py",
+      "src/prism/scanner_io/collection_payload.py",
+      "src/prism/scanner_io/output.py",
+      "src/prism/scanner_plugins/audit/loader.py",
+      "src/prism/tests/test_api_cli_entrypoints.py",
+      "src/prism/tests/test_api_cli_repo_parity.py",
+      "src/prism/tests/test_audit_plugin.py",
+      "src/prism/tests/test_t3_04_error_boundary_audit.py",
+      "src/prism/tests/test_t3_05_scan_telemetry.py"
+    ],
+    "logging": [
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/cli.py",
+      "src/prism/scanner_config/patterns.py",
+      "src/prism/scanner_config/policy.py",
+      "src/prism/scanner_core/di_helpers.py",
+      "src/prism/scanner_core/events.py",
+      "src/prism/scanner_core/scanner_context.py",
+      "src/prism/scanner_core/telemetry.py",
+      "src/prism/scanner_core/variable_discovery.py",
+      "src/prism/scanner_extract/discovery.py",
+      "src/prism/scanner_extract/filter_scanner.py",
+      "src/prism/scanner_io/loader.py",
+      "src/prism/scanner_kernel/kernel_plugin_runner.py",
+      "src/prism/scanner_kernel/repo_context.py",
+      "src/prism/scanner_plugins/ansible/variable_discovery.py",
+      "src/prism/scanner_plugins/bootstrap.py",
+      "src/prism/scanner_plugins/defaults.py",
+      "src/prism/scanner_plugins/discovery.py",
+      "src/prism/scanner_readme/guide.py",
+      "src/prism/tests/test_gilfoyle_blockers_runtime.py"
+    ],
+    "markdown": [
+      "src/prism/scanner_io/output.py"
+    ],
+    "openai": [
+      "scripts/summarise_messages.py"
+    ],
+    "os": [
+      "scripts/cli_demo_matrix.py",
+      "scripts/profile_role_scan.py",
+      "scripts/summarise_messages.py",
+      "src/prism/env_config.py",
+      "src/prism/path_safety.py",
+      "src/prism/repo_services.py",
+      "src/prism/scanner_config/patterns.py",
+      "src/prism/scanner_config/style.py",
+      "src/prism/scanner_core/scan_cache.py",
+      "src/prism/scanner_core/telemetry.py",
+      "src/prism/scanner_extract/filter_scanner.py",
+      "src/prism/scanner_io/emit_output.py",
+      "src/prism/scanner_io/loader.py",
+      "src/prism/scanner_kernel/repo_context.py",
+      "src/prism/scanner_plugins/ansible/feature_flags.py",
+      "src/prism/tests/test_feature_flags.py",
+      "src/prism/tests/test_hypothesis_yaml_parser.py",
+      "src/prism/tests/test_t4_01_perf_benchmarks.py"
+    ],
+    "pathlib": [
+      "conftest.py",
+      "demos/api_demo.py",
+      "demos/api_runbook_demo.py",
+      "scripts/audit_error_boundaries.py",
+      "scripts/check_barrier_status.py",
+      "scripts/cli_demo_matrix.py",
+      "scripts/profile_role_scan.py",
+      "scripts/rollup_model_usage.py",
+      "src/prism/api.py",
+      "src/prism/api_layer/collection.py",
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/cli_app/presenters.py",
+      "src/prism/cli_app/runtime.py",
+      "src/prism/cli_app/shared.py",
+      "src/prism/path_safety.py",
+      "src/prism/repo_services.py",
+      "src/prism/scanner_config/patterns.py",
+      "src/prism/scanner_config/readme.py",
+      "src/prism/scanner_config/style.py",
+      "src/prism/scanner_config/style_parser.py",
+      "src/prism/scanner_core/execution_request_builder.py",
+      "src/prism/scanner_core/scan_facade_helpers.py",
+      "src/prism/scanner_core/task_extract_adapters.py",
+      "src/prism/scanner_data/contracts_request.py",
+      "src/prism/scanner_extract/dataload.py",
+      "src/prism/scanner_extract/discovery.py",
+      "src/prism/scanner_extract/filter_scanner.py",
+      "src/prism/scanner_extract/task_catalog_assembly.py",
+      "src/prism/scanner_extract/task_file_traversal.py",
+      "src/prism/scanner_extract/variable_extractor.py",
+      "src/prism/scanner_extract/variable_helpers.py",
+      "src/prism/scanner_io/collection_payload.py",
+      "src/prism/scanner_io/collection_plugins.py",
+      "src/prism/scanner_io/collection_renderer.py",
+      "src/prism/scanner_io/emit_output.py",
+      "src/prism/scanner_io/loader.py",
+      "src/prism/scanner_io/output.py",
+      "src/prism/scanner_io/output_orchestrator.py",
+      "src/prism/scanner_kernel/collection_context.py",
+      "src/prism/scanner_kernel/repo_context.py",
+      "src/prism/scanner_plugins/ansible/default_policies.py",
+      "src/prism/scanner_plugins/ansible/feature_detection.py",
+      "src/prism/scanner_plugins/ansible/readme_renderer.py",
+      "src/prism/scanner_plugins/ansible/variable_discovery.py",
+      "src/prism/scanner_plugins/ansible/variable_extractor.py",
+      "src/prism/scanner_plugins/audit/loader.py",
+      "src/prism/scanner_plugins/interfaces.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/jinja_utils.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/role_notes_parser.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/runbook_renderer.py",
+      "src/prism/scanner_plugins/parsers/yaml/parsing_policy.py",
+      "src/prism/scanner_readme/render.py",
+      "src/prism/scanner_readme/rendering_seams.py",
+      "src/prism/scanner_reporting/collection_dependencies.py",
+      "src/prism/tests/test_api_cli_entrypoints.py",
+      "src/prism/tests/test_api_cli_repo_parity.py",
+      "src/prism/tests/test_audit_plugin.py",
+      "src/prism/tests/test_cli_api_guardrails.py",
+      "src/prism/tests/test_cli_app.py",
+      "src/prism/tests/test_collection_contract.py",
+      "src/prism/tests/test_collection_payload.py",
+      "src/prism/tests/test_collection_renderer.py",
+      "src/prism/tests/test_comment_doc_plugin_resolution.py",
+      "src/prism/tests/test_dataload.py",
+      "src/prism/tests/test_di_container.py",
+      "src/prism/tests/test_di_helpers.py",
+      "src/prism/tests/test_di_registry_resolution.py",
+      "src/prism/tests/test_errors.py",
+      "src/prism/tests/test_feature_detector.py",
+      "src/prism/tests/test_feature_flags.py",
+      "src/prism/tests/test_filter_scanner.py",
+      "src/prism/tests/test_g03_scan_cache_integration.py",
+      "src/prism/tests/test_gilfoyle_blockers_runtime.py",
+      "src/prism/tests/test_import_style_guardrails.py",
+      "src/prism/tests/test_output_orchestration.py",
+      "src/prism/tests/test_package_export_parity.py",
+      "src/prism/tests/test_package_import_smoke.py",
+      "src/prism/tests/test_platform_execution_bundle.py",
+      "src/prism/tests/test_platform_routing_fail_closed.py",
+      "src/prism/tests/test_plugin_extract_boundary.py",
+      "src/prism/tests/test_plugin_kernel_extension_parity.py",
+      "src/prism/tests/test_readme_parity.py",
+      "src/prism/tests/test_readme_renderer_plugin_isolation.py",
+      "src/prism/tests/test_readme_renderer_plugin_protocol.py",
+      "src/prism/tests/test_readme_renderer_registry_wiring.py",
+      "src/prism/tests/test_scan_facade_helpers.py",
+      "src/prism/tests/test_scanner_config_style.py",
+      "src/prism/tests/test_scanner_context.py",
+      "src/prism/tests/test_scanner_core_di.py",
+      "src/prism/tests/test_scanner_core_small_surfaces.py",
+      "src/prism/tests/test_scanner_extract_shim_parity.py",
+      "src/prism/tests/test_scanner_guardrails.py",
+      "src/prism/tests/test_scanner_parity.py",
+      "src/prism/tests/test_scanner_reporting.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch2.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch3.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch4.py",
+      "src/prism/tests/test_t3_04_error_boundary_audit.py",
+      "src/prism/tests/test_t4_01_perf_benchmarks.py",
+      "src/prism/tests/test_t4_02_public_seam_guardrail.py",
+      "src/prism/tests/test_t4_05_jinja_sandbox_audit.py",
+      "src/prism/tests/test_task_annotation_alias_matrix.py",
+      "src/prism/tests/test_task_parser_precedence_matrix.py",
+      "src/prism/tests/test_test_output_safety_guard.py",
+      "src/prism/tests/test_variable_discovery_pipeline.py",
+      "src/prism/tests/test_w2_hardwiring_audit.py"
+    ],
+    "prism": [
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/tests/test_t3_06_path_safety.py",
+      "src/prism/tests/test_t4_01_perf_benchmarks.py",
+      "src/prism/tests/test_t4_02_public_seam_guardrail.py"
+    ],
+    "prism.api": [
+      "demos/api_demo.py",
+      "demos/api_runbook_demo.py",
+      "src/prism/cli.py",
+      "src/prism/tests/test_filter_scanner.py",
+      "src/prism/tests/test_scan_facade_helpers.py",
+      "src/prism/tests/test_scanner_config_style.py"
+    ],
+    "prism.api_layer": [
+      "src/prism/api.py"
+    ],
+    "prism.api_layer.common": [
+      "src/prism/tests/test_api_layer_common.py"
+    ],
+    "prism.api_layer.non_collection": [
+      "src/prism/tests/test_g03_scan_cache_integration.py"
+    ],
+    "prism.api_layer.payload_helpers": [
+      "src/prism/api_layer/common.py",
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/tests/test_t1_02_coverage_lift.py"
+    ],
+    "prism.cli": [
+      "src/prism/tests/test_policy_as_code_stubs.py"
+    ],
+    "prism.cli_app.presenters": [
+      "src/prism/tests/test_cli_app.py"
+    ],
+    "prism.cli_app.runtime": [
+      "src/prism/tests/test_cli_app.py"
+    ],
+    "prism.cli_app.shared": [
+      "src/prism/tests/test_cli_app.py"
+    ],
+    "prism.env_config": [
+      "src/prism/tests/test_t4_06_env_config.py"
+    ],
+    "prism.errors": [
+      "src/prism/api.py",
+      "src/prism/api_layer/common.py",
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/api_layer/payload_helpers.py",
+      "src/prism/cli.py",
+      "src/prism/cli_app/runtime.py",
+      "src/prism/cli_app/shared.py",
+      "src/prism/path_safety.py",
+      "src/prism/repo_services.py",
+      "src/prism/scanner_core/scanner_context.py",
+      "src/prism/scanner_io/collection_payload.py",
+      "src/prism/scanner_kernel/orchestrator.py",
+      "src/prism/scanner_kernel/plugin_name_resolver.py",
+      "src/prism/scanner_kernel/scan_payload_helpers.py",
+      "src/prism/scanner_plugins/defaults.py",
+      "src/prism/scanner_reporting/collection_dependencies.py",
+      "src/prism/tests/test_collection_payload.py",
+      "src/prism/tests/test_t3_06_path_safety.py"
+    ],
+    "prism.path_safety": [
+      "src/prism/api.py",
+      "src/prism/tests/test_t3_06_path_safety.py"
+    ],
+    "prism.progress": [
+      "src/prism/cli.py",
+      "src/prism/tests/test_t4_03_cli_progress.py"
+    ],
+    "prism.repo_services": [
+      "src/prism/tests/test_api_cli_repo_parity.py"
+    ],
+    "prism.scanner_config": [
+      "src/prism/tests/test_legacy_retirement.py",
+      "src/prism/tests/test_policy_as_code_stubs.py",
+      "src/prism/tests/test_scanner_config.py",
+      "src/prism/tests/test_section.py"
+    ],
+    "prism.scanner_config.audit_rules": [
+      "src/prism/api_layer/plugin_facade.py",
+      "src/prism/scanner_config/__init__.py",
+      "src/prism/scanner_plugins/audit/__init__.py",
+      "src/prism/scanner_plugins/audit/builtin_rules.py",
+      "src/prism/scanner_plugins/audit/loader.py",
+      "src/prism/scanner_plugins/audit/runner.py",
+      "src/prism/tests/test_audit_plugin.py",
+      "src/prism/tests/test_audit_rules.py",
+      "src/prism/tests/test_policy_as_code_stubs.py"
+    ],
+    "prism.scanner_config.legacy_retirement": [
+      "src/prism/scanner_config/__init__.py",
+      "src/prism/scanner_config/readme.py",
+      "src/prism/tests/test_scanner_config.py"
+    ],
+    "prism.scanner_config.marker": [
+      "src/prism/scanner_config/__init__.py",
+      "src/prism/tests/test_scanner_config.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch2.py"
+    ],
+    "prism.scanner_config.patterns": [
+      "src/prism/scanner_config/__init__.py",
+      "src/prism/tests/test_gilfoyle_blockers_runtime.py",
+      "src/prism/tests/test_scanner_config.py"
+    ],
+    "prism.scanner_config.policy": [
+      "src/prism/scanner_config/__init__.py",
+      "src/prism/tests/test_scanner_config.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch4.py"
+    ],
+    "prism.scanner_config.readme": [
+      "src/prism/scanner_config/__init__.py",
+      "src/prism/scanner_config/marker.py",
+      "src/prism/scanner_config/policy.py",
+      "src/prism/tests/test_scanner_config.py"
+    ],
+    "prism.scanner_config.section": [
+      "src/prism/cli_app/shared.py",
+      "src/prism/scanner_config/__init__.py",
+      "src/prism/scanner_config/marker.py",
+      "src/prism/scanner_config/policy.py",
+      "src/prism/scanner_config/readme.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/marker_utils.py",
+      "src/prism/tests/test_scanner_config.py"
+    ],
+    "prism.scanner_config.style": [
+      "src/prism/api.py",
+      "src/prism/scanner_config/__init__.py",
+      "src/prism/scanner_config/readme.py",
+      "src/prism/tests/test_scanner_config.py",
+      "src/prism/tests/test_scanner_config_style.py"
+    ],
+    "prism.scanner_config.style_aliases": [
+      "src/prism/scanner_config/style_parser.py",
+      "src/prism/scanner_plugins/parsers/markdown/style_parser.py",
+      "src/prism/scanner_readme/style_config.py"
+    ],
+    "prism.scanner_config.style_parser": [
+      "src/prism/scanner_plugins/parsers/markdown/style_parser.py",
+      "src/prism/scanner_readme/style.py"
+    ],
+    "prism.scanner_core": [
+      "src/prism/api.py"
+    ],
+    "prism.scanner_core.di": [
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/scanner_core/__init__.py",
+      "src/prism/scanner_core/execution_request_builder.py",
+      "src/prism/scanner_core/feature_detector.py",
+      "src/prism/scanner_core/protocols_runtime.py",
+      "src/prism/scanner_core/scanner_context.py",
+      "src/prism/scanner_core/variable_discovery.py",
+      "src/prism/tests/test_g02_thread_safety.py",
+      "src/prism/tests/test_policy_as_code_stubs.py",
+      "src/prism/tests/test_t3_01_scan_phase_events.py",
+      "src/prism/tests/test_t3_05_scan_telemetry.py",
+      "src/prism/tests/test_t4_03_cli_progress.py"
+    ],
+    "prism.scanner_core.di_helpers": [
+      "src/prism/scanner_core/feature_detector.py",
+      "src/prism/scanner_core/task_extract_adapters.py",
+      "src/prism/scanner_core/variable_discovery.py",
+      "src/prism/scanner_extract/task_annotation_parsing.py",
+      "src/prism/scanner_extract/task_catalog_assembly.py",
+      "src/prism/scanner_extract/task_file_traversal.py",
+      "src/prism/scanner_extract/task_line_parsing.py",
+      "src/prism/scanner_extract/variable_extractor.py",
+      "src/prism/scanner_io/loader.py",
+      "src/prism/tests/test_t1_02_coverage_lift.py"
+    ],
+    "prism.scanner_core.events": [
+      "src/prism/progress.py",
+      "src/prism/scanner_core/di.py",
+      "src/prism/scanner_core/feature_detector.py",
+      "src/prism/scanner_core/telemetry.py",
+      "src/prism/scanner_core/variable_discovery.py",
+      "src/prism/scanner_io/output_orchestrator.py",
+      "src/prism/tests/test_g02_thread_safety.py",
+      "src/prism/tests/test_t3_01_scan_phase_events.py",
+      "src/prism/tests/test_t3_05_scan_telemetry.py",
+      "src/prism/tests/test_t4_03_cli_progress.py"
+    ],
+    "prism.scanner_core.execution_request_builder": [
+      "src/prism/scanner_core/scanner_context.py",
+      "src/prism/tests/test_execution_request_builder.py"
+    ],
+    "prism.scanner_core.feature_detector": [
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/scanner_core/__init__.py",
+      "src/prism/scanner_core/di.py",
+      "src/prism/tests/test_t3_01_scan_phase_events.py"
+    ],
+    "prism.scanner_core.filters.underscore_policy": [
+      "src/prism/scanner_core/scanner_context.py"
+    ],
+    "prism.scanner_core.metadata_merger": [
+      "src/prism/scanner_core/scanner_context.py"
+    ],
+    "prism.scanner_core.protocols_runtime": [
+      "src/prism/scanner_core/di.py",
+      "src/prism/scanner_core/execution_request_builder.py",
+      "src/prism/scanner_kernel/kernel_plugin_runner.py",
+      "src/prism/scanner_kernel/orchestrator.py"
+    ],
+    "prism.scanner_core.scan_cache": [
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/scanner_core/__init__.py",
+      "src/prism/scanner_core/di.py",
+      "src/prism/tests/test_g03_scan_cache_integration.py",
+      "src/prism/tests/test_t3_03_scan_cache.py"
+    ],
+    "prism.scanner_core.scan_facade_helpers": [
+      "src/prism/api.py",
+      "src/prism/tests/test_scan_facade_helpers.py"
+    ],
+    "prism.scanner_core.scan_request": [
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/scanner_core/__init__.py",
+      "src/prism/tests/test_t2_02_scan_options_schema.py"
+    ],
+    "prism.scanner_core.scanner_context": [
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/scanner_core/__init__.py",
+      "src/prism/scanner_core/di.py",
+      "src/prism/scanner_core/execution_request_builder.py"
+    ],
+    "prism.scanner_core.task_extract_adapters": [
+      "src/prism/scanner_core/feature_detector.py"
+    ],
+    "prism.scanner_core.telemetry": [
+      "src/prism/tests/test_t3_05_scan_telemetry.py"
+    ],
+    "prism.scanner_core.variable_discovery": [
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/scanner_core/__init__.py",
+      "src/prism/scanner_core/di.py",
+      "src/prism/tests/test_t3_01_scan_phase_events.py"
+    ],
+    "prism.scanner_data": [
+      "src/prism/api.py",
+      "src/prism/api_layer/collection.py",
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/scanner_core/execution_request_builder.py",
+      "src/prism/scanner_io/collection_payload.py",
+      "src/prism/scanner_plugins/interfaces.py"
+    ],
+    "prism.scanner_data.builders": [
+      "src/prism/scanner_core/di.py",
+      "src/prism/scanner_plugins/ansible/variable_discovery.py",
+      "src/prism/tests/test_scanner_core_small_surfaces.py"
+    ],
+    "prism.scanner_data.contracts_output": [
+      "src/prism/scanner_data/__init__.py",
+      "src/prism/scanner_io/emit_output.py",
+      "src/prism/scanner_io/output.py",
+      "src/prism/scanner_io/output_orchestrator.py",
+      "src/prism/scanner_reporting/report.py"
+    ],
+    "prism.scanner_data.contracts_request": [
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/api_layer/plugin_facade.py",
+      "src/prism/scanner_config/patterns.py",
+      "src/prism/scanner_core/di.py",
+      "src/prism/scanner_core/execution_request_builder.py",
+      "src/prism/scanner_core/feature_detector.py",
+      "src/prism/scanner_core/filters/underscore_policy.py",
+      "src/prism/scanner_core/metadata_merger.py",
+      "src/prism/scanner_core/protocols_runtime.py",
+      "src/prism/scanner_core/scan_request.py",
+      "src/prism/scanner_core/scanner_context.py",
+      "src/prism/scanner_core/task_extract_adapters.py",
+      "src/prism/scanner_core/variable_discovery.py",
+      "src/prism/scanner_data/__init__.py",
+      "src/prism/scanner_data/contracts_output.py",
+      "src/prism/scanner_extract/task_annotation_parsing.py",
+      "src/prism/scanner_extract/task_catalog_assembly.py",
+      "src/prism/scanner_extract/task_file_traversal.py",
+      "src/prism/scanner_io/emit_output.py",
+      "src/prism/scanner_io/loader.py",
+      "src/prism/scanner_plugins/ansible/__init__.py",
+      "src/prism/scanner_plugins/ansible/default_policies.py",
+      "src/prism/scanner_plugins/ansible/extract_policies.py",
+      "src/prism/scanner_plugins/ansible/feature_detection.py",
+      "src/prism/scanner_plugins/ansible/variable_discovery.py",
+      "src/prism/scanner_plugins/audit/blocker_fact_evaluator.py",
+      "src/prism/scanner_plugins/bundle_resolver.py",
+      "src/prism/scanner_plugins/defaults.py",
+      "src/prism/scanner_plugins/filters/underscore_policy.py",
+      "src/prism/scanner_plugins/interfaces.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/annotation_parsing.py",
+      "src/prism/scanner_plugins/parsers/yaml/parsing_policy.py"
+    ],
+    "prism.scanner_data.contracts_variables": [
+      "src/prism/scanner_core/variable_discovery.py",
+      "src/prism/scanner_data/__init__.py",
+      "src/prism/scanner_data/builders.py",
+      "src/prism/scanner_extract/variable_helpers.py",
+      "src/prism/scanner_plugins/ansible/variable_discovery.py"
+    ],
+    "prism.scanner_data.patterns_jinja": [
+      "src/prism/scanner_extract/variable_extractor.py",
+      "src/prism/scanner_extract/variable_helpers.py",
+      "src/prism/scanner_plugins/parsers/jinja/patterns.py"
+    ],
+    "prism.scanner_data.scan_options_schema": [
+      "src/prism/scanner_core/scan_request.py",
+      "src/prism/tests/test_t2_02_scan_options_schema.py",
+      "src/prism/tests/test_t4_06_env_config.py"
+    ],
+    "prism.scanner_extract": [
+      "src/prism/api.py",
+      "src/prism/tests/test_task_line_parsing.py"
+    ],
+    "prism.scanner_extract.dataload": [
+      "src/prism/scanner_extract/__init__.py",
+      "src/prism/tests/test_dataload.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch3.py"
+    ],
+    "prism.scanner_extract.discovery": [
+      "src/prism/scanner_extract/__init__.py",
+      "src/prism/scanner_plugins/ansible/extract_utils.py",
+      "src/prism/tests/test_gilfoyle_blockers_runtime.py"
+    ],
+    "prism.scanner_extract.filter_scanner": [
+      "src/prism/api.py",
+      "src/prism/tests/test_filter_scanner.py"
+    ],
+    "prism.scanner_extract.requirements": [
+      "src/prism/scanner_extract/__init__.py",
+      "src/prism/scanner_plugins/ansible/extract_utils.py",
+      "src/prism/tests/test_requirements.py"
+    ],
+    "prism.scanner_extract.task_annotation_parsing": [
+      "src/prism/scanner_core/task_extract_adapters.py",
+      "src/prism/scanner_extract/task_catalog_assembly.py",
+      "src/prism/scanner_plugins/ansible/extract_utils.py"
+    ],
+    "prism.scanner_extract.task_catalog_assembly": [
+      "src/prism/scanner_core/task_extract_adapters.py",
+      "src/prism/scanner_extract/__init__.py",
+      "src/prism/scanner_plugins/ansible/extract_utils.py"
+    ],
+    "prism.scanner_extract.task_file_traversal": [
+      "src/prism/scanner_core/task_extract_adapters.py",
+      "src/prism/scanner_extract/__init__.py",
+      "src/prism/scanner_extract/task_catalog_assembly.py",
+      "src/prism/scanner_extract/variable_extractor.py",
+      "src/prism/scanner_plugins/ansible/extract_utils.py"
+    ],
+    "prism.scanner_extract.task_line_parsing": [
+      "src/prism/scanner_extract/__init__.py"
+    ],
+    "prism.scanner_extract.variable_extractor": [
+      "src/prism/scanner_extract/__init__.py",
+      "src/prism/tests/test_gilfoyle_blockers_runtime.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch4.py"
+    ],
+    "prism.scanner_extract.variable_helpers": [
+      "src/prism/scanner_extract/task_catalog_assembly.py",
+      "src/prism/scanner_extract/variable_extractor.py",
+      "src/prism/scanner_plugins/ansible/extract_utils.py"
+    ],
+    "prism.scanner_io": [
+      "src/prism/tests/test_t1_02_coverage_lift.py"
+    ],
+    "prism.scanner_io.collection_payload": [
+      "src/prism/api.py",
+      "src/prism/tests/test_collection_payload.py"
+    ],
+    "prism.scanner_io.collection_plugins": [
+      "src/prism/api.py",
+      "src/prism/scanner_io/collection_payload.py"
+    ],
+    "prism.scanner_io.collection_renderer": [
+      "src/prism/api.py",
+      "src/prism/cli.py",
+      "src/prism/cli_app/presenters.py",
+      "src/prism/scanner_io/__init__.py",
+      "src/prism/tests/test_collection_renderer.py"
+    ],
+    "prism.scanner_io.emit_output": [
+      "src/prism/scanner_io/output_orchestrator.py"
+    ],
+    "prism.scanner_io.loader": [
+      "src/prism/scanner_extract/dataload.py",
+      "src/prism/scanner_extract/discovery.py",
+      "src/prism/scanner_extract/task_file_traversal.py",
+      "src/prism/scanner_extract/variable_extractor.py",
+      "src/prism/scanner_io/__init__.py",
+      "src/prism/scanner_plugins/ansible/variable_discovery.py",
+      "src/prism/scanner_plugins/parsers/yaml/parsing_policy.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch3.py",
+      "src/prism/tests/test_t4_01_perf_benchmarks.py"
+    ],
+    "prism.scanner_io.output": [
+      "src/prism/cli.py",
+      "src/prism/scanner_io/__init__.py",
+      "src/prism/scanner_io/emit_output.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch3.py"
+    ],
+    "prism.scanner_io.output_orchestrator": [
+      "src/prism/scanner_io/__init__.py"
+    ],
+    "prism.scanner_kernel.kernel_plugin_runner": [
+      "src/prism/tests/test_kernel_plugin_runner.py"
+    ],
+    "prism.scanner_kernel.orchestrator": [
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/scanner_kernel/__init__.py"
+    ],
+    "prism.scanner_kernel.plugin_name_resolver": [
+      "src/prism/scanner_kernel/orchestrator.py",
+      "src/prism/tests/test_plugin_name_resolver.py"
+    ],
+    "prism.scanner_kernel.repo_context": [
+      "src/prism/scanner_kernel/collection_context.py",
+      "src/prism/scanner_plugins/ansible/feature_flags.py"
+    ],
+    "prism.scanner_kernel.scan_payload_helpers": [
+      "src/prism/scanner_kernel/orchestrator.py"
+    ],
+    "prism.scanner_plugins": [
+      "src/prism/api_layer/plugin_facade.py",
+      "src/prism/tests/test_readme_renderer_registry_wiring.py",
+      "src/prism/tests/test_t1_02_coverage_lift.py",
+      "src/prism/tests/test_t2_01_plugin_api_version.py",
+      "src/prism/tests/test_t2_03_entry_point_discovery.py"
+    ],
+    "prism.scanner_plugins.ansible": [
+      "src/prism/scanner_plugins/__init__.py",
+      "src/prism/scanner_plugins/ansible/extract_policies.py",
+      "src/prism/scanner_plugins/ansible/variable_discovery.py",
+      "src/prism/scanner_plugins/bootstrap.py",
+      "src/prism/tests/test_ansible_task_traversal_bare.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch2.py"
+    ],
+    "prism.scanner_plugins.ansible.default_policies": [
+      "src/prism/scanner_plugins/__init__.py",
+      "src/prism/scanner_plugins/bootstrap.py",
+      "src/prism/scanner_plugins/defaults.py",
+      "src/prism/tests/test_extract_defaults_ansible_ownership.py"
+    ],
+    "prism.scanner_plugins.ansible.extract_policies": [
+      "src/prism/scanner_plugins/ansible/__init__.py",
+      "src/prism/tests/test_extract_defaults_ansible_ownership.py",
+      "src/prism/tests/test_extract_policies.py"
+    ],
+    "prism.scanner_plugins.ansible.extract_utils": [
+      "src/prism/scanner_plugins/ansible/feature_detection.py",
+      "src/prism/scanner_plugins/ansible/readme_renderer.py",
+      "src/prism/scanner_plugins/ansible/variable_discovery.py",
+      "src/prism/scanner_plugins/audit/dynamic_include_audit.py",
+      "src/prism/scanner_plugins/defaults.py"
+    ],
+    "prism.scanner_plugins.ansible.feature_detection": [
+      "src/prism/scanner_plugins/ansible/__init__.py"
+    ],
+    "prism.scanner_plugins.ansible.feature_flags": [
+      "src/prism/scanner_plugins/ansible/__init__.py",
+      "src/prism/tests/test_feature_flags.py"
+    ],
+    "prism.scanner_plugins.ansible.kernel": [
+      "src/prism/scanner_plugins/ansible/__init__.py",
+      "src/prism/tests/test_kernel.py"
+    ],
+    "prism.scanner_plugins.ansible.readme_renderer": [
+      "src/prism/scanner_plugins/ansible/__init__.py",
+      "src/prism/tests/test_readme_renderer_plugin_isolation.py",
+      "src/prism/tests/test_readme_renderer_plugin_parity.py",
+      "src/prism/tests/test_readme_renderer_plugin_protocol.py",
+      "src/prism/tests/test_readme_renderer_registry_wiring.py"
+    ],
+    "prism.scanner_plugins.ansible.task_keywords": [
+      "src/prism/scanner_plugins/ansible/task_traversal_bare.py",
+      "src/prism/scanner_plugins/ansible/task_vocabulary.py"
+    ],
+    "prism.scanner_plugins.ansible.task_line_parsing": [
+      "src/prism/scanner_plugins/ansible/variable_extractor.py",
+      "src/prism/tests/test_hypothesis_jinja_scanner.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch2.py"
+    ],
+    "prism.scanner_plugins.ansible.task_regex": [
+      "src/prism/scanner_plugins/ansible/task_traversal_bare.py"
+    ],
+    "prism.scanner_plugins.ansible.task_traversal_bare": [
+      "src/prism/scanner_plugins/ansible/default_policies.py",
+      "src/prism/scanner_plugins/ansible/task_line_parsing.py"
+    ],
+    "prism.scanner_plugins.ansible.task_vocabulary": [
+      "src/prism/scanner_plugins/ansible/default_policies.py",
+      "src/prism/tests/test_extract_defaults_ansible_ownership.py"
+    ],
+    "prism.scanner_plugins.ansible.variable_discovery": [
+      "src/prism/scanner_plugins/ansible/__init__.py"
+    ],
+    "prism.scanner_plugins.audit": [
+      "src/prism/cli.py",
+      "src/prism/tests/test_policy_as_code_stubs.py",
+      "src/prism/tests/test_t1_02_coverage_lift.py"
+    ],
+    "prism.scanner_plugins.audit.blocker_fact_evaluator": [
+      "src/prism/scanner_plugins/defaults.py",
+      "src/prism/tests/test_audit_modules.py",
+      "src/prism/tests/test_blocker_fact_evaluator.py"
+    ],
+    "prism.scanner_plugins.audit.builtin_rules": [
+      "src/prism/scanner_plugins/audit/runner.py",
+      "src/prism/tests/test_policy_as_code_stubs.py"
+    ],
+    "prism.scanner_plugins.audit.dynamic_include_audit": [
+      "src/prism/scanner_plugins/audit/blocker_fact_evaluator.py",
+      "src/prism/tests/test_audit_modules.py"
+    ],
+    "prism.scanner_plugins.audit.loader": [
+      "src/prism/api_layer/plugin_facade.py",
+      "src/prism/scanner_plugins/audit/__init__.py",
+      "src/prism/tests/test_audit_plugin.py"
+    ],
+    "prism.scanner_plugins.audit.runner": [
+      "src/prism/api_layer/plugin_facade.py",
+      "src/prism/scanner_plugins/audit/__init__.py",
+      "src/prism/tests/test_audit_plugin.py"
+    ],
+    "prism.scanner_plugins.bootstrap": [
+      "src/prism/scanner_plugins/__init__.py",
+      "src/prism/scanner_plugins/defaults.py",
+      "src/prism/tests/test_scanner_guardrails.py"
+    ],
+    "prism.scanner_plugins.bundle_resolver": [
+      "src/prism/api_layer/plugin_facade.py",
+      "src/prism/scanner_plugins/defaults.py"
+    ],
+    "prism.scanner_plugins.default_scan_pipeline": [
+      "src/prism/scanner_plugins/__init__.py",
+      "src/prism/scanner_plugins/bootstrap.py"
+    ],
+    "prism.scanner_plugins.defaults": [
+      "src/prism/api_layer/plugin_facade.py",
+      "src/prism/scanner_core/di.py",
+      "src/prism/scanner_io/loader.py",
+      "src/prism/scanner_plugins/bootstrap.py",
+      "src/prism/scanner_plugins/bundle_resolver.py",
+      "src/prism/scanner_readme/guide.py",
+      "src/prism/scanner_readme/render.py",
+      "src/prism/scanner_reporting/__init__.py",
+      "src/prism/tests/test_gilfoyle_blockers_runtime.py",
+      "src/prism/tests/test_readme_renderer_registry_wiring.py"
+    ],
+    "prism.scanner_plugins.discovery": [
+      "src/prism/scanner_plugins/__init__.py",
+      "src/prism/scanner_plugins/bootstrap.py"
+    ],
+    "prism.scanner_plugins.filters.underscore_policy": [
+      "src/prism/tests/test_underscore_policy_filter.py"
+    ],
+    "prism.scanner_plugins.interfaces": [
+      "src/prism/api_layer/plugin_facade.py",
+      "src/prism/scanner_core/di.py",
+      "src/prism/scanner_core/di_helpers.py",
+      "src/prism/scanner_core/execution_request_builder.py",
+      "src/prism/scanner_core/feature_detector.py",
+      "src/prism/scanner_core/variable_discovery.py",
+      "src/prism/scanner_plugins/__init__.py",
+      "src/prism/scanner_plugins/ansible/__init__.py",
+      "src/prism/scanner_plugins/defaults.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/role_notes_parser.py",
+      "src/prism/scanner_plugins/registry.py",
+      "src/prism/tests/test_readme_renderer_plugin_protocol.py"
+    ],
+    "prism.scanner_plugins.parsers.comment_doc.annotation_parsing": [
+      "src/prism/scanner_plugins/ansible/default_policies.py",
+      "src/prism/scanner_plugins/ansible/task_annotation_strategy.py"
+    ],
+    "prism.scanner_plugins.parsers.comment_doc.jinja_utils": [
+      "src/prism/scanner_plugins/parsers/comment_doc/runbook_renderer.py"
+    ],
+    "prism.scanner_plugins.parsers.comment_doc.marker_utils": [
+      "src/prism/scanner_plugins/ansible/default_policies.py",
+      "src/prism/scanner_plugins/ansible/extract_policies.py",
+      "src/prism/scanner_plugins/ansible/task_annotation_strategy.py",
+      "src/prism/scanner_plugins/bundle_resolver.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/annotation_parsing.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/role_notes_parser.py",
+      "src/prism/tests/test_t1_02_coverage_lift.py"
+    ],
+    "prism.scanner_plugins.parsers.comment_doc.role_notes_parser": [
+      "src/prism/scanner_plugins/__init__.py",
+      "src/prism/scanner_plugins/bootstrap.py",
+      "src/prism/scanner_plugins/defaults.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/__init__.py"
+    ],
+    "prism.scanner_plugins.parsers.comment_doc.runbook_renderer": [
+      "src/prism/scanner_plugins/defaults.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch2.py"
+    ],
+    "prism.scanner_plugins.parsers.jinja": [
+      "src/prism/scanner_plugins/__init__.py",
+      "src/prism/scanner_plugins/ansible/__init__.py",
+      "src/prism/scanner_plugins/ansible/extract_policies.py",
+      "src/prism/scanner_plugins/bootstrap.py",
+      "src/prism/scanner_plugins/defaults.py"
+    ],
+    "prism.scanner_plugins.parsers.jinja.analysis_policy": [
+      "src/prism/scanner_plugins/parsers/jinja/__init__.py",
+      "src/prism/tests/test_hypothesis_jinja_scanner.py",
+      "src/prism/tests/test_t4_05_jinja_sandbox_audit.py"
+    ],
+    "prism.scanner_plugins.parsers.jinja.patterns": [
+      "src/prism/scanner_plugins/parsers/jinja/__init__.py"
+    ],
+    "prism.scanner_plugins.parsers.markdown.style_parser": [
+      "src/prism/scanner_plugins/parsers/markdown/__init__.py"
+    ],
+    "prism.scanner_plugins.parsers.yaml": [
+      "src/prism/scanner_plugins/__init__.py",
+      "src/prism/scanner_plugins/ansible/__init__.py",
+      "src/prism/scanner_plugins/bootstrap.py",
+      "src/prism/scanner_plugins/defaults.py"
+    ],
+    "prism.scanner_plugins.parsers.yaml.line_shape": [
+      "src/prism/scanner_plugins/ansible/default_policies.py",
+      "src/prism/scanner_plugins/ansible/task_annotation_strategy.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/annotation_parsing.py"
+    ],
+    "prism.scanner_plugins.parsers.yaml.parsing_policy": [
+      "src/prism/scanner_plugins/parsers/yaml/__init__.py",
+      "src/prism/tests/test_hypothesis_yaml_parser.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch2.py"
+    ],
+    "prism.scanner_plugins.registry": [
+      "src/prism/api_layer/plugin_facade.py",
+      "src/prism/scanner_core/di.py",
+      "src/prism/scanner_plugins/__init__.py",
+      "src/prism/scanner_plugins/bootstrap.py",
+      "src/prism/scanner_plugins/defaults.py",
+      "src/prism/scanner_plugins/discovery.py",
+      "src/prism/tests/test_gilfoyle_blockers_runtime.py",
+      "src/prism/tests/test_readme_renderer_plugin_isolation.py",
+      "src/prism/tests/test_readme_renderer_registry_wiring.py",
+      "src/prism/tests/test_registry_reserved_platforms.py",
+      "src/prism/tests/test_t2_01_plugin_api_version.py",
+      "src/prism/tests/test_t2_03_entry_point_discovery.py",
+      "src/prism/tests/test_t2_04_stateless_marker.py"
+    ],
+    "prism.scanner_readme": [
+      "src/prism/api.py",
+      "src/prism/tests/test_scanner_readme_init.py",
+      "src/prism/tests/test_t1_02_coverage_lift.py"
+    ],
+    "prism.scanner_readme.doc_insights": [
+      "src/prism/scanner_readme/__init__.py"
+    ],
+    "prism.scanner_readme.guide": [
+      "src/prism/scanner_readme/__init__.py",
+      "src/prism/scanner_readme/render.py",
+      "src/prism/tests/test_gilfoyle_blockers_runtime.py",
+      "src/prism/tests/test_readme_renderer_registry_wiring.py",
+      "src/prism/tests/test_render_compat.py"
+    ],
+    "prism.scanner_readme.render": [
+      "src/prism/scanner_readme/__init__.py",
+      "src/prism/tests/test_readme_renderer_registry_wiring.py",
+      "src/prism/tests/test_render_compat.py"
+    ],
+    "prism.scanner_readme.rendering_seams": [
+      "src/prism/scanner_readme/render.py",
+      "src/prism/tests/test_t4_05_jinja_sandbox_audit.py"
+    ],
+    "prism.scanner_readme.style": [
+      "src/prism/cli_app/shared.py",
+      "src/prism/scanner_readme/__init__.py",
+      "src/prism/scanner_readme/render.py"
+    ],
+    "prism.scanner_readme.style_config": [
+      "src/prism/scanner_readme/style.py",
+      "src/prism/tests/test_t1_02_coverage_lift.py"
+    ],
+    "prism.scanner_readme.style_formatter": [
+      "src/prism/scanner_readme/style.py",
+      "src/prism/tests/test_t1_02_coverage_lift.py"
+    ],
+    "prism.scanner_reporting": [
+      "src/prism/api.py"
+    ],
+    "prism.scanner_reporting.collection_dependencies": [
+      "src/prism/api.py"
+    ],
+    "prism.scanner_reporting.report": [
+      "src/prism/scanner_reporting/__init__.py"
+    ],
+    "pytest": [
+      "src/prism/tests/test_api_cli_entrypoints.py",
+      "src/prism/tests/test_api_cli_repo_parity.py",
+      "src/prism/tests/test_api_layer_common.py",
+      "src/prism/tests/test_audit_plugin.py",
+      "src/prism/tests/test_collection_contract.py",
+      "src/prism/tests/test_collection_payload.py",
+      "src/prism/tests/test_comment_doc_plugin_resolution.py",
+      "src/prism/tests/test_di_container.py",
+      "src/prism/tests/test_di_registry_resolution.py",
+      "src/prism/tests/test_feature_flags.py",
+      "src/prism/tests/test_gilfoyle_blockers_runtime.py",
+      "src/prism/tests/test_legacy_retirement.py",
+      "src/prism/tests/test_package_import_smoke.py",
+      "src/prism/tests/test_platform_routing_fail_closed.py",
+      "src/prism/tests/test_plugin_extract_boundary.py",
+      "src/prism/tests/test_plugin_kernel_extension_parity.py",
+      "src/prism/tests/test_plugin_name_resolver.py",
+      "src/prism/tests/test_policy_as_code_stubs.py",
+      "src/prism/tests/test_readme_renderer_plugin_parity.py",
+      "src/prism/tests/test_readme_renderer_registry_wiring.py",
+      "src/prism/tests/test_scanner_config.py",
+      "src/prism/tests/test_scanner_config_style.py",
+      "src/prism/tests/test_scanner_context.py",
+      "src/prism/tests/test_scanner_core_di.py",
+      "src/prism/tests/test_scanner_core_small_surfaces.py",
+      "src/prism/tests/test_scanner_extract_shim_parity.py",
+      "src/prism/tests/test_scanner_guardrails.py",
+      "src/prism/tests/test_scanner_parity.py",
+      "src/prism/tests/test_scanner_readme_init.py",
+      "src/prism/tests/test_t1_02_coverage_lift.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch2.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch3.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch4.py",
+      "src/prism/tests/test_t2_01_plugin_api_version.py",
+      "src/prism/tests/test_t2_02_scan_options_schema.py",
+      "src/prism/tests/test_t2_03_entry_point_discovery.py",
+      "src/prism/tests/test_t2_04_stateless_marker.py",
+      "src/prism/tests/test_t3_01_scan_phase_events.py",
+      "src/prism/tests/test_t3_03_scan_cache.py",
+      "src/prism/tests/test_t3_06_path_safety.py",
+      "src/prism/tests/test_t4_01_perf_benchmarks.py",
+      "src/prism/tests/test_t4_02_public_seam_guardrail.py",
+      "src/prism/tests/test_t4_03_cli_progress.py",
+      "src/prism/tests/test_task_line_parsing.py",
+      "src/prism/tests/test_task_parser_precedence_matrix.py",
+      "src/prism/tests/test_variable_discovery_pipeline.py"
+    ],
+    "re": [
+      "scripts/audit_error_boundaries.py",
+      "src/prism/api.py",
+      "src/prism/cli_app/presenters.py",
+      "src/prism/scanner_config/marker.py",
+      "src/prism/scanner_config/style_parser.py",
+      "src/prism/scanner_data/patterns_jinja.py",
+      "src/prism/scanner_extract/requirements.py",
+      "src/prism/scanner_extract/task_file_traversal.py",
+      "src/prism/scanner_extract/task_line_parsing.py",
+      "src/prism/scanner_extract/variable_extractor.py",
+      "src/prism/scanner_extract/variable_helpers.py",
+      "src/prism/scanner_io/collection_plugins.py",
+      "src/prism/scanner_plugins/ansible/task_regex.py",
+      "src/prism/scanner_plugins/ansible/variable_discovery.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/annotation_parsing.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/marker_utils.py",
+      "src/prism/scanner_plugins/parsers/yaml/line_shape.py",
+      "src/prism/scanner_readme/style_formatter.py",
+      "src/prism/tests/test_comment_doc_plugin_resolution.py",
+      "src/prism/tests/test_filter_scanner.py",
+      "src/prism/tests/test_t4_02_public_seam_guardrail.py",
+      "src/prism/tests/test_test_output_safety_guard.py"
+    ],
+    "shutil": [
+      "scripts/cli_demo_matrix.py",
+      "src/prism/cli_app/presenters.py",
+      "src/prism/tests/test_t4_01_perf_benchmarks.py"
+    ],
+    "statistics": [
+      "scripts/profile_role_scan.py"
+    ],
+    "subprocess": [
+      "scripts/cli_demo_matrix.py",
+      "scripts/profile_role_scan.py",
+      "src/prism/repo_services.py",
+      "src/prism/tests/test_api_cli_repo_parity.py"
+    ],
+    "sys": [
+      "conftest.py",
+      "scripts/audit_error_boundaries.py",
+      "src/prism/cli.py",
+      "src/prism/cli_app/shared.py",
+      "src/prism/progress.py",
+      "src/prism/scanner_core/telemetry.py",
+      "src/prism/scanner_io/output.py",
+      "src/prism/tests/test_api_cli_entrypoints.py",
+      "src/prism/tests/test_api_cli_repo_parity.py",
+      "src/prism/tests/test_collection_contract.py",
+      "src/prism/tests/test_comment_doc_plugin_resolution.py",
+      "src/prism/tests/test_di_container.py",
+      "src/prism/tests/test_di_helpers.py",
+      "src/prism/tests/test_di_registry_resolution.py",
+      "src/prism/tests/test_errors.py",
+      "src/prism/tests/test_feature_detector.py",
+      "src/prism/tests/test_gilfoyle_blockers_runtime.py",
+      "src/prism/tests/test_output_orchestration.py",
+      "src/prism/tests/test_package_export_parity.py",
+      "src/prism/tests/test_package_import_smoke.py",
+      "src/prism/tests/test_platform_execution_bundle.py",
+      "src/prism/tests/test_platform_routing_fail_closed.py",
+      "src/prism/tests/test_plugin_kernel_extension_parity.py",
+      "src/prism/tests/test_readme_parity.py",
+      "src/prism/tests/test_scanner_context.py",
+      "src/prism/tests/test_scanner_core_di.py",
+      "src/prism/tests/test_scanner_core_small_surfaces.py",
+      "src/prism/tests/test_scanner_extract_shim_parity.py",
+      "src/prism/tests/test_scanner_parity.py",
+      "src/prism/tests/test_scanner_reporting.py",
+      "src/prism/tests/test_t3_04_error_boundary_audit.py",
+      "src/prism/tests/test_task_annotation_alias_matrix.py",
+      "src/prism/tests/test_task_parser_precedence_matrix.py",
+      "src/prism/tests/test_variable_discovery_pipeline.py",
+      "src/prism/tests/test_w2_hardwiring_audit.py"
+    ],
+    "tempfile": [
+      "src/prism/repo_services.py",
+      "src/prism/tests/test_hypothesis_yaml_parser.py",
+      "src/prism/tests/test_readme_renderer_registry_wiring.py"
+    ],
+    "threading": [
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/progress.py",
+      "src/prism/scanner_core/di.py",
+      "src/prism/scanner_core/events.py",
+      "src/prism/scanner_core/feature_detector.py",
+      "src/prism/scanner_core/scan_cache.py",
+      "src/prism/scanner_core/telemetry.py",
+      "src/prism/scanner_core/variable_discovery.py",
+      "src/prism/scanner_plugins/registry.py",
+      "src/prism/tests/test_g02_thread_safety.py"
+    ],
+    "time": [
+      "scripts/profile_role_scan.py",
+      "scripts/summarise_messages.py",
+      "src/prism/progress.py",
+      "src/prism/scanner_core/telemetry.py"
+    ],
+    "traceback": [
+      "src/prism/api_layer/common.py",
+      "src/prism/scanner_io/collection_payload.py"
+    ],
+    "types": [
+      "src/prism/scanner_plugins/ansible/kernel.py",
+      "src/prism/scanner_plugins/defaults.py",
+      "src/prism/scanner_plugins/kubernetes/__init__.py",
+      "src/prism/scanner_plugins/terraform/__init__.py",
+      "src/prism/scanner_readme/style_config.py"
+    ],
+    "typing": [
+      "scripts/check_barrier_status.py",
+      "scripts/rollup_model_usage.py",
+      "scripts/summarise_messages.py",
+      "src/prism/api_layer/collection.py",
+      "src/prism/api_layer/common.py",
+      "src/prism/api_layer/non_collection.py",
+      "src/prism/api_layer/payload_helpers.py",
+      "src/prism/api_layer/plugin_facade.py",
+      "src/prism/env_config.py",
+      "src/prism/errors.py",
+      "src/prism/progress.py",
+      "src/prism/repo_services.py",
+      "src/prism/scanner_config/audit_rules.py",
+      "src/prism/scanner_config/patterns.py",
+      "src/prism/scanner_config/readme.py",
+      "src/prism/scanner_config/style_parser.py",
+      "src/prism/scanner_core/di.py",
+      "src/prism/scanner_core/di_helpers.py",
+      "src/prism/scanner_core/events.py",
+      "src/prism/scanner_core/execution_request_builder.py",
+      "src/prism/scanner_core/feature_detector.py",
+      "src/prism/scanner_core/protocols_runtime.py",
+      "src/prism/scanner_core/scan_cache.py",
+      "src/prism/scanner_core/scan_facade_helpers.py",
+      "src/prism/scanner_core/scan_request.py",
+      "src/prism/scanner_core/scanner_context.py",
+      "src/prism/scanner_core/telemetry.py",
+      "src/prism/scanner_core/variable_discovery.py",
+      "src/prism/scanner_data/__init__.py",
+      "src/prism/scanner_data/builders.py",
+      "src/prism/scanner_data/contracts_output.py",
+      "src/prism/scanner_data/contracts_request.py",
+      "src/prism/scanner_data/contracts_variables.py",
+      "src/prism/scanner_data/scan_options_schema.py",
+      "src/prism/scanner_extract/dataload.py",
+      "src/prism/scanner_extract/discovery.py",
+      "src/prism/scanner_extract/filter_scanner.py",
+      "src/prism/scanner_extract/task_catalog_assembly.py",
+      "src/prism/scanner_extract/task_line_parsing.py",
+      "src/prism/scanner_extract/variable_extractor.py",
+      "src/prism/scanner_extract/variable_helpers.py",
+      "src/prism/scanner_io/collection_payload.py",
+      "src/prism/scanner_io/collection_plugins.py",
+      "src/prism/scanner_io/emit_output.py",
+      "src/prism/scanner_io/loader.py",
+      "src/prism/scanner_io/output.py",
+      "src/prism/scanner_io/output_orchestrator.py",
+      "src/prism/scanner_kernel/collection_context.py",
+      "src/prism/scanner_kernel/kernel_plugin_runner.py",
+      "src/prism/scanner_kernel/orchestrator.py",
+      "src/prism/scanner_kernel/plugin_name_resolver.py",
+      "src/prism/scanner_kernel/repo_context.py",
+      "src/prism/scanner_kernel/scan_payload_helpers.py",
+      "src/prism/scanner_plugins/__init__.py",
+      "src/prism/scanner_plugins/ansible/__init__.py",
+      "src/prism/scanner_plugins/ansible/default_policies.py",
+      "src/prism/scanner_plugins/ansible/feature_detection.py",
+      "src/prism/scanner_plugins/ansible/kernel.py",
+      "src/prism/scanner_plugins/ansible/readme_renderer.py",
+      "src/prism/scanner_plugins/ansible/task_traversal_bare.py",
+      "src/prism/scanner_plugins/ansible/variable_discovery.py",
+      "src/prism/scanner_plugins/audit/__init__.py",
+      "src/prism/scanner_plugins/audit/blocker_fact_evaluator.py",
+      "src/prism/scanner_plugins/audit/loader.py",
+      "src/prism/scanner_plugins/audit/runner.py",
+      "src/prism/scanner_plugins/bootstrap.py",
+      "src/prism/scanner_plugins/bundle_resolver.py",
+      "src/prism/scanner_plugins/default_scan_pipeline.py",
+      "src/prism/scanner_plugins/defaults.py",
+      "src/prism/scanner_plugins/discovery.py",
+      "src/prism/scanner_plugins/interfaces.py",
+      "src/prism/scanner_plugins/kubernetes/__init__.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/jinja_utils.py",
+      "src/prism/scanner_plugins/parsers/comment_doc/runbook_renderer.py",
+      "src/prism/scanner_plugins/parsers/jinja/analysis_policy.py",
+      "src/prism/scanner_plugins/parsers/yaml/parsing_policy.py",
+      "src/prism/scanner_plugins/registry.py",
+      "src/prism/scanner_plugins/terraform/__init__.py",
+      "src/prism/scanner_readme/guide.py",
+      "src/prism/scanner_readme/render.py",
+      "src/prism/scanner_readme/rendering_seams.py",
+      "src/prism/scanner_readme/style_config.py",
+      "src/prism/scanner_reporting/collection_dependencies.py",
+      "src/prism/scanner_reporting/report.py",
+      "src/prism/tests/test_audit_modules.py",
+      "src/prism/tests/test_blocker_fact_evaluator.py",
+      "src/prism/tests/test_di_container.py",
+      "src/prism/tests/test_kernel.py",
+      "src/prism/tests/test_kernel_plugin_runner.py",
+      "src/prism/tests/test_output_orchestration.py",
+      "src/prism/tests/test_package_export_parity.py",
+      "src/prism/tests/test_platform_execution_bundle.py",
+      "src/prism/tests/test_platform_routing_fail_closed.py",
+      "src/prism/tests/test_readme_parity.py",
+      "src/prism/tests/test_readme_renderer_plugin_isolation.py",
+      "src/prism/tests/test_readme_renderer_plugin_parity.py",
+      "src/prism/tests/test_scanner_context.py",
+      "src/prism/tests/test_scanner_core_di.py",
+      "src/prism/tests/test_scanner_core_small_surfaces.py",
+      "src/prism/tests/test_scanner_extract_shim_parity.py",
+      "src/prism/tests/test_scanner_parity.py",
+      "src/prism/tests/test_scanner_reporting.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch3.py",
+      "src/prism/tests/test_underscore_policy_filter.py"
+    ],
+    "unittest.mock": [
+      "src/prism/tests/test_api_cli_repo_parity.py",
+      "src/prism/tests/test_audit_modules.py",
+      "src/prism/tests/test_blocker_fact_evaluator.py"
+    ],
+    "urllib.error": [
+      "src/prism/cli.py",
+      "src/prism/cli_app/runtime.py",
+      "src/prism/scanner_config/patterns.py",
+      "src/prism/tests/test_api_cli_repo_parity.py"
+    ],
+    "urllib.request": [
+      "src/prism/scanner_config/patterns.py"
+    ],
+    "uuid": [
+      "scripts/summarise_messages.py"
+    ],
+    "warnings": [
+      "src/prism/scanner_plugins/registry.py"
+    ],
+    "weasyprint": [
+      "src/prism/scanner_io/output.py"
+    ],
+    "yaml": [
+      "scripts/check_barrier_status.py",
+      "scripts/rollup_model_usage.py",
+      "src/prism/api.py",
+      "src/prism/cli_app/presenters.py",
+      "src/prism/scanner_config/marker.py",
+      "src/prism/scanner_config/patterns.py",
+      "src/prism/scanner_config/policy.py",
+      "src/prism/scanner_config/readme.py",
+      "src/prism/scanner_config/style.py",
+      "src/prism/scanner_extract/variable_extractor.py",
+      "src/prism/scanner_extract/variable_helpers.py",
+      "src/prism/scanner_io/collection_payload.py",
+      "src/prism/scanner_io/loader.py",
+      "src/prism/scanner_kernel/repo_context.py",
+      "src/prism/scanner_plugins/ansible/task_traversal_bare.py",
+      "src/prism/scanner_plugins/audit/loader.py",
+      "src/prism/scanner_plugins/parsers/yaml/parsing_policy.py",
+      "src/prism/scanner_reporting/collection_dependencies.py",
+      "src/prism/tests/test_hypothesis_yaml_parser.py",
+      "src/prism/tests/test_t1_02_coverage_lift_batch3.py"
+    ]
+  }
+}

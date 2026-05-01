@@ -95,6 +95,16 @@ _FALLBACK_SINGLETONS = [
     _JINJA_ANALYSIS_FALLBACK,
 ]
 
+_TASK_ANNOTATION_REQUIRED_CALLABLES = (
+    "split_task_annotation_label",
+    "split_task_target_payload",
+    "annotation_payload_looks_yaml",
+    "normalize_marker_prefix",
+    "get_marker_line_re",
+    "extract_task_annotations_for_file",
+    "task_anchor",
+)
+
 # Bootstrap validation tracking
 _singleton_invariants_validated = False
 
@@ -357,11 +367,8 @@ def resolve_task_annotation_policy_plugin(
         di_factory_name="factory_task_annotation_policy_plugin",
         registry_plugin_name="task_annotation_parsing",
         plugin_kind="task_annotation_policy",
-        required_callables=(),
-        any_of_callables=(
-            "split_task_annotation_label",
-            "extract_task_annotations_for_file",
-        ),
+        required_callables=_TASK_ANNOTATION_REQUIRED_CALLABLES,
+        any_of_callables=(),
         required_attributes=(),
         fallback_plugin=_TASK_ANNOTATION_FALLBACK,
         strict_mode=strict_mode,

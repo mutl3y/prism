@@ -1,0 +1,22 @@
+- id: SG-L-01
+  category: registry_authority
+  file: src/prism/scanner_kernel/orchestrator.py
+  line: 269
+  severity_hint: medium
+  confidence: high
+  evidence_snippet: 'result = plugin_instance.orchestrate_scan_payload('
+  evidence_command: src/prism/scanner_kernel/orchestrator.py:269-286
+  fix_group_key: scan-pipeline-direct-orchestrate-contract
+  suggested_narrow_gate: ""
+  summary: The new contract check only covers the fallback process_scan_pipeline path. Any plugin that implements orchestrate_scan_payload directly can still return a non-dict and escape the kernel seam unchanged, so the runtime contract is still fail-open on one path.
+- id: SG-L-02
+  category: test_fixture_coupling
+  file: src/prism/tests/test_api_cli_entrypoints.py
+  line: 73
+  severity_hint: low
+  confidence: high
+  evidence_snippet: 'monkeypatch.setattr(plugin_facade, "get_default_plugin_registry", lambda: registry)'
+  evidence_command: src/prism/tests/test_api_cli_entrypoints.py:73-75
+  fix_group_key: api-default-registry-fixture
+  suggested_narrow_gate: ""
+  summary: The API entrypoint tests are coupled to the nested api_module.plugin_facade import path and a monkeypatched singleton resolver. That fixture will break if the composition-root wiring moves, even when the API behavior stays the same.

@@ -1,0 +1,30 @@
+plan_id: gilfoyle-review-20260501-g37
+cycle: g37
+title: "Mutl3y/Gilfoyle light review cycle for src/prism"
+status: completed
+created_at: "2026-05-01"
+review_type: light
+target: src/prism
+focus_axis: ownership
+origin: "Required diff-scoped follow-up after g36 closed a high registry-authority finding"
+
+resumption_pointer:
+  current_phase: P1
+  next_action: "Escalate immediately to a fresh thorough g38 whole-codebase review because g37 returned zero critical/high findings."
+  blocking_issues: []
+  notes: |
+    The previous cycle closed FIND-G36-ARCH-01, so g37 reviewed only the changed
+    facade slice plus bounded neighbors. All four scouts returned zero
+    observations. Because the light pass is clean, the next required step is a
+    fresh thorough whole-codebase cycle rather than sign-off.
+
+artifacts:
+  learning_context: docs/plan/gilfoyle-review-20260501-g37/artifacts/phase0/learning-context.yaml
+  findings: docs/plan/gilfoyle-review-20260501-g37/findings.yaml
+  light_changed_files: docs/plan/gilfoyle-review-20260501-g37/.gate/tmp/changed_files.txt
+  light_context_diff: docs/plan/gilfoyle-review-20260501-g37/.gate/tmp/light_context.diff
+  light_neighbours: docs/plan/gilfoyle-review-20260501-g37/.gate/tmp/light_neighbours.txt
+  barrier_summary: docs/plan/gilfoyle-review-20260501-g37/artifacts/phase0/barrier-summary.yaml
+  grading_summary: docs/plan/gilfoyle-review-20260501-g37/artifacts/phase1/g37-grading-summary.yaml
+  model_usage_ledger: docs/plan/gilfoyle-review-20260501-g37/artifacts/model-usage-ledger.yaml
+  model_scorecard: docs/plan/gilfoyle-review-20260501-g37/artifacts/model-scorecard.yaml

@@ -1,0 +1,60 @@
+- timestamp: '2026-05-01T09:30:00Z'
+  cycle: g40
+  phase: P0
+  worker: Scout-Typing
+  task_id: g40-light-scout-typing
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g40/artifacts/phase0/Scout-Typing.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_recovery
+  notes: scout returned inline YAML and foreman persisted the artifact locally
+- timestamp: '2026-05-01T09:30:00Z'
+  cycle: g40
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g40-light-scout-ownership
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g40/artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_recovery
+  notes: scout returned inline YAML and foreman persisted the artifact locally
+- timestamp: '2026-05-01T09:30:00Z'
+  cycle: g40
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g40-light-scout-controlflow
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g40/artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_recovery
+  notes: scout returned inline YAML and foreman persisted the artifact locally
+- timestamp: '2026-05-01T09:30:00Z'
+  cycle: g40
+  phase: P0
+  worker: Scout-Graph
+  task_id: g40-light-scout-graph
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g40/artifacts/phase0/Scout-Graph.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_recovery
+  notes: scout returned inline YAML and foreman persisted the artifact locally

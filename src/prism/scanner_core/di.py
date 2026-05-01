@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, Mapping
 
 from prism.scanner_core.events import EventBus, EventListener, get_default_listeners
 from prism.scanner_data.builders import VariableRowBuilder
+from prism.errors import PrismRuntimeError
 
 if TYPE_CHECKING:
     from prism.scanner_core.feature_detector import FeatureDetector
@@ -92,6 +93,35 @@ def resolve_platform_key(
     raise ValueError(
         "No platform key resolvable from scan_options, policy_context, or registry default."
     )
+
+
+def _construct_runtime_plugin(
+    plugin_class: type[Any],
+    *,
+    plugin_kind: str,
+    platform_key: str,
+    di: "DIContainer",
+) -> Any:
+    """Construct a registry-returned runtime plugin through the DI seam.
+
+    Registry validation should reject classes that do not accept ``di=...``, but
+    DI still fails closed here so custom registries or manual test doubles cannot
+    reopen the constructor-shape bypass with a raw ``TypeError``.
+    """
+    try:
+        return plugin_class(di=di)
+    except TypeError as exc:
+        raise PrismRuntimeError(
+            code="malformed_plugin_shape",
+            category="runtime",
+            message=f"Failed to construct {plugin_kind} plugin.",
+            detail={
+                "plugin_kind": plugin_kind,
+                "platform_key": platform_key,
+                "plugin_class": getattr(plugin_class, "__name__", "unknown"),
+                "error": str(exc),
+            },
+        ) from exc
 
 
 class DIContainer:
@@ -269,7 +299,12 @@ class DIContainer:
                 f"No variable_discovery plugin registered under '{platform_key}'. "
                 "Ensure scanner_plugins bootstrap has run."
             )
-        return plugin_cls(di=self)  # type: ignore[call-arg]
+        return _construct_runtime_plugin(
+            plugin_cls,
+            plugin_kind="variable_discovery",
+            platform_key=platform_key,
+            di=self,
+        )
 
     def factory_feature_detection_plugin(self) -> FeatureDetectionPlugin:
         """Resolve feature-detection plugin via registry; fail-closed if unregistered."""
@@ -288,7 +323,12 @@ class DIContainer:
                 f"No feature_detection plugin registered under '{platform_key}'. "
                 "Ensure scanner_plugins bootstrap has run."
             )
-        return plugin_cls(di=self)  # type: ignore[call-arg]
+        return _construct_runtime_plugin(
+            plugin_cls,
+            plugin_kind="feature_detection",
+            platform_key=platform_key,
+            di=self,
+        )
 
     def factory_comment_driven_doc_plugin(
         self,

@@ -70,6 +70,11 @@ def _make_test_registry(real_registry, scan_pipeline_fn):
     return _TestRegistry()
 
 
+def _patch_api_default_registry(monkeypatch, api_module, registry) -> None:
+    plugin_facade = api_module.plugin_facade
+    monkeypatch.setattr(plugin_facade, "get_default_plugin_registry", lambda: registry)
+
+
 def _build_tiny_role(role_path: Path) -> None:
     (role_path / "defaults").mkdir(parents=True)
     (role_path / "tasks").mkdir(parents=True)
@@ -350,12 +355,12 @@ def test_fsrc_api_run_scan_forwards_policy_config_path_to_canonical_builder(
                 }
 
         monkeypatch.setattr(
-            api_module,
+            api_module.api_non_collection,
             "build_run_scan_options_canonical",
             _fake_build_run_scan_options_canonical,
         )
         monkeypatch.setattr(
-            api_module,
+            api_module.api_non_collection,
             "route_scan_payload_orchestration",
             _fake_route_scan_payload_orchestration,
         )
@@ -394,7 +399,9 @@ def test_fsrc_api_run_scan_uses_runtime_route_orchestration(
             called["route"] = True
             return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
 
-        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+        monkeypatch.setattr(
+            api_module.api_non_collection, "route_scan_payload_orchestration", _route
+        )
         payload = api_module.run_scan(str(role_path), include_vars_main=True)
 
     assert called["route"] is True
@@ -457,12 +464,13 @@ def test_fsrc_api_run_scan_reuses_router_preflight_without_second_plugin_call(
                     "plugin should not be called when preflight exists"
                 )
 
-        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
         monkeypatch.setattr(
-            api_module,
-            "DEFAULT_PLUGIN_REGISTRY",
-            _make_test_registry(api_module.DEFAULT_PLUGIN_REGISTRY, lambda _n: _Plugin),
+            api_module.api_non_collection, "route_scan_payload_orchestration", _route
         )
+        _registry = _make_test_registry(
+            api_module.plugin_facade.get_default_plugin_registry(), lambda _n: _Plugin
+        )
+        _patch_api_default_registry(monkeypatch, api_module, _registry)
         payload = api_module.run_scan(str(role_path), include_vars_main=True)
 
     assert payload["metadata"]["plugin_runtime_marker"] == "preflight-used"
@@ -491,7 +499,9 @@ def test_fsrc_api_run_scan_consumes_registered_scan_pipeline_plugin(
             del registry
             return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
 
-        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+        monkeypatch.setattr(
+            api_module.api_non_collection, "route_scan_payload_orchestration", _route
+        )
 
         class _Plugin:
             called = False
@@ -509,14 +519,11 @@ def test_fsrc_api_run_scan_consumes_registered_scan_pipeline_plugin(
                     "features": {"task_files_scanned": 999},
                 }
 
-        monkeypatch.setattr(
-            api_module,
-            "DEFAULT_PLUGIN_REGISTRY",
-            _make_test_registry(
-                api_module.DEFAULT_PLUGIN_REGISTRY,
-                lambda name: _Plugin if name == "default" else None,
-            ),
+        _registry = _make_test_registry(
+            api_module.plugin_facade.get_default_plugin_registry(),
+            lambda name: _Plugin if name == "default" else None,
         )
+        _patch_api_default_registry(monkeypatch, api_module, _registry)
         payload = api_module.run_scan(str(role_path), include_vars_main=True)
 
     assert _Plugin.called is True
@@ -547,7 +554,9 @@ def test_fsrc_api_run_scan_plugin_failure_raises_when_strict(
             del registry
             return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
 
-        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+        monkeypatch.setattr(
+            api_module.api_non_collection, "route_scan_payload_orchestration", _route
+        )
 
         class _Plugin:
             def orchestrate_scan_payload(
@@ -573,11 +582,10 @@ def test_fsrc_api_run_scan_plugin_failure_raises_when_strict(
                 del scan_context
                 return {"plugin_enabled": True, "plugin_name": "default"}
 
-        monkeypatch.setattr(
-            api_module,
-            "DEFAULT_PLUGIN_REGISTRY",
-            _make_test_registry(api_module.DEFAULT_PLUGIN_REGISTRY, lambda _n: _Plugin),
+        _registry = _make_test_registry(
+            api_module.plugin_facade.get_default_plugin_registry(), lambda _n: _Plugin
         )
+        _patch_api_default_registry(monkeypatch, api_module, _registry)
 
         with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
             api_module.run_scan(str(role_path), include_vars_main=True)
@@ -615,16 +623,17 @@ def test_fsrc_api_run_scan_registry_lookup_failure_raises_when_strict(
             del registry
             return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
 
-        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+        monkeypatch.setattr(
+            api_module.api_non_collection, "route_scan_payload_orchestration", _route
+        )
 
         def _boom(_name):
             raise RuntimeError("registry boom")
 
-        monkeypatch.setattr(
-            api_module,
-            "DEFAULT_PLUGIN_REGISTRY",
-            _make_test_registry(api_module.DEFAULT_PLUGIN_REGISTRY, _boom),
+        _registry = _make_test_registry(
+            api_module.plugin_facade.get_default_plugin_registry(), _boom
         )
+        _patch_api_default_registry(monkeypatch, api_module, _registry)
 
         with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
             api_module.run_scan(str(role_path), include_vars_main=True)
@@ -658,7 +667,9 @@ def test_fsrc_api_run_scan_plugin_scan_context_mutation_does_not_leak(
             del registry
             return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
 
-        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+        monkeypatch.setattr(
+            api_module.api_non_collection, "route_scan_payload_orchestration", _route
+        )
 
         class _Plugin:
             def process_scan_pipeline(
@@ -672,11 +683,10 @@ def test_fsrc_api_run_scan_plugin_scan_context_mutation_does_not_leak(
                     features["task_files_scanned"] = 999
                 return {"plugin_runtime_marker": "mutated-context"}
 
-        monkeypatch.setattr(
-            api_module,
-            "DEFAULT_PLUGIN_REGISTRY",
-            _make_test_registry(api_module.DEFAULT_PLUGIN_REGISTRY, lambda _n: _Plugin),
+        _registry = _make_test_registry(
+            api_module.plugin_facade.get_default_plugin_registry(), lambda _n: _Plugin
         )
+        _patch_api_default_registry(monkeypatch, api_module, _registry)
         payload = api_module.run_scan(str(role_path), include_vars_main=True)
 
     assert payload["metadata"]["plugin_runtime_marker"] == "mutated-context"
@@ -706,7 +716,9 @@ def test_fsrc_api_run_scan_plugin_scan_options_mutation_cannot_downgrade_strict(
             del registry
             return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
 
-        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+        monkeypatch.setattr(
+            api_module.api_non_collection, "route_scan_payload_orchestration", _route
+        )
 
         class _Plugin:
             def process_scan_pipeline(
@@ -718,11 +730,10 @@ def test_fsrc_api_run_scan_plugin_scan_options_mutation_cannot_downgrade_strict(
                 scan_options["strict_phase_failures"] = False
                 raise RuntimeError("plugin boom")
 
-        monkeypatch.setattr(
-            api_module,
-            "DEFAULT_PLUGIN_REGISTRY",
-            _make_test_registry(api_module.DEFAULT_PLUGIN_REGISTRY, lambda _n: _Plugin),
+        _registry = _make_test_registry(
+            api_module.plugin_facade.get_default_plugin_registry(), lambda _n: _Plugin
         )
+        _patch_api_default_registry(monkeypatch, api_module, _registry)
 
         with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
             api_module.run_scan(str(role_path), include_vars_main=True)
@@ -829,7 +840,9 @@ def test_fsrc_api_run_scan_uses_scan_pipeline_plugin_selector(
             del registry
             return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
 
-        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+        monkeypatch.setattr(
+            api_module.api_non_collection, "route_scan_payload_orchestration", _route
+        )
 
         class _Plugin:
             def process_scan_pipeline(
@@ -844,14 +857,11 @@ def test_fsrc_api_run_scan_uses_scan_pipeline_plugin_selector(
                     "plugin_runtime_marker": "custom-selector",
                 }
 
-        monkeypatch.setattr(
-            api_module,
-            "DEFAULT_PLUGIN_REGISTRY",
-            _make_test_registry(
-                api_module.DEFAULT_PLUGIN_REGISTRY,
-                lambda name: _Plugin if name == "custom" else None,
-            ),
+        _registry = _make_test_registry(
+            api_module.plugin_facade.get_default_plugin_registry(),
+            lambda name: _Plugin if name == "custom" else None,
         )
+        _patch_api_default_registry(monkeypatch, api_module, _registry)
         payload = api_module.run_scan(
             str(role_path),
             include_vars_main=True,
@@ -883,7 +893,9 @@ def test_fsrc_api_run_scan_uses_policy_context_selection_plugin(
             del registry
             return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
 
-        monkeypatch.setattr(api_module, "route_scan_payload_orchestration", _route)
+        monkeypatch.setattr(
+            api_module.api_non_collection, "route_scan_payload_orchestration", _route
+        )
 
         class _Plugin:
             def process_scan_pipeline(
@@ -900,14 +912,11 @@ def test_fsrc_api_run_scan_uses_policy_context_selection_plugin(
                     "plugin_runtime_marker": "policy-selector",
                 }
 
-        monkeypatch.setattr(
-            api_module,
-            "DEFAULT_PLUGIN_REGISTRY",
-            _make_test_registry(
-                api_module.DEFAULT_PLUGIN_REGISTRY,
-                lambda name: _Plugin if name == "custom" else None,
-            ),
+        _registry = _make_test_registry(
+            api_module.plugin_facade.get_default_plugin_registry(),
+            lambda name: _Plugin if name == "custom" else None,
         )
+        _patch_api_default_registry(monkeypatch, api_module, _registry)
         payload = api_module.run_scan(
             str(role_path),
             include_vars_main=True,
@@ -915,3 +924,66 @@ def test_fsrc_api_run_scan_uses_policy_context_selection_plugin(
         )
 
     assert payload["metadata"]["plugin_runtime_marker"] == "policy-selector"
+
+
+def test_fsrc_api_run_scan_uses_per_call_default_registry_resolver(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        def _route(
+            *,
+            role_path,
+            scan_options,
+            kernel_orchestrator_fn,
+            registry=None,
+        ):
+            del role_path
+            del scan_options
+            del registry
+            return kernel_orchestrator_fn(role_path="/tmp/ignored", scan_options={})
+
+        monkeypatch.setattr(
+            api_module.api_non_collection, "route_scan_payload_orchestration", _route
+        )
+
+        class _Plugin:
+            def process_scan_pipeline(
+                self,
+                scan_options: dict[str, object],
+                scan_context: dict[str, object],
+            ) -> dict[str, object]:
+                del scan_options
+                del scan_context
+                return {"plugin_runtime_marker": "resolver-used"}
+
+        real_registry = api_module.plugin_facade.get_default_plugin_registry()
+        _registry = _make_test_registry(
+            real_registry,
+            lambda name: _Plugin if name == "default" else None,
+        )
+
+        class _PoisonRegistry:
+            def get_scan_pipeline_plugin(self, name: str):
+                raise AssertionError(
+                    f"plugin_facade registry should not be bypassed for {name}"
+                )
+
+            def __getattr__(self, name: str):
+                return getattr(real_registry, name)
+
+        monkeypatch.setattr(
+            api_module.plugin_facade,
+            "get_default_plugin_registry",
+            lambda: _PoisonRegistry(),
+        )
+        _patch_api_default_registry(monkeypatch, api_module, _registry)
+
+        payload = api_module.run_scan(str(role_path), include_vars_main=True)
+
+    assert payload["metadata"]["plugin_runtime_marker"] == "resolver-used"

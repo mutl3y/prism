@@ -1,0 +1,19 @@
+- id: ST-01
+  category: orchestration_seam
+  fingerprint: emit-output-sidecar-falsy-fallbacks
+  file: src/prism/scanner_io/emit_output.py
+  line: 197
+  severity_hint: medium
+  confidence: high
+  detector: live_source
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: 'display_variables=display_variables or _coerce_metadata_dict(...)'
+  evidence_command: 'nl -ba src/prism/scanner_io/emit_output.py | sed -n "192,205p"'
+  related_symbols:
+    - emit_scanner_report_sidecar
+    - write_concise_scanner_report_if_enabled
+  fix_group_key: output-sidecar-falsy-fallbacks
+  proposed_fix_class: update_all
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest src/prism/tests/test_output_orchestration.py -q

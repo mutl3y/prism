@@ -1,0 +1,19 @@
+agent: Foreman-Gate
+validation_status: pass
+commands:
+  pytest_guardrail:
+    command: .venv/bin/python -m pytest -q src/prism/tests/test_scanner_guardrails.py -k 'api_cli_entrypoints_do_not_import_scanner_plugins_directly'
+    exit_code: 0
+    details: 1 passed, 11 deselected in 0.21s
+  grep_cli_boundary:
+    command: rg -n 'from prism\.scanner_plugins\.audit' src/prism/cli.py
+    exit_code: 0
+    details: No matches
+  ruff:
+    command: .venv/bin/python -m ruff check src/prism/cli.py src/prism/tests/test_scanner_guardrails.py
+    exit_code: 0
+    details: All checks passed!
+  black:
+    command: .venv/bin/python -m black --check src/prism/cli.py src/prism/tests/test_scanner_guardrails.py
+    exit_code: 0
+    details: 2 files would be left unchanged.

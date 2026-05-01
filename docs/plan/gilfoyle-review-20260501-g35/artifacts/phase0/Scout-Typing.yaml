@@ -1,0 +1,254 @@
+findings:
+  - id: FIND-G35-T01
+    severity: high
+    category: typing
+    title: "Untyped phase_output parameter in kernel phase handler"
+    description: |
+      kernel_plugin_runner.py:170 declares `phase_output: Any` but then
+      validates it against dict with isinstance checks. The parameter comes
+      from plugin phase handler return value which should be typed at protocol level.
+    file: src/prism/scanner_kernel/kernel_plugin_runner.py
+    line: 170
+    context: "_merge_phase_output(response: dict[str, Any], phase: str, phase_output: Any) -> None"
+    stable_fingerprint: "kernel_plugin_runner:_merge_phase_output:phase_output_Any"
+    fix_group_key: "kernel_handler_protocol_refinement"
+    proposed_fix_class: "contract_refinement"
+    suggested_narrow_gate: "Add KernelLifecyclePhaseHandler return type Protocol; propagate to phase_handlers list typing at L87"
+    confidence: high
+    runtime_risk: "Silent data loss if phase handler returns non-dict result; no validation before dict(phase_output) at L184"
+
+  - id: FIND-G35-T02
+    severity: high
+    category: typing
+    title: "Underspecified phase_handlers callback signature"
+    description: |
+      kernel_plugin_runner.py:87 declares phase handlers as `Callable[..., dict[str, Any] | None]`
+      with ellipsis. This loses parameter type information for plugin implementations and
+      makes runtime error handling opaque.
+    file: src/prism/scanner_kernel/kernel_plugin_runner.py
+    line: 87
+    context: "phase_handlers: list[tuple[str, Callable[..., dict[str, Any] | None] | None]]"
+    stable_fingerprint: "kernel_plugin_runner:phase_handlers:Callable_ellipsis"
+    fix_group_key: "kernel_handler_protocol_refinement"
+    proposed_fix_class: "contract_refinement"
+    suggested_narrow_gate: "Define explicit phase handler Protocol with (request: dict[str, Any], context: dict[str, Any]) -> dict[str, Any] | None signature"
+    confidence: high
+    runtime_risk: "Prevents static type checking of phase handler implementations; runtime failures undetected until execution"
+
+  - id: FIND-G35-T03
+    severity: medium
+    category: typing
+    title: "Union with silent fallback in prepared_policy_bundle assignment"
+    description: |
+      non_collection.py:243 declares `_bundle: PreparedPolicyBundle | dict[str, Any]`
+      then assigns with fallback `or {}`. This creates a type narrowing that hides
+      the fallback semantics from type checker. The fallback should be explicit in
+      the type or the bundle should be fail-closed.
+    file: src/prism/api_layer/non_collection.py
+    line: 243
+    context: "_bundle: PreparedPolicyBundle | dict[str, Any] = (execution_request.scan_options.get(...) or {})"
+    stable_fingerprint: "non_collection:scan_role:prepared_bundle_fallback"
+    fix_group_key: "prepared_policy_bundle_typing"
+    proposed_fix_class: "type_narrowing_clarification"
+    suggested_narrow_gate: "Change to explicit conditional: bundle = execution_request.scan_options.get('prepared_policy_bundle'); if bundle is None: bundle = {}; verify this aligns with g14/gf2 prepared_policy_bundle ownership"
+    confidence: high
+    runtime_risk: "Type checker cannot verify bundle usage; fallback {} masks missing policy data"
+
+  - id: FIND-G35-C01
+    severity: medium
+    category: orchestration_seam
+    title: "dict[str, Any] in collection.py Protocol returns"
+    description: |
+      collection.py Protocols for collection operations (BuildCollectionIdentityFn,
+      AggregateCollectionDependenciesFn, ScanCollectionPluginsFn) all return
+      dict[str, Any] instead of typed container classes. This blocks composition
+      type safety and forces runtime shape validation.
+    file: src/prism/api_layer/collection.py
+    line_range: [43, 51]
+    context: "class BuildCollectionIdentityFn(Protocol): def __call__(self, collection_root: Path) -> dict[str, Any]"
+    stable_fingerprint: "collection:BuildCollectionIdentityFn:untyped_dict"
+    fix_group_key: "collection_protocol_refinement"
+    proposed_fix_class: "contract_refinement"
+    suggested_narrow_gate: "Define CollectionIdentity, CollectionDependencies, PluginCatalog TypedDicts in contracts; update Protocol returns"
+    confidence: high
+    runtime_risk: "Collection payload shape not verified at composition boundary; failures cascade downstream"
+
+  - id: FIND-G35-O01
+    severity: high
+    category: orchestration_seam
+    title: "run_scan returns dict[str, object] without type contract"
+    description: |
+      api.py:67 run_scan function returns `dict[str, object]` which is a
+      weak type contract. Compare with scan_collection/scan_role/scan_repo
+      which return typed result classes (CollectionScanResult, RoleScanResult, RepoScanResult).
+      The run_scan compatibility seam should have an equivalent typed return.
+    file: src/prism/api.py
+    line: 67
+    context: "def run_scan(...) -> dict[str, object]:"
+    stable_fingerprint: "api:run_scan:untyped_dict_return"
+    fix_group_key: "api_return_contract_alignment"
+    proposed_fix_class: "contract_refinement"
+    suggested_narrow_gate: "Define RunScanResult TypedDict in scanner_data.contracts_output or create Pydantic model; update run_scan return type to match RoleScanResult shape"
+    confidence: high
+    runtime_risk: "Callers cannot statically verify result shape; API surface inconsistent with primary facades"
+
+  - id: FIND-G35-T04
+    severity: medium
+    category: typing
+    title: "RoutePreflightRuntimeCarrier uses dict[str, Any] for preflight_context"
+    description: |
+      plugin_name_resolver.py:11 RoutePreflightRuntimeCarrier carrier dataclass
+      uses `dict[str, Any]` for preflight_context and routing. These are
+      orchestration boundaries that should have typed schemas.
+    file: src/prism/scanner_kernel/plugin_name_resolver.py
+    line: 11
+    context: "preflight_context: dict[str, Any]\nrouting: dict[str, Any]"
+    stable_fingerprint: "plugin_name_resolver:RoutePreflightRuntimeCarrier:dict_Any"
+    fix_group_key: "orchestration_carrier_typing"
+    proposed_fix_class: "contract_refinement"
+    suggested_narrow_gate: "Define PreflightContext and RoutingMetadata TypedDicts; update carrier fields"
+    confidence: medium
+    runtime_risk: "Orchestration state shape not validated; silent corruption possible"
+
+  - id: FIND-G35-T05
+    severity: medium
+    category: typing
+    title: "execute_scan_pipeline_plugin takes registry: Any"
+    description: |
+      plugin_name_resolver.py:28 function accepts registry parameter typed as
+      Any, which prevents IDE support and type checking of registry method calls.
+    file: src/prism/scanner_kernel/plugin_name_resolver.py
+    line: 28
+    context: "def execute_scan_pipeline_plugin(*, plugin_class: Any, scan_options: dict[str, Any], scan_context: dict[str, Any]) -> Any"
+    stable_fingerprint: "plugin_name_resolver:execute_scan_pipeline_plugin:registry_Any"
+    fix_group_key: "orchestration_carrier_typing"
+    proposed_fix_class: "contract_refinement"
+    suggested_narrow_gate: "Add PluginRegistry Protocol parameter; verify with existing registry.get_scan_pipeline_plugin() API"
+    confidence: medium
+    runtime_risk: "Registry API changes undetected; plugin resolution failures"
+
+  - id: FIND-G35-O02
+    severity: medium
+    category: orchestration_seam
+    title: "Protocols use dict[str, object] inconsistently"
+    description: |
+      orchestrator.py _ProcessScanPipelinePlugin and _OrchestrateScanPayloadPlugin
+      protocols use dict[str, object] for payload, scan_options, scan_context.
+      This differs from dict[str, Any] used elsewhere, creating type mismatch at
+      plugin implementation boundaries.
+    file: src/prism/scanner_kernel/orchestrator.py
+    line_range: [31, 50]
+    context: "def process_scan_pipeline(self, scan_options: dict[str, object], scan_context: dict[str, object]) -> dict[str, object]"
+    stable_fingerprint: "orchestrator:_ProcessScanPipelinePlugin:dict_object_mismatch"
+    fix_group_key: "orchestration_protocol_consistency"
+    proposed_fix_class: "type_unification"
+    suggested_narrow_gate: "Standardize on dict[str, Any] across orchestrator and kernel_plugin_runner protocols; verify plugin implementations match"
+    confidence: high
+    runtime_risk: "Type checker sees protocol violation; mypy errors at plugin implementations"
+
+  - id: FIND-G35-T06
+    severity: low
+    category: typing
+    title: "Fallback dict pattern in collection.py with or {}"
+    description: |
+      collection.py:220 uses `.get("metadata") or {}` pattern which silently
+      narrows from dict | None to dict. This is consistent with codebase pattern
+      but should be wrapped in explicit helper for clarity.
+    file: src/prism/api_layer/collection.py
+    line: 220
+    context: "metadata=(role_payload.get('metadata') or {}),"
+    stable_fingerprint: "collection:scan_collection:metadata_fallback_pattern"
+    fix_group_key: "fallback_pattern_standardization"
+    proposed_fix_class: "documentation_clarification"
+    suggested_narrow_gate: "Document fallback pattern rationale or extract as helper function with explicit type narrowing"
+    confidence: low
+    runtime_risk: "None; pattern is established and safe but reduces readability"
+
+  - id: FIND-G35-T07
+    severity: high
+    category: typing
+    title: "_EnsurePreparedPolicyBundleFn Protocol uses object for di parameter"
+    description: |
+      non_collection.py:15 _EnsurePreparedPolicyBundleFn protocol declares di
+      parameter as `di: object` which should be DIContainer or have a defined interface.
+      This blocks type safety on DI factory functions.
+    file: src/prism/api_layer/non_collection.py
+    line: 15
+    context: "def __call__(self, *, scan_options: dict[str, object], di: object) -> PreparedPolicyBundle"
+    stable_fingerprint: "non_collection:_EnsurePreparedPolicyBundleFn:di_object"
+    fix_group_key: "di_interface_typing"
+    proposed_fix_class: "contract_refinement"
+    suggested_narrow_gate: "Define DIContainerInterface Protocol or import DIContainer for type annotation; verify with existing DI usage"
+    confidence: high
+    runtime_risk: "DI factory function signatures opaque; composition errors at runtime"
+
+  - id: FIND-G35-O03
+    severity: medium
+    category: orchestration_seam
+    title: "Missing return type annotation for run_scan_fn callback in scan_role"
+    description: |
+      api.py:285 scan_role parameter run_scan_fn lacks explicit type annotation.
+      Compare with other scan_* functions which have function parameters properly
+      typed (e.g., scan_role_fn in scan_collection).
+    file: src/prism/api.py
+    line: 285
+    context: "run_scan_fn=run_scan, (passed without type annotation)"
+    stable_fingerprint: "api:scan_role:run_scan_fn_untyped"
+    fix_group_key: "callback_parameter_typing"
+    proposed_fix_class: "contract_refinement"
+    suggested_narrow_gate: "Add Callable[[...], dict[str, object]] type annotation for run_scan_fn parameter if it exists"
+    confidence: medium
+    runtime_risk: "Callback signature not validated; composition errors at dispatch time"
+
+  - id: FIND-G35-C02
+    severity: medium
+    category: typing
+    title: "scan_options parameter widely typed as dict[str, Any] without schema"
+    description: |
+      scan_options is passed through many layers (kernel_plugin_runner:17,
+      non_collection:284, etc.) as dict[str, Any] without a schema TypedDict.
+      This is a primary configuration vector that should have explicit keys/types.
+    file: src/prism/scanner_kernel/kernel_plugin_runner.py
+    line: 17
+    context: "scan_options: dict[str, Any]"
+    stable_fingerprint: "kernel_plugin_runner:run_kernel_plugin_orchestrator:scan_options_untyped"
+    fix_group_key: "scan_options_schema_typing"
+    proposed_fix_class: "contract_refinement"
+    suggested_narrow_gate: "Check if ScanOptions TypedDict exists in scanner_data.scan_options_schema; if yes, use it; if no, create contract and propagate through all layers"
+    confidence: high
+    runtime_risk: "Scan configuration shape not validated; misconfigured runs undetected"
+
+  - id: FIND-G35-T08
+    severity: low
+    category: typing
+    title: "cast(KernelLifecyclePlugin, load_plugin_fn(...)) at line 83"
+    description: |
+      kernel_plugin_runner.py:83 uses cast(KernelLifecyclePlugin, load_plugin_fn(platform))
+      which weakens type safety. load_plugin_fn should be typed to return KernelLifecyclePlugin.
+    file: src/prism/scanner_kernel/kernel_plugin_runner.py
+    line: 83
+    context: "plugin: KernelLifecyclePlugin = cast(KernelLifecyclePlugin, load_plugin_fn(platform))"
+    stable_fingerprint: "kernel_plugin_runner:load_plugin_fn:cast_KernelLifecyclePlugin"
+    fix_group_key: "plugin_loader_typing"
+    proposed_fix_class: "type_safety_improvement"
+    suggested_narrow_gate: "Type load_plugin_fn parameter as Callable[[str], KernelLifecyclePlugin] instead of PluginLoader(Any)"
+    confidence: low
+    runtime_risk: "cast silently bypasses type checking; invalid plugin types load without error"
+
+  - id: FIND-G35-C03
+    severity: medium
+    category: typing
+    title: "Inconsistent context parameter typing (dict[str, object] vs dict[str, Any])"
+    description: |
+      context parameters are typed inconsistently: orchestrator uses dict[str, object],
+      kernel_plugin_runner uses dict[str, Any], non_collection uses dict[str, object].
+      This creates friction at composition boundaries.
+    file: src/prism/scanner_kernel/kernel_plugin_runner.py
+    line: 21
+    context: "context: dict[str, Any] | None = None"
+    stable_fingerprint: "kernel_plugin_runner:context_typing_inconsistency"
+    fix_group_key: "orchestration_protocol_consistency"
+    proposed_fix_class: "type_unification"
+    suggested_narrow_gate: "Define ExecutionContext TypedDict; standardize across all orchestration functions"
+    confidence: medium
+    runtime_risk: "Type checker mismatch at composition; potential runtime failures"

@@ -1,16 +1,36 @@
 version: 1
-generated_at: '2026-04-28T01:57:26.972385+00:00'
+generated_at: '2026-05-01T13:43:02.059346+00:00'
 source:
-  ledger_glob: docs/plan/gilfoyle-review-*/artifacts/model-usage-ledger.yaml
-  ledger_count: 1
-  cycles_seen:
-  - g30
+  history_path: /raid5/source/test/prism/docs/plan/.gilfoyle-lessons/model-usage-history.yaml
+  cycle_count: 8
 windows:
   all_time:
     by_model:
       Claude Haiku 4.5:
-        attempts: 1
-        successes: 1
+        attempts: 4
+        successes: 4
+        route_failures: 0
+        quality_failures: 0
+        reedit_count: 2
+        quality_avg: 3.5
+        route_failure_rate: 0.0
+        quality_failure_rate: 0.0
+        reedit_rate: 0.5
+        status: watch
+      GPT-5.4 mini:
+        attempts: 19
+        successes: 17
+        route_failures: 0
+        quality_failures: 2
+        reedit_count: 2
+        quality_avg: 3.8
+        route_failure_rate: 0.0
+        quality_failure_rate: 0.105
+        reedit_rate: 0.105
+        status: healthy
+      Claude Sonnet 4.5:
+        attempts: 2
+        successes: 2
         route_failures: 0
         quality_failures: 0
         reedit_count: 0
@@ -19,60 +39,33 @@ windows:
         quality_failure_rate: 0.0
         reedit_rate: 0.0
         status: healthy
-      GPT-4.1:
-        attempts: 1
-        successes: 0
-        route_failures: 1
-        quality_failures: 1
-        reedit_count: 1
-        quality_avg: 1.0
-        route_failure_rate: 1.0
-        quality_failure_rate: 1.0
-        reedit_rate: 1.0
-        status: watch
-      GPT-5 mini:
-        attempts: 4
+      GPT-5.4:
+        attempts: 2
         successes: 2
-        route_failures: 1
-        quality_failures: 2
-        reedit_count: 2
-        quality_avg: 2.5
-        route_failure_rate: 0.25
-        quality_failure_rate: 0.5
-        reedit_rate: 0.5
-        status: watch
-    by_task_class:
-      P0:Scout-ControlFlow:
-        attempts: 3
-        successes: 1
-        route_failures: 2
-        quality_failures: 2
-        reedit_count: 2
-      P0:Scout-Graph:
-        attempts: 1
-        successes: 1
         route_failures: 0
         quality_failures: 0
         reedit_count: 0
-      P0:Scout-Ownership:
-        attempts: 1
-        successes: 0
-        route_failures: 0
-        quality_failures: 1
-        reedit_count: 1
-      P0:Scout-Typing:
-        attempts: 1
-        successes: 1
-        route_failures: 0
-        quality_failures: 0
-        reedit_count: 0
+        quality_avg: 4.0
+        route_failure_rate: 0.0
+        quality_failure_rate: 0.0
+        reedit_rate: 0.0
+        status: healthy
   last_3_cycles:
-    cycles:
-    - g30
     by_model:
+      GPT-5.4 mini:
+        attempts: 4
+        successes: 2
+        route_failures: 0
+        quality_failures: 2
+        reedit_count: 2
+        quality_avg: 3.0
+        route_failure_rate: 0.0
+        quality_failure_rate: 0.5
+        reedit_rate: 0.5
+        status: degraded
       Claude Haiku 4.5:
-        attempts: 1
-        successes: 1
+        attempts: 2
+        successes: 2
         route_failures: 0
         quality_failures: 0
         reedit_count: 0
@@ -81,90 +74,10 @@ windows:
         quality_failure_rate: 0.0
         reedit_rate: 0.0
         status: healthy
-      GPT-4.1:
-        attempts: 1
-        successes: 0
-        route_failures: 1
-        quality_failures: 1
-        reedit_count: 1
-        quality_avg: 1.0
-        route_failure_rate: 1.0
-        quality_failure_rate: 1.0
-        reedit_rate: 1.0
-        status: watch
-      GPT-5 mini:
-        attempts: 4
-        successes: 2
-        route_failures: 1
-        quality_failures: 2
-        reedit_count: 2
-        quality_avg: 2.5
-        route_failure_rate: 0.25
-        quality_failure_rate: 0.5
-        reedit_rate: 0.5
-        status: watch
-    by_task_class:
-      P0:Scout-ControlFlow:
-        attempts: 3
-        successes: 1
-        route_failures: 2
-        quality_failures: 2
-        reedit_count: 2
-      P0:Scout-Graph:
-        attempts: 1
-        successes: 1
-        route_failures: 0
-        quality_failures: 0
-        reedit_count: 0
-      P0:Scout-Ownership:
-        attempts: 1
-        successes: 0
-        route_failures: 0
-        quality_failures: 1
-        reedit_count: 1
-      P0:Scout-Typing:
-        attempts: 1
-        successes: 1
-        route_failures: 0
-        quality_failures: 0
-        reedit_count: 0
 routing_recommendations:
-  degraded_models: []
-  watch_models:
-  - GPT-4.1
-  - GPT-5 mini
+  degraded_models:
+  - GPT-5.4 mini
+  watch_models: []
   notes:
   - Prefer healthy models in the same tier before escalating.
-  - If degraded_models is non-empty, start ladders from next healthy candidate.
-  - GPT-4.1 and GPT-5 mini both have confirmed artifact_not_written failure patterns on P0 scout tasks — enforce LESSON-09 artifact gate in all scout prompts before trusting these models on file-writing tasks.
-
-g34_delta:
-  cycles_added: [g34]
-  updated_at: "2026-04-30"
-  by_model:
-    Claude Haiku 4.5:
-      g34_attempts: 2
-      g34_successes: 2
-      g34_quality_avg: 4.0
-    GPT-4.1:
-      g34_attempts: 2
-      g34_successes: 1
-      g34_quality_avg: 2.5
-      g34_failure_note: "artifact_not_written on Scout-Ownership attempt 1"
-    GPT-5 mini:
-      g34_attempts: 2
-      g34_successes: 1
-      g34_quality_avg: 2.0
-      g34_failure_note: "artifact_not_written on Scout-ControlFlow attempt 1"
-    GPT-5.4 mini:
-      g34_attempts: 1
-      g34_successes: 1
-      g34_quality_avg: 3.0
-    Claude Sonnet 4.5:
-      g34_attempts: 1
-      g34_successes: 1
-      g34_quality_avg: 4.0
-    GPT-5.4:
-      g34_attempts: 1
-      g34_successes: 1
-      g34_quality_avg: 4.0
+  - If a watched model is used for file-writing work, require artifact_exists confirmation.

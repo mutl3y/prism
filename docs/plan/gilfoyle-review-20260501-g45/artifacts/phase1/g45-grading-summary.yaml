@@ -1,0 +1,85 @@
+phase: P1
+status: completed
+cycle: g45
+review_type: thorough
+focus_axis: architecture
+review_source:
+  - docs/plan/gilfoyle-review-20260501-g45/artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/gilfoyle-review-20260501-g45/artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/gilfoyle-review-20260501-g45/artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/gilfoyle-review-20260501-g45/artifacts/phase0/Scout-Graph.yaml
+coverage_proof:
+  scope: full src/prism scout batch
+  representative_files:
+    - src/prism/api.py
+    - src/prism/api_layer/collection.py
+    - src/prism/api_layer/non_collection.py
+    - src/prism/scanner_config/policy.py
+    - src/prism/scanner_config/readme.py
+    - src/prism/scanner_core/protocols_runtime.py
+    - src/prism/scanner_io/output_orchestrator.py
+    - src/prism/scanner_kernel/kernel_plugin_runner.py
+    - src/prism/scanner_reporting/__init__.py
+category_proof:
+  typing: examined_medium_only
+  ownership: examined_medium_low_only
+  control_flow: examined_overpromoted_highs_only
+  graph: examined_overpromoted_highs_and_mediums
+raw_observation_count: 26
+critical_high_summary:
+  count: 0
+  findings: []
+suppressed_highs:
+  - id: Scout-ControlFlow-02
+    file: src/prism/scanner_config/readme.py
+    line: 141
+    rationale_code: false_positive
+    rationale_detail: Empty YAML here is treated as an absent optional config while real parse and I/O failures already emit stable warnings or strict RuntimeError contracts.
+  - id: Scout-ControlFlow-05
+    file: src/prism/scanner_io/loader.py
+    line: 56
+    rationale_code: do_not_re_flag
+    rationale_detail: Matches the documented FIND-G2-LOADER-DUAL-PATH/FIND-G4-01 soft-fallback seam already carried in the lesson digest and closure ledger.
+  - id: Scout-ControlFlow-08
+    file: src/prism/scanner_config/policy.py
+    line: 51
+    rationale_code: false_positive
+    rationale_detail: Non-dict policy config already logs a warning and intentionally returns an empty dict contract rather than silently changing runtime scan behavior.
+  - id: Scout-ControlFlow-10
+    file: src/prism/scanner_config/marker.py
+    line: 53
+    rationale_code: false_positive
+    rationale_detail: Empty marker config falls back to the documented default prefix while parse and I/O failures already surface through warning codes.
+  - id: Scout-ControlFlow-11
+    file: src/prism/scanner_config/style.py
+    line: 110
+    rationale_code: false_positive
+    rationale_detail: Empty display-title config is handled as optional absence; shape and parse failures already emit warnings or strict exceptions.
+  - id: Scout-Graph-01
+    file: src/prism/api.py
+    line: 137
+    rationale_code: false_positive
+    rationale_detail: This matches the accepted g39 ingress pattern of retrieving the default registry through plugin_facade on demand; no divergent downstream authority was shown.
+  - id: Scout-Graph-02
+    file: src/prism/api_layer/non_collection.py
+    line: 33
+    rationale_code: false_positive
+    rationale_detail: The canonical repo-scan facade slot in api_layer/non_collection.py was previously reviewed as a concurrency-safe singleton with locking; this scan showed no new race or split-authority defect.
+non_blocking_mediums:
+  - file: src/prism/api_layer/non_collection.py
+    line: 244
+    summary: Cache-key construction silently substitutes an empty prepared_policy_bundle, which weakens cache fingerprint fidelity when cache_backend is enabled.
+  - file: src/prism/scanner_core/protocols_runtime.py
+    line: 19
+    summary: Kernel loader and orchestrator boundary Protocols still rely on Any-shaped call returns instead of explicit runtime contracts.
+  - file: src/prism/scanner_kernel/kernel_plugin_runner.py
+    line: 87
+    summary: The kernel lifecycle phase-handler table still uses broad Callable[..., dict[str, Any] | None] entries instead of phase-specific typed handler contracts.
+  - file: src/prism/scanner_io/output_orchestrator.py
+    line: 73
+    summary: Output orchestration still depends on casts for runbook renderer metadata contracts instead of a concrete callable type.
+  - file: src/prism/api_layer/collection.py
+    line: 9
+    summary: The public collection facade still carries the broad protocol-heavy assembly surface previously deferred as collection callable-protocol debt.
+verdict: fresh_scan_completed_no_promoted_critical_high
+next_step: report_non_blocking_mediums_only

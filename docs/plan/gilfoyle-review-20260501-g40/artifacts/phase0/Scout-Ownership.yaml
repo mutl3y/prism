@@ -1,0 +1,11 @@
+- id: SO-L-01
+  category: facade_leakage
+  file: src/prism/scanner_kernel/plugin_name_resolver.py
+  line: 29
+  severity_hint: medium
+  confidence: medium
+  evidence_snippet: 'return plugin_instance.process_scan_pipeline(...)'
+  evidence_command: src/prism/scanner_kernel/plugin_name_resolver.py:29-40
+  fix_group_key: scan-pipeline-contract-centralization
+  suggested_narrow_gate: ""
+  summary: This helper still executes scan-pipeline plugins and returns raw output without the new dict contract check, so callers that use it can bypass the fail-closed validation now enforced in orchestrator.py.

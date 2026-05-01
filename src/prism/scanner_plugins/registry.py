@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import threading
 from typing import Any
 
@@ -26,6 +27,10 @@ class PluginAPIVersionMismatch(ValueError):
 
 class PluginStatelessRequired(TypeError):
     """Raised when a non-stateless plugin is registered in a singleton-eligible slot."""
+
+
+class PluginConstructorMismatch(TypeError):
+    """Raised when a runtime plugin class cannot be constructed with the required DI seam."""
 
 
 # Slots whose plugins are intended to be safe for singleton reuse across scans.
@@ -114,6 +119,33 @@ def validate_plugin_api_version(
         )
 
 
+def require_di_constructor(
+    plugin_class: type[Any],
+    *,
+    name: str,
+    slot: str,
+) -> None:
+    """Validate runtime plugins can be constructed through the DI seam.
+
+    Variable-discovery and feature-detection plugins are class-based runtime
+    participants that DI instantiates with ``di=...``. Reject classes that do
+    not accept that keyword so the registry cannot admit a plugin that will
+    only fail later on first resolution.
+    """
+    if slot not in {"variable_discovery", "feature_detection"}:
+        return
+    try:
+        signature = inspect.signature(plugin_class)
+    except (TypeError, ValueError):
+        return
+    try:
+        signature.bind_partial(di=None)
+    except TypeError as exc:
+        raise PluginConstructorMismatch(
+            f"Plugin '{name}' for slot '{slot}' must accept di=... at construction time"
+        ) from exc
+
+
 class PluginRegistry:
     """Registry for scanner plugin classes and dynamic plugin loaders."""
 
@@ -146,6 +178,7 @@ class PluginRegistry:
         plugin_class: type[VariableDiscoveryPlugin],
     ) -> None:
         validate_plugin_api_version(plugin_class, name=name, slot="variable_discovery")
+        require_di_constructor(plugin_class, name=name, slot="variable_discovery")
         with self._lock:
             self._variable_discovery_plugins[name] = plugin_class
 
@@ -164,6 +197,7 @@ class PluginRegistry:
         plugin_class: type[FeatureDetectionPlugin],
     ) -> None:
         validate_plugin_api_version(plugin_class, name=name, slot="feature_detection")
+        require_di_constructor(plugin_class, name=name, slot="feature_detection")
         with self._lock:
             self._feature_detection_plugins[name] = plugin_class
 
@@ -270,6 +304,8 @@ class PluginRegistry:
             if deferred is not None:
                 module_path, class_name = deferred
                 cls = self.load_plugin_from_module(module_path, class_name)
+                validate_plugin_api_version(cls, name=name, slot="variable_discovery")
+                require_di_constructor(cls, name=name, slot="variable_discovery")
                 self._variable_discovery_plugins[name] = cls
                 return cls
         return None
@@ -286,6 +322,8 @@ class PluginRegistry:
             if deferred is not None:
                 module_path, class_name = deferred
                 cls = self.load_plugin_from_module(module_path, class_name)
+                validate_plugin_api_version(cls, name=name, slot="feature_detection")
+                require_di_constructor(cls, name=name, slot="feature_detection")
                 self._feature_detection_plugins[name] = cls
                 return cls
         return None

@@ -476,9 +476,7 @@ def _assemble_execution_request(
     default_plugin_registry: object,
     ensure_prepared_policy_bundle_fn: _EnsurePreparedPolicyBundleFn | None,
 ) -> NonCollectionRunScanExecutionRequest:
-    runtime_registry = (
-        canonical_options.get("plugin_registry") or default_plugin_registry
-    )
+    runtime_registry = default_plugin_registry
     resolved_platform_key = resolve_platform_key(canonical_options, runtime_registry)
 
     # _bridge_slot resolves the forward reference: container needs bridge methods

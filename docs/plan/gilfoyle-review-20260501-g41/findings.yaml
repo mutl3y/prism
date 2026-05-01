@@ -1,0 +1,40 @@
+plan_id: gilfoyle-review-20260501-g41
+cycle: g41
+target: src/prism
+review_type: thorough
+focus_axis: ownership
+status: completed
+decision_summary:
+  - The initial g41 scout pass looked clean, but widened ownership review found one real high-severity CLI boundary violation.
+  - That ownership finding was fixed in g41 and validated with a focused guardrail gate.
+  - Because g41 contained a high finding before repair, the next step is a g42 light review over the changed CLI slice.
+carried_open_findings:
+  - FIND-G36-ARCH-03
+  - FIND-G36-ARCH-04
+  - FIND-G36-ST-01
+  - FIND-G36-ST-02
+  - FIND-G36-ST-03
+  - FIND-G36-CF-API-002
+  - FIND-G36-CF-TASK-003
+suppressed_highs: []
+findings:
+  - id: FIND-G41-OWN-01
+    status: closed
+    decision: fixed_in_g41_w1
+    severity: high
+    category: ownership
+    fingerprint: cli-audit-facade-bypass
+    title: CLI audit helper bypassed api_layer.plugin_facade
+    files:
+      - src/prism/cli.py
+      - src/prism/tests/test_scanner_guardrails.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g41/artifacts/phase0/Scout-Ownership.yaml
+    summary: The CLI audit helper imported `prism.scanner_plugins.audit` directly even though `api_layer.plugin_facade` already exposed the required audit entrypoints. That bypass violated the intended API/CLI to api_layer ownership boundary.
+    decision_deadline: g41
+    suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_guardrails.py -k 'api_cli_entrypoints_do_not_import_scanner_plugins_directly'
+    closed_at: '2026-05-01'
+    closed_evidence:
+      - 'Code: src/prism/cli.py:324-328 now imports load_audit_rules_from_file and run_audit from prism.api_layer.plugin_facade instead of prism.scanner_plugins.audit.'
+      - 'Tests: src/prism/tests/test_scanner_guardrails.py:233-268 now enforces that neither api.py nor cli.py imports scanner_plugins directly, with no retained CLI audit exception.'
+      - 'Gate: .venv/bin/python -m pytest -q src/prism/tests/test_scanner_guardrails.py -k api_cli_entrypoints_do_not_import_scanner_plugins_directly => 1 passed / 11 deselected; boundary grep returned no matches; ruff clean; black --check clean.'

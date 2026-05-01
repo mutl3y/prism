@@ -101,6 +101,35 @@ def _iter_forbidden_import_offenders(
     return sorted(set(offenders))
 
 
+def _iter_scan_options_registry_bypass_offenders(
+    module_path: Path,
+    *,
+    option_names: tuple[str, ...],
+) -> list[str]:
+    tree = ast.parse(module_path.read_text(encoding="utf-8"))
+    offenders: list[str] = []
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if not isinstance(node.func, ast.Attribute) or node.func.attr != "get":
+            continue
+        if not isinstance(node.func.value, ast.Name):
+            continue
+        if node.func.value.id not in option_names:
+            continue
+        if not node.args:
+            continue
+        key_arg = node.args[0]
+        if not isinstance(key_arg, ast.Constant) or key_arg.value != "plugin_registry":
+            continue
+        offenders.append(
+            f"{module_path.relative_to(PROJECT_ROOT / 'src')}:{node.lineno}"
+        )
+
+    return offenders
+
+
 def test_fsrc_runtime_modules_do_not_import_src_scanner_packages() -> None:
     offenders = _iter_forbidden_import_offenders(
         package_dir=FSRC_RUNTIME_DIR,
@@ -202,7 +231,7 @@ def test_scanner_reporting_does_not_import_scanner_plugins_internals() -> None:
 
 
 def test_api_cli_entrypoints_do_not_import_scanner_plugins_directly() -> None:
-    """Verify entrypoints avoid direct scanner_plugins imports except approved CLI audit seam."""
+    """Verify entrypoints route plugin access through approved facade seams."""
     api_py = FSRC_RUNTIME_DIR / "api.py"
     cli_py = FSRC_RUNTIME_DIR / "cli.py"
 
@@ -219,11 +248,6 @@ def test_api_cli_entrypoints_do_not_import_scanner_plugins_directly() -> None:
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     target = alias.name
-                    if (
-                        module_name == "prism.cli"
-                        and target == "prism.scanner_plugins.audit"
-                    ):
-                        continue
                     if target == "prism.scanner_plugins" or target.startswith(
                         "prism.scanner_plugins."
                     ):
@@ -231,11 +255,6 @@ def test_api_cli_entrypoints_do_not_import_scanner_plugins_directly() -> None:
 
             if isinstance(node, ast.ImportFrom):
                 resolved_target = _resolve_import_from(module_name, node)
-                if (
-                    module_name == "prism.cli"
-                    and resolved_target == "prism.scanner_plugins.audit"
-                ):
-                    continue
                 if resolved_target and (
                     resolved_target == "prism.scanner_plugins"
                     or resolved_target.startswith("prism.scanner_plugins.")
@@ -244,7 +263,7 @@ def test_api_cli_entrypoints_do_not_import_scanner_plugins_directly() -> None:
 
     assert not offenders, (
         "entrypoint modules must not import scanner_plugins directly; "
-        "the only allowed exception is prism.cli -> prism.scanner_plugins.audit: "
+        "use api_layer.plugin_facade or another approved facade seam: "
         + ", ".join(offenders)
     )
 
@@ -396,3 +415,22 @@ def test_plugin_registry_bootstrap_idempotence() -> None:
 
     # Should return the same singleton instance
     assert registry1 is registry2, "initialize_default_registry() should be idempotent"
+
+
+def test_registry_identity_does_not_reopen_scan_options_bypass_paths() -> None:
+    """Registry identity must come from DI wiring, not scan_options payload lookups."""
+    offenders = _iter_scan_options_registry_bypass_offenders(
+        FSRC_RUNTIME_DIR / "scanner_core" / "execution_request_builder.py",
+        option_names=("canonical_options",),
+    )
+    offenders.extend(
+        _iter_scan_options_registry_bypass_offenders(
+            FSRC_RUNTIME_DIR / "scanner_io" / "loader.py",
+            option_names=("scan_options",),
+        )
+    )
+
+    assert not offenders, (
+        "registry identity must not be sourced from scan_options payloads: "
+        + ", ".join(offenders)
+    )

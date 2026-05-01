@@ -52,16 +52,6 @@ _COLLECTION_ROLE_RUNTIME_RECOVERABLE_ERRORS: tuple[type[Exception], ...] = (
     RuntimeError,
 )
 
-build_run_scan_options_canonical = api_non_collection.build_run_scan_options_canonical
-route_scan_payload_orchestration = api_non_collection.route_scan_payload_orchestration
-
-
-def _get_default_plugin_registry():
-    return plugin_facade.get_default_plugin_registry()
-
-
-DEFAULT_PLUGIN_REGISTRY = _get_default_plugin_registry()
-
 __all__ = ["scan_collection", "scan_repo", "scan_role"]
 
 
@@ -129,8 +119,12 @@ def run_scan(
         strict_phase_failures=strict_phase_failures,
         scan_pipeline_plugin=scan_pipeline_plugin,
         cache_backend=cache_backend,
-        build_run_scan_options_canonical_fn=build_run_scan_options_canonical,
-        route_scan_payload_orchestration_fn=route_scan_payload_orchestration,
+        build_run_scan_options_canonical_fn=(
+            api_non_collection.build_run_scan_options_canonical
+        ),
+        route_scan_payload_orchestration_fn=(
+            api_non_collection.route_scan_payload_orchestration
+        ),
         orchestrate_scan_payload_with_selected_plugin_fn=(
             api_non_collection.orchestrate_scan_payload_with_selected_plugin
         ),
@@ -140,7 +134,7 @@ def run_scan(
         resolve_comment_driven_documentation_plugin_fn=(
             plugin_facade.resolve_comment_driven_documentation_plugin
         ),
-        default_plugin_registry=DEFAULT_PLUGIN_REGISTRY,
+        default_plugin_registry=plugin_facade.get_default_plugin_registry(),
     )
 
 

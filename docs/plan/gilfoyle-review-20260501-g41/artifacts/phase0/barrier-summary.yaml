@@ -1,0 +1,28 @@
+plan_id: gilfoyle-review-20260501-g41
+phase: P0
+status: OK
+expected_workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+returned_workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+artifact_recovery:
+  mode: foreman_local
+  reason: scout agents return inline YAML in this runtime; foreman persists artifacts locally
+observation_counts:
+  Scout-Typing: 0
+  Scout-Ownership: 1
+  Scout-ControlFlow: 0
+  Scout-Graph: 0
+  total: 1
+high_or_critical_counts:
+  high: 0
+  critical: 0
+notes:
+  - No critical or high findings were returned by the initial g41 thorough scout pass.
+  - The raw observation count is below the thorough-review density floor, so the verdict is inconclusive rather than clean.

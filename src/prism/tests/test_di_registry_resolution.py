@@ -99,6 +99,30 @@ def test_di_feature_detection_plugin_fails_closed_on_empty_registry():
             container.factory_feature_detection_plugin()
 
 
+@pytest.mark.parametrize(
+    ("register_method", "slot_name"),
+    [
+        ("register_variable_discovery_plugin", "variable_discovery"),
+        ("register_feature_detection_plugin", "feature_detection"),
+    ],
+)
+def test_registry_rejects_runtime_plugins_without_di_constructor(
+    register_method: str,
+    slot_name: str,
+) -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        registry_module = importlib.import_module("prism.scanner_plugins.registry")
+        registry = registry_module.PluginRegistry()
+
+        class _BadPlugin:
+            pass
+
+        with pytest.raises(registry_module.PluginConstructorMismatch) as exc_info:
+            getattr(registry, register_method)(f"bad-{slot_name}", _BadPlugin)
+
+    assert "accept di=..." in str(exc_info.value)
+
+
 def test_di_mock_precedence_preserved_for_variable_discovery_plugin():
     """Mock injection takes precedence over registry resolution."""
     with _prefer_fsrc_prism_on_sys_path():
@@ -171,7 +195,8 @@ def test_registry_get_default_platform_key_returns_first_registered():
         reg = registry_module.PluginRegistry()
 
         class _FakePlugin:
-            pass
+            def __init__(self, di: object | None = None) -> None:
+                self.di = di
 
         reg.register_variable_discovery_plugin("terraform", _FakePlugin)
         reg.register_variable_discovery_plugin("ansible", _FakePlugin)
@@ -262,3 +287,138 @@ def test_resolve_platform_key_fails_closed_no_registry_default():
         )
         with pytest.raises(ValueError, match="No platform key resolvable"):
             container._resolve_platform_key()
+
+
+def test_execution_request_builder_uses_default_registry_over_scan_options_bypass():
+    """Execution requests must source registry identity from the DI wiring seam."""
+    with _prefer_fsrc_prism_on_sys_path():
+        builder_module = importlib.import_module(
+            "prism.scanner_core.execution_request_builder"
+        )
+
+        class _Registry:
+            def __init__(self, default_platform_key: str) -> None:
+                self._default_platform_key = default_platform_key
+
+            def get_default_platform_key(self) -> str:
+                return self._default_platform_key
+
+        class _ScannerContext:
+            def orchestrate_scan(self) -> dict[str, str]:
+                return {"status": "ok"}
+
+        class _Container:
+            def __init__(
+                self,
+                role_path: str,
+                scan_options: dict[str, object],
+                *,
+                registry: object,
+                platform_key: str,
+                scanner_context_wiring: dict[str, object],
+                factory_overrides: dict[str, object],
+            ) -> None:
+                self.role_path = role_path
+                self.scan_options = scan_options
+                self.plugin_registry = registry
+                self.platform_key = platform_key
+                self.scanner_context_wiring = scanner_context_wiring
+                self.factory_overrides = factory_overrides
+
+            def factory_scanner_context(self) -> _ScannerContext:
+                return _ScannerContext()
+
+        authoritative_registry = _Registry("ansible")
+        bypass_registry = _Registry("terraform")
+        prepared_policy_di: list[object] = []
+
+        request = builder_module._assemble_execution_request(
+            canonical_options={
+                "role_path": "/tmp/role",
+                "plugin_registry": bypass_registry,
+            },
+            variable_discovery_cls=lambda *_args, **_kwargs: object(),
+            feature_detector_cls=lambda *_args, **_kwargs: object(),
+            extract_role_description_fn=lambda _path, _name: "",
+            resolve_comment_driven_documentation_plugin_fn=lambda _container: object(),
+            di_container_cls=_Container,
+            scanner_context_cls=_ScannerContext,
+            build_run_scan_options_canonical_fn=lambda **_kwargs: {
+                "role_path": "/tmp/role"
+            },
+            default_plugin_registry=authoritative_registry,
+            ensure_prepared_policy_bundle_fn=lambda *, scan_options, di: (
+                prepared_policy_di.append(di)
+            ),
+        )
+
+        assert request.runtime_registry is authoritative_registry
+        assert prepared_policy_di[0].plugin_registry is authoritative_registry
+        assert prepared_policy_di[0].platform_key == "ansible"
+
+
+def test_loader_registry_resolution_ignores_scan_options_bypass():
+    """Loader must not treat scan_options payloads as an alternate registry authority."""
+    with _prefer_fsrc_prism_on_sys_path():
+        loader_module = importlib.import_module("prism.scanner_io.loader")
+        authoritative_registry = object()
+        bypass_registry = object()
+
+        class _Container:
+            def __init__(self, plugin_registry: object | None) -> None:
+                self.plugin_registry = plugin_registry
+                self.scan_options = {"plugin_registry": bypass_registry}
+
+        assert (
+            loader_module._resolve_plugin_registry(_Container(authoritative_registry))
+            is authoritative_registry
+        )
+        assert loader_module._resolve_plugin_registry(_Container(None)) is None
+
+
+def test_loader_live_yaml_policy_resolution_uses_di_registry_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """load_yaml_file must thread only DI.plugin_registry into live resolver calls."""
+    with _prefer_fsrc_prism_on_sys_path():
+        loader_module = importlib.import_module("prism.scanner_io.loader")
+        defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+
+        authoritative_registry = object()
+        bypass_registry = object()
+        captured: dict[str, object] = {}
+
+        class _Policy:
+            @staticmethod
+            def load_yaml_file(path: Path) -> object:
+                return {"loaded_from": path.name}
+
+        def _resolve_yaml_parsing_policy_plugin(
+            di: object | None = None,
+            *,
+            registry: object | None = None,
+        ) -> object:
+            captured["di"] = di
+            captured["registry"] = registry
+            return _Policy()
+
+        class _Container:
+            def __init__(self) -> None:
+                self.plugin_registry = authoritative_registry
+                self.scan_options = {"plugin_registry": bypass_registry}
+
+        monkeypatch.setattr(
+            defaults_module,
+            "resolve_yaml_parsing_policy_plugin",
+            _resolve_yaml_parsing_policy_plugin,
+        )
+
+        yaml_path = tmp_path / "sample.yml"
+        yaml_path.write_text("key: value\n", encoding="utf-8")
+
+        assert loader_module.load_yaml_file(yaml_path, di=_Container()) == {
+            "loaded_from": "sample.yml"
+        }
+        assert captured["registry"] is authoritative_registry
+        assert captured["registry"] is not bypass_registry

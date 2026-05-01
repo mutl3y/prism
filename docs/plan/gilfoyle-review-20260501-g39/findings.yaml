@@ -1,0 +1,46 @@
+plan_id: gilfoyle-review-20260501-g39
+cycle: g39
+target: src/prism
+review_type: light
+focus_axis: ownership
+status: completed
+decision_summary:
+  - The light review found one new high in the same kernel slice touched by g38: direct orchestrate_scan_payload plugins still bypassed invalid-output validation.
+  - That high was repaired immediately in g39 and the identical kernel-focused gate is now green.
+  - The next step remains another light follow-up because g39 itself contained a high finding before repair.
+changed_scope:
+  - src/prism/api.py
+  - src/prism/scanner_kernel/orchestrator.py
+  - src/prism/tests/test_api_cli_entrypoints.py
+  - src/prism/tests/test_gilfoyle_blockers_runtime.py
+  - src/prism/tests/test_plugin_kernel_extension_parity.py
+  - src/prism/tests/test_platform_routing_fail_closed.py
+neighbor_scope:
+  - src/prism/api_layer/non_collection.py
+  - src/prism/api_layer/plugin_facade.py
+  - src/prism/scanner_kernel/plugin_name_resolver.py
+  - src/prism/scanner_kernel/scan_payload_helpers.py
+suppressed_highs: []
+findings:
+  - id: FIND-G39-CF-01
+    status: closed
+    decision: fixed_in_g39_w1
+    severity: high
+    category: shell_boundary
+    fingerprint: scan_pipeline_runtime_result_validation
+    title: Direct orchestrate_scan_payload path bypassed invalid-output contract enforcement
+    files:
+      - src/prism/scanner_kernel/orchestrator.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+      - src/prism/tests/test_platform_routing_fail_closed.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g39/artifacts/phase0/Scout-Ownership.yaml
+      - docs/plan/gilfoyle-review-20260501-g39/artifacts/phase0/Scout-Graph.yaml
+    summary: The g38 fail-closed contract only covered the process_scan_pipeline fallback path. Plugins that implemented orchestrate_scan_payload directly could still return a non-dict runtime result and bypass the kernel contract unchanged.
+    decision_deadline: g39
+    suggested_narrow_gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k scan_pipeline
+    closed_at: '2026-05-01'
+    closed_evidence:
+      - 'Code: src/prism/scanner_kernel/orchestrator.py:310-314 now validates the direct orchestrate_scan_payload result and raises the same invalid_plugin_output contract error for non-dict results before returning from the kernel seam.'
+      - 'Tests: src/prism/tests/test_plugin_kernel_extension_parity.py:687-708 asserts non-dict direct-plugin output now raises scan_pipeline_execution_failed with failure_mode=invalid_plugin_output, and src/prism/tests/test_plugin_kernel_extension_parity.py:711-735 proves dict-returning direct plugins still pass through unchanged.'
+      - 'Gate: .venv/bin/python -m pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k scan_pipeline => 6 passed / 20 deselected; .venv/bin/python -m pytest -q src/prism/tests/test_platform_routing_fail_closed.py -k scan_pipeline => 3 passed / 9 deselected; ruff clean; black --check clean.'

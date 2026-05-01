@@ -1,0 +1,90 @@
+- timestamp: '2026-05-01T13:15:00Z'
+  cycle: g45
+  phase: P0
+  worker: Scout-Typing
+  task_id: g45-thorough-scout-typing
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g45/artifacts/phase0/Scout-Typing.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Scout returned the requested artifact on the first attempt.
+- timestamp: '2026-05-01T13:15:00Z'
+  cycle: g45
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g45-thorough-scout-ownership
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g45/artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Scout returned the requested artifact on the first attempt.
+- timestamp: '2026-05-01T13:15:00Z'
+  cycle: g45
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g45-thorough-scout-controlflow-attempt1
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: failure
+  failure_type: missing_artifact
+  artifact_path: docs/plan/gilfoyle-review-20260501-g45/artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: reroute_same_tier
+  notes: Scout reported findings inline but failed the artifact-write requirement.
+- timestamp: '2026-05-01T13:15:00Z'
+  cycle: g45
+  phase: P0
+  worker: Scout-Graph
+  task_id: g45-thorough-scout-graph-attempt1
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini
+  actual_model: GPT-5.4 mini
+  result: failure
+  failure_type: missing_artifact
+  artifact_path: docs/plan/gilfoyle-review-20260501-g45/artifacts/phase0/Scout-Graph.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: reroute_same_tier
+  notes: Scout reported findings inline but failed the artifact-write requirement.
+- timestamp: '2026-05-01T13:19:00Z'
+  cycle: g45
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g45-thorough-scout-controlflow-attempt2
+  requested_tier: low-cost
+  requested_model: Claude Haiku 4.5
+  actual_model: Claude Haiku 4.5
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g45/artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: artifact_verified
+  notes: Reroute succeeded after an explicit artifact-existence requirement was added.
+- timestamp: '2026-05-01T13:19:00Z'
+  cycle: g45
+  phase: P0
+  worker: Scout-Graph
+  task_id: g45-thorough-scout-graph-attempt2
+  requested_tier: low-cost
+  requested_model: Claude Haiku 4.5
+  actual_model: Claude Haiku 4.5
+  result: success
+  failure_type: other
+  artifact_path: docs/plan/gilfoyle-review-20260501-g45/artifacts/phase0/Scout-Graph.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: artifact_verified
+  notes: Reroute succeeded after an explicit artifact-existence requirement was added.

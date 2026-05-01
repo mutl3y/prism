@@ -82,11 +82,73 @@ class _TaskAnnotationPluginFromDI:
     def split_task_annotation_label(text: str) -> tuple[str, str]:
         return "di", text
 
+    @staticmethod
+    def split_task_target_payload(text: str) -> tuple[str, str]:
+        return "", text
+
+    @staticmethod
+    def annotation_payload_looks_yaml(payload: str) -> bool:
+        return ":" in payload
+
+    @staticmethod
+    def normalize_marker_prefix(marker_prefix: str | None) -> str:
+        return marker_prefix or "prism"
+
+    @staticmethod
+    def get_marker_line_re(marker_prefix: str = "prism") -> object:
+        return __import__("re").compile(marker_prefix)
+
+    @staticmethod
+    def extract_task_annotations_for_file(
+        lines: list[str],
+        marker_prefix: str = "prism",
+        include_task_index: bool = False,
+    ) -> tuple[list[dict[str, object]], dict[str, list[dict[str, object]]]]:
+        del lines
+        del marker_prefix
+        del include_task_index
+        return [], {}
+
+    @staticmethod
+    def task_anchor(file_path: str, task_name: str, index: int) -> str:
+        return f"{file_path}:{task_name}:{index}"
+
 
 class _TaskAnnotationPluginFromRegistry:
     @staticmethod
     def split_task_annotation_label(text: str) -> tuple[str, str]:
         return "registry", text
+
+    @staticmethod
+    def split_task_target_payload(text: str) -> tuple[str, str]:
+        return "", text
+
+    @staticmethod
+    def annotation_payload_looks_yaml(payload: str) -> bool:
+        return ":" in payload
+
+    @staticmethod
+    def normalize_marker_prefix(marker_prefix: str | None) -> str:
+        return marker_prefix or "prism"
+
+    @staticmethod
+    def get_marker_line_re(marker_prefix: str = "prism") -> object:
+        return __import__("re").compile(marker_prefix)
+
+    @staticmethod
+    def extract_task_annotations_for_file(
+        lines: list[str],
+        marker_prefix: str = "prism",
+        include_task_index: bool = False,
+    ) -> tuple[list[dict[str, object]], dict[str, list[dict[str, object]]]]:
+        del lines
+        del marker_prefix
+        del include_task_index
+        return [], {}
+
+    @staticmethod
+    def task_anchor(file_path: str, task_name: str, index: int) -> str:
+        return f"{file_path}:{task_name}:{index}"
 
 
 class _TaskLineParsingPluginFromDI:
@@ -1237,6 +1299,76 @@ def test_task_annotation_plugin_validation_falls_back_in_non_strict_mode() -> No
         )
 
     assert plugin.split_task_annotation_label("note") == ("note", "note")
+
+
+def test_task_annotation_plugin_validation_rejects_partial_surface_in_strict_mode() -> (
+    None
+):
+    class _PartialPlugin:
+        @staticmethod
+        def split_task_annotation_label(text: str) -> tuple[str, str]:
+            return "partial", text
+
+        @staticmethod
+        def extract_task_annotations_for_file(
+            lines: list[str],
+            marker_prefix: str = "prism",
+            include_task_index: bool = False,
+        ) -> tuple[list[dict[str, object]], dict[str, list[dict[str, object]]]]:
+            del lines
+            del marker_prefix
+            del include_task_index
+            return [], {}
+
+    class _DI:
+        def factory_task_annotation_policy_plugin(self) -> _PartialPlugin:
+            return _PartialPlugin()
+
+    with _prefer_fsrc_prism_on_sys_path():
+        defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+        errors_module = importlib.import_module("prism.errors")
+
+        with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+            defaults_module.resolve_task_annotation_policy_plugin(
+                _DI(),
+                strict_mode=True,
+            )
+
+    detail = exc_info.value.detail or {}
+    missing_callables = detail.get("missing_callables") or []
+    assert "normalize_marker_prefix" in missing_callables
+    assert "task_anchor" in missing_callables
+
+
+def test_task_annotation_plugin_validation_falls_back_for_partial_surface() -> None:
+    class _PartialPlugin:
+        @staticmethod
+        def split_task_annotation_label(text: str) -> tuple[str, str]:
+            return "partial", text
+
+        @staticmethod
+        def extract_task_annotations_for_file(
+            lines: list[str],
+            marker_prefix: str = "prism",
+            include_task_index: bool = False,
+        ) -> tuple[list[dict[str, object]], dict[str, list[dict[str, object]]]]:
+            del lines
+            del marker_prefix
+            del include_task_index
+            return [], {}
+
+    class _DI:
+        def factory_task_annotation_policy_plugin(self) -> _PartialPlugin:
+            return _PartialPlugin()
+
+    with _prefer_fsrc_prism_on_sys_path():
+        defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+        plugin = defaults_module.resolve_task_annotation_policy_plugin(
+            _DI(),
+            strict_mode=False,
+        )
+
+    assert plugin.normalize_marker_prefix(None) == "prism"
 
 
 def test_task_line_plugin_validation_raises_on_malformed_plugin_in_strict_mode() -> (

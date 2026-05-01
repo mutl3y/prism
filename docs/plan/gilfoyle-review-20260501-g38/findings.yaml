@@ -1,0 +1,87 @@
+plan_id: gilfoyle-review-20260501-g38
+cycle: g38
+target: src/prism
+review_type: thorough
+focus_axis: ownership
+status: in_progress
+decision_summary:
+  - Fix the isolated kernel plugin-contract high first because it has one clear control point and a cheap targeted gate.
+  - Fix the API registry-authority and facade-leakage highs together because both are caused by redundant API-module aliases that can be removed in one slice.
+  - Carry the remaining medium findings forward after the high-severity slices are green.
+carried_open_findings:
+  - FIND-G36-ARCH-03
+  - FIND-G36-ARCH-04
+  - FIND-G36-ST-01
+  - FIND-G36-ST-02
+  - FIND-G36-ST-03
+  - FIND-G36-CF-API-002
+  - FIND-G36-CF-TASK-003
+suppressed_highs: []
+findings:
+  - id: FIND-G38-CF-01
+    status: closed
+    decision: fixed_in_g38_w1
+    severity: high
+    category: silent_fallback
+    fingerprint: orchestrator:scan_pipeline_plugin_output_non_dict_noop
+    title: Scan-pipeline plugin contract violation silently degrades to unchanged payload
+    files:
+      - src/prism/scanner_kernel/orchestrator.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+      - src/prism/tests/test_platform_routing_fail_closed.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g38/artifacts/phase0/Scout-ControlFlow.yaml
+    summary: _orchestrate_scan_payload_with_plugin_instance returns the original payload when process_scan_pipeline returns a non-dict. That silently masks a broken plugin contract in the runtime orchestration path instead of failing closed with a typed runtime error.
+    decision_deadline: g38
+    suggested_narrow_gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k scan_pipeline
+    closed_at: '2026-05-01'
+    closed_evidence:
+      - 'Code: src/prism/scanner_kernel/orchestrator.py:177-189 now raises PrismRuntimeError with failure_mode=invalid_plugin_output instead of returning the unchanged payload when a runtime scan-pipeline plugin returns a non-dict.'
+      - 'Tests: src/prism/tests/test_plugin_kernel_extension_parity.py:578-599 asserts invalid runtime output now raises scan_pipeline_execution_failed with failure_mode=invalid_plugin_output, and src/prism/tests/test_plugin_kernel_extension_parity.py:602-640 proves dict-returning plugins still merge metadata correctly.'
+      - 'Gate: .venv/bin/python -m pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_platform_routing_fail_closed.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_gilfoyle_blockers_runtime.py => 82 passed / 1 warning; ruff clean; black --check clean; narrow mypy owned-file filter clean.'
+
+  - id: FIND-G38-ARCH-01
+    status: closed
+    decision: fixed_in_g38_w1
+    severity: high
+    category: registry_authority
+    fingerprint: registry-authority-split-five-resolution-paths
+    title: API boundary still splits default registry authority across facade and module-level aliases
+    files:
+      - src/prism/api.py
+      - src/prism/api_layer/plugin_facade.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+      - src/prism/tests/test_gilfoyle_blockers_runtime.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g38/artifacts/phase0/Synthesizer-Architecture.yaml
+    summary: The non-collection runtime already resolves the default registry through the facade, but api.py still keeps its own module-level registry aliases and tests still patch those API-local seams. That leaves registry authority split between the public API module and the canonical facade resolver.
+    decision_deadline: g38
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_gilfoyle_blockers_runtime.py -k 'run_scan or runtime_boom'
+    closed_at: '2026-05-01'
+    closed_evidence:
+      - 'Code: src/prism/api.py:91-137 delegates directly through api_non_collection and now resolves default_plugin_registry via plugin_facade.get_default_plugin_registry() at call time, with no API-local registry alias remaining.'
+      - 'Tests: src/prism/tests/test_api_cli_entrypoints.py:73-75 moves the patch seam to plugin_facade.get_default_plugin_registry, src/prism/tests/test_api_cli_entrypoints.py:951-987 verifies run_scan uses the canonical lower-layer routing and registry seam, and src/prism/tests/test_gilfoyle_blockers_runtime.py:563-575 exercises the same facade seam on the runtime-exception path.'
+      - 'Gate: .venv/bin/python -m pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_platform_routing_fail_closed.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_gilfoyle_blockers_runtime.py => 82 passed / 1 warning; ruff clean; black --check clean; narrow mypy owned-file filter clean.'
+
+  - id: FIND-G35-ARCH-02
+    status: closed
+    decision: fixed_in_g38_w1
+    severity: high
+    category: facade_leakage
+    fingerprint: api:assembly_helper_leak:build_run_scan_canonical_route_orchestration
+    title: api.py still leaks internal assembly helpers through live module attributes
+    files:
+      - src/prism/api.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g35/artifacts/phase0/Synthesizer-Architecture.yaml
+      - docs/plan/gilfoyle-review-20260501-g38/artifacts/phase0/Synthesizer-Architecture.yaml
+    summary: build_run_scan_options_canonical and route_scan_payload_orchestration are still assigned onto api.py as module-level attributes even though they are internal non-collection assembly helpers. That keeps internal orchestration seams exposed at the public API boundary and makes tests patch the wrong layer.
+    decision_deadline: g38
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'run_scan or public'
+    closed_at: '2026-05-01'
+    closed_evidence:
+      - 'Code: src/prism/api.py:55-55 keeps __all__ limited to scan_collection, scan_repo, and scan_role, and src/prism/api.py:122-137 now passes api_non_collection.build_run_scan_options_canonical and api_non_collection.route_scan_payload_orchestration directly instead of exposing API-module aliases.'
+      - 'Tests: src/prism/tests/test_api_cli_entrypoints.py:951-987 patches api_module.api_non_collection.route_scan_payload_orchestration instead of api-level helper aliases, proving the public API no longer needs those internal module attributes as test seams.'
+      - 'Gate: .venv/bin/python -m pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_platform_routing_fail_closed.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_gilfoyle_blockers_runtime.py => 82 passed / 1 warning; ruff clean; black --check clean; narrow mypy owned-file filter clean.'

@@ -1,0 +1,54 @@
+# Scout-Ownership Phase 0 Sweep Results
+# Plan: gilfoyle-review-20260501-g35
+# Date: 2026-05-01
+
+findings: []
+
+summary:
+  total_observations: 0
+  critical_issues: 0
+  high_severity_issues: 0
+  medium_severity_issues: 0
+  low_severity_issues: 0
+
+sweep_details:
+  categories_checked:
+    - ownership
+    - abstraction
+    - facade_leakage
+    - shell_boundary
+    - shim_staleness
+    - test_fixture_coupling
+    - singleton_pollution
+
+  key_validations:
+    - api.py: clean __all__ export (scan_collection, scan_repo, scan_role only)
+    - cli.py: clean __all__ export (main, build_parser only)
+    - scanner_core.__init__.py: proper __all__ with __getattr__ guard
+    - scanner_core/di.py: TYPE_CHECKING and deferred factory imports per FIND-G3-03 do_not_re_flag
+    - api_layer/plugin_facade.py: proper facade layer with lazy re-exports
+    - api_layer/non_collection.py: __getattr__ lazy re-exports for scanner_core/kernel functions
+    - scanner_plugins imports: no inappropriate direct imports from scanner_reporting, scanner_readme, scanner_data
+    - scanner_kernel: no direct scanner_plugins imports detected
+    - PluginRegistry: thread-safe with no singleton __new__ override (proper instance pattern)
+    - No deprecation warnings or stale shims found
+    - Test fixtures: monkeypatch used only on public API surfaces (api_module.run_scan, etc.)
+    - No re-exports of internal builder functions or composition factories beyond proper facade layer
+
+  does_not_re_flag:
+    - FIND-G3-02-typecheck-import: scanner_core/di.py TYPE_CHECKING import of scanner_plugins.interfaces
+    - FIND-G3-03-di-lazy-seams: deferred imports in factory bodies are intentional
+
+  architecture_boundaries_verified:
+    - api/cli → api_layer → scanner_core/kernel ✓
+    - api_layer → plugin_facade → scanner_plugins ✓
+    - scanner_core → scanner_data ✓
+    - scanner_core → scanner_kernel (one-way ingress) ✓
+    - scanner_plugins (no outbound to scanner_core/reporting/readme/data) ✓
+
+note: |
+  Phase 0 sweep found zero ownership/abstraction/boundary violations.
+  All public facades are properly guarded with __all__ exports and __getattr__ controls.
+  DI composition is properly scoped to factory methods or lazy re-exports.
+  Plugin registration pattern is thread-safe and does not pollute singletons inappropriately.
+  Cross-layer imports are restricted to proper facade modules only.
