@@ -3,11 +3,11 @@ index 56e6a4d..223f9f6 100644
 --- a/src/prism/scanner_kernel/orchestrator.py
 +++ b/src/prism/scanner_kernel/orchestrator.py
 @@ -134,65 +134,87 @@ def _invoke_kernel_orchestrator(
- 
+
  def _routing_error_detail(routing: dict[str, object]) -> dict[str, object]:
      return {"metadata": {"routing": routing}}
- 
- 
+
+
  def _raise_contract_error(
      *,
      code: str,
@@ -21,8 +21,8 @@ index 56e6a4d..223f9f6 100644
          message=message,
          detail=_routing_error_detail(routing),
      ) from cause
- 
- 
+
+
 +def _raise_invalid_plugin_output_error(
 +    *,
 +    plugin_name: str,
@@ -53,7 +53,7 @@ index 56e6a4d..223f9f6 100644
  ) -> dict[str, object]:
      metadata = payload.get("metadata")
      base_metadata = copy.deepcopy(metadata) if isinstance(metadata, dict) else {}
- 
+
      if isinstance(preflight_context, dict):
          plugin_output: object = copy.deepcopy(preflight_context)
      else:
@@ -64,21 +64,21 @@ index 56e6a4d..223f9f6 100644
              )
          else:
              plugin_output = {}
- 
+
      if not isinstance(plugin_output, dict):
 -        return payload
 +        _raise_invalid_plugin_output_error(
 +            plugin_name=plugin_name,
 +            plugin_output=plugin_output,
 +        )
- 
+
      payload["metadata"] = _merge_metadata_preserving_existing(
          base_metadata,
          plugin_output,
      )
      return payload
- 
- 
+
+
  def orchestrate_scan_payload_with_selected_plugin(
      *,
      build_payload_fn: Callable[[], dict[str, object]],
@@ -93,7 +93,7 @@ index 56e6a4d..223f9f6 100644
          payload=payload,
 @@ -254,52 +276,60 @@ def orchestrate_scan_payload_with_selected_plugin(
          )
- 
+
      plugin_instance = _instantiate_scan_pipeline_plugin(plugin_class)
      try:
          if _is_orchestrate_scan_payload_plugin(plugin_instance):
@@ -125,7 +125,7 @@ index 56e6a4d..223f9f6 100644
              routing=routing,
              cause=exc,
          )
- 
+
 +    if not isinstance(result, dict):
 +        _raise_invalid_plugin_output_error(
 +            plugin_name=plugin_name,
@@ -135,8 +135,8 @@ index 56e6a4d..223f9f6 100644
      if isinstance(result, dict) and existing_preflight_routing:
          _apply_routing_metadata(payload=result, routing=existing_preflight_routing)
      return result
- 
- 
+
+
  def route_scan_payload_orchestration(
      *,
      role_path: str,
@@ -147,7 +147,7 @@ index 56e6a4d..223f9f6 100644
      """Route orchestration using registered scan-pipeline plugin decision context."""
      if registry is None:
          raise ValueError("registry must be provided for scan pipeline routing")
- 
+
      plugin_name = resolve_scan_pipeline_plugin_name(
          scan_options=scan_options,
          registry=registry,
@@ -159,12 +159,12 @@ index b3facbb..b0cf169 100644
 @@ -534,40 +534,247 @@ def test_fsrc_kernel_route_orchestration_preflight_failure_raises(
              del scan_context
              raise RuntimeError("preflight boom")
- 
+
      class _Registry:
          @staticmethod
          def get_scan_pipeline_plugin(_name: str):
              return _FailingPlugin
- 
+
      with pytest.raises(RuntimeError, match="preflight boom"):
          orchestrator_module.route_scan_payload_orchestration(
              role_path="/tmp/role",
@@ -175,8 +175,8 @@ index b3facbb..b0cf169 100644
              kernel_orchestrator_fn=_kernel_orchestrator,
              registry=_Registry(),
          )
- 
- 
+
+
 +def test_fsrc_scan_pipeline_runtime_invalid_output_raises_contract_error() -> None:
 +    with _prefer_fsrc_prism_on_sys_path():
 +        orchestrator_module = importlib.import_module(
@@ -393,14 +393,14 @@ index b3facbb..b0cf169 100644
      for role in (role_a, role_b):
          (role / "defaults").mkdir(parents=True)
          (role / "vars").mkdir(parents=True)
- 
+
      (role_a / "defaults" / "main.yml").write_text(
          "---\nshared_key: one\n", encoding="utf-8"
      )
      (role_b / "vars" / "main.yml").write_text(
          "---\nshared_key: two\n", encoding="utf-8"
      )
- 
+
      with _prefer_fsrc_prism_on_sys_path():
          repo_context_module = importlib.import_module(
              "prism.scanner_kernel.repo_context"

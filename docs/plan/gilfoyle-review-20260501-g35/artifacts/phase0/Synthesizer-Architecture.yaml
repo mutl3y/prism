@@ -15,7 +15,7 @@ findings:
     description: |
       Registry resolution authority is split across three different resolver functions
       with inconsistent fallback semantics:
-      
+
       1. di.py:71-89 resolve_platform_key(scan_options, registry) reads explicit
          registry parameter or scan_options paths
       2. loader.py:46 _resolve_plugin_registry(di) reads di.plugin_registry, then
@@ -23,13 +23,13 @@ findings:
          DI contract boundary
       3. defaults.py:54 _resolve_registry(di, registry) reads registry param >
          di.plugin_registry > bootstrap singleton
-      
+
       The loader.py path is particularly concerning because scan_options["plugin_registry"]
       bypasses the DI container boundary. The WARNING comment at loader.py:46-53 explicitly
       states: "Registry ownership belongs at the container/bootstrap boundary (DIContainer
       constructor), not in scan_options payloads. This path is retained for deferred
       contract reshape (FIND-G2-LOADER-DUAL-PATH)."
-      
+
       This creates three potential sources of truth for registry identity within a single
       scan request: the explicit registry parameter, di.plugin_registry, and the
       scan_options["plugin_registry"] bypass.
@@ -65,16 +65,16 @@ findings:
       api.py lines 55-56 re-export two internal orchestration functions at module top level:
       - build_run_scan_options_canonical (from scanner_core.scan_request)
       - route_scan_payload_orchestration (from scanner_kernel.orchestrator)
-      
+
       These are internal assembly helpers, not user-facing APIs. They are used internally
       by api.py:run_scan() at lines 132-133, but they are also exposed as module-level
       symbols accessible via prism.api.build_run_scan_options_canonical and
       prism.api.route_scan_payload_orchestration.
-      
+
       Test evidence shows tests are patching these through the api module facade
       (test_api_cli_entrypoints.py:359-360, 397, 460), which means the leak is
       now a test dependency.
-      
+
       Scout-Ownership verified that __all__ is properly restricted to
       ["scan_collection", "scan_repo", "scan_role"] at api.py:66, so these symbols
       are NOT part of the declared public contract. However, Python's module system
@@ -112,21 +112,21 @@ findings:
     title: "DEFAULT_PLUGIN_REGISTRY module-level singleton in api.py"
     description: |
       api.py:62-64 constructs a module-level singleton:
-      
+
         def _get_default_plugin_registry():
             return plugin_facade.get_default_plugin_registry()
-        
+
         DEFAULT_PLUGIN_REGISTRY = _get_default_plugin_registry()
-      
+
       This is a module-level singleton that is evaluated at import time and remains
       fixed for the lifetime of the api module. The symbol is excluded from __all__
       at line 66, so it is not part of the declared public contract, but it is
       still accessible as prism.api.DEFAULT_PLUGIN_REGISTRY.
-      
+
       The do_not_re_flag list does not include this symbol, and no comment in api.py
       documents why this singleton exists at module level rather than being retrieved
       on-demand.
-      
+
       Scout-Ownership verified __all__ was clean but did not flag module-level
       singletons outside __all__. Scout-Typing did not check for singleton pollution
       patterns.

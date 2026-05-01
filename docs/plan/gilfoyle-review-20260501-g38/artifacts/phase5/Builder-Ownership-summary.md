@@ -68,9 +68,9 @@ pytest -q src/prism/tests/test_gilfoyle_blockers_runtime.py
 **Result**: ✅ 24 passed in 1.23s
 
 ## Invariants Preserved
-✅ Public entrypoints `scan_collection`, `scan_role`, `scan_repo`, and `run_scan` maintain identical external behavior  
-✅ Runtime registry authority now resolves through canonical `plugin_facade.get_default_plugin_registry()` seam  
-✅ Public API surface reduced; no accidental exposure of internal helpers  
+✅ Public entrypoints `scan_collection`, `scan_role`, `scan_repo`, and `run_scan` maintain identical external behavior
+✅ Runtime registry authority now resolves through canonical `plugin_facade.get_default_plugin_registry()` seam
+✅ Public API surface reduced; no accidental exposure of internal helpers
 ✅ Tests now patch at lower-layer seams (api_non_collection, plugin_facade) instead of API-level aliases
 
 ## Artifact Write
