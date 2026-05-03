@@ -3,9 +3,19 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Mapping, Protocol
+from typing import Protocol
 
-from prism.scanner_data import CollectionScanResult
+from prism.errors import PrismRuntimeError
+from prism.scanner_data import (
+    CollectionDependencies,
+    CollectionFailureRecord,
+    CollectionIdentity,
+    CollectionPluginCatalog,
+    CollectionRoleEntry,
+    CollectionScanResult,
+    RunScanOutputPayload,
+    ScanMetadata,
+)
 
 
 class ScanRoleFn(Protocol):
@@ -36,23 +46,23 @@ class ScanRoleFn(Protocol):
         include_task_parameters: bool = ...,
         include_task_runbooks: bool = ...,
         inline_task_runbooks: bool = ...,
-    ) -> Mapping[str, Any]: ...
+    ) -> RunScanOutputPayload: ...
 
 
 class BuildCollectionIdentityFn(Protocol):
-    def __call__(self, collection_root: Path) -> dict[str, Any]: ...
+    def __call__(self, collection_root: Path) -> CollectionIdentity: ...
 
 
 class AggregateCollectionDependenciesFn(Protocol):
-    def __call__(self, collection_root: Path) -> dict[str, Any]: ...
+    def __call__(self, collection_root: Path) -> CollectionDependencies: ...
 
 
 class ScanCollectionPluginsFn(Protocol):
-    def __call__(self, collection_root: Path) -> dict[str, Any]: ...
+    def __call__(self, collection_root: Path) -> CollectionPluginCatalog: ...
 
 
 class RenderCollectionRoleReadmeFn(Protocol):
-    def __call__(self, *, role_name: str, payload: Mapping[str, Any]) -> str: ...
+    def __call__(self, *, role_name: str, payload: RunScanOutputPayload) -> str: ...
 
 
 class WriteCollectionRunbookArtifactsFn(Protocol):
@@ -60,7 +70,7 @@ class WriteCollectionRunbookArtifactsFn(Protocol):
         self,
         *,
         role_name: str,
-        metadata: Mapping[str, Any],
+        metadata: ScanMetadata,
         runbook_output_dir: str | None,
         runbook_csv_output_dir: str | None,
     ) -> None: ...
@@ -71,9 +81,9 @@ class BuildCollectionRoleEntryFn(Protocol):
         self,
         *,
         role_dir: Path,
-        payload: Mapping[str, Any],
+        payload: RunScanOutputPayload,
         rendered_readme: str | None,
-    ) -> dict[str, Any]: ...
+    ) -> CollectionRoleEntry: ...
 
 
 class BuildCollectionFailureRecordFn(Protocol):
@@ -83,7 +93,7 @@ class BuildCollectionFailureRecordFn(Protocol):
         role_dir: Path,
         exc: Exception,
         include_traceback: bool,
-    ) -> dict[str, Any]: ...
+    ) -> CollectionFailureRecord: ...
 
 
 class BuildCollectionScanResultFn(Protocol):
@@ -91,12 +101,19 @@ class BuildCollectionScanResultFn(Protocol):
         self,
         *,
         collection_root: Path,
-        collection_identity: dict[str, Any] | None,
-        dependencies: dict[str, Any] | None,
-        plugin_catalog: dict[str, Any] | None,
-        roles: list[dict[str, Any]],
-        failures: list[dict[str, Any]],
+        collection_identity: CollectionIdentity | None,
+        dependencies: CollectionDependencies | None,
+        plugin_catalog: CollectionPluginCatalog | None,
+        roles: list[CollectionRoleEntry],
+        failures: list[CollectionFailureRecord],
     ) -> CollectionScanResult: ...
+
+
+def _payload_metadata(payload: RunScanOutputPayload) -> ScanMetadata:
+    metadata = payload.get("metadata")
+    if isinstance(metadata, dict):
+        return metadata
+    return {}
 
 
 def scan_collection(
@@ -156,13 +173,8 @@ def scan_collection(
     if (runbook_output_dir or runbook_csv_output_dir) and not detailed_catalog:
         detailed_catalog = True
 
-    recoverable_scan_errors = (
-        collection_role_content_recoverable_errors
-        + collection_role_runtime_recoverable_errors
-    )
-    recoverable_artifact_errors = recoverable_scan_errors
-    roles_payload: list[dict[str, Any]] = []
-    failures: list[dict[str, Any]] = []
+    roles_payload: list[CollectionRoleEntry] = []
+    failures: list[CollectionFailureRecord] = []
 
     for role_dir in sorted(path for path in roles_root.iterdir() if path.is_dir()):
         try:
@@ -196,7 +208,18 @@ def scan_collection(
                 include_task_runbooks=include_task_runbooks,
                 inline_task_runbooks=inline_task_runbooks,
             )
-        except recoverable_scan_errors as exc:
+        except PrismRuntimeError as exc:
+            if not exc.code.startswith("role_content_"):
+                raise
+            failures.append(
+                build_collection_failure_record_fn(
+                    role_dir=role_dir,
+                    exc=exc,
+                    include_traceback=include_traceback,
+                )
+            )
+            continue
+        except collection_role_content_recoverable_errors as exc:
             failures.append(
                 build_collection_failure_record_fn(
                     role_dir=role_dir,
@@ -206,30 +229,20 @@ def scan_collection(
             )
             continue
 
-        try:
-            rendered_readme = None
-            if include_rendered_readme:
-                rendered_readme = render_collection_role_readme_fn(
-                    role_name=role_dir.name,
-                    payload=role_payload,
-                )
-
-            if runbook_output_dir or runbook_csv_output_dir:
-                write_collection_runbook_artifacts_fn(
-                    role_name=role_dir.name,
-                    metadata=(role_payload.get("metadata") or {}),
-                    runbook_output_dir=runbook_output_dir,
-                    runbook_csv_output_dir=runbook_csv_output_dir,
-                )
-        except recoverable_artifact_errors as exc:
-            failures.append(
-                build_collection_failure_record_fn(
-                    role_dir=role_dir,
-                    exc=exc,
-                    include_traceback=include_traceback,
-                )
+        rendered_readme = None
+        if include_rendered_readme:
+            rendered_readme = render_collection_role_readme_fn(
+                role_name=role_dir.name,
+                payload=role_payload,
             )
-            continue
+
+        if runbook_output_dir or runbook_csv_output_dir:
+            write_collection_runbook_artifacts_fn(
+                role_name=role_dir.name,
+                metadata=_payload_metadata(role_payload),
+                runbook_output_dir=runbook_output_dir,
+                runbook_csv_output_dir=runbook_csv_output_dir,
+            )
 
         roles_payload.append(
             build_collection_role_entry_fn(

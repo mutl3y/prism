@@ -1,0 +1,11 @@
+wave_id: wave-2
+phase: P5
+summary: "Builder-ControlFlow closed G61-M01 by restoring typed exception boundaries on the collection and DI plugin-construction seam and validating the owned slice with focused pytest, ruff, and black checks."
+builders:
+  - worker: Builder-ControlFlow
+    task_id: g61-wave2-builder-controlflow
+    result: success
+    artifact: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+    notes: "collection.py now demotes only typed role-content failures without a catch-all predicate branch, and di.py now treats malformed constructor shape separately from arbitrary constructor exceptions."
+
+ready_for_next_slice: true

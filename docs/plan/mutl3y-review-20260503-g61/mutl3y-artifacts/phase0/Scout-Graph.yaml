@@ -1,0 +1,89 @@
+- id: Scout-Graph-01
+  category: registry_authority
+  fingerprint: "registry_authority:api:_isolate_scan_pipeline_registry:composition_wrapper_per_call"
+  file: src/prism/api.py
+  line: 357
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_isolate_scan_pipeline_registry(plugin_facade.get_default_plugin_registry())"
+  evidence_command: "src/prism/api.py#L352-L358"
+  related_symbols: ["_isolate_scan_pipeline_registry", "plugin_facade.get_default_plugin_registry", "_RegistryProxy"]
+  fix_group_key: "registry-isolation-per-call-wrapper"
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py -k run_scan"
+
+- id: Scout-Graph-02
+  category: singleton_pollution
+  fingerprint: "singleton_pollution:api:_wrap_scan_pipeline_plugin_factory:wrapper_instance_per_plugin_per_call"
+  file: src/prism/api.py
+  line: 300
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def _wrap_scan_pipeline_plugin_factory(plugin_factory: object) -> object"
+  evidence_command: "src/prism/api.py#L295-L350"
+  related_symbols: ["_wrap_scan_pipeline_plugin_factory", "_ScanPipelinePluginIsolationWrapper", "_OrchestratingScanPipelinePluginIsolationWrapper"]
+  fix_group_key: "registry-isolation-per-call-wrapper"
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_api_run_scan_isolation"
+
+- id: Scout-Graph-03
+  category: graph
+  fingerprint: "graph:api_collection:type_cast_protocol_callables:untyped_protocol_composition"
+  file: src/prism/api_layer/collection.py
+  line: 26
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "class ScanRoleFn(Protocol): def __call__(...) -> RunScanOutputPayload: ..."
+  evidence_command: "src/prism/api_layer/collection.py#L20-L47"
+  related_symbols: ["ScanRoleFn", "BuildCollectionIdentityFn", "AggregateCollectionDependenciesFn"]
+  fix_group_key: "api-layer-protocol-return-types"
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_collection_contract.py"
+
+- id: Scout-Graph-04
+  category: test_fixture_coupling
+  fingerprint: "test_fixture_coupling:tests:scanner_plugins_DEFAULT_PLUGIN_REGISTRY_direct_use"
+  file: src/prism/tests/test_platform_routing_fail_closed.py
+  line: 52
+  severity_hint: low
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "registry=scanner_plugins.DEFAULT_PLUGIN_REGISTRY"
+  evidence_command: "src/prism/tests/test_platform_routing_fail_closed.py#L52"
+  related_symbols: ["DEFAULT_PLUGIN_REGISTRY", "DIContainer", "scanner_plugins"]
+  fix_group_key: "test-fixture-registry-coupling"
+  proposed_fix_class: isolate_test_fixture
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_platform_routing_fail_closed.py::test_platform_default_policy_resolution_routes"
+
+- id: Scout-Graph-05
+  category: graph
+  fingerprint: "graph:api:_cast_protocols_in_collection_wrapper:lazy_type_narrowing"
+  file: src/prism/api.py
+  line: 142
+  severity_hint: low
+  confidence: medium
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return cast(CollectionIdentity, build_collection_identity(collection_root))"
+  evidence_command: "src/prism/api.py#L141-L144"
+  related_symbols: ["_build_collection_identity_typed", "build_collection_identity", "cast"]
+  fix_group_key: "api-collection-cast-helpers"
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_scan_collection_role_payloads"

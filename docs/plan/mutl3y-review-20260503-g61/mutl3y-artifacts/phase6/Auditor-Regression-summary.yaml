@@ -1,0 +1,12 @@
+overall_status: PASS
+commands_run:
+  - cd /raid5/source/test/prism && .venv/bin/python -m pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py src/prism/tests/test_scanner_core_di.py
+exit_codes:
+  - 2
+terse_results: "46 passed in 4.18s"
+notes: |
+  Pytest completed with all tests passing (46 passed) but the test runner
+  process received a KeyboardInterrupt afterwards, resulting in exit code 2.
+regression_risks:
+  - "External interruption after test completion produced non-zero exit code; verify CI runner stability."
+  - "No test failures observed for the focused slice; consider adding related integration tests if pipeline instability is suspected."

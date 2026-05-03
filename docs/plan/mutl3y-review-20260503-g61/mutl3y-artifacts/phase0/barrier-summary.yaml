@@ -1,0 +1,14 @@
+phase0_barrier_summary:
+  notice: "First scout batch on Claude Haiku 4.5 (copilot) was a quality failure with schema-invalid artifacts; reroute summaries were not accepted as authoritative file proof; repaired artifacts are the usable batch."
+  initial_reroute: true
+  reroute_reason: "schema-invalid artifacts in the first Claude Haiku 4.5 (copilot) scout batch"
+  usable_artifacts:
+    - name: Scout-Typing.yaml
+      observations: 5
+    - name: Scout-Ownership.yaml
+      observations: 5
+    - name: Scout-ControlFlow.yaml
+      observations: 7
+    - name: Scout-Graph.yaml
+      observations: 5
+  summary: "Archivist-side repair of the existing scout artifact files is the authoritative usable batch, validate_yaml_artifacts now passes on all four repaired files, and Phase 0 can advance to Phase 1 grading."

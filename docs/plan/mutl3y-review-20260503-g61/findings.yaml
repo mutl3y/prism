@@ -1,0 +1,78 @@
+cycle: g61
+review_type: light
+status: completed
+closed:
+  - id: G61-H01
+    severity: high
+    category: ownership
+    title: "API scan-pipeline isolation wrappers erase plugin contracts behind object-typed composition"
+    files:
+      - src/prism/api.py
+      - src/prism/api_layer/plugin_facade.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    summary: >-
+      The api.py-owned scan-pipeline isolation wrappers were moved behind the
+      typed api_layer/plugin_facade seam, removing local object-typed registry
+      composition from the top-level API entrypoint and adding a direct
+      regression for facade-owned isolation behavior.
+    closed_evidence:
+      - "Focused validation: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'scan_pipeline or isolation' -> 3 passed, 29 deselected"
+      - "Static checks: ruff check src/prism/api.py src/prism/api_layer/plugin_facade.py src/prism/tests/test_api_cli_entrypoints.py -> pass; black --check on same files -> pass"
+      - "Focused typecheck: mypy src/prism/api.py src/prism/api_layer/plugin_facade.py -> success"
+      - "Builder artifact: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/Builder-Ownership-summary.md"
+    closure_note: "run_scan now consumes a facade-owned scan-pipeline registry isolation seam, and the API regression guards against reintroducing local isolation helpers in api.py."
+
+  - id: G61-M01
+    severity: medium
+    category: error_channel
+    title: "Collection and DI plugin construction broaden exception handling through catch-all normalization"
+    files:
+      - src/prism/api_layer/collection.py
+      - src/prism/scanner_core/di.py
+      - src/prism/tests/test_collection_contract.py
+      - src/prism/tests/test_scanner_core_di.py
+    summary: >-
+      The collection seam now uses typed exception branches for demoting only
+      role-content failures, while DI plugin construction once again treats
+      malformed constructor shape as a dedicated PrismRuntimeError path and
+      reraises arbitrary constructor exceptions instead of normalizing them into
+      the same channel.
+    closed_evidence:
+      - "Focused validation: pytest -q src/prism/tests/test_collection_contract.py -k exception src/prism/tests/test_scanner_core_di.py -k 'bad_constructor or constructor_exception' -> 4 passed, 76 deselected"
+      - "Static checks: ruff check src/prism/api_layer/collection.py src/prism/scanner_core/di.py src/prism/tests/test_collection_contract.py src/prism/tests/test_scanner_core_di.py -> pass; black --check on same files -> clean"
+      - "Builder artifact: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md"
+    closure_note: "The repair preserved the narrowed collection semantics already present in the dirty tree, but replaced catch-all predicate normalization with typed branches and restored the original DI constructor exception boundary."
+
+  - id: G61-M02
+    severity: medium
+    category: typing
+    title: "Non-collection normalization and API wrappers still expose weak result and argument contracts"
+    files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/api.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    summary: >-
+      The normalization seam now validates through the canonical
+      RunScanOutputPayload contract, exposes a complete post-normalization
+      result shape, and api.py consumes that stronger type directly instead of
+      leaning on a permissive partial TypedDict contract.
+    closed_evidence:
+      - "Focused typecheck: mypy src/prism/api.py src/prism/api_layer/non_collection.py -> success"
+      - "Focused validation: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'run_scan or scan_role' -> 23 passed, 9 deselected"
+      - "Static checks: ruff check src/prism/api.py src/prism/api_layer/non_collection.py src/prism/tests/test_api_cli_entrypoints.py -> pass; black --check on same files -> clean"
+      - "Builder artifact: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/Builder-Typing-summary.md"
+      - "Phase 6 gate: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase6/Gatekeeper-summary.yaml"
+    closure_note: "The result contract is now complete after normalization, with alias fields layered on top of the canonical output payload instead of being hidden behind total=False typing and API-side casts."
+
+promoted: []
+suppressed_or_deferred:
+  suppressed:
+    - reason: "light follow-up static-typing cleanup"
+      note: "Suppress low graph/type-cast helper observations as non-blocking static-typing cleanup for a later light follow-up."
+
+    - reason: "positive hardening, not a defect"
+      note: "Suppress path-safety and git-clone hardening observations; the scout batch confirmed defensive hardening rather than an active defect."
+
+    - reason: "architecture background beneath G61-H01"
+      note: "Suppress low registry and test-fixture findings for now; keep them as background context under the G61-H01 ownership seam unless a later cycle proves a separate concrete regression."
+  deferred: []

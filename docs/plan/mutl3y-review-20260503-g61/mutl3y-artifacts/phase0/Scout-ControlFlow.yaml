@@ -1,0 +1,125 @@
+- id: FIND-CF-01-COLLECTION-EXCEPTION-BROADENING
+  category: silent_fallback
+  fingerprint: "silent_fallback:collection.scan_collection:except_exception_predicate"
+  file: src/prism/api_layer/collection.py
+  line: 1073
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except Exception as exc: if not _is_recoverable_role_content_error(exc, recoverable_errors=...): raise"
+  evidence_command: "src/prism/api_layer/collection.py#L1073-L1080 (diff context)"
+  related_symbols: ["_is_recoverable_role_content_error", "collection_role_content_recoverable_errors", "collection_role_runtime_recoverable_errors"]
+  fix_group_key: "exception-handling.catch-all-broadening"
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_collection_contract.py -k exception"
+
+- id: FIND-CF-02-DI-PLUGIN-EXCEPTION-COERCION
+  category: error_channel
+  fingerprint: "error_channel:di._construct_runtime_plugin:except_broadening"
+  file: src/prism/scanner_core/di.py
+  line: 2550
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except PrismRuntimeError: raise; except Exception as exc: raise PrismRuntimeError(...)"
+  evidence_command: "src/prism/scanner_core/di.py#L2550-L2568 (diff context)"
+  related_symbols: ["_construct_runtime_plugin", "plugin_construction_failed", "malformed_plugin_shape"]
+  fix_group_key: "exception-handling.catch-all-broadening"
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_variable_discovery_plugin"
+
+- id: FIND-CF-03-ORCHESTRATION-PLUGIN-ISOLATION-WRAPPER
+  category: orchestration_seam
+  fingerprint: "orchestration_seam:api._wrap_scan_pipeline_plugin_factory:deepcopy_guard"
+  file: src/prism/api.py
+  line: 380
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "copy.deepcopy(scan_context) if isinstance(scan_context, dict) else scan_context"
+  evidence_command: "src/prism/api.py#L393-L398, #L423-L428 (isolation wrapper classes)"
+  related_symbols: ["_wrap_scan_pipeline_plugin_factory", "_OrchestratingScanPipelinePluginIsolationWrapper", "_ScanPipelinePluginIsolationWrapper", "_RegistryProxy"]
+  fix_group_key: "plugin-isolation.selective-deepcopy"
+  proposed_fix_class: guard_input
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k orchestration"
+
+- id: FIND-CF-05-DI-SNAPSHOT-CACHE-INVALIDATION
+  category: orchestration_seam
+  fingerprint: "orchestration_seam:di.DIContainer:snapshot_cache_interaction"
+  file: src/prism/scanner_core/di.py
+  line: 2651
+  severity_hint: medium
+  confidence: medium
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "self._scan_options = clone_scan_options(scan_options); self._invalidate_scan_option_dependent_cache_locked()"
+  evidence_command: "src/prism/scanner_core/di.py#L2651-L2660 (snapshot and replace methods)"
+  related_symbols: ["clone_scan_options", "_snapshot_scan_options", "replace_scan_options", "_invalidate_scan_option_dependent_cache_locked", "_SCAN_OPTION_DEPENDENT_CACHE_KEYS"]
+  fix_group_key: "di-container.state-mutation"
+  proposed_fix_class: guard_input
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_container.py::test_concurrent_scan_option_replacement"
+
+- id: FIND-CF-06-METADATA-COERCION-SILENT-DEFAULT
+  category: policy_coercion
+  fingerprint: "policy_coercion:non_collection._normalize_non_collection_result_shape:coerce_metadata"
+  file: src/prism/api_layer/non_collection.py
+  line: 1437
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "display_variables = _coerce_display_variables(payload.get(\"display_variables\"))"
+  evidence_command: "src/prism/api_layer/non_collection.py#L1437-L1495 (coercion functions and normalization)"
+  related_symbols: ["_coerce_display_variables", "_coerce_object_list", "_coerce_scan_metadata", "_normalize_non_collection_result_shape"]
+  fix_group_key: "payload-normalization.fallback-chains"
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_output_orchestration.py -k normalization"
+
+- id: FIND-CF-07-CLONE-SCAN-OPTIONS-OBJECT-IDENTITY
+  category: orchestration_seam
+  fingerprint: "orchestration_seam:di.clone_scan_options:object_identity_preservation"
+  file: src/prism/scanner_core/di.py
+  line: 69
+  severity_hint: low
+  confidence: medium
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return value  # Non-container types: preserved by identity"
+  evidence_command: "src/prism/scanner_core/di.py#L56-L73 (clone_container_structure helper)"
+  related_symbols: ["clone_scan_options", "_clone_container_structure", "_SCAN_OPTION_DEPENDENT_CACHE_KEYS"]
+  fix_group_key: "di-container.shallow-copy"
+  proposed_fix_class: guard_input
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_container.py::test_scan_options_mutation_isolation"
+
+- id: FIND-CF-08-FACTORY-OVERRIDE-NONE-RETURN
+  category: silent_fallback
+  fingerprint: "silent_fallback:di._call_factory_override:none_fallback"
+  file: src/prism/scanner_core/di.py
+  line: 2660
+  severity_hint: low
+  confidence: medium
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if override is None: return None"
+  evidence_command: "src/prism/scanner_core/di.py#L2660-L2665 (factory override helper)"
+  related_symbols: ["_call_factory_override", "factory_variable_discovery", "factory_feature_detector"]
+  fix_group_key: "di-container.factory-fallback"
+  proposed_fix_class: typed_error_channel
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py -k override"

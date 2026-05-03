@@ -1,0 +1,89 @@
+- id: Scout-Typing-01
+  category: typing
+  fingerprint: "typing:api.plugin_isolation:unsafe_object_cast_loses_protocol_safety"
+  file: src/prism/api.py
+  line: 389
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def _wrap_scan_pipeline_plugin_factory(plugin_factory: object) -> object:"
+  evidence_command: "src/prism/api.py#L389-L456"
+  related_symbols: ["_wrap_scan_pipeline_plugin_factory", "_OrchestratingScanPipelinePluginIsolationWrapper", "_ScanPipelinePluginIsolationWrapper", "cast"]
+  fix_group_key: api.plugin_isolation_typing
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: "mypy src/prism/api.py --no-error-summary 2>&1 | grep -E 'object.*Protocol|cast.*plugin_factory'"
+
+- id: Scout-Typing-02
+  category: abstraction
+  fingerprint: "typing:api.isolation_wrapper:getattr_returns_object_loses_delegation_typing"
+  file: src/prism/api.py
+  line: 450
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def __getattr__(self, name: str) -> object: return getattr(self._inner, name)"
+  evidence_command: "src/prism/api.py#L450-L451"
+  related_symbols: ["_ScanPipelinePluginIsolationWrapper.__getattr__", "_OrchestratingScanPipelinePluginIsolationWrapper.__getattr__"]
+  fix_group_key: api.wrapper_method_typing
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "mypy src/prism/api.py --no-error-summary 2>&1 | grep -E '__getattr__.*object'"
+
+- id: Scout-Typing-03
+  category: typing
+  fingerprint: "typing:api.wrapper_methods:dict_str_object_instead_of_typeddict"
+  file: src/prism/api.py
+  line: 415
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "payload: dict[str, object], scan_options: dict[str, object]"
+  evidence_command: "src/prism/api.py#L415-L420"
+  related_symbols: ["_OrchestratingScanPipelinePluginIsolationWrapper.orchestrate_scan_payload", "payload", "scan_options"]
+  fix_group_key: api.wrapper_method_typing
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "mypy src/prism/api.py --no-error-summary 2>&1 | grep 'dict\\[str, object\\]'"
+
+- id: Scout-Typing-04
+  category: test_gap
+  fingerprint: "test_gap:api.isolation_wrappers:no_direct_test_coverage"
+  file: src/prism/tests/test_api_cli_entrypoints.py
+  line: 0
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_wrap_scan_pipeline_plugin_factory and _isolate_scan_pipeline_registry have no test_* function"
+  evidence_command: "grep '_wrap_scan_pipeline_plugin_factory\\|_isolate_scan_pipeline_registry' src/prism/tests/test_*.py"
+  related_symbols: ["_wrap_scan_pipeline_plugin_factory", "_isolate_scan_pipeline_registry", "_OrchestratingScanPipelinePluginIsolationWrapper", "_ScanPipelinePluginIsolationWrapper"]
+  fix_group_key: tests.isolation_wrapper_coverage
+  proposed_fix_class: add_test
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest src/prism/tests/test_api_cli_entrypoints.py -v -k 'isolation' --collect-only"
+
+- id: Scout-Typing-05
+  category: typing
+  fingerprint: "typing:contracts.non_collection_result:typeddict_total_false_lacks_completeness_assertion"
+  file: src/prism/api_layer/non_collection.py
+  line: 1243
+  severity_hint: medium
+  confidence: medium
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "class _NormalizedNonCollectionResult(TypedDict, total=False):"
+  evidence_command: "src/prism/api_layer/non_collection.py#L1243-L1257"
+  related_symbols: ["_NormalizedNonCollectionResult", "total=False"]
+  fix_group_key: contracts.typeddict_completeness
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "grep -A 15 'class _NormalizedNonCollectionResult' src/prism/api_layer/non_collection.py"

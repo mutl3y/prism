@@ -1,0 +1,35 @@
+plan_id: mutl3y-review-20260503-g61
+cycle: g61
+review_type: light
+focus_axis: architecture
+status: completed
+target: src/prism
+origin: "Required light follow-up after g60 closure; scope is changed files plus immediate neighbours under the light-cycle cadence."
+resumption_pointer:
+  current_phase: P7
+  next_action: "Open g62 as a fresh whole-codebase thorough review on the architecture axis."
+  blocking_issues: []
+artifacts:
+  findings: docs/plan/mutl3y-review-20260503-g61/findings.yaml
+  phase0_start_audit: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase0/phase-start-audit.yaml
+  learning_context: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase0/learning-context.yaml
+  execution_trace: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/execution-trace.yaml
+  phase0_barrier_summary: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase0/barrier-summary.yaml
+  phase1_grading_summary: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase1/grading-summary.yaml
+  model_usage_ledger: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/model-usage-ledger.yaml
+  phase5_wave_1_barrier_summary: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+  phase5_wave_2_barrier_summary: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/wave-2-barrier-summary.yaml
+  phase5_wave_3_barrier_summary: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/wave-3-barrier-summary.yaml
+  phase6_gatekeeper_summary: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase6/Gatekeeper-summary.yaml
+  phase6_auditor_regression_summary: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase6/Auditor-Regression-summary.yaml
+  phase7_closure_summary: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase7/closure-summary.yaml
+readiness_state:
+  ready: true
+  focus_axis_due_next: architecture
+  memory_dir: /raid5/source/test/prism/docs/plan/.mutl3y-lessons
+  degraded_models:
+    - name: "GPT-5.4 mini (copilot)"
+      status: unknown
+  watch_models:
+    - "GPT-5 mini (copilot)"
+    - "GPT-5.4 (copilot)"

@@ -1,0 +1,25 @@
+phase1_grading_summary:
+  note: "Phase 1 grading uses the repaired authoritative scout artifacts. The first Claude Haiku 4.5 (copilot) scout batch was a schema-invalid quality failure, and the reroute summaries were not accepted as authoritative artifact proof."
+  promoted_count:
+    high: 1
+    medium: 2
+  promoted_findings:
+    - id: G61-H01
+      severity: high
+      title: "API scan-pipeline isolation wrappers erase plugin contracts behind object-typed composition"
+      suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py -k isolation"
+
+    - id: G61-M01
+      severity: medium
+      title: "Collection and DI plugin construction broaden exception handling through catch-all normalization"
+      suggested_narrow_gate: "pytest -q src/prism/tests/test_collection_contract.py -k exception"
+
+    - id: G61-M02
+      severity: medium
+      title: "Non-collection normalization and API wrappers still expose weak result and argument contracts"
+      suggested_narrow_gate: "mypy src/prism/api.py src/prism/api_layer/non_collection.py"
+
+  grading_notes: |
+    Light cycle g61 promotes one High ownership finding and two Medium follow-up
+    findings from the repaired authoritative scout artifacts. Proceed with
+    G61-H01 first.

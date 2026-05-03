@@ -1,0 +1,23 @@
+status: ok
+phase: P5
+cycle: g61
+wave: 1
+expected_artifacts:
+  - mutl3y-artifacts/phase5/wave-1-plan.yaml
+present_artifacts:
+  - mutl3y-artifacts/phase5/wave-1-start-audit.yaml
+  - mutl3y-artifacts/phase5/wave-1-plan.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Builder-Ownership
+owned_file_sets:
+  - agent_name: Builder-Ownership
+    files:
+      - src/prism/api.py
+      - src/prism/api_layer/plugin_facade.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+notes: >-
+  This is the first implementation wave for G61-H01. The ownership hop for the
+  builder is api.py -> api_layer/plugin_facade.py so scan-pipeline isolation
+  ownership can move behind the typed facade seam before widening scope.

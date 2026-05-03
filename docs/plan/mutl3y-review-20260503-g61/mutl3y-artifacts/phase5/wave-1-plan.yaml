@@ -1,0 +1,16 @@
+wave_id: wave-1
+phase: P5
+purpose: focused builder wave to implement G61-H01
+builders:
+  - name: Builder-Ownership
+    worker: Builder-Ownership
+    task_id: g61-wave1-builder-ownership
+    owned_files:
+      - src/prism/api.py
+      - src/prism/api_layer/plugin_facade.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    artifact: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/Builder-Ownership-summary.md
+notes: >-
+  Preserve run_scan behavior while relocating typed scan-pipeline isolation
+  ownership behind plugin_facade so api.py no longer owns object-typed
+  registry-isolation composition.

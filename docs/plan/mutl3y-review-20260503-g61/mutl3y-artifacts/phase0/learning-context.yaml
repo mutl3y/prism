@@ -1,0 +1,20 @@
+memory_source: docs/plan/.mutl3y-lessons
+active_lessons: []
+do_not_re_flag_count: 0
+focus_axis_due_next: architecture
+model_route_notes:
+  degraded:
+    - name: "GPT-5.4 mini (copilot)"
+      status: unknown
+  watch:
+    - "GPT-5 mini (copilot)"
+    - "GPT-5.4 (copilot)"
+stale_or_missing_memory: []
+readiness_check:
+  ready: true
+  focus_axis_due_next: architecture
+  memory_dir: /raid5/source/test/prism/docs/plan/.mutl3y-lessons
+route_notes:
+  - "g60 closure requires the next cycle to open as a light follow-up."
+  - "Light-cycle scope is changed files plus immediate neighbours from .mutl3y-gate/light_context.diff and .mutl3y-gate/light_neighbours.txt."
+  - "Current dirty-tree gate is green via .mutl3y-gate/resume-dirty-tree.yaml."

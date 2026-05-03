@@ -1,0 +1,11 @@
+wave_id: wave-1
+phase: P5
+summary: "Builder-Ownership closed G61-H01 by moving scan-pipeline registry isolation ownership behind api_layer/plugin_facade and validating the API seam with a direct regression plus narrow static checks."
+builders:
+  - worker: Builder-Ownership
+    task_id: g61-wave1-builder-ownership
+    result: success
+    artifact: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/Builder-Ownership-summary.md
+    notes: "api.py now consumes a facade-owned scan-pipeline registry isolation seam; focused pytest, ruff, black, and mypy all passed on the owned slice."
+
+ready_for_next_slice: true

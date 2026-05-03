@@ -1,0 +1,25 @@
+status: ok
+phase: P5
+cycle: g61
+wave: 2
+expected_artifacts:
+  - mutl3y-artifacts/phase5/wave-2-plan.yaml
+present_artifacts:
+  - mutl3y-artifacts/phase5/wave-2-start-audit.yaml
+  - mutl3y-artifacts/phase5/wave-2-plan.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Builder-ControlFlow
+owned_file_sets:
+  - agent_name: Builder-ControlFlow
+    files:
+      - src/prism/api_layer/collection.py
+      - src/prism/scanner_core/di.py
+      - src/prism/tests/test_collection_contract.py
+      - src/prism/tests/test_scanner_core_di.py
+notes: >-
+  Wave 2 targets G61-M01 only. The local repair goal is to restore typed
+  exception boundaries on the collection and DI plugin-construction seam
+  without widening contracts or disturbing the already-landed adjacent typing
+  work in the dirty tree.

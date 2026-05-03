@@ -1,0 +1,30 @@
+cycle: g61
+review_type: light
+status: cycle_complete
+checkpoint_class: clean_light_checkpoint
+decision_summary:
+  - G61-H01, G61-M01, and G61-M02 all closed with focused validation and a green retained Phase 6 gate.
+  - g61 is a valid clean light checkpoint only; it is not a terminating verdict under the iteration cadence.
+  - The next required step is a fresh whole-codebase thorough review in g62.
+gate_artifacts:
+  - docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase6/Gatekeeper-summary.yaml
+  - docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase6/Auditor-Regression-summary.yaml
+closure_artifacts:
+  - docs/plan/mutl3y-review-20260503-g61/findings.yaml
+  - docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+  - docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/wave-2-barrier-summary.yaml
+  - docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/wave-3-barrier-summary.yaml
+commit_status: committed
+commit_message: >-
+  mutl3y-g61: close clean light checkpoint
+
+  G61-H01: move scan-pipeline isolation behind api_layer/plugin_facade
+  G61-M01: restore typed collection and DI constructor exception boundaries
+  G61-M02: strengthen normalized non-collection result contracts
+next_cycle:
+  cycle: g62
+  review_type: thorough
+  focus_axis: architecture
+  next_action: "Dispatch the full Phase 0 scout sweep for g62 in the same turn."
+overall_stop_valid: false
+cleanup_candidates: []

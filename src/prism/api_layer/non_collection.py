@@ -2,31 +2,413 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 from pathlib import Path
 import threading
-from typing import TYPE_CHECKING, Any, Callable, Protocol, cast
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Callable, NotRequired, Protocol, cast
 
 if TYPE_CHECKING:
     from .. import repo_services
     from prism.scanner_core.scan_cache import ScanCacheBackend
-    from prism.scanner_data.contracts_request import PreparedPolicyBundle
 
 from . import plugin_facade
-from prism.api_layer.payload_helpers import normalize_scan_role_payload_shape
-from prism.errors import FailurePolicy, PrismRuntimeError
-from prism.scanner_data import RepoScanResult, RoleScanResult
+from prism.errors import (
+    FailureDetail,
+    FailurePolicy,
+    PrismRuntimeError,
+    normalize_metadata_warnings,
+)
+from prism.scanner_data import RepoScanResult
+from prism.scanner_data.contracts_output import (
+    RunScanOutputPayload,
+    validate_run_scan_output_payload,
+)
+from prism.scanner_data.contracts_request import (
+    DisplayVariables,
+    PreparedPolicyBundle,
+    ScanMetadata,
+    ScanPolicyContext,
+    ScanOptionsDict,
+)
 from prism.scanner_kernel.orchestrator import RoutePreflightRuntimeCarrier
 
 _logger = logging.getLogger(__name__)
+_MISSING_PREPARED_POLICY_BUNDLE = object()
 
 
-class _EnsurePreparedPolicyBundleFn(Protocol):
-    """Facade-callable protocol for policy bundle preparation."""
+class _ExecutionRequestEnsurePreparedPolicyBundleFn(Protocol):
+    """Execution-request contract for policy bundle preparation."""
+
+    def __call__(self, *, scan_options: ScanOptionsDict, di: object) -> None: ...
+
+
+class _BuildRunScanOptionsCanonicalFn(Protocol):
+    """Typed local contract for canonical run-scan option assembly."""
 
     def __call__(
-        self, *, scan_options: dict[str, object], di: object
-    ) -> PreparedPolicyBundle: ...
+        self,
+        *,
+        role_path: str,
+        role_name_override: str | None,
+        readme_config_path: str | None,
+        policy_config_path: str | None = None,
+        include_vars_main: bool,
+        exclude_path_patterns: list[str] | None,
+        detailed_catalog: bool,
+        include_task_parameters: bool,
+        include_task_runbooks: bool,
+        inline_task_runbooks: bool,
+        include_collection_checks: bool,
+        keep_unknown_style_sections: bool,
+        adopt_heading_mode: str | None,
+        vars_seed_paths: list[str] | None,
+        style_readme_path: str | None,
+        style_source_path: str | None,
+        style_guide_skeleton: bool,
+        compare_role_path: str | None,
+        fail_on_unconstrained_dynamic_includes: bool | None,
+        fail_on_yaml_like_task_annotations: bool | None,
+        ignore_unresolved_internal_underscore_references: bool | None,
+        policy_context: ScanPolicyContext | None = None,
+        prepared_policy_bundle: PreparedPolicyBundle | None = None,
+    ) -> ScanOptionsDict: ...
+
+
+class _KernelOrchestratorFn(Protocol):
+    """Typed local kernel orchestration contract for routed non-collection scans."""
+
+    def __call__(
+        self,
+        *,
+        role_path: str,
+        scan_options: ScanOptionsDict,
+        route_preflight_runtime: RoutePreflightRuntimeCarrier | None = None,
+    ) -> dict[str, object]: ...
+
+
+class _NormalizedNonCollectionResult(RunScanOutputPayload):
+    """Stable public payload for the non-collection run-scan seam."""
+
+    variables: DisplayVariables
+    requirements: list[object]
+    default_filters: list[object]
+    warnings: NotRequired[list[FailureDetail]]
+
+
+class _RouteScanPayloadOrchestrationFn(Protocol):
+    """Route the non-collection payload through preflight and runtime orchestration."""
+
+    def __call__(
+        self,
+        *,
+        role_path: str,
+        scan_options: ScanOptionsDict,
+        kernel_orchestrator_fn: _KernelOrchestratorFn,
+        registry: object | None = None,
+    ) -> dict[str, object]: ...
+
+
+class _OrchestrateScanPayloadWithSelectedPluginFn(Protocol):
+    """Execute runtime payload orchestration for the selected scan plugin."""
+
+    def __call__(
+        self,
+        *,
+        build_payload_fn: Callable[[], RunScanOutputPayload],
+        scan_options: ScanOptionsDict,
+        strict_mode: bool,
+        preflight_context: ScanMetadata | None = None,
+        route_preflight_runtime: RoutePreflightRuntimeCarrier | None = None,
+        registry: object | None = None,
+    ) -> dict[str, object]: ...
+
+
+def _copy_scan_options(scan_options: ScanOptionsDict) -> ScanOptionsDict:
+    return cast(ScanOptionsDict, _copy_object_mapping(scan_options))
+
+
+def _resolve_run_scan_default_classes(
+    *,
+    di_container_cls: object | None,
+    feature_detector_cls: object | None,
+    scanner_context_cls: object | None,
+    variable_discovery_cls: object | None,
+) -> tuple[object, object, object, object]:
+    """Resolve the default runtime classes for run_scan in one lazy seam."""
+    if (
+        di_container_cls is not None
+        and feature_detector_cls is not None
+        and scanner_context_cls is not None
+        and variable_discovery_cls is not None
+    ):
+        return (
+            di_container_cls,
+            feature_detector_cls,
+            scanner_context_cls,
+            variable_discovery_cls,
+        )
+
+    from prism.scanner_core.di import DIContainer
+    from prism.scanner_core.feature_detector import FeatureDetector
+    from prism.scanner_core.scanner_context import ScannerContext
+    from prism.scanner_core.variable_discovery import VariableDiscovery
+
+    return (
+        DIContainer if di_container_cls is None else di_container_cls,
+        FeatureDetector if feature_detector_cls is None else feature_detector_cls,
+        ScannerContext if scanner_context_cls is None else scanner_context_cls,
+        VariableDiscovery if variable_discovery_cls is None else variable_discovery_cls,
+    )
+
+
+def _coerce_scan_metadata(value: object) -> ScanMetadata:
+    if not isinstance(value, dict):
+        return ScanMetadata()
+    return cast(ScanMetadata, copy.copy(value))
+
+
+def _default_build_run_scan_options_canonical(
+    *,
+    role_path: str,
+    role_name_override: str | None,
+    readme_config_path: str | None,
+    policy_config_path: str | None = None,
+    include_vars_main: bool,
+    exclude_path_patterns: list[str] | None,
+    detailed_catalog: bool,
+    include_task_parameters: bool,
+    include_task_runbooks: bool,
+    inline_task_runbooks: bool,
+    include_collection_checks: bool,
+    keep_unknown_style_sections: bool,
+    adopt_heading_mode: str | None,
+    vars_seed_paths: list[str] | None,
+    style_readme_path: str | None,
+    style_source_path: str | None,
+    style_guide_skeleton: bool,
+    compare_role_path: str | None,
+    fail_on_unconstrained_dynamic_includes: bool | None,
+    fail_on_yaml_like_task_annotations: bool | None,
+    ignore_unresolved_internal_underscore_references: bool | None,
+    policy_context: ScanPolicyContext | None = None,
+    prepared_policy_bundle: PreparedPolicyBundle | None = None,
+) -> ScanOptionsDict:
+    from prism.scanner_core.scan_request import build_run_scan_options_canonical
+
+    return build_run_scan_options_canonical(
+        role_path=role_path,
+        role_name_override=role_name_override,
+        readme_config_path=readme_config_path,
+        policy_config_path=policy_config_path,
+        include_vars_main=include_vars_main,
+        exclude_path_patterns=exclude_path_patterns,
+        detailed_catalog=detailed_catalog,
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
+        include_collection_checks=include_collection_checks,
+        keep_unknown_style_sections=keep_unknown_style_sections,
+        adopt_heading_mode=adopt_heading_mode,
+        vars_seed_paths=vars_seed_paths,
+        style_readme_path=style_readme_path,
+        style_source_path=style_source_path,
+        style_guide_skeleton=style_guide_skeleton,
+        compare_role_path=compare_role_path,
+        fail_on_unconstrained_dynamic_includes=(fail_on_unconstrained_dynamic_includes),
+        fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
+        ignore_unresolved_internal_underscore_references=(
+            ignore_unresolved_internal_underscore_references
+        ),
+        policy_context=policy_context,
+        prepared_policy_bundle=prepared_policy_bundle,
+    )
+
+
+def _copy_object_mapping(value: Mapping[str, object]) -> dict[str, object]:
+    return {key: item for key, item in value.items()}
+
+
+def _merge_scan_options(
+    base: ScanOptionsDict,
+    override: ScanOptionsDict,
+) -> ScanOptionsDict:
+    merged = _copy_object_mapping(base)
+    merged.update(override)
+    return cast(ScanOptionsDict, merged)
+
+
+def _default_route_scan_payload_orchestration(
+    *,
+    role_path: str,
+    scan_options: ScanOptionsDict,
+    kernel_orchestrator_fn: _KernelOrchestratorFn,
+    registry: object | None = None,
+) -> dict[str, object]:
+    from prism.scanner_kernel.orchestrator import route_scan_payload_orchestration
+    from prism.scanner_core.protocols_runtime import KernelResponse
+
+    def _kernel_orchestrator_adapter(
+        *,
+        role_path: str,
+        scan_options: ScanOptionsDict,
+        route_preflight_runtime: RoutePreflightRuntimeCarrier | None = None,
+    ) -> KernelResponse:
+        return cast(
+            KernelResponse,
+            kernel_orchestrator_fn(
+                role_path=role_path,
+                scan_options=scan_options,
+                route_preflight_runtime=route_preflight_runtime,
+            ),
+        )
+
+    return route_scan_payload_orchestration(
+        role_path=role_path,
+        scan_options=_copy_scan_options(scan_options),
+        kernel_orchestrator_fn=_kernel_orchestrator_adapter,
+        registry=registry,
+    )
+
+
+def _default_orchestrate_scan_payload_with_selected_plugin(
+    *,
+    build_payload_fn: Callable[[], RunScanOutputPayload],
+    scan_options: ScanOptionsDict,
+    strict_mode: bool,
+    preflight_context: ScanMetadata | None = None,
+    route_preflight_runtime: RoutePreflightRuntimeCarrier | None = None,
+    registry: object | None = None,
+) -> dict[str, object]:
+    from prism.scanner_kernel.orchestrator import (
+        orchestrate_scan_payload_with_selected_plugin,
+    )
+
+    def _build_payload_dict() -> dict[str, object]:
+        return _copy_object_mapping(build_payload_fn())
+
+    return orchestrate_scan_payload_with_selected_plugin(
+        build_payload_fn=_build_payload_dict,
+        scan_options=_copy_scan_options(scan_options),
+        strict_mode=strict_mode,
+        preflight_context=preflight_context,
+        route_preflight_runtime=route_preflight_runtime,
+        registry=registry,
+    )
+
+
+def _coerce_object_list(value: object) -> list[object] | None:
+    if not isinstance(value, list):
+        return None
+    return list(value)
+
+
+def _coerce_display_variables(value: object) -> DisplayVariables | None:
+    if not isinstance(value, dict):
+        return None
+    return value
+
+
+def _normalize_non_collection_result_shape(
+    payload: Mapping[str, object],
+) -> _NormalizedNonCollectionResult:
+    validation_candidate = _copy_object_mapping(payload)
+    if (
+        "display_variables" not in validation_candidate
+        and "variables" in validation_candidate
+    ):
+        validation_candidate["display_variables"] = validation_candidate["variables"]
+    if (
+        "requirements_display" not in validation_candidate
+        and "requirements" in validation_candidate
+    ):
+        validation_candidate["requirements_display"] = validation_candidate[
+            "requirements"
+        ]
+    if (
+        "undocumented_default_filters" not in validation_candidate
+        and "default_filters" in validation_candidate
+    ):
+        validation_candidate["undocumented_default_filters"] = validation_candidate[
+            "default_filters"
+        ]
+
+    validated_payload = validate_run_scan_output_payload(validation_candidate)
+    display_variables = _coerce_display_variables(
+        validated_payload["display_variables"]
+    )
+    requirements_display = _coerce_object_list(
+        validated_payload["requirements_display"]
+    )
+    undocumented_default_filters = _coerce_object_list(
+        validated_payload["undocumented_default_filters"]
+    )
+    metadata = _coerce_scan_metadata(validated_payload["metadata"])
+
+    if display_variables is None:
+        raise ValueError("validated display_variables must be a dict")
+    if requirements_display is None:
+        raise ValueError("validated requirements_display must be a list")
+    if undocumented_default_filters is None:
+        raise ValueError("validated undocumented_default_filters must be a list")
+
+    normalized: _NormalizedNonCollectionResult = {
+        "role_name": validated_payload["role_name"],
+        "description": validated_payload["description"],
+        "display_variables": display_variables,
+        "variables": display_variables,
+        "requirements_display": requirements_display,
+        "requirements": requirements_display,
+        "undocumented_default_filters": undocumented_default_filters,
+        "default_filters": undocumented_default_filters,
+        "metadata": metadata,
+    }
+
+    warnings = normalize_metadata_warnings(_copy_object_mapping(metadata))
+    if warnings:
+        normalized["warnings"] = warnings
+
+    return normalized
+
+
+def _bundle_value_fingerprint(value: object) -> object:
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_bundle_value_fingerprint(v) for v in value]
+    if isinstance(value, (set, frozenset)):
+        return sorted(
+            [_bundle_value_fingerprint(v) for v in value],
+            key=lambda item: repr(item),
+        )
+    if isinstance(value, dict):
+        return sorted(
+            (str(key), _bundle_value_fingerprint(item)) for key, item in value.items()
+        )
+    return f"{type(value).__module__}.{type(value).__qualname__}"
+
+
+def _prepared_policy_bundle_cache_marker(
+    scan_options: Mapping[str, object],
+) -> tuple[str, object]:
+    raw_bundle = scan_options.get(
+        "prepared_policy_bundle", _MISSING_PREPARED_POLICY_BUNDLE
+    )
+    if raw_bundle is _MISSING_PREPARED_POLICY_BUNDLE or raw_bundle is None:
+        return ("__prepared_policy_bundle_state__", "missing")
+    if not isinstance(raw_bundle, dict):
+        return (
+            "__prepared_policy_bundle_state__",
+            f"unexpected:{type(raw_bundle).__module__}.{type(raw_bundle).__qualname__}",
+        )
+    return (
+        "__bundle_fingerprint__",
+        sorted(
+            (str(key), _bundle_value_fingerprint(value))
+            for key, value in raw_bundle.items()
+        ),
+    )
 
 
 _repo_scan_facade: repo_services.RepoScanFacade | None = None
@@ -116,15 +498,17 @@ def run_scan(
     fail_on_unconstrained_dynamic_includes: bool | None = None,
     fail_on_yaml_like_task_annotations: bool | None = None,
     ignore_unresolved_internal_underscore_references: bool | None = None,
-    policy_context: dict[str, object] | None = None,
+    policy_context: ScanPolicyContext | None = None,
     strict_phase_failures: bool = True,
     scan_pipeline_plugin: str | None = None,
     cache_backend: ScanCacheBackend | None = None,
     validate_role_path_fn=_validate_role_path,
     extract_role_description_fn=_extract_role_description,
-    build_run_scan_options_canonical_fn=None,
-    route_scan_payload_orchestration_fn=None,
-    orchestrate_scan_payload_with_selected_plugin_fn=None,
+    build_run_scan_options_canonical_fn: _BuildRunScanOptionsCanonicalFn | None = None,
+    route_scan_payload_orchestration_fn: _RouteScanPayloadOrchestrationFn | None = None,
+    orchestrate_scan_payload_with_selected_plugin_fn: (
+        _OrchestrateScanPayloadWithSelectedPluginFn | None
+    ) = None,
     di_container_cls=None,
     feature_detector_cls=None,
     scanner_context_cls=None,
@@ -133,42 +517,28 @@ def run_scan(
         Callable[[object], plugin_facade.CommentDrivenDocumentationPlugin] | None
     ) = None,
     default_plugin_registry: plugin_facade.PluginRegistry | None = None,
-    ensure_prepared_policy_bundle_fn: _EnsurePreparedPolicyBundleFn | None = None,
-) -> dict[str, object]:
+) -> _NormalizedNonCollectionResult:
     """Run the non-collection scanner orchestration and return a payload."""
     # Lazy-load scanner_core and scanner_kernel imports to reduce module load time
     if build_run_scan_options_canonical_fn is None:
-        from prism.scanner_core.scan_request import build_run_scan_options_canonical
-
-        build_run_scan_options_canonical_fn = build_run_scan_options_canonical
+        build_run_scan_options_canonical_fn = _default_build_run_scan_options_canonical
     if route_scan_payload_orchestration_fn is None:
-        from prism.scanner_kernel.orchestrator import route_scan_payload_orchestration
-
-        route_scan_payload_orchestration_fn = route_scan_payload_orchestration
+        route_scan_payload_orchestration_fn = _default_route_scan_payload_orchestration
     if orchestrate_scan_payload_with_selected_plugin_fn is None:
-        from prism.scanner_kernel.orchestrator import (
-            orchestrate_scan_payload_with_selected_plugin,
-        )
-
         orchestrate_scan_payload_with_selected_plugin_fn = (
-            orchestrate_scan_payload_with_selected_plugin
+            _default_orchestrate_scan_payload_with_selected_plugin
         )
-    if di_container_cls is None:
-        from prism.scanner_core.di import DIContainer
-
-        di_container_cls = DIContainer
-    if feature_detector_cls is None:
-        from prism.scanner_core.feature_detector import FeatureDetector
-
-        feature_detector_cls = FeatureDetector
-    if scanner_context_cls is None:
-        from prism.scanner_core.scanner_context import ScannerContext
-
-        scanner_context_cls = ScannerContext
-    if variable_discovery_cls is None:
-        from prism.scanner_core.variable_discovery import VariableDiscovery
-
-        variable_discovery_cls = VariableDiscovery
+    (
+        di_container_cls,
+        feature_detector_cls,
+        scanner_context_cls,
+        variable_discovery_cls,
+    ) = _resolve_run_scan_default_classes(
+        di_container_cls=di_container_cls,
+        feature_detector_cls=feature_detector_cls,
+        scanner_context_cls=scanner_context_cls,
+        variable_discovery_cls=variable_discovery_cls,
+    )
 
     from prism.scanner_core.scanner_context import (
         build_non_collection_run_scan_execution_request,
@@ -182,11 +552,18 @@ def run_scan(
     if default_plugin_registry is None:
         default_plugin_registry = plugin_facade.get_default_plugin_registry()
 
-    _resolved_ensure_fn: Any
-    if ensure_prepared_policy_bundle_fn is None:
-        _resolved_ensure_fn = plugin_facade.ensure_prepared_policy_bundle
-    else:
-        _resolved_ensure_fn = ensure_prepared_policy_bundle_fn
+    _resolved_ensure_fn = plugin_facade.ensure_prepared_policy_bundle
+
+    def _ensure_prepared_policy_bundle_for_execution_request(
+        *,
+        scan_options: ScanOptionsDict,
+        di: object,
+    ) -> None:
+        prepared_policy_bundle = _resolved_ensure_fn(
+            scan_options=_copy_object_mapping(scan_options),
+            di=di,
+        )
+        scan_options["prepared_policy_bundle"] = prepared_policy_bundle
 
     execution_request = build_non_collection_run_scan_execution_request(
         role_path=role_path,
@@ -215,7 +592,9 @@ def run_scan(
         ignore_unresolved_internal_underscore_references=(
             ignore_unresolved_internal_underscore_references
         ),
-        policy_context=policy_context,
+        policy_context=(
+            _copy_object_mapping(policy_context) if policy_context is not None else None
+        ),
         strict_phase_failures=strict_phase_failures,
         scan_pipeline_plugin=scan_pipeline_plugin,
         validate_role_path_fn=validate_role_path_fn,
@@ -229,65 +608,58 @@ def run_scan(
             resolve_comment_driven_documentation_plugin_fn
         ),
         default_plugin_registry=default_plugin_registry,
-        ensure_prepared_policy_bundle_fn=_resolved_ensure_fn,
+        ensure_prepared_policy_bundle_fn=_ensure_prepared_policy_bundle_for_execution_request,
     )
 
     _cache_key: str | None = None
     if cache_backend is not None:
         from prism.scanner_core.scan_cache import (
+            compute_path_content_hash,
             compute_role_content_hash,
             compute_scan_cache_key,
         )
 
         _role_content_hash = compute_role_content_hash(execution_request.role_path)
-        _bundle: PreparedPolicyBundle | dict[str, Any] = (
-            execution_request.scan_options.get("prepared_policy_bundle") or {}
-        )
-
-        def _bundle_value_fingerprint(value: object) -> object:
-            if isinstance(value, (str, int, float, bool)) or value is None:
-                return value
-            if isinstance(value, (list, tuple)):
-                return [_bundle_value_fingerprint(v) for v in value]
-            if isinstance(value, (set, frozenset)):
-                return sorted(
-                    [_bundle_value_fingerprint(v) for v in value],
-                    key=lambda x: repr(x),
-                )
-            if isinstance(value, dict):
-                return sorted(
-                    (str(k), _bundle_value_fingerprint(v)) for k, v in value.items()
-                )
-            return f"{type(value).__module__}.{type(value).__qualname__}"
-
-        _bundle_fingerprint = sorted(
-            (str(_key), _bundle_value_fingerprint(_value))
-            for _key, _value in _bundle.items()
+        _bundle_marker_key, _bundle_marker_value = _prepared_policy_bundle_cache_marker(
+            execution_request.scan_options
         )
         _stable_opts = {
             k: v
             for k, v in execution_request.scan_options.items()
             if k != "prepared_policy_bundle"
         }
-        _stable_opts["__bundle_fingerprint__"] = _bundle_fingerprint
+        _external_style_inputs = []
+        for _key in ("style_readme_path", "style_source_path"):
+            _path = _stable_opts.get(_key)
+            if isinstance(_path, str) and _path:
+                _external_style_inputs.append((_key, compute_path_content_hash(_path)))
+        _stable_opts[_bundle_marker_key] = _bundle_marker_value
+        if _external_style_inputs:
+            _stable_opts["__external_style_fingerprint__"] = sorted(
+                _external_style_inputs
+            )
         _cache_key = compute_scan_cache_key(
             role_content_hash=_role_content_hash,
             scan_options=_stable_opts,
         )
         _cached = cache_backend.get(_cache_key)
         if _cached is not None:
-            return _cached
+            return _normalize_non_collection_result_shape(_cached)
 
     def _kernel_orchestrator(
         *,
         role_path: str,
-        scan_options: dict[str, Any],
+        scan_options: ScanOptionsDict,
         route_preflight_runtime: RoutePreflightRuntimeCarrier | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         del role_path
+        merged_scan_options = _merge_scan_options(
+            execution_request.scan_options,
+            scan_options,
+        )
         return orchestrate_scan_payload_with_selected_plugin_fn(
             build_payload_fn=execution_request.build_payload_fn,
-            scan_options=dict(execution_request.scan_options, **scan_options),
+            scan_options=merged_scan_options,
             strict_mode=execution_request.strict_mode,
             route_preflight_runtime=route_preflight_runtime,
             registry=execution_request.runtime_registry,
@@ -300,10 +672,12 @@ def run_scan(
         registry=execution_request.runtime_registry,
     )
 
-    if cache_backend is not None and _cache_key is not None:
-        cache_backend.set(_cache_key, result)
+    normalized_result = _normalize_non_collection_result_shape(result)
 
-    return result
+    if cache_backend is not None and _cache_key is not None:
+        cache_backend.set(_cache_key, normalized_result)
+
+    return normalized_result
 
 
 def scan_role(
@@ -333,8 +707,8 @@ def scan_role(
     include_task_runbooks: bool = True,
     inline_task_runbooks: bool = True,
     failure_policy: FailurePolicy | None = None,
-    run_scan_fn=run_scan,
-) -> RoleScanResult:
+    run_scan_fn: Callable[..., _NormalizedNonCollectionResult] = run_scan,
+) -> _NormalizedNonCollectionResult:
     """Package-owned role scan seam for the fsrc public facade."""
     strict_phase_failures = True
     if failure_policy is not None:
@@ -369,8 +743,7 @@ def scan_role(
         ),
         strict_phase_failures=strict_phase_failures,
     )
-    # Safe: normalize_scan_role_payload_shape returns a dict with RoleScanResult shape
-    return cast(RoleScanResult, normalize_scan_role_payload_shape(result))
+    return result
 
 
 def scan_repo(

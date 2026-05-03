@@ -1,0 +1,18 @@
+wave_id: wave-3
+phase: P5
+purpose: focused builder wave to implement G61-M02
+builders:
+  - name: Builder-Typing
+    worker: Builder-Typing
+    task_id: g61-wave3-builder-typing
+    owned_files:
+      - src/prism/api.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    artifact: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+notes: >-
+  Preserve current runtime behavior while tightening the type contract. The
+  non-collection seam should expose a complete post-normalization result shape
+  rooted in the canonical RunScanOutputPayload contract, and api.py should
+  consume that stronger shape without relying on permissive total=False result
+  typing or casts that mask missing fields.

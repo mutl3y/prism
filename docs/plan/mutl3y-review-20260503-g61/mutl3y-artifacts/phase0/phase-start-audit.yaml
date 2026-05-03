@@ -1,0 +1,23 @@
+status: ok
+phase: P0
+cycle: g61
+wave: null
+expected_artifacts:
+  - mutl3y-artifacts/phase0/learning-context.yaml
+present_artifacts:
+  - .mutl3y-gate/resume-dirty-tree.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+notes:
+  - "g60 is complete; g61 is the required light follow-up cycle."
+  - "resume-dirty-tree gate passed (green)."
+resume_dirty_tree:
+  status: OK
+  ruff_exit: 0
+  black_exit: 0
+  artifact: .mutl3y-gate/resume-dirty-tree.yaml

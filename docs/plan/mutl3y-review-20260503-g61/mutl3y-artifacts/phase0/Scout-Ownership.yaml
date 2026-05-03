@@ -1,0 +1,89 @@
+- id: Scout-Ownership-01
+  category: ownership
+  fingerprint: "ownership:api.wrapper_factory:object_parameter_loses_protocol_contract"
+  file: src/prism/api.py
+  line: 234
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def _wrap_scan_pipeline_plugin_factory(plugin_factory: object) -> object:"
+  evidence_command: "src/prism/api.py#L234-L270"
+  related_symbols: ["_wrap_scan_pipeline_plugin_factory", "_ProcessScanPipelinePlugin", "_OrchestrateScanPayloadPlugin", "cast"]
+  fix_group_key: api.plugin_isolation_facade_leakage
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: "mypy src/prism/api.py --no-error-summary 2>&1 | grep -E 'object.*Protocol|_wrap_scan_pipeline'"
+
+- id: Scout-Ownership-02
+  category: facade_leakage
+  fingerprint: "facade_leakage:api.isolation_wrapper:getattr_returns_object_destroys_delegation_typing"
+  file: src/prism/api.py
+  line: 274
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def __getattr__(self, name: str) -> object: return getattr(self._inner, name)"
+  evidence_command: "src/prism/api.py#L274-L275, L297-L298"
+  related_symbols: ["_OrchestratingScanPipelinePluginIsolationWrapper.__getattr__", "_ScanPipelinePluginIsolationWrapper.__getattr__"]
+  fix_group_key: api.plugin_isolation_facade_leakage
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "mypy src/prism/api.py --no-error-summary 2>&1 | grep '__getattr__.*object'"
+
+- id: Scout-Ownership-03
+  category: composition_root
+  fingerprint: "composition_root:api.run_scan:registry_isolation_ownership_leak"
+  file: src/prism/api.py
+  line: 415
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_isolate_scan_pipeline_registry(plugin_facade.get_default_plugin_registry())"
+  evidence_command: "src/prism/api.py#L413-L417"
+  related_symbols: ["run_scan", "_isolate_scan_pipeline_registry", "default_plugin_registry"]
+  fix_group_key: api.plugin_isolation_facade_leakage
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "grep -n 'default_plugin_registry' src/prism/api.py src/prism/api_layer/non_collection.py | head -10"
+
+- id: Scout-Ownership-04
+  category: shell_boundary
+  fingerprint: "shell_boundary:api_layer/collection.py:error_handling_logic_moved_post_catch"
+  file: src/prism/api_layer/collection.py
+  line: 221
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except Exception as exc: if not _is_recoverable_role_content_error"
+  evidence_command: "src/prism/api_layer/collection.py#L221-L228"
+  related_symbols: ["_is_recoverable_role_content_error", "collection_role_content_recoverable_errors"]
+  fix_group_key: api_layer.error_handling_boundary
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: "grep -B5 -A10 '_is_recoverable_role_content_error' src/prism/api_layer/collection.py"
+
+- id: Scout-Ownership-05
+  category: test_gap
+  fingerprint: "test_gap:api.isolation_wrapper:zero_direct_test_coverage_for_factory_functions"
+  file: src/prism/tests/test_api_cli_entrypoints.py
+  line: 0
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "grep '_wrap_scan_pipeline_plugin_factory' src/prism/tests/*.py returns 0 results"
+  evidence_command: "grep -r '_wrap_scan_pipeline_plugin_factory' src/prism/tests/"
+  related_symbols: ["_wrap_scan_pipeline_plugin_factory", "_isolate_scan_pipeline_registry"]
+  fix_group_key: api.plugin_isolation_facade_leakage
+  proposed_fix_class: add_test
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest src/prism/tests/test_api_cli_entrypoints.py -v -k 'isolation' --collect-only"

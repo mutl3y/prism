@@ -74,6 +74,12 @@ class _NoDIPlugin:
     pass
 
 
+class _ExplodingPlugin:
+    def __init__(self, *, di) -> None:
+        del di
+        raise ValueError("ctor boom")
+
+
 # ---------------------------------------------------------------------------
 # resolve_platform_key
 # ---------------------------------------------------------------------------
@@ -96,6 +102,18 @@ def test_resolve_platform_key_registry_default():
     with _prefer_fsrc_prism_on_sys_path():
         di = _load_di_module()
         assert di.resolve_platform_key({}, registry=_FakeRegistry()) == "ansible"
+
+
+def test_resolve_platform_key_does_not_infer_ambiguous_registry_order() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        di = _load_di_module()
+
+        class _AmbiguousRegistry:
+            def get_default_platform_key(self) -> None:
+                return None
+
+        with pytest.raises(ValueError):
+            di.resolve_platform_key({}, registry=_AmbiguousRegistry())
 
 
 def test_resolve_platform_key_raises_when_unresolvable():
@@ -131,7 +149,8 @@ def test_container_scan_options_property_exposes_dict():
         di = _load_di_module()
         opts = {"k": "v"}
         c = di.DIContainer(role_path="/r", scan_options=opts)
-        assert c.scan_options is opts
+        assert c.scan_options == opts
+        assert c.scan_options is not opts
 
 
 # ---------------------------------------------------------------------------
@@ -293,8 +312,21 @@ def test_factory_variable_discovery_plugin_fail_closed_on_bad_constructor():
         with pytest.raises(errors.PrismRuntimeError) as exc_info:
             c.factory_variable_discovery_plugin()
 
+    assert exc_info.value.code == "malformed_plugin_shape"
     detail = exc_info.value.detail or {}
     assert detail.get("plugin_class") == "_NoDIPlugin"
+
+
+def test_factory_variable_discovery_plugin_fail_closed_on_constructor_exception():
+    with _prefer_fsrc_prism_on_sys_path():
+        di = _load_di_module()
+        c = di.DIContainer(
+            role_path="/r",
+            scan_options={"scan_pipeline_plugin": "ansible"},
+            registry=_FakeRegistry(variable_plugin=_ExplodingPlugin),
+        )
+        with pytest.raises(ValueError, match="ctor boom"):
+            c.factory_variable_discovery_plugin()
 
 
 def test_factory_feature_detection_plugin_fail_closed_unregistered():
@@ -354,8 +386,21 @@ def test_factory_feature_detection_plugin_fail_closed_on_bad_constructor():
         with pytest.raises(errors.PrismRuntimeError) as exc_info:
             c.factory_feature_detection_plugin()
 
+    assert exc_info.value.code == "malformed_plugin_shape"
     detail = exc_info.value.detail or {}
     assert detail.get("plugin_class") == "_NoDIPlugin"
+
+
+def test_factory_feature_detection_plugin_fail_closed_on_constructor_exception():
+    with _prefer_fsrc_prism_on_sys_path():
+        di = _load_di_module()
+        c = di.DIContainer(
+            role_path="/r",
+            scan_options={"scan_pipeline_plugin": "ansible"},
+            registry=_FakeRegistry(feature_plugin=_ExplodingPlugin),
+        )
+        with pytest.raises(ValueError, match="ctor boom"):
+            c.factory_feature_detection_plugin()
 
 
 # ---------------------------------------------------------------------------

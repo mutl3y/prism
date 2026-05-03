@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -15,7 +16,7 @@ FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
 
 @contextmanager
-def _prefer_fsrc_prism_on_sys_path() -> object:
+def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -350,6 +351,52 @@ def test_fsrc_api_scan_collection_demotes_recoverable_role_content_failure(
     ]
 
 
+def test_fsrc_api_scan_collection_demotes_role_content_runtime_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    collection_root = tmp_path / "demo_collection"
+    _build_collection_root(collection_root)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+        errors_module = importlib.import_module("prism.errors")
+
+        def _fake_scan_role(role_path: str, **kwargs: object) -> dict[str, object]:
+            del kwargs
+            role_name = Path(role_path).name
+            if role_name == "role_b":
+                raise errors_module.PrismRuntimeError(
+                    code="role_content_yaml_invalid",
+                    message="invalid role yaml",
+                    category="parser",
+                )
+            return {"role_name": role_name, "metadata": {}}
+
+        monkeypatch.setattr(api_module, "scan_role", _fake_scan_role)
+
+        payload = api_module.scan_collection(str(collection_root))
+
+    assert [entry["role"] for entry in payload["roles"]] == ["role_a"]
+    assert payload["summary"] == {
+        "total_roles": 2,
+        "scanned_roles": 1,
+        "failed_roles": 1,
+    }
+    assert payload["failures"] == [
+        {
+            "role": "role_b",
+            "path": str((collection_root / "roles" / "role_b").resolve()),
+            "error_code": "role_content_yaml_invalid",
+            "error_category": "parser",
+            "error_type": "PrismRuntimeError",
+            "error": "role_content_yaml_invalid: invalid role yaml",
+            "error_detail_code": "role_content_yaml_invalid",
+            "detail_code": "role_content_yaml_invalid",
+        }
+    ]
+
+
 def test_fsrc_api_scan_collection_reraises_nonrecoverable_role_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -371,7 +418,7 @@ def test_fsrc_api_scan_collection_reraises_nonrecoverable_role_failure(
             api_module.scan_collection(str(collection_root))
 
 
-def test_fsrc_api_scan_collection_demotes_role_scan_runtime_failures(
+def test_fsrc_api_scan_collection_reraises_role_scan_runtime_failures(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -390,24 +437,8 @@ def test_fsrc_api_scan_collection_demotes_role_scan_runtime_failures(
 
         monkeypatch.setattr(api_module, "scan_role", _fake_scan_role)
 
-        payload = api_module.scan_collection(str(collection_root))
-
-    assert [entry["role"] for entry in payload["roles"]] == ["role_a"]
-    assert payload["summary"] == {
-        "total_roles": 2,
-        "scanned_roles": 1,
-        "failed_roles": 1,
-    }
-    assert payload["failures"] == [
-        {
-            "role": "role_b",
-            "path": str((collection_root / "roles" / "role_b").resolve()),
-            "error_code": "role_scan_runtime_error",
-            "error_category": "runtime",
-            "error_type": "RuntimeError",
-            "error": "scan boom",
-        }
-    ]
+        with pytest.raises(RuntimeError, match="scan boom"):
+            api_module.scan_collection(str(collection_root))
 
 
 def test_fsrc_api_scan_collection_rejects_root_without_galaxy_metadata(
@@ -465,10 +496,14 @@ def test_fsrc_api_scan_collection_rejects_unreadable_galaxy_metadata(
     galaxy_path = collection_root / "galaxy.yml"
     original_read_text = Path.read_text
 
-    def _fake_read_text(self: Path, *args: object, **kwargs: object) -> str:
+    def _fake_read_text(
+        self: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
         if self == galaxy_path:
             raise UnicodeDecodeError("utf-8", b"\x80", 0, 1, "invalid start byte")
-        return original_read_text(self, *args, **kwargs)
+        return original_read_text(self, encoding=encoding, errors=errors)
 
     monkeypatch.setattr(Path, "read_text", _fake_read_text)
 
@@ -539,10 +574,14 @@ def test_fsrc_api_scan_collection_fails_before_role_scans_or_artifact_writes(
         if read_failure is not None:
             original_read_text = Path.read_text
 
-            def _fake_read_text(self: Path, *args: object, **kwargs: object) -> str:
+            def _fake_read_text(
+                self: Path,
+                encoding: str | None = None,
+                errors: str | None = None,
+            ) -> str:
                 if self == galaxy_path:
                     raise read_failure
-                return original_read_text(self, *args, **kwargs)
+                return original_read_text(self, encoding=encoding, errors=errors)
 
             monkeypatch.setattr(Path, "read_text", _fake_read_text)
 
@@ -697,7 +736,7 @@ def test_fsrc_api_scan_collection_writes_runbook_outputs_when_requested(
     )
 
 
-def test_fsrc_api_scan_collection_demotes_rendered_readme_runtime_failures(
+def test_fsrc_api_scan_collection_reraises_rendered_readme_runtime_failures(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -728,44 +767,14 @@ def test_fsrc_api_scan_collection_demotes_rendered_readme_runtime_failures(
 
         monkeypatch.setattr(api_module, "render_readme", _fake_render_readme)
 
-        payload = api_module.scan_collection(
-            str(collection_root),
-            include_rendered_readme=True,
-        )
-
-    assert payload["summary"] == {
-        "total_roles": 2,
-        "scanned_roles": 1,
-        "failed_roles": 1,
-    }
-    assert payload["roles"] == [
-        {
-            "role": "role_a",
-            "path": str((collection_root / "roles" / "role_a").resolve()),
-            "payload": {
-                "role_name": "role_a",
-                "description": "Role description",
-                "variables": {},
-                "requirements": [],
-                "default_filters": [],
-                "metadata": {},
-            },
-            "rendered_readme": "# role_a\n",
-        }
-    ]
-    assert payload["failures"] == [
-        {
-            "role": "role_b",
-            "path": str((collection_root / "roles" / "role_b").resolve()),
-            "error_code": "role_content_io_error",
-            "error_category": "io",
-            "error_type": "OSError",
-            "error": "render boom",
-        }
-    ]
+        with pytest.raises(OSError, match="render boom"):
+            api_module.scan_collection(
+                str(collection_root),
+                include_rendered_readme=True,
+            )
 
 
-def test_fsrc_api_scan_collection_demotes_runbook_runtime_failures(
+def test_fsrc_api_scan_collection_reraises_runbook_runtime_failures(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -792,37 +801,11 @@ def test_fsrc_api_scan_collection_demotes_runbook_runtime_failures(
 
         monkeypatch.setattr(api_module, "render_runbook", _fake_render_runbook)
 
-        payload = api_module.scan_collection(
-            str(collection_root),
-            runbook_output_dir=str(tmp_path / "runbooks"),
-        )
-
-    assert payload["summary"] == {
-        "total_roles": 2,
-        "scanned_roles": 1,
-        "failed_roles": 1,
-    }
-    assert payload["roles"] == [
-        {
-            "role": "role_a",
-            "path": str((collection_root / "roles" / "role_a").resolve()),
-            "payload": {
-                "role_name": "role_a",
-                "metadata": {},
-            },
-            "rendered_readme": None,
-        }
-    ]
-    assert payload["failures"] == [
-        {
-            "role": "role_b",
-            "path": str((collection_root / "roles" / "role_b").resolve()),
-            "error_code": "role_content_io_error",
-            "error_category": "io",
-            "error_type": "OSError",
-            "error": "runbook boom",
-        }
-    ]
+        with pytest.raises(OSError, match="runbook boom"):
+            api_module.scan_collection(
+                str(collection_root),
+                runbook_output_dir=str(tmp_path / "runbooks"),
+            )
 
 
 def test_fsrc_api_scan_collection_forwards_policy_config_path(
@@ -841,7 +824,9 @@ def test_fsrc_api_scan_collection_forwards_policy_config_path(
 
         def _fake_scan_role(role_path: str, **kwargs: object) -> dict[str, object]:
             del role_path
-            captured_policy_paths.append(kwargs.get("policy_config_path"))
+            policy_config_path = kwargs.get("policy_config_path")
+            assert policy_config_path is None or isinstance(policy_config_path, str)
+            captured_policy_paths.append(policy_config_path)
             return {"role_name": "ok", "metadata": {}}
 
         monkeypatch.setattr(api_module, "scan_role", _fake_scan_role)

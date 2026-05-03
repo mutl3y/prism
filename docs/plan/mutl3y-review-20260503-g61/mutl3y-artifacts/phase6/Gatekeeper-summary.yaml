@@ -1,0 +1,21 @@
+commands:
+  - name: pytest
+    command: ".venv/bin/python -m pytest -p no:cov -p no:cacheprovider -q --tb=short"
+    exit_code: 0
+    details: |
+      ok
+  - name: ruff
+    command: ".venv/bin/ruff check src/prism"
+    exit_code: 0
+    details: |
+      ok
+  - name: black
+    command: ".venv/bin/python -m black --check src/prism"
+    exit_code: 0
+    details: |
+      ok
+validation_status: pass
+logs:
+  pytest: .mutl3y-gate/pytest.log
+  ruff: .mutl3y-gate/ruff.log
+  black: .mutl3y-gate/black.log

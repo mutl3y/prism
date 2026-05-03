@@ -1,0 +1,214 @@
+- timestamp: '2026-05-03T20:23:16.662250+00:00'
+  cycle: g61
+  phase: P0
+  worker: Scout-Typing
+  task_id: g61-p0-scout-typing
+  requested_tier: low-cost
+  requested_model: Claude Haiku 4.5 (copilot)
+  actual_model: Claude Haiku 4.5 (copilot)
+  result: quality_failure
+  failure_type: mis-scoped_output
+  artifact_path: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: reroute_same_tier
+  notes: YAML parsed but artifact used wrapper fields and non-schema keys; reroute for strict list schema
+  lane_tag: discovery
+- timestamp: '2026-05-03T20:23:17.287214+00:00'
+  cycle: g61
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g61-p0-scout-ownership
+  requested_tier: low-cost
+  requested_model: Claude Haiku 4.5 (copilot)
+  actual_model: Claude Haiku 4.5 (copilot)
+  result: quality_failure
+  failure_type: mis-scoped_output
+  artifact_path: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: reroute_same_tier
+  notes: YAML parsed but artifact used wrapper fields and non-schema keys; reroute for strict list schema
+  lane_tag: discovery
+- timestamp: '2026-05-03T20:23:17.944039+00:00'
+  cycle: g61
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g61-p0-scout-controlflow
+  requested_tier: low-cost
+  requested_model: Claude Haiku 4.5 (copilot)
+  actual_model: Claude Haiku 4.5 (copilot)
+  result: quality_failure
+  failure_type: mis-scoped_output
+  artifact_path: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: reroute_same_tier
+  notes: YAML parsed but artifact used wrapper fields and non-schema keys; reroute for strict list schema
+  lane_tag: discovery
+- timestamp: '2026-05-03T20:23:18.720694+00:00'
+  cycle: g61
+  phase: P0
+  worker: Scout-Graph
+  task_id: g61-p0-scout-graph
+  requested_tier: low-cost
+  requested_model: Claude Haiku 4.5 (copilot)
+  actual_model: Claude Haiku 4.5 (copilot)
+  result: quality_failure
+  failure_type: mis-scoped_output
+  artifact_path: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 1
+  needed_reedit: true
+  recovery_action: reroute_same_tier
+  notes: Artifact appended summary footer outside YAML list and used non-schema keys; reroute for strict
+    list schema
+  lane_tag: discovery
+- timestamp: '2026-05-03T20:34:37.625448+00:00'
+  cycle: g61
+  phase: P0
+  worker: Scout-Typing
+  task_id: g61-p0-scout-typing-reroute
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: quality_failure
+  failure_type: missing_artifact
+  artifact_path: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: prompt_tighten
+  notes: Reroute summary returned but did not replace authoritative artifact on disk; archivist repair
+    used instead
+  lane_tag: discovery
+- timestamp: '2026-05-03T20:34:37.730797+00:00'
+  cycle: g61
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g61-p0-scout-ownership-reroute
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: quality_failure
+  failure_type: missing_artifact
+  artifact_path: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: prompt_tighten
+  notes: Reroute summary returned but did not replace authoritative artifact on disk; archivist repair
+    used instead
+  lane_tag: discovery
+- timestamp: '2026-05-03T20:34:37.840246+00:00'
+  cycle: g61
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g61-p0-scout-controlflow-reroute
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: quality_failure
+  failure_type: missing_artifact
+  artifact_path: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: prompt_tighten
+  notes: Reroute summary returned but did not replace authoritative artifact on disk; archivist repair
+    used instead
+  lane_tag: discovery
+- timestamp: '2026-05-03T20:34:37.952597+00:00'
+  cycle: g61
+  phase: P0
+  worker: Scout-Graph
+  task_id: g61-p0-scout-graph-reroute
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: quality_failure
+  failure_type: missing_artifact
+  artifact_path: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: prompt_tighten
+  notes: Reroute summary returned but did not replace authoritative artifact on disk; archivist repair
+    used instead
+  lane_tag: discovery
+- timestamp: '2026-05-03T20:34:38.070824+00:00'
+  cycle: g61
+  phase: P0
+  worker: Archivist-ScoutRepair
+  task_id: g61-p0-artifact-repair
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Repaired four scout artifacts into exact schema using existing evidence; authoritative usable
+    batch
+  lane_tag: bookkeeping
+- timestamp: '2026-05-03T20:34:38.192628+00:00'
+  cycle: g61
+  phase: P1
+  worker: Archivist-Grading
+  task_id: g61-p1-grading-write
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase1/grading-summary.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Wrote barrier summary, grading summary, shortlist, and advanced plan pointer to P1
+  lane_tag: bookkeeping
+- timestamp: '2026-05-03T21:47:45+01:00'
+  cycle: g61
+  phase: P5
+  worker: Builder-Ownership
+  task_id: g61-wave1-builder-ownership
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/Builder-Ownership-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Moved scan-pipeline isolation ownership behind plugin_facade and closed the owned API regression slice with focused pytest, ruff, black, and mypy green.
+  lane_tag: implementation
+- timestamp: '2026-05-03T22:09:31+01:00'
+  cycle: g61
+  phase: P5
+  worker: Builder-ControlFlow
+  task_id: g61-wave2-builder-controlflow
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Restored typed exception boundaries for collection demotion and DI constructor handling; focused pytest, ruff, and black all passed on the owned slice.
+  lane_tag: implementation
+- timestamp: '2026-05-03T22:22:46+01:00'
+  cycle: g61
+  phase: P5
+  worker: Builder-Typing
+  task_id: g61-wave3-builder-typing
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Strengthened the normalized non-collection result contract, aligned api.py with the complete post-normalization type, and closed the owned typing slice with mypy, pytest, ruff, and black green.
+  lane_tag: implementation

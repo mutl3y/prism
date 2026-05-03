@@ -17,9 +17,11 @@ for explicit type checking instead of hasattr/getattr duck typing.
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Any, Mapping
+from inspect import Parameter, signature
+from typing import TYPE_CHECKING, Any, Callable, Mapping, cast
 
 from prism.scanner_core.events import EventBus, EventListener, get_default_listeners
+from prism.scanner_data.contracts_request import ScanOptionsDict
 from prism.scanner_data.builders import VariableRowBuilder
 from prism.errors import PrismRuntimeError
 
@@ -48,10 +50,41 @@ if TYPE_CHECKING:
     from prism.scanner_plugins.registry import PluginRegistry
 
 
+def _clone_container_structure(value: object) -> object:
+    """Clone container nodes while preserving opaque object identity."""
+    if isinstance(value, dict):
+        return {key: _clone_container_structure(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_clone_container_structure(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_clone_container_structure(item) for item in value)
+    if isinstance(value, set):
+        return {_clone_container_structure(item) for item in value}
+    if isinstance(value, frozenset):
+        return frozenset(_clone_container_structure(item) for item in value)
+    return value
+
+
+def clone_scan_options(scan_options: Mapping[str, object]) -> ScanOptionsDict:
+    """Return a container-only snapshot of scan options for runtime consumers."""
+    return cast(
+        ScanOptionsDict,
+        {key: _clone_container_structure(value) for key, value in scan_options.items()},
+    )
+
+
+_SCAN_OPTION_DEPENDENT_CACHE_KEYS = frozenset(
+    {
+        "feature_detector",
+        "variable_discovery",
+    }
+)
+
+
 def _create_variable_discovery(
     di: DIContainer,
     role_path: str,
-    scan_options: dict[str, Any],
+    scan_options: ScanOptionsDict,
 ) -> VariableDiscovery:
     """Import VariableDiscovery only at the DI composition seam."""
     from prism.scanner_core.variable_discovery import VariableDiscovery
@@ -62,7 +95,7 @@ def _create_variable_discovery(
 def _create_feature_detector(
     di: DIContainer,
     role_path: str,
-    scan_options: dict[str, Any],
+    scan_options: ScanOptionsDict,
 ) -> FeatureDetector:
     """Import FeatureDetector only at the DI composition seam."""
     from prism.scanner_core.feature_detector import FeatureDetector
@@ -71,8 +104,8 @@ def _create_feature_detector(
 
 
 def resolve_platform_key(
-    scan_options: Mapping[str, Any],
-    registry: Any | None = None,
+    scan_options: ScanOptionsDict,
+    registry: PluginRegistry | None = None,
 ) -> str:
     """Resolve platform key: scan_pipeline_plugin > policy_context > registry default."""
     if isinstance(scan_options, dict):
@@ -108,18 +141,39 @@ def _construct_runtime_plugin(
     DI still fails closed here so custom registries or manual test doubles cannot
     reopen the constructor-shape bypass with a raw ``TypeError``.
     """
+    constructor_signature = signature(plugin_class)
+    accepts_di = any(
+        parameter.kind is Parameter.VAR_KEYWORD or name == "di"
+        for name, parameter in constructor_signature.parameters.items()
+    )
+    if not accepts_di:
+        raise PrismRuntimeError(
+            code="malformed_plugin_shape",
+            category="runtime",
+            message=f"Malformed {plugin_kind} plugin shape detected.",
+            detail={
+                "plugin_kind": plugin_kind,
+                "platform_key": platform_key,
+                "plugin_class": getattr(plugin_class, "__name__", "unknown"),
+                "missing_callables": [],
+                "missing_attributes": ["di"],
+            },
+        )
     try:
         return plugin_class(di=di)
+    except PrismRuntimeError:
+        raise
     except TypeError as exc:
         raise PrismRuntimeError(
             code="malformed_plugin_shape",
             category="runtime",
-            message=f"Failed to construct {plugin_kind} plugin.",
+            message=f"Malformed {plugin_kind} plugin shape detected.",
             detail={
                 "plugin_kind": plugin_kind,
                 "platform_key": platform_key,
                 "plugin_class": getattr(plugin_class, "__name__", "unknown"),
                 "error": str(exc),
+                "failure_type": type(exc).__name__,
             },
         ) from exc
 
@@ -130,13 +184,14 @@ class DIContainer:
     def __init__(
         self,
         role_path: str,
-        scan_options: dict[str, Any],
+        scan_options: ScanOptionsDict,
         *,
-        registry: Any | None = None,
+        registry: PluginRegistry | None = None,
         platform_key: str | None = None,
-        scanner_context_wiring: dict[str, Any] | None = None,
+        scanner_context_wiring: dict[str, object] | None = None,
         factory_overrides: dict[str, "DIFactoryOverride"] | None = None,
         event_listeners: list[EventListener] | None = None,
+        inherit_default_event_listeners: bool = False,
         cache_backend: ScanCacheBackend | None = None,
         blocker_fact_builder_fn: "BlockerFactBuilder | None" = None,
     ) -> None:
@@ -147,30 +202,69 @@ class DIContainer:
             raise ValueError("scan_options must not be None")
 
         self._role_path = role_path
-        self._scan_options = scan_options
-        self._registry = registry
+        self._scan_options = clone_scan_options(scan_options)
+        self._registry: PluginRegistry | None = registry
         self._platform_key = platform_key
         self._cache: dict[str, Any] = {}
-        self._cache_lock = threading.Lock()
+        self._cache_lock = threading.RLock()
         self._mocks: dict[str, Any] = {}
         self._scanner_context_wiring = scanner_context_wiring or {}
         self._factory_overrides = factory_overrides or {}
+        self._inherit_default_event_listeners = inherit_default_event_listeners
         self.cache_backend: ScanCacheBackend | None = cache_backend
         self._blocker_fact_builder_fn = blocker_fact_builder_fn
         effective_listeners = (
             list(event_listeners)
             if event_listeners is not None
-            else list(get_default_listeners())
+            else (
+                list(get_default_listeners()) if inherit_default_event_listeners else []
+            )
         )
         self._event_bus = EventBus(listeners=effective_listeners)
 
     @property
-    def scan_options(self) -> dict[str, Any]:
-        return self._scan_options
+    def scan_options(self) -> ScanOptionsDict:
+        return self._snapshot_scan_options()
+
+    def replace_scan_options(self, scan_options: ScanOptionsDict) -> None:
+        """Replace the container snapshot after ingress normalization mutates options."""
+        with self._cache_lock:
+            self._scan_options = clone_scan_options(scan_options)
+            self._invalidate_scan_option_dependent_cache_locked()
+
+    def _snapshot_scan_options(self) -> ScanOptionsDict:
+        with self._cache_lock:
+            return clone_scan_options(self._scan_options)
+
+    def _invalidate_scan_option_dependent_cache_locked(self) -> None:
+        for key in _SCAN_OPTION_DEPENDENT_CACHE_KEYS:
+            self._cache.pop(key, None)
 
     @property
     def plugin_registry(self) -> PluginRegistry | None:
         return self._registry
+
+    @property
+    def scanner_context_wiring(self) -> dict[str, object]:
+        return self._scanner_context_wiring
+
+    @property
+    def factory_overrides(self) -> dict[str, "DIFactoryOverride"]:
+        return self._factory_overrides
+
+    @property
+    def platform_key(self) -> str | None:
+        return self._platform_key
+
+    @property
+    def inherit_default_event_listeners(self) -> bool:
+        return self._inherit_default_event_listeners
+
+    def _call_factory_override(self, name: str) -> object | None:
+        override = self._factory_overrides.get(name)
+        if override is None:
+            return None
+        return override(self, self._role_path, self._snapshot_scan_options())
 
     def factory_event_bus(self) -> EventBus:
         """Return the per-container :class:`EventBus`."""
@@ -192,11 +286,15 @@ class DIContainer:
         scanner_context_kwargs: dict[str, Any] = {
             "di": self,
             "role_path": self._role_path,
-            "scan_options": self._scan_options,
+            "scan_options": self._snapshot_scan_options(),
             "prepare_scan_context_fn": prepare_scan_context_fn,
         }
 
-        return scanner_context_cls(**scanner_context_kwargs)
+        scanner_context_factory = cast(
+            "Callable[..., ScannerContext]",
+            scanner_context_cls,
+        )
+        return scanner_context_factory(**scanner_context_kwargs)
 
     def factory_variable_discovery(self) -> VariableDiscovery:
         """Create or return cached VariableDiscovery.
@@ -207,9 +305,9 @@ class DIContainer:
         if "variable_discovery" in self._mocks:
             return self._mocks["variable_discovery"]
 
-        override = self._factory_overrides.get("variable_discovery_factory")
-        if override is not None:
-            return override(self, self._role_path, self._scan_options)
+        override_result = self._call_factory_override("variable_discovery_factory")
+        if override_result is not None:
+            return cast("VariableDiscovery", override_result)
 
         key = "variable_discovery"
         with self._cache_lock:
@@ -217,7 +315,7 @@ class DIContainer:
                 self._cache[key] = _create_variable_discovery(
                     self,
                     self._role_path,
-                    self._scan_options,
+                    self._snapshot_scan_options(),
                 )
 
         return self._cache[key]
@@ -232,16 +330,16 @@ class DIContainer:
         if "feature_detector" in self._mocks:
             return self._mocks["feature_detector"]
 
-        override = self._factory_overrides.get("feature_detector_factory")
-        if override is not None:
-            return override(self, self._role_path, self._scan_options)
+        override_result = self._call_factory_override("feature_detector_factory")
+        if override_result is not None:
+            return cast("FeatureDetector", override_result)
 
         with self._cache_lock:
             if key not in self._cache:
                 self._cache[key] = _create_feature_detector(
                     self,
                     self._role_path,
-                    self._scan_options,
+                    self._snapshot_scan_options(),
                 )
 
         return self._cache[key]
@@ -287,9 +385,11 @@ class DIContainer:
         if "variable_discovery_plugin" in self._mocks:
             return self._mocks["variable_discovery_plugin"]
 
-        override = self._factory_overrides.get("variable_discovery_plugin_factory")
-        if override is not None:
-            return override(self, self._role_path, self._scan_options)
+        override_result = self._call_factory_override(
+            "variable_discovery_plugin_factory"
+        )
+        if override_result is not None:
+            return cast("VariableDiscoveryPlugin", override_result)
 
         platform_key = self._resolve_platform_key()
         registry = self._get_registry()
@@ -311,9 +411,11 @@ class DIContainer:
         if "feature_detection_plugin" in self._mocks:
             return self._mocks["feature_detection_plugin"]
 
-        override = self._factory_overrides.get("feature_detection_plugin_factory")
-        if override is not None:
-            return override(self, self._role_path, self._scan_options)
+        override_result = self._call_factory_override(
+            "feature_detection_plugin_factory"
+        )
+        if override_result is not None:
+            return cast("FeatureDetectionPlugin", override_result)
 
         platform_key = self._resolve_platform_key()
         registry = self._get_registry()
@@ -337,9 +439,11 @@ class DIContainer:
         if "comment_driven_doc_plugin" in self._mocks:
             return self._mocks["comment_driven_doc_plugin"]
 
-        override = self._factory_overrides.get("comment_driven_doc_plugin_factory")
-        if override is not None:
-            return override(self, self._role_path, self._scan_options)
+        override_result = self._call_factory_override(
+            "comment_driven_doc_plugin_factory"
+        )
+        if override_result is not None:
+            return cast("CommentDrivenDocumentationPlugin", override_result)
         return None
 
     def factory_task_annotation_policy_plugin(
@@ -349,9 +453,11 @@ class DIContainer:
         if "task_annotation_policy_plugin" in self._mocks:
             return self._mocks["task_annotation_policy_plugin"]
 
-        override = self._factory_overrides.get("task_annotation_policy_plugin_factory")
-        if override is not None:
-            return override(self, self._role_path, self._scan_options)
+        override_result = self._call_factory_override(
+            "task_annotation_policy_plugin_factory"
+        )
+        if override_result is not None:
+            return cast("PreparedTaskAnnotationPolicy", override_result)
         return None
 
     def factory_task_line_parsing_policy_plugin(
@@ -361,11 +467,11 @@ class DIContainer:
         if "task_line_parsing_policy_plugin" in self._mocks:
             return self._mocks["task_line_parsing_policy_plugin"]
 
-        override = self._factory_overrides.get(
+        override_result = self._call_factory_override(
             "task_line_parsing_policy_plugin_factory"
         )
-        if override is not None:
-            return override(self, self._role_path, self._scan_options)
+        if override_result is not None:
+            return cast("PreparedTaskLineParsingPolicy", override_result)
         return None
 
     def factory_task_traversal_policy_plugin(
@@ -375,9 +481,11 @@ class DIContainer:
         if "task_traversal_policy_plugin" in self._mocks:
             return self._mocks["task_traversal_policy_plugin"]
 
-        override = self._factory_overrides.get("task_traversal_policy_plugin_factory")
-        if override is not None:
-            return override(self, self._role_path, self._scan_options)
+        override_result = self._call_factory_override(
+            "task_traversal_policy_plugin_factory"
+        )
+        if override_result is not None:
+            return cast("PreparedTaskTraversalPolicy", override_result)
         return None
 
     def factory_variable_extractor_policy_plugin(
@@ -387,11 +495,11 @@ class DIContainer:
         if "variable_extractor_policy_plugin" in self._mocks:
             return self._mocks["variable_extractor_policy_plugin"]
 
-        override = self._factory_overrides.get(
+        override_result = self._call_factory_override(
             "variable_extractor_policy_plugin_factory"
         )
-        if override is not None:
-            return override(self, self._role_path, self._scan_options)
+        if override_result is not None:
+            return cast("PreparedVariableExtractorPolicy", override_result)
         return None
 
     def factory_yaml_parsing_policy_plugin(self) -> YAMLParsingPolicyPlugin | None:
@@ -399,9 +507,11 @@ class DIContainer:
         if "yaml_parsing_policy_plugin" in self._mocks:
             return self._mocks["yaml_parsing_policy_plugin"]
 
-        override = self._factory_overrides.get("yaml_parsing_policy_plugin_factory")
-        if override is not None:
-            return override(self, self._role_path, self._scan_options)
+        override_result = self._call_factory_override(
+            "yaml_parsing_policy_plugin_factory"
+        )
+        if override_result is not None:
+            return cast("YAMLParsingPolicyPlugin", override_result)
         return None
 
     def factory_jinja_analysis_policy_plugin(self) -> JinjaAnalysisPolicyPlugin | None:
@@ -409,9 +519,11 @@ class DIContainer:
         if "jinja_analysis_policy_plugin" in self._mocks:
             return self._mocks["jinja_analysis_policy_plugin"]
 
-        override = self._factory_overrides.get("jinja_analysis_policy_plugin_factory")
-        if override is not None:
-            return override(self, self._role_path, self._scan_options)
+        override_result = self._call_factory_override(
+            "jinja_analysis_policy_plugin_factory"
+        )
+        if override_result is not None:
+            return cast("JinjaAnalysisPolicyPlugin", override_result)
         return None
 
     def inject_mock(self, name: str, mock: Any) -> None:
@@ -423,9 +535,9 @@ class DIContainer:
         if "audit_plugin" in self._mocks:
             return self._mocks["audit_plugin"]
 
-        override = self._factory_overrides.get("audit_plugin_factory")
-        if override is not None:
-            return override(self, self._role_path, self._scan_options)
+        override_result = self._call_factory_override("audit_plugin_factory")
+        if override_result is not None:
+            return override_result
         return None
 
     def clear_mocks(self) -> None:
@@ -434,4 +546,5 @@ class DIContainer:
 
     def clear_cache(self) -> None:
         """Clear cached instances."""
-        self._cache.clear()
+        with self._cache_lock:
+            self._cache.clear()

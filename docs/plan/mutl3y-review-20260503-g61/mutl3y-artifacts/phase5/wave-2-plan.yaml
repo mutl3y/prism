@@ -1,0 +1,20 @@
+wave_id: wave-2
+phase: P5
+purpose: focused builder wave to implement G61-M01
+builders:
+  - name: Builder-ControlFlow
+    worker: Builder-ControlFlow
+    task_id: g61-wave2-builder-controlflow
+    owned_files:
+      - src/prism/api_layer/collection.py
+      - src/prism/scanner_core/di.py
+      - src/prism/tests/test_collection_contract.py
+      - src/prism/tests/test_scanner_core_di.py
+    artifact: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+notes: >-
+  Preserve the narrowed collection failure semantics that distinguish
+  role-content failures from runtime failures, but restore typed exception
+  branches instead of catch-all predicate normalization. In DI, restore the
+  constructor failure contract so malformed plugin shape is handled explicitly
+  and arbitrary constructor exceptions do not get silently coerced into the
+  same PrismRuntimeError channel.

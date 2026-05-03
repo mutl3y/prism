@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import re as _re
+from typing import cast
 
 import yaml
 
@@ -13,6 +15,7 @@ from prism.api_layer import plugin_facade
 from prism.errors import PrismRuntimeError
 from prism.errors import FailurePolicy
 from prism.path_safety import assert_safe_role_path
+from prism.scanner_config.audit_rules import AuditReport, AuditRule
 from prism.scanner_io.collection_plugins import scan_collection_plugins
 from prism.scanner_io.collection_payload import (
     build_collection_identity,
@@ -33,9 +36,26 @@ from prism.scanner_core import (
     ScanCacheBackend,
     ScannerContext,
 )
-from prism.scanner_data import CollectionScanResult, RepoScanResult, RoleScanResult
+from prism.scanner_data import (
+    CollectionDependencies,
+    CollectionFailureRecord,
+    CollectionIdentity,
+    CollectionPluginCatalog,
+    CollectionRoleEntry,
+    CollectionScanResult,
+    RepoScanResult,
+    RunScanOutputPayload,
+)
+from prism.scanner_data.contracts_request import ScanPolicyContext
 
-API_PUBLIC_ENTRYPOINTS: tuple[str, ...] = ("scan_collection", "scan_role", "scan_repo")
+NormalizedNonCollectionResult = api_non_collection._NormalizedNonCollectionResult
+
+
+API_PUBLIC_ENTRYPOINTS: tuple[str, ...] = (
+    "scan_collection",
+    "scan_role",
+    "scan_repo",
+)
 API_RETAINED_COMPATIBILITY_SEAMS: tuple[str, ...] = ("run_scan",)
 
 _COLLECTION_ROLE_CONTENT_RECOVERABLE_ERRORS: tuple[type[Exception], ...] = (
@@ -52,7 +72,187 @@ _COLLECTION_ROLE_RUNTIME_RECOVERABLE_ERRORS: tuple[type[Exception], ...] = (
     RuntimeError,
 )
 
-__all__ = ["scan_collection", "scan_repo", "scan_role"]
+__all__ = [
+    "scan_collection",
+    "scan_repo",
+    "scan_role",
+]
+
+
+def load_audit_rules_from_file(rules_path: str) -> list[AuditRule]:
+    """Load audit rules through the top-level API seam."""
+    return plugin_facade.load_audit_rules_from_file(rules_path)
+
+
+def run_audit(payload: dict[str, object], rules: list[AuditRule]) -> AuditReport:
+    """Run audit rules through the top-level API seam."""
+    return plugin_facade.run_audit(payload, rules)
+
+
+def _scan_collection_role_payload(
+    role_path: str,
+    *,
+    compare_role_path: str | None = None,
+    style_readme_path: str | None = None,
+    role_name_override: str | None = None,
+    vars_seed_paths: list[str] | None = None,
+    concise_readme: bool = False,
+    scanner_report_output: str | None = None,
+    include_vars_main: bool = True,
+    include_scanner_report_link: bool = True,
+    readme_config_path: str | None = None,
+    adopt_heading_mode: str | None = None,
+    style_guide_skeleton: bool = False,
+    keep_unknown_style_sections: bool = True,
+    exclude_path_patterns: list[str] | None = None,
+    style_source_path: str | None = None,
+    policy_config_path: str | None = None,
+    fail_on_unconstrained_dynamic_includes: bool | None = None,
+    fail_on_yaml_like_task_annotations: bool | None = None,
+    ignore_unresolved_internal_underscore_references: bool | None = None,
+    detailed_catalog: bool = False,
+    include_collection_checks: bool = False,
+    include_task_parameters: bool = True,
+    include_task_runbooks: bool = True,
+    inline_task_runbooks: bool = True,
+) -> RunScanOutputPayload:
+    return scan_role(
+        role_path,
+        compare_role_path=compare_role_path,
+        style_readme_path=style_readme_path,
+        role_name_override=role_name_override,
+        vars_seed_paths=vars_seed_paths,
+        concise_readme=concise_readme,
+        scanner_report_output=scanner_report_output,
+        include_vars_main=include_vars_main,
+        include_scanner_report_link=include_scanner_report_link,
+        readme_config_path=readme_config_path,
+        adopt_heading_mode=adopt_heading_mode,
+        style_guide_skeleton=style_guide_skeleton,
+        keep_unknown_style_sections=keep_unknown_style_sections,
+        exclude_path_patterns=exclude_path_patterns,
+        style_source_path=style_source_path,
+        policy_config_path=policy_config_path,
+        fail_on_unconstrained_dynamic_includes=(fail_on_unconstrained_dynamic_includes),
+        fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
+        ignore_unresolved_internal_underscore_references=(
+            ignore_unresolved_internal_underscore_references
+        ),
+        detailed_catalog=detailed_catalog,
+        include_collection_checks=include_collection_checks,
+        include_task_parameters=include_task_parameters,
+        include_task_runbooks=include_task_runbooks,
+        inline_task_runbooks=inline_task_runbooks,
+    )
+
+
+def _build_collection_identity_typed(collection_root: Path) -> CollectionIdentity:
+    return cast(CollectionIdentity, build_collection_identity(collection_root))
+
+
+def _aggregate_collection_dependencies_typed(
+    collection_root: Path,
+) -> CollectionDependencies:
+    return cast(
+        CollectionDependencies,
+        aggregate_collection_dependencies(collection_root),
+    )
+
+
+def _scan_collection_plugins_typed(collection_root: Path) -> CollectionPluginCatalog:
+    return cast(CollectionPluginCatalog, scan_collection_plugins(collection_root))
+
+
+def _build_collection_role_entry_typed(
+    *,
+    role_dir: Path,
+    payload: RunScanOutputPayload,
+    rendered_readme: str | None,
+) -> CollectionRoleEntry:
+    return cast(
+        CollectionRoleEntry,
+        build_collection_role_entry(
+            role_dir=role_dir,
+            payload=payload,
+            rendered_readme=rendered_readme,
+        ),
+    )
+
+
+def _build_collection_failure_record_typed(
+    *,
+    role_dir: Path,
+    exc: Exception,
+    include_traceback: bool,
+) -> CollectionFailureRecord:
+    return cast(
+        CollectionFailureRecord,
+        build_collection_failure_record(
+            role_dir=role_dir,
+            exc=exc,
+            include_traceback=include_traceback,
+        ),
+    )
+
+
+def _assert_safe_optional_path(path_value: str | None, *, field_name: str) -> None:
+    if path_value is None:
+        return
+    assert_safe_role_path(path_value, field_name=field_name)
+
+
+def _assert_safe_optional_path_list(
+    path_values: list[str] | None,
+    *,
+    field_name: str,
+) -> None:
+    if path_values is None:
+        return
+    for index, path_value in enumerate(path_values):
+        assert_safe_role_path(path_value, field_name=f"{field_name}[{index}]")
+
+
+def _assert_safe_run_scan_file_inputs(
+    *,
+    readme_config_path: str | None,
+    policy_config_path: str | None,
+    vars_seed_paths: list[str] | None,
+    style_readme_path: str | None,
+    style_source_path: str | None,
+    compare_role_path: str | None,
+) -> None:
+    _assert_safe_optional_path(readme_config_path, field_name="readme_config_path")
+    _assert_safe_optional_path(policy_config_path, field_name="policy_config_path")
+    _assert_safe_optional_path(style_readme_path, field_name="style_readme_path")
+    _assert_safe_optional_path(style_source_path, field_name="style_source_path")
+    _assert_safe_optional_path(compare_role_path, field_name="compare_role_path")
+    _assert_safe_optional_path_list(vars_seed_paths, field_name="vars_seed_paths")
+
+
+def _assert_safe_scan_repo_file_inputs(
+    *,
+    repo_role_path: str,
+    repo_style_readme_path: str | None,
+    readme_config_path: str | None,
+    policy_config_path: str | None,
+    vars_seed_paths: list[str] | None,
+    style_readme_path: str | None,
+    style_source_path: str | None,
+    compare_role_path: str | None,
+) -> None:
+    _assert_safe_optional_path(repo_role_path, field_name="repo_role_path")
+    _assert_safe_optional_path(
+        repo_style_readme_path,
+        field_name="repo_style_readme_path",
+    )
+    _assert_safe_run_scan_file_inputs(
+        readme_config_path=readme_config_path,
+        policy_config_path=policy_config_path,
+        vars_seed_paths=vars_seed_paths,
+        style_readme_path=style_readme_path,
+        style_source_path=style_source_path,
+        compare_role_path=compare_role_path,
+    )
 
 
 def run_scan(
@@ -81,13 +281,25 @@ def run_scan(
     fail_on_unconstrained_dynamic_includes: bool | None = None,
     fail_on_yaml_like_task_annotations: bool | None = None,
     ignore_unresolved_internal_underscore_references: bool | None = None,
-    policy_context: dict[str, object] | None = None,
+    policy_context: ScanPolicyContext | None = None,
     strict_phase_failures: bool = True,
     scan_pipeline_plugin: str | None = None,
     cache_backend: ScanCacheBackend | None = None,
-) -> dict[str, object]:
+) -> NormalizedNonCollectionResult:
     """Run the non-collection scanner orchestration through the package seam."""
     assert_safe_role_path(role_path, field_name="role_path")
+    default_plugin_registry = cast(
+        "plugin_facade.PluginRegistry",
+        plugin_facade.get_default_scan_pipeline_registry(),
+    )
+    _assert_safe_run_scan_file_inputs(
+        readme_config_path=readme_config_path,
+        policy_config_path=policy_config_path,
+        vars_seed_paths=vars_seed_paths,
+        style_readme_path=style_readme_path,
+        style_source_path=style_source_path,
+        compare_role_path=compare_role_path,
+    )
     return api_non_collection.run_scan(
         role_path,
         role_name_override=role_name_override,
@@ -134,7 +346,7 @@ def run_scan(
         resolve_comment_driven_documentation_plugin_fn=(
             plugin_facade.resolve_comment_driven_documentation_plugin
         ),
-        default_plugin_registry=plugin_facade.get_default_plugin_registry(),
+        default_plugin_registry=default_plugin_registry,
     )
 
 
@@ -170,6 +382,14 @@ def scan_collection(
 ) -> CollectionScanResult:
     """Scan every role under a collection's roles/ folder and return a payload."""
     assert_safe_role_path(collection_path, field_name="collection_path")
+    _assert_safe_run_scan_file_inputs(
+        readme_config_path=readme_config_path,
+        policy_config_path=policy_config_path,
+        vars_seed_paths=vars_seed_paths,
+        style_readme_path=style_readme_path,
+        style_source_path=style_source_path,
+        compare_role_path=compare_role_path,
+    )
     return api_collection.scan_collection(
         collection_path,
         compare_role_path=compare_role_path,
@@ -200,10 +420,10 @@ def scan_collection(
         runbook_output_dir=runbook_output_dir,
         runbook_csv_output_dir=runbook_csv_output_dir,
         include_traceback=include_traceback,
-        scan_role_fn=scan_role,
-        build_collection_identity_fn=build_collection_identity,
-        aggregate_collection_dependencies_fn=aggregate_collection_dependencies,
-        scan_collection_plugins_fn=scan_collection_plugins,
+        scan_role_fn=_scan_collection_role_payload,
+        build_collection_identity_fn=_build_collection_identity_typed,
+        aggregate_collection_dependencies_fn=_aggregate_collection_dependencies_typed,
+        scan_collection_plugins_fn=_scan_collection_plugins_typed,
         render_collection_role_readme_fn=lambda *, role_name, payload: render_collection_role_readme(
             role_name=role_name,
             payload=payload,
@@ -214,8 +434,8 @@ def scan_collection(
             render_runbook_fn=render_runbook,
             render_runbook_csv_fn=render_runbook_csv,
         ),
-        build_collection_role_entry_fn=build_collection_role_entry,
-        build_collection_failure_record_fn=build_collection_failure_record,
+        build_collection_role_entry_fn=_build_collection_role_entry_typed,
+        build_collection_failure_record_fn=_build_collection_failure_record_typed,
         build_collection_scan_result_fn=build_collection_scan_result,
         collection_role_content_recoverable_errors=(
             _COLLECTION_ROLE_CONTENT_RECOVERABLE_ERRORS
@@ -253,9 +473,17 @@ def scan_role(
     include_task_runbooks: bool = True,
     inline_task_runbooks: bool = True,
     failure_policy: FailurePolicy | None = None,
-) -> RoleScanResult:
+) -> NormalizedNonCollectionResult:
     """Objective-critical role scan facade for fsrc API consumers."""
     assert_safe_role_path(role_path, field_name="role_path")
+    _assert_safe_run_scan_file_inputs(
+        readme_config_path=readme_config_path,
+        policy_config_path=policy_config_path,
+        vars_seed_paths=vars_seed_paths,
+        style_readme_path=style_readme_path,
+        style_source_path=style_source_path,
+        compare_role_path=compare_role_path,
+    )
     return api_non_collection.scan_role(
         role_path,
         compare_role_path=compare_role_path,
@@ -320,6 +548,16 @@ def scan_repo(
     failure_policy: FailurePolicy | None = None,
 ) -> RepoScanResult:
     """Objective-critical repo scan facade for fsrc API consumers."""
+    _assert_safe_scan_repo_file_inputs(
+        repo_role_path=repo_role_path,
+        repo_style_readme_path=repo_style_readme_path,
+        readme_config_path=readme_config_path,
+        policy_config_path=policy_config_path,
+        vars_seed_paths=vars_seed_paths,
+        style_readme_path=style_readme_path,
+        style_source_path=style_source_path,
+        compare_role_path=compare_role_path,
+    )
     return api_non_collection.scan_repo(
         repo_url,
         repo_ref=repo_ref,

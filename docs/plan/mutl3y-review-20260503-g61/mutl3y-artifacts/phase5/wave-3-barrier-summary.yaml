@@ -1,0 +1,11 @@
+wave_id: wave-3
+phase: P5
+summary: "Builder-Typing closed G61-M02 by tightening the normalized non-collection result contract and validating the owned API seam with focused mypy, pytest, ruff, and black checks."
+builders:
+  - worker: Builder-Typing
+    task_id: g61-wave3-builder-typing
+    result: success
+    artifact: docs/plan/mutl3y-review-20260503-g61/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+    notes: "api_layer/non_collection.py now validates through RunScanOutputPayload before alias backfill, and api.py consumes the stronger normalized result contract directly."
+
+ready_for_next_slice: false
