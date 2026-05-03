@@ -1,0 +1,71 @@
+- id: Scout-Ownership-01
+  category: facade_leakage
+  fingerprint: "facade_leakage:api_layer/plugin_facade:get_default_plugin_registry:registry_singleton"
+  file: src/prism/api_layer/plugin_facade.py
+  line: 314
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "from prism.scanner_plugins.bootstrap import get_default_plugin_registry as _get"
+  evidence_command: "src/prism/api_layer/plugin_facade.py#L316-L323"
+  related_symbols: ["get_default_plugin_registry", "get_default_scan_pipeline_registry"]
+  fix_group_key: "facade.plugin_facade.registry_reexport"
+  proposed_fix_class: seam_facade
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_default_platform_key"
+
+- id: Scout-Ownership-02
+  category: facade_leakage
+  fingerprint: "facade_leakage:api_layer/plugin_facade:ensure_prepared_policy_bundle:internal_helper"
+  file: src/prism/api_layer/plugin_facade.py
+  line: 324
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return _ensure_prepared_policy_bundle(scan_options=scan_options, di=di)"
+  evidence_command: "src/prism/api_layer/plugin_facade.py#L328-L335"
+  related_symbols: ["ensure_prepared_policy_bundle", "prism.scanner_plugins.bundle_resolver.ensure_prepared_policy_bundle"]
+  fix_group_key: "facade.plugin_facade.bundle_resolver_reexport"
+  proposed_fix_class: seam_facade
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py::test_bundle_resolver_integration"
+
+- id: Scout-Ownership-03
+  category: facade_leakage
+  fingerprint: "facade_leakage:api:NormalizedNonCollectionResult:private_type_alias"
+  file: src/prism/api.py
+  line: 51
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "NormalizedNonCollectionResult = api_non_collection._NormalizedNonCollectionResult"
+  evidence_command: "src/prism/api.py#L48-L52"
+  related_symbols: ["NormalizedNonCollectionResult", "_NormalizedNonCollectionResult"]
+  fix_group_key: "api.normalized_result.type_alias_reexport"
+  proposed_fix_class: seam_facade
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_public_api_type_aliases"
+
+- id: Scout-Ownership-04
+  category: singleton_pollution
+  fingerprint: "singleton_pollution:scanner_plugins/defaults:_TASK_LINE_PARSING_FALLBACK:module_singleton"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 178
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_active_lesson
+  memory_match: "LESSON-07"
+  evidence_snippet: "_TASK_LINE_PARSING_FALLBACK = AnsibleDefaultTaskLineParsingPolicyPlugin()"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L178"
+  related_symbols: ["_TASK_LINE_PARSING_FALLBACK", "_FALLBACK_SINGLETONS"]
+  fix_group_key: "defaults.fallback_singletons"
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_t2_04_stateless_marker.py::test_fallback_singleton_invariants"

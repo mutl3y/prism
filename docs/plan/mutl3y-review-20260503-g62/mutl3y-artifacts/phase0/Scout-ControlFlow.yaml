@@ -1,0 +1,89 @@
+- id: Scout-ControlFlow-01
+  category: error_channel
+  fingerprint: "error_channel:scan_cache/compute_path_content_hash:OSError_masked_into_hash"
+  file: src/prism/scanner_core/scan_cache.py
+  line: 189
+  severity_hint: high
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "h.update(b\"\\x00UNREADABLE\\x00\")"
+  evidence_command: "src/prism/scanner_core/scan_cache.py#L168-L206"
+  related_symbols: ["compute_path_content_hash"]
+  fix_group_key: "scan_cache.io_error_masking"
+  proposed_fix_class: typed_error_channel
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_t3_03_scan_cache.py"
+
+- id: Scout-ControlFlow-02
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_io/loader:_get_yaml_parsing_policy:dual_path"
+  file: src/prism/scanner_io/loader.py
+  line: 82
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "# NOTE: Intentional dual-path — soft fallback to registry-resolved default."
+  evidence_command: "src/prism/scanner_io/loader.py#L82-L105"
+  related_symbols: ["_get_yaml_parsing_policy","_resolve_plugin_registry"]
+  fix_group_key: "loader.yaml_policy_dual_path"
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py"
+
+- id: Scout-ControlFlow-03
+  category: guard
+  fingerprint: "guard:api_layer/non_collection:cache_unchecked_return"
+  file: src/prism/api_layer/non_collection.py
+  line: 646
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return _normalize_non_collection_result_shape(_cached)"
+  evidence_command: "src/prism/api_layer/non_collection.py#L628-L670"
+  related_symbols: ["run_scan","_normalize_non_collection_result_shape"]
+  fix_group_key: "api_layer.cache_unguarded_return"
+  proposed_fix_class: guard_input
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_t3_03_scan_cache.py"
+
+- id: Scout-ControlFlow-04
+  category: error_channel
+  fingerprint: "error_channel:scanner_kernel/kernel_plugin_runner:exception_message_stringified"
+  file: src/prism/scanner_kernel/kernel_plugin_runner.py
+  line: 143
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "\"message\": str(exc),"
+  evidence_command: "src/prism/scanner_kernel/kernel_plugin_runner.py#L136-L160"
+  related_symbols: ["run_kernel_plugin_orchestrator","KernelPhaseFailure"]
+  fix_group_key: "kernel.plugin_phase_exception_envelope"
+  proposed_fix_class: typed_error_channel
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_kernel_plugin_runner.py"
+
+- id: Scout-ControlFlow-05
+  category: error_channel
+  fingerprint: "error_channel:scanner_kernel/orchestrator:except_all_wrapped_to_runtime"
+  file: src/prism/scanner_kernel/orchestrator.py
+  line: 356
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_raise_execution_failure("
+  evidence_command: "src/prism/scanner_kernel/orchestrator.py#L340-L372"
+  related_symbols: ["_construct_scan_pipeline_plugin","_raise_execution_failure"]
+  fix_group_key: "kernel.orchestrator_exception_wrap"
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_guardrails.py"

@@ -1,0 +1,89 @@
+- id: Scout-Typing-01
+  category: typing
+  fingerprint: "typing:contracts_request:PreparedVariableExtractorPolicy:object-args"
+  file: src/prism/scanner_data/contracts_request.py
+  line: 237
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def collect_include_vars_files(..., collect_task_files: object, load_yaml_file: object)"
+  evidence_command: "src/prism/scanner_data/contracts_request.py#L237-L250"
+  related_symbols: ["PreparedVariableExtractorPolicy", "PreparedPolicyBundle", "TaskMapping"]
+  fix_group_key: "contracts_request.any-heavy-protocols"
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py::test_variable_extractor_reads_prepared_policy_bundle"
+
+- id: Scout-Typing-02
+  category: typing
+  fingerprint: "typing:scanner_core:prepared_policy_bundle:isinstance-dict-acceptance"
+  file: src/prism/scanner_core/scanner_context.py
+  line: 80
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return isinstance(value, dict)"
+  evidence_command: "src/prism/scanner_core/scanner_context.py#L80-L86"
+  related_symbols: ["_is_prepared_policy_bundle", "PreparedPolicyBundle", "_require_prepared_policy_bundle"]
+  fix_group_key: "prepared-policy-bundle.dict-acceptance"
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_context.py::test_fsrc_scanner_context_requires_prepared_policy_bundle_without_mutating_ingress_options"
+
+- id: Scout-Typing-03
+  category: orchestration_seam
+  fingerprint: "orchestration:api_layer.non_collection:prepared_policy_bundle_cache_marker"
+  file: src/prism/api_layer/non_collection.py
+  line: 392
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if not isinstance(raw_bundle, dict): return ('__prepared_policy_bundle_state__', f'unexpected:{type(raw_bundle)')"
+  evidence_command: "src/prism/api_layer/non_collection.py#L392-L404"
+  related_symbols: ["_prepared_policy_bundle_cache_marker", "prepared_policy_bundle"]
+  fix_group_key: "prepared-policy-bundle.dict-acceptance"
+  proposed_fix_class: seam_facade
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_fsrc_api_run_scan_cache_key_preserves_missing_prepared_policy_bundle_state"
+
+- id: Scout-Typing-04
+  category: typing
+  fingerprint: "typing:task_line_parsing:policy-proxies:any-usage"
+  file: src/prism/scanner_extract/task_line_parsing.py
+  line: 23
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def __iter__(self) -> Iterator[Any]"
+  evidence_command: "src/prism/scanner_extract/task_line_parsing.py#L13-L26"
+  related_symbols: ["_PolicyBackedCollectionProxy", "_PolicyBackedRegexProxy", "require_prepared_policy"]
+  fix_group_key: "task-line-proxies-any"
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_task_line_parsing.py::test_*"
+
+- id: Scout-Typing-05
+  category: test_gap
+  fingerprint: "test_gap:tests:loose-prepared_policy_bundle-objects-allowed"
+  file: src/prism/tests/test_scanner_context.py
+  line: 632
+  severity_hint: medium
+  confidence: high
+  detector: test_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "options['prepared_policy_bundle'] = {'task_line_parsing': object(), 'jinja_analysis': object()}"
+  evidence_command: "src/prism/tests/test_scanner_context.py#L632-L642"
+  related_symbols: ["_canonical_scan_options", "ensure_prepared_policy_bundle", "bundle_resolver.ensure_prepared_policy_bundle"]
+  fix_group_key: "tests-loose-prepared-bundle"
+  proposed_fix_class: add_test
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_context.py::test_fsrc_scanner_context_prepared_policy_bundle_rejects_invalid_bundle"

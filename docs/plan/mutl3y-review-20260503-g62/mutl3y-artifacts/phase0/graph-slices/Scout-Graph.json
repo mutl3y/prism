@@ -1,0 +1,21 @@
+{
+  "agent": "Scout-Graph",
+  "cycle": "g62",
+  "focus_axis": "architecture",
+  "review_surface": [
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_plugins/registry.py",
+    "src/prism/scanner_plugins/bootstrap.py",
+    "src/prism/scanner_plugins/bundle_resolver.py",
+    "src/prism/api_layer/plugin_facade.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/scanner_core/di_helpers.py",
+    "src/prism/tests/test_di_registry_resolution.py",
+    "src/prism/tests/test_plugin_kernel_extension_parity.py",
+    "src/prism/tests/test_scanner_guardrails.py"
+  ],
+  "questions": [
+    "Is the DI, registry, and bootstrap graph consistent and free of cyclic or hidden authority edges?",
+    "Do bundle_resolver and plugin_facade authority paths match registry expectations and test guardrails?"
+  ]
+}

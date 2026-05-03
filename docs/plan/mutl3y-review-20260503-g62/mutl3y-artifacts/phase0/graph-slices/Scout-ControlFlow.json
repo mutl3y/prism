@@ -1,0 +1,21 @@
+{
+  "agent": "Scout-ControlFlow",
+  "cycle": "g62",
+  "focus_axis": "architecture",
+  "review_surface": [
+    "src/prism/api_layer/collection.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/scanner_kernel/plugin_name_resolver.py",
+    "src/prism/scanner_core/scan_request.py",
+    "src/prism/scanner_core/scan_cache.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/tests/test_collection_contract.py",
+    "src/prism/tests/test_g03_scan_cache_integration.py",
+    "src/prism/tests/test_scanner_guardrails.py"
+  ],
+  "questions": [
+    "Are collection and non-collection execution paths and fallback semantics clearly defined and tested for parity?",
+    "Do the scan cache, loader, and execution request seams maintain correct control-flow on happy and fallback paths?"
+  ]
+}

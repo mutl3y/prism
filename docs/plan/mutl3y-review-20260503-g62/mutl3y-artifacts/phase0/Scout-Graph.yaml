@@ -1,0 +1,89 @@
+- id: Scout-Graph-01
+  category: registry_authority
+  fingerprint: "registry_authority:scanner_core/di:_get_registry:split_authority"
+  file: src/prism/scanner_core/di.py
+  line: 371
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if self._registry is None: raise ValueError(\"No plugin registry provided to DIContainer\")"
+  evidence_command: "src/prism/scanner_core/di.py#L371-L376; src/prism/scanner_plugins/defaults.py#L72-L86"
+  related_symbols: ["DIContainer._get_registry", "_resolve_registry"]
+  fix_group_key: "registry-split-authority"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_di_variable_discovery_plugin_fails_closed_on_empty_registry"
+
+- id: Scout-Graph-02
+  category: singleton_pollution
+  fingerprint: "singleton_pollution:scanner_plugins/registry:plugin_registry:module_singleton"
+  file: src/prism/scanner_plugins/registry.py
+  line: 532
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "plugin_registry = PluginRegistry()"
+  evidence_command: "src/prism/scanner_plugins/registry.py#L532"
+  related_symbols: ["plugin_registry", "PluginRegistry"]
+  fix_group_key: "registry-singleton"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py::test_fsrc_default_plugin_registry_aligns_with_canonical_singleton"
+
+- id: Scout-Graph-03
+  category: composition_root
+  fingerprint: "composition_root:scanner_plugins/bootstrap:_DEFAULT_REGISTRY:lazy_init"
+  file: src/prism/scanner_plugins/bootstrap.py
+  line: 24
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_DEFAULT_REGISTRY: PluginRegistry | None = None"
+  evidence_command: "src/prism/scanner_plugins/bootstrap.py#L24-L36; src/prism/api_layer/plugin_facade.py#L311-L320"
+  related_symbols: ["_DEFAULT_REGISTRY", "initialize_default_registry", "get_default_plugin_registry"]
+  fix_group_key: "registry-singleton"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_guardrails.py::test_plugin_registry_bootstrap_initialization_smoke"
+
+- id: Scout-Graph-04
+  category: singleton_pollution
+  fingerprint: "singleton_pollution:scanner_plugins/defaults:_TASK_LINE_PARSING_FALLBACK:module_singleton"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 178
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_TASK_LINE_PARSING_FALLBACK = AnsibleDefaultTaskLineParsingPolicyPlugin()"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L176-L182"
+  related_symbols: ["_TASK_LINE_PARSING_FALLBACK", "_FALLBACK_SINGLETONS"]
+  fix_group_key: "defaults-fallback-singletons"
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py::test_fsrc_default_plugin_registry_bootstrap_registers_required_plugins"
+
+- id: Scout-Graph-05
+  category: registry_authority
+  fingerprint: "registry_authority:scanner_plugins:DEFAULT_PLUGIN_REGISTRY:dynamic_attr"
+  file: src/prism/scanner_plugins/__init__.py
+  line: 181
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if name == \"DEFAULT_PLUGIN_REGISTRY\": return get_default_plugin_registry()"
+  evidence_command: "src/prism/scanner_plugins/__init__.py#L181-L188; src/prism/scanner_core/execution_request_builder.py#L564-L572"
+  related_symbols: ["DEFAULT_PLUGIN_REGISTRY", "__getattr__", "get_default_plugin_registry"]
+  fix_group_key: "registry-dynamic-attr"
+  proposed_fix_class: registry_property
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_guardrails.py::test_plugin_registry_bootstrap_initialization_smoke"

@@ -1,0 +1,11 @@
+phase0_barrier_summary:
+  usable_artifacts:
+    - name: Scout-Typing.yaml
+      observations: 5
+    - name: Scout-Ownership.yaml
+      observations: 4
+    - name: Scout-ControlFlow.yaml
+      observations: 5
+    - name: Scout-Graph.yaml
+      observations: 5
+  summary: "The full g62 Phase 0 scout batch completed on the first pass, all four artifacts are present and schema-usable, and the cycle can advance to Phase 1 grading on the architecture axis."

@@ -1,0 +1,31 @@
+phase1_grading_summary:
+  note: "Phase 1 grading uses the first-pass authoritative g62 scout artifacts written by the canonical Mutl3y scout batch."
+  promoted_count:
+    high: 2
+    medium: 2
+  promoted_findings:
+    - id: G62-H01
+      severity: high
+      title: "Plugin registry authority remains split across singleton, bootstrap, DI ingress, and facade re-export seams"
+      suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_di_variable_discovery_plugin_fails_closed_on_empty_registry"
+
+    - id: G62-H02
+      severity: high
+      title: "Prepared policy bundle boundaries still accept raw dict and object-typed shapes"
+      suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_context.py::test_fsrc_scanner_context_requires_prepared_policy_bundle_without_mutating_ingress_options"
+
+    - id: G62-M01
+      severity: medium
+      title: "Scan-cache fallback paths mask unreadable inputs and trust cached payload shape too early"
+      suggested_narrow_gate: "pytest -q src/prism/tests/test_t3_03_scan_cache.py"
+
+    - id: G62-M02
+      severity: medium
+      title: "Public API and plugin facade still re-export private helpers and internal registry accessors"
+      suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py::test_bundle_resolver_integration"
+
+  grading_notes: |
+    Thorough architecture cycle g62 promotes two High and two Medium findings
+    from the first-pass scout batch. The highest-leverage first decision slice
+    is G62-H01 because it concentrates singleton ownership, bootstrap
+    authority, and public-facade leakage in one architecture seam.

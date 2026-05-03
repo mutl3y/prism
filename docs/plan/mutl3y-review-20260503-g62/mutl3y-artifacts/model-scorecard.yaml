@@ -1,0 +1,13 @@
+cycle: g62
+phase: P0
+models:
+  GPT-5 mini (copilot):
+    attempts: 4
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.0
+    lane_tags:
+      - discovery
+    status: healthy
+notes: []
