@@ -6,6 +6,7 @@ import importlib
 import sys
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 import pytest
 
@@ -15,7 +16,7 @@ FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
 
 @contextmanager
-def _prefer_fsrc_prism_on_sys_path() -> object:
+def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -45,6 +46,24 @@ def test_fsrc_scanner_plugin_kernel_extension_paths_import_cleanly() -> None:
     assert scanner_kernel.__name__ == "prism.scanner_kernel"
 
 
+def test_fsrc_scanner_data_exports_collection_runtime_contract_components() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        scanner_data = importlib.import_module("prism.scanner_data")
+
+    expected_exports = {
+        "CollectionDependencies",
+        "CollectionFailureRecord",
+        "CollectionIdentity",
+        "CollectionPluginCatalog",
+        "CollectionRoleEntry",
+        "CollectionScanResult",
+        "CollectionSummary",
+    }
+
+    assert expected_exports.issubset(set(scanner_data.__all__))
+    assert expected_exports.issubset(set(dir(scanner_data)))
+
+
 def test_fsrc_markdown_parser_domain_does_not_import_scanner_readme() -> None:
     parser_file = (
         FSRC_SOURCE_ROOT
@@ -69,7 +88,8 @@ def test_fsrc_plugin_registry_registers_and_resolves_plugins() -> None:
         registry_module = importlib.import_module("prism.scanner_plugins.registry")
 
     class _Plugin:
-        pass
+        def __init__(self, *, di=None) -> None:
+            self.di = di
 
     registry = registry_module.PluginRegistry()
     registry.register_feature_detection_plugin("demo", _Plugin)
@@ -103,6 +123,32 @@ def test_fsrc_plugin_registry_dynamic_loader_cache_uses_module_and_class_key() -
     assert task_line_class is not task_annotation_class
 
 
+def test_fsrc_defaults_non_strict_shape_validation_raises_for_malformed_plugin() -> (
+    None
+):
+    class _MalformedTaskLinePlugin:
+        pass
+
+    class _DI:
+        def factory_task_line_parsing_policy_plugin(self) -> _MalformedTaskLinePlugin:
+            return _MalformedTaskLinePlugin()
+
+    with _prefer_fsrc_prism_on_sys_path():
+        defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+        default_policies_module = importlib.import_module(
+            "prism.scanner_plugins.ansible.default_policies"
+        )
+        plugin = defaults_module.resolve_task_line_parsing_policy_plugin(
+            _DI(),
+            strict_mode=False,
+        )
+
+    assert isinstance(
+        plugin,
+        default_policies_module.AnsibleDefaultTaskLineParsingPolicyPlugin,
+    )
+
+
 def test_fsrc_default_plugin_registry_bootstrap_registers_required_plugins() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         scanner_plugins = importlib.import_module("prism.scanner_plugins")
@@ -113,32 +159,33 @@ def test_fsrc_default_plugin_registry_bootstrap_registers_required_plugins() -> 
         comment_doc_module = importlib.import_module(
             "prism.scanner_plugins.parsers.comment_doc.role_notes_parser"
         )
+        registry = scanner_plugins.get_default_plugin_registry()
 
-    registry = scanner_plugins.DEFAULT_PLUGIN_REGISTRY
-
-    assert "default" in set(registry.list_comment_driven_doc_plugins())
-    assert "default" in set(registry.list_scan_pipeline_plugins())
-    assert "ansible" in set(registry.list_scan_pipeline_plugins())
-    assert (
-        registry.get_comment_driven_doc_plugin("default")
-        is comment_doc_module.CommentDrivenDocumentationParser
-    )
-    assert (
-        registry.get_scan_pipeline_plugin("default")
-        is default_pipeline_module.DefaultScanPipelinePlugin
-    )
-    assert (
-        registry.get_scan_pipeline_plugin("ansible")
-        is ansible_plugins.AnsibleScanPipelinePlugin
-    )
+        assert "default" in set(registry.list_comment_driven_doc_plugins())
+        assert "default" in set(registry.list_scan_pipeline_plugins())
+        assert "ansible" in set(registry.list_scan_pipeline_plugins())
+        assert (
+            registry.get_comment_driven_doc_plugin("default")
+            is comment_doc_module.CommentDrivenDocumentationParser
+        )
+        assert (
+            registry.get_scan_pipeline_plugin("default")
+            is default_pipeline_module.DefaultScanPipelinePlugin
+        )
+        assert (
+            registry.get_scan_pipeline_plugin("ansible")
+            is ansible_plugins.AnsibleScanPipelinePlugin
+        )
 
 
 def test_fsrc_default_plugin_registry_aligns_with_canonical_singleton() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         scanner_plugins = importlib.import_module("prism.scanner_plugins")
         registry_module = importlib.import_module("prism.scanner_plugins.registry")
-
-    assert scanner_plugins.DEFAULT_PLUGIN_REGISTRY is registry_module.plugin_registry
+        assert (
+            scanner_plugins.get_default_plugin_registry()
+            is registry_module.plugin_registry
+        )
 
 
 def test_fsrc_no_arg_bootstrap_preserves_singleton_class_bindings() -> None:
@@ -149,20 +196,19 @@ def test_fsrc_no_arg_bootstrap_preserves_singleton_class_bindings() -> None:
             "prism.scanner_plugins.parsers.comment_doc.role_notes_parser"
         )
         ansible_plugins = importlib.import_module("prism.scanner_plugins.ansible")
+        first_bootstrap = scanner_plugins.bootstrap_default_plugins()
+        second_bootstrap = scanner_plugins.bootstrap_default_plugins()
 
-    first_bootstrap = scanner_plugins.bootstrap_default_plugins()
-    second_bootstrap = scanner_plugins.bootstrap_default_plugins()
-
-    assert first_bootstrap is registry_module.plugin_registry
-    assert second_bootstrap is registry_module.plugin_registry
-    assert (
-        registry_module.plugin_registry.get_comment_driven_doc_plugin("default")
-        is comment_doc_module.CommentDrivenDocumentationParser
-    )
-    assert (
-        registry_module.plugin_registry.get_scan_pipeline_plugin("ansible")
-        is ansible_plugins.AnsibleScanPipelinePlugin
-    )
+        assert first_bootstrap is registry_module.plugin_registry
+        assert second_bootstrap is registry_module.plugin_registry
+        assert (
+            registry_module.plugin_registry.get_comment_driven_doc_plugin("default")
+            is comment_doc_module.CommentDrivenDocumentationParser
+        )
+        assert (
+            registry_module.plugin_registry.get_scan_pipeline_plugin("ansible")
+            is ansible_plugins.AnsibleScanPipelinePlugin
+        )
 
 
 def test_fsrc_default_plugin_bootstrap_is_idempotent_for_required_keys() -> None:
@@ -224,8 +270,10 @@ def test_fsrc_required_ansible_scan_pipeline_plugin_process_contract() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         scanner_plugins = importlib.import_module("prism.scanner_plugins")
 
-    plugin_class = scanner_plugins.DEFAULT_PLUGIN_REGISTRY.get_scan_pipeline_plugin(
-        "ansible"
+    plugin_class = (
+        scanner_plugins.get_default_plugin_registry().get_scan_pipeline_plugin(
+            "ansible"
+        )
     )
     assert plugin_class is not None
 
@@ -284,7 +332,11 @@ def test_fsrc_kernel_route_orchestration_uses_registry_plugin_context(
         }
 
     class _DisabledRegistry:
-        def get_scan_pipeline_plugin(self, _name: str):
+        def get_default_platform_key(self) -> str:
+            return "ansible"
+
+        def get_scan_pipeline_plugin(self, name: str):
+            assert name == "ansible"
             return _DisabledPlugin
 
     with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
@@ -298,7 +350,11 @@ def test_fsrc_kernel_route_orchestration_uses_registry_plugin_context(
     assert exc_info.value.code == "scan_pipeline_plugin_disabled"
 
     class _EnabledRegistry:
-        def get_scan_pipeline_plugin(self, _name: str):
+        def get_default_platform_key(self) -> str:
+            return "ansible"
+
+        def get_scan_pipeline_plugin(self, name: str):
+            assert name == "ansible"
             return _EnabledPlugin
 
     kernel_result = orchestrator_module.route_scan_payload_orchestration(
@@ -313,16 +369,132 @@ def test_fsrc_kernel_route_orchestration_uses_registry_plugin_context(
     carrier = kernel_result["route_preflight_runtime"]
     assert carrier is not None
     assert carrier.preflight_context["plugin_enabled"] is True
-    assert carrier.preflight_context["plugin_name"] == "default"
+    assert carrier.preflight_context["plugin_name"] == "ansible"
     assert carrier.routing == {
         "mode": "scan_pipeline_plugin",
-        "selected_plugin": "default",
+        "selected_plugin": "ansible",
         "selection_order": [
             "request.option.scan_pipeline_plugin",
             "policy_context.selection.plugin",
             "platform",
             "registry_default",
         ],
+    }
+
+
+def test_fsrc_kernel_route_orchestration_rejects_non_bool_plugin_enabled() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+        errors_module = importlib.import_module("prism.errors")
+
+    class _MalformedPlugin:
+        def process_scan_pipeline(
+            self,
+            scan_options: dict[str, object],
+            scan_context: dict[str, object],
+        ) -> dict[str, object]:
+            del scan_options
+            del scan_context
+            return {"plugin_enabled": "yes"}
+
+    def _kernel_orchestrator(
+        *,
+        role_path: str,
+        scan_options: dict[str, object],
+        route_preflight_runtime=None,
+    ) -> dict[str, object]:
+        return {
+            "lane": "kernel",
+            "role_path": role_path,
+            "scan_options": scan_options,
+            "route_preflight_runtime": route_preflight_runtime,
+        }
+
+    class _MalformedRegistry:
+        def get_default_platform_key(self) -> str:
+            return "ansible"
+
+        def get_scan_pipeline_plugin(self, name: str):
+            assert name == "ansible"
+            return _MalformedPlugin
+
+    with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+        orchestrator_module.route_scan_payload_orchestration(
+            role_path="/tmp/role",
+            scan_options={"x": 1},
+            kernel_orchestrator_fn=_kernel_orchestrator,
+            registry=_MalformedRegistry(),
+        )
+
+    assert exc_info.value.code == "scan_pipeline_execution_failed"
+    assert exc_info.value.detail == {
+        "metadata": {
+            "routing": {
+                "mode": "scan_pipeline_plugin",
+                "selected_plugin": "ansible",
+                "failure_mode": "invalid_preflight_contract",
+            }
+        }
+    }
+
+
+def test_fsrc_kernel_route_orchestration_rejects_missing_plugin_enabled() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+        errors_module = importlib.import_module("prism.errors")
+
+    class _MissingPluginEnabledPlugin:
+        def process_scan_pipeline(
+            self,
+            scan_options: dict[str, object],
+            scan_context: dict[str, object],
+        ) -> dict[str, object]:
+            del scan_options
+            del scan_context
+            return {"plugin_name": "ansible"}
+
+    def _kernel_orchestrator(
+        *,
+        role_path: str,
+        scan_options: dict[str, object],
+        route_preflight_runtime=None,
+    ) -> dict[str, object]:
+        return {
+            "lane": "kernel",
+            "role_path": role_path,
+            "scan_options": scan_options,
+            "route_preflight_runtime": route_preflight_runtime,
+        }
+
+    class _MalformedRegistry:
+        def get_default_platform_key(self) -> str:
+            return "ansible"
+
+        def get_scan_pipeline_plugin(self, name: str):
+            assert name == "ansible"
+            return _MissingPluginEnabledPlugin
+
+    with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+        orchestrator_module.route_scan_payload_orchestration(
+            role_path="/tmp/role",
+            scan_options={"x": 1},
+            kernel_orchestrator_fn=_kernel_orchestrator,
+            registry=_MalformedRegistry(),
+        )
+
+    assert exc_info.value.code == "scan_pipeline_execution_failed"
+    assert exc_info.value.detail == {
+        "metadata": {
+            "routing": {
+                "mode": "scan_pipeline_plugin",
+                "selected_plugin": "ansible",
+                "failure_mode": "invalid_preflight_contract",
+            }
+        }
     }
 
 
@@ -349,6 +521,9 @@ def test_fsrc_kernel_route_orchestration_default_unavailable_raises_when_strict(
         }
 
     class _MissingRegistry:
+        def get_default_platform_key(self) -> None:
+            return None
+
         def get_scan_pipeline_plugin(self, _name: str):
             return None
 
@@ -370,6 +545,7 @@ def test_fsrc_kernel_route_orchestration_plugin_error_raises(
         orchestrator_module = importlib.import_module(
             "prism.scanner_kernel.orchestrator"
         )
+        errors_module = importlib.import_module("prism.errors")
 
     def _kernel_orchestrator(
         *,
@@ -395,16 +571,28 @@ def test_fsrc_kernel_route_orchestration_plugin_error_raises(
             raise RuntimeError("router boom")
 
     class _FailingRegistry:
-        def get_scan_pipeline_plugin(self, _name: str):
+        def get_default_platform_key(self) -> str:
+            return "ansible"
+
+        def get_scan_pipeline_plugin(self, name: str):
+            assert name == "ansible"
             return _FailingPlugin
 
-    with pytest.raises(RuntimeError, match="router boom"):
+    with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
         orchestrator_module.route_scan_payload_orchestration(
             role_path="/tmp/role",
             scan_options={"x": 1, "strict_phase_failures": True},
             kernel_orchestrator_fn=_kernel_orchestrator,
             registry=_FailingRegistry(),
         )
+
+    assert exc_info.value.code == "scan_pipeline_execution_failed"
+    assert exc_info.value.message == "scan-pipeline preflight execution failed"
+    assert exc_info.value.detail["metadata"]["routing"] == {
+        "mode": "scan_pipeline_plugin",
+        "selected_plugin": "ansible",
+        "failure_mode": "preflight_execution_exception",
+    }
 
 
 def test_fsrc_kernel_route_orchestration_registry_error_raises(
@@ -414,6 +602,7 @@ def test_fsrc_kernel_route_orchestration_registry_error_raises(
         orchestrator_module = importlib.import_module(
             "prism.scanner_kernel.orchestrator"
         )
+        errors_module = importlib.import_module("prism.errors")
 
     def _kernel_orchestrator(
         *, role_path: str, scan_options: dict[str, object]
@@ -421,16 +610,27 @@ def test_fsrc_kernel_route_orchestration_registry_error_raises(
         return {"lane": "kernel", "role_path": role_path, "scan_options": scan_options}
 
     class _FailingRegistry:
-        def get_scan_pipeline_plugin(self, _name: str):
+        def get_default_platform_key(self) -> str:
+            return "ansible"
+
+        def get_scan_pipeline_plugin(self, name: str):
+            assert name == "ansible"
             raise RuntimeError("registry boom")
 
-    with pytest.raises(RuntimeError, match="registry boom"):
+    with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
         orchestrator_module.route_scan_payload_orchestration(
             role_path="/tmp/role",
             scan_options={"x": 1, "strict_phase_failures": True},
             kernel_orchestrator_fn=_kernel_orchestrator,
             registry=_FailingRegistry(),
         )
+
+    assert exc_info.value.code == "scan_pipeline_execution_failed"
+    assert exc_info.value.message == "scan-pipeline preflight execution failed"
+    assert exc_info.value.detail["metadata"]["routing"] == {
+        "mode": "scan_pipeline_plugin",
+        "failure_mode": "preflight_resolution_exception",
+    }
 
 
 def test_fsrc_kernel_route_orchestration_missing_plugin_raises(
@@ -518,6 +718,7 @@ def test_fsrc_kernel_route_orchestration_preflight_failure_raises(
         orchestrator_module = importlib.import_module(
             "prism.scanner_kernel.orchestrator"
         )
+        errors_module = importlib.import_module("prism.errors")
 
     def _kernel_orchestrator(
         *, role_path: str, scan_options: dict[str, object]
@@ -539,7 +740,7 @@ def test_fsrc_kernel_route_orchestration_preflight_failure_raises(
         def get_scan_pipeline_plugin(_name: str):
             return _FailingPlugin
 
-    with pytest.raises(RuntimeError, match="preflight boom"):
+    with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
         orchestrator_module.route_scan_payload_orchestration(
             role_path="/tmp/role",
             scan_options={
@@ -549,6 +750,105 @@ def test_fsrc_kernel_route_orchestration_preflight_failure_raises(
             kernel_orchestrator_fn=_kernel_orchestrator,
             registry=_Registry(),
         )
+
+    assert exc_info.value.code == "scan_pipeline_execution_failed"
+    assert exc_info.value.message == "scan-pipeline preflight execution failed"
+    assert exc_info.value.detail["metadata"]["routing"] == {
+        "mode": "scan_pipeline_plugin",
+        "selected_plugin": "custom",
+        "failure_mode": "preflight_execution_exception",
+    }
+
+
+def test_fsrc_kernel_route_orchestration_invalid_preflight_output_raises_contract_error(
+    monkeypatch,
+) -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+        errors_module = importlib.import_module("prism.errors")
+
+    def _kernel_orchestrator(
+        *, role_path: str, scan_options: dict[str, object]
+    ) -> dict[str, object]:
+        return {"lane": "kernel", "role_path": role_path, "scan_options": scan_options}
+
+    class _InvalidPlugin:
+        def process_scan_pipeline(
+            self,
+            scan_options: dict[str, object],
+            scan_context: dict[str, object],
+        ) -> object:
+            del scan_options
+            del scan_context
+            return ["invalid"]
+
+    class _Registry:
+        @staticmethod
+        def get_scan_pipeline_plugin(_name: str):
+            return _InvalidPlugin
+
+    with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+        orchestrator_module.route_scan_payload_orchestration(
+            role_path="/tmp/role",
+            scan_options={
+                "scan_pipeline_plugin": "custom",
+                "strict_phase_failures": False,
+            },
+            kernel_orchestrator_fn=_kernel_orchestrator,
+            registry=_Registry(),
+        )
+
+    assert exc_info.value.code == "scan_pipeline_execution_failed"
+    assert exc_info.value.message == (
+        "scan-pipeline plugin 'custom' returned invalid preflight output "
+        "type 'list'; expected dict"
+    )
+    assert exc_info.value.detail == {
+        "metadata": {
+            "routing": {
+                "mode": "scan_pipeline_plugin",
+                "selected_plugin": "custom",
+                "failure_mode": "invalid_preflight_output",
+            }
+        }
+    }
+
+
+def test_fsrc_scan_pipeline_runtime_constructor_failure_raises_contract_error() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+        errors_module = importlib.import_module("prism.errors")
+
+    class _CtorFailurePlugin:
+        def __init__(self) -> None:
+            raise ValueError("ctor boom")
+
+    class _Registry:
+        @staticmethod
+        def get_scan_pipeline_plugin(name: str):
+            if name == "custom":
+                return _CtorFailurePlugin
+            return None
+
+    with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+        orchestrator_module.orchestrate_scan_payload_with_selected_plugin(
+            build_payload_fn=lambda: {"metadata": {"existing": True}},
+            scan_options={"scan_pipeline_plugin": "custom"},
+            strict_mode=False,
+            registry=_Registry(),
+        )
+
+    assert exc_info.value.code == "scan_pipeline_execution_failed"
+    assert exc_info.value.message == "scan-pipeline runtime execution failed"
+    assert exc_info.value.detail["metadata"]["routing"] == {
+        "mode": "scan_pipeline_plugin",
+        "selected_plugin": "custom",
+        "failure_mode": "constructor_exception",
+    }
 
 
 def test_fsrc_scan_pipeline_runtime_invalid_output_raises_contract_error() -> None:
@@ -756,6 +1056,133 @@ def test_fsrc_scan_pipeline_direct_runtime_dict_output_passes_through() -> None:
         },
         "role_name": "direct-plugin-role",
     }
+
+
+def test_fsrc_scan_pipeline_runtime_uses_preflight_selected_factory_when_registry_mutates() -> (
+    None
+):
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_kernel.orchestrator"
+        )
+
+    class _PluginA:
+        def process_scan_pipeline(
+            self,
+            scan_options: dict[str, object],
+            scan_context: dict[str, object],
+        ) -> dict[str, object]:
+            del scan_options, scan_context
+            return {
+                "plugin_enabled": True,
+                "plugin_name": "custom",
+                "preflight_marker": "A",
+            }
+
+        def orchestrate_scan_payload(
+            self,
+            *,
+            payload: dict[str, object],
+            scan_options: dict[str, object],
+            strict_mode: bool,
+            preflight_context: dict[str, object] | None = None,
+        ) -> dict[str, object]:
+            del scan_options, strict_mode
+            payload.setdefault("metadata", {})["runtime_marker"] = "A"
+            payload["metadata"]["preflight_marker_seen"] = (
+                preflight_context.get("preflight_marker")
+                if isinstance(preflight_context, dict)
+                else None
+            )
+            return payload
+
+    class _PluginB:
+        def process_scan_pipeline(
+            self,
+            scan_options: dict[str, object],
+            scan_context: dict[str, object],
+        ) -> dict[str, object]:
+            del scan_options, scan_context
+            return {
+                "plugin_enabled": True,
+                "plugin_name": "custom",
+                "preflight_marker": "B",
+            }
+
+        def orchestrate_scan_payload(
+            self,
+            *,
+            payload: dict[str, object],
+            scan_options: dict[str, object],
+            strict_mode: bool,
+            preflight_context: dict[str, object] | None = None,
+        ) -> dict[str, object]:
+            del scan_options, strict_mode
+            payload.setdefault("metadata", {})["runtime_marker"] = "B"
+            payload["metadata"]["preflight_marker_seen"] = (
+                preflight_context.get("preflight_marker")
+                if isinstance(preflight_context, dict)
+                else None
+            )
+            return payload
+
+    class _Registry:
+        def __init__(self) -> None:
+            self._plugin = _PluginA
+
+        def get_scan_pipeline_plugin(self, name: str):
+            if name == "custom":
+                return self._plugin
+            return None
+
+        def mutate(self) -> None:
+            self._plugin = _PluginB
+
+    registry = _Registry()
+    carrier_holder: dict[str, object] = {}
+
+    def _kernel_orchestrator(
+        *,
+        role_path: str,
+        scan_options: dict[str, object],
+        route_preflight_runtime=None,
+    ) -> dict[str, object]:
+        del role_path, scan_options
+        carrier_holder["carrier"] = route_preflight_runtime
+        return {
+            "role_name": "demo",
+            "description": "x",
+            "display_variables": {},
+            "requirements_display": [],
+            "undocumented_default_filters": [],
+            "metadata": {},
+        }
+
+    orchestrator_module.route_scan_payload_orchestration(
+        role_path="/tmp/role",
+        scan_options={"scan_pipeline_plugin": "custom"},
+        kernel_orchestrator_fn=_kernel_orchestrator,
+        registry=registry,
+    )
+    registry.mutate()
+
+    result = orchestrator_module.orchestrate_scan_payload_with_selected_plugin(
+        build_payload_fn=lambda: {
+            "role_name": "demo",
+            "description": "x",
+            "display_variables": {},
+            "requirements_display": [],
+            "undocumented_default_filters": [],
+            "metadata": {},
+        },
+        scan_options={"scan_pipeline_plugin": "custom"},
+        strict_mode=True,
+        route_preflight_runtime=carrier_holder["carrier"],
+        registry=registry,
+    )
+
+    assert result["metadata"]["runtime_marker"] == "A"
+    assert result["metadata"]["preflight_marker_seen"] == "A"
 
 
 def test_fsrc_repo_and_collection_context_builders_gate_on_kernel_flag(

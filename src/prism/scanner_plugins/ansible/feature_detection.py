@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any
 
 from prism.scanner_data.contracts_request import FeaturesContext
 from prism.scanner_plugins.ansible.extract_utils import (
@@ -23,19 +23,7 @@ from prism.scanner_plugins.ansible.extract_utils import iter_task_mappings
 from prism.scanner_plugins.ansible.extract_utils import (
     load_task_yaml_file,
 )
-
-
-class _TaskCatalogEntry(TypedDict):
-    """Per-file task catalog summary emitted by feature detection."""
-
-    task_count: int
-    async_count: int
-    modules_used: list[str]
-    collections_used: list[str]
-    handlers_notified: list[str]
-    privileged_tasks: int
-    conditional_tasks: int
-    tagged_tasks: int
+from prism.scanner_plugins.interfaces import TaskCatalog
 
 
 class AnsibleFeatureDetectionPlugin:
@@ -192,7 +180,7 @@ class AnsibleFeatureDetectionPlugin:
         self,
         role_path: str,
         options: dict[str, Any],
-    ) -> dict[str, _TaskCatalogEntry]:
+    ) -> TaskCatalog:
         role_root = Path(role_path).resolve()
         exclude_patterns = options.get("exclude_path_patterns")
         task_files = collect_task_files(
@@ -201,7 +189,7 @@ class AnsibleFeatureDetectionPlugin:
             di=self._di,
         )
 
-        result: dict[str, _TaskCatalogEntry] = {}
+        result: TaskCatalog = {}
         for task_file in task_files:
             rel_path = str(task_file.relative_to(role_root))
             data = load_task_yaml_file(task_file, di=self._di)

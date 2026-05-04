@@ -6,7 +6,7 @@ import importlib
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import pytest
 
@@ -15,7 +15,7 @@ FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
 
 @contextmanager
-def _prefer_fsrc_prism_on_sys_path() -> object:
+def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -108,8 +108,57 @@ def test_fsrc_di_container_composes_scanner_context_when_wired() -> None:
     assert isinstance(context, _StubScannerContext)
     assert context.di is container
     assert context.role_path == "/tmp/role"
-    assert context.scan_options is options
+    assert context.scan_options == options
     assert context.prepare_scan_context_fn is _prepare_scan_context_stub
+
+
+def test_fsrc_di_container_replace_scan_options_refreshes_factory_snapshots() -> None:
+    class _FactoryProduct:
+        def __init__(self, options: dict[str, object]) -> None:
+            self.options = options
+
+    def _build_product(
+        _container: object,
+        _role_path: str,
+        options: dict[str, object],
+    ) -> _FactoryProduct:
+        return _FactoryProduct(options)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        container = di_module.DIContainer(
+            role_path="/tmp/role",
+            scan_options={"role_name_override": None},
+            scanner_context_wiring={
+                "scanner_context_cls": _StubScannerContext,
+                "prepare_scan_context_fn": _prepare_scan_context_stub,
+            },
+            factory_overrides={
+                "variable_discovery_factory": _build_product,
+                "feature_detector_factory": _build_product,
+            },
+        )
+
+        original_variable_discovery = container.factory_variable_discovery()
+        original_feature_detector = container.factory_feature_detector()
+
+        container.replace_scan_options(
+            {
+                "role_name_override": None,
+                "prepared_policy_bundle": {"task_line_parsing": object()},
+            }
+        )
+
+        context = container.factory_scanner_context()
+        refreshed_variable_discovery = container.factory_variable_discovery()
+        refreshed_feature_detector = container.factory_feature_detector()
+
+    assert "prepared_policy_bundle" in context.scan_options
+    assert refreshed_variable_discovery is not original_variable_discovery
+    assert refreshed_feature_detector is not original_feature_detector
+    assert "prepared_policy_bundle" not in original_variable_discovery.options
+    assert "prepared_policy_bundle" in refreshed_variable_discovery.options
+    assert "prepared_policy_bundle" in refreshed_feature_detector.options
 
 
 def test_fsrc_di_container_variable_row_builder_is_cached() -> None:

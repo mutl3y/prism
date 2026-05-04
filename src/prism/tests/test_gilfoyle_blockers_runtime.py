@@ -5,8 +5,10 @@ from __future__ import annotations
 import importlib
 import logging
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -15,7 +17,7 @@ FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
 
 @contextmanager
-def _prefer_fsrc_prism_on_sys_path() -> object:
+def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -65,6 +67,40 @@ def _build_role_with_custom_include_vars_key(role_path: Path) -> None:
     )
     (role_path / "README.md").write_text(
         "Role policy include vars demo\n", encoding="utf-8"
+    )
+
+
+def _build_role_with_include_vars_traversal_attempts(
+    role_path: Path,
+    outside_relative_file: Path,
+    outside_absolute_file: Path,
+) -> None:
+    (role_path / "tasks").mkdir(parents=True)
+    (role_path / "vars").mkdir(parents=True)
+    (role_path / "tasks" / "main.yml").write_text(
+        "---\n"
+        "- name: safe relative include vars\n"
+        "  include_vars: ../vars/inside.yml\n"
+        "- name: traversal via relative escape\n"
+        "  include_vars: ../../outside-relative.yml\n"
+        "- name: traversal via absolute path\n"
+        f"  include_vars: {outside_absolute_file.resolve()}\n",
+        encoding="utf-8",
+    )
+    (role_path / "vars" / "inside.yml").write_text(
+        "---\ninside_from_relative: 42\n",
+        encoding="utf-8",
+    )
+    outside_relative_file.write_text(
+        "---\noutside_relative_escape: 1\n",
+        encoding="utf-8",
+    )
+    outside_absolute_file.write_text(
+        "---\noutside_absolute_escape: 1\n",
+        encoding="utf-8",
+    )
+    (role_path / "README.md").write_text(
+        "Role include vars traversal demo\n", encoding="utf-8"
     )
 
 
@@ -193,17 +229,23 @@ def test_fsrc_runtime_di_override_changes_task_traversal_outcome(
                 del load_yaml_file
                 return []
 
-        original_container = api_module.DIContainer
+        original_container = cast(type[Any], getattr(api_module, "DIContainer"))
 
-        class _DIContainerWithTraversalOverride(original_container):
-            def factory_task_traversal_policy_plugin(self):
-                return _NoIncludeTraversalPolicy()
+        override_container = type(
+            "_DIContainerWithTraversalOverride",
+            (original_container,),
+            {
+                "factory_task_traversal_policy_plugin": (
+                    lambda self: _NoIncludeTraversalPolicy()
+                ),
+            },
+        )
 
-        api_module.DIContainer = _DIContainerWithTraversalOverride
+        setattr(api_module, "DIContainer", override_container)
         try:
             payload = api_module.run_scan(str(role_path), include_vars_main=True)
         finally:
-            api_module.DIContainer = original_container
+            setattr(api_module, "DIContainer", original_container)
 
     assert payload["metadata"]["features"]["task_files_scanned"] == 1
 
@@ -243,19 +285,46 @@ def test_fsrc_runtime_di_override_changes_include_vars_resolution(
                 del task
                 return None
 
-        original_container = api_module.DIContainer
+        original_container = cast(type[Any], getattr(api_module, "DIContainer"))
 
-        class _DIContainerWithLinePolicyOverride(original_container):
-            def factory_task_line_parsing_policy_plugin(self):
-                return _CustomLineParsingPolicy()
+        override_container = type(
+            "_DIContainerWithLinePolicyOverride",
+            (original_container,),
+            {
+                "factory_task_line_parsing_policy_plugin": (
+                    lambda self: _CustomLineParsingPolicy()
+                ),
+            },
+        )
 
-        api_module.DIContainer = _DIContainerWithLinePolicyOverride
+        setattr(api_module, "DIContainer", override_container)
         try:
             payload = api_module.run_scan(str(role_path), include_vars_main=True)
         finally:
-            api_module.DIContainer = original_container
+            setattr(api_module, "DIContainer", original_container)
 
     assert "policy_loaded_var" in payload["display_variables"]
+
+
+def test_fsrc_runtime_include_vars_resolution_rejects_out_of_role_traversal(
+    tmp_path: Path,
+) -> None:
+    role_path = tmp_path / "role"
+    outside_relative_file = tmp_path / "outside-relative.yml"
+    outside_absolute_file = tmp_path / "outside-absolute.yml"
+    _build_role_with_include_vars_traversal_attempts(
+        role_path,
+        outside_relative_file,
+        outside_absolute_file,
+    )
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+        payload = api_module.run_scan(str(role_path), include_vars_main=True)
+
+    assert "inside_from_relative" in payload["display_variables"]
+    assert "outside_relative_escape" not in payload["display_variables"]
+    assert "outside_absolute_escape" not in payload["display_variables"]
 
 
 def test_fsrc_runtime_policy_flag_fails_dynamic_include_in_strict_mode(
@@ -443,17 +512,23 @@ def test_fsrc_runtime_di_override_changes_annotation_parsing_behavior(
             def task_anchor(file_path: str, task_name: str, index: int) -> str:
                 return f"{file_path}-{task_name}-{index}".replace(" ", "-")
 
-        original_container = api_module.DIContainer
+        original_container = cast(type[Any], getattr(api_module, "DIContainer"))
 
-        class _DIContainerWithAnnotationPolicyOverride(original_container):
-            def factory_task_annotation_policy_plugin(self):
-                return _CustomAnnotationPolicy()
+        override_container = type(
+            "_DIContainerWithAnnotationPolicyOverride",
+            (original_container,),
+            {
+                "factory_task_annotation_policy_plugin": (
+                    lambda self: _CustomAnnotationPolicy()
+                ),
+            },
+        )
 
-        api_module.DIContainer = _DIContainerWithAnnotationPolicyOverride
+        setattr(api_module, "DIContainer", override_container)
         try:
             payload = api_module.run_scan(str(role_path), include_vars_main=True)
         finally:
-            api_module.DIContainer = original_container
+            setattr(api_module, "DIContainer", original_container)
 
     assert payload["metadata"]["features"]["yaml_like_task_annotations"] == 1
 
@@ -497,17 +572,23 @@ def test_fsrc_runtime_di_override_changes_task_module_detection_behavior(
                     return "acme.collection.custom_debug"
                 return None
 
-        original_container = api_module.DIContainer
+        original_container = cast(type[Any], getattr(api_module, "DIContainer"))
 
-        class _DIContainerWithLinePolicyOverride(original_container):
-            def factory_task_line_parsing_policy_plugin(self):
-                return _CustomTaskLineParsingPolicy()
+        override_container = type(
+            "_DIContainerWithLinePolicyOverride",
+            (original_container,),
+            {
+                "factory_task_line_parsing_policy_plugin": (
+                    lambda self: _CustomTaskLineParsingPolicy()
+                ),
+            },
+        )
 
-        api_module.DIContainer = _DIContainerWithLinePolicyOverride
+        setattr(api_module, "DIContainer", override_container)
         try:
             payload = api_module.run_scan(str(role_path), include_vars_main=True)
         finally:
-            api_module.DIContainer = original_container
+            setattr(api_module, "DIContainer", original_container)
 
     assert (
         payload["metadata"]["features"]["unique_modules"]
@@ -552,7 +633,7 @@ def test_runtime_blockers_preserve_strict_failures(
                 raise RuntimeError("runtime boom")
 
         plugins_module = importlib.import_module("prism.scanner_plugins")
-        _real = plugins_module.DEFAULT_PLUGIN_REGISTRY
+        _real = plugins_module.get_default_plugin_registry()
 
         class _Registry:
             @staticmethod
@@ -584,6 +665,7 @@ def test_runtime_blockers_preserve_strict_failures(
     assert exc_info.value.detail == {
         "metadata": {
             "routing": {
+                "mode": "scan_pipeline_plugin",
                 "failure_mode": "runtime_execution_exception",
                 "selected_plugin": "default",
             }

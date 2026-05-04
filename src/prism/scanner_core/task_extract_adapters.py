@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from prism.scanner_core.di_helpers import scan_options_from_di
-from prism.scanner_data.contracts_request import TaskAnnotation
+from prism.scanner_data.contracts_request import TaskAnnotation, YamlParseFailure
 
 
 def _extract_task_annotations_for_file(
@@ -172,7 +172,7 @@ def iter_task_mappings(
 def load_task_yaml_file(
     file_path: Path,
     *,
-    yaml_failure_collector: list[dict[str, object]] | None = None,
+    yaml_failure_collector: list[YamlParseFailure] | None = None,
     role_root: Path | None = None,
     di: object | None = None,
 ):

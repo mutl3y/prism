@@ -6,15 +6,17 @@ import importlib
 import sys
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 import pytest
+import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
 
 @contextmanager
-def _prefer_fsrc_prism_on_sys_path() -> object:
+def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -83,7 +85,7 @@ def test_fsrc_variable_discovery_static_and_referenced_foundation(tmp_path) -> N
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
-            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
+            registry=plugins_module.get_default_plugin_registry(),
         )
         bundle_resolver.ensure_prepared_policy_bundle(
             scan_options=options, di=container
@@ -152,6 +154,59 @@ def test_fsrc_variable_pipeline_collect_dynamic_include_var_tokens() -> None:
     assert "hostvars" not in tokens
 
 
+def test_fsrc_variable_discovery_policy_rejects_out_of_role_include_vars_paths(
+    tmp_path,
+) -> None:
+    role_path = tmp_path / "role"
+    task_file = role_path / "tasks" / "main.yml"
+    inside_vars_file = role_path / "vars" / "inside.yml"
+    outside_relative_file = tmp_path / "outside-relative.yml"
+    outside_absolute_file = tmp_path / "outside-absolute.yml"
+    task_file.parent.mkdir(parents=True)
+    inside_vars_file.parent.mkdir(parents=True)
+    task_file.write_text("---\n", encoding="utf-8")
+    inside_vars_file.write_text(
+        "---\ninside_from_relative: true\n",
+        encoding="utf-8",
+    )
+    outside_relative_file.write_text(
+        "---\noutside_relative_escape: true\n",
+        encoding="utf-8",
+    )
+    outside_absolute_file.write_text(
+        "---\noutside_absolute_escape: true\n",
+        encoding="utf-8",
+    )
+
+    task_data = [
+        {"include_vars": "../vars/inside.yml"},
+        {"include_vars": "../../outside-relative.yml"},
+        {"include_vars": str(outside_absolute_file.resolve())},
+    ]
+
+    def collect_task_files(role_root: Path, *, exclude_paths: list[str] | None = None):
+        del role_root
+        del exclude_paths
+        return [task_file]
+
+    def load_yaml_file(path: Path) -> object:
+        del path
+        return task_data
+
+    with _prefer_fsrc_prism_on_sys_path():
+        default_policies_module = importlib.import_module(
+            "prism.scanner_plugins.ansible.default_policies"
+        )
+        include_files = default_policies_module.AnsibleDefaultVariableExtractorPolicyPlugin.collect_include_vars_files(
+            role_path=str(role_path),
+            exclude_paths=None,
+            collect_task_files=collect_task_files,
+            load_yaml_file=load_yaml_file,
+        )
+
+    assert include_files == [inside_vars_file.resolve()]
+
+
 def test_fsrc_variable_discovery_routes_via_plugin_when_available() -> None:
     class _Plugin:
         def discover_static_variables(self, role_path: str, options: dict):
@@ -217,7 +272,7 @@ def test_fsrc_variable_discovery_routes_via_plugin_when_available() -> None:
     assert unresolved["plugin_unresolved"] == "plugin resolver"
 
 
-def test_fsrc_variable_discovery_prefers_prepared_policy_bundle(
+def test_fsrc_variable_discovery_yaml_loading_prefers_prepared_policy_bundle(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -253,6 +308,25 @@ def test_fsrc_variable_discovery_prefers_prepared_policy_bundle(
         def collect_undeclared_jinja_variables(_text: str) -> set[str]:
             return {"from_prepared_jinja"}
 
+    class _PreparedYamlPolicy:
+        def __init__(self) -> None:
+            self.loaded_paths: list[Path] = []
+            self.parsed_candidates: list[tuple[Path, Path]] = []
+
+        def load_yaml_file(self, path: str | Path) -> object:
+            candidate = Path(path)
+            self.loaded_paths.append(candidate)
+            loaded = yaml.safe_load(candidate.read_text(encoding="utf-8"))
+            return {} if loaded is None else loaded
+
+        def parse_yaml_candidate(
+            self,
+            candidate: Path,
+            role_root: Path,
+        ) -> object:
+            self.parsed_candidates.append((candidate, role_root))
+            return None
+
     with _prefer_fsrc_prism_on_sys_path():
         di_module = importlib.import_module("prism.scanner_core.di")
         bundle_resolver = importlib.import_module(
@@ -262,6 +336,9 @@ def test_fsrc_variable_discovery_prefers_prepared_policy_bundle(
         discovery_module = importlib.import_module(
             "prism.scanner_core.variable_discovery"
         )
+        loader_module = importlib.import_module("prism.scanner_io.loader")
+
+        prepared_yaml_policy = _PreparedYamlPolicy()
 
         monkeypatch.setattr(
             discovery_module,
@@ -279,6 +356,13 @@ def test_fsrc_variable_discovery_prefers_prepared_policy_bundle(
             ),
             raising=False,
         )
+        monkeypatch.setattr(
+            loader_module,
+            "_get_yaml_parsing_policy",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("loader YAML fallback should not be called")
+            ),
+        )
 
         options = {
             "role_path": str(role_path),
@@ -289,12 +373,13 @@ def test_fsrc_variable_discovery_prefers_prepared_policy_bundle(
             "prepared_policy_bundle": {
                 "task_line_parsing": _PreparedTaskLinePolicy(),
                 "jinja_analysis": _PreparedJinjaPolicy(),
+                "yaml_parsing": prepared_yaml_policy,
             },
         }
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
-            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
+            registry=plugins_module.get_default_plugin_registry(),
         )
         bundle_resolver.ensure_prepared_policy_bundle(
             scan_options=options, di=container
@@ -311,6 +396,9 @@ def test_fsrc_variable_discovery_prefers_prepared_policy_bundle(
     static_names = {row["name"] for row in static_rows}
     assert "from_prepared_include" in static_names
     assert "from_prepared_jinja" in referenced
+    assert role_path / "tasks" / "main.yml" in prepared_yaml_policy.loaded_paths
+    assert role_path / "vars" / "extra.yml" in prepared_yaml_policy.loaded_paths
+    assert prepared_yaml_policy.parsed_candidates == []
 
 
 def test_fsrc_variable_discovery_requires_ingress_prepared_policy_bundle(
@@ -348,7 +436,7 @@ def test_fsrc_variable_discovery_requires_ingress_prepared_policy_bundle(
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
-            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
+            registry=plugins_module.get_default_plugin_registry(),
         )
         discovery = discovery_module.VariableDiscovery(
             container,
@@ -393,7 +481,7 @@ def test_fsrc_variable_discovery_discover_referenced_requires_ingress_prepared_j
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
-            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
+            registry=plugins_module.get_default_plugin_registry(),
         )
         discovery = discovery_module.VariableDiscovery(
             container,

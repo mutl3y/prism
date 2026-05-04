@@ -12,7 +12,17 @@ entrypoint needs a protected registry view without becoming a composition root.
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, cast, runtime_checkable
+import threading
+from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
+
+from prism.scanner_data.contracts_request import ScanMetadata, ScanOptionsDict
+from prism.scanner_plugins.interfaces import OrchestratingScanPipelinePlugin
+from prism.scanner_plugins.interfaces import ScanPipelinePayload
+from prism.scanner_plugins.interfaces import ScanPipelinePlugin
+from prism.scanner_plugins.interfaces import ScanPipelinePluginFactory
+from prism.scanner_plugins.interfaces import ScanPipelinePluginFactoryLike
+from prism.scanner_plugins.interfaces import ScanPipelinePreflightContext
+from prism.scanner_plugins.interfaces import ScanPipelineRuntimeRegistry
 
 if TYPE_CHECKING:
     from prism.scanner_config.audit_rules import AuditReport, AuditRule
@@ -27,7 +37,6 @@ if TYPE_CHECKING:
         JinjaAnalysisPolicyPlugin,
         OutputOrchestrationPlugin,
         ReadmeRendererPlugin,
-        ScanPipelinePreflightContext,
         VariableDiscoveryPlugin,
         YAMLParsingPolicyPlugin,
     )
@@ -41,165 +50,64 @@ class _HasScanOptions(Protocol):
     scan_options: dict[str, object]
 
 
-class ScanPipelinePluginFactory(Protocol):
-    """Factory contract for scan-pipeline plugin construction."""
-
-    def __call__(self) -> _ProcessScanPipelinePlugin: ...
-
-
-class ScanPipelineRuntimeRegistry(Protocol):
-    """Registry surface needed by API run_scan orchestration."""
-
-    def get_scan_pipeline_plugin(
-        self, name: str
-    ) -> ScanPipelinePluginFactoryLike | None: ...
-
-    def list_scan_pipeline_plugins(self) -> list[str]: ...
-
-    def get_default_platform_key(self) -> str | None: ...
-
-    def get_variable_discovery_plugin(
-        self,
-        name: str,
-    ) -> type[VariableDiscoveryPlugin] | None: ...
-
-    def get_feature_detection_plugin(
-        self,
-        name: str,
-    ) -> type[FeatureDetectionPlugin] | None: ...
-
-    def get_output_orchestration_plugin(
-        self,
-        name: str,
-    ) -> type[OutputOrchestrationPlugin] | None: ...
-
-    def get_comment_driven_doc_plugin(
-        self,
-        name: str,
-    ) -> type[CommentDrivenDocumentationPlugin] | None: ...
-
-    def get_extract_policy_plugin(
-        self,
-        name: str,
-    ) -> type[ExtractPolicyPlugin] | None: ...
-
-    def get_yaml_parsing_policy_plugin(
-        self,
-        name: str,
-    ) -> type[YAMLParsingPolicyPlugin] | None: ...
-
-    def get_jinja_analysis_policy_plugin(
-        self,
-        name: str,
-    ) -> type[JinjaAnalysisPolicyPlugin] | None: ...
-
-    def get_readme_renderer_plugin(
-        self,
-        name: str,
-    ) -> type[ReadmeRendererPlugin] | None: ...
-
-    def list_variable_discovery_plugins(self) -> list[str]: ...
-
-    def list_feature_detection_plugins(self) -> list[str]: ...
-
-    def list_output_orchestration_plugins(self) -> list[str]: ...
-
-    def list_comment_driven_doc_plugins(self) -> list[str]: ...
-
-    def list_extract_policy_plugins(self) -> list[str]: ...
-
-    def list_yaml_parsing_policy_plugins(self) -> list[str]: ...
-
-    def list_jinja_analysis_policy_plugins(self) -> list[str]: ...
-
-    def list_readme_renderer_plugins(self) -> dict[str, type[ReadmeRendererPlugin]]: ...
-
-
-class _ProcessScanPipelinePlugin(Protocol):
-    def process_scan_pipeline(
-        self,
-        scan_options: dict[str, Any],
-        scan_context: dict[str, Any],
-    ) -> ScanPipelinePreflightContext: ...
-
-
-class _OrchestratingScanPipelinePlugin(_ProcessScanPipelinePlugin, Protocol):
-    def orchestrate_scan_payload(
-        self,
-        *,
-        payload: dict[str, object],
-        scan_options: dict[str, object],
-        strict_mode: bool,
-        preflight_context: dict[str, object] | None = None,
-    ) -> dict[str, object]: ...
-
-
-ScanPipelinePluginFactoryLike: TypeAlias = (
-    "type[_ProcessScanPipelinePlugin] | ScanPipelinePluginFactory"
-)
+_DEFAULT_SCAN_PIPELINE_REGISTRY_LOCK = threading.Lock()
+_default_scan_pipeline_registry_source: object | None = None
+_default_scan_pipeline_registry: ScanPipelineRuntimeRegistry | None = None
 
 
 def _wrap_scan_pipeline_plugin_factory(
     plugin_factory: ScanPipelinePluginFactoryLike,
 ) -> ScanPipelinePluginFactory:
-    if hasattr(plugin_factory, "orchestrate_scan_payload"):
-        orchestrating_plugin_factory = cast(
-            "type[_OrchestratingScanPipelinePlugin]",
-            plugin_factory,
-        )
+    process_plugin_factory = cast(ScanPipelinePluginFactory, plugin_factory)
 
-        class _OrchestratingScanPipelinePluginIsolationWrapper:
-            def __init__(self) -> None:
-                self._inner = orchestrating_plugin_factory()
+    class _OrchestratingScanPipelinePluginIsolationWrapper:
+        def __init__(self, inner: OrchestratingScanPipelinePlugin) -> None:
+            self._inner = inner
 
-            def orchestrate_scan_payload(
-                self,
-                *,
-                payload: dict[str, Any],
-                scan_options: dict[str, Any],
-                strict_mode: bool,
-                preflight_context: dict[str, Any] | None = None,
-            ) -> dict[str, Any]:
-                return self._inner.orchestrate_scan_payload(
-                    payload=payload,
-                    scan_options=scan_options,
-                    strict_mode=strict_mode,
-                    preflight_context=preflight_context,
-                )
-
-            def process_scan_pipeline(
-                self,
-                scan_options: dict[str, Any],
-                scan_context: dict[str, Any],
-            ) -> ScanPipelinePreflightContext:
-                return self._inner.process_scan_pipeline(
-                    scan_options=scan_options,
-                    scan_context=copy.deepcopy(scan_context),
-                )
-
-        def _orchestrating_factory() -> _ProcessScanPipelinePlugin:
-            return _OrchestratingScanPipelinePluginIsolationWrapper()
-
-        return _orchestrating_factory
-
-    process_plugin_factory = cast("type[_ProcessScanPipelinePlugin]", plugin_factory)
-
-    class _ScanPipelinePluginIsolationWrapper:
-        def __init__(self) -> None:
-            self._inner = process_plugin_factory()
+        def orchestrate_scan_payload(
+            self,
+            *,
+            payload: ScanPipelinePayload,
+            scan_options: ScanOptionsDict,
+            strict_mode: bool,
+            preflight_context: ScanMetadata | None = None,
+        ) -> ScanPipelinePayload:
+            return self._inner.orchestrate_scan_payload(
+                payload=copy.deepcopy(payload),
+                scan_options=scan_options,
+                strict_mode=strict_mode,
+                preflight_context=preflight_context,
+            )
 
         def process_scan_pipeline(
             self,
-            scan_options: dict[str, Any],
-            scan_context: dict[str, Any],
+            scan_options: ScanOptionsDict,
+            scan_context: ScanMetadata,
         ) -> ScanPipelinePreflightContext:
             return self._inner.process_scan_pipeline(
                 scan_options=scan_options,
                 scan_context=copy.deepcopy(scan_context),
             )
 
-    def _process_factory() -> _ProcessScanPipelinePlugin:
-        return _ScanPipelinePluginIsolationWrapper()
+    class _ScanPipelinePluginIsolationWrapper:
+        def __init__(self, inner: ScanPipelinePlugin) -> None:
+            self._inner = inner
+
+        def process_scan_pipeline(
+            self,
+            scan_options: ScanOptionsDict,
+            scan_context: ScanMetadata,
+        ) -> ScanPipelinePreflightContext:
+            return self._inner.process_scan_pipeline(
+                scan_options=scan_options,
+                scan_context=copy.deepcopy(scan_context),
+            )
+
+    def _process_factory() -> ScanPipelinePlugin:
+        inner = process_plugin_factory()
+        if isinstance(inner, OrchestratingScanPipelinePlugin):
+            return _OrchestratingScanPipelinePluginIsolationWrapper(inner)
+        return _ScanPipelinePluginIsolationWrapper(inner)
 
     return _process_factory
 
@@ -227,6 +135,12 @@ def isolate_scan_pipeline_registry(
 
         def get_default_platform_key(self) -> str | None:
             return self._inner.get_default_platform_key()
+
+        def get_state_fingerprint(self) -> str:
+            return self._inner.get_state_fingerprint()
+
+        def is_reserved_unsupported_platform(self, name: str) -> bool:
+            return self._inner.is_reserved_unsupported_platform(name)
 
         def get_variable_discovery_plugin(
             self,
@@ -307,14 +221,29 @@ def isolate_scan_pipeline_registry(
 
 def get_default_scan_pipeline_registry() -> ScanPipelineRuntimeRegistry:
     """Return the default registry wrapped with scan-pipeline isolation."""
+    global _default_scan_pipeline_registry
+    global _default_scan_pipeline_registry_source
 
-    return isolate_scan_pipeline_registry(get_default_plugin_registry())
+    default_registry = get_default_plugin_registry()
+    with _DEFAULT_SCAN_PIPELINE_REGISTRY_LOCK:
+        if (
+            _default_scan_pipeline_registry is None
+            or _default_scan_pipeline_registry_source is not default_registry
+        ):
+            _default_scan_pipeline_registry_source = default_registry
+            _default_scan_pipeline_registry = isolate_scan_pipeline_registry(
+                default_registry
+            )
+        cached_registry = _default_scan_pipeline_registry
+
+    assert cached_registry is not None
+    return cached_registry
 
 
 def get_default_plugin_registry() -> PluginRegistry:
     """Return the default plugin registry instance.
 
-    This is a pass-through to scanner_plugins.DEFAULT_PLUGIN_REGISTRY.
+    This is a pass-through to scanner_plugins.bootstrap.get_default_plugin_registry().
     """
     from prism.scanner_plugins.bootstrap import get_default_plugin_registry as _get
 

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import importlib
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any, Literal, cast
 
 import pytest
 
@@ -14,7 +16,7 @@ FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
 
 @contextmanager
-def _prefer_fsrc_prism_on_sys_path() -> object:
+def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -33,6 +35,38 @@ def _prefer_fsrc_prism_on_sys_path() -> object:
             if module_name == "prism" or module_name.startswith("prism."):
                 del sys.modules[module_name]
         sys.modules.update(original_modules)
+
+
+@contextmanager
+def _preserve_plugin_registry_state(plugin_registry: Any) -> Iterator[None]:
+    snapshot = plugin_registry.snapshot_state()
+    try:
+        yield
+    finally:
+        plugin_registry.replace_state(snapshot)
+
+
+def _clear_registry_plugin(
+    plugin_registry: Any,
+    *,
+    slot: Literal[
+        "comment_driven_doc",
+        "extract_policy",
+        "yaml_parsing",
+        "jinja_analysis",
+    ],
+    name: str,
+) -> None:
+    state = plugin_registry.snapshot_state()
+    if slot == "comment_driven_doc":
+        state.comment_driven_doc_plugins.pop(name, None)
+    elif slot == "extract_policy":
+        state.extract_policy_plugins.pop(name, None)
+    elif slot == "yaml_parsing":
+        state.yaml_parsing_policy_plugins.pop(name, None)
+    else:
+        state.jinja_analysis_policy_plugins.pop(name, None)
+    plugin_registry.replace_state(state)
 
 
 class _RecordingCommentDocPlugin:
@@ -316,7 +350,7 @@ def test_extract_role_notes_routes_via_di_plugin() -> None:
     assert plugin.calls == [("/tmp/fake-role", ["tasks/ignored.yml"], "opsdoc")]
 
 
-def test_extract_role_notes_default_plugin_preserves_existing_behavior(
+def test_extract_role_notes_default_plugin_requires_canonical_di_context(
     tmp_path: Path,
 ) -> None:
     role_path = tmp_path / "role"
@@ -339,11 +373,9 @@ def test_extract_role_notes_default_plugin_preserves_existing_behavior(
 
     with _prefer_fsrc_prism_on_sys_path():
         plugin_defaults = importlib.import_module("prism.scanner_plugins.defaults")
-        result = plugin_defaults.extract_role_notes_from_comments(str(role_path))
 
-    assert "check rollback path" in result["warnings"]
-    assert "verify service dependencies" in result["notes"]
-    assert "fragment defaults note" in result["notes"]
+        with pytest.raises(ValueError, match="canonical di context"):
+            plugin_defaults.extract_role_notes_from_comments(str(role_path))
 
 
 def test_extract_role_notes_prefers_di_over_registry_default() -> None:
@@ -355,8 +387,7 @@ def test_extract_role_notes_prefers_di_over_registry_default() -> None:
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_comment_driven_doc_plugin("default")
-        try:
+        with _preserve_plugin_registry_state(plugin_registry):
             plugin_registry.register_comment_driven_doc_plugin(
                 "default",
                 _RegistryOnlyCommentDocPlugin,
@@ -366,43 +397,30 @@ def test_extract_role_notes_prefers_di_over_registry_default() -> None:
                 marker_prefix="di",
                 di=di,
             )
-        finally:
-            if original is None:
-                plugin_registry._comment_driven_doc_plugins.pop("default", None)
-            else:
-                plugin_registry.register_comment_driven_doc_plugin("default", original)
 
     assert result["notes"] == ["plugin note"]
     assert plugin.calls == [("/tmp/di-wins", None, "di")]
 
 
-def test_extract_role_notes_uses_registry_default_when_di_absent() -> None:
+def test_extract_role_notes_registry_default_requires_canonical_di_context() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         plugin_defaults = importlib.import_module("prism.scanner_plugins.defaults")
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_comment_driven_doc_plugin("default")
-        try:
+        with _preserve_plugin_registry_state(plugin_registry):
             plugin_registry.register_comment_driven_doc_plugin(
                 "default",
                 _RegistryOnlyCommentDocPlugin,
             )
-            result = plugin_defaults.extract_role_notes_from_comments(
-                role_path="/tmp/registry-wins",
-                marker_prefix="registry",
-            )
-        finally:
-            if original is None:
-                plugin_registry._comment_driven_doc_plugins.pop("default", None)
-            else:
-                plugin_registry.register_comment_driven_doc_plugin("default", original)
-
-    assert result["warnings"] == ["registry:/tmp/registry-wins"]
-    assert result["notes"] == ["registry:registry"]
+            with pytest.raises(ValueError, match="canonical di context"):
+                plugin_defaults.extract_role_notes_from_comments(
+                    role_path="/tmp/registry-wins",
+                    marker_prefix="registry",
+                )
 
 
-def test_extract_role_notes_uses_class_fallback_when_di_and_registry_unavailable(
+def test_extract_role_notes_class_fallback_requires_canonical_di_context(
     tmp_path: Path,
 ) -> None:
     role_path = tmp_path / "role"
@@ -421,16 +439,14 @@ def test_extract_role_notes_uses_class_fallback_when_di_and_registry_unavailable
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        had_default = "default" in plugin_registry.list_comment_driven_doc_plugins()
-        original = plugin_registry.get_comment_driven_doc_plugin("default")
-        try:
-            plugin_registry._comment_driven_doc_plugins.pop("default", None)
-            result = plugin_defaults.extract_role_notes_from_comments(str(role_path))
-        finally:
-            if had_default and original is not None:
-                plugin_registry.register_comment_driven_doc_plugin("default", original)
-
-    assert "fallback engaged" in result["notes"]
+        with _preserve_plugin_registry_state(plugin_registry):
+            _clear_registry_plugin(
+                plugin_registry,
+                slot="comment_driven_doc",
+                name="default",
+            )
+            with pytest.raises(ValueError, match="canonical di context"):
+                plugin_defaults.extract_role_notes_from_comments(str(role_path))
 
 
 def test_run_scan_metadata_role_notes_uses_comment_doc_plugin_seam(
@@ -467,21 +483,38 @@ def test_run_scan_metadata_role_notes_uses_comment_doc_plugin_seam(
                     "additionals": [],
                 }
 
-        original_container = api_module.DIContainer
+        original_resolver = cast(
+            Any,
+            getattr(api_module, "resolve_comment_driven_documentation_plugin"),
+        )
 
-        class _DIContainerWithCommentDocPlugin(original_container):
-            def factory_comment_driven_doc_plugin(self):
-                return _Plugin()
-
-        api_module.DIContainer = _DIContainerWithCommentDocPlugin
+        setattr(
+            api_module,
+            "resolve_comment_driven_documentation_plugin",
+            lambda _di: _Plugin(),
+        )
         try:
             payload = api_module.run_scan(str(role_path), include_vars_main=True)
         finally:
-            api_module.DIContainer = original_container
+            setattr(
+                api_module,
+                "resolve_comment_driven_documentation_plugin",
+                original_resolver,
+            )
 
     role_notes = payload["metadata"].get("role_notes")
     assert isinstance(role_notes, dict)
     assert role_notes.get("notes") == ["from-plugin:prism"]
+
+
+def test_api_public_facade_owns_scanner_core_runtime_seams() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+        scanner_core_module = importlib.import_module("prism.scanner_core")
+
+    assert api_module.DIContainer is not scanner_core_module.DIContainer
+    assert api_module.FeatureDetector is not scanner_core_module.FeatureDetector
+    assert api_module.ScannerContext is not scanner_core_module.ScannerContext
 
 
 def test_task_annotation_policy_resolver_prefers_di_over_registry() -> None:
@@ -494,22 +527,12 @@ def test_task_annotation_policy_resolver_prefers_di_over_registry() -> None:
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_extract_policy_plugin("task_annotation_parsing")
-        try:
+        with _preserve_plugin_registry_state(plugin_registry):
             plugin_registry.register_extract_policy_plugin(
                 "task_annotation_parsing",
                 _TaskAnnotationPluginFromRegistry,
             )
             plugin = defaults_module.resolve_task_annotation_policy_plugin(_DI())
-        finally:
-            if original is None:
-                plugin_registry._extract_policy_plugins.pop(
-                    "task_annotation_parsing", None
-                )
-            else:
-                plugin_registry.register_extract_policy_plugin(
-                    "task_annotation_parsing", original
-                )
 
     assert plugin.split_task_annotation_label("x") == ("di", "x")
 
@@ -520,22 +543,12 @@ def test_task_annotation_policy_resolver_uses_registry_before_fallback() -> None
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_extract_policy_plugin("task_annotation_parsing")
-        try:
+        with _preserve_plugin_registry_state(plugin_registry):
             plugin_registry.register_extract_policy_plugin(
                 "task_annotation_parsing",
                 _TaskAnnotationPluginFromRegistry,
             )
             plugin = defaults_module.resolve_task_annotation_policy_plugin(None)
-        finally:
-            if original is None:
-                plugin_registry._extract_policy_plugins.pop(
-                    "task_annotation_parsing", None
-                )
-            else:
-                plugin_registry.register_extract_policy_plugin(
-                    "task_annotation_parsing", original
-                )
 
     assert plugin.split_task_annotation_label("x") == ("registry", "x")
 
@@ -552,20 +565,12 @@ def test_task_line_parsing_policy_resolver_prefers_di_over_registry() -> None:
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_extract_policy_plugin("task_line_parsing")
-        try:
+        with _preserve_plugin_registry_state(plugin_registry):
             plugin_registry.register_extract_policy_plugin(
                 "task_line_parsing",
                 _TaskLineParsingPluginFromRegistry,
             )
             plugin = defaults_module.resolve_task_line_parsing_policy_plugin(_DI())
-        finally:
-            if original is None:
-                plugin_registry._extract_policy_plugins.pop("task_line_parsing", None)
-            else:
-                plugin_registry.register_extract_policy_plugin(
-                    "task_line_parsing", original
-                )
 
     assert plugin.TASK_INCLUDE_KEYS == {"di.include"}
 
@@ -576,20 +581,12 @@ def test_task_line_parsing_policy_resolver_uses_registry_before_fallback() -> No
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_extract_policy_plugin("task_line_parsing")
-        try:
+        with _preserve_plugin_registry_state(plugin_registry):
             plugin_registry.register_extract_policy_plugin(
                 "task_line_parsing",
                 _TaskLineParsingPluginFromRegistry,
             )
             plugin = defaults_module.resolve_task_line_parsing_policy_plugin(None)
-        finally:
-            if original is None:
-                plugin_registry._extract_policy_plugins.pop("task_line_parsing", None)
-            else:
-                plugin_registry.register_extract_policy_plugin(
-                    "task_line_parsing", original
-                )
 
     assert plugin.TASK_INCLUDE_KEYS == {"registry.include"}
 
@@ -600,15 +597,13 @@ def test_task_line_parsing_policy_resolver_uses_fallback_when_unavailable() -> N
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_extract_policy_plugin("task_line_parsing")
-        try:
-            plugin_registry._extract_policy_plugins.pop("task_line_parsing", None)
+        with _preserve_plugin_registry_state(plugin_registry):
+            _clear_registry_plugin(
+                plugin_registry,
+                slot="extract_policy",
+                name="task_line_parsing",
+            )
             plugin = defaults_module.resolve_task_line_parsing_policy_plugin(None)
-        finally:
-            if original is not None:
-                plugin_registry.register_extract_policy_plugin(
-                    "task_line_parsing", original
-                )
 
     assert "include_tasks" in plugin.TASK_INCLUDE_KEYS
 
@@ -623,20 +618,12 @@ def test_task_traversal_policy_resolver_prefers_di_over_registry() -> None:
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_extract_policy_plugin("task_traversal")
-        try:
+        with _preserve_plugin_registry_state(plugin_registry):
             plugin_registry.register_extract_policy_plugin(
                 "task_traversal",
                 _TaskTraversalPluginFromRegistry,
             )
             plugin = defaults_module.resolve_task_traversal_policy_plugin(_DI())
-        finally:
-            if original is None:
-                plugin_registry._extract_policy_plugins.pop("task_traversal", None)
-            else:
-                plugin_registry.register_extract_policy_plugin(
-                    "task_traversal", original
-                )
 
     assert plugin.iter_task_include_targets([]) == ["di.yml"]
 
@@ -647,20 +634,12 @@ def test_task_traversal_policy_resolver_uses_registry_before_fallback() -> None:
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_extract_policy_plugin("task_traversal")
-        try:
+        with _preserve_plugin_registry_state(plugin_registry):
             plugin_registry.register_extract_policy_plugin(
                 "task_traversal",
                 _TaskTraversalPluginFromRegistry,
             )
             plugin = defaults_module.resolve_task_traversal_policy_plugin(None)
-        finally:
-            if original is None:
-                plugin_registry._extract_policy_plugins.pop("task_traversal", None)
-            else:
-                plugin_registry.register_extract_policy_plugin(
-                    "task_traversal", original
-                )
 
     assert plugin.iter_task_include_targets([]) == ["registry.yml"]
 
@@ -671,15 +650,13 @@ def test_task_traversal_policy_resolver_uses_fallback_when_unavailable() -> None
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_extract_policy_plugin("task_traversal")
-        try:
-            plugin_registry._extract_policy_plugins.pop("task_traversal", None)
+        with _preserve_plugin_registry_state(plugin_registry):
+            _clear_registry_plugin(
+                plugin_registry,
+                slot="extract_policy",
+                name="task_traversal",
+            )
             plugin = defaults_module.resolve_task_traversal_policy_plugin(None)
-        finally:
-            if original is not None:
-                plugin_registry.register_extract_policy_plugin(
-                    "task_traversal", original
-                )
 
     assert plugin.iter_task_include_targets([{"include_tasks": "main.yml"}]) == [
         "main.yml"
@@ -698,20 +675,12 @@ def test_variable_extractor_policy_resolver_prefers_di_over_registry() -> None:
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_extract_policy_plugin("variable_extractor")
-        try:
+        with _preserve_plugin_registry_state(plugin_registry):
             plugin_registry.register_extract_policy_plugin(
                 "variable_extractor",
                 _VariableExtractorPluginFromRegistry,
             )
             plugin = defaults_module.resolve_variable_extractor_policy_plugin(_DI())
-        finally:
-            if original is None:
-                plugin_registry._extract_policy_plugins.pop("variable_extractor", None)
-            else:
-                plugin_registry.register_extract_policy_plugin(
-                    "variable_extractor", original
-                )
 
     result = plugin.collect_include_vars_files()
     assert [path.name for path in result] == ["di-vars.yml"]
@@ -723,20 +692,12 @@ def test_variable_extractor_policy_resolver_uses_registry_before_fallback() -> N
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_extract_policy_plugin("variable_extractor")
-        try:
+        with _preserve_plugin_registry_state(plugin_registry):
             plugin_registry.register_extract_policy_plugin(
                 "variable_extractor",
                 _VariableExtractorPluginFromRegistry,
             )
             plugin = defaults_module.resolve_variable_extractor_policy_plugin(None)
-        finally:
-            if original is None:
-                plugin_registry._extract_policy_plugins.pop("variable_extractor", None)
-            else:
-                plugin_registry.register_extract_policy_plugin(
-                    "variable_extractor", original
-                )
 
     result = plugin.collect_include_vars_files()
     assert [path.name for path in result] == ["registry-vars.yml"]
@@ -748,15 +709,13 @@ def test_variable_extractor_policy_resolver_uses_fallback_when_unavailable() -> 
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_extract_policy_plugin("variable_extractor")
-        try:
-            plugin_registry._extract_policy_plugins.pop("variable_extractor", None)
+        with _preserve_plugin_registry_state(plugin_registry):
+            _clear_registry_plugin(
+                plugin_registry,
+                slot="extract_policy",
+                name="variable_extractor",
+            )
             plugin = defaults_module.resolve_variable_extractor_policy_plugin(None)
-        finally:
-            if original is not None:
-                plugin_registry.register_extract_policy_plugin(
-                    "variable_extractor", original
-                )
 
     assert hasattr(plugin, "collect_include_vars_files")
 
@@ -771,20 +730,12 @@ def test_yaml_parsing_policy_resolver_prefers_di_over_registry() -> None:
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_yaml_parsing_policy_plugin("yaml_parsing")
-        try:
+        with _preserve_plugin_registry_state(plugin_registry):
             plugin_registry.register_yaml_parsing_policy_plugin(
                 "yaml_parsing",
                 _YAMLParsingPluginFromRegistry,
             )
             plugin = defaults_module.resolve_yaml_parsing_policy_plugin(_DI())
-        finally:
-            if original is None:
-                plugin_registry._yaml_parsing_policy_plugins.pop("yaml_parsing", None)
-            else:
-                plugin_registry.register_yaml_parsing_policy_plugin(
-                    "yaml_parsing", original
-                )
 
     assert plugin.load_yaml_file(Path("ignored.yml")) == {"source": "di"}
 
@@ -795,20 +746,12 @@ def test_yaml_parsing_policy_resolver_uses_registry_before_fallback() -> None:
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_yaml_parsing_policy_plugin("yaml_parsing")
-        try:
+        with _preserve_plugin_registry_state(plugin_registry):
             plugin_registry.register_yaml_parsing_policy_plugin(
                 "yaml_parsing",
                 _YAMLParsingPluginFromRegistry,
             )
             plugin = defaults_module.resolve_yaml_parsing_policy_plugin(None)
-        finally:
-            if original is None:
-                plugin_registry._yaml_parsing_policy_plugins.pop("yaml_parsing", None)
-            else:
-                plugin_registry.register_yaml_parsing_policy_plugin(
-                    "yaml_parsing", original
-                )
 
     assert plugin.load_yaml_file(Path("ignored.yml")) == {"source": "registry"}
 
@@ -823,22 +766,12 @@ def test_jinja_analysis_policy_resolver_prefers_di_over_registry() -> None:
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_jinja_analysis_policy_plugin("jinja_analysis")
-        try:
+        with _preserve_plugin_registry_state(plugin_registry):
             plugin_registry.register_jinja_analysis_policy_plugin(
                 "jinja_analysis",
                 _JinjaAnalysisPluginFromRegistry,
             )
             plugin = defaults_module.resolve_jinja_analysis_policy_plugin(_DI())
-        finally:
-            if original is None:
-                plugin_registry._jinja_analysis_policy_plugins.pop(
-                    "jinja_analysis", None
-                )
-            else:
-                plugin_registry.register_jinja_analysis_policy_plugin(
-                    "jinja_analysis", original
-                )
 
     assert plugin.collect_undeclared_jinja_variables("{{ ignored }}") == {
         "from_di_jinja_plugin"
@@ -851,22 +784,12 @@ def test_jinja_analysis_policy_resolver_uses_registry_before_fallback() -> None:
         plugin_registry = importlib.import_module(
             "prism.scanner_plugins.registry"
         ).plugin_registry
-        original = plugin_registry.get_jinja_analysis_policy_plugin("jinja_analysis")
-        try:
+        with _preserve_plugin_registry_state(plugin_registry):
             plugin_registry.register_jinja_analysis_policy_plugin(
                 "jinja_analysis",
                 _JinjaAnalysisPluginFromRegistry,
             )
             plugin = defaults_module.resolve_jinja_analysis_policy_plugin(None)
-        finally:
-            if original is None:
-                plugin_registry._jinja_analysis_policy_plugins.pop(
-                    "jinja_analysis", None
-                )
-            else:
-                plugin_registry.register_jinja_analysis_policy_plugin(
-                    "jinja_analysis", original
-                )
 
     assert plugin.collect_undeclared_jinja_variables("{{ ignored }}") == {
         "from_registry_jinja_plugin"
@@ -1257,7 +1180,7 @@ def test_comment_doc_plugin_validation_falls_back_in_non_strict_mode() -> None:
             strict_mode=False,
         )
 
-    assert callable(getattr(plugin, "extract_role_notes_from_comments", None))
+    assert isinstance(plugin, defaults_module.CommentDrivenDocumentationParser)
 
 
 def test_task_annotation_plugin_validation_raises_on_malformed_plugin_in_strict_mode() -> (
@@ -1293,12 +1216,18 @@ def test_task_annotation_plugin_validation_falls_back_in_non_strict_mode() -> No
 
     with _prefer_fsrc_prism_on_sys_path():
         defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+        default_policies_module = importlib.import_module(
+            "prism.scanner_plugins.ansible.default_policies"
+        )
         plugin = defaults_module.resolve_task_annotation_policy_plugin(
             _DI(),
             strict_mode=False,
         )
 
-    assert plugin.split_task_annotation_label("note") == ("note", "note")
+    assert isinstance(
+        plugin,
+        default_policies_module.AnsibleDefaultTaskAnnotationPolicyPlugin,
+    )
 
 
 def test_task_annotation_plugin_validation_rejects_partial_surface_in_strict_mode() -> (
@@ -1363,12 +1292,18 @@ def test_task_annotation_plugin_validation_falls_back_for_partial_surface() -> N
 
     with _prefer_fsrc_prism_on_sys_path():
         defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+        default_policies_module = importlib.import_module(
+            "prism.scanner_plugins.ansible.default_policies"
+        )
         plugin = defaults_module.resolve_task_annotation_policy_plugin(
             _DI(),
             strict_mode=False,
         )
 
-    assert plugin.normalize_marker_prefix(None) == "prism"
+    assert isinstance(
+        plugin,
+        default_policies_module.AnsibleDefaultTaskAnnotationPolicyPlugin,
+    )
 
 
 def test_task_line_plugin_validation_raises_on_malformed_plugin_in_strict_mode() -> (
@@ -1406,12 +1341,72 @@ def test_task_line_plugin_validation_falls_back_in_non_strict_mode() -> None:
 
     with _prefer_fsrc_prism_on_sys_path():
         defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+        default_policies_module = importlib.import_module(
+            "prism.scanner_plugins.ansible.default_policies"
+        )
         plugin = defaults_module.resolve_task_line_parsing_policy_plugin(
             _DI(),
             strict_mode=False,
         )
 
-    assert "include_tasks" in plugin.TASK_INCLUDE_KEYS
+    assert isinstance(
+        plugin,
+        default_policies_module.AnsibleDefaultTaskLineParsingPolicyPlugin,
+    )
+
+
+def test_task_annotation_plugin_validation_rejects_wrong_platform_fallback() -> None:
+    class _MalformedTaskAnnotationPlugin:
+        pass
+
+    class _DI:
+        scan_options = {
+            "role_path": "/tmp/role",
+            "scan_pipeline_plugin": "terraform",
+        }
+
+        def factory_task_annotation_policy_plugin(
+            self,
+        ) -> _MalformedTaskAnnotationPlugin:
+            return _MalformedTaskAnnotationPlugin()
+
+    with _prefer_fsrc_prism_on_sys_path():
+        defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+        errors_module = importlib.import_module("prism.errors")
+
+        with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+            defaults_module.resolve_task_annotation_policy_plugin(
+                _DI(),
+                strict_mode=False,
+            )
+
+    assert "terraform" in str(exc_info.value)
+
+
+def test_task_line_plugin_validation_rejects_wrong_platform_fallback() -> None:
+    class _MalformedTaskLinePlugin:
+        pass
+
+    class _DI:
+        scan_options = {
+            "role_path": "/tmp/role",
+            "scan_pipeline_plugin": "terraform",
+        }
+
+        def factory_task_line_parsing_policy_plugin(self) -> _MalformedTaskLinePlugin:
+            return _MalformedTaskLinePlugin()
+
+    with _prefer_fsrc_prism_on_sys_path():
+        defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+        errors_module = importlib.import_module("prism.errors")
+
+        with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+            defaults_module.resolve_task_line_parsing_policy_plugin(
+                _DI(),
+                strict_mode=False,
+            )
+
+    assert "terraform" in str(exc_info.value)
 
 
 def test_task_traversal_plugin_validation_raises_on_malformed_plugin_in_strict_mode() -> (
@@ -1449,14 +1444,26 @@ def test_task_traversal_plugin_validation_falls_back_in_non_strict_mode() -> Non
 
     with _prefer_fsrc_prism_on_sys_path():
         defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+        default_policies_module = importlib.import_module(
+            "prism.scanner_plugins.ansible.default_policies"
+        )
         plugin = defaults_module.resolve_task_traversal_policy_plugin(
             _DI(),
             strict_mode=False,
         )
 
-    assert plugin.iter_task_include_targets([{"include_tasks": "main.yml"}]) == [
-        "main.yml"
-    ]
+    assert isinstance(
+        plugin,
+        default_policies_module.AnsibleDefaultTaskTraversalPolicyPlugin,
+    )
+
+
+def test_extract_role_notes_from_comments_requires_canonical_di_context() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+
+        with pytest.raises(ValueError, match="di context"):
+            defaults_module.extract_role_notes_from_comments("/tmp/role")
 
 
 def test_task_extract_adapters_marker_prefix_bundle_only_and_fail_closed(
@@ -1547,7 +1554,7 @@ def test_resolve_marker_prefix_reads_from_prepared_policy_bundle() -> None:
         assert result == "bundle.value"
 
         class _NoBundleDI:
-            scan_options = {
+            scan_options: dict[str, object] = {
                 "comment_doc_marker_prefix": "direct.option.ignored",
             }
 
@@ -1555,7 +1562,7 @@ def test_resolve_marker_prefix_reads_from_prepared_policy_bundle() -> None:
             module._resolve_marker_prefix(_NoBundleDI())
 
         class _EmptyBundleDI:
-            scan_options = {
+            scan_options: dict[str, object] = {
                 "prepared_policy_bundle": {},
             }
 

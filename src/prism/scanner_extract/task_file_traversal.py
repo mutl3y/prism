@@ -6,7 +6,8 @@ from fnmatch import fnmatch
 from pathlib import Path
 import re
 
-from prism.scanner_data.contracts_request import YamlParseFailure
+from prism.errors import PrismRuntimeError
+from prism.scanner_data.contracts_request import TaskMapping, YamlParseFailure
 
 from prism.scanner_core.di_helpers import require_prepared_policy
 from prism.scanner_io.loader import parse_yaml_candidate
@@ -108,9 +109,20 @@ def _load_yaml_file_with_metadata(
             if failure is not None:
                 yaml_failure_collector.append(failure)
         return None
-    parsed = require_prepared_policy(di, "yaml_parsing", "yaml_parsing").load_yaml_file(
-        Path(identity[0])
-    )
+    try:
+        parsed = require_prepared_policy(
+            di, "yaml_parsing", "yaml_parsing"
+        ).load_yaml_file(Path(identity[0]))
+    except PrismRuntimeError:
+        if yaml_failure_collector is None:
+            raise
+        collector_root = role_root or _derive_role_root_from_task_file(file_path)
+        if collector_root is None:
+            collector_root = file_path.resolve().parent
+        failure = parse_yaml_candidate(file_path, collector_root, di=di)
+        if failure is not None:
+            yaml_failure_collector.append(failure)
+        return None
     if parsed is None and yaml_failure_collector is not None:
         collector_root = role_root or _derive_role_root_from_task_file(file_path)
         if collector_root is None:
@@ -153,7 +165,7 @@ def _iter_task_include_edges(
 
 
 def _expand_include_target_candidates(
-    task: dict,
+    task: TaskMapping,
     include_target: str,
     *,
     di: object | None = None,
@@ -163,14 +175,16 @@ def _expand_include_target_candidates(
     ).expand_include_target_candidates(task, include_target)
 
 
-def _iter_role_include_targets(task: dict, *, di: object | None = None) -> list[str]:
+def _iter_role_include_targets(
+    task: TaskMapping, *, di: object | None = None
+) -> list[str]:
     return require_prepared_policy(
         di, "task_traversal", "task_file_traversal"
     ).iter_role_include_targets(task)
 
 
 def _iter_dynamic_role_include_targets(
-    task: dict,
+    task: TaskMapping,
     *,
     di: object | None = None,
 ) -> list[str]:
@@ -383,7 +397,7 @@ def load_yaml_file(
 
 
 def expand_include_target_candidates(
-    task: dict,
+    task: TaskMapping,
     include_target: str,
     *,
     di: object | None = None,
@@ -405,12 +419,14 @@ def iter_task_include_targets(data: object, *, di: object | None = None) -> list
     return _iter_task_include_targets(data, di=di)
 
 
-def iter_role_include_targets(task: dict, *, di: object | None = None) -> list[str]:
+def iter_role_include_targets(
+    task: TaskMapping, *, di: object | None = None
+) -> list[str]:
     return _iter_role_include_targets(task, di=di)
 
 
 def iter_dynamic_role_include_targets(
-    task: dict,
+    task: TaskMapping,
     *,
     di: object | None = None,
 ) -> list[str]:

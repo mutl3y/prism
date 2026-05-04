@@ -15,6 +15,23 @@ import threading
 from collections import OrderedDict
 from typing import Any, Mapping, Protocol
 
+from prism.errors import PrismRuntimeError
+
+
+def _clone_container_structure(value: object) -> object:
+    """Clone container nodes so cache boundaries do not share mutable state."""
+    if isinstance(value, dict):
+        return {key: _clone_container_structure(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_clone_container_structure(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_clone_container_structure(item) for item in value)
+    if isinstance(value, set):
+        return {_clone_container_structure(item) for item in value}
+    if isinstance(value, frozenset):
+        return frozenset(_clone_container_structure(item) for item in value)
+    return value
+
 
 class ScanCacheBackend(Protocol):
     """Backend protocol for caching completed scan results."""
@@ -68,7 +85,7 @@ class InMemoryLRUScanCache:
                 return None
             self._store[key] = value
             self._hits += 1
-        return value
+        return _clone_container_structure(value)
 
     def set(self, key: str, value: Any) -> None:
         if self._maxsize == 0:
@@ -76,7 +93,7 @@ class InMemoryLRUScanCache:
         with self._lock:
             if key in self._store:
                 self._store.pop(key)
-            self._store[key] = value
+            self._store[key] = _clone_container_structure(value)
             while len(self._store) > self._maxsize:
                 self._store.popitem(last=False)
 
@@ -109,6 +126,80 @@ class InMemoryLRUScanCache:
         return len(self._store)
 
 
+def _callable_identity(value: object) -> str:
+    if not callable(value):
+        raise PrismRuntimeError(
+            code="scan_cache_runtime_wiring_invalid",
+            category="runtime",
+            message="value must be callable.",
+            detail={"field": "value", "actual_type": type(value).__name__},
+        )
+    value_type = type(value)
+    module = getattr(value, "__module__", value_type.__module__)
+    qualname = getattr(value, "__qualname__", value_type.__qualname__)
+    return f"{module}.{qualname}@{id(value)}"
+
+
+def _object_identity(value: object) -> str:
+    value_type = type(value)
+    return f"{value_type.__module__}.{value_type.__qualname__}@{id(value)}"
+
+
+def _runtime_registry_identity(value: object) -> str:
+    fingerprint = getattr(value, "get_state_fingerprint", None)
+    if callable(fingerprint):
+        result = fingerprint()
+        if isinstance(result, str) and result:
+            return result
+    return _object_identity(value)
+
+
+def build_runtime_wiring_identity(
+    *,
+    route_scan_payload_orchestration_fn: object,
+    orchestrate_scan_payload_with_selected_plugin_fn: object,
+    runtime_registry: object | None,
+) -> dict[str, str | None]:
+    """Fingerprint runtime wiring inputs that can change cached payload semantics."""
+    if not callable(route_scan_payload_orchestration_fn):
+        raise PrismRuntimeError(
+            code="scan_cache_runtime_wiring_invalid",
+            category="runtime",
+            message="route_scan_payload_orchestration_fn must be callable.",
+            detail={
+                "field": "route_scan_payload_orchestration_fn",
+                "actual_type": type(route_scan_payload_orchestration_fn).__name__,
+            },
+        )
+    if not callable(orchestrate_scan_payload_with_selected_plugin_fn):
+        raise PrismRuntimeError(
+            code="scan_cache_runtime_wiring_invalid",
+            category="runtime",
+            message=(
+                "orchestrate_scan_payload_with_selected_plugin_fn must be callable."
+            ),
+            detail={
+                "field": "orchestrate_scan_payload_with_selected_plugin_fn",
+                "actual_type": type(
+                    orchestrate_scan_payload_with_selected_plugin_fn
+                ).__name__,
+            },
+        )
+    return {
+        "route_scan_payload_orchestration_fn": _callable_identity(
+            route_scan_payload_orchestration_fn
+        ),
+        "orchestrate_scan_payload_with_selected_plugin_fn": _callable_identity(
+            orchestrate_scan_payload_with_selected_plugin_fn
+        ),
+        "runtime_registry": (
+            None
+            if runtime_registry is None
+            else _runtime_registry_identity(runtime_registry)
+        ),
+    }
+
+
 def compute_scan_cache_key(
     *,
     role_content_hash: str,
@@ -117,36 +208,84 @@ def compute_scan_cache_key(
     """Build a stable cache key from a role content hash and scan options."""
     if not role_content_hash:
         raise ValueError("role_content_hash must not be empty")
-    options_blob = json.dumps(scan_options, sort_keys=True, default=str)
+
+    def _canonicalize(value: object) -> object:
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+        if isinstance(value, dict):
+            return {str(key): _canonicalize(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [_canonicalize(item) for item in value]
+        if isinstance(value, tuple):
+            return {"__tuple__": [_canonicalize(item) for item in value]}
+        if isinstance(value, set):
+            return {
+                "__set__": sorted(
+                    (_canonicalize(item) for item in value),
+                    key=lambda item: json.dumps(item, sort_keys=True),
+                )
+            }
+        if isinstance(value, frozenset):
+            return {
+                "__frozenset__": sorted(
+                    (_canonicalize(item) for item in value),
+                    key=lambda item: json.dumps(item, sort_keys=True),
+                )
+            }
+        return {
+            "__opaque_type__": (f"{type(value).__module__}.{type(value).__qualname__}")
+        }
+
+    options_blob = json.dumps(_canonicalize(dict(scan_options)), sort_keys=True)
     options_hash = hashlib.sha256(options_blob.encode("utf-8")).hexdigest()
     return f"{role_content_hash}:{options_hash}"
 
 
+def compute_path_content_hash(path: str) -> str:
+    """Compute a stable sha256 hash for a file or directory path's contents."""
+    h = hashlib.sha256()
+    root = os.path.abspath(path)
+    if os.path.isdir(root):
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = sorted(
+                d for d in dirnames if not d.startswith(".") and d != "__pycache__"
+            )
+            for filename in sorted(filenames):
+                if filename.startswith(".") or filename.endswith(".pyc"):
+                    continue
+                abs_path = os.path.join(dirpath, filename)
+                rel_path = os.path.relpath(abs_path, root)
+                h.update(b"\x1ffile\x1f")
+                h.update(rel_path.encode("utf-8"))
+                h.update(b"\x1fdata\x1f")
+                try:
+                    with open(abs_path, "rb") as fh:
+                        while chunk := fh.read(65536):
+                            h.update(chunk)
+                except OSError:
+                    h.update(b"\x00UNREADABLE\x00")
+                h.update(b"\x1fend\x1f")
+        return h.hexdigest()
+
+    if os.path.isfile(root):
+        try:
+            with open(root, "rb") as fh:
+                while chunk := fh.read(65536):
+                    h.update(chunk)
+        except OSError:
+            h.update(b"\x1ffile\x1f")
+            h.update(root.encode("utf-8", errors="surrogateescape"))
+            h.update(b"\x1fdata\x1f")
+            h.update(b"\x00UNREADABLE\x00")
+        return h.hexdigest()
+
+    h.update(b"\x00MISSING\x00")
+    return h.hexdigest()
+
+
 def compute_role_content_hash(role_path: str) -> str:
     """Compute a stable sha256 hash of a role directory's file tree and contents."""
-    h = hashlib.sha256()
-    root = os.path.abspath(role_path)
-    for dirpath, dirnames, filenames in os.walk(root):
-        # Skip hidden directories (e.g. .git) and __pycache__
-        dirnames[:] = sorted(
-            d for d in dirnames if not d.startswith(".") and d != "__pycache__"
-        )
-        for filename in sorted(filenames):
-            if filename.startswith(".") or filename.endswith(".pyc"):
-                continue
-            abs_path = os.path.join(dirpath, filename)
-            rel_path = os.path.relpath(abs_path, root)
-            h.update(b"\x1ffile\x1f")
-            h.update(rel_path.encode("utf-8"))
-            h.update(b"\x1fdata\x1f")
-            try:
-                with open(abs_path, "rb") as fh:
-                    while chunk := fh.read(65536):
-                        h.update(chunk)
-            except OSError:
-                h.update(b"\x00UNREADABLE\x00")
-            h.update(b"\x1fend\x1f")
-    return h.hexdigest()
+    return compute_path_content_hash(role_path)
 
 
 def report_cache_stats(backend: _StatsAware) -> dict[str, Any]:
@@ -166,8 +305,10 @@ def report_cache_stats(backend: _StatsAware) -> dict[str, Any]:
 
 
 __all__ = [
+    "build_runtime_wiring_identity",
     "InMemoryLRUScanCache",
     "ScanCacheBackend",
+    "compute_path_content_hash",
     "compute_role_content_hash",
     "compute_scan_cache_key",
     "report_cache_stats",

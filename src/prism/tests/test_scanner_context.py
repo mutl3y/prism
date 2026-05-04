@@ -6,7 +6,7 @@ import importlib
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import pytest
 
@@ -15,7 +15,7 @@ FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
 
 @contextmanager
-def _prefer_fsrc_prism_on_sys_path() -> object:
+def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -208,14 +208,15 @@ def test_fsrc_scanner_context_consumes_existing_canonical_options_without_rebuil
 
         observed_scan_options: list[dict[str, Any]] = []
 
+        def _capture_scan_options(scan_options: dict[str, Any]) -> dict[str, Any]:
+            observed_scan_options.append(scan_options)
+            return _context_payload()
+
         context = core_module.ScannerContext(
             di=container,
             role_path=options["role_path"],
             scan_options=options,
-            prepare_scan_context_fn=lambda scan_options: (
-                observed_scan_options.append(scan_options),
-                _context_payload(),
-            )[1],
+            prepare_scan_context_fn=_capture_scan_options,
         )
         result = context.orchestrate_scan()
 
@@ -392,6 +393,36 @@ def test_fsrc_scanner_context_copies_metadata_without_mutating_context_payload()
     }
 
 
+def test_fsrc_scanner_context_invalid_metadata_raises_value_error() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        core_module = importlib.import_module("prism.scanner_core")
+        di_module = importlib.import_module("prism.scanner_core.di")
+
+        options = _canonical_scan_options()
+        container = di_module.DIContainer(
+            role_path=options["role_path"],
+            scan_options=options,
+        )
+        container.inject_mock("variable_discovery", _DiscoveryStub(tuple()))
+        container.inject_mock(
+            "feature_detector",
+            _FeatureStub({"task_files_scanned": 1, "tasks_scanned": 2}),
+        )
+
+        context = core_module.ScannerContext(
+            di=container,
+            role_path=options["role_path"],
+            scan_options=options,
+            prepare_scan_context_fn=lambda _scan_options: {
+                **_context_payload(),
+                "metadata": [],
+            },
+        )
+
+        with pytest.raises(ValueError, match="metadata must be a dict"):
+            context.orchestrate_scan()
+
+
 def test_fsrc_scanner_context_copies_display_variables_without_mutating_context_payload() -> (
     None
 ):
@@ -440,6 +471,73 @@ def test_fsrc_scanner_context_copies_display_variables_without_mutating_context_
 
     assert "_internal_value" in original_display_variables
     assert set(result["display_variables"]) == {"public_value"}
+
+
+def test_fsrc_scanner_context_invalid_display_variables_raise_value_error() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        core_module = importlib.import_module("prism.scanner_core")
+        di_module = importlib.import_module("prism.scanner_core.di")
+
+        options = _canonical_scan_options()
+        container = di_module.DIContainer(
+            role_path=options["role_path"],
+            scan_options=options,
+        )
+        container.inject_mock("variable_discovery", _DiscoveryStub(tuple()))
+        container.inject_mock(
+            "feature_detector",
+            _FeatureStub({"task_files_scanned": 1, "tasks_scanned": 2}),
+        )
+
+        context = core_module.ScannerContext(
+            di=container,
+            role_path=options["role_path"],
+            scan_options=options,
+            prepare_scan_context_fn=lambda _scan_options: {
+                **_context_payload(),
+                "display_variables": [],
+            },
+        )
+
+        with pytest.raises(ValueError, match="display_variables must be a dict"):
+            context.orchestrate_scan()
+
+
+def test_fsrc_scanner_context_invalid_metadata_role_notes_raise_value_error() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        core_module = importlib.import_module("prism.scanner_core")
+        di_module = importlib.import_module("prism.scanner_core.di")
+
+        options = _canonical_scan_options()
+        container = di_module.DIContainer(
+            role_path=options["role_path"],
+            scan_options=options,
+        )
+        container.inject_mock("variable_discovery", _DiscoveryStub(tuple()))
+        container.inject_mock(
+            "feature_detector",
+            _FeatureStub({"task_files_scanned": 1, "tasks_scanned": 2}),
+        )
+
+        context = core_module.ScannerContext(
+            di=container,
+            role_path=options["role_path"],
+            scan_options=options,
+            prepare_scan_context_fn=lambda _scan_options: {
+                **_context_payload(),
+                "metadata": {
+                    "role_notes": {
+                        "warnings": [],
+                        "deprecations": [],
+                        "notes": "invalid",
+                        "additionals": [],
+                    }
+                },
+            },
+        )
+
+        with pytest.raises(ValueError, match="metadata.role_notes.notes"):
+            context.orchestrate_scan()
 
 
 def test_fsrc_scanner_context_best_effort_records_error_envelope() -> None:
@@ -628,17 +726,35 @@ def test_fsrc_scanner_context_requires_prepared_policy_bundle_without_mutating_i
     assert recorder.calls == []
 
 
-def test_fsrc_scanner_context_prepared_policy_bundle_rejects_invalid_bundle() -> None:
+@pytest.mark.parametrize(
+    ("invalid_bundle", "expected_message"),
+    [
+        (
+            {
+                "task_line_parsing": {},
+                "jinja_analysis": _PreparedJinjaPolicy(),
+            },
+            "task_line_parsing",
+        ),
+        (
+            {
+                "task_line_parsing": _PreparedTaskLinePolicy(),
+                "jinja_analysis": {},
+            },
+            "jinja_analysis",
+        ),
+    ],
+)
+def test_fsrc_scanner_context_prepared_policy_bundle_rejects_invalid_bundle(
+    invalid_bundle: dict[str, Any],
+    expected_message: str,
+) -> None:
     with _prefer_fsrc_prism_on_sys_path():
         core_module = importlib.import_module("prism.scanner_core")
         di_module = importlib.import_module("prism.scanner_core.di")
 
         options = _canonical_scan_options()
-        options["prepared_policy_bundle"] = {
-            "task_line_parsing": object(),
-            "jinja_analysis": object(),
-        }
-        recorder = _BuildOptionsRecorder(dict(options))
+        options["prepared_policy_bundle"] = invalid_bundle
         container = di_module.DIContainer(
             role_path=options["role_path"],
             scan_options=options,
@@ -656,10 +772,10 @@ def test_fsrc_scanner_context_prepared_policy_bundle_rejects_invalid_bundle() ->
             prepare_scan_context_fn=lambda _scan_options: _context_payload(),
         )
 
-        result = context.orchestrate_scan()
+        with pytest.raises(ValueError, match=expected_message):
+            context.orchestrate_scan()
 
-    assert result["role_name"] == "demo"
-    assert recorder.calls == []
+    assert options["prepared_policy_bundle"] is invalid_bundle
 
 
 def test_fsrc_scan_request_prepared_policy_bundle_rejects_missing_task_meta_keys_at_ingress() -> (

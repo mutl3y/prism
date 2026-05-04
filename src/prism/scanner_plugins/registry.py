@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import importlib
 import inspect
 import threading
@@ -31,6 +32,25 @@ class PluginStatelessRequired(TypeError):
 
 class PluginConstructorMismatch(TypeError):
     """Raised when a runtime plugin class cannot be constructed with the required DI seam."""
+
+
+@dataclass(frozen=True)
+class _PluginRegistryState:
+    variable_discovery_plugins: dict[str, type[VariableDiscoveryPlugin]]
+    feature_detection_plugins: dict[str, type[FeatureDetectionPlugin]]
+    output_orchestration_plugins: dict[str, type[OutputOrchestrationPlugin]]
+    scan_pipeline_plugins: dict[str, type[ScanPipelinePlugin]]
+    reserved_unsupported_platforms: frozenset[str]
+    comment_driven_doc_plugins: dict[str, type[CommentDrivenDocumentationPlugin]]
+    extract_policy_plugins: dict[str, type[ExtractPolicyPlugin]]
+    yaml_parsing_policy_plugins: dict[str, type[YAMLParsingPolicyPlugin]]
+    jinja_analysis_policy_plugins: dict[str, type[JinjaAnalysisPolicyPlugin]]
+    readme_renderer_plugins: dict[str, type[ReadmeRendererPlugin]]
+    loaded_plugins: dict[tuple[str, str], Any]
+    deferred_variable_discovery: dict[str, tuple[str, str]]
+    deferred_feature_detection: dict[str, tuple[str, str]]
+    default_platform_key: str | None
+    revision: int
 
 
 # Slots whose plugins are intended to be safe for singleton reuse across scans.
@@ -171,6 +191,14 @@ class PluginRegistry:
         self._deferred_variable_discovery: dict[str, tuple[str, str]] = {}
         self._deferred_feature_detection: dict[str, tuple[str, str]] = {}
         self._default_platform_key: str | None = None
+        self._revision = 0
+
+    def _bump_revision_locked(self) -> None:
+        self._revision += 1
+
+    def get_state_fingerprint(self) -> str:
+        with self._lock:
+            return f"{type(self).__module__}.{type(self).__qualname__}@{id(self)}:r{self._revision}"
 
     def register_variable_discovery_plugin(
         self,
@@ -181,6 +209,7 @@ class PluginRegistry:
         require_di_constructor(plugin_class, name=name, slot="variable_discovery")
         with self._lock:
             self._variable_discovery_plugins[name] = plugin_class
+            self._bump_revision_locked()
 
     def register_deferred_variable_discovery_plugin(
         self,
@@ -190,6 +219,7 @@ class PluginRegistry:
     ) -> None:
         with self._lock:
             self._deferred_variable_discovery[name] = (module_path, class_name)
+            self._bump_revision_locked()
 
     def register_feature_detection_plugin(
         self,
@@ -200,6 +230,7 @@ class PluginRegistry:
         require_di_constructor(plugin_class, name=name, slot="feature_detection")
         with self._lock:
             self._feature_detection_plugins[name] = plugin_class
+            self._bump_revision_locked()
 
     def register_deferred_feature_detection_plugin(
         self,
@@ -209,6 +240,7 @@ class PluginRegistry:
     ) -> None:
         with self._lock:
             self._deferred_feature_detection[name] = (module_path, class_name)
+            self._bump_revision_locked()
 
     def register_output_orchestration_plugin(
         self,
@@ -220,6 +252,7 @@ class PluginRegistry:
         )
         with self._lock:
             self._output_orchestration_plugins[name] = plugin_class
+            self._bump_revision_locked()
 
     def register_scan_pipeline_plugin(
         self,
@@ -230,6 +263,7 @@ class PluginRegistry:
         require_stateless_plugin(plugin_class, name=name, slot="scan_pipeline")
         with self._lock:
             self._scan_pipeline_plugins[name] = plugin_class
+            self._bump_revision_locked()
 
     def register_comment_driven_doc_plugin(
         self,
@@ -239,6 +273,7 @@ class PluginRegistry:
         validate_plugin_api_version(plugin_class, name=name, slot="comment_driven_doc")
         with self._lock:
             self._comment_driven_doc_plugins[name] = plugin_class
+            self._bump_revision_locked()
 
     def register_extract_policy_plugin(
         self,
@@ -249,6 +284,7 @@ class PluginRegistry:
         require_stateless_plugin(plugin_class, name=name, slot="extract_policy")
         with self._lock:
             self._extract_policy_plugins[name] = plugin_class
+            self._bump_revision_locked()
 
     def register_yaml_parsing_policy_plugin(
         self,
@@ -259,6 +295,7 @@ class PluginRegistry:
         require_stateless_plugin(plugin_class, name=name, slot="yaml_parsing_policy")
         with self._lock:
             self._yaml_parsing_policy_plugins[name] = plugin_class
+            self._bump_revision_locked()
 
     def register_jinja_analysis_policy_plugin(
         self,
@@ -271,6 +308,7 @@ class PluginRegistry:
         require_stateless_plugin(plugin_class, name=name, slot="jinja_analysis_policy")
         with self._lock:
             self._jinja_analysis_policy_plugins[name] = plugin_class
+            self._bump_revision_locked()
 
     def register_readme_renderer_plugin(
         self,
@@ -281,12 +319,14 @@ class PluginRegistry:
         require_stateless_plugin(plugin_class, name=name, slot="readme_renderer")
         with self._lock:
             self._readme_renderer_plugins[name] = plugin_class
+            self._bump_revision_locked()
 
     def register_reserved_unsupported_platform(self, name: str) -> None:
         with self._lock:
             self._reserved_unsupported_platforms = (
                 self._reserved_unsupported_platforms | {name}
             )
+            self._bump_revision_locked()
 
     def is_reserved_unsupported_platform(self, name: str) -> bool:
         with self._lock:
@@ -421,19 +461,20 @@ class PluginRegistry:
                     f"cannot set default platform key {name!r}: not registered"
                 )
             self._default_platform_key = name
+            self._bump_revision_locked()
 
     def get_default_platform_key(self) -> str | None:
-        """Return the explicitly-set default platform key, or the first registered one."""
+        """Return the explicit default platform key, or a unique implicit candidate."""
         with self._lock:
             if self._default_platform_key is not None:
                 return self._default_platform_key
-            for source in (
-                self._variable_discovery_plugins,
-                self._deferred_variable_discovery,
-                self._scan_pipeline_plugins,
-            ):
-                if source:
-                    return next(iter(source.keys()))
+            candidates = (
+                set(self._variable_discovery_plugins)
+                | set(self._deferred_variable_discovery)
+                | set(self._scan_pipeline_plugins)
+            )
+            if len(candidates) == 1:
+                return next(iter(candidates))
             return None
 
     def load_plugin_from_module(self, module_name: str, class_name: str) -> type[Any]:
@@ -458,6 +499,58 @@ class PluginRegistry:
             plugin_class = getattr(module, class_name)
             self._loaded_plugins[cache_key] = plugin_class
         return plugin_class
+
+    def snapshot_state(self) -> _PluginRegistryState:
+        """Return a detached snapshot of the registry state."""
+        with self._lock:
+            return _PluginRegistryState(
+                variable_discovery_plugins=dict(self._variable_discovery_plugins),
+                feature_detection_plugins=dict(self._feature_detection_plugins),
+                output_orchestration_plugins=dict(self._output_orchestration_plugins),
+                scan_pipeline_plugins=dict(self._scan_pipeline_plugins),
+                reserved_unsupported_platforms=frozenset(
+                    self._reserved_unsupported_platforms
+                ),
+                comment_driven_doc_plugins=dict(self._comment_driven_doc_plugins),
+                extract_policy_plugins=dict(self._extract_policy_plugins),
+                yaml_parsing_policy_plugins=dict(self._yaml_parsing_policy_plugins),
+                jinja_analysis_policy_plugins=dict(self._jinja_analysis_policy_plugins),
+                readme_renderer_plugins=dict(self._readme_renderer_plugins),
+                loaded_plugins=dict(self._loaded_plugins),
+                deferred_variable_discovery=dict(self._deferred_variable_discovery),
+                deferred_feature_detection=dict(self._deferred_feature_detection),
+                default_platform_key=self._default_platform_key,
+                revision=self._revision,
+            )
+
+    def replace_state(self, state: _PluginRegistryState) -> None:
+        """Replace the registry contents with a previously captured snapshot."""
+        with self._lock:
+            self._variable_discovery_plugins = dict(state.variable_discovery_plugins)
+            self._feature_detection_plugins = dict(state.feature_detection_plugins)
+            self._output_orchestration_plugins = dict(
+                state.output_orchestration_plugins
+            )
+            self._scan_pipeline_plugins = dict(state.scan_pipeline_plugins)
+            self._reserved_unsupported_platforms = frozenset(
+                state.reserved_unsupported_platforms
+            )
+            self._comment_driven_doc_plugins = dict(state.comment_driven_doc_plugins)
+            self._extract_policy_plugins = dict(state.extract_policy_plugins)
+            self._yaml_parsing_policy_plugins = dict(state.yaml_parsing_policy_plugins)
+            self._jinja_analysis_policy_plugins = dict(
+                state.jinja_analysis_policy_plugins
+            )
+            self._readme_renderer_plugins = dict(state.readme_renderer_plugins)
+            self._loaded_plugins = dict(state.loaded_plugins)
+            self._deferred_variable_discovery = dict(state.deferred_variable_discovery)
+            self._deferred_feature_detection = dict(state.deferred_feature_detection)
+            self._default_platform_key = state.default_platform_key
+            self._revision = state.revision
+
+    def replace_state_from(self, other: PluginRegistry) -> None:
+        """Copy another registry's full state onto this registry instance."""
+        self.replace_state(other.snapshot_state())
 
 
 plugin_registry = PluginRegistry()

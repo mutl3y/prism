@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from collections.abc import Collection
 from typing import Any, Iterator
 
@@ -171,17 +172,17 @@ class _PolicyBackedMarkerLineRegexProxy:
         )
 
     def match(
-        self, string: str, pos: int = 0, endpos: int = ...
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
     ) -> re.Match[str] | None:
         return self._current_regex().match(string, pos, endpos)
 
     def search(
-        self, string: str, pos: int = 0, endpos: int = ...
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
     ) -> re.Match[str] | None:
         return self._current_regex().search(string, pos, endpos)
 
     def fullmatch(
-        self, string: str, pos: int = 0, endpos: int = ...
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
     ) -> re.Match[str] | None:
         return self._current_regex().fullmatch(string, pos, endpos)
 
@@ -213,17 +214,17 @@ class _PolicyBackedAnnotationRegexProxy:
         )
 
     def match(
-        self, string: str, pos: int = 0, endpos: int = ...
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
     ) -> re.Match[str] | None:
         return self._current_regex().match(string, pos, endpos)
 
     def search(
-        self, string: str, pos: int = 0, endpos: int = ...
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
     ) -> re.Match[str] | None:
         return self._current_regex().search(string, pos, endpos)
 
     def fullmatch(
-        self, string: str, pos: int = 0, endpos: int = ...
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
     ) -> re.Match[str] | None:
         return self._current_regex().fullmatch(string, pos, endpos)
 

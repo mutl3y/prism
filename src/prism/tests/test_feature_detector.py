@@ -4,15 +4,72 @@ from __future__ import annotations
 
 import importlib
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+
+from prism.scanner_data.contracts_request import ScanOptionsDict
+from prism.scanner_plugins.interfaces import TaskCatalog
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
+EXPECTED_TASK_CATALOG_ENTRY_KEYS = {
+    "task_count",
+    "async_count",
+    "modules_used",
+    "collections_used",
+    "handlers_notified",
+    "privileged_tasks",
+    "conditional_tasks",
+    "tagged_tasks",
+}
+
+
+def _assert_task_catalog_contract(catalog: TaskCatalog) -> None:
+    for entry in catalog.values():
+        assert set(entry) == EXPECTED_TASK_CATALOG_ENTRY_KEYS
+        assert isinstance(entry["task_count"], int)
+        assert isinstance(entry["async_count"], int)
+        assert isinstance(entry["modules_used"], list)
+        assert isinstance(entry["collections_used"], list)
+        assert isinstance(entry["handlers_notified"], list)
+        assert isinstance(entry["privileged_tasks"], int)
+        assert isinstance(entry["conditional_tasks"], int)
+        assert isinstance(entry["tagged_tasks"], int)
+        assert all(isinstance(item, str) for item in entry["modules_used"])
+        assert all(isinstance(item, str) for item in entry["collections_used"])
+        assert all(isinstance(item, str) for item in entry["handlers_notified"])
+
+
+def _scan_options(role_path: Path) -> ScanOptionsDict:
+    return {
+        "role_path": str(role_path),
+        "role_name_override": None,
+        "readme_config_path": None,
+        "policy_config_path": None,
+        "include_vars_main": True,
+        "exclude_path_patterns": None,
+        "detailed_catalog": False,
+        "include_task_parameters": False,
+        "include_task_runbooks": False,
+        "inline_task_runbooks": False,
+        "include_collection_checks": False,
+        "keep_unknown_style_sections": False,
+        "adopt_heading_mode": None,
+        "vars_seed_paths": None,
+        "style_readme_path": None,
+        "style_source_path": None,
+        "style_guide_skeleton": False,
+        "compare_role_path": None,
+        "fail_on_unconstrained_dynamic_includes": None,
+        "fail_on_yaml_like_task_annotations": None,
+        "ignore_unresolved_internal_underscore_references": None,
+    }
+
 
 @contextmanager
-def _prefer_fsrc_prism_on_sys_path() -> object:
+def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -79,14 +136,11 @@ def test_fsrc_feature_detector_detects_feature_counter_shape(tmp_path) -> None:
         feature_detector_module = importlib.import_module(
             "prism.scanner_core.feature_detector"
         )
-        options = {
-            "role_path": str(role_path),
-            "exclude_path_patterns": None,
-        }
+        options = _scan_options(role_path)
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
-            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
+            registry=plugins_module.get_default_plugin_registry(),
         )
         bundle_resolver.ensure_prepared_policy_bundle(
             scan_options=options, di=container
@@ -154,14 +208,11 @@ def test_fsrc_feature_detector_task_catalog_shape_parity(tmp_path) -> None:
         scanner_extract_module = importlib.import_module(
             "prism.scanner_extract.task_catalog_assembly"
         )
-        options: dict = {
-            "role_path": str(role_path),
-            "exclude_path_patterns": None,
-        }
+        options = _scan_options(role_path)
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
-            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
+            registry=plugins_module.get_default_plugin_registry(),
         )
         bundle_resolver.ensure_prepared_policy_bundle(
             scan_options=options, di=container
@@ -179,6 +230,7 @@ def test_fsrc_feature_detector_task_catalog_shape_parity(tmp_path) -> None:
         )
         catalog = detector.analyze_task_catalog()
 
+    _assert_task_catalog_contract(catalog)
     assert len(task_entries) == 3
     assert len(handler_entries) == 1
     assert set(task_entries[0]) == {
@@ -198,21 +250,33 @@ def test_fsrc_feature_detector_task_catalog_shape_parity(tmp_path) -> None:
         "anchor",
     }
     assert "tasks/main.yml" in catalog
-    assert set(catalog["tasks/main.yml"]) == {
-        "task_count",
-        "async_count",
-        "modules_used",
-        "collections_used",
-        "handlers_notified",
-        "privileged_tasks",
-        "conditional_tasks",
-        "tagged_tasks",
+    assert catalog["tasks/main.yml"] == {
+        "task_count": 2,
+        "async_count": 0,
+        "modules_used": ["ansible.builtin.debug", "include_tasks"],
+        "collections_used": ["ansible.builtin"],
+        "handlers_notified": [],
+        "privileged_tasks": 0,
+        "conditional_tasks": 0,
+        "tagged_tasks": 0,
+    }
+    assert catalog["tasks/nested.yml"] == {
+        "task_count": 1,
+        "async_count": 0,
+        "modules_used": ["ansible.builtin.command"],
+        "collections_used": ["ansible.builtin"],
+        "handlers_notified": [],
+        "privileged_tasks": 0,
+        "conditional_tasks": 0,
+        "tagged_tasks": 0,
     }
 
 
 def test_fsrc_feature_detector_routes_via_plugin_when_available() -> None:
     class _Plugin:
-        def detect_features(self, role_path: str, options: dict) -> dict:
+        def detect_features(
+            self, role_path: str, options: dict[str, object]
+        ) -> dict[str, object]:
             return {
                 "task_files_scanned": 99,
                 "tasks_scanned": 77,
@@ -231,7 +295,9 @@ def test_fsrc_feature_detector_routes_via_plugin_when_available() -> None:
                 "yaml_like_task_annotations": 0,
             }
 
-        def analyze_task_catalog(self, role_path: str, options: dict) -> dict:
+        def analyze_task_catalog(
+            self, role_path: str, options: dict[str, object]
+        ) -> TaskCatalog:
             return {
                 "plugin/tasks.yml": {
                     "task_count": 1,
@@ -256,14 +322,26 @@ def test_fsrc_feature_detector_routes_via_plugin_when_available() -> None:
         detector = feature_detector_module.FeatureDetector(
             di=_DI(),
             role_path="/tmp/role",
-            options={"exclude_path_patterns": None},
+            options=_scan_options(Path("/tmp/role")),
         )
         features = detector.detect()
         catalog = detector.analyze_task_catalog()
 
+    _assert_task_catalog_contract(catalog)
     assert features["task_files_scanned"] == 99
     assert features["unique_modules"] == "plugin.module"
-    assert "plugin/tasks.yml" in catalog
+    assert catalog == {
+        "plugin/tasks.yml": {
+            "task_count": 1,
+            "async_count": 0,
+            "modules_used": ["plugin.module"],
+            "collections_used": [],
+            "handlers_notified": [],
+            "privileged_tasks": 0,
+            "conditional_tasks": 0,
+            "tagged_tasks": 0,
+        }
+    }
 
 
 def test_fsrc_feature_detector_annotation_hot_path_uses_canonical_comment_doc_marker_prefix(
@@ -317,7 +395,7 @@ def test_fsrc_feature_detector_annotation_hot_path_uses_canonical_comment_doc_ma
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
-            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
+            registry=plugins_module.get_default_plugin_registry(),
         )
         bundle_resolver_module = importlib.import_module(
             "prism.scanner_plugins.bundle_resolver"
@@ -381,7 +459,7 @@ def test_fsrc_feature_detector_collect_task_handler_catalog_hot_path_uses_canoni
         container = di_module.DIContainer(
             role_path=str(role_path),
             scan_options=options,
-            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
+            registry=plugins_module.get_default_plugin_registry(),
         )
         bundle_resolver_module = importlib.import_module(
             "prism.scanner_plugins.bundle_resolver"

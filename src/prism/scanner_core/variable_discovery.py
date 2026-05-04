@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
+from prism.scanner_core.di import clone_scan_options
 from prism.scanner_core.di_helpers import (
     HasVariableDiscoveryPluginFactory,
     get_event_bus_or_none,
 )
 from prism.scanner_core.events import PHASE_VARIABLE_DISCOVERY
-from prism.scanner_data.contracts_request import validate_variable_discovery_inputs
+from prism.scanner_data.contracts_request import (
+    ScanOptionsDict,
+    validate_variable_discovery_inputs,
+)
 from prism.scanner_data.contracts_variables import VariableRow
 from prism.scanner_plugins.interfaces import VariableDiscoveryPlugin
 
@@ -33,15 +37,21 @@ class VariableDiscovery:
         self,
         di: DIContainer,
         role_path: str,
-        options: dict[str, Any],
+        options: ScanOptionsDict,
     ) -> None:
-        validate_variable_discovery_inputs(role_path=role_path, options=options)
+        validate_variable_discovery_inputs(
+            role_path=role_path,
+            options=cast(dict[str, Any], options),
+        )
         self._di = di
         self._role_path = role_path
-        self._options = options
+        self._options = clone_scan_options(options)
         self._plugin: VariableDiscoveryPlugin | None = None
         self._plugin_resolved = False
         self._plugin_lock = threading.Lock()
+
+    def _snapshot_options(self) -> ScanOptionsDict:
+        return clone_scan_options(self._options)
 
     def _resolve_plugin(self) -> VariableDiscoveryPlugin:
         if self._plugin_resolved:
@@ -86,36 +96,43 @@ class VariableDiscovery:
     def discover_static(self) -> tuple[VariableRow, ...]:
         """Discover static variables from defaults/vars/argument_specs/set_fact."""
         plugin = self._resolve_plugin()
+        options = self._snapshot_options()
+        plugin_options = cast(dict[str, Any], options)
         event_bus = get_event_bus_or_none(self._di)
-        ctx = {"role_path": self._role_path, "step": "static"}
+        ctx: dict[str, object] = {"role_path": self._role_path, "step": "static"}
         if event_bus is not None:
             with event_bus.phase(PHASE_VARIABLE_DISCOVERY, context=ctx):
                 discovered = plugin.discover_static_variables(
                     self._role_path,
-                    self._options,
+                    plugin_options,
                 )
         else:
             discovered = plugin.discover_static_variables(
                 self._role_path,
-                self._options,
+                plugin_options,
             )
         return tuple(discovered)
 
     def discover_referenced(self) -> frozenset[str]:
         """Discover referenced variable names from tasks/templates/handlers/README."""
         plugin = self._resolve_plugin()
+        options = self._snapshot_options()
+        plugin_options = cast(dict[str, Any], options)
         event_bus = get_event_bus_or_none(self._di)
-        ctx = {"role_path": self._role_path, "step": "referenced"}
+        ctx: dict[str, object] = {
+            "role_path": self._role_path,
+            "step": "referenced",
+        }
         if event_bus is not None:
             with event_bus.phase(PHASE_VARIABLE_DISCOVERY, context=ctx):
                 discovered = plugin.discover_referenced_variables(
                     self._role_path,
-                    self._options,
+                    plugin_options,
                 )
         else:
             discovered = plugin.discover_referenced_variables(
                 self._role_path,
-                self._options,
+                plugin_options,
             )
         return frozenset(discovered)
 
@@ -137,7 +154,7 @@ class VariableDiscovery:
         resolved = plugin.resolve_unresolved_variables(
             effective_static_names,
             effective_referenced,
-            self._options,
+            cast(dict[str, Any], self._snapshot_options()),
         )
         return dict(resolved)
 

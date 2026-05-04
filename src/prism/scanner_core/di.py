@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import threading
 from inspect import Parameter, signature
-from typing import TYPE_CHECKING, Any, Callable, Mapping, cast
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Protocol, cast
 
 from prism.scanner_core.events import EventBus, EventListener, get_default_listeners
 from prism.scanner_data.contracts_request import ScanOptionsDict
@@ -48,6 +48,12 @@ if TYPE_CHECKING:
         PreparedVariableExtractorPolicy,
     )
     from prism.scanner_plugins.registry import PluginRegistry
+
+
+class _PlatformKeyRegistry(Protocol):
+    """Minimal registry surface required for platform-key resolution."""
+
+    def get_default_platform_key(self) -> str | None: ...
 
 
 def _clone_container_structure(value: object) -> object:
@@ -105,9 +111,9 @@ def _create_feature_detector(
 
 def resolve_platform_key(
     scan_options: ScanOptionsDict,
-    registry: PluginRegistry | None = None,
+    registry: _PlatformKeyRegistry | None = None,
 ) -> str:
-    """Resolve platform key: scan_pipeline_plugin > policy_context > registry default."""
+    """Resolve platform key: scan_pipeline_plugin > policy_context > platform > registry default."""
     if isinstance(scan_options, dict):
         explicit = scan_options.get("scan_pipeline_plugin")
         if isinstance(explicit, str) and explicit:
@@ -119,6 +125,9 @@ def resolve_platform_key(
                 plugin_key = selection.get("plugin")
                 if isinstance(plugin_key, str) and plugin_key:
                     return plugin_key
+        platform = scan_options.get("platform")
+        if isinstance(platform, str) and platform:
+            return platform
     if registry is not None:
         default_key = registry.get_default_platform_key()
         if default_key is not None:
@@ -213,12 +222,15 @@ class DIContainer:
         self._inherit_default_event_listeners = inherit_default_event_listeners
         self.cache_backend: ScanCacheBackend | None = cache_backend
         self._blocker_fact_builder_fn = blocker_fact_builder_fn
+        ambient_default_listeners = (
+            list(get_default_listeners()) if inherit_default_event_listeners else []
+        )
         effective_listeners = (
             list(event_listeners)
             if event_listeners is not None
-            else (
-                list(get_default_listeners()) if inherit_default_event_listeners else []
-            )
+            # Capture the current ambient snapshot once so later registrations do
+            # not mutate this container's per-instance event bus.
+            else ambient_default_listeners
         )
         self._event_bus = EventBus(listeners=effective_listeners)
 

@@ -21,9 +21,7 @@ from prism.scanner_plugins.ansible.extract_utils import iter_task_mappings
 from prism.scanner_plugins.ansible.extract_utils import (
     load_task_yaml_file,
 )
-from prism.scanner_io.loader import load_yaml_file as _load_yaml_loader_file
 from prism.scanner_io.loader import map_argument_spec_type as _map_argument_spec_type
-from prism.scanner_io.loader import parse_yaml_candidate
 from prism.scanner_plugins.ansible.extract_utils import (
     iter_role_variable_map_candidates as _iter_variable_map_candidates,
 )
@@ -138,6 +136,21 @@ def _get_task_line_parsing_policy(
     return policy
 
 
+def _get_yaml_parsing_policy(
+    options: dict[str, Any] | None = None,
+) -> Any:
+    bundle = (
+        options.get("prepared_policy_bundle") if isinstance(options, dict) else None
+    )
+    policy = bundle.get("yaml_parsing") if isinstance(bundle, dict) else None
+    if policy is None:
+        raise ValueError(
+            "prepared_policy_bundle.yaml_parsing must be provided before "
+            "VariableDiscovery canonical execution"
+        )
+    return policy
+
+
 JINJA_VARIABLE_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_\.]*)")
 JINJA_EXPRESSION_RE = re.compile(r"\{\{(.*?)\}\}", re.DOTALL)
 QUOTED_STRING_RE = re.compile(r'"[^"]*"|\'[^\']*\'')
@@ -185,13 +198,27 @@ def _load_yaml_mapping_with_metadata(
     path: Path,
     *,
     role_root: Path | None = None,
+    options: dict[str, Any] | None = None,
     yaml_failure_collector: list[YamlParseFailure] | None = None,
     di: object | None = None,
 ) -> dict[str, Any]:
     if not path.exists():
         return {}
+    yaml_policy = _get_yaml_parsing_policy(options)
+    load_yaml_file = getattr(yaml_policy, "load_yaml_file", None)
+    parse_yaml_candidate = getattr(yaml_policy, "parse_yaml_candidate", None)
+    if not callable(load_yaml_file):
+        raise ValueError(
+            f"yaml_parsing policy plugin {type(yaml_policy)!r} must implement "
+            f"load_yaml_file"
+        )
+    if not callable(parse_yaml_candidate):
+        raise ValueError(
+            f"yaml_parsing policy plugin {type(yaml_policy)!r} must implement "
+            f"parse_yaml_candidate"
+        )
     try:
-        parsed = _load_yaml_loader_file(path, di=di)
+        parsed = load_yaml_file(path)
     # Broad: YAML loader can raise scanner/parser/IO errors; failures are
     # captured into yaml_failure_collector for downstream best-effort reporting.
     except Exception as exc:
@@ -203,14 +230,14 @@ def _load_yaml_mapping_with_metadata(
         )
         if yaml_failure_collector is not None:
             collector_root = role_root or path.resolve().parent
-            failure = parse_yaml_candidate(path, collector_root, di=di)
+            failure = parse_yaml_candidate(path, collector_root)
             if failure is not None:
                 yaml_failure_collector.append(failure)
         return {}
     if parsed is None:
         if yaml_failure_collector is not None:
             collector_root = role_root or path.resolve().parent
-            failure = parse_yaml_candidate(path, collector_root, di=di)
+            failure = parse_yaml_candidate(path, collector_root)
             if failure is not None:
                 yaml_failure_collector.append(failure)
         return {}
@@ -219,13 +246,23 @@ def _load_yaml_mapping_with_metadata(
     return {str(key): value for key, value in parsed.items() if isinstance(key, str)}
 
 
-def _iter_role_argument_spec_entries(role_root: Path, *, di: object | None = None):
-    return _iter_role_argument_spec_entries_with_metadata(role_root, di=di)
+def _iter_role_argument_spec_entries(
+    role_root: Path,
+    *,
+    options: dict[str, Any] | None = None,
+    di: object | None = None,
+):
+    return _iter_role_argument_spec_entries_with_metadata(
+        role_root,
+        options=options,
+        di=di,
+    )
 
 
 def _iter_role_argument_spec_entries_with_metadata(
     role_root: Path,
     *,
+    options: dict[str, Any] | None = None,
     yaml_failure_collector: list[YamlParseFailure] | None = None,
     di: object | None = None,
 ):
@@ -235,6 +272,7 @@ def _iter_role_argument_spec_entries_with_metadata(
         loaded = _load_yaml_mapping_with_metadata(
             arg_specs_file,
             role_root=role_root,
+            options=options,
             yaml_failure_collector=yaml_failure_collector,
             di=di,
         )
@@ -244,6 +282,7 @@ def _iter_role_argument_spec_entries_with_metadata(
     meta_main = _load_yaml_mapping_with_metadata(
         role_root / "meta" / "main.yml",
         role_root=role_root,
+        options=options,
         yaml_failure_collector=yaml_failure_collector,
         di=di,
     )
@@ -293,6 +332,7 @@ def _read_variable_sources(
         loaded = _load_yaml_mapping_with_metadata(
             candidate,
             role_root=role_root,
+            options=options,
             yaml_failure_collector=yaml_failure_collector,
             di=di,
         )
@@ -305,6 +345,7 @@ def _read_variable_sources(
             loaded = _load_yaml_mapping_with_metadata(
                 candidate,
                 role_root=role_root,
+                options=options,
                 yaml_failure_collector=yaml_failure_collector,
                 di=di,
             )
@@ -330,6 +371,7 @@ def _read_variable_sources(
             loaded = _load_yaml_mapping_with_metadata(
                 candidate,
                 role_root=role_root,
+                options=options,
                 yaml_failure_collector=yaml_failure_collector,
                 di=di,
             )
@@ -586,6 +628,7 @@ class AnsibleVariableDiscoveryPlugin:
             spec,
         ) in _iter_role_argument_spec_entries_with_metadata(
             role_root,
+            options=options,
             yaml_failure_collector=yaml_parse_failures,
             di=self._di,
         ):
