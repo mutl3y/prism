@@ -1,0 +1,14 @@
+cycle: g73
+phase: P5
+wave: 1
+status: pass
+builder_summary: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase5/Builder-PayloadIsolation-wave-1.md
+finding_closed_ready:
+  - G73-H02
+validation:
+  focused_gate:
+    command: >-
+      cd /raid5/source/test/prism && .venv/bin/python -m pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'test_fsrc_plugin_facade_isolates_orchestrated_payload_mutation or test_fsrc_api_run_scan_uses_plugin_facade_scan_pipeline_registry_seam'
+    result: pass
+    detail: 2 passed, 37 deselected in 0.41s
+blocking_issues: []

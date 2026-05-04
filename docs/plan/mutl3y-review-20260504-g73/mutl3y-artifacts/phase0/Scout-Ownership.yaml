@@ -1,0 +1,85 @@
+agent: Scout-Ownership
+plan_id: mutl3y-review-20260504-g73
+phase: phase0
+focus: concurrency_and_runtime_state
+cluster: sweep-ownership
+observations:
+  - id: 1
+    files:
+      - src/prism/scanner_core/events.py#L1-L220
+    severity: High
+    category: global_state
+    summary: "Process-level default EventBus listener registry (_DEFAULT_LISTENERS) is mutable and global. register_default_listener/unregister_default_listener mutate process-global state which is inherited (snapshot) by DIContainer EventBus when requested. This can cause cross-contamination of listeners across independent DI containers and threads."
+    uncertainty: low
+  - id: 2
+    files:
+      - src/prism/scanner_core/di.py#L180-L260
+      - src/prism/scanner_core/di.py#L300-L380
+    severity: Medium
+    category: cache_identity
+    summary: "DIContainer keeps a per-container _cache protected by an RLock and selectively invalidates cache entries when scan options are replaced. Only keys in _SCAN_OPTION_DEPENDENT_CACHE_KEYS are invalidated on replace_scan_options; other cache entries may implicitly depend on scan options and remain stale."
+    uncertainty: low
+  - id: 3
+    files:
+      - src/prism/scanner_core/scan_cache.py#L1-L220
+    severity: Low
+    category: cache_identity
+    summary: "InMemoryLRUScanCache uses locks and clones container structures for stored values; cloning is structural for builtins but leaves 'opaque' custom objects by identity. If callers store mutable, non-serializable objects, cached values may retain shared mutable state."
+    uncertainty: medium
+  - id: 4
+    files:
+      - src/prism/api_layer/plugin_facade.py#L200-L320
+    severity: Medium
+    category: ownership_seam
+    summary: "get_default_scan_pipeline_registry caches an isolated wrapper by identity comparison against the underlying registry object. If the underlying registry is mutated in-place, the cached wrapper remains bound to the previous view, causing potential staleness."
+    uncertainty: medium
+  - id: 5
+    files:
+      - src/prism/api_layer/plugin_facade.py#L1-L140
+      - src/prism/api_layer/plugin_facade.py#L140-L200
+    severity: High
+    category: ownership_seam
+    summary: "Orchestration wrapper (_OrchestratingScanPipelinePluginIsolationWrapper) deep-copies scan_context for process plugins but does NOT deepcopy or isolate the 'payload' in orchestrate_scan_payload, allowing plugins to mutate payload objects that may be reused by callers. This asymmetry opens a hidden authority for plugin code to mutate pipeline payloads."
+    uncertainty: low
+  - id: 6
+    files:
+      - src/prism/api_layer/non_collection.py#L480-L520
+      - src/prism/api_layer/non_collection.py#L680-L740
+    severity: Medium
+    category: global_state
+    summary: "Module-level lazy-initialized _repo_scan_facade holds a process-global reference to repo_services.repo_scan_facade after first resolve. The facade is protected during init by a lock but retains a snapshot reference and won't reflect later changes to the underlying repo_services object."
+    uncertainty: low
+  - id: 7
+    files:
+      - src/prism/scanner_core/events.py#L300-L380
+      - src/prism/scanner_core/di.py#L180-L220
+    severity: Medium
+    category: global_state
+    summary: "DIContainer supports inherit_default_event_listeners which snapshots process-global default listeners into each container's EventBus. Because default listeners are process-global, changes to defaults affect future containers; consumers may inadvertently depend on ambient listeners."
+    uncertainty: low
+  - id: 8
+    files:
+      - src/prism/scanner_core/di.py#L1-L80
+      - src/prism/scanner_core/di.py#L100-L140
+    severity: Medium
+    category: ownership_seam
+    summary: "clone_scan_options/_clone_container_structure handle builtin containers recursively but return opaque objects unchanged. Non-standard or custom objects in scan_options may be shared by identity across DIContainer snapshots, enabling hidden shared mutable state between containers."
+    uncertainty: medium
+  - id: 9
+    files:
+      - src/prism/scanner_core/scan_cache.py#L80-L160
+    severity: Low
+    category: cache_identity
+    summary: "build_runtime_wiring_identity uses id() in callable/object fingerprints. This produces per-process/per-object-identity cache keys that intentionally prevent cross-process or reload cache reuse; it reduces cache hit probability but is deterministic within a process."
+    uncertainty: low
+  - id: 10
+    files:
+      - src/prism/scanner_core/feature_detector.py#L1-L120
+      - src/prism/scanner_core/variable_discovery.py#L1-L120
+    severity: Medium
+    category: concurrency
+    summary: "FeatureDetector and VariableDiscovery lazily resolve plugin instances with per-instance plugin locks. Combined with DIContainer caching of 'feature_detector' and 'variable_discovery', this creates multiple caching layers (DI container + detector instance) — complexity that can hide stale/duplicated instances if replace_scan_options invalidation is incomplete."
+    uncertainty: medium
+notes: |
+  - Observations targeted ownership seams, caches, and concurrency primitives across src/prism.
+  - I did not modify code; this is a read-only discovery artifact.

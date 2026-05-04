@@ -1,0 +1,11 @@
+cycle: g73
+phase: P5
+wave: 3
+status: ready
+builder: Builder-KernelMetadata
+fix_group_key: kernel-metadata-copy-on-merge
+owned_files:
+  - src/prism/scanner_kernel/kernel_plugin_runner.py
+  - src/prism/tests/test_kernel_plugin_runner.py
+blocking_issues: []
+foreman_recovery: false

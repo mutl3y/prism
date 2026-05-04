@@ -1,0 +1,144 @@
+- timestamp: '2026-05-04T19:24:00+00:00'
+  cycle: g73
+  phase: P0
+  worker: Scout-Typing
+  task_id: g73-phase0-scout-typing
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Scout-Typing returned two promoted High findings led by weak prepared-policy and API contract typing.
+  lane_tag: discovery
+- timestamp: '2026-05-04T19:24:00+00:00'
+  cycle: g73
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g73-phase0-scout-ownership
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Scout-Ownership returned two promoted High findings led by global default listeners and mutable payload ownership seams.
+  lane_tag: discovery
+- timestamp: '2026-05-04T19:24:00+00:00'
+  cycle: g73
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g73-phase0-scout-controlflow
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Scout-ControlFlow returned two promoted High findings led by kernel metadata mutation and fail-open degraded execution paths.
+  lane_tag: discovery
+- timestamp: '2026-05-04T19:24:00+00:00'
+  cycle: g73
+  phase: P0
+  worker: Scout-Graph
+  task_id: g73-phase0-scout-graph
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Scout-Graph returned five promoted High findings across registry singletons, global listeners, and global mutable style state.
+  lane_tag: discovery
+- timestamp: '2026-05-04T20:31:00+00:00'
+  cycle: g73
+  phase: P5
+  worker: Builder-PayloadIsolation
+  task_id: g73-wave1-builder-payload-isolation
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase5/Builder-PayloadIsolation-wave-1.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Builder isolated orchestrated payload mutation in plugin_facade and added a focused regression.
+  lane_tag: implementation
+- timestamp: '2026-05-04T20:31:00+00:00'
+  cycle: g73
+  phase: P5
+  worker: Builder-EventBusBoundary
+  task_id: g73-wave2-builder-eventbus-boundary
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase5/Builder-EventBusBoundary-wave-2.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Builder tightened default-listener boundary behavior while preserving explicit opt-in tests.
+  lane_tag: implementation
+- timestamp: '2026-05-04T20:31:00+00:00'
+  cycle: g73
+  phase: P5
+  worker: Builder-KernelMetadata
+  task_id: g73-wave3-builder-kernel-metadata
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase5/Builder-KernelMetadata-wave-3.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Builder removed in-place kernel metadata mutation and added a focused regression.
+  lane_tag: implementation
+- timestamp: '2026-05-04T20:33:00+00:00'
+  cycle: g73
+  phase: P6
+  worker: Gatekeeper
+  task_id: g73-phase6-gatekeeper-waves-1-3
+  requested_tier: low-cost
+  requested_model: local-run
+  actual_model: local-run
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase6/Gatekeeper-waves-1-3-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Focused pytest gates and narrow mypy passed across the first three disjoint waves.
+  lane_tag: validation
+- timestamp: '2026-05-04T20:34:00+00:00'
+  cycle: g73
+  phase: P6
+  worker: Auditor-Regression
+  task_id: g73-phase6-auditor-waves-1-3
+  requested_tier: low-cost
+  requested_model: local-run
+  actual_model: local-run
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase6/Auditor-Regression-waves-1-3.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Auditor found no material regression in waves 1-3 and left G73-H04/H05 as the remaining active queue.
+  lane_tag: validation

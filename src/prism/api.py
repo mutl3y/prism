@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re as _re
-from typing import cast
+from typing import TYPE_CHECKING, Callable, cast
 
 import yaml
 
 from prism.api_layer import collection as api_collection
 from prism.api_layer import non_collection as api_non_collection
 from prism.api_layer import plugin_facade
+from prism.errors import ERROR_CATEGORY_VALIDATION
 from prism.errors import PrismRuntimeError
 from prism.errors import FailurePolicy
 from prism.path_safety import assert_safe_role_path
@@ -30,12 +31,9 @@ from prism.scanner_reporting.collection_dependencies import (
 )
 from prism.scanner_readme import render_readme
 from prism.scanner_reporting import render_runbook, render_runbook_csv
-from prism.scanner_core import (
-    DIContainer,
-    FeatureDetector,
-    ScanCacheBackend,
-    ScannerContext,
-)
+from prism.scanner_core import DIContainer as _BaseDIContainer
+from prism.scanner_core import FeatureDetector as _BaseFeatureDetector
+from prism.scanner_core import ScannerContext as _BaseScannerContext
 from prism.scanner_data import (
     CollectionDependencies,
     CollectionFailureRecord,
@@ -48,7 +46,8 @@ from prism.scanner_data import (
 )
 from prism.scanner_data.contracts_request import ScanPolicyContext
 
-NormalizedNonCollectionResult = api_non_collection._NormalizedNonCollectionResult
+if TYPE_CHECKING:
+    from prism.scanner_core import ScanCacheBackend
 
 
 API_PUBLIC_ENTRYPOINTS: tuple[str, ...] = (
@@ -77,6 +76,29 @@ __all__ = [
     "scan_repo",
     "scan_role",
 ]
+
+
+def _resolve_run_scan_runtime_classes() -> tuple[object, object, object]:
+    return DIContainer, FeatureDetector, ScannerContext
+
+
+class DIContainer(_BaseDIContainer):
+    """Package-owned run-scan DI seam for public facade overrides."""
+
+
+class FeatureDetector(_BaseFeatureDetector):
+    """Package-owned feature-detector seam for public facade overrides."""
+
+
+class ScannerContext(_BaseScannerContext):
+    """Package-owned scanner-context seam for public facade overrides."""
+
+
+def resolve_comment_driven_documentation_plugin(
+    di: object,
+) -> plugin_facade.CommentDrivenDocumentationPlugin:
+    """Resolve comment-doc plugins through the package-owned API seam."""
+    return plugin_facade.resolve_comment_driven_documentation_plugin(di)
 
 
 def load_audit_rules_from_file(rules_path: str) -> list[AuditRule]:
@@ -201,6 +223,26 @@ def _assert_safe_optional_path(path_value: str | None, *, field_name: str) -> No
     assert_safe_role_path(path_value, field_name=field_name)
 
 
+def _assert_existing_optional_file(path_value: str | None, *, field_name: str) -> None:
+    if path_value is None:
+        return
+    path = Path(path_value)
+    if not path.exists():
+        raise PrismRuntimeError(
+            code="scan_input_path_not_found",
+            category=ERROR_CATEGORY_VALIDATION,
+            message=f"{field_name} does not exist",
+            detail={"field": field_name, "value": path_value},
+        )
+    if not path.is_file():
+        raise PrismRuntimeError(
+            code="scan_input_path_not_file",
+            category=ERROR_CATEGORY_VALIDATION,
+            message=f"{field_name} must point to a file",
+            detail={"field": field_name, "value": path_value},
+        )
+
+
 def _assert_safe_optional_path_list(
     path_values: list[str] | None,
     *,
@@ -223,6 +265,14 @@ def _assert_safe_run_scan_file_inputs(
 ) -> None:
     _assert_safe_optional_path(readme_config_path, field_name="readme_config_path")
     _assert_safe_optional_path(policy_config_path, field_name="policy_config_path")
+    _assert_existing_optional_file(
+        readme_config_path,
+        field_name="readme_config_path",
+    )
+    _assert_existing_optional_file(
+        policy_config_path,
+        field_name="policy_config_path",
+    )
     _assert_safe_optional_path(style_readme_path, field_name="style_readme_path")
     _assert_safe_optional_path(style_source_path, field_name="style_source_path")
     _assert_safe_optional_path(compare_role_path, field_name="compare_role_path")
@@ -285,13 +335,13 @@ def run_scan(
     strict_phase_failures: bool = True,
     scan_pipeline_plugin: str | None = None,
     cache_backend: ScanCacheBackend | None = None,
-) -> NormalizedNonCollectionResult:
+) -> RunScanOutputPayload:
     """Run the non-collection scanner orchestration through the package seam."""
     assert_safe_role_path(role_path, field_name="role_path")
-    default_plugin_registry = cast(
-        "plugin_facade.PluginRegistry",
-        plugin_facade.get_default_scan_pipeline_registry(),
+    di_container_cls, feature_detector_cls, scanner_context_cls = (
+        _resolve_run_scan_runtime_classes()
     )
+    default_plugin_registry = plugin_facade.get_default_scan_pipeline_registry()
     _assert_safe_run_scan_file_inputs(
         readme_config_path=readme_config_path,
         policy_config_path=policy_config_path,
@@ -340,11 +390,11 @@ def run_scan(
         orchestrate_scan_payload_with_selected_plugin_fn=(
             api_non_collection.orchestrate_scan_payload_with_selected_plugin
         ),
-        di_container_cls=DIContainer,
-        feature_detector_cls=FeatureDetector,
-        scanner_context_cls=ScannerContext,
+        di_container_cls=di_container_cls,
+        feature_detector_cls=feature_detector_cls,
+        scanner_context_cls=scanner_context_cls,
         resolve_comment_driven_documentation_plugin_fn=(
-            plugin_facade.resolve_comment_driven_documentation_plugin
+            resolve_comment_driven_documentation_plugin
         ),
         default_plugin_registry=default_plugin_registry,
     )
@@ -473,7 +523,7 @@ def scan_role(
     include_task_runbooks: bool = True,
     inline_task_runbooks: bool = True,
     failure_policy: FailurePolicy | None = None,
-) -> NormalizedNonCollectionResult:
+) -> RunScanOutputPayload:
     """Objective-critical role scan facade for fsrc API consumers."""
     assert_safe_role_path(role_path, field_name="role_path")
     _assert_safe_run_scan_file_inputs(
@@ -512,7 +562,10 @@ def scan_role(
         include_task_runbooks=include_task_runbooks,
         inline_task_runbooks=inline_task_runbooks,
         failure_policy=failure_policy,
-        run_scan_fn=run_scan,
+        run_scan_fn=cast(
+            "Callable[..., api_non_collection._NormalizedNonCollectionResult]",
+            run_scan,
+        ),
     )
 
 

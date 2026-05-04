@@ -1,0 +1,11 @@
+cycle: g73
+phase: P5
+wave: 1
+status: ready
+builder: Builder-PayloadIsolation
+fix_group_key: payload-isolation-orchestrate
+owned_files:
+  - src/prism/api_layer/plugin_facade.py
+  - src/prism/tests/test_api_cli_entrypoints.py
+blocking_issues: []
+foreman_recovery: false

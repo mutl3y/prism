@@ -1,0 +1,32 @@
+phase: P4
+cycle: g73
+decision: parallel_disjoint_waves_selected
+selected_findings:
+  - G73-H01
+  - G73-H02
+  - G73-H03
+deferred_findings:
+  - G73-H04
+  - G73-H05
+rationale: >-
+  The first three High findings owned disjoint file sets and each had a cheap,
+  focused validation gate. The workflow therefore allowed them to be launched
+  in parallel rather than serialized.
+wave_groups:
+  - wave: 1
+    fix_group_key: payload-isolation-orchestrate
+    owned_files:
+      - src/prism/api_layer/plugin_facade.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+  - wave: 2
+    fix_group_key: eventbus-default-listener-boundary
+    owned_files:
+      - src/prism/scanner_core/events.py
+      - src/prism/scanner_core/di.py
+      - src/prism/tests/test_t4_03_cli_progress.py
+      - src/prism/tests/test_execution_request_builder.py
+  - wave: 3
+    fix_group_key: kernel-metadata-copy-on-merge
+    owned_files:
+      - src/prism/scanner_kernel/kernel_plugin_runner.py
+      - src/prism/tests/test_kernel_plugin_runner.py

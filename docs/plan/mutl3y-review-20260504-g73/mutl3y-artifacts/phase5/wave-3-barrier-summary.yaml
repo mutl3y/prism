@@ -1,0 +1,14 @@
+cycle: g73
+phase: P5
+wave: 3
+status: pass
+builder_summary: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase5/Builder-KernelMetadata-wave-3.md
+finding_closed_ready:
+  - G73-H03
+validation:
+  focused_gate:
+    command: >-
+      cd /raid5/source/test/prism && .venv/bin/python -m pytest -q src/prism/tests/test_kernel_plugin_runner.py
+    result: pass
+    detail: 9 passed in 0.25s
+blocking_issues: []

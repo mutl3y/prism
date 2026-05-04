@@ -1,0 +1,81 @@
+agent: Scout-ControlFlow
+plan_id: mutl3y-review-20260504-g73
+cycle: g73
+focus: concurrency_and_runtime_state
+cluster: sweep-control-flow
+generated_at: "2026-05-04T00:00:00Z"
+observations:
+  - id: 1
+    file: src/prism/scanner_core/events.py
+    lines: 60-110
+    category: swallowed_exceptions / fail-open
+    severity_candidate: Medium
+    summary: "EventBus.emit catches all listener exceptions and only logs by default; listeners that fail are suppressed unless EventBus constructed with strict=True. Risk: listener failures may be hidden, losing critical signals or recovery actions."
+    uncertainty: "Design appears intentional for observability stability; impact depends on listener criticality."
+  - id: 2
+    file: src/prism/scanner_core/telemetry.py
+    lines: 60-120
+    category: swallowed_exceptions / IO-bound
+    severity_candidate: Low
+    summary: "TelemetryCollector._emit_json swallows all exceptions from the configured stream and logs the failure. Telemetry-writing failures won't surface to callers."
+    uncertainty: "Low — expected for best-effort telemetry, but can hide disk/stream failures."
+  - id: 3
+    file: src/prism/scanner_kernel/kernel_plugin_runner.py
+    lines: 100-220
+    category: non-atomic_updates / shared_mutable_state
+    severity_candidate: High
+    summary: "Phase output merging uses in-place dict update (response['metadata'].update(metadata)) without defensive copy or synchronization; concurrent phase handlers or re-entrant handlers may cause interleaved, non-atomic mutations of the shared response metadata, leading to corrupted or leaked state."
+    uncertainty: "Moderate — depends on whether kernel orchestrator is ever used concurrently across threads for the same response object; tests include threaded scenarios."
+  - id: 4
+    file: src/prism/scanner_kernel/kernel_plugin_runner.py
+    lines: 32-110
+    category: error_handling_policy / fail-open_vs_fail-fast
+    severity_candidate: Medium
+    summary: "Orchestrator records phase exceptions into response and can continue when fail_fast=False. This 'fail-per-plugin' behavior is explicit but can leave partial/invalid payloads in aggregated responses if callers assume strict execution."
+    uncertainty: "Low — behavior is explicit, but callers must be aware."
+  - id: 5
+    file: src/prism/scanner_core/scanner_context.py
+    lines: 120-220
+    category: fail-open / degraded_state
+    severity_candidate: High
+    summary: "ScannerContext._discover_variables and _detect_features catch exceptions and, when configured as non-strict or when exception is recoverable, record errors and continue in best-effort mode. This can silently accept degraded scan outputs and propagate incomplete metadata (scan_degraded=True)."
+    uncertainty: "Moderate — depends on how often strict_mode is enabled in production."
+  - id: 6
+    file: src/prism/scanner_core/scan_cache.py
+    lines: 236-320
+    category: swallowed_io_errors / masking
+    severity_candidate: Low
+    summary: "compute_path_content_hash swallows OSError and inserts a UNREADABLE marker into the hash stream rather than surfacing the IO error. This prevents callers from distinguishing IO failures vs present-but-unreadable files."
+    uncertainty: "Low — intentional defensive behavior but could mask root-cause IO issues."
+  - id: 7
+    file: src/prism/scanner_core/di.py
+    lines: 200-280
+    category: cache_invalidation / concurrent_replace
+    severity_candidate: Medium
+    summary: "DIContainer.replace_scan_options replaces _scan_options and invalidates dependent cached factories under an RLock; callers replacing options concurrently with factory access may still race if consumer code copies scan_options outside locks."
+    uncertainty: "Moderate — RLock present, but callers may snapshot/clash semantics across threads."
+  - id: 8
+    file: src/prism/api_layer/plugin_facade.py
+    lines: 220-260
+    category: global_state / cached_registry
+    severity_candidate: Medium
+    summary: "Module-level cached registry (_default_scan_pipeline_registry) uses identity checks to refresh; while protected by a lock, swapping registries from other code paths could lead to subtle stale-caching or replacement races if callers compare instances."
+    uncertainty: "Low — locking reduces race-surface, but identity-based invalidation assumes registry objects are replaced atomically."
+  - id: 9
+    file: src/prism/scanner_core/execution_request_builder.py
+    lines: 220-320
+    category: fragile_initialization / non-atomic_binding
+    severity_candidate: Low
+    summary: "_assemble_runtime_participants uses _bridge_slot list and lambdas that reference _bridge_slot[0] to resolve circular construction; if invoked concurrently in unexpected ways, the slot indirection could be fragile and raise IndexError during initialization."
+    uncertainty: "Low — pattern is common for deferred binding but fragile under concurrent reuse."
+  - id: 10
+    file: src/prism/scanner_extract/discovery.py
+    lines: 1-120
+    category: best-effort_IO / fail-open
+    severity_candidate: Medium
+    summary: "load_meta / load_requirements / load_variables implement non-strict modes that log and return empty structures on IO/YAML errors. Useful for resilience but can hide bad disk/malformed inputs leading to surprising downstream behavior."
+    uncertainty: "Low — explicit API contract with strict flag."
+promoted_high_or_critical_count: 2
+notes: |
+  - This sweep focused on control-flow sites that can corrupt or leak runtime state: shared mutable updates, swallowed exceptions, factory/caching races, and fragile initialization patterns.
+  - The two highest-impact items are (1) non-atomic metadata merging in kernel orchestrator and (2) ScannerContext's fail-open continuation which accepts degraded payloads. Both warrant follow-up validation under concurrent workloads and production config profiles.

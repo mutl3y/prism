@@ -50,7 +50,7 @@ def _expect_mapping(value: object) -> dict[str, object]:
 def _stub_non_collection_result(
     **overrides: object,
 ) -> "_NormalizedNonCollectionResult":
-    payload = {
+    payload: dict[str, object] = {
         "role_name": "tiny_role",
         "description": "delegated",
         "display_variables": {},
@@ -293,6 +293,7 @@ def test_fsrc_api_run_scan_delegates_to_non_collection_api_layer(
     delegated_kwargs = _expect_mapping(captured["kwargs"])
     assert delegated_kwargs["policy_config_path"] == "/tmp/policy.yml"
     assert delegated_kwargs["scan_pipeline_plugin"] == "custom"
+    assert not hasattr(api_module, "NormalizedNonCollectionResult")
 
 
 def test_fsrc_api_run_scan_threads_scanner_context_cls_without_di_backfill(
@@ -1086,6 +1087,104 @@ def test_fsrc_api_run_scan_plugin_scan_options_mutation_cannot_downgrade_strict(
     )
 
 
+def test_fsrc_api_run_scan_plugin_nested_policy_context_mutation_is_isolated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    caller_policy_context = {
+        "selection": {"plugin": "default"},
+        "nested": {"original": True},
+    }
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        class _Plugin:
+            def process_scan_pipeline(
+                self,
+                scan_options: dict[str, object],
+                scan_context: dict[str, object],
+            ) -> dict[str, object]:
+                del scan_context
+                policy_context = scan_options.get("policy_context")
+                assert isinstance(policy_context, dict)
+                nested = policy_context.get("nested")
+                assert isinstance(nested, dict)
+                nested["mutated_by_plugin"] = True
+                return {"plugin_enabled": True, "plugin_name": "default"}
+
+        _registry = _make_test_registry(
+            api_module.plugin_facade.get_default_plugin_registry(),
+            lambda _n: _Plugin,
+        )
+        _patch_api_default_registry(monkeypatch, api_module, _registry)
+
+        payload = api_module.run_scan(
+            str(role_path),
+            include_vars_main=True,
+            policy_context=caller_policy_context,
+        )
+
+    assert payload["role_name"] == "tiny_role"
+    assert caller_policy_context == {
+        "selection": {"plugin": "default"},
+        "nested": {"original": True},
+    }
+
+
+def test_fsrc_api_run_scan_strict_phase_failures_rejects_malformed_value(
+    tmp_path: Path,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        with pytest.raises(ValueError, match="strict_phase_failures"):
+            api_module.run_scan(
+                str(role_path),
+                include_vars_main=True,
+                strict_phase_failures="false",
+            )
+
+
+def test_fsrc_api_run_scan_strict_phase_failures_preserves_false_value(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        captured: dict[str, object] = {}
+
+        def _fake_run_scan(
+            delegated_role_path: str,
+            **kwargs: object,
+        ) -> "_NormalizedNonCollectionResult":
+            captured["role_path"] = delegated_role_path
+            captured["strict_phase_failures"] = kwargs["strict_phase_failures"]
+            return _stub_non_collection_result()
+
+        monkeypatch.setattr(api_module.api_non_collection, "run_scan", _fake_run_scan)
+
+        payload = api_module.run_scan(
+            str(role_path),
+            include_vars_main=True,
+            strict_phase_failures=False,
+        )
+
+    assert payload["role_name"] == "tiny_role"
+    assert captured["role_path"] == str(role_path)
+    assert captured["strict_phase_failures"] is False
+
+
 def test_fsrc_cli_main_runs_scan_and_emits_json(tmp_path: Path, capsys) -> None:
     role_path = tmp_path / "tiny_role"
     _build_tiny_role(role_path)
@@ -1132,6 +1231,39 @@ def test_fsrc_api_run_scan_rejects_invalid_or_missing_role_path(tmp_path: Path) 
 
     assert "role_path" in str(empty_error.value)
     assert "not exist" in str(missing_error.value)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "kwargs"),
+    [
+        ("readme_config_path", {"readme_config_path": "missing-readme.yml"}),
+        ("policy_config_path", {"policy_config_path": "missing-policy.yml"}),
+    ],
+)
+def test_fsrc_api_run_scan_rejects_missing_config_paths(
+    tmp_path: Path,
+    field_name: str,
+    kwargs: dict[str, str],
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+        errors_module = importlib.import_module("prism.errors")
+
+        with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+            api_module.run_scan(
+                str(role_path),
+                include_vars_main=True,
+                **kwargs,
+            )
+
+    assert exc_info.value.code == "scan_input_path_not_found"
+    assert exc_info.value.detail == {
+        "field": field_name,
+        "value": kwargs[field_name],
+    }
 
 
 def test_fsrc_cli_main_returns_nonzero_for_invalid_role_path(capsys) -> None:
@@ -1406,6 +1538,149 @@ def test_fsrc_api_run_scan_uses_plugin_facade_scan_pipeline_registry_seam(
     assert payload["metadata"]["features"]["task_files_scanned"] == 1
 
 
+def test_fsrc_plugin_facade_isolates_orchestrated_payload_mutation() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        class _Plugin:
+            def orchestrate_scan_payload(
+                self,
+                *,
+                payload: dict[str, object],
+                scan_options: dict[str, object],
+                strict_mode: bool,
+                preflight_context: dict[str, object] | None = None,
+            ) -> dict[str, object]:
+                del scan_options
+                del strict_mode
+                del preflight_context
+                metadata = payload.get("metadata")
+                assert isinstance(metadata, dict)
+                features = metadata.get("features")
+                assert isinstance(features, dict)
+                features["task_files_scanned"] = 999
+                payload["plugin_runtime_marker"] = "facade-payload-isolation"
+                return payload
+
+            def process_scan_pipeline(
+                self,
+                scan_options: dict[str, object],
+                scan_context: dict[str, object],
+            ) -> dict[str, object]:
+                del scan_options
+                del scan_context
+                return {"plugin_enabled": True, "plugin_name": "default"}
+
+        isolated_registry = _make_test_registry(
+            api_module.plugin_facade.get_default_plugin_registry(),
+            lambda name: _Plugin if name == "default" else None,
+        )
+        registry = api_module.plugin_facade.isolate_scan_pipeline_registry(
+            isolated_registry
+        )
+        plugin_factory = registry.get_scan_pipeline_plugin("default")
+
+    assert plugin_factory is not None
+    plugin = plugin_factory()
+    payload = {
+        "metadata": {"features": {"task_files_scanned": 1}},
+        "results": {"items": ["kept"]},
+    }
+
+    result = plugin.orchestrate_scan_payload(
+        payload=payload,
+        scan_options={},
+        strict_mode=True,
+    )
+
+    assert result["plugin_runtime_marker"] == "facade-payload-isolation"
+    assert result["metadata"]["features"]["task_files_scanned"] == 999
+    assert payload == {
+        "metadata": {"features": {"task_files_scanned": 1}},
+        "results": {"items": ["kept"]},
+    }
+
+
+def test_fsrc_plugin_facade_preserves_orchestration_for_callable_factories() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        class _Plugin:
+            def orchestrate_scan_payload(
+                self,
+                *,
+                payload: dict[str, object],
+                scan_options: dict[str, object],
+                strict_mode: bool,
+                preflight_context: dict[str, object] | None = None,
+            ) -> dict[str, object]:
+                del scan_options
+                del strict_mode
+                del preflight_context
+                payload["plugin_runtime_marker"] = "callable-factory-orchestrated"
+                return payload
+
+            def process_scan_pipeline(
+                self,
+                scan_options: dict[str, object],
+                scan_context: dict[str, object],
+            ) -> dict[str, object]:
+                del scan_options
+                del scan_context
+                return {"plugin_enabled": True, "plugin_name": "default"}
+
+        def _factory() -> _Plugin:
+            return _Plugin()
+
+        isolated_registry = _make_test_registry(
+            api_module.plugin_facade.get_default_plugin_registry(),
+            lambda name: _factory if name == "default" else None,
+        )
+        registry = api_module.plugin_facade.isolate_scan_pipeline_registry(
+            isolated_registry
+        )
+        plugin_factory = registry.get_scan_pipeline_plugin("default")
+
+    assert plugin_factory is not None
+    plugin = plugin_factory()
+    payload = {
+        "metadata": {"features": {"task_files_scanned": 1}},
+        "results": {"items": ["kept"]},
+    }
+
+    result = plugin.orchestrate_scan_payload(
+        payload=payload,
+        scan_options={},
+        strict_mode=True,
+    )
+
+    assert result["plugin_runtime_marker"] == "callable-factory-orchestrated"
+    assert payload == {
+        "metadata": {"features": {"task_files_scanned": 1}},
+        "results": {"items": ["kept"]},
+    }
+
+
+def test_fsrc_api_run_scan_preserves_reserved_platform_classification_through_scan_pipeline_registry_seam(
+    tmp_path: Path,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+        errors_module = importlib.import_module("prism.errors")
+
+        with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+            api_module.run_scan(
+                str(role_path),
+                include_vars_main=True,
+                scan_pipeline_plugin="terraform",
+            )
+
+    assert exc_info.value.code == "platform_not_supported"
+
+
 def test_fsrc_api_run_scan_cache_key_preserves_missing_prepared_policy_bundle_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1511,6 +1786,352 @@ def test_fsrc_api_run_scan_cache_key_preserves_missing_prepared_policy_bundle_st
     assert "prepared_policy_bundle" not in scan_options
 
 
+def test_fsrc_api_run_scan_cache_key_marks_malformed_prepared_policy_bundle_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+        scanner_context_module = importlib.import_module(
+            "prism.scanner_core.scanner_context"
+        )
+        scan_cache_module = importlib.import_module("prism.scanner_core.scan_cache")
+
+        captured: dict[str, object] = {}
+
+        def _build_execution_request(**kwargs: object) -> SimpleNamespace:
+            del kwargs
+            return SimpleNamespace(
+                role_path=str(role_path),
+                scan_options={
+                    "role_path": str(role_path),
+                    "strict_phase_failures": True,
+                    "prepared_policy_bundle": {
+                        "task_line_parsing": {},
+                        "jinja_analysis": {},
+                    },
+                },
+                build_payload_fn=None,
+                strict_mode=True,
+                runtime_registry=object(),
+            )
+
+        def _route(
+            *,
+            role_path: str,
+            scan_options: dict[str, object],
+            kernel_orchestrator_fn,
+            registry=None,
+        ) -> dict[str, object]:
+            del role_path
+            del scan_options
+            del kernel_orchestrator_fn
+            del registry
+            return {
+                "role_name": "tiny_role",
+                "description": "desc",
+                "display_variables": {},
+                "requirements_display": [],
+                "undocumented_default_filters": [],
+                "metadata": {"features": {"task_files_scanned": 1}},
+            }
+
+        class _CacheBackend:
+            def get(self, key: str) -> None:
+                captured["cache_get_key"] = key
+                return None
+
+            def set(self, key: str, value: dict[str, object]) -> None:
+                captured["cache_set_key"] = key
+                captured["cache_set_value"] = value
+
+        def _compute_scan_cache_key(
+            *,
+            role_content_hash: str,
+            scan_options: dict[str, object],
+        ) -> str:
+            captured["role_content_hash"] = role_content_hash
+            captured["scan_options"] = dict(scan_options)
+            return "cache-key"
+
+        monkeypatch.setattr(
+            scanner_context_module,
+            "build_non_collection_run_scan_execution_request",
+            _build_execution_request,
+        )
+        monkeypatch.setattr(
+            api_module.api_non_collection, "route_scan_payload_orchestration", _route
+        )
+        monkeypatch.setattr(
+            scan_cache_module,
+            "compute_role_content_hash",
+            lambda path: "role-hash",
+        )
+        monkeypatch.setattr(
+            scan_cache_module,
+            "compute_scan_cache_key",
+            _compute_scan_cache_key,
+        )
+        monkeypatch.setattr(
+            scan_cache_module,
+            "compute_path_content_hash",
+            lambda path: "path-hash",
+        )
+
+        payload = api_module.run_scan(
+            str(role_path),
+            include_vars_main=True,
+            cache_backend=_CacheBackend(),
+        )
+
+    assert payload["role_name"] == "tiny_role"
+    scan_options = captured["scan_options"]
+    assert isinstance(scan_options, dict)
+    assert scan_options["__prepared_policy_bundle_state__"] == "malformed"
+    assert "__bundle_fingerprint__" not in scan_options
+    assert "prepared_policy_bundle" not in scan_options
+
+
+def test_fsrc_api_run_scan_bypasses_cache_for_uncacheable_prepared_policy_bundle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+        scanner_context_module = importlib.import_module(
+            "prism.scanner_core.scanner_context"
+        )
+        scan_cache_module = importlib.import_module("prism.scanner_core.scan_cache")
+
+        class _StatefulTaskLinePolicy:
+            TASK_INCLUDE_KEYS = ("include_tasks",)
+            ROLE_INCLUDE_KEYS = ("include_role",)
+            INCLUDE_VARS_KEYS = ("include_vars",)
+            SET_FACT_KEYS = ("set_fact",)
+            TASK_BLOCK_KEYS = ("block",)
+            TASK_META_KEYS = ("name",)
+
+            def __init__(self, marker: str) -> None:
+                self.marker = marker
+
+            def detect_task_module(self, task: dict[str, object]) -> str | None:
+                del task
+                return self.marker
+
+        class _StatefulJinjaPolicy:
+            def __init__(self, marker: str) -> None:
+                self.marker = marker
+
+            def collect_undeclared_jinja_variables(self, text: str) -> set[str]:
+                del text
+                return {self.marker}
+
+        cache_calls: list[str] = []
+
+        def _build_execution_request(**kwargs: object) -> SimpleNamespace:
+            del kwargs
+            return SimpleNamespace(
+                role_path=str(role_path),
+                scan_options={
+                    "role_path": str(role_path),
+                    "strict_phase_failures": True,
+                    "prepared_policy_bundle": {
+                        "task_line_parsing": _StatefulTaskLinePolicy("first"),
+                        "jinja_analysis": _StatefulJinjaPolicy("first"),
+                    },
+                },
+                build_payload_fn=None,
+                strict_mode=True,
+                runtime_registry=object(),
+            )
+
+        def _route(
+            *,
+            role_path: str,
+            scan_options: dict[str, object],
+            kernel_orchestrator_fn,
+            registry=None,
+        ) -> dict[str, object]:
+            del role_path
+            del scan_options
+            del kernel_orchestrator_fn
+            del registry
+            return {
+                "role_name": "tiny_role",
+                "description": "desc",
+                "display_variables": {},
+                "requirements_display": [],
+                "undocumented_default_filters": [],
+                "metadata": {"features": {"task_files_scanned": 1}},
+            }
+
+        class _CacheBackend:
+            def get(self, key: str) -> None:
+                cache_calls.append(f"get:{key}")
+                return None
+
+            def set(self, key: str, value: dict[str, object]) -> None:
+                del value
+                cache_calls.append(f"set:{key}")
+
+        monkeypatch.setattr(
+            scanner_context_module,
+            "build_non_collection_run_scan_execution_request",
+            _build_execution_request,
+        )
+        monkeypatch.setattr(
+            api_module.api_non_collection, "route_scan_payload_orchestration", _route
+        )
+        monkeypatch.setattr(
+            scan_cache_module,
+            "compute_role_content_hash",
+            lambda path: "role-hash",
+        )
+        monkeypatch.setattr(
+            scan_cache_module,
+            "compute_scan_cache_key",
+            lambda **kwargs: (_ for _ in ()).throw(
+                AssertionError(
+                    "uncacheable prepared_policy_bundle should skip cache key computation"
+                )
+            ),
+        )
+
+        payload = api_module.run_scan(
+            str(role_path),
+            include_vars_main=True,
+            cache_backend=_CacheBackend(),
+        )
+
+    assert payload["role_name"] == "tiny_role"
+    assert cache_calls == []
+
+
+def test_fsrc_api_run_scan_cache_key_tracks_runtime_wiring_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+        scanner_context_module = importlib.import_module(
+            "prism.scanner_core.scanner_context"
+        )
+        scan_cache_module = importlib.import_module("prism.scanner_core.scan_cache")
+
+        runtime_registry = object()
+        captured: dict[str, object] = {}
+
+        def _build_execution_request(**kwargs: object) -> SimpleNamespace:
+            del kwargs
+            return SimpleNamespace(
+                role_path=str(role_path),
+                scan_options={
+                    "role_path": str(role_path),
+                    "strict_phase_failures": True,
+                },
+                build_payload_fn=None,
+                strict_mode=True,
+                runtime_registry=runtime_registry,
+            )
+
+        def _route(
+            *,
+            role_path: str,
+            scan_options: dict[str, object],
+            kernel_orchestrator_fn,
+            registry=None,
+        ) -> dict[str, object]:
+            del role_path
+            del scan_options
+            del kernel_orchestrator_fn
+            del registry
+            return {
+                "role_name": "tiny_role",
+                "description": "desc",
+                "display_variables": {},
+                "requirements_display": [],
+                "undocumented_default_filters": [],
+                "metadata": {"features": {"task_files_scanned": 1}},
+            }
+
+        def _orchestrate(**kwargs: object) -> dict[str, object]:
+            del kwargs
+            return {}
+
+        class _CacheBackend:
+            def get(self, key: str) -> None:
+                captured["cache_get_key"] = key
+                return None
+
+            def set(self, key: str, value: dict[str, object]) -> None:
+                captured["cache_set_key"] = key
+                captured["cache_set_value"] = value
+
+        def _compute_scan_cache_key(
+            *,
+            role_content_hash: str,
+            scan_options: dict[str, object],
+        ) -> str:
+            captured["role_content_hash"] = role_content_hash
+            captured["scan_options"] = dict(scan_options)
+            return "cache-key"
+
+        monkeypatch.setattr(
+            scanner_context_module,
+            "build_non_collection_run_scan_execution_request",
+            _build_execution_request,
+        )
+        monkeypatch.setattr(
+            scan_cache_module,
+            "compute_role_content_hash",
+            lambda path: "role-hash",
+        )
+        monkeypatch.setattr(
+            scan_cache_module,
+            "compute_scan_cache_key",
+            _compute_scan_cache_key,
+        )
+        monkeypatch.setattr(
+            scan_cache_module,
+            "compute_path_content_hash",
+            lambda path: "path-hash",
+        )
+
+        payload = api_module.api_non_collection.run_scan(
+            str(role_path),
+            include_vars_main=True,
+            cache_backend=_CacheBackend(),
+            route_scan_payload_orchestration_fn=_route,
+            orchestrate_scan_payload_with_selected_plugin_fn=_orchestrate,
+        )
+
+    assert payload["role_name"] == "tiny_role"
+    scan_options = captured["scan_options"]
+    assert isinstance(scan_options, dict)
+    runtime_wiring = scan_options["__runtime_wiring_identity__"]
+    assert isinstance(runtime_wiring, dict)
+    route_identity = runtime_wiring["route_scan_payload_orchestration_fn"]
+    assert isinstance(route_identity, str)
+    assert "_route@" in route_identity
+    orchestrate_identity = runtime_wiring[
+        "orchestrate_scan_payload_with_selected_plugin_fn"
+    ]
+    assert isinstance(orchestrate_identity, str)
+    assert "_orchestrate@" in orchestrate_identity
+    runtime_registry_identity = runtime_wiring["runtime_registry"]
+    assert isinstance(runtime_registry_identity, str)
+    assert runtime_registry_identity.endswith(f"@{id(runtime_registry)}")
+
+
 def test_fsrc_non_collection_run_scan_uses_canonical_policy_bundle_fn(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1607,3 +2228,91 @@ def test_fsrc_non_collection_run_scan_uses_canonical_policy_bundle_fn(
     assert canonical_calls == [({"role_path": str(role_path)}, "di")]
     assert payload["role_name"] == "tiny_role"
     assert payload["requirements"] == []
+
+
+def test_fsrc_non_collection_run_scan_uses_scan_pipeline_registry_seam_by_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role_path = tmp_path / "tiny_role"
+    _build_tiny_role(role_path)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_non_collection = importlib.import_module("prism.api_layer.non_collection")
+        scanner_context_module = importlib.import_module(
+            "prism.scanner_core.scanner_context"
+        )
+
+        real_registry = api_non_collection.plugin_facade.get_default_plugin_registry()
+        isolated_registry = _make_test_registry(
+            real_registry,
+            lambda name: object() if name == "default" else None,
+        )
+        seam_calls: list[str] = []
+        captured: dict[str, object] = {}
+
+        class _PoisonRegistry:
+            def get_scan_pipeline_plugin(self, name: str):
+                raise AssertionError(
+                    f"non_collection.run_scan bypassed plugin_facade seam for {name}"
+                )
+
+            def __getattr__(self, name: str):
+                return getattr(real_registry, name)
+
+        def _fake_get_default_scan_pipeline_registry():
+            seam_calls.append("used")
+            return api_non_collection.plugin_facade.isolate_scan_pipeline_registry(
+                isolated_registry
+            )
+
+        def _build_execution_request(**kwargs: object) -> SimpleNamespace:
+            captured["default_plugin_registry"] = kwargs["default_plugin_registry"]
+            return SimpleNamespace(
+                role_path=str(role_path),
+                scan_options={"role_path": str(role_path)},
+                build_payload_fn=lambda: _stub_non_collection_result(),
+                strict_mode=True,
+                runtime_registry=None,
+            )
+
+        def _route(
+            *,
+            role_path: str,
+            scan_options: dict[str, object],
+            kernel_orchestrator_fn,
+            registry: object | None = None,
+        ) -> _NormalizedNonCollectionResult:
+            del role_path
+            del scan_options
+            del kernel_orchestrator_fn
+            del registry
+            return _stub_non_collection_result()
+
+        monkeypatch.setattr(
+            api_non_collection.plugin_facade,
+            "get_default_plugin_registry",
+            lambda: _PoisonRegistry(),
+        )
+        monkeypatch.setattr(
+            api_non_collection.plugin_facade,
+            "get_default_scan_pipeline_registry",
+            _fake_get_default_scan_pipeline_registry,
+        )
+        monkeypatch.setattr(
+            scanner_context_module,
+            "build_non_collection_run_scan_execution_request",
+            _build_execution_request,
+        )
+
+        payload = api_non_collection.run_scan(
+            str(role_path),
+            route_scan_payload_orchestration_fn=_route,
+            orchestrate_scan_payload_with_selected_plugin_fn=(
+                lambda **kwargs: _stub_non_collection_result()
+            ),
+        )
+
+    assert seam_calls == ["used"]
+    assert captured["default_plugin_registry"] is not real_registry
+    assert payload["role_name"] == "tiny_role"

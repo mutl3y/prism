@@ -1,0 +1,99 @@
+plan_id: mutl3y-review-20260504-g73
+cycle: g73
+generated_by: Scout-Graph
+focus: concurrency_and_runtime_state
+summary: "Phase0 discovery sweep for concurrency, singletons, caches, and cross-layer import hazards"
+observations:
+  - id: O01
+    severity: Medium
+    category: global-lock
+    files:
+      - src/prism/api_layer/non_collection.py
+    description: "Module-level lock and global _repo_scan_facade variable present (\n_repo_scan_facade_lock = threading.Lock()). Potential contention and global facade mutation across threads."
+    uncertainty: low
+  - id: O02
+    severity: High
+    category: registry-singleton-lock
+    files:
+      - src/prism/api_layer/plugin_facade.py
+    description: "Default scan-pipeline registry guarded by module-level lock (_DEFAULT_SCAN_PIPELINE_REGISTRY_LOCK) and global singleton state; affects plugin resolution and runtime pipeline isolation."
+    uncertainty: low
+  - id: O03
+    severity: High
+    category: plugin-registry-singleton
+    files:
+      - src/prism/scanner_plugins/bootstrap.py
+      - src/prism/scanner_plugins/__init__.py
+    description: "Canonical PluginRegistry singleton with bootstrap semantics. Module-level singleton reference and one-time bootstrap semantics can propagate registry state process-wide."
+    uncertainty: low
+  - id: O04
+    severity: High
+    category: plugin-safety
+    files:
+      - src/prism/scanner_plugins/registry.py
+      - src/prism/scanner_plugins/__init__.py
+    description: "Registry contains explicit 'singleton-eligible' slot rules and raises when a non-stateless plugin is registered into a singleton slot — indicates runtime hazards when plugin stateful objects are reused across scans."
+    uncertainty: low
+  - id: O05
+    severity: Medium
+    category: di-container-locks
+    files:
+      - src/prism/scanner_core/di.py
+    description: "DI container uses an RLock for internal caches and constructs a per-container EventBus; race potential if DI container reused across threads or process forks."
+    uncertainty: medium
+  - id: O06
+    severity: High
+    category: event-bus-global-listeners
+    files:
+      - src/prism/scanner_core/events.py
+      - src/prism/scanner_core/di.py
+    description: "EventBus supports registering process-level listeners that every new EventBus inherits, introducing cross-scan listener inheritance and potential callback invocation of shared mutable listeners."
+    uncertainty: medium
+  - id: O07
+    severity: Medium
+    category: scan-cache
+    files:
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/api_layer/non_collection.py
+    description: "In-memory LRU scan cache with internal lock and explicit cloning advice; shared cache backend passed through API can create cross-scan/multi-threaded cache sharing hazards if backend is process-global or uses shallow clones."
+    uncertainty: medium
+  - id: O08
+    severity: Low
+    category: instance-locks
+    files:
+      - src/prism/scanner_core/feature_detector.py
+      - src/prism/scanner_core/variable_discovery.py
+    description: "Per-instance plugin_lock (threading.Lock) exists; indicates local synchronization but may become contention points in high-concurrency scenarios."
+    uncertainty: low
+  - id: O09
+    severity: High
+    category: global-mutation-cross-layer
+    files:
+      - src/prism/scanner_readme/style_config.py
+      - src/prism/api.py
+    description: "style_config warns it mutates global module state in-place (.clear + .update). Cross-layer imports (api.py imports scanner_readme.render_readme) can trigger global state mutation across calls."
+    uncertainty: medium
+  - id: O10
+    severity: Medium
+    category: cross-layer-imports
+    files:
+      - src/prism/api.py
+      - src/prism/scanner_readme/__init__.py
+    description: "Top-level API imports scanner_readme and scanner_core; module import order/side-effects could expose mutable global caches or singletons during eager import."
+    uncertainty: low
+  - id: O11
+    severity: Medium
+    category: memoization
+    files:
+      - src/prism/scanner_config/patterns.py
+      - src/prism/scanner_plugins/parsers/comment_doc/marker_utils.py
+    description: "Use of functools.cache / functools.cache-decorated helpers creates process-lifetime memoization; invalidation strategies are limited and may retain stale state across scans."
+    uncertainty: medium
+  - id: O12
+    severity: Medium
+    category: api-facade-cache-use
+    files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_core/scan_cache.py
+    description: "API non_collection exposes optional ScanCacheBackend injection; callers may pass shared or process-global backends leading to cross-scan cache reuse."
+    uncertainty: low

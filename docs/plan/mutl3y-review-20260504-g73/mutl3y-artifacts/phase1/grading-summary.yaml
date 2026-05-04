@@ -1,0 +1,23 @@
+cycle: g73
+phase: P1
+review_surface: full_phase0_scout_sweep
+source_artifacts:
+  - docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase0/Scout-Graph.yaml
+decision:
+  promoted_critical: 0
+  promoted_high: 5
+  retained_medium_or_lower: true
+  rationale: >-
+    The rotated thorough sweep surfaced concrete High-risk concurrency and
+    ownership seams across global listeners, payload mutation boundaries,
+    kernel metadata mutation, process-wide registry state, and weak public
+    runtime-contract typing.
+promoted_findings:
+  - G73-H01
+  - G73-H02
+  - G73-H03
+  - G73-H04
+  - G73-H05

@@ -6,7 +6,7 @@ import copy
 import logging
 from pathlib import Path
 import threading
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from typing import TYPE_CHECKING, Callable, NotRequired, Protocol, cast
 
 if TYPE_CHECKING:
@@ -26,16 +26,19 @@ from prism.scanner_data.contracts_output import (
     validate_run_scan_output_payload,
 )
 from prism.scanner_data.contracts_request import (
+    CacheFingerprintProvider,
     DisplayVariables,
     PreparedPolicyBundle,
     ScanMetadata,
     ScanPolicyContext,
     ScanOptionsDict,
+    require_strict_phase_failures,
 )
 from prism.scanner_kernel.orchestrator import RoutePreflightRuntimeCarrier
 
 _logger = logging.getLogger(__name__)
 _MISSING_PREPARED_POLICY_BUNDLE = object()
+_UNCACHEABLE_BUNDLE_VALUE = object()
 
 
 class _ExecutionRequestEnsurePreparedPolicyBundleFn(Protocol):
@@ -108,6 +111,40 @@ class _RouteScanPayloadOrchestrationFn(Protocol):
         kernel_orchestrator_fn: _KernelOrchestratorFn,
         registry: object | None = None,
     ) -> dict[str, object]: ...
+
+
+class _RepoScanSourceRoleFn(Protocol):
+    """Full scan_role contract accepted by the repo-scan facade entrypoint."""
+
+    def __call__(
+        self,
+        role_path: str,
+        *,
+        compare_role_path: str | None = None,
+        style_readme_path: str | None = None,
+        role_name_override: str | None = None,
+        vars_seed_paths: list[str] | None = None,
+        concise_readme: bool = False,
+        scanner_report_output: str | None = None,
+        include_vars_main: bool = True,
+        include_scanner_report_link: bool = True,
+        readme_config_path: str | None = None,
+        adopt_heading_mode: str | None = None,
+        style_guide_skeleton: bool = False,
+        keep_unknown_style_sections: bool = True,
+        exclude_path_patterns: list[str] | None = None,
+        style_source_path: str | None = None,
+        policy_config_path: str | None = None,
+        fail_on_unconstrained_dynamic_includes: bool | None = None,
+        fail_on_yaml_like_task_annotations: bool | None = None,
+        ignore_unresolved_internal_underscore_references: bool | None = None,
+        detailed_catalog: bool = False,
+        include_collection_checks: bool = False,
+        include_task_parameters: bool = True,
+        include_task_runbooks: bool = True,
+        inline_task_runbooks: bool = True,
+        failure_policy: FailurePolicy | None = None,
+    ) -> RunScanOutputPayload: ...
 
 
 class _OrchestrateScanPayloadWithSelectedPluginFn(Protocol):
@@ -226,8 +263,22 @@ def _default_build_run_scan_options_canonical(
     )
 
 
+def _copy_container_nodes(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {key: _copy_container_nodes(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_copy_container_nodes(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_copy_container_nodes(item) for item in value)
+    if isinstance(value, set):
+        return {_copy_container_nodes(item) for item in value}
+    if isinstance(value, frozenset):
+        return frozenset(_copy_container_nodes(item) for item in value)
+    return value
+
+
 def _copy_object_mapping(value: Mapping[str, object]) -> dict[str, object]:
-    return {key: item for key, item in value.items()}
+    return {key: _copy_container_nodes(item) for key, item in value.items()}
 
 
 def _merge_scan_options(
@@ -376,17 +427,71 @@ def _bundle_value_fingerprint(value: object) -> object:
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
     if isinstance(value, (list, tuple)):
-        return [_bundle_value_fingerprint(v) for v in value]
+        fingerprints = [_bundle_value_fingerprint(v) for v in value]
+        if any(item is _UNCACHEABLE_BUNDLE_VALUE for item in fingerprints):
+            return _UNCACHEABLE_BUNDLE_VALUE
+        return fingerprints
     if isinstance(value, (set, frozenset)):
-        return sorted(
-            [_bundle_value_fingerprint(v) for v in value],
-            key=lambda item: repr(item),
-        )
+        fingerprints = [_bundle_value_fingerprint(v) for v in value]
+        if any(item is _UNCACHEABLE_BUNDLE_VALUE for item in fingerprints):
+            return _UNCACHEABLE_BUNDLE_VALUE
+        return sorted(fingerprints, key=lambda item: repr(item))
     if isinstance(value, dict):
-        return sorted(
+        fingerprints = [
             (str(key), _bundle_value_fingerprint(item)) for key, item in value.items()
-        )
-    return f"{type(value).__module__}.{type(value).__qualname__}"
+        ]
+        if any(item is _UNCACHEABLE_BUNDLE_VALUE for _, item in fingerprints):
+            return _UNCACHEABLE_BUNDLE_VALUE
+        return sorted(fingerprints)
+    if isinstance(value, CacheFingerprintProvider):
+        return value.cache_fingerprint()
+    if getattr(type(value), "PLUGIN_IS_STATELESS", False):
+        return f"{type(value).__module__}.{type(value).__qualname__}"
+    return _UNCACHEABLE_BUNDLE_VALUE
+
+
+def _is_string_collection(value: object) -> bool:
+    return (
+        isinstance(value, Collection)
+        and not isinstance(value, (Mapping, str, bytes))
+        and all(isinstance(item, str) for item in value)
+    )
+
+
+def _has_prepared_task_line_policy_shape(value: object) -> bool:
+    if isinstance(value, Mapping):
+        return False
+
+    required_collection_attrs = (
+        "TASK_INCLUDE_KEYS",
+        "ROLE_INCLUDE_KEYS",
+        "INCLUDE_VARS_KEYS",
+        "SET_FACT_KEYS",
+        "TASK_BLOCK_KEYS",
+        "TASK_META_KEYS",
+    )
+    if not all(
+        _is_string_collection(getattr(value, attr_name, None))
+        for attr_name in required_collection_attrs
+    ):
+        return False
+
+    return callable(getattr(value, "detect_task_module", None))
+
+
+def _has_prepared_jinja_analysis_policy_shape(value: object) -> bool:
+    if isinstance(value, Mapping):
+        return False
+    return callable(getattr(value, "collect_undeclared_jinja_variables", None))
+
+
+def _has_cacheable_prepared_policy_bundle_shape(raw_bundle: object) -> bool:
+    if not isinstance(raw_bundle, dict):
+        return False
+
+    return _has_prepared_task_line_policy_shape(
+        raw_bundle.get("task_line_parsing")
+    ) and _has_prepared_jinja_analysis_policy_shape(raw_bundle.get("jinja_analysis"))
 
 
 def _prepared_policy_bundle_cache_marker(
@@ -397,17 +502,18 @@ def _prepared_policy_bundle_cache_marker(
     )
     if raw_bundle is _MISSING_PREPARED_POLICY_BUNDLE or raw_bundle is None:
         return ("__prepared_policy_bundle_state__", "missing")
-    if not isinstance(raw_bundle, dict):
-        return (
-            "__prepared_policy_bundle_state__",
-            f"unexpected:{type(raw_bundle).__module__}.{type(raw_bundle).__qualname__}",
-        )
+    if not _has_cacheable_prepared_policy_bundle_shape(raw_bundle):
+        return ("__prepared_policy_bundle_state__", "malformed")
+    prepared_policy_bundle = cast(PreparedPolicyBundle, raw_bundle)
+    fingerprint = sorted(
+        (str(key), _bundle_value_fingerprint(value))
+        for key, value in prepared_policy_bundle.items()
+    )
+    if any(value is _UNCACHEABLE_BUNDLE_VALUE for _, value in fingerprint):
+        return ("__prepared_policy_bundle_state__", "uncacheable")
     return (
         "__bundle_fingerprint__",
-        sorted(
-            (str(key), _bundle_value_fingerprint(value))
-            for key, value in raw_bundle.items()
-        ),
+        fingerprint,
     )
 
 
@@ -516,7 +622,7 @@ def run_scan(
     resolve_comment_driven_documentation_plugin_fn: (
         Callable[[object], plugin_facade.CommentDrivenDocumentationPlugin] | None
     ) = None,
-    default_plugin_registry: plugin_facade.PluginRegistry | None = None,
+    default_plugin_registry: plugin_facade.ScanPipelineRuntimeRegistry | None = None,
 ) -> _NormalizedNonCollectionResult:
     """Run the non-collection scanner orchestration and return a payload."""
     # Lazy-load scanner_core and scanner_kernel imports to reduce module load time
@@ -550,7 +656,7 @@ def run_scan(
         )
 
     if default_plugin_registry is None:
-        default_plugin_registry = plugin_facade.get_default_plugin_registry()
+        default_plugin_registry = plugin_facade.get_default_scan_pipeline_registry()
 
     _resolved_ensure_fn = plugin_facade.ensure_prepared_policy_bundle
 
@@ -614,6 +720,7 @@ def run_scan(
     _cache_key: str | None = None
     if cache_backend is not None:
         from prism.scanner_core.scan_cache import (
+            build_runtime_wiring_identity,
             compute_path_content_hash,
             compute_role_content_hash,
             compute_scan_cache_key,
@@ -623,28 +730,46 @@ def run_scan(
         _bundle_marker_key, _bundle_marker_value = _prepared_policy_bundle_cache_marker(
             execution_request.scan_options
         )
-        _stable_opts = {
-            k: v
-            for k, v in execution_request.scan_options.items()
-            if k != "prepared_policy_bundle"
-        }
-        _external_style_inputs = []
-        for _key in ("style_readme_path", "style_source_path"):
-            _path = _stable_opts.get(_key)
-            if isinstance(_path, str) and _path:
-                _external_style_inputs.append((_key, compute_path_content_hash(_path)))
-        _stable_opts[_bundle_marker_key] = _bundle_marker_value
-        if _external_style_inputs:
-            _stable_opts["__external_style_fingerprint__"] = sorted(
-                _external_style_inputs
+        if (
+            _bundle_marker_key == "__prepared_policy_bundle_state__"
+            and _bundle_marker_value == "uncacheable"
+        ):
+            _logger.debug(
+                "Skipping scan cache because prepared_policy_bundle contains stateful values without cache_fingerprint()."
             )
-        _cache_key = compute_scan_cache_key(
-            role_content_hash=_role_content_hash,
-            scan_options=_stable_opts,
-        )
-        _cached = cache_backend.get(_cache_key)
-        if _cached is not None:
-            return _normalize_non_collection_result_shape(_cached)
+            cache_backend = None
+        else:
+            _stable_opts = {
+                k: v
+                for k, v in execution_request.scan_options.items()
+                if k != "prepared_policy_bundle"
+            }
+            _external_style_inputs = []
+            for _key in ("style_readme_path", "style_source_path"):
+                _path = _stable_opts.get(_key)
+                if isinstance(_path, str) and _path:
+                    _external_style_inputs.append(
+                        (_key, compute_path_content_hash(_path))
+                    )
+            _stable_opts[_bundle_marker_key] = _bundle_marker_value
+            if _external_style_inputs:
+                _stable_opts["__external_style_fingerprint__"] = sorted(
+                    _external_style_inputs
+                )
+            _stable_opts["__runtime_wiring_identity__"] = build_runtime_wiring_identity(
+                route_scan_payload_orchestration_fn=route_scan_payload_orchestration_fn,
+                orchestrate_scan_payload_with_selected_plugin_fn=(
+                    orchestrate_scan_payload_with_selected_plugin_fn
+                ),
+                runtime_registry=execution_request.runtime_registry,
+            )
+            _cache_key = compute_scan_cache_key(
+                role_content_hash=_role_content_hash,
+                scan_options=_stable_opts,
+            )
+            _cached = cache_backend.get(_cache_key)
+            if _cached is not None:
+                return _normalize_non_collection_result_shape(_cached)
 
     def _kernel_orchestrator(
         *,
@@ -712,7 +837,10 @@ def scan_role(
     """Package-owned role scan seam for the fsrc public facade."""
     strict_phase_failures = True
     if failure_policy is not None:
-        strict_phase_failures = bool(failure_policy.strict)
+        strict_phase_failures = require_strict_phase_failures(
+            failure_policy.strict,
+            field_name="failure_policy.strict",
+        )
 
     result = run_scan_fn(
         role_path,
@@ -776,31 +904,23 @@ def scan_repo(
     include_task_runbooks: bool = True,
     inline_task_runbooks: bool = True,
     failure_policy: FailurePolicy | None = None,
-    scan_role_fn=scan_role,
+    scan_role_fn: _RepoScanSourceRoleFn = scan_role,
     resolve_repo_scan_facade_fn=_resolve_repo_scan_facade,
 ) -> RepoScanResult:
     """Package-owned repo scan seam for the fsrc public facade."""
-    return resolve_repo_scan_facade_fn().run_repo_scan(
-        repo_url=repo_url,
-        repo_role_path=repo_role_path,
-        repo_style_readme_path=repo_style_readme_path,
-        style_readme_path=style_readme_path,
-        repo_ref=repo_ref,
-        repo_timeout=repo_timeout,
-        lightweight_readme_only=lightweight_readme_only,
-        scan_role_fn=lambda role_path, **scan_kwargs: scan_role_fn(
+    delegated_style_readme_path = style_readme_path
+
+    def _scan_repo_role(
+        role_path: str,
+        *,
+        style_readme_path: str | None = None,
+        role_name_override: str | None = None,
+    ) -> RunScanOutputPayload:
+        return scan_role_fn(
             role_path,
             compare_role_path=compare_role_path,
-            style_readme_path=(
-                scan_kwargs.get("style_readme_path")
-                if isinstance(scan_kwargs.get("style_readme_path"), str)
-                else style_readme_path
-            ),
-            role_name_override=(
-                scan_kwargs.get("role_name_override")
-                if isinstance(scan_kwargs.get("role_name_override"), str)
-                else None
-            ),
+            style_readme_path=style_readme_path or delegated_style_readme_path,
+            role_name_override=role_name_override,
             vars_seed_paths=vars_seed_paths,
             concise_readme=concise_readme,
             scanner_report_output=scanner_report_output,
@@ -825,7 +945,17 @@ def scan_repo(
             include_task_runbooks=include_task_runbooks,
             inline_task_runbooks=inline_task_runbooks,
             failure_policy=failure_policy,
-        ),
+        )
+
+    return resolve_repo_scan_facade_fn().run_repo_scan(
+        repo_url=repo_url,
+        repo_role_path=repo_role_path,
+        repo_style_readme_path=repo_style_readme_path,
+        style_readme_path=style_readme_path,
+        repo_ref=repo_ref,
+        repo_timeout=repo_timeout,
+        lightweight_readme_only=lightweight_readme_only,
+        scan_role_fn=_scan_repo_role,
     )
 
 

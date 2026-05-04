@@ -1,0 +1,13 @@
+cycle: g73
+phase: P5
+wave: 2
+status: ready
+builder: Builder-EventBusBoundary
+fix_group_key: eventbus-default-listener-boundary
+owned_files:
+  - src/prism/scanner_core/events.py
+  - src/prism/scanner_core/di.py
+  - src/prism/tests/test_t4_03_cli_progress.py
+  - src/prism/tests/test_execution_request_builder.py
+blocking_issues: []
+foreman_recovery: false
