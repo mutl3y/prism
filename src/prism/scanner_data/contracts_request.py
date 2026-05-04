@@ -2,8 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection, Iterable, Mapping
 from pathlib import Path
-from typing import Any, Collection, NotRequired, Protocol, Required, TypedDict
+from typing import (
+    Any,
+    NotRequired,
+    Protocol,
+    Required,
+    TypeAlias,
+    TypedDict,
+    runtime_checkable,
+)
 
 
 class ScanErrorEntry(TypedDict):
@@ -93,6 +102,12 @@ class RoleNotes(TypedDict):
     additionals: list[str]
 
 
+class RequirementsDisplayEntry(TypedDict):
+    """Single requirements-display entry emitted by scan orchestration."""
+
+    collection: str
+
+
 class DisplayVariableEntry(TypedDict, total=False):
     """Canonical display-variable row emitted by scan orchestration."""
 
@@ -113,6 +128,7 @@ DisplayVariables = dict[str, DisplayVariableEntry]
 class ScanMetadata(TypedDict, total=False):
     """Metadata payload attached to scanner outputs."""
 
+    plugin_name: str
     features: dict[str, object]
     scan_errors: list[ScanErrorEntry]
     scan_degraded: bool
@@ -155,6 +171,9 @@ class SelectionPolicyContext(TypedDict, total=False):
     plugin: str
 
 
+TaskMapping: TypeAlias = Mapping[str, object]
+
+
 class PreparedTaskLineParsingPolicy(Protocol):
     """Minimum task-line parsing capability surface required after ingress."""
 
@@ -165,7 +184,7 @@ class PreparedTaskLineParsingPolicy(Protocol):
     TASK_BLOCK_KEYS: Collection[str]
     TASK_META_KEYS: Collection[str]
 
-    def detect_task_module(self, task: dict[str, Any]) -> str | None: ...
+    def detect_task_module(self, task: TaskMapping) -> str | None: ...
 
 
 class PreparedJinjaAnalysisPolicy(Protocol):
@@ -174,19 +193,24 @@ class PreparedJinjaAnalysisPolicy(Protocol):
     def collect_undeclared_jinja_variables(self, text: str) -> set[str]: ...
 
 
+@runtime_checkable
+class CacheFingerprintProvider(Protocol):
+    """Optional semantic fingerprint contract for cache-sensitive opaque values."""
+
+    def cache_fingerprint(self) -> object: ...
+
+
 class PreparedTaskTraversalPolicy(Protocol):
     """Minimum task-traversal capability surface required after ingress."""
 
-    def iter_task_mappings(self, data: object) -> object: ...
+    def iter_task_mappings(self, data: object) -> Iterable[TaskMapping]: ...
     def iter_task_include_targets(self, data: object) -> list[str]: ...
     def iter_task_include_edges(self, data: object) -> list[dict[str, str]]: ...
     def expand_include_target_candidates(
-        self, task: dict[str, object], include_target: str
+        self, task: TaskMapping, include_target: str
     ) -> list[str]: ...
-    def iter_role_include_targets(self, task: dict[str, object]) -> list[str]: ...
-    def iter_dynamic_role_include_targets(
-        self, task: dict[str, object]
-    ) -> list[str]: ...
+    def iter_role_include_targets(self, task: TaskMapping) -> list[str]: ...
+    def iter_dynamic_role_include_targets(self, task: TaskMapping) -> list[str]: ...
     def collect_unconstrained_dynamic_task_includes(
         self, *, role_root: object, task_files: list[object], load_yaml_file: object
     ) -> list[dict[str, str]]: ...
@@ -336,7 +360,7 @@ class ScanContextPayload(TypedDict):
     rp: str
     role_name: str
     description: str
-    requirements_display: list[dict[str, str]]
+    requirements_display: list[RequirementsDisplayEntry]
     undocumented_default_filters: list[dict[str, object]]
     display_variables: DisplayVariables
     metadata: ScanMetadata
@@ -360,6 +384,32 @@ class FeaturesContext(TypedDict):
     dynamic_included_roles: str
     disabled_task_annotations: int
     yaml_like_task_annotations: int
+
+
+def require_strict_phase_failures(
+    value: object,
+    *,
+    field_name: str = "strict_phase_failures",
+) -> bool:
+    """Reject non-bool strict-phase values instead of truthifying them."""
+    if not isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a bool when provided")
+    return value
+
+
+def resolve_strict_phase_failures(
+    scan_options: Mapping[str, object],
+    *,
+    default: bool = True,
+    field_name: str = "scan_options.strict_phase_failures",
+) -> bool:
+    """Read strict-phase mode from scan_options without reopening bool(...) coercion."""
+    if "strict_phase_failures" not in scan_options:
+        return default
+    return require_strict_phase_failures(
+        scan_options.get("strict_phase_failures"),
+        field_name=field_name,
+    )
 
 
 def validate_variable_discovery_inputs(
