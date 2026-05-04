@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pathlib
-from typing import Any, Protocol, TypedDict, runtime_checkable
+from typing import Any, Protocol, TypeAlias, TypedDict, runtime_checkable
 
 from prism.scanner_data import RunScanOutputPayload, VariableRow
 from prism.scanner_data.contracts_request import (
@@ -11,6 +11,8 @@ from prism.scanner_data.contracts_request import (
     PreparedJinjaAnalysisPolicy,
     PreparedPolicyBundle,
     PreparedTaskLineParsingPolicy,
+    ScanMetadata,
+    ScanOptionsDict,
     YamlParseFailure,
 )
 
@@ -39,6 +41,22 @@ class VariableDiscoveryPlugin(Protocol):
     ) -> dict[str, str]: ...
 
 
+class TaskCatalogEntry(TypedDict):
+    """Per-file task catalog summary emitted by feature detection."""
+
+    task_count: int
+    async_count: int
+    modules_used: list[str]
+    collections_used: list[str]
+    handlers_notified: list[str]
+    privileged_tasks: int
+    conditional_tasks: int
+    tagged_tasks: int
+
+
+TaskCatalog: TypeAlias = dict[str, TaskCatalogEntry]
+
+
 class FeatureDetectionPlugin(Protocol):
     """Protocol for feature-detection plugin implementations."""
 
@@ -50,7 +68,7 @@ class FeatureDetectionPlugin(Protocol):
         self,
         role_path: str,
         options: dict[str, Any],
-    ) -> dict[str, Any]: ...
+    ) -> TaskCatalog: ...
 
 
 class OutputOrchestrationPlugin(Protocol):
@@ -70,26 +88,35 @@ class ScanPipelinePreflightContext(TypedDict, total=False):
     plugin_name: str
     plugin_platform: str
     plugin_enabled: bool
+    ansible_plugin_enabled: bool
     role_path: str
 
 
+ScanPipelinePayload: TypeAlias = dict[str, object]
+
+
 class ScanPipelinePlugin(Protocol):
-    """Protocol for plugins that can alter scan pipeline context."""
+    """Protocol for plugins that can alter scan pipeline preflight context."""
 
     def process_scan_pipeline(
         self,
-        scan_options: dict[str, Any],
-        scan_context: dict[str, Any],
+        scan_options: ScanOptionsDict,
+        scan_context: ScanMetadata,
     ) -> ScanPipelinePreflightContext: ...
+
+
+@runtime_checkable
+class OrchestratingScanPipelinePlugin(ScanPipelinePlugin, Protocol):
+    """Protocol for scan-pipeline plugins that also orchestrate payload output."""
 
     def orchestrate_scan_payload(
         self,
         *,
-        payload: dict[str, Any],
-        scan_options: dict[str, Any],
+        payload: ScanPipelinePayload,
+        scan_options: ScanOptionsDict,
         strict_mode: bool,
-        preflight_context: dict[str, Any] | None = None,
-    ) -> dict[str, Any]: ...
+        preflight_context: ScanMetadata | None = None,
+    ) -> ScanPipelinePayload: ...
 
 
 class CommentDrivenDocumentationPlugin(Protocol):
@@ -153,7 +180,7 @@ class PlatformExecutionBundleProvider(Protocol):
     """Protocol for plugins that can produce a platform execution bundle."""
 
     def build_execution_bundle(
-        self, scan_options: dict[str, Any]
+        self, scan_options: ScanOptionsDict
     ) -> PlatformExecutionBundle: ...
 
 
@@ -205,3 +232,148 @@ class ReadmeRendererPlugin(Protocol):
     def default_template_path(self) -> pathlib.Path | None: ...
 
     def scanner_report_blurb(self, scanner_report_relpath: str) -> str: ...
+
+
+class ScanPipelinePluginFactory(Protocol):
+    """Factory contract for scan-pipeline plugin construction."""
+
+    def __call__(self) -> ScanPipelinePlugin: ...
+
+
+ScanPipelinePluginFactoryLike: TypeAlias = (
+    type[ScanPipelinePlugin] | ScanPipelinePluginFactory
+)
+
+
+KernelPayload: TypeAlias = dict[str, object]
+
+
+class KernelRequest(TypedDict, total=False):
+    """Plugin-layer kernel request contract."""
+
+    scan_id: str
+    platform: str
+    target_path: str
+    options: ScanOptionsDict
+    context: ScanMetadata
+
+
+class KernelPhaseOutput(TypedDict, total=False):
+    """Plugin-layer kernel phase output contract."""
+
+    payload: RunScanOutputPayload | KernelPayload
+    metadata: KernelPayload
+    warnings: list[object]
+    errors: list[object]
+    provenance: list[object]
+
+
+class KernelResponse(TypedDict, total=False):
+    """Plugin-layer kernel response contract."""
+
+    scan_id: str
+    platform: str
+    phase_results: dict[str, object]
+    metadata: KernelPayload
+    payload: RunScanOutputPayload | KernelPayload
+    warnings: list[object]
+    errors: list[object]
+    provenance: list[object]
+
+
+class KernelScanPayloadOrchestrator(Protocol):
+    """Plugin-owned callable used by kernel plugins to build scan payloads."""
+
+    def __call__(
+        self,
+        *,
+        role_path: str,
+        scan_options: ScanOptionsDict | None,
+    ) -> RunScanOutputPayload: ...
+
+
+@runtime_checkable
+class KernelLifecyclePlugin(Protocol):
+    """Plugin-layer kernel lifecycle contract."""
+
+    def prepare(self, request: KernelRequest) -> KernelPhaseOutput | None: ...
+
+    def scan(self, request: KernelRequest) -> KernelPhaseOutput | None: ...
+
+    def analyze(
+        self, request: KernelRequest, response: KernelResponse
+    ) -> KernelPhaseOutput | None: ...
+
+    def finalize(
+        self, request: KernelRequest, response: KernelResponse
+    ) -> KernelPhaseOutput | None: ...
+
+
+class ScanPipelineRuntimeRegistry(Protocol):
+    """Registry surface needed by API run_scan scan-pipeline orchestration."""
+
+    def get_scan_pipeline_plugin(
+        self, name: str
+    ) -> ScanPipelinePluginFactoryLike | None: ...
+
+    def list_scan_pipeline_plugins(self) -> list[str]: ...
+
+    def get_default_platform_key(self) -> str | None: ...
+
+    def is_reserved_unsupported_platform(self, name: str) -> bool: ...
+
+    def get_variable_discovery_plugin(
+        self,
+        name: str,
+    ) -> type[VariableDiscoveryPlugin] | None: ...
+
+    def get_feature_detection_plugin(
+        self,
+        name: str,
+    ) -> type[FeatureDetectionPlugin] | None: ...
+
+    def get_output_orchestration_plugin(
+        self,
+        name: str,
+    ) -> type[OutputOrchestrationPlugin] | None: ...
+
+    def get_comment_driven_doc_plugin(
+        self,
+        name: str,
+    ) -> type[CommentDrivenDocumentationPlugin] | None: ...
+
+    def get_extract_policy_plugin(
+        self,
+        name: str,
+    ) -> type[ExtractPolicyPlugin] | None: ...
+
+    def get_yaml_parsing_policy_plugin(
+        self,
+        name: str,
+    ) -> type[YAMLParsingPolicyPlugin] | None: ...
+
+    def get_jinja_analysis_policy_plugin(
+        self,
+        name: str,
+    ) -> type[JinjaAnalysisPolicyPlugin] | None: ...
+
+    def get_readme_renderer_plugin(
+        self,
+        name: str,
+    ) -> type[ReadmeRendererPlugin] | None: ...
+
+    def list_variable_discovery_plugins(self) -> list[str]: ...
+
+    def list_feature_detection_plugins(self) -> list[str]: ...
+
+    def list_output_orchestration_plugins(self) -> list[str]: ...
+
+    def list_comment_driven_doc_plugins(self) -> list[str]: ...
+
+    def list_extract_policy_plugins(self) -> list[str]: ...
+
+    def list_yaml_parsing_policy_plugins(self) -> list[str]: ...
+
+    def list_jinja_analysis_policy_plugins(self) -> list[str]: ...
+
+    def list_readme_renderer_plugins(self) -> dict[str, type[ReadmeRendererPlugin]]: ...

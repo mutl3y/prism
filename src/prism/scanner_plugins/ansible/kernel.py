@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 import types
-from typing import Any, Callable
+
+from prism.scanner_plugins.interfaces import (
+    KernelPhaseOutput,
+    KernelRequest,
+    KernelResponse,
+    KernelScanPayloadOrchestrator,
+)
+from prism.scanner_data.contracts_output import RunScanOutputPayload
 
 
 PLUGIN_CONTRACT_VERSION: types.MappingProxyType[str, int] = types.MappingProxyType(
@@ -16,7 +23,7 @@ class AnsibleBaselineKernelPlugin:
 
     PLUGIN_IS_STATELESS = True
 
-    contract_v1: types.MappingProxyType[str, Any] = types.MappingProxyType(
+    contract_v1: types.MappingProxyType[str, object] = types.MappingProxyType(
         {
             "plugin_id": "prism.ansible.baseline.v1",
             "contract_version": dict(PLUGIN_CONTRACT_VERSION),
@@ -33,11 +40,11 @@ class AnsibleBaselineKernelPlugin:
     def __init__(
         self,
         *,
-        orchestrate_scan_payload_fn: Callable[..., dict[str, Any]] | None = None,
+        orchestrate_scan_payload_fn: KernelScanPayloadOrchestrator | None = None,
     ) -> None:
         self._orchestrate_scan_payload_fn = orchestrate_scan_payload_fn
 
-    def prepare(self, request: dict[str, Any]) -> dict[str, Any]:
+    def prepare(self, request: KernelRequest) -> KernelPhaseOutput:
         return {
             "metadata": {
                 "plugin_id": self.contract_v1["plugin_id"],
@@ -45,21 +52,14 @@ class AnsibleBaselineKernelPlugin:
             }
         }
 
-    def scan(self, request: dict[str, Any]) -> dict[str, Any]:
+    def scan(self, request: KernelRequest) -> KernelPhaseOutput:
         if callable(self._orchestrate_scan_payload_fn):
             payload = self._orchestrate_scan_payload_fn(
                 role_path=str(request.get("target_path") or ""),
-                scan_options=dict(request.get("options") or {}),
+                scan_options=request.get("options"),
             )
         else:
-            payload = {
-                "role_name": "",
-                "description": "",
-                "display_variables": {},
-                "requirements_display": [],
-                "undocumented_default_filters": [],
-                "metadata": {},
-            }
+            payload = _empty_run_scan_output_payload()
         return {
             "payload": payload,
             "metadata": {
@@ -70,9 +70,9 @@ class AnsibleBaselineKernelPlugin:
 
     def analyze(
         self,
-        request: dict[str, Any],
-        response: dict[str, Any],
-    ) -> dict[str, Any]:
+        request: KernelRequest,
+        response: KernelResponse,
+    ) -> KernelPhaseOutput:
         return {
             "metadata": {
                 "plugin_analyze": "completed",
@@ -83,9 +83,9 @@ class AnsibleBaselineKernelPlugin:
 
     def finalize(
         self,
-        request: dict[str, Any],
-        response: dict[str, Any],
-    ) -> dict[str, Any]:
+        request: KernelRequest,
+        response: KernelResponse,
+    ) -> KernelPhaseOutput:
         return {
             "metadata": {
                 "plugin_finalize": "completed",
@@ -95,14 +95,25 @@ class AnsibleBaselineKernelPlugin:
         }
 
 
-ANSIBLE_KERNEL_PLUGIN_MANIFEST: dict[str, Any] = dict(
+def _empty_run_scan_output_payload() -> RunScanOutputPayload:
+    return {
+        "role_name": "",
+        "description": "",
+        "display_variables": {},
+        "requirements_display": [],
+        "undocumented_default_filters": [],
+        "metadata": {},
+    }
+
+
+ANSIBLE_KERNEL_PLUGIN_MANIFEST: dict[str, object] = dict(
     AnsibleBaselineKernelPlugin.contract_v1
 )
 
 
 def load_ansible_kernel_plugin(
     *,
-    orchestrate_scan_payload_fn: Callable[..., dict[str, Any]] | None = None,
+    orchestrate_scan_payload_fn: KernelScanPayloadOrchestrator | None = None,
 ) -> AnsibleBaselineKernelPlugin:
     """Return a baseline ansible plugin instance."""
     return AnsibleBaselineKernelPlugin(

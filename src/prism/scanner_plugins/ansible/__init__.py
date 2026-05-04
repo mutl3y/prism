@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 from prism.scanner_plugins.ansible.feature_flags import (
     ANSIBLE_PLUGIN_ENABLED_ENV_VAR,
@@ -34,9 +34,12 @@ from prism.scanner_plugins.ansible.variable_discovery import (
 from prism.scanner_plugins.parsers.jinja import DefaultJinjaAnalysisPolicyPlugin
 from prism.scanner_plugins.parsers.yaml import DefaultYAMLParsingPolicyPlugin
 from prism.scanner_data.contracts_request import PreparedPolicyBundle
+from prism.scanner_data.contracts_request import ScanMetadata, ScanOptionsDict
 from prism.scanner_plugins.interfaces import (
     PlatformExecutionBundle,
     PlatformParticipants,
+    ScanPipelinePayload,
+    ScanPipelinePreflightContext,
 )
 
 
@@ -65,15 +68,16 @@ class AnsibleScanPipelinePlugin:
 
     def process_scan_pipeline(
         self,
-        scan_options: dict,
-        scan_context: dict,
-    ) -> dict:
-        context = dict(scan_context)
+        scan_options: ScanOptionsDict,
+        scan_context: ScanMetadata,
+    ) -> ScanPipelinePreflightContext:
+        context = cast(ScanPipelinePreflightContext, dict(scan_context))
         context.setdefault("plugin_platform", "ansible")
         context.setdefault("plugin_name", "ansible")
-        plugin_enabled = bool(is_ansible_plugin_enabled())
-        context["plugin_enabled"] = plugin_enabled
-        context["ansible_plugin_enabled"] = plugin_enabled
+        # The default ansible routing path remains available without env gating.
+        ansible_plugin_enabled = bool(is_ansible_plugin_enabled())
+        context["plugin_enabled"] = True
+        context["ansible_plugin_enabled"] = ansible_plugin_enabled
         if "role_path" in scan_options and "role_path" not in context:
             context["role_path"] = scan_options.get("role_path")
         return context
@@ -81,11 +85,12 @@ class AnsibleScanPipelinePlugin:
     def orchestrate_scan_payload(
         self,
         *,
-        payload: dict[str, Any],
-        scan_options: dict[str, Any],
+        payload: ScanPipelinePayload,
+        scan_options: ScanOptionsDict,
         strict_mode: bool,
-        preflight_context: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+        preflight_context: ScanMetadata | None = None,
+    ) -> ScanPipelinePayload:
+        del strict_mode
         metadata = payload.get("metadata")
         base_metadata = copy.deepcopy(metadata) if isinstance(metadata, dict) else {}
 
@@ -94,7 +99,7 @@ class AnsibleScanPipelinePlugin:
         else:
             plugin_output = self.process_scan_pipeline(
                 scan_options=copy.deepcopy(scan_options),
-                scan_context=copy.deepcopy(base_metadata),
+                scan_context=cast(ScanMetadata, copy.deepcopy(base_metadata)),
             )
 
         if not isinstance(plugin_output, dict):
@@ -108,7 +113,7 @@ class AnsibleScanPipelinePlugin:
 
 
 def build_ansible_execution_bundle(
-    scan_options: dict[str, Any] | None = None,
+    scan_options: ScanOptionsDict | None = None,
 ) -> PlatformExecutionBundle:
     """Build the Ansible-owned platform execution bundle from a scan request.
 
@@ -116,6 +121,7 @@ def build_ansible_execution_bundle(
     participant instances so scanner_core ingress can receive them through
     the generic contract without manufacturing Ansible defaults internally.
     """
+    del scan_options
     task_line_parsing = AnsibleTaskLineParsingPolicyPlugin()
     jinja_analysis = DefaultJinjaAnalysisPolicyPlugin()
     task_traversal = AnsibleTaskTraversalPolicyPlugin()
