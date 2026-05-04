@@ -266,7 +266,9 @@ def test_fsrc_api_run_scan_delegates_to_non_collection_api_layer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     role_path = tmp_path / "tiny_role"
+    policy_path = tmp_path / "policy.yml"
     _build_tiny_role(role_path)
+    policy_path.write_text("policy: true\n", encoding="utf-8")
 
     with _prefer_fsrc_prism_on_sys_path():
         api_module = importlib.import_module("prism.api")
@@ -283,7 +285,7 @@ def test_fsrc_api_run_scan_delegates_to_non_collection_api_layer(
         monkeypatch.setattr(api_module.api_non_collection, "run_scan", _fake_run_scan)
         payload = api_module.run_scan(
             str(role_path),
-            policy_config_path="/tmp/policy.yml",
+            policy_config_path=str(policy_path),
             scan_pipeline_plugin="custom",
         )
 
@@ -291,7 +293,7 @@ def test_fsrc_api_run_scan_delegates_to_non_collection_api_layer(
     assert api_module.API_RETAINED_COMPATIBILITY_SEAMS == ("run_scan",)
     assert captured["role_path"] == str(role_path)
     delegated_kwargs = _expect_mapping(captured["kwargs"])
-    assert delegated_kwargs["policy_config_path"] == "/tmp/policy.yml"
+    assert delegated_kwargs["policy_config_path"] == str(policy_path)
     assert delegated_kwargs["scan_pipeline_plugin"] == "custom"
     assert not hasattr(api_module, "NormalizedNonCollectionResult")
 
@@ -383,8 +385,12 @@ def test_fsrc_api_run_scan_normalizes_payload_shape_from_non_collection_seam(
 
 
 def test_fsrc_api_scan_role_delegates_to_non_collection_api_layer(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    policy_path = tmp_path / "policy.yml"
+    policy_path.write_text("policy: true\n", encoding="utf-8")
+
     with _prefer_fsrc_prism_on_sys_path():
         api_module = importlib.import_module("prism.api")
 
@@ -414,13 +420,13 @@ def test_fsrc_api_scan_role_delegates_to_non_collection_api_layer(
         )
         payload = api_module.scan_role(
             "/tmp/demo-role",
-            policy_config_path="/tmp/policy.yml",
+            policy_config_path=str(policy_path),
         )
 
     assert payload["role_name"] == "delegated-role"
     assert captured["role_path"] == "/tmp/demo-role"
     delegated_kwargs = _expect_mapping(captured["kwargs"])
-    assert delegated_kwargs["policy_config_path"] == "/tmp/policy.yml"
+    assert delegated_kwargs["policy_config_path"] == str(policy_path)
     assert captured["delegated_run_scan_role_path"] == "/tmp/demo-role"
     assert (
         _expect_mapping(captured["delegated_run_scan_kwargs"])["role_name_override"]
@@ -429,8 +435,12 @@ def test_fsrc_api_scan_role_delegates_to_non_collection_api_layer(
 
 
 def test_fsrc_api_scan_repo_delegates_to_non_collection_api_layer(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    policy_path = tmp_path / "policy.yml"
+    policy_path.write_text("policy: true\n", encoding="utf-8")
+
     with _prefer_fsrc_prism_on_sys_path():
         api_module = importlib.import_module("prism.api")
 
@@ -458,13 +468,13 @@ def test_fsrc_api_scan_repo_delegates_to_non_collection_api_layer(
         )
         payload = api_module.scan_repo(
             "https://example.invalid/demo.git",
-            policy_config_path="/tmp/policy.yml",
+            policy_config_path=str(policy_path),
         )
 
     assert payload["role_name"] == "repo-role"
     assert captured["repo_url"] == "https://example.invalid/demo.git"
     delegated_kwargs = _expect_mapping(captured["kwargs"])
-    assert delegated_kwargs["policy_config_path"] == "/tmp/policy.yml"
+    assert delegated_kwargs["policy_config_path"] == str(policy_path)
     assert captured["delegated_scan_role_role_path"] == "/tmp/repo-role"
     assert (
         _expect_mapping(captured["delegated_scan_role_kwargs"])["role_name_override"]
@@ -668,8 +678,17 @@ def test_fsrc_api_run_scan_forwards_policy_config_path_to_canonical_builder(
 def test_fsrc_api_public_entrypoints_reject_unsafe_sibling_file_inputs(
     api_name: str,
     kwargs: dict[str, object],
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    readme_path = tmp_path / "readme.yml"
+    policy_path = tmp_path / "policy.yml"
+    readme_path.write_text("readme: true\n", encoding="utf-8")
+    policy_path.write_text("policy: true\n", encoding="utf-8")
+    kwargs = dict(kwargs)
+    kwargs["readme_config_path"] = str(readme_path)
+    kwargs["policy_config_path"] = str(policy_path)
+
     with _prefer_fsrc_prism_on_sys_path():
         api_module = importlib.import_module("prism.api")
         errors_module = importlib.import_module("prism.errors")

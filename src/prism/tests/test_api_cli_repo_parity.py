@@ -8,6 +8,7 @@ import importlib
 import json
 import sys
 from contextlib import contextmanager
+from collections.abc import Iterator
 from pathlib import Path
 from urllib.error import URLError
 
@@ -20,7 +21,7 @@ FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
 
 @contextmanager
-def _prefer_fsrc_prism_on_sys_path() -> object:
+def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -42,7 +43,7 @@ def _prefer_fsrc_prism_on_sys_path() -> object:
 
 
 @contextmanager
-def _prefer_prism_lane_on_sys_path(lane_root: Path) -> object:
+def _prefer_prism_lane_on_sys_path(lane_root: Path) -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -64,6 +65,11 @@ def _prefer_prism_lane_on_sys_path(lane_root: Path) -> object:
             if module_name == "prism" or module_name.startswith("prism."):
                 del sys.modules[module_name]
         sys.modules.update(original_modules)
+
+
+def _expect_mapping(value: object) -> dict[str, object]:
+    assert isinstance(value, dict)
+    return value
 
 
 def test_fsrc_api_declares_objective_critical_entrypoints() -> None:
@@ -264,7 +270,8 @@ def test_fsrc_api_scan_repo_uses_fsrc_repo_services_facade(monkeypatch) -> None:
             style_readme_path="STYLE.md",
         )
 
-    assert payload["role_name"] == "demo-role"
+    payload_mapping = _expect_mapping(payload)
+    assert payload_mapping["role_name"] == "demo-role"
     assert captured["repo_url"] == "https://example.invalid/demo.git"
     assert captured["repo_role_path"] == "roles/demo"
     assert captured["repo_style_readme_path"] == "README.md"
@@ -309,6 +316,16 @@ def test_fsrc_api_scan_repo_forwards_role_name_override_to_scan_role_fn(
                 captured.update(kwargs)
                 scan_role_fn = kwargs["scan_role_fn"]
                 assert callable(scan_role_fn)
+                scan_role_signature = inspect.signature(scan_role_fn)
+                assert tuple(scan_role_signature.parameters) == (
+                    "role_path",
+                    "style_readme_path",
+                    "role_name_override",
+                )
+                assert not any(
+                    parameter.kind is inspect.Parameter.VAR_KEYWORD
+                    for parameter in scan_role_signature.parameters.values()
+                )
                 return scan_role_fn(
                     "/tmp/repo-role",
                     style_readme_path="README.repo.md",
@@ -330,9 +347,10 @@ def test_fsrc_api_scan_repo_forwards_role_name_override_to_scan_role_fn(
         monkeypatch.setattr(api_module, "scan_role", _fake_scan_role)
         payload = api_module.scan_repo("https://example.invalid/demo.git")
 
-    assert payload["role_name"] == "derived-role-name"
+    payload_mapping = _expect_mapping(payload)
+    assert payload_mapping["role_name"] == "derived-role-name"
     assert captured["forwarded_role_path"] == "/tmp/repo-role"
-    assert captured["forwarded_kwargs"] == {
+    assert _expect_mapping(captured["forwarded_kwargs"]) == {
         "compare_role_path": None,
         "style_readme_path": "README.repo.md",
         "role_name_override": "derived-role-name",
@@ -360,9 +378,12 @@ def test_fsrc_api_scan_repo_forwards_role_name_override_to_scan_role_fn(
 
 
 def test_fsrc_api_scan_repo_forwards_policy_config_path_to_scan_role_fn(
+    tmp_path: Path,
     monkeypatch,
 ) -> None:
     captured: dict[str, object] = {}
+    policy_path = tmp_path / "policy.yml"
+    policy_path.write_text("policy: true\n", encoding="utf-8")
 
     with _prefer_fsrc_prism_on_sys_path():
         api_module = importlib.import_module("prism.api")
@@ -388,12 +409,15 @@ def test_fsrc_api_scan_repo_forwards_policy_config_path_to_scan_role_fn(
         monkeypatch.setattr(api_module, "scan_role", _fake_scan_role)
         payload = api_module.scan_repo(
             "https://example.invalid/demo.git",
-            policy_config_path="/tmp/policy.yml",
+            policy_config_path=str(policy_path),
         )
 
-    assert payload["role_name"] == "repo-role"
+    payload_mapping = _expect_mapping(payload)
+    assert payload_mapping["role_name"] == "repo-role"
     assert captured["forwarded_role_path"] == "/tmp/repo-role"
-    assert captured["forwarded_kwargs"]["policy_config_path"] == "/tmp/policy.yml"
+    assert _expect_mapping(captured["forwarded_kwargs"])["policy_config_path"] == str(
+        policy_path
+    )
 
 
 def test_fsrc_api_scan_role_forwards_non_collection_output_options(monkeypatch) -> None:
@@ -417,9 +441,10 @@ def test_fsrc_api_scan_role_forwards_non_collection_output_options(monkeypatch) 
 
     assert payload == {"role_name": "demo-role", "metadata": {}}
     assert captured["role_path"] == "/tmp/demo-role"
-    assert captured["kwargs"]["concise_readme"] is True
-    assert captured["kwargs"]["scanner_report_output"] == "reports/scanner.json"
-    assert captured["kwargs"]["include_scanner_report_link"] is False
+    delegated_kwargs = _expect_mapping(captured["kwargs"])
+    assert delegated_kwargs["concise_readme"] is True
+    assert delegated_kwargs["scanner_report_output"] == "reports/scanner.json"
+    assert delegated_kwargs["include_scanner_report_link"] is False
 
 
 def test_fsrc_api_scan_repo_forwards_non_collection_output_options_to_scan_role_fn(
@@ -456,12 +481,14 @@ def test_fsrc_api_scan_repo_forwards_non_collection_output_options_to_scan_role_
             include_scanner_report_link=False,
         )
 
-    assert payload["role_name"] == "repo-role"
+    payload_mapping = _expect_mapping(payload)
+    assert payload_mapping["role_name"] == "repo-role"
     assert captured["role_path"] == "/tmp/repo-role"
-    assert captured["kwargs"]["role_name_override"] == "repo-role"
-    assert captured["kwargs"]["concise_readme"] is True
-    assert captured["kwargs"]["scanner_report_output"] == "reports/scanner.json"
-    assert captured["kwargs"]["include_scanner_report_link"] is False
+    delegated_kwargs = _expect_mapping(captured["kwargs"])
+    assert delegated_kwargs["role_name_override"] == "repo-role"
+    assert delegated_kwargs["concise_readme"] is True
+    assert delegated_kwargs["scanner_report_output"] == "reports/scanner.json"
+    assert delegated_kwargs["include_scanner_report_link"] is False
 
 
 def test_fsrc_cli_repo_command_uses_repo_services_and_emits_json(
@@ -640,3 +667,85 @@ def test_clone_repo_wraps_called_process_error_as_prism_runtime_error(
             clone_repo("https://example.com/repo.git", dest)
 
     assert exc_info.value.code == "repo_clone_failed"
+
+
+def test_clone_repo_inserts_option_terminator_before_repo_url(tmp_path: Path) -> None:
+    from subprocess import CompletedProcess
+    from unittest.mock import patch
+
+    from prism.repo_services import clone_repo
+
+    dest = tmp_path / "target"
+    repo_url = "-cprotocol.file.allow=always"
+
+    with patch(
+        "prism.repo_services.subprocess.run",
+        return_value=CompletedProcess(args=[], returncode=0),
+    ) as run_mock:
+        clone_repo(repo_url, dest)
+
+    cmd = run_mock.call_args.args[0]
+    assert cmd[:4] == ["git", "clone", "--depth", "1"]
+    assert cmd[-3:] == ["--", repo_url, str(dest)]
+
+
+def test_resolve_repo_scan_target_rejects_parent_traversal_repo_role_path(
+    tmp_path: Path,
+) -> None:
+    from prism.repo_services import PrismRuntimeError, resolve_repo_scan_target
+
+    repo_root = tmp_path / "repo"
+    repo_role = repo_root / "roles" / "demo"
+    repo_role.mkdir(parents=True)
+    escaped_role = tmp_path / "escaped-role"
+    escaped_role.mkdir()
+
+    with pytest.raises(PrismRuntimeError) as exc_info:
+        resolve_repo_scan_target(
+            repo_url=str(repo_root),
+            workspace=tmp_path / "workspace",
+            repo_role_path="../escaped-role",
+            repo_style_readme_path=None,
+            style_readme_path=None,
+            repo_ref=None,
+            repo_timeout=60,
+            lightweight_readme_only=False,
+        )
+
+    assert exc_info.value.code == "repo_content_invalid"
+    assert exc_info.value.detail == {
+        "field": "repo_role_path",
+        "value": "../escaped-role",
+        "repo_root": str(repo_root.resolve()),
+    }
+
+
+def test_resolve_repo_scan_target_rejects_absolute_repo_style_readme_path(
+    tmp_path: Path,
+) -> None:
+    from prism.repo_services import PrismRuntimeError, resolve_repo_scan_target
+
+    repo_root = tmp_path / "repo"
+    repo_role = repo_root / "roles" / "demo"
+    repo_role.mkdir(parents=True)
+    outside_readme = tmp_path / "outside-style.md"
+    outside_readme.write_text("# outside\n", encoding="utf-8")
+
+    with pytest.raises(PrismRuntimeError) as exc_info:
+        resolve_repo_scan_target(
+            repo_url=str(repo_root),
+            workspace=tmp_path / "workspace",
+            repo_role_path="roles/demo",
+            repo_style_readme_path=str(outside_readme),
+            style_readme_path=None,
+            repo_ref=None,
+            repo_timeout=60,
+            lightweight_readme_only=False,
+        )
+
+    assert exc_info.value.code == "repo_content_invalid"
+    assert exc_info.value.detail == {
+        "field": "repo_style_readme_path",
+        "value": str(outside_readme),
+        "repo_root": str(repo_root.resolve()),
+    }

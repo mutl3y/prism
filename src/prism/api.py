@@ -265,6 +265,10 @@ def _assert_safe_run_scan_file_inputs(
 ) -> None:
     _assert_safe_optional_path(readme_config_path, field_name="readme_config_path")
     _assert_safe_optional_path(policy_config_path, field_name="policy_config_path")
+    _assert_safe_optional_path(style_readme_path, field_name="style_readme_path")
+    _assert_safe_optional_path(style_source_path, field_name="style_source_path")
+    _assert_safe_optional_path(compare_role_path, field_name="compare_role_path")
+    _assert_safe_optional_path_list(vars_seed_paths, field_name="vars_seed_paths")
     _assert_existing_optional_file(
         readme_config_path,
         field_name="readme_config_path",
@@ -273,10 +277,6 @@ def _assert_safe_run_scan_file_inputs(
         policy_config_path,
         field_name="policy_config_path",
     )
-    _assert_safe_optional_path(style_readme_path, field_name="style_readme_path")
-    _assert_safe_optional_path(style_source_path, field_name="style_source_path")
-    _assert_safe_optional_path(compare_role_path, field_name="compare_role_path")
-    _assert_safe_optional_path_list(vars_seed_paths, field_name="vars_seed_paths")
 
 
 def _assert_safe_scan_repo_file_inputs(
