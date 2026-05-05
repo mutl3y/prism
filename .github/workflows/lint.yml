@@ -9,7 +9,7 @@ env:
   DEFAULT_BRANCH: main
   VALIDATE_ALL_CODEBASE: true
   FILTER_REGEX_EXCLUDE: >-
-    (^|/)(docs/plan/|old_docs/|plugins/|\.github/skills/|\.codex$)
+    (^|/)(docs/plan/|old_docs/|plugins/|\.github/skills/|\.local/|\.codex$|test_output\.log$)
   VALIDATE_BIOME_FORMAT: false
   VALIDATE_BIOME_LINT: false
   VALIDATE_CHECKOV: false

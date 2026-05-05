@@ -1,4 +1,7 @@
-cd /raid5/source/test/prism
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd /raid5/source/test/prism || exit
 echo "=== OPEN WITHOUT ENCODING ==="
 grep -rn "open(" src/prism/scanner_config src/prism/scanner_io src/prism/scanner_readme src/prism/scanner_extract src/prism/cli_app src/prism/api_layer --include="*.py" | grep -v "encoding="
 echo "=== EXCEPT THEN PASS OR RETURN ==="
