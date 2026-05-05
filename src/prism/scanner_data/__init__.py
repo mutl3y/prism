@@ -38,17 +38,17 @@ class FailurePolicyContract(TypedDict, total=False):
 
 class RoleScanResult(TypedDict, total=False):
     role_name: str
-    payload: dict[str, Any]
+    payload: RunScanOutputPayload
 
 
 class RepoScanResult(TypedDict, total=False):
     repo_url: str
-    payload: dict[str, Any]
+    payload: RunScanOutputPayload
 
 
 class CollectionIdentity(TypedDict):
     path: str
-    metadata: dict[str, Any]
+    metadata: ScanMetadata
 
 
 class CollectionDependencies(TypedDict):
@@ -67,7 +67,7 @@ class CollectionPluginCatalog(TypedDict):
 class CollectionRoleEntry(TypedDict):
     role: str
     path: str
-    payload: dict[str, Any]
+    payload: RunScanOutputPayload
     rendered_readme: str | None
 
 
@@ -276,7 +276,13 @@ class ScanPayloadBuilder:
 
 __all__ = [
     "AnnotationQualityCounters",
+    "CollectionDependencies",
+    "CollectionFailureRecord",
+    "CollectionIdentity",
+    "CollectionPluginCatalog",
+    "CollectionRoleEntry",
     "CollectionScanResult",
+    "CollectionSummary",
     "EmitScanOutputsArgs",
     "FailureDetail",
     "FailurePolicyContract",

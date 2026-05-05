@@ -3,8 +3,17 @@
 from __future__ import annotations
 
 from typing import Any
+from typing import cast
 
+from prism.scanner_core.protocols_runtime import KernelPhaseFailure, KernelResponse
 from prism.scanner_kernel.kernel_plugin_runner import run_kernel_plugin_orchestrator
+
+
+def _first_error(response: KernelResponse) -> KernelPhaseFailure:
+    errors = response.get("errors")
+    if not isinstance(errors, list) or not errors or not isinstance(errors[0], dict):
+        raise AssertionError("expected kernel error payload")
+    return cast(KernelPhaseFailure, errors[0])
 
 
 class _PluginMissingAnalyzeFinalize:
@@ -88,6 +97,29 @@ class _PluginMergeOutputs:
         }
 
 
+class _PluginReusingResponseMetadata:
+    def __init__(self) -> None:
+        self.shared_metadata: dict[str, Any] | None = None
+
+    def prepare(self, request: dict[str, Any]) -> dict[str, Any]:
+        del request
+        return {"metadata": {"prepare": "ok"}}
+
+    def scan(self, request: dict[str, Any]) -> dict[str, Any]:
+        del request
+        return {"metadata": {"scan": "ok"}}
+
+    def analyze(
+        self, request: dict[str, Any], response: dict[str, Any]
+    ) -> dict[str, Any]:
+        del request
+        metadata = response.get("metadata")
+        if not isinstance(metadata, dict):
+            raise AssertionError("expected response metadata")
+        self.shared_metadata = metadata
+        return {"metadata": {"analyze": "ok"}}
+
+
 def test_run_kernel_plugin_orchestrator_marks_missing_phase_handlers_as_skipped() -> (
     None
 ):
@@ -120,7 +152,7 @@ def test_run_kernel_plugin_orchestrator_stops_on_failed_phase_when_fail_fast_tru
     assert events == ["prepare"]
     assert response["phase_results"]["prepare"]["status"] == "failed"
     assert "scan" not in response["phase_results"]
-    assert response["errors"][0]["recoverable"] is False
+    assert _first_error(response)["recoverable"] is False
 
 
 def test_run_kernel_plugin_orchestrator_continues_after_failure_when_fail_fast_false() -> (
@@ -165,10 +197,9 @@ def test_run_kernel_plugin_orchestrator_continues_after_failure_when_fail_fast_f
         == "skipped_due_to_upstream_failure"
     )
 
-    assert response["errors"][0]["recoverable"] is True, "Error should be recoverable"
-    assert (
-        response["errors"][0]["phase"] == "prepare"
-    ), "Error should identify failed phase"
+    error = _first_error(response)
+    assert error["recoverable"] is True, "Error should be recoverable"
+    assert error["phase"] == "prepare", "Error should identify failed phase"
 
 
 def test_run_kernel_plugin_orchestrator_merges_phase_payload_metadata_and_lists() -> (
@@ -192,6 +223,32 @@ def test_run_kernel_plugin_orchestrator_merges_phase_payload_metadata_and_lists(
     assert response["warnings"] == ["warn-prepare", "warn-scan", "warn-analyze"]
     assert response["errors"] == ["soft-scan-error"]
     assert response["provenance"] == ["prov-prepare", "prov-scan", "prov-finalize"]
+
+
+def test_run_kernel_plugin_orchestrator_does_not_mutate_shared_response_metadata() -> (
+    None
+):
+    plugin = _PluginReusingResponseMetadata()
+
+    response = run_kernel_plugin_orchestrator(
+        platform="ansible",
+        target_path="/tmp/role",
+        scan_options={},
+        load_plugin_fn=lambda _platform: plugin,
+    )
+
+    assert plugin.shared_metadata == {
+        "kernel_orchestrator": "fsrc-v1",
+        "prepare": "ok",
+        "scan": "ok",
+    }
+    assert response["metadata"] == {
+        "kernel_orchestrator": "fsrc-v1",
+        "prepare": "ok",
+        "scan": "ok",
+        "analyze": "ok",
+    }
+    assert plugin.shared_metadata is not response["metadata"]
 
 
 # ============================================================================
@@ -336,7 +393,7 @@ def test_cascade_failure_fail_fast_true_breaks_immediately() -> None:
     assert response["phase_results"]["scan"]["status"] == "failed"
     assert "analyze" not in response["phase_results"], "No downstream phase results"
     assert "finalize" not in response["phase_results"], "No downstream phase results"
-    assert response["errors"][0]["recoverable"] is False
+    assert _first_error(response)["recoverable"] is False
 
 
 def test_cascade_failure_phase_dependency_reasoning_in_response() -> None:

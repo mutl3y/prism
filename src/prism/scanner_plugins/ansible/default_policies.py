@@ -4,7 +4,7 @@ from collections.abc import Collection, Iterable
 from pathlib import Path
 from typing import ClassVar, Protocol
 
-from prism.scanner_data.contracts_request import TaskAnnotation
+from prism.scanner_data.contracts_request import TaskAnnotation, TaskMapping
 from prism.scanner_plugins.ansible.task_vocabulary import (
     INCLUDE_VARS_KEYS,
     ROLE_INCLUDE_KEYS,
@@ -73,11 +73,11 @@ class AnsibleDefaultTaskLineParsingPolicyPlugin:
     TEMPLATED_INCLUDE_RE = TEMPLATED_INCLUDE_RE
 
     @staticmethod
-    def extract_constrained_when_values(task: dict, variable: str) -> list[str]:
+    def extract_constrained_when_values(task: TaskMapping, variable: str) -> list[str]:
         return extract_constrained_when_values(task, variable)
 
     @staticmethod
-    def detect_task_module(task: dict) -> str | None:
+    def detect_task_module(task: TaskMapping) -> str | None:
         return detect_task_module(task)
 
 
@@ -100,6 +100,17 @@ class AnsibleDefaultVariableExtractorPolicyPlugin:
         )
         role_root = Path(role_path).resolve()
         include_files: set[Path] = set()
+
+        def add_include_file(ref: str, task_file: Path) -> None:
+            include_path = (task_file.parent / ref).resolve()
+            if not include_path.is_file():
+                return
+            try:
+                include_path.relative_to(role_root)
+            except ValueError:
+                return
+            include_files.add(include_path)
+
         for task_file in collect_task_files(role_root, exclude_paths=exclude_paths):
             data = load_yaml_file(task_file)
             if not isinstance(data, list):
@@ -112,15 +123,11 @@ class AnsibleDefaultVariableExtractorPolicyPlugin:
                         continue
                     value = task.get(key)
                     if isinstance(value, str):
-                        include_path = (task_file.parent / value).resolve()
-                        if include_path.is_file():
-                            include_files.add(include_path)
+                        add_include_file(value, task_file)
                     elif isinstance(value, dict):
                         file_value = value.get("file") or value.get("_raw_params")
                         if isinstance(file_value, str):
-                            include_path = (task_file.parent / file_value).resolve()
-                            if include_path.is_file():
-                                include_files.add(include_path)
+                            add_include_file(file_value, task_file)
         return sorted(include_files)
 
 
@@ -184,15 +191,17 @@ class AnsibleDefaultTaskTraversalPolicyPlugin:
         return iter_task_include_edges(data)
 
     @staticmethod
-    def expand_include_target_candidates(task: dict, include_target: str) -> list[str]:
+    def expand_include_target_candidates(
+        task: TaskMapping, include_target: str
+    ) -> list[str]:
         return expand_include_target_candidates(task, include_target)
 
     @staticmethod
-    def iter_role_include_targets(task: dict) -> list[str]:
+    def iter_role_include_targets(task: TaskMapping) -> list[str]:
         return iter_role_include_targets(task)
 
     @staticmethod
-    def iter_dynamic_role_include_targets(task: dict) -> list[str]:
+    def iter_dynamic_role_include_targets(task: TaskMapping) -> list[str]:
         return iter_dynamic_role_include_targets(task)
 
     @staticmethod

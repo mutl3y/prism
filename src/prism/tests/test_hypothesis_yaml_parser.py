@@ -27,16 +27,20 @@ def test_yaml_safe_load_raises_only_yaml_error_on_arbitrary_text(text: str) -> N
 @settings(max_examples=50)
 @given(st.text())
 def test_load_yaml_file_never_raises_on_arbitrary_content(text: str) -> None:
-    """load_yaml_file must never propagate any exception for arbitrary file content.
+    """load_yaml_file must only surface the documented yaml_load_error channel.
 
-    All anticipated parse errors are caught internally; this test verifies no
-    uncaught path exists across a broad range of generated inputs.
+    Arbitrary file contents may be unreadable or malformed YAML, but the policy
+    plugin should wrap those failures as RuntimeError with the stable
+    yaml_load_error prefix rather than leaking parser-specific exception types.
     """
     fd, path = tempfile.mkstemp(suffix=".yaml")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(text)
-        DefaultYAMLParsingPolicyPlugin.load_yaml_file(path)
+        try:
+            DefaultYAMLParsingPolicyPlugin.load_yaml_file(path)
+        except RuntimeError as exc:
+            assert str(exc).startswith("yaml_load_error")
     finally:
         try:
             os.unlink(path)

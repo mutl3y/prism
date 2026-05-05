@@ -8,7 +8,7 @@ from typing import ClassVar
 import yaml
 
 from prism.scanner_data.contracts_request import YamlParseFailure
-from prism.scanner_io.loader import format_candidate_failure_path
+from prism.scanner_io.loader import build_yaml_load_error, format_candidate_failure_path
 
 
 class DefaultYAMLParsingPolicyPlugin:
@@ -22,8 +22,8 @@ class DefaultYAMLParsingPolicyPlugin:
         try:
             text = candidate.read_text(encoding="utf-8")
             return yaml.safe_load(text)
-        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
-            return None
+        except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError) as exc:
+            raise build_yaml_load_error(candidate, exc) from exc
 
     @staticmethod
     def parse_yaml_candidate(

@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from typing import Any
+from typing import cast
 from unittest.mock import patch
 
 from prism.scanner_plugins.audit.blocker_fact_evaluator import (
     build_scan_policy_blocker_facts,
 )
+from prism.scanner_data.contracts_request import ScanOptionsDict
 
 
-def _make_scan_options(**overrides: Any) -> dict[str, Any]:
+def _make_scan_options(**overrides: Any) -> ScanOptionsDict:
     base: dict[str, Any] = {
         "role_path": "/tmp/test-role",
         "role_name_override": None,
@@ -34,11 +36,11 @@ def _make_scan_options(**overrides: Any) -> dict[str, Any]:
         "ignore_unresolved_internal_underscore_references": False,
     }
     base.update(overrides)
-    return base
+    return cast(ScanOptionsDict, base)
 
 
 def test_blocker_facts_disabled_policies_returns_zeroed_counts() -> None:
-    opts = _make_scan_options()
+    opts: ScanOptionsDict = _make_scan_options()
     result = build_scan_policy_blocker_facts(
         scan_options=opts,
         metadata={},

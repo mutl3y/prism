@@ -36,6 +36,18 @@ def _record_metadata_warning(
     warning_collector.append(f"{code}: {meta_file}: {error}")
 
 
+def _record_warning(
+    warning_collector: list[str] | None,
+    *,
+    code: str,
+    path: Path,
+    error: Exception | str,
+) -> None:
+    if warning_collector is None:
+        return
+    warning_collector.append(f"{code}: {path}: {error}")
+
+
 def iter_role_variable_map_candidates(role_root: Path, subdir: str) -> list[Path]:
     """Return role variable map files in deterministic merge order."""
     candidates: list[Path] = []
@@ -108,9 +120,7 @@ def load_meta(
 
         try:
             _raw = load_yaml_file(meta_file, di=di)
-            if _raw is None:
-                logger.warning("Failed to load %s: using empty result", meta_file)
-            loaded = _raw or {}
+            loaded = {} if _raw is None else _raw
         except Exception as exc:
             if strict:
                 raise RuntimeError(
@@ -130,11 +140,21 @@ def load_meta(
             )
             return {}
         if not isinstance(loaded, dict):
+            shape_error = "metadata root must be a mapping"
+            if strict:
+                raise RuntimeError(
+                    f"{ROLE_METADATA_SHAPE_INVALID}: {meta_file}: {shape_error}"
+                )
+            logger.warning(
+                "Invalid metadata shape for %s: %s (non-strict mode: returning empty dict)",
+                meta_file,
+                shape_error,
+            )
             _record_metadata_warning(
                 warning_collector,
                 code=ROLE_METADATA_SHAPE_INVALID,
                 meta_file=meta_file,
-                error="metadata root must be a mapping",
+                error=shape_error,
             )
             return {}
         return loaded
@@ -156,6 +176,47 @@ def load_requirements(
     path = Path(role_path) / "meta" / "requirements.yml"
     if not path.exists():
         return []
+    role_root = Path(role_path).resolve()
+    failure = parse_yaml_candidate(path, role_root, di=di)
+    if failure is not None:
+        failure_error = str(failure.get("error", "")).strip() or "unknown"
+        failure_line = failure.get("line")
+        failure_column = failure.get("column")
+        failure_detail = (
+            f"{failure_error}"
+            if failure_line is None
+            else f"{failure_error} (line={failure_line}, column={failure_column})"
+        )
+        if str(failure_error).startswith("read_error:"):
+            if strict:
+                raise RuntimeError(f"{REQUIREMENTS_IO_ERROR}: {path}: {failure_detail}")
+            logger.warning(
+                "Failed to read requirements from %s: %s (non-strict mode: returning empty list)",
+                path,
+                failure_detail,
+            )
+            _record_warning(
+                warning_collector,
+                code=REQUIREMENTS_IO_ERROR,
+                path=path,
+                error=failure_detail,
+            )
+            return []
+
+        if strict:
+            raise RuntimeError(f"{REQUIREMENTS_YAML_INVALID}: {path}: {failure_detail}")
+        logger.warning(
+            "YAML parsing failed for requirements %s: %s (non-strict mode: returning empty list)",
+            path,
+            failure_detail,
+        )
+        _record_warning(
+            warning_collector,
+            code=REQUIREMENTS_YAML_INVALID,
+            path=path,
+            error=failure_detail,
+        )
+        return []
     try:
         payload = load_yaml_file(path, di=di)
     except Exception as exc:
@@ -167,15 +228,27 @@ def load_requirements(
             exc,
             type(exc).__name__,
         )
-        if warning_collector is not None:
-            warning_collector.append(f"{REQUIREMENTS_IO_ERROR}: {path}: {exc}")
+        _record_warning(
+            warning_collector,
+            code=REQUIREMENTS_IO_ERROR,
+            path=path,
+            error=exc,
+        )
         return []
     if not isinstance(payload, list):
         msg = f"{REQUIREMENTS_YAML_INVALID}: {path}: root must be a list"
         if strict:
             raise RuntimeError(msg)
-        if warning_collector is not None:
-            warning_collector.append(msg)
+        logger.warning(
+            "Invalid requirements shape for %s: root must be a list (non-strict mode: returning empty list)",
+            path,
+        )
+        _record_warning(
+            warning_collector,
+            code=REQUIREMENTS_YAML_INVALID,
+            path=path,
+            error="root must be a list",
+        )
         return []
     return payload
 
@@ -203,7 +276,9 @@ def load_variables(
     for sub in subdirs:
         for path in iter_role_variable_map_candidates(role_root, sub):
             try:
-                data = load_yaml_file(path, di=di) or {}
+                data = load_yaml_file(path, di=di)
+                if data is None:
+                    data = {}
                 if isinstance(data, dict):
                     vars_out.update(data)
             except Exception as exc:
@@ -222,7 +297,9 @@ def load_variables(
 
     for extra_path in collect_include_vars_files(role_path, exclude_paths):
         try:
-            data = load_yaml_file(extra_path, di=di) or {}
+            data = load_yaml_file(extra_path, di=di)
+            if data is None:
+                data = {}
             if isinstance(data, dict):
                 vars_out.update(data)
         except Exception as exc:

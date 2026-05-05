@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
+
+from prism.scanner_data.contracts_request import ScanMetadata
 
 
 def test_underscore_filter_noop_when_flag_disabled() -> None:
@@ -14,12 +16,15 @@ def test_underscore_filter_noop_when_flag_disabled() -> None:
         "_internal": {"is_unresolved": True, "source": "tasks/main.yml"},
         "public_var": {"is_unresolved": False, "source": "defaults/main.yml"},
     }
-    metadata: dict[str, Any] = {
-        "variable_insights": [
-            {"name": "_internal", "is_unresolved": True},
-            {"name": "public_var", "is_unresolved": False},
-        ],
-    }
+    metadata = cast(
+        ScanMetadata,
+        {
+            "variable_insights": [
+                {"name": "_internal", "is_unresolved": True},
+                {"name": "public_var", "is_unresolved": False},
+            ],
+        },
+    )
 
     result = apply_underscore_reference_filter(
         display_variables=display_variables,
@@ -43,13 +48,16 @@ def test_underscore_filter_removes_unresolved_underscore_vars() -> None:
         "_resolved_internal": {"is_unresolved": False, "source": "defaults/main.yml"},
         "public_var": {"is_unresolved": True, "source": "tasks/main.yml"},
     }
-    metadata: dict[str, Any] = {
-        "variable_insights": [
-            {"name": "_internal", "is_unresolved": True},
-            {"name": "_resolved_internal", "is_unresolved": False},
-            {"name": "public_var", "is_unresolved": True},
-        ],
-    }
+    metadata = cast(
+        ScanMetadata,
+        {
+            "variable_insights": [
+                {"name": "_internal", "is_unresolved": True},
+                {"name": "_resolved_internal", "is_unresolved": False},
+                {"name": "public_var", "is_unresolved": True},
+            ],
+        },
+    )
 
     result = apply_underscore_reference_filter(
         display_variables=display_variables,
@@ -73,11 +81,14 @@ def test_underscore_filter_no_matches_sets_flag_without_count() -> None:
     display_variables: dict[str, Any] = {
         "public_var": {"is_unresolved": True, "source": "tasks/main.yml"},
     }
-    metadata: dict[str, Any] = {
-        "variable_insights": [
-            {"name": "public_var", "is_unresolved": True},
-        ],
-    }
+    metadata = cast(
+        ScanMetadata,
+        {
+            "variable_insights": [
+                {"name": "public_var", "is_unresolved": True},
+            ],
+        },
+    )
 
     result = apply_underscore_reference_filter(
         display_variables=display_variables,

@@ -15,7 +15,13 @@ FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 REQUIRED_SCANNER_PACKAGE_EXPORTS: dict[str, set[str]] = {
     "prism.scanner_data": {
         "AnnotationQualityCounters",
+        "CollectionDependencies",
+        "CollectionFailureRecord",
+        "CollectionIdentity",
+        "CollectionPluginCatalog",
+        "CollectionRoleEntry",
         "CollectionScanResult",
+        "CollectionSummary",
         "EmitScanOutputsArgs",
         "FailureDetail",
         "FailurePolicyContract",
@@ -120,6 +126,7 @@ REQUIRED_SCANNER_PACKAGE_EXPORTS: dict[str, set[str]] = {
         "load_yaml_file",
         "map_argument_spec_type",
         "parse_yaml_candidate",
+        "format_collection_summary",
         "render_collection_markdown",
         "FinalOutputPayload",
         "build_final_output_payload",

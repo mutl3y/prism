@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, NoReturn, Protocol, cast
 from collections.abc import Mapping
 
 from prism.errors import PrismRuntimeError
@@ -24,6 +24,9 @@ from prism.scanner_plugins.interfaces import (
 )
 from prism.scanner_data.contracts_request import (
     PreparedJinjaAnalysisPolicy,
+    ScanMetadata,
+    ScanOptionsDict,
+    ScanPolicyBlockerFacts,
     PreparedTaskAnnotationPolicy,
     PreparedTaskLineParsingPolicy,
     PreparedTaskTraversalPolicy,
@@ -35,7 +38,29 @@ if TYPE_CHECKING:
     from prism.scanner_plugins.registry import PluginRegistry
     from prism.scanner_plugins.parsers.comment_doc.runbook_renderer import RunbookRow
 
+
+class BlockerFactBuilder(Protocol):
+    def __call__(
+        self,
+        *,
+        scan_options: ScanOptionsDict,
+        metadata: ScanMetadata,
+        di: object,
+    ) -> ScanPolicyBlockerFacts: ...
+
+
 logger = logging.getLogger(__name__)
+
+
+def _get_registry_from_di(di: object | None) -> "PluginRegistry | None":
+    """Extract plugin_registry from DI container, or None.
+
+    Shared seam for registry precedence between defaults and loader.
+    Does not fall back to bootstrap singleton.
+    """
+    if di is None:
+        return None
+    return getattr(di, "plugin_registry", None)
 
 
 def _resolve_registry(
@@ -49,14 +74,85 @@ def _resolve_registry(
     if registry is not None:
         return registry
 
-    if di is not None:
-        di_registry = getattr(di, "plugin_registry", None)
-        if di_registry is not None:
-            return di_registry
+    di_registry = _get_registry_from_di(di)
+    if di_registry is not None:
+        return di_registry
 
     from prism.scanner_plugins.bootstrap import get_default_plugin_registry
 
     return get_default_plugin_registry()
+
+
+def _scan_options_from_di(di: object | None) -> ScanOptionsDict | None:
+    """Return scan_options from DI when the container exposes a mapping snapshot."""
+    if di is None:
+        return None
+    scan_options = getattr(di, "scan_options", None)
+    if isinstance(scan_options, Mapping):
+        return cast(ScanOptionsDict, scan_options)
+    return None
+
+
+def _resolve_selected_platform_key(
+    *,
+    di: object | None,
+    registry: "PluginRegistry | None",
+) -> str | None:
+    """Resolve the platform key through the same scan-options chain as DI ingress."""
+    scan_options = _scan_options_from_di(di)
+    if scan_options is None:
+        return registry.get_default_platform_key() if registry is not None else None
+
+    explicit = scan_options.get("scan_pipeline_plugin")
+    if isinstance(explicit, str) and explicit:
+        return explicit
+
+    policy_context = scan_options.get("policy_context")
+    if isinstance(policy_context, Mapping):
+        selection = policy_context.get("selection")
+        if isinstance(selection, Mapping):
+            plugin_key = selection.get("plugin")
+            if isinstance(plugin_key, str) and plugin_key:
+                return plugin_key
+
+    if registry is not None:
+        default_key = registry.get_default_platform_key()
+        if default_key is not None:
+            return default_key
+
+    return None
+
+
+def _guard_platform_specific_non_strict_fallback(
+    *,
+    plugin_kind: str,
+    strict_mode: bool,
+    fallback_plugin: Any,
+    fallback_platform_key: str | None,
+    di: object | None,
+    registry: "PluginRegistry | None",
+) -> None:
+    if strict_mode or fallback_platform_key is None:
+        return
+
+    selected_platform_key = _resolve_selected_platform_key(di=di, registry=registry)
+    if selected_platform_key in (None, fallback_platform_key):
+        return
+
+    raise PrismRuntimeError(
+        code="malformed_plugin_shape",
+        category="runtime",
+        message=(
+            f"Non-strict {plugin_kind} fallback would substitute "
+            f"{fallback_platform_key} defaults for platform {selected_platform_key}."
+        ),
+        detail={
+            "plugin_kind": plugin_kind,
+            "selected_platform_key": selected_platform_key,
+            "fallback_platform_key": fallback_platform_key,
+            "fallback_plugin_type": type(fallback_plugin).__name__,
+        },
+    )
 
 
 # ANSIBLE-FIRST PRODUCT CONSTRAINT (intentional, not an oversight)
@@ -165,6 +261,83 @@ def _raise_malformed_plugin_shape_error(
     )
 
 
+def _fallback_or_raise_malformed_plugin_shape(
+    *,
+    plugin_kind: str,
+    plugin: Any,
+    required_callables: tuple[str, ...],
+    required_attributes: tuple[str, ...],
+    strict_mode: bool,
+    fallback_plugin: Any,
+    fallback_platform_key: str | None,
+    di: object | None,
+    registry: "PluginRegistry | None",
+) -> Any:
+    if not strict_mode:
+        _guard_platform_specific_non_strict_fallback(
+            plugin_kind=plugin_kind,
+            strict_mode=strict_mode,
+            fallback_plugin=fallback_plugin,
+            fallback_platform_key=fallback_platform_key,
+            di=di,
+            registry=registry,
+        )
+        logger.warning(
+            "Malformed %s plugin shape detected in non-strict mode; falling back "
+            "to %s",
+            plugin_kind,
+            type(fallback_plugin).__name__,
+        )
+        return fallback_plugin
+
+    _raise_malformed_plugin_shape_error(
+        plugin_kind=plugin_kind,
+        plugin=plugin,
+        required_callables=required_callables,
+        required_attributes=required_attributes,
+    )
+
+
+def _fallback_or_raise_plugin_construction_error(
+    *,
+    plugin_kind: str,
+    plugin_class: type[Any],
+    strict_mode: bool,
+    fallback_plugin: Any,
+    fallback_platform_key: str | None,
+    di: object | None,
+    registry: "PluginRegistry | None",
+    exc: Exception,
+) -> Any:
+    if not strict_mode:
+        _guard_platform_specific_non_strict_fallback(
+            plugin_kind=plugin_kind,
+            strict_mode=strict_mode,
+            fallback_plugin=fallback_plugin,
+            fallback_platform_key=fallback_platform_key,
+            di=di,
+            registry=registry,
+        )
+        logger.warning(
+            "Failed to construct %s plugin in non-strict mode; falling back to %s. %s",
+            plugin_kind,
+            type(fallback_plugin).__name__,
+            exc,
+        )
+        return fallback_plugin
+
+    raise PrismRuntimeError(
+        code="malformed_plugin_shape",
+        category="runtime",
+        message=f"Failed to construct {plugin_kind} plugin.",
+        detail={
+            "plugin_kind": plugin_kind,
+            "plugin_class": getattr(plugin_class, "__name__", "unknown"),
+            "error": str(exc),
+        },
+    ) from exc
+
+
 def _validate_plugin_shape(
     *,
     plugin: Any,
@@ -174,6 +347,9 @@ def _validate_plugin_shape(
     required_attributes: tuple[str, ...],
     strict_mode: bool,
     fallback_plugin: Any,
+    fallback_platform_key: str | None,
+    di: object | None,
+    registry: "PluginRegistry | None",
 ) -> Any:
     has_required_callables = all(
         callable(getattr(plugin, name, None)) for name in required_callables
@@ -190,14 +366,17 @@ def _validate_plugin_shape(
     if has_required_callables and has_any_of_callables and has_required_attributes:
         return plugin
 
-    if strict_mode:
-        _raise_malformed_plugin_shape_error(
-            plugin_kind=plugin_kind,
-            plugin=plugin,
-            required_callables=required_callables,
-            required_attributes=required_attributes,
-        )
-    return fallback_plugin
+    return _fallback_or_raise_malformed_plugin_shape(
+        plugin_kind=plugin_kind,
+        plugin=plugin,
+        required_callables=required_callables,
+        required_attributes=required_attributes,
+        strict_mode=strict_mode,
+        fallback_plugin=fallback_plugin,
+        fallback_platform_key=fallback_platform_key,
+        di=di,
+        registry=registry,
+    )
 
 
 def _construct_registry_plugin(
@@ -206,30 +385,25 @@ def _construct_registry_plugin(
     plugin_kind: str,
     strict_mode: bool,
     fallback_plugin: Any,
+    fallback_platform_key: str | None,
+    di: object | None,
+    registry: "PluginRegistry | None",
 ) -> Any:
     try:
         plugin = plugin_class()
     # Broad: plugin_class() is third-party plugin __init__ that can raise
-    # arbitrary errors; raised in strict mode, falls back otherwise.
+    # arbitrary errors; treat construction failure as an integrity defect.
     except Exception as exc:
-        if strict_mode:
-            raise PrismRuntimeError(
-                code="malformed_plugin_shape",
-                category="runtime",
-                message=f"Failed to construct {plugin_kind} plugin.",
-                detail={
-                    "plugin_kind": plugin_kind,
-                    "plugin_class": getattr(plugin_class, "__name__", "unknown"),
-                    "error": str(exc),
-                },
-            ) from exc
-        logger.warning(
-            "Failed to construct %s plugin (class=%s); falling back to default. error=%s",
-            plugin_kind,
-            getattr(plugin_class, "__name__", "unknown"),
-            type(exc).__name__,
+        return _fallback_or_raise_plugin_construction_error(
+            plugin_kind=plugin_kind,
+            plugin_class=plugin_class,
+            strict_mode=strict_mode,
+            fallback_plugin=fallback_plugin,
+            fallback_platform_key=fallback_platform_key,
+            di=di,
+            registry=registry,
+            exc=exc,
         )
-        return fallback_plugin
     return plugin
 
 
@@ -254,6 +428,9 @@ def resolve_comment_driven_documentation_plugin(
                     required_attributes=(),
                     strict_mode=strict_mode,
                     fallback_plugin=CommentDrivenDocumentationParser(),
+                    fallback_platform_key=None,
+                    di=di,
+                    registry=registry_obj,
                 )
 
     registry_plugin_class = registry_obj.get_comment_driven_doc_plugin("default")
@@ -263,6 +440,9 @@ def resolve_comment_driven_documentation_plugin(
             plugin_kind="comment_driven_documentation",
             strict_mode=strict_mode,
             fallback_plugin=CommentDrivenDocumentationParser(),
+            fallback_platform_key=None,
+            di=di,
+            registry=registry_obj,
         )
         return _validate_plugin_shape(
             plugin=plugin,
@@ -272,6 +452,9 @@ def resolve_comment_driven_documentation_plugin(
             required_attributes=(),
             strict_mode=strict_mode,
             fallback_plugin=CommentDrivenDocumentationParser(),
+            fallback_platform_key=None,
+            di=di,
+            registry=registry_obj,
         )
 
     return CommentDrivenDocumentationParser()
@@ -290,6 +473,7 @@ def _resolve_plugin_with_precedence(
     strict_mode: bool,
     registry: "PluginRegistry | None" = None,
     registry_getter_name: str = "get_extract_policy_plugin",
+    fallback_platform_key: str | None = None,
 ) -> Any:
     registry_obj = _resolve_registry(di, registry)
 
@@ -306,6 +490,9 @@ def _resolve_plugin_with_precedence(
                     required_attributes=required_attributes,
                     strict_mode=strict_mode,
                     fallback_plugin=fallback_plugin,
+                    fallback_platform_key=fallback_platform_key,
+                    di=di,
+                    registry=registry_obj,
                 )
 
     registry_getter = getattr(registry_obj, registry_getter_name)
@@ -316,6 +503,9 @@ def _resolve_plugin_with_precedence(
             plugin_kind=plugin_kind,
             strict_mode=strict_mode,
             fallback_plugin=fallback_plugin,
+            fallback_platform_key=fallback_platform_key,
+            di=di,
+            registry=registry_obj,
         )
         return _validate_plugin_shape(
             plugin=plugin,
@@ -325,6 +515,9 @@ def _resolve_plugin_with_precedence(
             required_attributes=required_attributes,
             strict_mode=strict_mode,
             fallback_plugin=fallback_plugin,
+            fallback_platform_key=fallback_platform_key,
+            di=di,
+            registry=registry_obj,
         )
 
     return fallback_plugin
@@ -353,6 +546,7 @@ def resolve_task_line_parsing_policy_plugin(
         fallback_plugin=_TASK_LINE_PARSING_FALLBACK,
         strict_mode=strict_mode,
         registry=registry,
+        fallback_platform_key="ansible",
     )
 
 
@@ -373,6 +567,7 @@ def resolve_task_annotation_policy_plugin(
         fallback_plugin=_TASK_ANNOTATION_FALLBACK,
         strict_mode=strict_mode,
         registry=registry,
+        fallback_platform_key="ansible",
     )
 
 
@@ -401,6 +596,7 @@ def resolve_task_traversal_policy_plugin(
         fallback_plugin=_TASK_TRAVERSAL_FALLBACK,
         strict_mode=strict_mode,
         registry=registry,
+        fallback_platform_key="ansible",
     )
 
 
@@ -421,6 +617,7 @@ def resolve_variable_extractor_policy_plugin(
         fallback_plugin=_VARIABLE_EXTRACTOR_FALLBACK,
         strict_mode=strict_mode,
         registry=registry,
+        fallback_platform_key="ansible",
     )
 
 
@@ -466,20 +663,10 @@ def resolve_jinja_analysis_policy_plugin(
     )
 
 
-def _make_standalone_di(role_path: str, exclude_paths=None):
-    import types
-
-    from prism.scanner_plugins.bundle_resolver import ensure_prepared_policy_bundle
-
-    options: dict = {
-        "role_path": role_path,
-        "exclude_path_patterns": exclude_paths,
-    }
-    ensure_prepared_policy_bundle(scan_options=options, di=None)
-    di = types.SimpleNamespace()
-    di.scan_options = options
-    di.plugin_registry = None
-    return di
+def _raise_standalone_runtime_path_error() -> NoReturn:
+    raise ValueError(
+        "scanner_plugins.defaults helper flows require a canonical di context"
+    )
 
 
 def extract_role_notes_from_comments(
@@ -489,8 +676,9 @@ def extract_role_notes_from_comments(
     *,
     di: object | None = None,
 ) -> dict[str, list[str]]:
-    standalone = _make_standalone_di(role_path, exclude_paths) if di is None else di
-    plugin = resolve_comment_driven_documentation_plugin(standalone)
+    if di is None:
+        _raise_standalone_runtime_path_error()
+    plugin = resolve_comment_driven_documentation_plugin(di)
     return plugin.extract_role_notes_from_comments(
         role_path,
         exclude_paths=exclude_paths,
@@ -502,51 +690,51 @@ def collect_unconstrained_dynamic_role_includes(
     role_path: str,
     exclude_paths: list[str] | None = None,
 ) -> list[dict[str, str]]:
-    from prism.scanner_plugins.ansible.extract_utils import (
-        collect_unconstrained_dynamic_role_includes as _impl,
-    )
-
-    di = _make_standalone_di(role_path, exclude_paths)
-    return _impl(role_path, exclude_paths, di=di)
+    del role_path, exclude_paths
+    _raise_standalone_runtime_path_error()
 
 
 def collect_unconstrained_dynamic_task_includes(
     role_path: str,
     exclude_paths: list[str] | None = None,
 ) -> list[dict[str, str]]:
-    from prism.scanner_plugins.ansible.extract_utils import (
-        collect_unconstrained_dynamic_task_includes as _impl,
-    )
-
-    di = _make_standalone_di(role_path, exclude_paths)
-    return _impl(role_path, exclude_paths, di=di)
+    del role_path, exclude_paths
+    _raise_standalone_runtime_path_error()
 
 
 def collect_molecule_scenarios(
     role_path: str,
     exclude_paths: list[str] | None = None,
 ) -> list[dict[str, object]]:
-    from prism.scanner_plugins.ansible.extract_utils import (
-        collect_molecule_scenarios,
-    )
-
-    di = _make_standalone_di(role_path, exclude_paths)
-    return collect_molecule_scenarios(role_path, exclude_paths, di=di)
+    del role_path, exclude_paths
+    _raise_standalone_runtime_path_error()
 
 
-def resolve_blocker_fact_builder() -> Callable[..., Any]:
-    """Return the canonical blocker-fact builder callable from the audit module.
-
-    Returns a callable matching BlockerFactBuilder Protocol shape, but typed
-    as Callable[..., Any] to avoid triggering structural type mismatch between
-    the concrete function signature (metadata: dict[str, Any]) and the Protocol
-    expectation (metadata: ScanMetadata).
-    """
+def resolve_blocker_fact_builder() -> BlockerFactBuilder:
+    """Return the canonical blocker-fact builder using the runtime protocol."""
     from prism.scanner_plugins.audit.blocker_fact_evaluator import (
         build_scan_policy_blocker_facts,
     )
 
-    return build_scan_policy_blocker_facts
+    def normalize_scan_metadata(metadata: ScanMetadata) -> dict[str, Any]:
+        normalized_metadata: dict[str, Any] = {}
+        for key, value in metadata.items():
+            normalized_metadata[key] = value
+        return normalized_metadata
+
+    def build_blocker_facts(
+        *,
+        scan_options: ScanOptionsDict,
+        metadata: ScanMetadata,
+        di: object,
+    ) -> ScanPolicyBlockerFacts:
+        return build_scan_policy_blocker_facts(
+            scan_options=scan_options,
+            metadata=normalize_scan_metadata(metadata),
+            di=di,
+        )
+
+    return build_blocker_facts
 
 
 def resolve_runbook_rows() -> Callable[[Mapping[str, Any] | None], list["RunbookRow"]]:

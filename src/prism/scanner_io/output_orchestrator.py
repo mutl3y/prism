@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Protocol, TypedDict
 
 from prism.scanner_data.contracts_output import (
     RunScanOutputPayload,
@@ -13,6 +13,7 @@ from prism.scanner_data.contracts_output import (
     validate_run_scan_output_payload,
     validate_runbook_sidecar_inputs,
 )
+from prism.scanner_core.di_helpers import get_event_bus_or_none
 from prism.scanner_io.emit_output import (
     ScanOutputRenderer,
     ScanReportRenderer,
@@ -21,14 +22,38 @@ from prism.scanner_io.emit_output import (
 )
 
 
+class RunbookRenderer(Protocol):
+    """Callable contract for runbook markdown rendering."""
+
+    def __call__(self, role_name: str, metadata: ScanMetadata) -> str: ...
+
+
+class RunbookCsvRenderer(Protocol):
+    """Callable contract for runbook CSV rendering."""
+
+    def __call__(self, metadata: ScanMetadata) -> str: ...
+
+
+class OutputOrchestratorOptions(TypedDict, total=False):
+    """Concrete options contract validated for OutputOrchestrator inputs."""
+
+    output_format: str
+    template: str | None
+    concise_readme: bool
+    scanner_report_output: str | None
+    include_scanner_report_link: bool
+    runbook_output: str | None
+    runbook_csv_output: str | None
+
+
 class OutputOrchestrator:
     """Coordinate primary output and sidecar emission with injectable renderers."""
 
     def __init__(
         self,
-        di: Any,
+        di: object,
         output_path: str,
-        options: dict[str, Any],
+        options: OutputOrchestratorOptions,
     ) -> None:
         validate_output_orchestrator_inputs(output_path=output_path, options=options)
         self._di = di
@@ -42,8 +67,8 @@ class OutputOrchestrator:
         *,
         render_and_write: ScanOutputRenderer,
         render_scanner_report: ScanReportRenderer,
-        render_runbook: Callable[[str, dict[str, Any] | None], str],
-        render_runbook_csv: Callable[[dict[str, Any] | None], str],
+        render_runbook: RunbookRenderer,
+        render_runbook_csv: RunbookCsvRenderer,
     ) -> str | bytes:
         """Render primary output and emit sidecars with injected renderer callables."""
         validated_payload = validate_run_scan_output_payload(payload)
@@ -70,8 +95,8 @@ class OutputOrchestrator:
             args=emission_args,
             render_and_write=render_and_write,
             render_scanner_report=render_scanner_report,
-            render_runbook=cast(Callable[[str, ScanMetadata], str], render_runbook),
-            render_runbook_csv=cast(Callable[[ScanMetadata], str], render_runbook_csv),
+            render_runbook=render_runbook,
+            render_runbook_csv=render_runbook_csv,
         )
 
     def render_and_emit_with_events(
@@ -81,14 +106,13 @@ class OutputOrchestrator:
         *,
         render_and_write: ScanOutputRenderer,
         render_scanner_report: ScanReportRenderer,
-        render_runbook: Callable[[str, dict[str, Any] | None], str],
-        render_runbook_csv: Callable[[dict[str, Any] | None], str],
+        render_runbook: RunbookRenderer,
+        render_runbook_csv: RunbookCsvRenderer,
     ) -> str | bytes:
         """Same as :meth:`render_and_emit` but emits PHASE_OUTPUT_RENDER events."""
         from prism.scanner_core.events import PHASE_OUTPUT_RENDER
 
-        event_bus = getattr(self._di, "factory_event_bus", lambda: None)()
-        ctx = {"output_path": self._output_path}
+        event_bus = get_event_bus_or_none(self._di)
         if event_bus is None:
             return self.render_and_emit(
                 payload,
@@ -98,6 +122,7 @@ class OutputOrchestrator:
                 render_runbook=render_runbook,
                 render_runbook_csv=render_runbook_csv,
             )
+        ctx: dict[str, object] = {"output_path": self._output_path}
         with event_bus.phase(PHASE_OUTPUT_RENDER, context=ctx):
             return self.render_and_emit(
                 payload,
@@ -114,9 +139,9 @@ class OutputOrchestrator:
         csv_path: str,
         *,
         role_name: str = "role",
-        metadata: dict[str, Any] | None = None,
-        render_runbook: Callable[[str, dict[str, Any] | None], str],
-        render_runbook_csv: Callable[[dict[str, Any] | None], str],
+        metadata: ScanMetadata | None = None,
+        render_runbook: RunbookRenderer,
+        render_runbook_csv: RunbookCsvRenderer,
     ) -> dict[str, int]:
         """Emit runbook markdown and CSV sidecars to specified paths."""
         validate_runbook_sidecar_inputs(
@@ -127,7 +152,7 @@ class OutputOrchestrator:
         )
 
         result: dict[str, int] = {}
-        sidecar_metadata: dict[str, Any] = metadata or {}
+        sidecar_metadata: ScanMetadata = metadata or {}
 
         md_path_obj = Path(md_path)
         md_path_obj.parent.mkdir(parents=True, exist_ok=True)

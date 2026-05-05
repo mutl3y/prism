@@ -13,7 +13,7 @@ from prism.scanner_plugins.ansible import (
 from prism.scanner_plugins.parsers.jinja import (
     collect_undeclared_jinja_variables as _collect_undeclared_jinja_variables,
 )
-from prism.scanner_data.contracts_request import TaskAnnotation
+from prism.scanner_data.contracts_request import TaskAnnotation, TaskMapping
 from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
     NormalizesMarkerPrefix,
 )
@@ -47,11 +47,11 @@ class AnsibleTaskLineParsingPolicyPlugin:
     TEMPLATED_INCLUDE_RE = task_line_parsing_module.TEMPLATED_INCLUDE_RE
 
     @staticmethod
-    def extract_constrained_when_values(task: dict, variable: str) -> list[str]:
+    def extract_constrained_when_values(task: TaskMapping, variable: str) -> list[str]:
         return task_traversal_bare.extract_constrained_when_values(task, variable)
 
     @staticmethod
-    def detect_task_module(task: dict) -> str | None:
+    def detect_task_module(task: TaskMapping) -> str | None:
         return task_line_parsing_module.detect_task_module(task)
 
 
@@ -75,19 +75,21 @@ class AnsibleTaskTraversalPolicyPlugin:
         )
 
     @staticmethod
-    def expand_include_target_candidates(task: dict, include_target: str) -> list[str]:
+    def expand_include_target_candidates(
+        task: TaskMapping, include_target: str
+    ) -> list[str]:
         return task_traversal_bare.expand_include_target_candidates(
             task, include_target
         )
 
     @staticmethod
-    def iter_role_include_targets(task: dict) -> list[str]:
+    def iter_role_include_targets(task: TaskMapping) -> list[str]:
         return task_traversal_bare.iter_role_include_targets(
             task, role_include_keys=_ANSIBLE_ROLE_INCLUDE_KEYS
         )
 
     @staticmethod
-    def iter_dynamic_role_include_targets(task: dict) -> list[str]:
+    def iter_dynamic_role_include_targets(task: TaskMapping) -> list[str]:
         return task_traversal_bare.iter_dynamic_role_include_targets(
             task, role_include_keys=_ANSIBLE_ROLE_INCLUDE_KEYS
         )

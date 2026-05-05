@@ -111,9 +111,11 @@ class BuildCollectionScanResultFn(Protocol):
 
 def _payload_metadata(payload: RunScanOutputPayload) -> ScanMetadata:
     metadata = payload.get("metadata")
-    if isinstance(metadata, dict):
-        return metadata
-    return {}
+    if metadata is None or not isinstance(metadata, dict):
+        raise ValueError(
+            f"'metadata' is required and must be a dict. Got: {metadata!r}"
+        )
+    return metadata
 
 
 def scan_collection(
@@ -237,9 +239,21 @@ def scan_collection(
             )
 
         if runbook_output_dir or runbook_csv_output_dir:
+            try:
+                metadata = _payload_metadata(role_payload)
+            except ValueError as exc:
+                failures.append(
+                    build_collection_failure_record_fn(
+                        role_dir=role_dir,
+                        exc=exc,
+                        include_traceback=include_traceback,
+                    )
+                )
+                continue
+
             write_collection_runbook_artifacts_fn(
                 role_name=role_dir.name,
-                metadata=_payload_metadata(role_payload),
+                metadata=metadata,
                 runbook_output_dir=runbook_output_dir,
                 runbook_csv_output_dir=runbook_csv_output_dir,
             )

@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import pytest
 
+from prism.scanner_plugins import get_default_plugin_registry
 from prism.scanner_plugins.ansible.readme_renderer import AnsibleReadmeRendererPlugin
 from prism.scanner_plugins.registry import PluginRegistry, PluginStatelessRequired
-from prism.scanner_plugins import DEFAULT_PLUGIN_REGISTRY
 
 
 # ---- round-trip register/get ---------------------------------------------
@@ -140,12 +140,12 @@ def test_register_readme_renderer_plugin_accepts_stateless_true() -> None:
 
 
 def test_bootstrap_registers_ansible_readme_renderer_in_default_registry() -> None:
-    result = DEFAULT_PLUGIN_REGISTRY.get_readme_renderer_plugin("ansible")
+    result = get_default_plugin_registry().get_readme_renderer_plugin("ansible")
     assert result is AnsibleReadmeRendererPlugin
 
 
 def test_default_registry_lists_ansible_in_readme_renderer_plugins() -> None:
-    result = DEFAULT_PLUGIN_REGISTRY.list_readme_renderer_plugins()
+    result = get_default_plugin_registry().list_readme_renderer_plugins()
     assert "ansible" in result
 
 

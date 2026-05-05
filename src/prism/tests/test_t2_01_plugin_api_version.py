@@ -101,6 +101,7 @@ def test_registry_accepts_plugin_with_matching_version() -> None:
 
     class _GoodPlugin:
         PRISM_PLUGIN_API_VERSION = PRISM_PLUGIN_API_VERSION
+        PLUGIN_IS_STATELESS = True
 
     reg.register_scan_pipeline_plugin("good", _GoodPlugin)  # type: ignore[arg-type]
     assert "good" in reg.list_scan_pipeline_plugins()
@@ -108,7 +109,9 @@ def test_registry_accepts_plugin_with_matching_version() -> None:
 
 def test_default_bootstrap_plugins_register_without_error() -> None:
     """Smoke: importing scanner_plugins must not raise version errors."""
-    from prism.scanner_plugins import DEFAULT_PLUGIN_REGISTRY
+    from prism.api_layer.plugin_facade import get_default_plugin_registry
 
-    assert "default" in DEFAULT_PLUGIN_REGISTRY.list_scan_pipeline_plugins()
-    assert "ansible" in DEFAULT_PLUGIN_REGISTRY.list_scan_pipeline_plugins()
+    default_plugin_registry = get_default_plugin_registry()
+
+    assert "default" in default_plugin_registry.list_scan_pipeline_plugins()
+    assert "ansible" in default_plugin_registry.list_scan_pipeline_plugins()

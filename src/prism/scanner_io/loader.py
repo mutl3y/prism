@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Callable, TypeGuard, cast
 
 import yaml
 
+from prism.errors import PrismRuntimeError, category_for_code
+
 if TYPE_CHECKING:
     from prism.scanner_data.contracts_request import (
         PreparedYAMLParsingPolicy,
@@ -17,6 +19,18 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+
+def build_yaml_load_error(path: Path, exc: Exception) -> PrismRuntimeError:
+    return PrismRuntimeError(
+        code="yaml_load_error",
+        category=category_for_code("yaml_load_error"),
+        message=f"{path}: {exc}",
+        detail={
+            "path": str(path),
+            "error_type": type(exc).__name__,
+        },
+    )
 
 
 def _is_yaml_parse_failure(value: object) -> TypeGuard[YamlParseFailure]:
@@ -35,15 +49,20 @@ def _is_yaml_parse_failure(value: object) -> TypeGuard[YamlParseFailure]:
 
 
 def _resolve_plugin_registry(di: object | None = None):
-    if di is None:
-        logger.debug("YAML parsing policy resolution: no DI provided")
-        return None
-    registry = getattr(di, "plugin_registry", None)
+    """Extract registry from DI without bootstrap fallback.
+
+    Loader standalone contract: returns None when no DI registry is available.
+    Does NOT fall back to bootstrap singleton, unlike defaults._resolve_registry.
+    """
+    from prism.scanner_plugins.defaults import _get_registry_from_di
+
+    registry = _get_registry_from_di(di)
     if registry is not None:
         logger.debug(
             "YAML parsing policy resolution: using DI.plugin_registry override"
         )
         return registry
+    logger.debug("YAML parsing policy resolution: no DI registry available")
     return None
 
 
@@ -83,16 +102,7 @@ def _get_yaml_parsing_policy(di: object | None = None) -> PreparedYAMLParsingPol
         resolve_yaml_parsing_policy_plugin as _resolve_yaml_plugin,
     )
 
-    registry = _resolve_plugin_registry(di)
-    if registry is None:
-        logger.debug(
-            "YAML parsing policy resolution: invoking resolver without registry override"
-        )
-        return _resolve_yaml_plugin(di)
-    logger.debug(
-        "YAML parsing policy resolution: invoking resolver with registry override"
-    )
-    return _resolve_yaml_plugin(di, registry=registry)
+    return _resolve_policy_with_registry(_resolve_yaml_plugin, di)
 
 
 def _role_relative_candidate_path(path: Path, role_root: Path) -> str | None:
@@ -268,6 +278,6 @@ def load_yaml_file(path: Path, *, di: object | None = None) -> object:
     try:
         text = path.read_text(encoding="utf-8")
         return yaml.safe_load(text)
-    except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
+    except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError) as exc:
         logger.warning("load_yaml_file failed for %s", path, exc_info=True)
-        return None
+        raise build_yaml_load_error(path, exc) from exc

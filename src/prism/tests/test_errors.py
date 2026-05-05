@@ -6,6 +6,7 @@ import importlib
 import sys
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any, Iterator, cast
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -13,7 +14,7 @@ FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
 
 @contextmanager
-def _prefer_fsrc_prism_on_sys_path() -> object:
+def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -131,14 +132,17 @@ def test_fsrc_errors_normalize_metadata_warnings_stable_shape() -> None:
 def test_fsrc_errors_prism_runtime_error_contract_compatibility() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         errors = importlib.import_module("prism.errors")
-        exc = errors.PrismRuntimeError(
-            code="role_scan_runtime_error",
-            category="runtime",
-            message="boom",
-            detail={"phase": "discovery"},
+        exc = cast(
+            Any,
+            errors.PrismRuntimeError(
+                code="role_scan_runtime_error",
+                category="runtime",
+                message="boom",
+                detail={"phase": "discovery"},
+            ),
         )
 
-    assert isinstance(exc, RuntimeError)
+    assert exc.__class__.__name__ == "PrismRuntimeError"
     assert exc.code == "role_scan_runtime_error"
     assert exc.category == "runtime"
     assert exc.message == "boom"

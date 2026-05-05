@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -14,7 +15,7 @@ CANONICAL_SOURCE_ROOT = PROJECT_ROOT / "src"
 
 
 @contextmanager
-def _prefer_canonical_prism_on_sys_path() -> object:
+def _prefer_canonical_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -39,7 +40,9 @@ def test_canonical_prism_package_root_imports_cleanly() -> None:
     with _prefer_canonical_prism_on_sys_path():
         imported = importlib.import_module("prism")
 
-    module_file = Path(imported.__file__).resolve()
+    module_file_path = imported.__file__
+    assert module_file_path is not None
+    module_file = Path(module_file_path).resolve()
     assert module_file == CANONICAL_SOURCE_ROOT / "prism" / "__init__.py"
 
 

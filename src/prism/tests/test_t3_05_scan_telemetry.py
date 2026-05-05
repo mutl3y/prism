@@ -15,6 +15,33 @@ from prism.scanner_core.telemetry import (
     TelemetryCollector,
     telemetry_session,
 )
+from prism.scanner_data.contracts_request import ScanOptionsDict
+
+
+def _scan_options() -> ScanOptionsDict:
+    return {
+        "role_path": "/tmp/role",
+        "role_name_override": None,
+        "readme_config_path": None,
+        "policy_config_path": None,
+        "include_vars_main": True,
+        "exclude_path_patterns": None,
+        "detailed_catalog": False,
+        "include_task_parameters": False,
+        "include_task_runbooks": False,
+        "inline_task_runbooks": False,
+        "include_collection_checks": False,
+        "keep_unknown_style_sections": False,
+        "adopt_heading_mode": None,
+        "vars_seed_paths": None,
+        "style_readme_path": None,
+        "style_source_path": None,
+        "style_guide_skeleton": False,
+        "compare_role_path": None,
+        "fail_on_unconstrained_dynamic_includes": None,
+        "fail_on_yaml_like_task_annotations": None,
+        "ignore_unresolved_internal_underscore_references": None,
+    }
 
 
 def test_telemetry_collector_records_phase_durations() -> None:
@@ -83,7 +110,7 @@ def test_telemetry_collector_via_di_container_event_bus() -> None:
     collector = TelemetryCollector()
     container = DIContainer(
         role_path="/tmp/role",
-        scan_options={},
+        scan_options=_scan_options(),
         event_listeners=[collector],
     )
     bus = container.factory_event_bus()

@@ -6,14 +6,14 @@ import importlib
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator, get_type_hints
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
 
 @contextmanager
-def _prefer_fsrc_prism_on_sys_path() -> object:
+def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -136,6 +136,49 @@ def test_bundle_received_through_generic_contract_not_ansible_concrete_type() ->
     assert participants_has_task_line
 
 
+def test_scan_pipeline_public_contract_uses_canonical_types() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        interfaces_module = importlib.import_module("prism.scanner_plugins.interfaces")
+        ansible_module = importlib.import_module("prism.scanner_plugins.ansible")
+
+    provider_hints = get_type_hints(
+        interfaces_module.PlatformExecutionBundleProvider.build_execution_bundle,
+        vars(interfaces_module),
+        vars(interfaces_module),
+    )
+    assert provider_hints["scan_options"] is interfaces_module.ScanOptionsDict
+    assert provider_hints["return"] is interfaces_module.PlatformExecutionBundle
+
+    process_hints = get_type_hints(
+        ansible_module.AnsibleScanPipelinePlugin.process_scan_pipeline,
+        vars(ansible_module),
+        vars(ansible_module),
+    )
+    assert process_hints["scan_options"] is interfaces_module.ScanOptionsDict
+    assert process_hints["scan_context"] is interfaces_module.ScanMetadata
+    assert process_hints["return"] is interfaces_module.ScanPipelinePreflightContext
+
+    orchestrate_hints = get_type_hints(
+        ansible_module.AnsibleScanPipelinePlugin.orchestrate_scan_payload,
+        vars(ansible_module),
+        vars(ansible_module),
+    )
+    assert orchestrate_hints["payload"] == interfaces_module.ScanPipelinePayload
+    assert orchestrate_hints["scan_options"] is interfaces_module.ScanOptionsDict
+    assert orchestrate_hints["preflight_context"] == (
+        interfaces_module.ScanMetadata | None
+    )
+    assert orchestrate_hints["return"] == interfaces_module.ScanPipelinePayload
+
+    bundle_hints = get_type_hints(
+        ansible_module.build_ansible_execution_bundle,
+        vars(ansible_module),
+        vars(ansible_module),
+    )
+    assert bundle_hints["scan_options"] == (interfaces_module.ScanOptionsDict | None)
+    assert bundle_hints["return"] is interfaces_module.PlatformExecutionBundle
+
+
 def test_ansible_bundle_prepared_policy_accepted_by_ensure_prepared_policy_bundle() -> (
     None
 ):
@@ -167,13 +210,21 @@ def test_ansible_bundle_prepared_policy_accepted_by_ensure_prepared_policy_bundl
 
 def test_conforming_provider_satisfies_bundle_provider_protocol() -> None:
     with _prefer_fsrc_prism_on_sys_path():
+        interfaces_module = importlib.import_module("prism.scanner_plugins.interfaces")
         ansible_module = importlib.import_module("prism.scanner_plugins.ansible")
 
     class _ConformingProvider:
-        def build_execution_bundle(self, scan_options: dict[str, Any]) -> dict:
+        def build_execution_bundle(self, scan_options: Any) -> Any:
             return ansible_module.build_ansible_execution_bundle(scan_options)
 
     provider = _ConformingProvider()
     bundle = provider.build_execution_bundle({})
     assert "prepared_policy" in bundle
     assert "platform_participants" in bundle
+
+    provider_hints = get_type_hints(
+        interfaces_module.PlatformExecutionBundleProvider.build_execution_bundle,
+        vars(interfaces_module),
+        vars(interfaces_module),
+    )
+    assert provider_hints["scan_options"] is interfaces_module.ScanOptionsDict

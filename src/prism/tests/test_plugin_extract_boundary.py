@@ -25,7 +25,6 @@ EXPECTED_EXTRACT_UTILS_CALLERS = {
     Path("ansible") / "variable_discovery.py",
     Path("ansible") / "readme_renderer.py",
     Path("audit") / "dynamic_include_audit.py",
-    Path("defaults.py"),
 }
 
 

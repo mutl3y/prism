@@ -47,6 +47,11 @@ class TestParseScanRolePayload:
         result = parse_scan_role_payload(payload)
         assert result == {"role_name": "testrole"}
 
+    def test_accepts_metadata_dict(self):
+        payload = {"role_name": "testrole", "metadata": {"source": "api"}}
+        result = parse_scan_role_payload(payload)
+        assert result["metadata"] == {"source": "api"}
+
     def test_raises_runtime_error_on_non_dict_json(self):
         with pytest.raises(RuntimeError, match="SCAN_ROLE_PAYLOAD_TYPE_INVALID"):
             parse_scan_role_payload("[1, 2, 3]")

@@ -89,7 +89,7 @@ def load_seed_variables(
             continue
         try:
             loaded = load_yaml_file(candidate, di=di)
-        except (OSError, yaml.YAMLError, UnicodeDecodeError, ValueError):
+        except (OSError, yaml.YAMLError, UnicodeDecodeError, ValueError, RuntimeError):
             # Seed files are optional user-supplied inputs; silently skip
             # unreadable or malformed entries. Programmer errors (TypeError,
             # AttributeError) are intentionally NOT caught and will propagate.

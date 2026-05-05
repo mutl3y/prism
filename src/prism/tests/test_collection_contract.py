@@ -736,6 +736,69 @@ def test_fsrc_api_scan_collection_writes_runbook_outputs_when_requested(
     )
 
 
+def test_fsrc_api_scan_collection_demotes_invalid_metadata_on_runbook_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    collection_root = tmp_path / "demo_collection"
+    _build_collection_root(collection_root)
+
+    with _prefer_fsrc_prism_on_sys_path():
+        api_module = importlib.import_module("prism.api")
+
+        def _fake_scan_role(role_path: str, **kwargs: object) -> dict[str, object]:
+            del kwargs
+            role_name = Path(role_path).name
+            if role_name == "role_b":
+                return {
+                    "role_name": role_name,
+                    "metadata": ["invalid"],
+                }
+            return {
+                "role_name": role_name,
+                "metadata": {"task_catalog": [{"name": "task"}]},
+            }
+
+        runbook_calls: list[tuple[str, dict[str, object]]] = []
+
+        def _fake_write_collection_runbook_artifacts(**kwargs: object) -> None:
+            role_name = kwargs.get("role_name")
+            metadata = kwargs.get("metadata")
+            assert isinstance(role_name, str)
+            assert isinstance(metadata, dict)
+            runbook_calls.append((role_name, metadata))
+
+        monkeypatch.setattr(api_module, "scan_role", _fake_scan_role)
+        monkeypatch.setattr(
+            api_module,
+            "write_collection_runbook_artifacts",
+            _fake_write_collection_runbook_artifacts,
+        )
+
+        payload = api_module.scan_collection(
+            str(collection_root),
+            runbook_output_dir=str(tmp_path / "runbooks"),
+        )
+
+    assert payload["summary"] == {
+        "total_roles": 2,
+        "scanned_roles": 1,
+        "failed_roles": 1,
+    }
+    assert [entry["role"] for entry in payload["roles"]] == ["role_a"]
+    assert runbook_calls == [("role_a", {"task_catalog": [{"name": "task"}]})]
+    assert payload["failures"] == [
+        {
+            "role": "role_b",
+            "path": str((collection_root / "roles" / "role_b").resolve()),
+            "error_code": "role_content_invalid",
+            "error_category": "validation",
+            "error_type": "ValueError",
+            "error": "'metadata' is required and must be a dict. Got: ['invalid']",
+        }
+    ]
+
+
 def test_fsrc_api_scan_collection_reraises_rendered_readme_runtime_failures(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

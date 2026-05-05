@@ -42,7 +42,7 @@ def test_di_variable_discovery_plugin_resolves_through_registry():
         container = di_module.DIContainer(
             role_path="/tmp/role",
             scan_options={"role_path": "/tmp/role"},
-            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
+            registry=plugins_module.get_default_plugin_registry(),
         )
         plugin = container.factory_variable_discovery_plugin()
         assert plugin.__class__.__name__ == "AnsibleVariableDiscoveryPlugin"
@@ -56,7 +56,7 @@ def test_di_feature_detection_plugin_resolves_through_registry():
         container = di_module.DIContainer(
             role_path="/tmp/role",
             scan_options={"role_path": "/tmp/role"},
-            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
+            registry=plugins_module.get_default_plugin_registry(),
         )
         plugin = container.factory_feature_detection_plugin()
         assert plugin.__class__.__name__ == "AnsibleFeatureDetectionPlugin"
@@ -188,8 +188,8 @@ def test_di_factory_override_precedence_preserved_for_feature_detection_plugin()
 # --- GF2-W1-T01: _resolve_platform_key selection chain tests ---
 
 
-def test_registry_get_default_platform_key_returns_first_registered():
-    """get_default_platform_key returns the first registered variable_discovery key."""
+def test_registry_get_default_platform_key_requires_explicit_default_when_ambiguous():
+    """get_default_platform_key returns None when multiple platform candidates exist."""
     with _prefer_fsrc_prism_on_sys_path():
         registry_module = importlib.import_module("prism.scanner_plugins.registry")
         reg = registry_module.PluginRegistry()
@@ -200,9 +200,26 @@ def test_registry_get_default_platform_key_returns_first_registered():
 
         reg.register_variable_discovery_plugin("terraform", _FakePlugin)
         reg.register_variable_discovery_plugin("ansible", _FakePlugin)
-        result = reg.get_default_platform_key()
-        assert result in ("terraform", "ansible")
-        assert result is not None
+        assert reg.get_default_platform_key() is None
+
+
+def test_registry_get_default_platform_key_returns_explicit_default() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        registry_module = importlib.import_module("prism.scanner_plugins.registry")
+        reg = registry_module.PluginRegistry()
+
+        class _FakePlugin:
+            PLUGIN_IS_STATELESS = True
+
+            def __init__(self, di: object | None = None) -> None:
+                self.di = di
+
+        reg.register_variable_discovery_plugin("terraform", _FakePlugin)
+        reg.register_variable_discovery_plugin("ansible", _FakePlugin)
+        reg.register_scan_pipeline_plugin("ansible", _FakePlugin)
+        reg.set_default_platform_key("ansible")
+
+        assert reg.get_default_platform_key() == "ansible"
 
 
 def test_registry_get_default_platform_key_empty_returns_none():
@@ -221,10 +238,20 @@ def test_resolve_platform_key_default_uses_registry():
         container = di_module.DIContainer(
             role_path="/tmp/role",
             scan_options={"role_path": "/tmp/role"},
-            registry=plugins_module.DEFAULT_PLUGIN_REGISTRY,
+            registry=plugins_module.get_default_plugin_registry(),
         )
         key = container._resolve_platform_key()
         assert key == "ansible"
+
+
+def test_default_registry_sets_explicit_platform_default() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        plugins_module = importlib.import_module("prism.scanner_plugins")
+
+        assert (
+            plugins_module.get_default_plugin_registry().get_default_platform_key()
+            == "ansible"
+        )
 
 
 def test_resolve_platform_key_explicit_scan_pipeline_plugin():
@@ -317,6 +344,7 @@ def test_execution_request_builder_uses_default_registry_over_scan_options_bypas
                 platform_key: str,
                 scanner_context_wiring: dict[str, object],
                 factory_overrides: dict[str, object],
+                inherit_default_event_listeners: bool = False,
             ) -> None:
                 self.role_path = role_path
                 self.scan_options = scan_options
@@ -324,6 +352,10 @@ def test_execution_request_builder_uses_default_registry_over_scan_options_bypas
                 self.platform_key = platform_key
                 self.scanner_context_wiring = scanner_context_wiring
                 self.factory_overrides = factory_overrides
+                self.inherit_default_event_listeners = inherit_default_event_listeners
+
+            def replace_scan_options(self, scan_options: dict[str, object]) -> None:
+                self.scan_options = scan_options
 
             def factory_scanner_context(self) -> _ScannerContext:
                 return _ScannerContext()
@@ -376,11 +408,114 @@ def test_loader_registry_resolution_ignores_scan_options_bypass():
         assert loader_module._resolve_plugin_registry(_Container(None)) is None
 
 
-def test_loader_live_yaml_policy_resolution_uses_di_registry_authority(
+def test_get_registry_from_di_shared_seam_returns_none_on_no_di():
+    """Shared _get_registry_from_di returns None when di is None."""
+    with _prefer_fsrc_prism_on_sys_path():
+        defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+        assert defaults_module._get_registry_from_di(None) is None
+
+
+def test_defaults_non_strict_fallback_uses_selected_platform_authority() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+        errors_module = importlib.import_module("prism.errors")
+
+        class _MalformedTaskLinePlugin:
+            pass
+
+        class _Container:
+            scan_options = {
+                "role_path": "/tmp/role",
+                "scan_pipeline_plugin": "terraform",
+            }
+
+            def factory_task_line_parsing_policy_plugin(
+                self,
+            ) -> _MalformedTaskLinePlugin:
+                return _MalformedTaskLinePlugin()
+
+        with pytest.raises(errors_module.PrismRuntimeError) as exc_info:
+            defaults_module.resolve_task_line_parsing_policy_plugin(
+                _Container(),
+                strict_mode=False,
+            )
+
+    assert "terraform" in str(exc_info.value)
+
+
+def test_get_registry_from_di_shared_seam_returns_di_registry():
+    """Shared _get_registry_from_di returns DI.plugin_registry when present."""
+    with _prefer_fsrc_prism_on_sys_path():
+        defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+        mock_registry = object()
+
+        class _Container:
+            def __init__(self, plugin_registry: object) -> None:
+                self.plugin_registry = plugin_registry
+
+        assert (
+            defaults_module._get_registry_from_di(_Container(mock_registry))
+            is mock_registry
+        )
+
+
+def test_get_registry_from_di_shared_seam_returns_none_on_no_registry_attr():
+    """Shared _get_registry_from_di returns None when DI has no plugin_registry attr."""
+    with _prefer_fsrc_prism_on_sys_path():
+        defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+
+        class _Container:
+            pass
+
+        assert defaults_module._get_registry_from_di(_Container()) is None
+
+
+def test_defaults_resolve_registry_uses_shared_seam():
+    """defaults._resolve_registry delegates DI extraction to shared _get_registry_from_di."""
+    with _prefer_fsrc_prism_on_sys_path():
+        defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
+        mock_registry = object()
+
+        class _Container:
+            def __init__(self, plugin_registry: object) -> None:
+                self.plugin_registry = plugin_registry
+
+        result = defaults_module._resolve_registry(_Container(mock_registry))
+        assert result is mock_registry
+
+
+def test_loader_resolve_plugin_registry_uses_shared_seam():
+    """loader._resolve_plugin_registry delegates DI extraction to shared _get_registry_from_di."""
+    with _prefer_fsrc_prism_on_sys_path():
+        loader_module = importlib.import_module("prism.scanner_io.loader")
+        mock_registry = object()
+
+        class _Container:
+            def __init__(self, plugin_registry: object) -> None:
+                self.plugin_registry = plugin_registry
+
+        result = loader_module._resolve_plugin_registry(_Container(mock_registry))
+        assert result is mock_registry
+
+
+def test_live_yaml_policy_resolution_preserves_loader_standalone_contract():
+    """YAML policy resolution in loader must not widen fallback authority."""
+    with _prefer_fsrc_prism_on_sys_path():
+        loader_module = importlib.import_module("prism.scanner_io.loader")
+
+        class _DIWithoutRegistry:
+            pass
+
+        policy = loader_module._get_yaml_parsing_policy(_DIWithoutRegistry())
+        assert policy is not None
+        assert callable(getattr(policy, "load_yaml_file", None))
+
+
+def test_loader_yaml_policy_resolution_threads_explicit_di_registry_authority(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """load_yaml_file must thread only DI.plugin_registry into live resolver calls."""
+    """_get_yaml_parsing_policy must pass the loader-resolved DI registry explicitly."""
     with _prefer_fsrc_prism_on_sys_path():
         loader_module = importlib.import_module("prism.scanner_io.loader")
         defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
@@ -408,17 +543,20 @@ def test_loader_live_yaml_policy_resolution_uses_di_registry_authority(
                 self.plugin_registry = authoritative_registry
                 self.scan_options = {"plugin_registry": bypass_registry}
 
+        container = _Container()
+
         monkeypatch.setattr(
             defaults_module,
             "resolve_yaml_parsing_policy_plugin",
             _resolve_yaml_parsing_policy_plugin,
         )
 
+        policy = loader_module._get_yaml_parsing_policy(container)
+
         yaml_path = tmp_path / "sample.yml"
         yaml_path.write_text("key: value\n", encoding="utf-8")
 
-        assert loader_module.load_yaml_file(yaml_path, di=_Container()) == {
-            "loaded_from": "sample.yml"
-        }
+        assert policy.load_yaml_file(yaml_path) == {"loaded_from": "sample.yml"}
+        assert captured["di"] is container
         assert captured["registry"] is authoritative_registry
         assert captured["registry"] is not bypass_registry

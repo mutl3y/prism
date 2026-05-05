@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Roll up and rotate model-usage telemetry for Gilfoyle cycles.
+"""Roll up and rotate model-usage telemetry for review cycles.
 
 This script reads per-cycle ledgers at:
-  docs/plan/gilfoyle-review-*/artifacts/model-usage-ledger.yaml
+    docs/plan/gilfoyle-review-*/artifacts/model-usage-ledger.yaml
+    docs/plan/mutl3y-review-*/artifacts/model-usage-ledger.yaml
 
 It writes a compact rollup to:
-  docs/plan/.gilfoyle-lessons/model-usage-rollup.yaml
+    docs/plan/.mutl3y-lessons/model-usage-rollup.yaml
 
 It can also rotate the long-running lessons history file:
-  docs/plan/.gilfoyle-lessons/model-usage-history.yaml
+    docs/plan/.mutl3y-lessons/model-usage-history.yaml
 keeping only the most recent N cycle snapshots and archiving dropped entries to:
-  docs/plan/.gilfoyle-lessons/archive/
+    docs/plan/.mutl3y-lessons/archive/
 """
 
 from __future__ import annotations
@@ -23,8 +24,11 @@ from typing import Any
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-LEDGER_GLOB = "docs/plan/gilfoyle-review-*/artifacts/model-usage-ledger.yaml"
-LESSONS_DIR = REPO_ROOT / "docs/plan/.gilfoyle-lessons"
+LEDGER_GLOBS = (
+    "docs/plan/gilfoyle-review-*/artifacts/model-usage-ledger.yaml",
+    "docs/plan/mutl3y-review-*/artifacts/model-usage-ledger.yaml",
+)
+LESSONS_DIR = REPO_ROOT / "docs/plan/.mutl3y-lessons"
 ROLLUP_PATH = LESSONS_DIR / "model-usage-rollup.yaml"
 HISTORY_PATH = LESSONS_DIR / "model-usage-history.yaml"
 ARCHIVE_DIR = LESSONS_DIR / "archive"
@@ -45,14 +49,19 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 
 def _collect_ledgers() -> list[dict[str, Any]]:
     ledgers: list[dict[str, Any]] = []
-    for path in sorted(REPO_ROOT.glob(LEDGER_GLOB)):
-        data = _load_yaml(path)
-        cycle = str(data.get("cycle") or "")
-        if not cycle:
-            plan_part = path.parts[-4] if len(path.parts) >= 4 else ""
-            if "-g" in plan_part:
-                cycle = f"g{plan_part.rsplit('-g', 1)[-1]}"
-        ledgers.append({"path": path, "cycle": cycle, "data": data})
+    seen_paths: set[Path] = set()
+    for ledger_glob in LEDGER_GLOBS:
+        for path in sorted(REPO_ROOT.glob(ledger_glob)):
+            if path in seen_paths:
+                continue
+            seen_paths.add(path)
+            data = _load_yaml(path)
+            cycle = str(data.get("cycle") or "")
+            if not cycle:
+                plan_part = path.parts[-4] if len(path.parts) >= 4 else ""
+                if "-g" in plan_part:
+                    cycle = f"g{plan_part.rsplit('-g', 1)[-1]}"
+            ledgers.append({"path": path, "cycle": cycle, "data": data})
     ledgers.sort(key=lambda item: _cycle_key(item["cycle"]))
     return ledgers
 
@@ -214,7 +223,7 @@ def _build_rollup(window_cycles: int) -> dict[str, Any]:
         "version": 1,
         "generated_at": datetime.now(UTC).isoformat(),
         "source": {
-            "ledger_glob": LEDGER_GLOB,
+            "ledger_globs": list(LEDGER_GLOBS),
             "ledger_count": len(ledgers),
             "cycles_seen": unique_cycles,
         },

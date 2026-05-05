@@ -1,15 +1,18 @@
 """Scanner plugin package ownership for the fsrc lane.
 
-Importing this module bootstraps required defaults onto the canonical plugin
-registry singleton and exposes that same singleton via DEFAULT_PLUGIN_REGISTRY.
+Importing this module stays side-effect free until a caller explicitly asks for
+the default registry through the exported bootstrap helpers.
 
-Bootstrap logic is now centralized in scanner_plugins.bootstrap to resolve
+Bootstrap logic is centralized in scanner_plugins.bootstrap to resolve
 O001/O008/O010/O015 (DI/plugin bootstrap coupling and ordering risks).
 """
 
 from __future__ import annotations
 
-from prism.scanner_plugins.bootstrap import initialize_default_registry
+from prism.scanner_plugins.bootstrap import (
+    get_default_plugin_registry,
+    initialize_default_registry,
+)
 from prism.scanner_plugins.registry import (
     PRISM_PLUGIN_API_VERSION,
     PluginAPIVersionMismatch,
@@ -167,13 +170,13 @@ def bootstrap_default_plugins(registry=None):
         if not registry.is_reserved_unsupported_platform(platform_name):
             registry.register_reserved_unsupported_platform(platform_name)
 
-    discover_entry_point_plugins(registry=registry)
+    registry.set_default_platform_key("ansible")
+    discover_entry_point_plugins(registry=registry, raise_on_error=True)
 
     return registry
 
 
 __all__ = [
-    "DEFAULT_PLUGIN_REGISTRY",
     "EntryPointPluginLoadError",
     "PRISM_PLUGIN_API_VERSION",
     "PRISM_PLUGIN_ENTRY_POINT_GROUP",
@@ -181,22 +184,9 @@ __all__ = [
     "ScanPipelinePlugin",
     "bootstrap_default_plugins",
     "discover_entry_point_plugins",
+    "get_default_plugin_registry",
+    "initialize_default_registry",
     "interfaces",
     "registry",
     "validate_plugin_api_version",
 ]
-
-
-# NOTE (FIND-G19-01 / O001-O015 remediation): This module-level call delegates to
-# scanner_plugins.bootstrap.initialize_default_registry(), which runs built-in
-# plugin registration and entry-point discovery at import time. That is an
-# intentional side effect: the canonical plugin registry singleton must be
-# populated before any resolver can call get_default_plugin_registry().
-#
-# Bootstrap logic is now centralized in scanner_plugins/bootstrap.py instead of
-# scattered across __init__.py, di.py, and defaults.py, which resolves:
-# - O001: DI composition root coupling (di.py no longer imports registry directly)
-# - O008: bootstrap/defaults inter-dependencies (defaults now uses bootstrap facade)
-# - O010: defaults conditional runtime import authority (explicit phases)
-# - O015: core/plugin interface coupling at DI layer (facade seam)
-DEFAULT_PLUGIN_REGISTRY = initialize_default_registry()

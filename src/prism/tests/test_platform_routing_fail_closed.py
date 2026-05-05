@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,7 @@ FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
 
 @contextmanager
-def _prefer_fsrc_prism_on_sys_path() -> object:
+def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -48,7 +49,7 @@ def test_kubernetes_platform_raises_not_supported_in_non_strict_mode() -> None:
             role_path="/tmp/role",
             scan_options={"platform": "kubernetes", "strict_phase_failures": False},
             kernel_orchestrator_fn=lambda **kw: {},
-            registry=scanner_plugins.DEFAULT_PLUGIN_REGISTRY,
+            registry=scanner_plugins.get_default_plugin_registry(),
         )
 
     assert exc_info.value.code == "platform_not_supported"
@@ -65,7 +66,7 @@ def test_terraform_platform_raises_not_supported_in_non_strict_mode() -> None:
             role_path="/tmp/role",
             scan_options={"platform": "terraform", "strict_phase_failures": False},
             kernel_orchestrator_fn=lambda **kw: {},
-            registry=scanner_plugins.DEFAULT_PLUGIN_REGISTRY,
+            registry=scanner_plugins.get_default_plugin_registry(),
         )
 
     assert exc_info.value.code == "platform_not_supported"
@@ -130,7 +131,7 @@ def test_kubernetes_strict_mode_raises_platform_not_supported() -> None:
             role_path="/tmp/role",
             scan_options={"platform": "kubernetes", "strict_phase_failures": True},
             kernel_orchestrator_fn=lambda **kw: {},
-            registry=scanner_plugins.DEFAULT_PLUGIN_REGISTRY,
+            registry=scanner_plugins.get_default_plugin_registry(),
         )
 
     assert exc_info.value.code == "platform_not_supported"
@@ -147,7 +148,7 @@ def test_terraform_strict_mode_raises_platform_not_supported() -> None:
             role_path="/tmp/role",
             scan_options={"platform": "terraform", "strict_phase_failures": True},
             kernel_orchestrator_fn=lambda **kw: {},
-            registry=scanner_plugins.DEFAULT_PLUGIN_REGISTRY,
+            registry=scanner_plugins.get_default_plugin_registry(),
         )
 
     assert exc_info.value.code == "platform_not_supported"
@@ -183,6 +184,8 @@ def test_ansible_platform_routing_outcome_absent_on_normal_path() -> None:
         registry_module = importlib.import_module("prism.scanner_plugins.registry")
 
     class _MockAnsiblePlugin:
+        PLUGIN_IS_STATELESS = True
+
         def process_scan_pipeline(
             self,
             scan_options: dict[str, Any],

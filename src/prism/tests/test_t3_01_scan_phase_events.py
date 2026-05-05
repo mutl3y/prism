@@ -11,6 +11,33 @@ from prism.scanner_core.events import (
     EventBus,
     ScanPhaseEvent,
 )
+from prism.scanner_data.contracts_request import ScanOptionsDict
+
+
+def _scan_options() -> ScanOptionsDict:
+    return {
+        "role_path": "/tmp/x",
+        "role_name_override": None,
+        "readme_config_path": None,
+        "policy_config_path": None,
+        "include_vars_main": True,
+        "exclude_path_patterns": None,
+        "detailed_catalog": False,
+        "include_task_parameters": False,
+        "include_task_runbooks": False,
+        "inline_task_runbooks": False,
+        "include_collection_checks": False,
+        "keep_unknown_style_sections": False,
+        "adopt_heading_mode": None,
+        "vars_seed_paths": None,
+        "style_readme_path": None,
+        "style_source_path": None,
+        "style_guide_skeleton": False,
+        "compare_role_path": None,
+        "fail_on_unconstrained_dynamic_includes": None,
+        "fail_on_yaml_like_task_annotations": None,
+        "ignore_unresolved_internal_underscore_references": None,
+    }
 
 
 def test_scan_phase_event_validates_kind() -> None:
@@ -101,7 +128,7 @@ def test_di_container_exposes_event_bus() -> None:
     received: list[ScanPhaseEvent] = []
     di = DIContainer(
         role_path="/tmp/x",
-        scan_options={},
+        scan_options=_scan_options(),
         event_listeners=[received.append],
     )
     bus = di.factory_event_bus()
@@ -128,11 +155,11 @@ def test_feature_detector_emits_phase_events(tmp_path) -> None:
 
     di = DIContainer(
         role_path=str(tmp_path),
-        scan_options={"feature_detection_plugin": _Plugin()},
+        scan_options=_scan_options(),
         event_listeners=[received.append],
     )
     di.inject_mock("feature_detection_plugin", _Plugin())
-    fd = FeatureDetector(di, str(tmp_path), {})
+    fd = FeatureDetector(di, str(tmp_path), _scan_options())
     result = fd.detect()
     assert result == {"detected": True}
     phase_events = [e for e in received if e.phase_name == PHASE_FEATURE_DETECTION]
@@ -154,11 +181,11 @@ def test_variable_discovery_emits_phase_events(tmp_path) -> None:
 
     di = DIContainer(
         role_path=str(tmp_path),
-        scan_options={},
+        scan_options=_scan_options(),
         event_listeners=[received.append],
     )
     di.inject_mock("variable_discovery_plugin", _Plugin())
-    vd = VariableDiscovery(di, str(tmp_path), {})
+    vd = VariableDiscovery(di, str(tmp_path), _scan_options())
     vd.discover_static()
     vd.discover_referenced()
 

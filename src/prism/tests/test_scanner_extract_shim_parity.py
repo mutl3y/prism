@@ -91,19 +91,59 @@ platforms:
 def _snapshot_scanner_extract(lane_root: Path, role_path: str) -> dict[str, object]:
     with _prefer_prism_lane(lane_root):
         if lane_root == FSRC_SOURCE_ROOT:
-            module = importlib.import_module("prism.scanner_plugins.defaults")
+            di_module = importlib.import_module("prism.scanner_core.di")
+            bundle_resolver = importlib.import_module(
+                "prism.scanner_plugins.bundle_resolver"
+            )
+            plugins_module = importlib.import_module("prism.scanner_plugins")
+            role_notes_module = importlib.import_module(
+                "prism.scanner_plugins.parsers.comment_doc.role_notes_parser"
+            )
+            extract_module = importlib.import_module(
+                "prism.scanner_plugins.ansible.extract_utils"
+            )
+            options = {
+                "role_path": role_path,
+                "exclude_path_patterns": None,
+            }
+            container = di_module.DIContainer(
+                role_path=role_path,
+                scan_options=options,
+                registry=plugins_module.get_default_plugin_registry(),
+            )
+            bundle_resolver.ensure_prepared_policy_bundle(
+                scan_options=options,
+                di=container,
+            )
+            return {
+                "role_notes": role_notes_module.extract_role_notes_from_comments(
+                    role_path
+                ),
+                "molecule_scenarios": extract_module.collect_molecule_scenarios(
+                    role_path,
+                    di=container,
+                ),
+                "dynamic_task_includes": extract_module.collect_unconstrained_dynamic_task_includes(
+                    role_path,
+                    di=container,
+                ),
+                "dynamic_role_includes": extract_module.collect_unconstrained_dynamic_role_includes(
+                    role_path,
+                    di=container,
+                ),
+            }
         else:
             module = importlib.import_module("prism.scanner_extract")
-        return {
-            "role_notes": module.extract_role_notes_from_comments(role_path),
-            "molecule_scenarios": module.collect_molecule_scenarios(role_path),
-            "dynamic_task_includes": module.collect_unconstrained_dynamic_task_includes(
-                role_path
-            ),
-            "dynamic_role_includes": module.collect_unconstrained_dynamic_role_includes(
-                role_path
-            ),
-        }
+            return {
+                "role_notes": module.extract_role_notes_from_comments(role_path),
+                "molecule_scenarios": module.collect_molecule_scenarios(role_path),
+                "dynamic_task_includes": module.collect_unconstrained_dynamic_task_includes(
+                    role_path
+                ),
+                "dynamic_role_includes": module.collect_unconstrained_dynamic_role_includes(
+                    role_path
+                ),
+            }
 
 
 def test_fsrc_scanner_extract_compatibility_exports_match_src_behavior(

@@ -6,6 +6,7 @@ import importlib
 import sys
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -13,7 +14,7 @@ FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
 
 @contextmanager
-def _prefer_fsrc_prism_on_sys_path() -> object:
+def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value

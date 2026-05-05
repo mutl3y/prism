@@ -4,11 +4,23 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from prism.scanner_extract import discovery
+from prism.scanner_extract.discovery import (
+    REQUIREMENTS_YAML_INVALID,
+    ROLE_METADATA_SHAPE_INVALID,
+    VARIABLE_FILE_IO_ERROR,
+    load_meta,
+    load_requirements,
+    load_variables,
+)
 from prism.scanner_extract.dataload import (
     RoleVariableMaps,
     iter_role_argument_spec_entries,
     load_role_variable_maps,
 )
+from prism.scanner_io.loader import load_yaml_file
 
 
 def test_role_variable_maps_is_namedtuple() -> None:
@@ -62,6 +74,113 @@ def test_load_role_variable_maps_skips_non_dict_payloads() -> None:
 
     rvm = load_role_variable_maps("/r", True, iter_candidates, lambda _p: "string")
     assert rvm.defaults_data == {} and rvm.vars_data == {}
+
+
+def test_load_role_variable_maps_propagates_yaml_load_failures(
+    tmp_path: Path,
+) -> None:
+    defaults_dir = tmp_path / "defaults"
+    defaults_dir.mkdir()
+    bad_yaml = defaults_dir / "main.yml"
+    bad_yaml.write_text("broken: [\n", encoding="utf-8")
+
+    def iter_candidates(role_root: Path, kind: str) -> list[Path]:
+        assert role_root == tmp_path
+        return [tmp_path / kind / "main.yml"] if kind == "defaults" else []
+
+    with pytest.raises(Exception):
+        load_role_variable_maps(
+            str(tmp_path),
+            True,
+            iter_candidates,
+            load_yaml_file,
+        )
+
+
+def test_load_variables_strict_raises_on_invalid_yaml(tmp_path: Path) -> None:
+    defaults_dir = tmp_path / "defaults"
+    defaults_dir.mkdir()
+    bad_yaml = defaults_dir / "main.yml"
+    bad_yaml.write_text("broken: [\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match=VARIABLE_FILE_IO_ERROR):
+        load_variables(
+            str(tmp_path),
+            collect_include_vars_files=lambda _role_path, _exclude_paths: [],
+            strict=True,
+        )
+
+
+def test_load_meta_strict_raises_on_non_mapping_payload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    meta_dir = tmp_path / "meta"
+    meta_dir.mkdir()
+    (meta_dir / "main.yml").write_text("galaxy_info: []\n", encoding="utf-8")
+    monkeypatch.setattr(discovery, "load_yaml_file", lambda _path, di=None: ["bad"])
+
+    with pytest.raises(RuntimeError, match=ROLE_METADATA_SHAPE_INVALID):
+        load_meta(str(tmp_path), strict=True)
+
+
+def test_load_meta_non_strict_collects_shape_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    meta_dir = tmp_path / "meta"
+    meta_dir.mkdir()
+    (meta_dir / "main.yml").write_text("galaxy_info: []\n", encoding="utf-8")
+    warnings: list[str] = []
+    monkeypatch.setattr(discovery, "load_yaml_file", lambda _path, di=None: ["bad"])
+
+    loaded = load_meta(str(tmp_path), warning_collector=warnings)
+
+    assert loaded == {}
+    assert warnings == [
+        f"{ROLE_METADATA_SHAPE_INVALID}: {tmp_path / 'meta' / 'main.yml'}: metadata root must be a mapping"
+    ]
+
+
+def test_load_requirements_strict_raises_on_invalid_yaml(tmp_path: Path) -> None:
+    meta_dir = tmp_path / "meta"
+    meta_dir.mkdir()
+    requirements_file = meta_dir / "requirements.yml"
+    requirements_file.write_text("broken: [\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match=REQUIREMENTS_YAML_INVALID):
+        load_requirements(str(tmp_path), strict=True)
+
+
+def test_load_requirements_non_strict_collects_shape_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    meta_dir = tmp_path / "meta"
+    meta_dir.mkdir()
+    (meta_dir / "requirements.yml").write_text("name: value\n", encoding="utf-8")
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        discovery, "load_yaml_file", lambda _path, di=None: {"name": "value"}
+    )
+
+    loaded = load_requirements(str(tmp_path), warning_collector=warnings)
+
+    assert loaded == []
+    assert warnings == [
+        f"{REQUIREMENTS_YAML_INVALID}: {tmp_path / 'meta' / 'requirements.yml'}: root must be a list"
+    ]
+
+
+def test_load_meta_empty_yaml_returns_empty_mapping_without_warning(
+    tmp_path: Path,
+) -> None:
+    meta_dir = tmp_path / "meta"
+    meta_dir.mkdir()
+    (meta_dir / "main.yml").write_text("\n", encoding="utf-8")
+    warnings: list[str] = []
+
+    loaded = load_meta(str(tmp_path), warning_collector=warnings)
+
+    assert loaded == {}
+    assert warnings == []
 
 
 def test_iter_role_argument_spec_entries_yields_flat_options(tmp_path: Path) -> None:

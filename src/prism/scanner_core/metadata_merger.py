@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
+import copy
+
+from typing import TypeGuard
+
 from prism.scanner_data.contracts_request import ScanPolicyWarning
+
+
+def _is_policy_warning_entry(value: object) -> TypeGuard[ScanPolicyWarning]:
+    return isinstance(value, dict)
 
 
 def _copy_policy_warning_entries(raw_warnings: object) -> list[ScanPolicyWarning]:
     if not isinstance(raw_warnings, list):
         return []
-    # Each warning should already be a dict; dict(warning) is a shallow copy.
-    return [dict(warning) for warning in raw_warnings if isinstance(warning, dict)]
+    return [
+        copy.copy(warning)
+        for warning in raw_warnings
+        if _is_policy_warning_entry(warning)
+    ]
 
 
 def merge_policy_warning_entries(

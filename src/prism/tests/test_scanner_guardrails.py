@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import ast
+import importlib
 from pathlib import Path
+import sys
 
 import pytest
 
@@ -381,29 +383,65 @@ def test_defaults_does_not_import_plugin_registry_singleton_directly() -> None:
 
 
 def test_plugin_registry_bootstrap_initialization_smoke() -> None:
-    """Bootstrap smoke test: verify registry can be initialized and accessed."""
-    from prism.scanner_plugins.bootstrap import (
-        get_default_plugin_registry,
-        is_registry_initialized,
-    )
+    """Bootstrap smoke test: package import stays lazy until explicit access."""
+    original_prism_modules = {
+        name: mod
+        for name, mod in sys.modules.items()
+        if name == "prism" or name.startswith("prism.")
+    }
+    try:
+        for module_name in list(sys.modules):
+            if module_name == "prism" or module_name.startswith("prism."):
+                del sys.modules[module_name]
 
-    # Should already be initialized from package import
-    assert is_registry_initialized(), "Registry should be initialized at import time"
+        scanner_plugins = importlib.import_module("prism.scanner_plugins")
+        bootstrap_module = importlib.import_module("prism.scanner_plugins.bootstrap")
 
-    registry = get_default_plugin_registry()
+        assert (
+            not bootstrap_module.is_registry_initialized()
+        ), "Package import must stay side-effect free"
 
-    # Smoke checks: registry should have baseline plugins
-    assert (
-        len(registry.list_scan_pipeline_plugins()) >= 2
-    ), "Registry should have at least 2 scan_pipeline plugins (default, ansible)"
-    assert "ansible" in registry.list_scan_pipeline_plugins()
-    assert "default" in registry.list_scan_pipeline_plugins()
+        registry = bootstrap_module.get_default_plugin_registry()
 
-    # Should have extract policy plugins
-    assert "task_line_parsing" in registry.list_extract_policy_plugins()
-    assert "task_traversal" in registry.list_extract_policy_plugins()
-    assert "variable_extractor" in registry.list_extract_policy_plugins()
-    assert "task_annotation_parsing" in registry.list_extract_policy_plugins()
+        assert (
+            bootstrap_module.is_registry_initialized()
+        ), "Explicit registry access must initialize bootstrap"
+        assert registry is bootstrap_module.get_default_plugin_registry()
+        assert registry is scanner_plugins.get_default_plugin_registry()
+
+        # Smoke checks: registry should have baseline plugins
+        assert (
+            len(registry.list_scan_pipeline_plugins()) >= 2
+        ), "Registry should have at least 2 scan_pipeline plugins (default, ansible)"
+        assert "ansible" in registry.list_scan_pipeline_plugins()
+        assert "default" in registry.list_scan_pipeline_plugins()
+
+        # Should have extract policy plugins
+        assert "task_line_parsing" in registry.list_extract_policy_plugins()
+        assert "task_traversal" in registry.list_extract_policy_plugins()
+        assert "variable_extractor" in registry.list_extract_policy_plugins()
+        assert "task_annotation_parsing" in registry.list_extract_policy_plugins()
+    finally:
+        sys.modules.update(original_prism_modules)
+
+
+def test_scanner_plugins_package_import_does_not_initialize_registry() -> None:
+    original_prism_modules = {
+        name: mod
+        for name, mod in sys.modules.items()
+        if name == "prism" or name.startswith("prism.")
+    }
+    try:
+        for module_name in list(sys.modules):
+            if module_name == "prism" or module_name.startswith("prism."):
+                del sys.modules[module_name]
+
+        importlib.import_module("prism.scanner_plugins")
+        bootstrap_module = importlib.import_module("prism.scanner_plugins.bootstrap")
+
+        assert bootstrap_module.is_registry_initialized() is False
+    finally:
+        sys.modules.update(original_prism_modules)
 
 
 def test_plugin_registry_bootstrap_idempotence() -> None:

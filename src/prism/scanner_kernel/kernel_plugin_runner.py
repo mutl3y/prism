@@ -2,24 +2,51 @@
 
 from __future__ import annotations
 
+import copy
 import logging
-from typing import Any, Callable, cast
+from typing import Literal, Mapping, Protocol, TypeAlias, cast
 
-from prism.scanner_core.protocols_runtime import KernelLifecyclePlugin, PluginLoader
+from prism.scanner_core.protocols_runtime import (
+    KernelPhaseFailure,
+    KernelPhaseOutput,
+    KernelRequest,
+    KernelResponse,
+    PluginLoader,
+)
+from prism.scanner_data.contracts_request import ScanMetadata, ScanOptionsDict
 
 logger = logging.getLogger(__name__)
+
+
+class _UnaryPhaseCallable(Protocol):
+    def __call__(self, request: KernelRequest) -> KernelPhaseOutput | None: ...
+
+
+class _BinaryPhaseCallable(Protocol):
+    def __call__(
+        self, request: KernelRequest, response: KernelResponse
+    ) -> KernelPhaseOutput | None: ...
+
+
+_PhaseHandler: TypeAlias = _BinaryPhaseCallable
+_ResponseListKey: TypeAlias = Literal["warnings", "errors", "provenance"]
+_RESPONSE_LIST_KEYS: tuple[_ResponseListKey, ...] = (
+    "warnings",
+    "errors",
+    "provenance",
+)
 
 
 def run_kernel_plugin_orchestrator(
     *,
     platform: str,
     target_path: str,
-    scan_options: dict[str, Any],
+    scan_options: dict[str, object],
     load_plugin_fn: PluginLoader,
     scan_id: str = "kernel-scan",
     fail_fast: bool = True,
-    context: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+    context: dict[str, object] | None = None,
+) -> KernelResponse:
     """Execute baseline lifecycle phases on a loaded kernel plugin.
 
     Phase Execution Contract:
@@ -63,32 +90,28 @@ def run_kernel_plugin_orchestrator(
         fail_fast,
     )
 
-    import copy
-
-    request: dict[str, Any] = {
+    request: KernelRequest = {
         "scan_id": scan_id,
         "platform": platform,
         "target_path": target_path,
-        "options": copy.copy(scan_options),
+        "options": cast(ScanOptionsDict, copy.copy(scan_options)),
     }
     if isinstance(context, dict):
-        request["context"] = copy.copy(context)
+        request["context"] = cast(ScanMetadata, copy.copy(context))
 
-    response: dict[str, Any] = {
+    response: KernelResponse = {
         "scan_id": scan_id,
         "platform": platform,
         "phase_results": {},
         "metadata": {"kernel_orchestrator": "fsrc-v1"},
     }
 
-    plugin: KernelLifecyclePlugin = cast(
-        KernelLifecyclePlugin, load_plugin_fn(platform)
-    )
-    phase_handlers: list[tuple[str, Callable[..., dict[str, Any] | None] | None]] = [
-        ("prepare", plugin.prepare if hasattr(plugin, "prepare") else None),
-        ("scan", plugin.scan if hasattr(plugin, "scan") else None),
-        ("analyze", plugin.analyze if hasattr(plugin, "analyze") else None),
-        ("finalize", plugin.finalize if hasattr(plugin, "finalize") else None),
+    plugin = load_plugin_fn(platform)
+    phase_handlers: list[tuple[str, _PhaseHandler | None]] = [
+        ("prepare", _resolve_phase_handler(plugin, "prepare")),
+        ("scan", _resolve_phase_handler(plugin, "scan")),
+        ("analyze", _resolve_phase_handler(plugin, "analyze")),
+        ("finalize", _resolve_phase_handler(plugin, "finalize")),
     ]
 
     upstream_phase_failed = False
@@ -96,7 +119,10 @@ def run_kernel_plugin_orchestrator(
     for phase, handler in phase_handlers:
         if handler is None:
             logger.debug("Phase %s: skipped (handler not implemented)", phase)
-            response["phase_results"][phase] = {"phase": phase, "status": "skipped"}
+            response["phase_results"][phase] = {
+                "phase": phase,
+                "status": "skipped",
+            }
             continue
 
         if upstream_phase_failed:
@@ -113,19 +139,16 @@ def run_kernel_plugin_orchestrator(
 
         logger.info("Phase %s: executing", phase)
         try:
-            if phase in {"prepare", "scan"}:
-                phase_output = handler(request)
-            else:
-                phase_output = handler(request, response)
+            phase_output = handler(request, response)
         except Exception as exc:
             logger.error("Phase %s: FAILED with exception: %s", phase, exc)
-            error_envelope = {
+            error_envelope: KernelPhaseFailure = {
                 "code": "KERNEL_PLUGIN_PHASE_FAILED",
                 "message": str(exc),
                 "phase": phase,
                 "recoverable": not fail_fast,
             }
-            response.setdefault("errors", []).append(error_envelope)
+            _response_list(response, "errors").append(error_envelope)
             response["phase_results"][phase] = {
                 "phase": phase,
                 "status": "failed",
@@ -163,27 +186,78 @@ def run_kernel_plugin_orchestrator(
     return response
 
 
+def _resolve_phase_handler(plugin: object, phase: str) -> _PhaseHandler | None:
+    candidate = getattr(plugin, phase, None)
+    if not callable(candidate):
+        return None
+
+    if phase in {"prepare", "scan"}:
+        unary_handler = cast(_UnaryPhaseCallable, candidate)
+
+        def _invoke_unary(
+            request: KernelRequest,
+            response: KernelResponse,
+        ) -> KernelPhaseOutput | None:
+            del response
+            return unary_handler(request)
+
+        return _invoke_unary
+
+    binary_handler = cast(_BinaryPhaseCallable, candidate)
+
+    def _invoke_binary(
+        request: KernelRequest,
+        response: KernelResponse,
+    ) -> KernelPhaseOutput | None:
+        return binary_handler(request, response)
+
+    return _invoke_binary
+
+
+def _response_list(
+    response: KernelResponse,
+    key: _ResponseListKey,
+) -> list[object]:
+    values = response.get(key)
+    if isinstance(values, list):
+        return values
+    values = []
+    response[key] = values
+    return values
+
+
 def _merge_phase_output(
     *,
-    response: dict[str, Any],
+    response: KernelResponse,
     phase: str,
-    phase_output: Any,
+    phase_output: KernelPhaseOutput | None,
 ) -> None:
     if not isinstance(phase_output, dict):
         return
 
     if phase == "scan" and "payload" not in phase_output:
-        response["payload"] = dict(phase_output)
+        response["payload"] = _copy_mapping(phase_output)
 
     payload = phase_output.get("payload")
     if isinstance(payload, dict):
-        response["payload"] = dict(payload)
+        response["payload"] = _copy_mapping(payload)
 
     metadata = phase_output.get("metadata")
     if isinstance(metadata, dict):
-        response.setdefault("metadata", {}).update(metadata)
+        response_metadata = response.get("metadata")
+        existing_metadata = (
+            _copy_mapping(response_metadata)
+            if isinstance(response_metadata, dict)
+            else {}
+        )
+        existing_metadata.update(_copy_mapping(metadata))
+        response["metadata"] = cast(ScanMetadata, existing_metadata)
 
-    for key in ("warnings", "errors", "provenance"):
+    for key in _RESPONSE_LIST_KEYS:
         value = phase_output.get(key)
         if isinstance(value, list):
-            response.setdefault(key, []).extend(value)
+            _response_list(response, key).extend(value)
+
+
+def _copy_mapping(mapping: Mapping[str, object]) -> dict[str, object]:
+    return {key: value for key, value in mapping.items()}

@@ -13,6 +13,7 @@ production semantics.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 import logging
 import threading
 from contextlib import contextmanager
@@ -143,36 +144,39 @@ __all__ = [
 ]
 
 
-_DEFAULT_LISTENERS: list[EventListener] = []
-_DEFAULT_LISTENERS_LOCK: threading.RLock = threading.RLock()
+# Ambient defaults are scoped to the current execution context so opt-in DI
+# containers do not inherit listener state from unrelated threads.
+_DEFAULT_LISTENERS: ContextVar[tuple[EventListener, ...]] = ContextVar(
+    "prism_default_event_listeners",
+    default=(),
+)
 
 
 def register_default_listener(listener: EventListener) -> None:
-    """Register a process-level listener that every new EventBus inherits.
+    """Register an ambient listener that opted-in EventBus instances inherit.
 
     Used by the CLI progress reporter and integration tests. Prefer passing
-    ``event_listeners=`` to :class:`~prism.scanner_core.di.DIContainer`
-    directly when you need per-scan isolation.
+    ``event_listeners=`` directly, or ``inherit_default_event_listeners=True``
+    when constructing :class:`~prism.scanner_core.di.DIContainer` if you want
+    an explicit opt-in to the current default-listener snapshot.
     """
     if not callable(listener):
         raise TypeError("default listener must be callable")
-    with _DEFAULT_LISTENERS_LOCK:
-        _DEFAULT_LISTENERS.append(listener)
+    _DEFAULT_LISTENERS.set(get_default_listeners() + (listener,))
 
 
 def unregister_default_listener(listener: EventListener) -> None:
-    with _DEFAULT_LISTENERS_LOCK:
-        try:
-            _DEFAULT_LISTENERS.remove(listener)
-        except ValueError:
-            pass
+    listeners = list(get_default_listeners())
+    try:
+        listeners.remove(listener)
+    except ValueError:
+        return
+    _DEFAULT_LISTENERS.set(tuple(listeners))
 
 
 def get_default_listeners() -> tuple[EventListener, ...]:
-    with _DEFAULT_LISTENERS_LOCK:
-        return tuple(_DEFAULT_LISTENERS)
+    return _DEFAULT_LISTENERS.get()
 
 
 def clear_default_listeners() -> None:
-    with _DEFAULT_LISTENERS_LOCK:
-        _DEFAULT_LISTENERS.clear()
+    _DEFAULT_LISTENERS.set(())

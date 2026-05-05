@@ -11,13 +11,9 @@ from urllib.error import HTTPError, URLError
 
 import prism.api as api
 from prism.errors import PrismRuntimeError
-from prism.scanner_io.collection_renderer import (
-    format_collection_summary,
-    render_collection_markdown,
-)
+from prism.scanner_config.audit_rules import AuditReport
+import prism.scanner_io as scanner_io
 from prism.scanner_io.output import (
-    resolve_output_path,
-    write_output,
     write_role_scan_output,
 )
 
@@ -321,11 +317,8 @@ def _maybe_run_audit(args: argparse.Namespace, payload: dict) -> int:
     if not rules_path:
         return 0
 
-    from prism.api_layer.plugin_facade import load_audit_rules_from_file
-    from prism.api_layer.plugin_facade import run_audit
-
-    rules = load_audit_rules_from_file(rules_path)
-    report = run_audit(payload, rules)
+    rules = api.load_audit_rules_from_file(rules_path)
+    report: AuditReport = api.run_audit(payload, rules)
 
     payload["audit_report"] = {
         "summary": report.summary,
@@ -439,17 +432,17 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
             json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n"
         )
     else:
-        rendered = render_collection_markdown(dict(payload))
+        rendered = scanner_io.render_collection_markdown(dict(payload))
 
     if args.dry_run:
         print(rendered, end="")
         return 0
 
-    output_path = resolve_output_path(args.output, args.format)
+    output_path = scanner_io.resolve_output_path(args.output, args.format)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    written_path = write_output(output_path, rendered)
+    written_path = scanner_io.write_output(output_path, rendered)
 
-    print(format_collection_summary(dict(payload)))
+    print(scanner_io.format_collection_summary(dict(payload)))
 
     audit_exit = _maybe_run_audit(args, dict(payload))
     if audit_exit != 0:

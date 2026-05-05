@@ -61,10 +61,12 @@ def test_yaml_load_yaml_file_valid_and_invalid(tmp_path: Path) -> None:
 
     bad = tmp_path / "b.yml"
     bad.write_text("a: [unterminated\n", encoding="utf-8")
-    assert DefaultYAMLParsingPolicyPlugin.load_yaml_file(bad) is None
+    with pytest.raises(RuntimeError, match="yaml_load_error"):
+        DefaultYAMLParsingPolicyPlugin.load_yaml_file(bad)
 
     missing = tmp_path / "missing.yml"
-    assert DefaultYAMLParsingPolicyPlugin.load_yaml_file(missing) is None
+    with pytest.raises(RuntimeError, match="yaml_load_error"):
+        DefaultYAMLParsingPolicyPlugin.load_yaml_file(missing)
 
 
 def test_yaml_parse_yaml_candidate_paths(tmp_path: Path) -> None:
@@ -187,7 +189,31 @@ def test_ansible_scan_pipeline_plugin_process_pipeline() -> None:
     assert out["plugin_name"] == "ansible"
     assert out["existing"] is True
     assert out["role_path"] == "/r"
-    assert "plugin_enabled" in out and isinstance(out["plugin_enabled"], bool)
+    assert out["plugin_enabled"] is True
+    assert "ansible_plugin_enabled" in out and isinstance(
+        out["ansible_plugin_enabled"], bool
+    )
+
+
+def test_ansible_scan_pipeline_plugin_keeps_default_route_enabled_when_flags_unset(
+    monkeypatch,
+) -> None:
+    from prism.scanner_plugins.ansible import AnsibleScanPipelinePlugin
+    from prism.scanner_plugins.ansible.feature_flags import (
+        ANSIBLE_PLUGIN_ENABLED_ENV_VAR,
+        KERNEL_ENABLED_ENV_VAR,
+    )
+
+    monkeypatch.delenv(KERNEL_ENABLED_ENV_VAR, raising=False)
+    monkeypatch.delenv(ANSIBLE_PLUGIN_ENABLED_ENV_VAR, raising=False)
+
+    out = AnsibleScanPipelinePlugin().process_scan_pipeline(
+        scan_options={"role_path": "/r"},
+        scan_context={},
+    )
+
+    assert out["plugin_enabled"] is True
+    assert out["ansible_plugin_enabled"] is False
 
 
 def test_ansible_scan_pipeline_plugin_preserves_existing_role_path() -> None:

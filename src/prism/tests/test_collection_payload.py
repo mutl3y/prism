@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from prism.errors import PrismRuntimeError
+from prism.scanner_data import CollectionIdentity, CollectionRoleEntry
 from prism.scanner_io.collection_payload import (
     ROLE_CONTENT_YAML_INVALID,
     build_collection_failure_record,
@@ -152,7 +154,10 @@ def test_build_collection_scan_result_uses_provided_collection_identity(
 ) -> None:
     result = build_collection_scan_result(
         collection_root=tmp_path,
-        collection_identity={"path": "/x", "metadata": {"name": "n"}},
+        collection_identity=cast(
+            CollectionIdentity,
+            {"path": "/x", "metadata": {"name": "n"}},
+        ),
         dependencies={"collections": [{"key": "k"}], "roles": [], "conflicts": []},
         plugin_catalog={
             "schema_version": 1,
@@ -160,7 +165,24 @@ def test_build_collection_scan_result_uses_provided_collection_identity(
             "by_type": {},
             "failures": [],
         },
-        roles=[{"role": "a"}],
+        roles=[
+            cast(
+                CollectionRoleEntry,
+                {
+                    "role": "a",
+                    "path": "/r",
+                    "payload": {
+                        "role_name": "a",
+                        "description": "",
+                        "display_variables": {},
+                        "requirements_display": [],
+                        "undocumented_default_filters": [],
+                        "metadata": {},
+                    },
+                    "rendered_readme": None,
+                },
+            )
+        ],
         failures=[{"role": "b"}],
     )
     assert result["collection"]["path"] == "/x"

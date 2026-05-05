@@ -207,39 +207,30 @@ def build_collection_failure_record(
 def build_collection_scan_result(
     *,
     collection_root: Path,
-    collection_identity: dict[str, Any] | None = None,
-    dependencies: dict[str, Any] | None = None,
-    plugin_catalog: dict[str, Any] | None = None,
-    roles: list[dict[str, Any]],
-    failures: list[dict[str, Any]],
+    collection_identity: CollectionIdentity | None = None,
+    dependencies: CollectionDependencies | None = None,
+    plugin_catalog: CollectionPluginCatalog | None = None,
+    roles: list[CollectionRoleEntry],
+    failures: list[CollectionFailureRecord],
 ) -> CollectionScanResult:
+    resolved_collection = cast(
+        CollectionIdentity,
+        collection_identity or build_collection_identity(collection_root),
+    )
+    resolved_dependencies = cast(
+        CollectionDependencies,
+        dependencies or empty_collection_dependencies(),
+    )
+    resolved_plugin_catalog = cast(
+        CollectionPluginCatalog,
+        plugin_catalog or empty_plugin_catalog(),
+    )
     return {
-        "collection": cast(
-            CollectionIdentity,
-            (
-                dict(collection_identity)
-                if isinstance(collection_identity, dict)
-                else build_collection_identity(collection_root)
-            ),
-        ),
-        "dependencies": cast(
-            CollectionDependencies,
-            (
-                dict(dependencies)
-                if isinstance(dependencies, dict)
-                else empty_collection_dependencies()
-            ),
-        ),
-        "plugin_catalog": cast(
-            CollectionPluginCatalog,
-            (
-                dict(plugin_catalog)
-                if isinstance(plugin_catalog, dict)
-                else empty_plugin_catalog()
-            ),
-        ),
-        "roles": cast(list[CollectionRoleEntry], roles),
-        "failures": cast(list[CollectionFailureRecord], failures),
+        "collection": resolved_collection,
+        "dependencies": resolved_dependencies,
+        "plugin_catalog": resolved_plugin_catalog,
+        "roles": roles,
+        "failures": failures,
         "summary": {
             "total_roles": len(roles) + len(failures),
             "scanned_roles": len(roles),

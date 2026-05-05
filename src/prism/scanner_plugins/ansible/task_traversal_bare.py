@@ -11,6 +11,8 @@ from typing import Any
 
 import yaml
 
+from prism.scanner_data.contracts_request import TaskMapping
+
 from prism.scanner_plugins.ansible.task_keywords import (
     TASK_BLOCK_KEYS as TASK_BLOCK_KEYS,
 )
@@ -42,7 +44,7 @@ INCLUDE_VARS_KEYS: frozenset[str] = frozenset(
 SET_FACT_KEYS: frozenset[str] = frozenset({"set_fact", "ansible.builtin.set_fact"})
 
 
-def extract_constrained_when_values(task: dict, variable: str) -> list[str]:
+def extract_constrained_when_values(task: TaskMapping, variable: str) -> list[str]:
     when_value = task.get("when")
     conditions: list[str] = []
     if isinstance(when_value, str):
@@ -74,7 +76,7 @@ def extract_constrained_when_values(task: dict, variable: str) -> list[str]:
     return deduped
 
 
-def detect_task_module(task: dict) -> str | None:
+def detect_task_module(task: TaskMapping) -> str | None:
     for include_key in TASK_INCLUDE_KEYS:
         if include_key in task:
             if "import_tasks" in include_key:
@@ -108,7 +110,9 @@ def iter_task_mappings(data: object):
                     yield from iter_task_mappings(nested)
 
 
-def expand_include_target_candidates(task: dict, include_target: str) -> list[str]:
+def expand_include_target_candidates(
+    task: TaskMapping, include_target: str
+) -> list[str]:
     candidate = include_target.strip()
     if not candidate:
         return []
@@ -200,7 +204,7 @@ def iter_task_include_edges(
 
 
 def iter_role_include_targets(
-    task: dict,
+    task: TaskMapping,
     *,
     role_include_keys: set[str] | frozenset[str] = ROLE_INCLUDE_KEYS,
 ) -> list[str]:
@@ -226,7 +230,7 @@ def iter_role_include_targets(
 
 
 def iter_dynamic_role_include_targets(
-    task: dict,
+    task: TaskMapping,
     *,
     role_include_keys: set[str] | frozenset[str] = ROLE_INCLUDE_KEYS,
 ) -> list[str]:

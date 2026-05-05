@@ -6,7 +6,7 @@ Pure-Python tests using tmp_path; no scanner runtime invocation.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -60,10 +60,16 @@ def test_resolve_output_path(name: str, fmt: str, expected_suffix: str) -> None:
 
 def test_render_final_output_md_passthrough_and_json() -> None:
     from prism.scanner_io.output import render_final_output
+    from prism.scanner_data.contracts_output import FinalOutputPayload
 
     assert render_final_output("# hi", "md", "title") == "# hi"
 
-    json_out = render_final_output("# hi", "json", "title", payload={"a": 1})
+    json_out = render_final_output(
+        "# hi",
+        "json",
+        "title",
+        payload=cast(FinalOutputPayload, {"a": 1}),
+    )
     assert isinstance(json_out, str)
     assert '"a": 1' in json_out and json_out.endswith("\n")
 
@@ -125,10 +131,12 @@ def test_load_yaml_file_with_no_di_falls_back_to_safe_load(tmp_path: Path) -> No
 
     bad = tmp_path / "b.yml"
     bad.write_text("a: [oops\n", encoding="utf-8")
-    assert load_yaml_file(bad) is None
+    with pytest.raises(RuntimeError, match="yaml_load_error"):
+        load_yaml_file(bad)
 
     missing = tmp_path / "m.yml"
-    assert load_yaml_file(missing) is None
+    with pytest.raises(RuntimeError, match="yaml_load_error"):
+        load_yaml_file(missing)
 
 
 def test_parse_yaml_candidate_uses_default_policy(tmp_path: Path) -> None:

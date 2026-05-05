@@ -6,14 +6,14 @@ import importlib
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator, get_type_hints
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
 
 @contextmanager
-def _prefer_fsrc_prism_on_sys_path() -> object:
+def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]:
     original_path = list(sys.path)
     original_modules = {
         key: value
@@ -160,3 +160,101 @@ def test_fsrc_orchestrate_output_emission_write_mode_writes_sidecars(
     assert seen_metadata["concise_readme"] is True
     assert seen_metadata["include_scanner_report_link"] is True
     assert seen_metadata["scanner_report_relpath"] == "README.scan.md"
+
+
+def test_fsrc_output_orchestrator_uses_typed_renderers_and_event_bus(
+    tmp_path: Path,
+) -> None:
+    output_target = tmp_path / "README.md"
+    scanner_sidecar = tmp_path / "README.scan.md"
+    runbook_md = tmp_path / "runbook.md"
+    runbook_csv = tmp_path / "runbook.csv"
+    payload_metadata: dict[str, Any] = {}
+    seen_metadata: dict[str, Any] = {}
+    phase_calls: list[tuple[str, dict[str, object] | None]] = []
+
+    class _EventBus:
+        @contextmanager
+        def phase(
+            self,
+            phase_name: str,
+            *,
+            context: dict[str, object] | None = None,
+        ) -> Iterator[None]:
+            phase_calls.append((phase_name, context))
+            yield
+
+    class _Di:
+        def __init__(self, event_bus: _EventBus) -> None:
+            self._event_bus = event_bus
+
+        def factory_event_bus(self) -> _EventBus:
+            return self._event_bus
+
+    with _prefer_fsrc_prism_on_sys_path():
+        events_module = importlib.import_module("prism.scanner_core.events")
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_io.output_orchestrator"
+        )
+
+        def _render_and_write(**kwargs: Any) -> str:
+            out_path = Path(kwargs["out_path"])
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text("PRIMARY", encoding="utf-8")
+            seen_metadata.update(kwargs["metadata"])
+            return str(out_path)
+
+        orchestrator = orchestrator_module.OutputOrchestrator(
+            di=_Di(_EventBus()),
+            output_path=str(output_target),
+            options={
+                "output_format": "md",
+                "concise_readme": True,
+                "include_scanner_report_link": True,
+                "scanner_report_output": str(scanner_sidecar),
+                "runbook_output": str(runbook_md),
+                "runbook_csv_output": str(runbook_csv),
+            },
+        )
+        result = orchestrator.render_and_emit_with_events(
+            payload={
+                "role_name": "demo_role",
+                "description": "demo description",
+                "display_variables": {"demo": {"default": "x"}},
+                "requirements_display": [],
+                "undocumented_default_filters": [],
+                "metadata": payload_metadata,
+            },
+            dry_run=False,
+            render_and_write=_render_and_write,
+            render_scanner_report=lambda **_kwargs: "SCANNER-REPORT",
+            render_runbook=lambda role_name, metadata: f"RUNBOOK:{role_name}:{len(metadata)}",
+            render_runbook_csv=lambda metadata: f"CSV:{len(metadata)}",
+        )
+
+    assert result == str(output_target)
+    assert output_target.read_text(encoding="utf-8") == "PRIMARY"
+    assert scanner_sidecar.read_text(encoding="utf-8") == "SCANNER-REPORT"
+    assert runbook_md.read_text(encoding="utf-8") == "RUNBOOK:demo_role:3"
+    assert runbook_csv.read_text(encoding="utf-8") == "CSV:3"
+    assert payload_metadata == {}
+    assert seen_metadata["concise_readme"] is True
+    assert seen_metadata["include_scanner_report_link"] is True
+    assert seen_metadata["scanner_report_relpath"] == "README.scan.md"
+    assert phase_calls == [
+        (
+            events_module.PHASE_OUTPUT_RENDER,
+            {"output_path": str(output_target)},
+        )
+    ]
+
+
+def test_fsrc_output_orchestrator_constructor_uses_concrete_options_contract() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        orchestrator_module = importlib.import_module(
+            "prism.scanner_io.output_orchestrator"
+        )
+
+    constructor_hints = get_type_hints(orchestrator_module.OutputOrchestrator.__init__)
+
+    assert constructor_hints["options"] is orchestrator_module.OutputOrchestratorOptions

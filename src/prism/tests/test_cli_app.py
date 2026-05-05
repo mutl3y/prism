@@ -185,3 +185,93 @@ def test_resolve_cli_output_path_keeps_existing_json_suffix():
 def test_resolve_cli_output_path_keeps_existing_md_suffix():
     result = resolve_cli_output_path("output/readme.md", "md")
     assert result == Path("output/readme.md")
+
+
+def test_cli_collection_command_uses_scanner_io_public_seam(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+):
+    import prism.cli as cli_module
+    import prism.scanner_io as scanner_io_module
+
+    payload = {
+        "collection": {"path": str(tmp_path / "demo"), "metadata": {}},
+        "summary": {
+            "total_roles": 1,
+            "scanned_roles": 1,
+            "failed_roles": 0,
+        },
+        "roles": [],
+        "failures": [],
+        "dependencies": {"collections": [], "roles": [], "conflicts": []},
+        "plugin_catalog": {
+            "summary": {
+                "total_plugins": 0,
+                "types_present": [],
+                "files_scanned": 0,
+                "files_failed": 0,
+            },
+            "by_type": {
+                "filter": [],
+                "modules": [],
+                "lookup": [],
+                "inventory": [],
+                "callback": [],
+                "connection": [],
+                "strategy": [],
+                "test": [],
+                "doc_fragments": [],
+                "module_utils": [],
+            },
+            "failures": [],
+        },
+    }
+    seam_calls: list[tuple[str, dict[str, object]]] = []
+
+    def _fake_scan_collection(
+        collection_path: str, **kwargs: object
+    ) -> dict[str, object]:
+        del collection_path
+        del kwargs
+        return payload
+
+    def _fake_render_collection_markdown(data: dict[str, object]) -> str:
+        seam_calls.append(("markdown", data))
+        return "scanner-io-markdown\n"
+
+    def _fake_format_collection_summary(data: dict[str, object]) -> str:
+        seam_calls.append(("summary", data))
+        return "scanner-io-summary"
+
+    monkeypatch.setattr(cli_module.api, "scan_collection", _fake_scan_collection)
+    monkeypatch.setattr(
+        scanner_io_module,
+        "render_collection_markdown",
+        _fake_render_collection_markdown,
+    )
+    monkeypatch.setattr(
+        scanner_io_module,
+        "format_collection_summary",
+        _fake_format_collection_summary,
+    )
+    monkeypatch.setattr(
+        scanner_io_module,
+        "resolve_output_path",
+        lambda output, fmt: tmp_path / "README.md",
+    )
+    monkeypatch.setattr(
+        scanner_io_module,
+        "write_output",
+        lambda output_path, rendered: str(output_path),
+    )
+
+    rc = cli_module.main(["collection", str(tmp_path / "demo")])
+
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert seam_calls == [
+        ("markdown", payload),
+        ("summary", payload),
+    ]
+    assert captured.out.splitlines() == ["scanner-io-summary"]

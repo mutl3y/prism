@@ -71,7 +71,7 @@ def test_init_dir_lists_all_public():
 class _NoPluginDI:
     """DI stub without factory_variable_discovery_plugin / feature."""
 
-    scan_options = {}
+    scan_options: dict[str, Any] = {}
 
 
 def _make_variable_discovery(role_path: str = "/r"):
@@ -128,11 +128,11 @@ class _StubVarPlugin:
 
 
 class _PluginDI:
-    scan_options = {}
+    scan_options: dict[str, Any] = {}
 
     def __init__(self, plugin: Any) -> None:
         self._plugin = plugin
-        self._row_builder = None
+        self._row_builder: object | None = None
 
     def factory_variable_discovery_plugin(self) -> Any:
         return self._plugin
@@ -180,7 +180,7 @@ def test_variable_discovery_combined_appends_unresolved_placeholders():
 class _NoFeaturePluginDI:
     """DI stub lacking factory_feature_detection_plugin entirely."""
 
-    scan_options = {}
+    scan_options: dict[str, Any] = {}
 
 
 def _make_feature_detector():

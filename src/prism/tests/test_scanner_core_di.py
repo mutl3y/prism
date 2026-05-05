@@ -98,6 +98,12 @@ def test_resolve_platform_key_from_policy_context():
         assert di.resolve_platform_key(opts) == "fakeplat"
 
 
+def test_resolve_platform_key_from_platform_option() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        di = _load_di_module()
+        assert di.resolve_platform_key({"platform": "terraform"}) == "terraform"
+
+
 def test_resolve_platform_key_registry_default():
     with _prefer_fsrc_prism_on_sys_path():
         di = _load_di_module()
