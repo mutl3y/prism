@@ -1,0 +1,89 @@
+- id: G74-001
+  category: TypedDict-Any-Leak
+  fingerprint: G74-001-scanner_data-any-typedict
+  file: src/prism/scanner_data/__init__.py
+  line: 52
+  severity_hint: medium
+  confidence: high
+  detector: grep-typedict-any
+  memory_status: new
+  memory_match: false
+  evidence_snippet: "class CollectionDependencies(TypedDict)\n    collections: list[dict[str, Any]]"
+  evidence_command: "rg --context 0 'CollectionDependencies' src/prism -n"
+  related_symbols: [CollectionDependencies, CollectionSummary, RunbookSidecarPayload, ScanContext]
+  fix_group_key: typedict-narrowing
+  proposed_fix_class: "Replace top-level 'Any' usage with narrower TypedDicts or specific element TypedDicts; prefer list[SpecificTypedDict] instead of list[Any]."
+  blocking_preconditions: "Require consumers/schema for collection and variable_insights shapes; update parity tests."
+  suggested_narrow_gate: "Add mypy stricter checks for src/prism and a small runtime schema validation test."
+
+- id: G74-002
+  category: Unsafe-Cast-To-Any
+  fingerprint: G74-002-repo_services-cast-dict-any
+  file: src/prism/repo_services.py
+  line: 320
+  severity_hint: high
+  confidence: high
+  detector: grep-cast-dict-any
+  memory_status: new
+  memory_match: false
+  evidence_snippet: "payload_dict = cast(dict[str, Any], payload)"
+  evidence_command: "sed -n '310,330p' src/prism/repo_services.py"
+  related_symbols: [RepoScanPayload, RunRepoScanExecutionFn]
+  fix_group_key: cast-to-any-remediation
+  proposed_fix_class: "Introduce a canonical RepoScanPayload TypedDict/Union and runtime validation instead of casting into dict[str, Any]."
+  blocking_preconditions: "Define canonical payload contract and update callers to produce typed payloads."
+  suggested_narrow_gate: "Add unit tests that assert runtime validation and enable mypy checking for repo intake paths."
+
+- id: G74-003
+  category: Public-API-Any-Union
+  fingerprint: G74-003-repo_services-public-api-any-union
+  file: src/prism/repo_services.py
+  line: 58
+  severity_hint: medium
+  confidence: high
+  detector: grep-union-any
+  memory_status: new
+  memory_match: false
+  evidence_snippet: "RepoScanPayload = RunScanOutputPayload | dict[str, Any] | str"
+  evidence_command: "rg "RepoScanPayload" src/prism -n"
+  related_symbols: [RepoScanPayload]
+  fix_group_key: public-api-typing
+  proposed_fix_class: "Narrow union by introducing explicit TypedDict variants or a discriminated union rather than raw dict[str, Any]."
+  blocking_preconditions: "Consumer contracts must be enumerated; update API docs/tests accordingly."
+  suggested_narrow_gate: "Require mypy strict guards on public API modules and add API compatibility tests."
+
+- id: G74-004
+  category: PreparedPolicy-Any-Members
+  fingerprint: G74-004-prepared-policy-any
+  file: src/prism/scanner_data/contracts_request.py
+  line: 174
+  severity_hint: high
+  confidence: high
+  detector: grep-protocol-any
+  memory_status: matched
+  memory_match: true
+  evidence_snippet: "class PreparedTaskLineParsingPolicy(Protocol):\n    # members currently typed as Any in many places"
+  evidence_command: "sed -n '160,200p' src/prism/scanner_data/contracts_request.py"
+  related_symbols: [PreparedTaskLineParsingPolicy, PreparedJinjaAnalysisPolicy, PreparedTaskTraversalPolicy, PreparedVariableExtractorPolicy]
+  fix_group_key: policy-protocol-narrowing
+  proposed_fix_class: "Replace 'Any' member types with focused Protocols/TypedDicts for policy members; make PreparedPolicyBundle fully typed."
+  blocking_preconditions: "Policy interface spec must be finalized and compatibility tests updated."
+  suggested_narrow_gate: "Add focused mypy checks and update scan-path tests to enforce prepared-policy typing."
+
+- id: G74-005
+  category: Type-Ignore-Hiding-Issues
+  fingerprint: G74-005-type-ignore-occurrences
+  file: src/prism
+  line: null
+  severity_hint: medium
+  confidence: medium
+  detector: grep-type-ignore
+  memory_status: new
+  memory_match: false
+  evidence_snippet: "Multiple '# type: ignore' instances found across src/prism that may mask typing regressions."
+  evidence_command: "rg '#\s*type:\s*ignore' src/prism -n"
+  related_symbols: []
+  fix_group_key: remove-type-ignores
+  proposed_fix_class: "Audit each 'type: ignore' and replace with precise ignores or fix the underlying typing issue."
+  blocking_preconditions: "Test coverage for code paths covered by ignores."
+  suggested_narrow_gate: "Reduce 'type: ignore' count and require justification comments for remaining ones."

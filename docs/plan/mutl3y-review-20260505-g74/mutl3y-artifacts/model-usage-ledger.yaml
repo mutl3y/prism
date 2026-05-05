@@ -1,0 +1,80 @@
+- timestamp: '2026-05-05T20:09:01.659055+00:00'
+  cycle: g74
+  phase: P0
+  worker: Scout-Typing
+  task_id: phase0-scout-typing
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini (copilot)
+  actual_model: GPT-5.4 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: deep sweep returned 2 actionable observations
+  lane_tag: discovery
+- timestamp: '2026-05-05T20:09:01.765406+00:00'
+  cycle: g74
+  phase: P0
+  worker: Scout-Ownership
+  task_id: phase0-scout-ownership
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini (copilot)
+  actual_model: GPT-5.4 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: deep sweep returned 2 actionable observations
+  lane_tag: discovery
+- timestamp: '2026-05-05T20:09:01.864640+00:00'
+  cycle: g74
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: phase0-scout-controlflow
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini (copilot)
+  actual_model: GPT-5.4 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: deep sweep returned 3 actionable observations
+  lane_tag: discovery
+- timestamp: '2026-05-05T20:09:01.973097+00:00'
+  cycle: g74
+  phase: P0
+  worker: Scout-Graph
+  task_id: phase0-scout-graph
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini (copilot)
+  actual_model: GPT-5.4 mini (copilot)
+  result: route_failure
+  failure_type: missing_artifact
+  artifact_path: docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: escalate_tier
+  notes: summary returned without owned artifact; rerouted to GPT-5.4
+  lane_tag: discovery
+- timestamp: '2026-05-05T20:09:02.080557+00:00'
+  cycle: g74
+  phase: P0
+  worker: Scout-Graph
+  task_id: phase0-scout-graph-recovery
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: rerouted graph scout wrote artifact with 2 observations
+  lane_tag: discovery

@@ -2,14 +2,14 @@ plan_id: mutl3y-review-20260504-g73
 cycle: g73
 review_type: thorough
 focus_axis: concurrency_and_runtime_state
-status: implementation_in_progress
+status: handoff_closed
 target: src/prism
 origin: >-
   Second required clean thorough review after g72 completed an unconstrained
   clean thorough pass with zero Critical and High findings.
 resumption_pointer:
-  current_phase: P2
-  next_action: "The checkpoint-review remediation slice is closed. Run the next unconstrained thorough checkpoint review and only reopen implementation if that review produces a fresh High shortlist."
+  current_phase: P7
+  next_action: "Closed as predecessor handoff. Follow the active g74/g75 continuation surface instead of resuming g73 directly."
   blocking_issues: []
 artifacts:
   findings: docs/plan/mutl3y-review-20260504-g73/findings.yaml
@@ -45,4 +45,4 @@ readiness_state:
 pause_state:
   paused: false
   reason: ""
-  resume_artifact: ""
+  resume_artifact: docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/phase7/paused-resume.yaml

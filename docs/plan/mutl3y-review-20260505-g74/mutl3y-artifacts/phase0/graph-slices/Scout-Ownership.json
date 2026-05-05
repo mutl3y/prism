@@ -1,0 +1,20 @@
+{
+  "plan_id": "mutl3y-review-20260505-g74",
+  "agent": "Scout-Ownership",
+  "target_root": "src/prism",
+  "focus_axis": "error_handling",
+  "hotspots": [
+    "src/prism/api.py",
+    "src/prism/cli.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_plugins/bootstrap.py",
+    "src/prism/scanner_plugins/registry.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/tests/test_module_public_api_guardrails.py"
+  ],
+  "prior_high_context": [
+    "g73 closed registry lifecycle and payload-isolation ownership findings.",
+    "Recheck for new facade leakage, split ownership, or singleton reuse on public entry points."
+  ]
+}

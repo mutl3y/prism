@@ -1,0 +1,32 @@
+memory_source: docs/plan/.mutl3y-lessons
+active_lessons:
+  - LESSON-01
+  - LESSON-02
+  - LESSON-03
+  - LESSON-04
+  - LESSON-05
+  - LESSON-06
+  - LESSON-07
+  - LESSON-08
+  - LESSON-09
+  - LESSON-10
+  - LESSON-11
+  - LESSON-12
+  - LESSON-13
+  - LESSON-14
+  - LESSON-15
+  - LESSON-16
+  - LESSON-17
+do_not_re_flag_count: 4
+focus_axis_due_next: error_handling
+model_route_notes:
+  - Prefer healthy models in the same tier before escalating.
+  - If a watched model is used for file-writing work, require artifact proof.
+stale_or_missing_memory: []
+readiness_check:
+  ready: true
+  degraded_models: []
+  watch_models:
+    - "GPT-4.1 (copilot)"
+    - "GPT-5 mini (copilot)"
+context_budget: live_context = stable_rules + current_phase + active_findings + short_excerpts

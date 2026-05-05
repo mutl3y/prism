@@ -1,0 +1,39 @@
+plan_id: mutl3y-review-20260505-g74
+cycle: g74
+phase: P7
+loaded_references:
+  - /raid5/source/test/agent_and_skills/.github/skills/mutl3y-review-workflow/references/phase-7-close-and-learn.md
+  - /raid5/source/test/agent_and_skills/.github/skills/mutl3y-review-workflow/references/closure-control-gate.md
+  - /raid5/source/test/agent_and_skills/.github/skills/mutl3y-review-workflow/references/iteration-cadence.md
+  - /raid5/source/test/agent_and_skills/.github/skills/mutl3y-review-workflow/references/deep-review-protocol.md
+  - /raid5/source/test/agent_and_skills/.github/skills/mutl3y-review-workflow/references/foreman-execution-guardrails.md
+  - /raid5/source/test/agent_and_skills/.github/skills/mutl3y-review-workflow/references/self-improvement-protocol.md
+cadence_state:
+  cycle_result: high_fix_checkpoint_green
+  terminal_condition_met: false
+  rationale: The active cycle fixed fresh High findings, so cadence requires a light follow-up review of the changed files and immediate neighbors before any broader stop claim.
+  next_required_cycle: mutl3y-review-20260505-g75
+required_next_action: Create or resume g75 as the required light follow-up review of the g74 fix slice.
+god_mode_required: false
+god_mode_dispatch_status:
+  state: not_required_this_cycle
+  reason: Cadence has not advanced to the clean-thorough/God-Mode stage.
+god_mode_independence_check:
+  required: false
+  prompt_excerpt: ""
+  passed: true
+continuation_surface:
+  type: paused_resume
+  artifact: docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/phase7/paused-resume.yaml
+  next_cycle: mutl3y-review-20260505-g75
+commit_status:
+  authorized: true
+  requested_in_conversation: true
+  strategy: separate_code_and_artifact_commits
+  state: pending
+foreman_deviation_check:
+  local_review_used_as_substitute: false
+  generic_reviewer_used_as_substitute: false
+  biased_god_mode_prompt_attempted: false
+  closure_claim_before_required_dispatch: false
+verdict: PAUSED_WITH_RESUME_ARTIFACT

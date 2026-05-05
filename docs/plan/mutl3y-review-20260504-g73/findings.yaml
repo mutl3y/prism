@@ -3,7 +3,7 @@ cycle: g73
 target: src/prism
 review_type: thorough
 focus_axis: concurrency_and_runtime_state
-status: implementation_in_progress
+status: handoff_closed
 decision_summary:
   - "g73 is the second required thorough review in the current clean-pass sequence."
   - "Its primary focus axis rotates to concurrency and runtime state to satisfy the different-axis requirement."
@@ -12,6 +12,7 @@ decision_summary:
   - "A fresh independent review added a deduplicated fix table: FIR-H01 and FIR-H04 are new active Highs; FIR-H02/FIR-H05 fold into G73-H04; FIR-H03 folds into G73-H05."
   - "The next unconstrained checkpoint review reopened three concrete Highs on the live API/runtime path: same-scan registry drift, nested policy_context mutation leakage, and missing config-path no-op acceptance."
   - "Those checkpoint-review Highs are now closed in focused scope and the cycle is ready for the next unconstrained checkpoint review rather than another stale implementation wave."
+  - "g73 is formally reconciled as a predecessor handoff cycle; the active continuation surface now lives under g74 Phase 7 and the planned g75 light review."
 findings:
   - id: G73-H01
     severity: High

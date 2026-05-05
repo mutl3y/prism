@@ -1,0 +1,15 @@
+plan_id: mutl3y-review-20260505-g74
+cycle: g74
+phase: P7
+status: paused
+pause_reason: User requested formal closeout and separate commits before starting the cadence-required follow-up review.
+next_cycle_plan_id: mutl3y-review-20260505-g75
+next_action: Run a light review over the g74 touched files and their immediate neighbors to confirm no remaining High or Critical defects.
+required_scope:
+  - src/prism/scanner_kernel/kernel_plugin_runner.py
+  - src/prism/scanner_plugins/__init__.py
+  - src/prism/scanner_plugins/bootstrap.py
+  - src/prism/repo_services.py
+  - immediate neighboring tests and importers
+why_overall_stop_invalid: Cadence requires a post-fix light checkpoint review before the loop may stop or advance toward clean-thorough sign-off again.
+commit_status: authorized_pending_separate_commits

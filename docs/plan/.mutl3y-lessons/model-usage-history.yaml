@@ -241,4 +241,25 @@ cycles:
       reedit_count: 0
       quality_avg: 4.0
       status: healthy
-updated_at: '2026-05-04T01:29:27.687061+00:00'
+- cycle: g74
+  plan_id: mutl3y-review-20260505-g74
+  ledger_path: /raid5/source/test/prism/docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-05T21:15:52.993635+00:00'
+  model_snapshot:
+    GPT-5.4 mini (copilot):
+      attempts: 4
+      successes: 3
+      route_failures: 1
+      quality_failures: 1
+      reedit_count: 1
+      quality_avg: 3.5
+      status: watch
+    GPT-5.4 (copilot):
+      attempts: 1
+      successes: 1
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+updated_at: '2026-05-05T21:15:52.993652+00:00'

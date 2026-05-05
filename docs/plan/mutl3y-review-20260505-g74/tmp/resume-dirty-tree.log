@@ -1,0 +1,26 @@
+--- ruff ---
+All checks passed!
+--- black ---
+would reformat /raid5/source/test/prism/src/prism/errors.py
+would reformat /raid5/source/test/prism/src/prism/scanner_config/marker.py
+would reformat /raid5/source/test/prism/src/prism/scanner_config/style_aliases.py
+would reformat /raid5/source/test/prism/src/prism/repo_services.py
+would reformat /raid5/source/test/prism/src/prism/cli.py
+would reformat /raid5/source/test/prism/src/prism/scanner_core/protocols_runtime.py
+would reformat /raid5/source/test/prism/src/prism/scanner_extract/__init__.py
+would reformat /raid5/source/test/prism/src/prism/scanner_config/readme.py
+would reformat /raid5/source/test/prism/src/prism/scanner_extract/variable_extractor.py
+would reformat /raid5/source/test/prism/src/prism/scanner_extract/filter_scanner.py
+would reformat /raid5/source/test/prism/src/prism/scanner_config/style_parser.py
+would reformat /raid5/source/test/prism/src/prism/scanner_kernel/scan_payload_helpers.py
+would reformat /raid5/source/test/prism/src/prism/scanner_io/output.py
+would reformat /raid5/source/test/prism/src/prism/scanner_plugins/ansible/kernel.py
+would reformat /raid5/source/test/prism/src/prism/scanner_plugins/ansible/extract_policies.py
+would reformat /raid5/source/test/prism/src/prism/scanner_io/collection_plugins.py
+would reformat /raid5/source/test/prism/src/prism/scanner_plugins/discovery.py
+would reformat /raid5/source/test/prism/src/prism/scanner_kernel/orchestrator.py
+would reformat /raid5/source/test/prism/src/prism/scanner_plugins/bundle_resolver.py
+Aborted!
+
+Oh no! 💥 💔 💥
+19 files would be reformatted, 183 files would be left unchanged.

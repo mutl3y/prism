@@ -1,0 +1,21 @@
+{
+  "plan_id": "mutl3y-review-20260505-g74",
+  "agent": "Scout-Typing",
+  "target_root": "src/prism",
+  "focus_axis": "error_handling",
+  "hotspots": [
+    "src/prism/api.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_data/contracts.py",
+    "src/prism/scanner_data/contracts_errors.py",
+    "src/prism/scanner_data/contracts_request.py",
+    "src/prism/scanner_plugins/parsers/jinja/analysis_policy.py",
+    "src/prism/scanner_io/scan_output_primary.py",
+    "src/prism/tests/test_api_cli_entrypoints.py",
+    "src/prism/tests/test_contracts.py"
+  ],
+  "prior_high_context": [
+    "g73 closed prepared-policy and failure-contract seams in contracts_request and api-layer boundaries.",
+    "Recheck for Any/object-shaped runtime contracts and fail-open error payloads on public APIs."
+  ]
+}

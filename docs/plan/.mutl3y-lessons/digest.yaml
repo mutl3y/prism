@@ -1,4 +1,4 @@
-generated_at: '2026-05-04T01:29:27.811712+00:00'
+generated_at: '2026-05-05T21:15:53.121719+00:00'
 memory_source: docs/plan/.mutl3y-lessons
 model_usage_history_path: docs/plan/.mutl3y-lessons/model-usage-history.yaml
 model_usage_rollup_path: docs/plan/.mutl3y-lessons/model-usage-rollup.yaml
@@ -42,16 +42,7 @@ do_not_re_flag:
   reason: "di.py:204 (factory_blocker_fact_builder) and standalone_di.py:20 (bundle_resolver) are intentional\
     \ DI seams \u2014 late binding inside factory bodies is what the container exists to provide. Re-flag\
     \ only with a registry-routed alternative."
-focus_axis_due_next: error_handling
-fresh_review_guardrail:
-  lesson_id: LESSON-17
-  trigger: clean_checkpoint_or_signoff_temptation
-  required_pattern:
-  - forbid_prior_artifacts_memories_and_previous_findings_as_evidence
-  - dispatch_axis_split_independent_reviewers
-  - require_live_source_and_tests
-  - run_foreman_behavior_checks_before_promotion
-  latest_evidence: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase2/fresh-independent-review-fix-table.md
+focus_axis_due_next: typing
 routing_recommendations:
   degraded_models: []
   watch_models:

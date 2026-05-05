@@ -1,8 +1,8 @@
 version: 1
-generated_at: '2026-05-04T01:29:27.699295+00:00'
+generated_at: '2026-05-05T21:15:53.006825+00:00'
 source:
   history_path: /raid5/source/test/prism/docs/plan/.mutl3y-lessons/model-usage-history.yaml
-  cycle_count: 13
+  cycle_count: 14
 windows:
   all_time:
     by_model:
@@ -62,15 +62,15 @@ windows:
         reedit_rate: 0.375
         status: watch
       GPT-5.4 mini (copilot):
-        attempts: 3
-        successes: 2
-        route_failures: 1
-        quality_failures: 1
-        reedit_count: 1
-        quality_avg: 3.33
-        route_failure_rate: 0.333
-        quality_failure_rate: 0.333
-        reedit_rate: 0.333
+        attempts: 7
+        successes: 5
+        route_failures: 2
+        quality_failures: 2
+        reedit_count: 2
+        quality_avg: 3.38
+        route_failure_rate: 0.286
+        quality_failure_rate: 0.286
+        reedit_rate: 0.286
         status: watch
       unknown:
         attempts: 3
@@ -95,15 +95,15 @@ windows:
         reedit_rate: 0.0
         status: healthy
       GPT-5.4 (copilot):
-        attempts: 13
-        successes: 12
+        attempts: 14
+        successes: 13
         route_failures: 0
         quality_failures: 0
         reedit_count: 1
         quality_avg: 4.0
         route_failure_rate: 0.0
         quality_failure_rate: 0.0
-        reedit_rate: 0.077
+        reedit_rate: 0.071
         status: healthy
       GPT-4.1 (copilot):
         attempts: 1
@@ -118,28 +118,6 @@ windows:
         status: watch
   last_3_cycles:
     by_model:
-      Claude Haiku 4.5 (copilot):
-        attempts: 4
-        successes: 4
-        route_failures: 0
-        quality_failures: 0
-        reedit_count: 0
-        quality_avg: 3.25
-        route_failure_rate: 0.0
-        quality_failure_rate: 0.0
-        reedit_rate: 0.0
-        status: healthy
-      GPT-5.4 (copilot):
-        attempts: 13
-        successes: 12
-        route_failures: 0
-        quality_failures: 0
-        reedit_count: 1
-        quality_avg: 4.0
-        route_failure_rate: 0.0
-        quality_failure_rate: 0.0
-        reedit_rate: 0.077
-        status: healthy
       GPT-5 mini (copilot):
         attempts: 12
         successes: 7
@@ -151,6 +129,17 @@ windows:
         quality_failure_rate: 0.417
         reedit_rate: 0.417
         status: watch
+      GPT-5.4 (copilot):
+        attempts: 12
+        successes: 11
+        route_failures: 0
+        quality_failures: 0
+        reedit_count: 0
+        quality_avg: 4.0
+        route_failure_rate: 0.0
+        quality_failure_rate: 0.0
+        reedit_rate: 0.0
+        status: healthy
       GPT-4.1 (copilot):
         attempts: 1
         successes: 0
@@ -163,15 +152,15 @@ windows:
         reedit_rate: 1.0
         status: watch
       GPT-5.4 mini (copilot):
-        attempts: 2
-        successes: 2
-        route_failures: 0
-        quality_failures: 0
-        reedit_count: 0
-        quality_avg: 4.5
-        route_failure_rate: 0.0
-        quality_failure_rate: 0.0
-        reedit_rate: 0.0
+        attempts: 6
+        successes: 5
+        route_failures: 1
+        quality_failures: 1
+        reedit_count: 1
+        quality_avg: 4.17
+        route_failure_rate: 0.167
+        quality_failure_rate: 0.167
+        reedit_rate: 0.167
         status: healthy
 routing_recommendations:
   degraded_models: []

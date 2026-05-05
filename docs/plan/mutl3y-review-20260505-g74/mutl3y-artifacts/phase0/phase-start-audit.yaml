@@ -1,0 +1,31 @@
+status: ok
+phase: P0
+cycle: g74
+wave: null
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260505-g74/plan.yaml
+  - docs/plan/mutl3y-review-20260505-g74/findings.yaml
+  - docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/phase0/learning-context.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260505-g74/plan.yaml
+  - docs/plan/mutl3y-review-20260505-g74/findings.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+owned_file_sets: []
+resume_dirty_tree:
+  status: OK
+  ruff_exit: null
+  black_exit: null
+  checked_at: 2026-05-05T19:55:09Z
+  changed_files: []
+  log: docs/plan/mutl3y-review-20260505-g74/tmp/resume-dirty-tree.log
+notes: >-
+  New g74 deep-thorough cycle opened from the g73 checkpoint-review handoff. No
+  tracked Python files were dirty at start, so the resume-dirty-tree gate was
+  not required. The optional repo-wide probe retained in the log shows existing
+  black baseline drift, but it does not block the Phase 0 scout batch.

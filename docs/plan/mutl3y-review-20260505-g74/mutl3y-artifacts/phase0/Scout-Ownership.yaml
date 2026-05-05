@@ -1,0 +1,34 @@
+- id: Scout-Ownership-01
+  category: singleton_pollution
+  fingerprint: "singleton_pollution:api.run_scan:default_plugin_registry:bootstrap_singleton_before_input_validation"
+  file: src/prism/api.py
+  line: 344
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "default_plugin_registry = plugin_facade.get_default_scan_pipeline_registry()"
+  evidence_command: "src/prism/api.py#L344-L345"
+  related_symbols: ["run_scan", "get_default_scan_pipeline_registry", "_assert_safe_run_scan_file_inputs"]
+  fix_group_key: "api.run_scan.registry-init-order"
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py -k run_scan"
+- id: Scout-Ownership-02
+  category: facade_leakage
+  fingerprint: "facade_leakage:api.public_assembly_helpers:DIContainer FeatureDetector ScannerContext"
+  file: src/prism/api.py
+  line: 85
+  severity_hint: low
+  confidence: high
+  detector: graph_slice
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "class DIContainer(_BaseDIContainer):"
+  evidence_command: "src/prism/api.py#L34-L93"
+  related_symbols: ["DIContainer", "FeatureDetector", "ScannerContext"]
+  fix_group_key: "api.public_assembly_helpers"
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_repo_parity.py -k api_public_entrypoints"

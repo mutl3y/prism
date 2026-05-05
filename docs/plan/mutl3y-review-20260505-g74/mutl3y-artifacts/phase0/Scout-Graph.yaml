@@ -1,0 +1,44 @@
+- id: Scout-Graph-01
+  category: registry_authority
+  fingerprint: "registry_authority:scanner_plugins.__init__.bootstrap_default_plugins:custom_registry_split_bootstrap"
+  file: src/prism/scanner_plugins/__init__.py
+  line: 29
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "discover_entry_point_plugins(registry=registry, raise_on_error=True)"
+  evidence_command: "origin src/prism/scanner_plugins/__init__.py#L29-L176; canonical src/prism/scanner_plugins/bootstrap.py#L91-L231; consumer src/prism/scanner_kernel/orchestrator.py#L473-L473"
+  related_symbols:
+    - bootstrap_default_plugins
+    - initialize_default_registry
+    - discover_entry_point_plugins
+    - _validate_singleton_invariants
+    - replace_state_from
+    - resolve_scan_pipeline_plugin_class
+  fix_group_key: registry.bootstrap.custom-wrapper-split-authority
+  proposed_fix_class: consolidate
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_t2_03_entry_point_discovery.py::test_bootstrap_discovery_failure_does_not_publish_partial_registry src/prism/tests/test_plugin_kernel_extension_parity.py::test_fsrc_default_plugin_bootstrap_is_idempotent_for_required_keys"
+- id: Scout-Graph-02
+  category: facade_leakage
+  fingerprint: "facade_leakage:scanner_plugins.__init__.__all__:exports_deprecated_bootstrap_wrapper"
+  file: src/prism/scanner_plugins/__init__.py
+  line: 185
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: '"bootstrap_default_plugins",'
+  evidence_command: "src/prism/scanner_plugins/__init__.py#L29-L39; src/prism/scanner_plugins/__init__.py#L181-L188"
+  related_symbols:
+    - __all__
+    - bootstrap_default_plugins
+    - initialize_default_registry
+  fix_group_key: registry.bootstrap.custom-wrapper-split-authority
+  proposed_fix_class: retire_shim
+  blocking_preconditions:
+    - external callers of prism.scanner_plugins.bootstrap_default_plugins audited
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py::test_fsrc_default_plugin_bootstrap_is_idempotent_for_required_keys"

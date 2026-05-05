@@ -1,0 +1,22 @@
+cycle: g74
+phase: P0
+models:
+  GPT-5.4 mini (copilot):
+    attempts: 4
+    route_failures: 1
+    quality_failures: 1
+    reedit_count: 1
+    rolling_quality_avg: 3.5
+    lane_tags:
+    - discovery
+    status: degraded
+  GPT-5.4 (copilot):
+    attempts: 1
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.0
+    lane_tags:
+    - discovery
+    status: healthy
+notes: []

@@ -1,0 +1,62 @@
+- id: Scout-ControlFlow-01
+  category: error_channel
+  fingerprint: error_channel:kernel_plugin_runner:load_plugin_fn:uncaught_loader_failure
+  file: src/prism/scanner_kernel/kernel_plugin_runner.py
+  line: 109
+  severity_hint: high
+  confidence: high
+  detector: live_source_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "plugin = load_plugin_fn(platform)"
+  evidence_command: "src/prism/scanner_kernel/kernel_plugin_runner.py#L109"
+  related_symbols:
+    - run_kernel_plugin_orchestrator
+    - load_plugin_fn
+  fix_group_key: kernel-plugin-runner.load-plugin.error-channel
+  proposed_fix_class: wrap_loader_failure
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_kernel_plugin_runner.py"
+- id: Scout-ControlFlow-02
+  category: silent_fallback
+  fingerprint: silent_fallback:scanner_io/loader:parse_yaml_candidate:malformed_policy_response_falls_through
+  file: src/prism/scanner_io/loader.py
+  line: 188
+  severity_hint: medium
+  confidence: high
+  detector: live_source_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: |
+    if parsed_failure is None or _is_yaml_parse_failure(parsed_failure):
+            return parsed_failure
+  evidence_command: "src/prism/scanner_io/loader.py#L188-L196"
+  related_symbols:
+    - parse_yaml_candidate
+    - _get_yaml_parsing_policy
+    - _is_yaml_parse_failure
+  fix_group_key: loader.parse_yaml_candidate.policy-contract-fallback
+  proposed_fix_class: validate_policy_contract
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_t1_02_coverage_lift_batch3.py -k parse_yaml_candidate"
+- id: Scout-ControlFlow-03
+  category: error_channel
+  fingerprint: error_channel:scanner_core/events:strict_phase_context_post_masking
+  file: src/prism/scanner_core/events.py
+  line: 125
+  severity_hint: medium
+  confidence: medium
+  detector: live_source_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: |
+    finally:
+            self.emit(
+  evidence_command: "src/prism/scanner_core/events.py#L125-L126"
+  related_symbols:
+    - EventBus.phase
+    - EventBus.emit
+  fix_group_key: event-bus.phase.post-emit-masking
+  proposed_fix_class: preserve_original_exception
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_t3_01_scan_phase_events.py -k phase"

@@ -418,3 +418,5 @@ registry_boilerplate → ownership → ownership-impl) all GREEN. Sign-off bar e
 - Result: five source-backed High findings surfaced after a clean-looking checkpoint; three folded into existing g73 registry/contract findings and two became new active fixes.
 - Fix table: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase2/fresh-independent-review-fix-table.md
 - Process lesson: independent reviewers looked properly only after the prompt explicitly forbade prior artifacts/memories, split axes across architecture/security/adversarial/QA, and required foreman behavior checks before promotion. Captured as LESSON-17.
+
+- g74 (2026-05-05): mutl3y-review-20260505-g74; gate=GREEN; promoted_lessons=0

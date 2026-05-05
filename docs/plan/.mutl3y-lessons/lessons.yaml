@@ -268,21 +268,16 @@
   kind: prompt_rule
   cycle: g73
   category: clean_checkpoint_review
-  lesson: >-
-    When a cycle appears clean or all active Highs appear solved, dispatch a fresh
-    independent review before treating the state as safe. The prompt must forbid
-    reliance on previous scan artifacts, memories, and prior findings; require
-    live source and tests as evidence; split reviewers by axis (architecture/runtime,
-    security/error handling, adversarial logic, QA/test gaps); and require local
-    foreman behavior checks before promoting any returned candidate. This pattern
-    found live Highs after a clean-looking checkpoint because reviewers stopped
-    anchoring on the existing shortlist and the foreman falsified the strongest
+  lesson: When a cycle appears clean or all active Highs appear solved, dispatch a fresh independent review
+    before treating the state as safe. The prompt must forbid reliance on previous scan artifacts, memories,
+    and prior findings; require live source and tests as evidence; split reviewers by axis (architecture/runtime,
+    security/error handling, adversarial logic, QA/test gaps); and require local foreman behavior checks
+    before promoting any returned candidate. This pattern found live Highs after a clean-looking checkpoint
+    because reviewers stopped anchoring on the existing shortlist and the foreman falsified the strongest
     candidates directly.
-  pattern: >-
-    clean light/thorough checkpoint, no active Critical/High after current waves,
-    or sign-off temptation before an unconstrained independent pass
-  false_positive_signature: >-
-    A cycle that already has active unworked Critical/High findings does not need
+  pattern: clean light/thorough checkpoint, no active Critical/High after current waves, or sign-off temptation
+    before an unconstrained independent pass
+  false_positive_signature: A cycle that already has active unworked Critical/High findings does not need
     this as a sign-off guard; continue the active queue instead.
   evidence: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase2/fresh-independent-review-fix-table.md
   fingerprint: clean_checkpoint_review:g73:fresh-independent-review

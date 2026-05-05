@@ -1,0 +1,29 @@
+phase: P1
+cycle: g74
+status: advance
+graded_at: 2026-05-05T20:35:00Z
+focus_axis: error_handling
+summary:
+  confirmed_high:
+    - Scout-ControlFlow-01
+    - Scout-Graph-01
+    - G74-002
+  downgraded_from_high:
+    - G74-004
+  deferred_medium:
+    - Scout-Ownership-01
+    - Scout-ControlFlow-02
+    - Scout-ControlFlow-03
+    - Scout-Graph-02
+    - G74-001
+    - G74-003
+    - G74-005
+implementation_order:
+  - Scout-ControlFlow-01
+  - G74-002
+  - Scout-Graph-01
+grading_notes:
+  - Kernel loader failure handling was the cheapest behavior-scoped high slice and validated with a focused regression.
+  - Repo-services cast-to-Any was narrowed without reopening the broader repo intake public API union.
+  - Custom registry bootstrap split authority was confirmed and fixed by consolidating the custom path into bootstrap.initialize_registry().
+  - The prepared-policy typing high did not survive a direct read of the owning contract surface.

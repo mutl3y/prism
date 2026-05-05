@@ -1,0 +1,21 @@
+{
+  "plan_id": "mutl3y-review-20260505-g74",
+  "agent": "Scout-Graph",
+  "target_root": "src/prism",
+  "focus_axis": "error_handling",
+  "hotspots": [
+    "src/prism/api.py",
+    "src/prism/cli.py",
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_kernel/plugin_name_resolver.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/scanner_plugins/bootstrap.py",
+    "src/prism/scanner_plugins/registry.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/tests/test_scanner_architecture_guardrails.py"
+  ],
+  "prior_high_context": [
+    "g73 closed process-registry drift and composition-sensitive runtime seams.",
+    "Look for new split-authority resolver paths and shell-to-plugin boundary leaks around error handling."
+  ]
+}

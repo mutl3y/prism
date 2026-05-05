@@ -1,0 +1,32 @@
+plan_id: mutl3y-review-20260505-g74
+cycle: g74
+latest_checkpoint:
+  phase: P7
+  wave: null
+  status: PAUSED
+  status_line: '[g74 | cycle complete | findings closed: 3, carried: 7]'
+  next_action: Launch g75 light follow-up review or resume from paused-resume.yaml
+  blocking_issues: []
+  plan_pointer_synced: true
+  receipt_proof: []
+  artifact_proof:
+  - docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/phase7/closure-control-gate.yaml
+  - docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/phase7/paused-resume.yaml
+  - docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/phase7/closure-summary.yaml
+  source_summary_artifact: docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/phase7/closure-summary.yaml
+  failure_debug: null
+version: 1
+authoritative_resume_anchor: docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/phase7/paused-resume.yaml
+timeline:
+- timestamp: '2026-05-05T21:15:53.605222+00:00'
+  phase: P7
+  wave: null
+  status: PAUSED
+  event: phase7_closeout
+  summary: g74 high-fix checkpoint closed with validated fixes, predecessor reconciliation, and an explicit
+    paused-resume surface for g75.
+  source_artifacts:
+  - docs/plan/mutl3y-review-20260505-g74/findings.yaml
+  plan_pointer_synced: true
+  failure_debug: null
+updated_at: '2026-05-05T21:15:53.605199+00:00'

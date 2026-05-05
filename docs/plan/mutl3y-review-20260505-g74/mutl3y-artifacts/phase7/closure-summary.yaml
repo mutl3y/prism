@@ -1,0 +1,22 @@
+plan_id: mutl3y-review-20260505-g74
+cycle: g74
+phase: P7
+status: cycle_complete_paused
+summary:
+  closed_fixed:
+    - Scout-ControlFlow-01
+    - Scout-Graph-01
+    - G74-002
+  downgraded_false_positive:
+    - G74-004
+  deferred_medium_count: 7
+focused_validation:
+  - .venv/bin/pytest -q src/prism/tests/test_kernel_plugin_runner.py
+  - .venv/bin/pytest -q src/prism/tests/test_t2_03_entry_point_discovery.py
+  - .venv/bin/pytest -q src/prism/tests/test_api_cli_repo_parity.py -k 'normalize_repo_scan_payload or repo_services_objective_critical_signature_parity_with_src'
+  - .venv/bin/python -m ruff check src/prism/scanner_kernel/kernel_plugin_runner.py src/prism/scanner_plugins/__init__.py src/prism/scanner_plugins/bootstrap.py src/prism/repo_services.py src/prism/tests/test_kernel_plugin_runner.py src/prism/tests/test_t2_03_entry_point_discovery.py src/prism/tests/test_api_cli_repo_parity.py
+predecessor_reconciliation:
+  predecessor_plan: docs/plan/mutl3y-review-20260504-g73/plan.yaml
+  action: marked handoff_closed and pointed resume surface to g74 phase7 paused-resume artifact
+commit_status: pending_separate_commits
+continuation_surface: docs/plan/mutl3y-review-20260505-g74/mutl3y-artifacts/phase7/paused-resume.yaml

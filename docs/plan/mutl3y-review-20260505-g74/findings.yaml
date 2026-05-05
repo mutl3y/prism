@@ -1,0 +1,77 @@
+plan_id: mutl3y-review-20260505-g74
+cycle: g74
+target: src/prism
+review_type: thorough
+focus_axis: error_handling
+status: phase7_paused
+decision_summary:
+  - "g74 is a fresh deep-thorough review opened from the g73 checkpoint-remediation handoff."
+  - "This cycle rotated focus to error handling and recovered the stalled Phase 0 barrier by regenerating the missing typing scout artifact."
+  - "Confirmed above-medium findings in kernel loader failure handling, custom registry bootstrap authority, and repo-services cast-to-Any were fixed and focus-validated."
+  - "The prepared-policy typing scout high did not hold at the owning contract surface; it was downgraded for follow-up instead of patched speculatively."
+  - "Phase 7 closure is paused with an explicit g75 resume surface because the cadence floor requires a light follow-up review before any further stop claim."
+findings:
+  - id: Scout-ControlFlow-01
+    severity: high
+    status: closed_fixed
+    file: src/prism/scanner_kernel/kernel_plugin_runner.py
+    summary: Loader failures now enter the kernel error channel instead of escaping before phase accounting.
+    evidence:
+      tests:
+        - src/prism/tests/test_kernel_plugin_runner.py::test_run_kernel_plugin_orchestrator_wraps_loader_failure_in_kernel_error
+    changes:
+      - src/prism/scanner_kernel/kernel_plugin_runner.py
+      - src/prism/tests/test_kernel_plugin_runner.py
+  - id: Scout-Graph-01
+    severity: high
+    status: closed_fixed
+    file: src/prism/scanner_plugins/__init__.py
+    summary: Custom registry bootstrap now delegates to the canonical staged bootstrap helper instead of owning a divergent direct-registration path.
+    evidence:
+      tests:
+        - src/prism/tests/test_t2_03_entry_point_discovery.py::test_custom_bootstrap_fails_closed_on_entry_point_discovery_defect
+        - src/prism/tests/test_t2_03_entry_point_discovery.py::test_bootstrap_fails_closed_on_entry_point_discovery_defect
+    changes:
+      - src/prism/scanner_plugins/__init__.py
+      - src/prism/scanner_plugins/bootstrap.py
+      - src/prism/tests/test_t2_03_entry_point_discovery.py
+  - id: G74-002
+    severity: high
+    status: closed_fixed
+    file: src/prism/repo_services.py
+    summary: Repo payload normalization no longer relies on cast(dict[str, Any], payload); the mutable mapping seam is narrowed to object-typed dicts.
+    evidence:
+      tests:
+        - src/prism/tests/test_api_cli_repo_parity.py::test_fsrc_normalize_repo_scan_payload_adds_repo_metadata
+    changes:
+      - src/prism/repo_services.py
+      - src/prism/tests/test_api_cli_repo_parity.py
+  - id: G74-004
+    severity: high
+    status: downgraded_false_positive
+    file: src/prism/scanner_data/contracts_request.py
+    summary: Direct read showed PreparedPolicyBundle already carries typed Protocol members; no live Any-member hole was confirmed at the owning contract surface.
+    follow_up: Re-scout this area with a narrower search on concrete Any usage outside PreparedPolicyBundle before opening a typing remediation slice.
+suppressed_highs: []
+suppressed_observations:
+  - id: Scout-Ownership-01
+    severity: medium
+    status: deferred
+  - id: Scout-ControlFlow-02
+    severity: medium
+    status: deferred
+  - id: Scout-ControlFlow-03
+    severity: medium
+    status: deferred
+  - id: Scout-Graph-02
+    severity: medium
+    status: deferred
+  - id: G74-001
+    severity: medium
+    status: deferred
+  - id: G74-003
+    severity: medium
+    status: deferred
+  - id: G74-005
+    severity: medium
+    status: deferred

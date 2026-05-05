@@ -1,0 +1,20 @@
+{
+  "plan_id": "mutl3y-review-20260505-g74",
+  "agent": "Scout-ControlFlow",
+  "target_root": "src/prism",
+  "focus_axis": "error_handling",
+  "hotspots": [
+    "src/prism/api.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_kernel/kernel_plugin_runner.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/scanner_core/scan_runtime.py",
+    "src/prism/scanner_extract/task_parser.py",
+    "src/prism/scanner_plugins/parsers/jinja/analysis_policy.py",
+    "src/prism/tests/test_plugin_kernel_extension_parity.py"
+  ],
+  "prior_high_context": [
+    "g73 closed same-scan registry drift and nested policy_context mutation leakage.",
+    "Prioritize silent failure masking, non-atomic mutation, and fail-open config/error paths."
+  ]
+}
