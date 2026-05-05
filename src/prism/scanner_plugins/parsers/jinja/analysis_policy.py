@@ -36,10 +36,13 @@ def collect_undeclared_jinja_variables(text: str) -> set[str]:
         jinja2.exceptions.TemplateSyntaxError,
     ):
         return set()
+    ast_names = _collect_undeclared_jinja_variables_from_ast(parsed)
     try:
-        return set(meta.find_undeclared_variables(parsed))
+        # Jinja omits some built-in globals such as `namespace` from the meta
+        # result even when this scanner contract needs to surface them.
+        return set(meta.find_undeclared_variables(parsed)) | ast_names
     except jinja2.exceptions.TemplateAssertionError:
-        return _collect_undeclared_jinja_variables_from_ast(parsed)
+        return ast_names
 
 
 def _collect_undeclared_jinja_variables_from_ast(
