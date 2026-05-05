@@ -1,0 +1,73 @@
+{
+  "allowlist": [
+    {
+      "file": "src/prism/scanner_core/di.py",
+      "kind": "RuntimeError"
+    },
+    {
+      "file": "src/prism/scanner_core/di.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_core/di_helpers.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_core/events.py",
+      "kind": "TypeError"
+    },
+    {
+      "file": "src/prism/scanner_core/events.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_core/execution_request_builder.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_core/feature_detector.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_core/scan_cache.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_core/scan_request.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_core/scanner_context.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_core/task_extract_adapters.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_core/variable_discovery.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_extract/discovery.py",
+      "kind": "RuntimeError"
+    },
+    {
+      "file": "src/prism/scanner_extract/task_line_parsing.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_extract/variable_extractor.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_io/output.py",
+      "kind": "RuntimeError"
+    },
+    {
+      "file": "src/prism/scanner_io/output.py",
+      "kind": "ValueError"
+    }
+  ],
+  "description": "Allowlist of raw exception raises at module boundaries. Each entry is identified by (file, kind). Update via scripts/audit_error_boundaries.py --update after wrapping a raise in PrismRuntimeError or adding a new justified raise."
+}

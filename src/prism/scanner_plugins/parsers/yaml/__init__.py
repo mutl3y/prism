@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
-from prism.scanner_plugins.parsers.yaml.parsing_policy import YAMLParsingPolicyPlugin
+from prism.scanner_plugins.parsers.yaml.parsing_policy import (
+    DefaultYAMLParsingPolicyPlugin,
+)
 
-__all__ = ["YAMLParsingPolicyPlugin"]
+__all__ = ["DefaultYAMLParsingPolicyPlugin"]

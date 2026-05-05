@@ -2,50 +2,131 @@
 
 from __future__ import annotations
 
+import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable, TypeGuard, TypeVar, cast
 
 import yaml
 
-from prism.scanner_data.di_helpers import get_prepared_policy_or_none
+from prism.errors import PrismRuntimeError, category_for_code
+
+if TYPE_CHECKING:
+    from prism.scanner_data.contracts_request import (
+        PreparedYAMLParsingPolicy,
+        YamlParseFailure,
+    )
+
+
+logger = logging.getLogger(__name__)
+
+_InputT = TypeVar("_InputT")
+_ResultT = TypeVar("_ResultT")
+
+# Keep the parallel path parked behind a conservative threshold for now.
+# The current benchmarked workloads regressed at 24- and 100-file batches on
+# this machine, so current scans stay sequential by default. Retain this as a
+# future-expansion seam for materially larger workloads, and only lower the
+# gate when a workload-shaped benchmark proves a better cutoff.
+_PARALLEL_YAML_BATCH_THRESHOLD = 128
+
+
+def build_yaml_load_error(path: Path, exc: Exception) -> PrismRuntimeError:
+    return PrismRuntimeError(
+        code="yaml_load_error",
+        category=category_for_code("yaml_load_error"),
+        message=f"{path}: {exc}",
+        detail={
+            "path": str(path),
+            "error_type": type(exc).__name__,
+        },
+    )
+
+
+def _is_yaml_parse_failure(value: object) -> TypeGuard[YamlParseFailure]:
+    if not isinstance(value, dict):
+        return False
+    file_value = value.get("file")
+    line_value = value.get("line")
+    column_value = value.get("column")
+    error_value = value.get("error")
+    return (
+        isinstance(file_value, str)
+        and (line_value is None or isinstance(line_value, int))
+        and (column_value is None or isinstance(column_value, int))
+        and isinstance(error_value, str)
+    )
 
 
 def _resolve_plugin_registry(di: object | None = None):
-    if di is None:
-        return None
-    registry = getattr(di, "plugin_registry", None)
+    """Extract registry from DI without bootstrap fallback.
+
+    Loader standalone contract: returns None when no DI registry is available.
+    Does NOT fall back to bootstrap singleton, unlike defaults._resolve_registry.
+    """
+    from prism.scanner_plugins.defaults import _get_registry_from_di
+
+    registry = _get_registry_from_di(di)
     if registry is not None:
+        logger.debug(
+            "YAML parsing policy resolution: using DI.plugin_registry override"
+        )
         return registry
-    scan_options = getattr(di, "scan_options", None)
-    if isinstance(scan_options, dict):
-        return scan_options.get("plugin_registry")
+    logger.debug("YAML parsing policy resolution: no DI registry available")
     return None
 
 
 def _resolve_policy_with_registry(resolver, di: object | None = None):
     registry = _resolve_plugin_registry(di)
     if registry is None:
+        logger.debug(
+            "YAML parsing policy resolution: invoking resolver without registry override"
+        )
         return resolver(di)
-    try:
-        return resolver(di, registry=registry)
-    except TypeError:
-        return resolver(di)
+    logger.debug(
+        "YAML parsing policy resolution: invoking resolver with registry override"
+    )
+    return resolver(di, registry=registry)
 
 
-def _get_yaml_parsing_policy(di: object | None = None):
+def _get_yaml_parsing_policy(di: object | None = None) -> PreparedYAMLParsingPolicy:
+    """Resolve YAML parsing policy from prepared bundle or registry fallback.
+
+    Returns PreparedYAMLParsingPolicy with 'parse_yaml_candidate' and 'load_yaml_file'
+    callable members.
+    """
+    from prism.scanner_core.di_helpers import get_prepared_policy_or_none
+
     policy = get_prepared_policy_or_none(di, "yaml_parsing")
     if policy is not None:
-        return policy
+        logger.debug(
+            "YAML parsing policy resolution: using prepared_policy_bundle.yaml_parsing"
+        )
+        return cast("PreparedYAMLParsingPolicy", policy)
+
+    if di is not None:
+        raise PrismRuntimeError(
+            code="scan_yaml_policy_missing",
+            category=category_for_code("scan_yaml_policy_missing"),
+            message=(
+                "prepared_policy_bundle.yaml_parsing must be provided before "
+                "scanner_io.loader canonical execution"
+            ),
+            detail={
+                "required_policy": "yaml_parsing",
+                "owner": "scanner_io.loader",
+            },
+        )
 
     # NOTE: Intentional dual-path — soft fallback to registry-resolved default.
-    # Loader runs in discovery paths that execute before a prepared_policy_bundle
-    # is threaded through (e.g. standalone file-load helpers, pre-scan discovery).
-    # Unlike other policy getters, this path does NOT raise on a missing bundle.
-    # See FIND-04 in docs/plan/fsrc-gilfoyle-review-20260422/findings.yaml.
-    from prism.scanner_plugins.defaults import resolve_yaml_parsing_policy_plugin
+    # This standalone helper path remains available only when no DI context is
+    # provided at all.
+    from prism.scanner_plugins.defaults import (
+        resolve_yaml_parsing_policy_plugin as _resolve_yaml_plugin,
+    )
 
-    return _resolve_policy_with_registry(resolve_yaml_parsing_policy_plugin, di)
+    return _resolve_policy_with_registry(_resolve_yaml_plugin, di)
 
 
 def _role_relative_candidate_path(path: Path, role_root: Path) -> str | None:
@@ -56,12 +137,43 @@ def _role_relative_candidate_path(path: Path, role_root: Path) -> str | None:
         return None
 
 
-def _format_candidate_failure_path(candidate: Path, role_root: Path) -> str:
+def format_candidate_failure_path(candidate: Path, role_root: Path) -> str:
     """Return a stable failure-path string without crashing on outside-root symlinks."""
     relpath = _role_relative_candidate_path(candidate, role_root)
     if relpath is not None:
         return relpath
     return candidate.resolve().as_posix()
+
+
+def _recommended_parallel_workers(item_count: int) -> int:
+    """Keep present-day YAML batches sequential until larger workloads justify a pool.
+
+    The ordered-parallel loader path is intentionally retained for future
+    repo-scale expansion, but current benchmarked batches regress on this
+    machine unless the fan-out is materially larger.
+    """
+    if item_count < _PARALLEL_YAML_BATCH_THRESHOLD:
+        return 1
+    cpu_count = os.cpu_count() or 1
+    return min(item_count, cpu_count + 4, 32)
+
+
+def _ordered_parallel_map(
+    items: list[_InputT],
+    worker: Callable[[_InputT], _ResultT],
+) -> list[_ResultT]:
+    """Preserve input order while keeping the parallel path available for later.
+
+    This helper is intentionally not dead code: current scans fall back to the
+    sequential branch below the threshold, while larger future YAML batches can
+    reuse the same ordering-preserving seam without reintroducing the helper.
+    """
+    max_workers = _recommended_parallel_workers(len(items))
+    if max_workers <= 1:
+        return [worker(item) for item in items]
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        return list(executor.map(worker, items))
 
 
 def iter_role_yaml_candidates(
@@ -97,27 +209,54 @@ def parse_yaml_candidate(
     role_root: Path,
     *,
     di: object | None = None,
-) -> dict[str, object] | None:
-    """Parse one YAML candidate and return a failure payload when parsing fails."""
+) -> YamlParseFailure | None:
+    """Parse one YAML candidate and return a failure payload when parsing fails.
+
+    Returns None on successful parse, or a YamlParseFailure payload on parse
+    failure. The payload preserves the existing four-key mapping and current
+    error-string prefixes.
+    """
     policy = _get_yaml_parsing_policy(di)
     parse_fn = getattr(policy, "parse_yaml_candidate", None)
     if callable(parse_fn):
         parsed_failure = parse_fn(candidate, role_root)
-        if isinstance(parsed_failure, dict) or parsed_failure is None:
+        if parsed_failure is None or _is_yaml_parse_failure(parsed_failure):
             return parsed_failure
 
     try:
         text = candidate.read_text(encoding="utf-8")
         yaml.safe_load(text)
         return None
-    except (OSError, UnicodeDecodeError) as exc:
+    except OSError as exc:
+        logger.warning(
+            "parse_yaml_candidate: IO error (%s) for %s",
+            type(exc).__name__,
+            candidate,
+            exc_info=True,
+        )
         return {
-            "file": _format_candidate_failure_path(candidate, role_root),
+            "file": format_candidate_failure_path(candidate, role_root),
             "line": None,
             "column": None,
-            "error": f"read_error: {exc}",
+            "error": f"io_error ({type(exc).__name__}): {exc}",
         }
-    except (yaml.YAMLError, ValueError) as exc:
+    except UnicodeDecodeError as exc:
+        logger.warning(
+            "parse_yaml_candidate: encoding error for %s", candidate, exc_info=True
+        )
+        return {
+            "file": format_candidate_failure_path(candidate, role_root),
+            "line": None,
+            "column": None,
+            "error": f"encoding_error: {exc}",
+        }
+    except yaml.YAMLError as exc:
+        logger.warning(
+            "parse_yaml_candidate: YAML parse error (%s) for %s",
+            type(exc).__name__,
+            candidate,
+            exc_info=True,
+        )
         mark = getattr(exc, "problem_mark", None)
         line = int(mark.line) + 1 if mark is not None else None
         column = int(mark.column) + 1 if mark is not None else None
@@ -125,10 +264,20 @@ def parse_yaml_candidate(
         if not problem:
             problem = str(exc).splitlines()[0].strip()
         return {
-            "file": _format_candidate_failure_path(candidate, role_root),
+            "file": format_candidate_failure_path(candidate, role_root),
             "line": line,
             "column": column,
-            "error": problem,
+            "error": f"yaml_error ({type(exc).__name__}): {problem}",
+        }
+    except ValueError as exc:
+        logger.warning(
+            "parse_yaml_candidate: value error for %s", candidate, exc_info=True
+        )
+        return {
+            "file": format_candidate_failure_path(candidate, role_root),
+            "line": None,
+            "column": None,
+            "error": f"value_error: {exc}",
         }
 
 
@@ -158,20 +307,22 @@ def collect_yaml_parse_failures(
     iter_yaml_candidates_fn: Callable[[Path, list[str] | None], list[Path]],
     *,
     di: object | None = None,
-) -> list[dict[str, object]]:
+) -> list[YamlParseFailure]:
     """Collect YAML parse failures with file/line context across a role tree."""
     role_root = Path(role_path).resolve()
-    failures: list[dict[str, object]] = []
+    candidates = list(
+        iter_yaml_candidates_fn(
+            role_root,
+            exclude_paths,
+        )
+    )
 
-    for candidate in iter_yaml_candidates_fn(
-        role_root,
-        exclude_paths,
-    ):
-        failure = parse_yaml_candidate(candidate, role_root, di=di)
-        if failure is not None:
-            failures.append(failure)
+    def _parse_candidate(candidate: Path) -> YamlParseFailure | None:
+        return parse_yaml_candidate(candidate, role_root, di=di)
 
-    return failures
+    failures = _ordered_parallel_map(candidates, _parse_candidate)
+
+    return [failure for failure in failures if failure is not None]
 
 
 def load_yaml_file(path: Path, *, di: object | None = None) -> object:
@@ -184,5 +335,6 @@ def load_yaml_file(path: Path, *, di: object | None = None) -> object:
     try:
         text = path.read_text(encoding="utf-8")
         return yaml.safe_load(text)
-    except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
-        return None
+    except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError) as exc:
+        logger.warning("load_yaml_file failed for %s", path, exc_info=True)
+        raise build_yaml_load_error(path, exc) from exc

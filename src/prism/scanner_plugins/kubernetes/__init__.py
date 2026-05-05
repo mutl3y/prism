@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import types
 from typing import Any, cast
 
-PLUGIN_CONTRACT_VERSION = {"major": 1, "minor": 0}
+PLUGIN_CONTRACT_VERSION: types.MappingProxyType[str, int] = types.MappingProxyType(
+    {"major": 1, "minor": 0}
+)
 
 UNSUPPORTED_TARGET_CAPABILITY_ERROR_CODE = "target_capability_unsupported"
 

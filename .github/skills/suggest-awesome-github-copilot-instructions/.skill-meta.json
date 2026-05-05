@@ -1,0 +1,9 @@
+{
+  "name": "suggest-awesome-github-copilot-instructions",
+  "source": "github-awesome-copilot",
+  "description": "Suggest relevant GitHub Copilot instruction files from the awesome-copilot repository based on current repository context and chat history, avoiding duplicates with existing instructions in this repository, and identifying outdated instructions that need updates.",
+  "description_ja": "",
+  "whenToUse": "Suggest relevant GitHub Copilot instruction files from the awesome-copilot repository based on current repository context and chat history, avoiding duplicates with existing instructions in this re...",
+  "categories": [],
+  "installedAt": "2026-04-22T23:27:08.612Z"
+}

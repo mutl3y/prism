@@ -1,0 +1,5 @@
+# suggest-awesome-github-copilot-instructions
+
+Suggest relevant GitHub Copilot instruction files from the awesome-copilot repository based on current repository context and chat history, avoiding duplicates with existing instructions in this repository, and identifying outdated instructions that need updates.
+
+Source: github-awesome-copilot

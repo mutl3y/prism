@@ -2,75 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-from prism.scanner_extract.requirements import normalize_requirements
+from prism.scanner_plugins.defaults import resolve_readme_renderer_plugin
 
-
-def _render_identity_galaxy_info_section(
-    role_name: str,
-    description: str,
-    galaxy: dict[str, Any],
-) -> str:
-    """Render Galaxy metadata section details."""
-    if not galaxy:
-        return "No Galaxy metadata found."
-    lines = [
-        f"- **Role name**: {galaxy.get('role_name', role_name)}",
-        f"- **Description**: {galaxy.get('description', description)}",
-        f"- **License**: {galaxy.get('license', 'N/A')}",
-        f"- **Min Ansible Version**: {galaxy.get('min_ansible_version', 'N/A')}",
-    ]
-    tags = galaxy.get("galaxy_tags")
-    if tags:
-        lines.append(f"- **Tags**: {', '.join(tags)}")
-    return "\n".join(lines)
-
-
-def _render_identity_requirements_section(requirements: list[Any]) -> str:
-    """Render normalized requirements bullet list."""
-    requirement_lines = normalize_requirements(requirements)
-    if not requirement_lines:
-        return "No additional requirements."
-    return "\n".join(f"- {line}" for line in requirement_lines)
-
-
-def _render_identity_installation_section(
-    role_name: str, galaxy: dict[str, Any]
-) -> str:
-    """Render installation guidance using Ansible Galaxy and requirements.yml."""
-    install_name = str(galaxy.get("role_name") or role_name)
-    return (
-        "Install the role with Ansible Galaxy:\n\n"
-        "```bash\n"
-        f"ansible-galaxy install {install_name}\n"
-        "```\n\n"
-        "Or pin it in `requirements.yml`:\n\n"
-        "```yaml\n"
-        f"- src: {install_name}\n"
-        "```"
-    )
-
-
-def _render_identity_license_section(galaxy: dict[str, Any]) -> str:
-    """Render license value from Galaxy metadata when present."""
-    if galaxy and galaxy.get("license"):
-        return str(galaxy.get("license"))
-    return "N/A"
-
-
-def _render_identity_author_section(galaxy: dict[str, Any]) -> str:
-    """Render author value from Galaxy metadata when present."""
-    if galaxy and galaxy.get("author"):
-        return str(galaxy.get("author"))
-    return "N/A"
-
-
-def _render_identity_license_author_section(galaxy: dict[str, Any]) -> str:
-    """Render combined license/author identity section."""
-    license_value = str(galaxy.get("license", "N/A")) if galaxy else "N/A"
-    author_value = str(galaxy.get("author", "N/A")) if galaxy else "N/A"
-    return f"License: {license_value}\n\nAuthor: {author_value}"
+logger = logging.getLogger(__name__)
 
 
 def _render_identity_purpose_section(metadata: dict[str, Any]) -> str:
@@ -128,25 +65,21 @@ def _render_guide_identity_sections(
     metadata: dict[str, Any],
 ) -> str | None:
     """Render style-guide sections focused on role identity and metadata."""
-    if section_id == "galaxy_info":
-        return _render_identity_galaxy_info_section(role_name, description, galaxy)
-    if section_id == "requirements":
-        return _render_identity_requirements_section(requirements)
-    if section_id == "installation":
-        return _render_identity_installation_section(role_name, galaxy)
-    if section_id == "license":
-        return _render_identity_license_section(galaxy)
-    if section_id == "author_information":
-        return _render_identity_author_section(galaxy)
-    if section_id == "license_author":
-        return _render_identity_license_author_section(galaxy)
-    if section_id == "sponsors":
-        return "No sponsorship metadata detected for this role."
-    if section_id == "purpose":
-        return _render_identity_purpose_section(metadata)
-    if section_id == "role_notes":
-        return _render_identity_role_notes_section(metadata.get("role_notes"))
-    return None
+    raw_platform_key = (metadata or {}).get("platform_key")
+    if not raw_platform_key:
+        logger.warning(
+            "platform_key missing or empty (value=%r); defaulting to 'ansible' in render_guide_identity_section",
+            raw_platform_key,
+        )
+    platform_key = str(raw_platform_key or "ansible")
+    return resolve_readme_renderer_plugin(platform_key).render_identity_section(
+        section_id,
+        role_name,
+        description,
+        requirements,
+        galaxy,
+        metadata or {},
+    )
 
 
 def render_guide_section_body(
@@ -159,34 +92,20 @@ def render_guide_section_body(
     metadata: dict[str, Any],
 ) -> str:
     """Render foundational README section body content for known section IDs."""
-    if section_id == "purpose":
-        return description or f"Role `{role_name}`"
-
-    if section_id == "requirements":
-        if not requirements:
-            return "No additional requirements."
-        return "\n".join(f"- {item}" for item in requirements)
-
-    if section_id == "role_variables":
-        if not variables:
-            return "No role variables detected."
-        lines = []
-        for name, detail in variables.items():
-            default_value = ""
-            if isinstance(detail, dict):
-                default_value = str(detail.get("default", ""))
-            lines.append(f"- `{name}`: `{default_value}`")
-        return "\n".join(lines)
-
-    if section_id == "default_filters":
-        if not default_filters:
-            return "No default() filter usage detected."
-        return "\n".join(f"- `{entry.get('target', '')}`" for entry in default_filters)
-
-    if section_id == "role_notes":
-        role_notes = metadata.get("role_notes") if isinstance(metadata, dict) else None
-        if not isinstance(role_notes, list) or not role_notes:
-            return "No role notes detected."
-        return "\n".join(f"- {note}" for note in role_notes)
-
-    return ""
+    raw_platform_key = (metadata or {}).get("platform_key")
+    if not raw_platform_key:
+        logger.warning(
+            "platform_key missing or empty (value=%r); defaulting to 'ansible' in render_guide_section_body",
+            raw_platform_key,
+        )
+    platform_key = str(raw_platform_key or "ansible")
+    result = resolve_readme_renderer_plugin(platform_key).render_section_body(
+        section_id,
+        role_name,
+        description,
+        variables,
+        requirements,
+        default_filters,
+        metadata or {},
+    )
+    return result if result is not None else ""

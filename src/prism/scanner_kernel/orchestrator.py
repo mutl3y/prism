@@ -3,100 +3,130 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Callable, NoReturn, Protocol, TypeGuard, cast, runtime_checkable
 
 from prism.errors import PrismRuntimeError
-
-
-_SCAN_PIPELINE_SELECTION_ORDER: tuple[str, ...] = (
-    "request.option.scan_pipeline_plugin",
-    "policy_context.selection.plugin",
-    "platform",
-    "registry_default",
+from prism.scanner_core.protocols_runtime import KernelOrchestrator, KernelResponse
+from prism.scanner_data.contracts_request import ScanMetadata, ScanOptionsDict
+from prism.scanner_kernel.plugin_name_resolver import (
+    RoutePreflightRuntimeCarrier,
+    ScanPipelineRegistry,
+    ScanPipelinePluginFactory,
+    ScanPipelineRouting,
+    _resolve_policy_context_scan_pipeline_plugin_name,
+    resolve_scan_pipeline_plugin_class,
+    resolve_scan_pipeline_plugin_name,
 )
+from prism.scanner_kernel.scan_payload_helpers import (
+    _apply_routing_metadata,
+    _build_routing_metadata,
+    _merge_metadata_preserving_existing,
+    _merge_routing_metadata,
+    apply_scan_policy_blocker_runtime_outcomes,
+)
+
 
 _ROUTING_MODE_PLUGIN = "scan_pipeline_plugin"
 
 
-@dataclass(frozen=True, slots=True)
-class RoutePreflightRuntimeCarrier:
-    """Explicit carrier for selected route, preflight result, and runtime metadata."""
+@runtime_checkable
+class _ProcessScanPipelinePlugin(Protocol):
+    """Minimal plugin surface for preflight-only fallback orchestration."""
 
-    plugin_name: str
-    preflight_context: dict[str, Any]
-    routing: dict[str, Any]
-
-
-def resolve_scan_pipeline_plugin_class(
-    *,
-    registry: Any,
-    plugin_name: str,
-) -> Any | None:
-    """Resolve a scan-pipeline plugin class from a registry."""
-    return registry.get_scan_pipeline_plugin(plugin_name)
+    def process_scan_pipeline(
+        self,
+        scan_options: ScanOptionsDict,
+        scan_context: ScanMetadata,
+    ) -> ScanMetadata: ...
 
 
-def execute_scan_pipeline_plugin(
-    *,
-    plugin_class: Any,
-    scan_options: dict[str, Any],
-    scan_context: dict[str, Any],
-) -> Any:
-    """Instantiate and execute a scan-pipeline plugin."""
-    plugin_instance = plugin_class()
-    return plugin_instance.process_scan_pipeline(
-        scan_options=dict(scan_options),
-        scan_context=dict(scan_context),
-    )
+@runtime_checkable
+class _OrchestrateScanPayloadPlugin(Protocol):
+    """Minimal plugin surface for runtime payload orchestration."""
+
+    def orchestrate_scan_payload(
+        self,
+        *,
+        payload: dict[str, object],
+        scan_options: ScanOptionsDict,
+        strict_mode: bool,
+        preflight_context: ScanMetadata | None = None,
+    ) -> dict[str, object]: ...
 
 
-def _resolve_default_scan_pipeline_plugin_name(registry: Any) -> str:
-    list_plugins = getattr(registry, "list_scan_pipeline_plugins", None)
-    get_plugin = getattr(registry, "get_scan_pipeline_plugin", None)
-
-    if callable(list_plugins):
-        registered = [
-            name for name in list_plugins() if isinstance(name, str) and name.strip()
-        ]
-        if "default" in registered:
-            return "default"
-        if len(registered) == 1:
-            return registered[0]
-        if registered:
-            return sorted(registered)[0]
-
-    if callable(get_plugin):
-        if get_plugin("default") is not None:
-            return "default"
-
-    raise PrismRuntimeError(
-        code="scan_pipeline_default_unavailable",
-        category="runtime",
-        message="no scan-pipeline plugin default is registered",
-        detail={"registry_type": type(registry).__name__},
-    )
+def _is_scan_pipeline_plugin_factory(
+    value: object,
+) -> TypeGuard[ScanPipelinePluginFactory]:
+    return callable(value)
 
 
-def _resolve_policy_context_scan_pipeline_plugin_name(
-    scan_options: dict[str, Any],
-) -> str | None:
-    policy_context = scan_options.get("policy_context")
-    if not isinstance(policy_context, dict):
-        return None
-
-    selection_context = policy_context.get("selection")
-    if not isinstance(selection_context, dict):
-        return None
-
-    plugin_name = selection_context.get("plugin")
-    if not isinstance(plugin_name, str) or not plugin_name.strip():
-        return None
-
-    return plugin_name.strip()
+def _is_process_scan_pipeline_plugin(
+    value: object,
+) -> TypeGuard[_ProcessScanPipelinePlugin]:
+    return isinstance(value, _ProcessScanPipelinePlugin)
 
 
-def _is_explicitly_selected_plugin_name(scan_options: dict[str, Any]) -> bool:
+def _is_orchestrate_scan_payload_plugin(
+    value: object,
+) -> TypeGuard[_OrchestrateScanPayloadPlugin]:
+    return isinstance(value, _OrchestrateScanPayloadPlugin)
+
+
+def _instantiate_scan_pipeline_plugin(plugin_factory: object) -> object:
+    if not _is_scan_pipeline_plugin_factory(plugin_factory):
+        raise TypeError("resolved scan-pipeline plugin is not callable")
+    return plugin_factory()
+
+
+def _is_scan_pipeline_registry(value: object) -> TypeGuard[ScanPipelineRegistry]:
+    return callable(getattr(value, "get_scan_pipeline_plugin", None))
+
+
+def _is_scan_metadata(value: object) -> TypeGuard[ScanMetadata]:
+    return isinstance(value, dict)
+
+
+def _is_scan_pipeline_routing(value: object) -> TypeGuard[ScanPipelineRouting]:
+    return isinstance(value, dict)
+
+
+def _copy_scan_metadata(value: object) -> ScanMetadata:
+    if _is_scan_metadata(value):
+        return copy.copy(value)
+    return ScanMetadata()
+
+
+def _copy_scan_pipeline_routing(value: object) -> ScanPipelineRouting:
+    if _is_scan_pipeline_routing(value):
+        return copy.copy(value)
+    return ScanPipelineRouting()
+
+
+def _clone_container_structure(value: object) -> object:
+    if isinstance(value, dict):
+        return {key: _clone_container_structure(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_clone_container_structure(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_clone_container_structure(item) for item in value)
+    if isinstance(value, set):
+        return {_clone_container_structure(item) for item in value}
+    if isinstance(value, frozenset):
+        return frozenset(_clone_container_structure(item) for item in value)
+    return value
+
+
+def _copy_scan_options(value: ScanOptionsDict) -> ScanOptionsDict:
+    return cast(ScanOptionsDict, _clone_container_structure(value))
+
+
+def _require_scan_pipeline_registry(registry: object | None) -> ScanPipelineRegistry:
+    if not _is_scan_pipeline_registry(registry):
+        raise ValueError("registry must implement the scan-pipeline registry contract")
+    return registry
+
+
+def _is_explicitly_selected_plugin_name(scan_options: ScanOptionsDict) -> bool:
     configured = scan_options.get("scan_pipeline_plugin")
     if isinstance(configured, str) and configured.strip():
         return True
@@ -108,218 +138,51 @@ def _is_explicitly_selected_plugin_name(scan_options: dict[str, Any]) -> bool:
     return False
 
 
-def resolve_scan_pipeline_plugin_name(
-    *,
-    scan_options: dict[str, Any],
-    registry: Any | None = None,
-) -> str:
-    """Resolve the scan-pipeline plugin selector from canonical scan options."""
-    configured = scan_options.get("scan_pipeline_plugin")
-    if isinstance(configured, str) and configured.strip():
-        return configured.strip()
-
-    configured_from_policy = _resolve_policy_context_scan_pipeline_plugin_name(
-        scan_options
-    )
-    if configured_from_policy is not None:
-        return configured_from_policy
-
-    platform = scan_options.get("platform")
-    if isinstance(platform, str) and platform.strip():
-        return platform.strip()
-
-    if registry is None:
-        raise ValueError("registry must be provided for plugin name resolution")
-    return _resolve_default_scan_pipeline_plugin_name(registry)
-
-
-def _merge_metadata_preserving_existing(
-    existing: dict[str, Any],
-    incoming: dict[str, Any],
-) -> dict[str, Any]:
-    merged = dict(existing)
-    for key, value in incoming.items():
-        if key not in merged:
-            merged[key] = value
-            continue
-
-        existing_value = merged[key]
-        if isinstance(existing_value, dict) and isinstance(value, dict):
-            merged[key] = _merge_metadata_preserving_existing(existing_value, value)
-    return merged
-
-
-def _build_routing_metadata(
-    *,
-    mode: str | None = None,
-    selected_plugin: str | None = None,
-    failure_mode: str | None = None,
-    preflight_stage: str | None = None,
-    exception_type: str | None = None,
-    include_selection_order: bool = False,
-) -> dict[str, Any]:
-    routing: dict[str, Any] = {}
-    if mode is not None:
-        routing["mode"] = mode
-    if include_selection_order:
-        routing["selection_order"] = list(_SCAN_PIPELINE_SELECTION_ORDER)
-    if selected_plugin is not None:
-        routing["selected_plugin"] = selected_plugin
-    if failure_mode is not None:
-        routing["failure_mode"] = failure_mode
-    if preflight_stage is not None:
-        routing["preflight_stage"] = preflight_stage
-    if exception_type is not None:
-        routing["exception_type"] = exception_type
-    return routing
-
-
-def _merge_routing_metadata(
-    existing: dict[str, Any] | None,
-    incoming: dict[str, Any],
-) -> dict[str, Any]:
-    merged = dict(existing) if isinstance(existing, dict) else {}
-    merged.update(incoming)
-    return merged
-
-
-def _ensure_payload_metadata(payload: dict[str, Any]) -> dict[str, Any]:
-    metadata = payload.get("metadata")
-    if not isinstance(metadata, dict):
-        metadata = {}
-        payload["metadata"] = metadata
-    return metadata
-
-
-def _apply_routing_metadata(
-    *,
-    payload: dict[str, Any],
-    routing: dict[str, Any],
-) -> dict[str, Any]:
-    metadata = _ensure_payload_metadata(payload)
-    metadata["routing"] = _merge_routing_metadata(metadata.get("routing"), routing)
-    return metadata["routing"]
-
-
-def _append_scan_policy_warning(
-    *,
-    payload: dict[str, Any],
-    code: str,
-    message: str,
-    detail: dict[str, Any],
-) -> dict[str, Any]:
-    warning_metadata = _ensure_payload_metadata(payload)
-    existing_warnings = warning_metadata.get("scan_policy_warnings")
-    warnings_list = (
-        list(existing_warnings) if isinstance(existing_warnings, list) else []
-    )
-    warning = {
-        "code": code,
-        "message": message,
-        "detail": copy.deepcopy(detail),
-    }
-    if warning not in warnings_list:
-        warnings_list.append(warning)
-    warning_metadata["scan_policy_warnings"] = warnings_list
-    return payload
-
-
-def apply_scan_policy_blocker_runtime_outcomes(
-    *,
-    payload: dict[str, Any],
-    strict_mode: bool,
-) -> dict[str, Any]:
-    """Translate emitted blocker facts into preserved runtime outcomes."""
-    metadata = _ensure_payload_metadata(payload)
-    blocker_facts = metadata.get("scan_policy_blocker_facts")
-    if not isinstance(blocker_facts, dict):
-        return payload
-
-    blocker_events: list[tuple[str, str, str, dict[str, Any]]] = []
-
-    dynamic_facts = blocker_facts.get("dynamic_includes")
-    if isinstance(dynamic_facts, dict):
-        dynamic_total = int(dynamic_facts.get("total_count") or 0)
-        if bool(dynamic_facts.get("enabled")) and dynamic_total > 0:
-            blocker_events.append(
-                (
-                    "unconstrained_dynamic_includes_detected",
-                    "Scan policy failure: unconstrained dynamic include targets were detected.",
-                    "Scan policy warning: unconstrained dynamic include targets were detected.",
-                    {
-                        "dynamic_task_includes": int(
-                            dynamic_facts.get("task_count") or 0
-                        ),
-                        "dynamic_role_includes": int(
-                            dynamic_facts.get("role_count") or 0
-                        ),
-                    },
-                )
-            )
-
-    yaml_like_facts = blocker_facts.get("yaml_like_annotations")
-    if isinstance(yaml_like_facts, dict):
-        yaml_like_count = int(yaml_like_facts.get("count") or 0)
-        if bool(yaml_like_facts.get("enabled")) and yaml_like_count > 0:
-            blocker_events.append(
-                (
-                    "yaml_like_task_annotations_detected",
-                    "Scan policy failure: yaml-like task annotations were detected.",
-                    "Scan policy warning: yaml-like task annotations were detected.",
-                    {"yaml_like_task_annotations": yaml_like_count},
-                )
-            )
-
-    if strict_mode and blocker_events:
-        code, failure_message, _warning_message, detail = blocker_events[0]
-        raise PrismRuntimeError(
-            code=code,
-            category="runtime",
-            message=failure_message,
-            detail=detail,
-        )
-
-    for code, _failure_message, warning_message, detail in blocker_events:
-        _append_scan_policy_warning(
-            payload=payload,
-            code=code,
-            message=warning_message,
-            detail=detail,
-        )
-
-    return payload
-
-
 def _build_route_preflight_runtime_carrier(
     *,
     plugin_name: str,
-    plugin_context: dict[str, Any] | None,
+    plugin_context: ScanMetadata | None,
+    plugin_factory: object | None = None,
 ) -> RoutePreflightRuntimeCarrier:
-    preflight_context = dict(plugin_context) if isinstance(plugin_context, dict) else {}
-    preflight_context.setdefault("plugin_name", plugin_name)
+    preflight_context_data: ScanMetadata = (
+        copy.copy(plugin_context)
+        if _is_scan_metadata(plugin_context)
+        else ScanMetadata()
+    )
+    preflight_context_data["plugin_name"] = plugin_name
+    routing_seed = None
+    if _is_scan_metadata(plugin_context):
+        existing_routing = plugin_context.get("routing")
+        if _is_scan_pipeline_routing(existing_routing):
+            routing_seed = existing_routing
+    routing_seed_dict = dict(routing_seed) if routing_seed is not None else None
     routing = _merge_routing_metadata(
-        preflight_context.get("routing"),
+        routing_seed_dict,
         _build_routing_metadata(
             mode=_ROUTING_MODE_PLUGIN,
             selected_plugin=plugin_name,
             include_selection_order=True,
         ),
     )
-    preflight_context["routing"] = routing
     return RoutePreflightRuntimeCarrier(
         plugin_name=plugin_name,
-        preflight_context=preflight_context,
-        routing=routing,
+        preflight_context=preflight_context_data,
+        routing=_copy_scan_pipeline_routing(routing),
+        plugin_factory=(
+            cast(ScanPipelinePluginFactory, plugin_factory)
+            if _is_scan_pipeline_plugin_factory(plugin_factory)
+            else None
+        ),
     )
 
 
 def _invoke_kernel_orchestrator(
     *,
-    kernel_orchestrator_fn: Callable[..., dict[str, Any]],
+    kernel_orchestrator_fn: KernelOrchestrator,
     role_path: str,
-    scan_options: dict[str, Any],
+    scan_options: ScanOptionsDict,
     route_preflight_runtime: RoutePreflightRuntimeCarrier,
-) -> dict[str, Any]:
+) -> KernelResponse:
     return kernel_orchestrator_fn(
         role_path=role_path,
         scan_options=scan_options,
@@ -327,7 +190,7 @@ def _invoke_kernel_orchestrator(
     )
 
 
-def _routing_error_detail(routing: dict[str, Any]) -> dict[str, Any]:
+def _routing_error_detail(routing: dict[str, object]) -> dict[str, object]:
     return {"metadata": {"routing": routing}}
 
 
@@ -335,9 +198,9 @@ def _raise_contract_error(
     *,
     code: str,
     message: str,
-    routing: dict[str, Any],
+    routing: dict[str, object],
     cause: Exception | None = None,
-) -> None:
+) -> NoReturn:
     raise PrismRuntimeError(
         code=code,
         category="runtime",
@@ -346,32 +209,110 @@ def _raise_contract_error(
     ) from cause
 
 
+def _raise_invalid_plugin_output_error(
+    *,
+    plugin_name: str,
+    plugin_output: object,
+) -> NoReturn:
+    _raise_contract_error(
+        code="scan_pipeline_execution_failed",
+        message=(
+            f"scan-pipeline plugin '{plugin_name}' returned invalid runtime "
+            f"output type '{type(plugin_output).__name__}'; expected dict"
+        ),
+        routing=_build_routing_metadata(
+            mode=_ROUTING_MODE_PLUGIN,
+            selected_plugin=plugin_name,
+            failure_mode="invalid_plugin_output",
+        ),
+    )
+
+
+def _raise_invalid_preflight_output_error(
+    *,
+    plugin_name: str,
+    plugin_output: object,
+) -> NoReturn:
+    _raise_contract_error(
+        code="scan_pipeline_execution_failed",
+        message=(
+            f"scan-pipeline plugin '{plugin_name}' returned invalid preflight "
+            f"output type '{type(plugin_output).__name__}'; expected dict"
+        ),
+        routing=_build_routing_metadata(
+            mode=_ROUTING_MODE_PLUGIN,
+            selected_plugin=plugin_name,
+            failure_mode="invalid_preflight_output",
+        ),
+    )
+
+
+def _raise_execution_failure(
+    *,
+    phase: str,
+    plugin_name: str | None,
+    failure_mode: str,
+    cause: Exception,
+) -> NoReturn:
+    _raise_contract_error(
+        code="scan_pipeline_execution_failed",
+        message=f"scan-pipeline {phase} execution failed",
+        routing=_build_routing_metadata(
+            mode=_ROUTING_MODE_PLUGIN,
+            selected_plugin=plugin_name,
+            failure_mode=failure_mode,
+        ),
+        cause=cause,
+    )
+
+
+def _construct_scan_pipeline_plugin(
+    *,
+    plugin_factory: object,
+    plugin_name: str,
+    phase: str,
+) -> object:
+    try:
+        return _instantiate_scan_pipeline_plugin(plugin_factory)
+    except PrismRuntimeError:
+        raise
+    except Exception as exc:
+        _raise_execution_failure(
+            phase=phase,
+            plugin_name=plugin_name,
+            failure_mode="constructor_exception",
+            cause=exc,
+        )
+
+
 def _orchestrate_scan_payload_with_plugin_instance(
     *,
-    plugin: Any,
+    plugin: object,
     plugin_name: str,
-    payload: dict[str, Any],
-    scan_options: dict[str, Any],
+    payload: dict[str, object],
+    scan_options: ScanOptionsDict,
     strict_mode: bool,
-    preflight_context: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+    preflight_context: ScanMetadata | None = None,
+) -> dict[str, object]:
     metadata = payload.get("metadata")
     base_metadata = copy.deepcopy(metadata) if isinstance(metadata, dict) else {}
 
-    if isinstance(preflight_context, dict):
-        plugin_output: Any = dict(preflight_context)
+    if _is_scan_metadata(preflight_context):
+        plugin_output: object = copy.copy(preflight_context)
     else:
-        process_scan_pipeline = getattr(plugin, "process_scan_pipeline", None)
-        if callable(process_scan_pipeline):
-            plugin_output = process_scan_pipeline(
-                scan_options=copy.deepcopy(scan_options),
-                scan_context=copy.deepcopy(base_metadata),
+        if _is_process_scan_pipeline_plugin(plugin):
+            plugin_output = plugin.process_scan_pipeline(
+                scan_options=_copy_scan_options(scan_options),
+                scan_context=_copy_scan_metadata(base_metadata),
             )
         else:
             plugin_output = {}
 
     if not isinstance(plugin_output, dict):
-        return payload
+        _raise_invalid_plugin_output_error(
+            plugin_name=plugin_name,
+            plugin_output=plugin_output,
+        )
 
     payload["metadata"] = _merge_metadata_preserving_existing(
         base_metadata,
@@ -382,13 +323,13 @@ def _orchestrate_scan_payload_with_plugin_instance(
 
 def orchestrate_scan_payload_with_selected_plugin(
     *,
-    build_payload_fn: Callable[[], dict[str, Any]],
-    scan_options: dict[str, Any],
+    build_payload_fn: Callable[[], dict[str, object]],
+    scan_options: ScanOptionsDict,
     strict_mode: bool,
-    preflight_context: dict[str, Any] | None = None,
+    preflight_context: ScanMetadata | None = None,
     route_preflight_runtime: RoutePreflightRuntimeCarrier | None = None,
-    registry: Any | None = None,
-) -> dict[str, Any]:
+    registry: object | None = None,
+) -> dict[str, object]:
     payload = build_payload_fn()
     payload = apply_scan_policy_blocker_runtime_outcomes(
         payload=payload,
@@ -396,46 +337,57 @@ def orchestrate_scan_payload_with_selected_plugin(
     )
     if registry is None:
         raise ValueError("registry must be provided for scan pipeline orchestration")
+    scan_pipeline_registry = _require_scan_pipeline_registry(registry)
     plugin_name = "unresolved"
-    existing_preflight_routing: dict[str, Any] = {}
+    existing_preflight_routing: ScanPipelineRouting = ScanPipelineRouting()
 
     if route_preflight_runtime is not None:
         plugin_name = route_preflight_runtime.plugin_name
-        preflight_context = dict(route_preflight_runtime.preflight_context)
-        existing_preflight_routing = copy.deepcopy(route_preflight_runtime.routing)
-        _apply_routing_metadata(payload=payload, routing=existing_preflight_routing)
-    elif isinstance(preflight_context, dict):
-        preflight_plugin_name = preflight_context.get("plugin_name")
-        if isinstance(preflight_plugin_name, str) and preflight_plugin_name.strip():
-            plugin_name = preflight_plugin_name.strip()
+        preflight_context = _copy_scan_metadata(
+            route_preflight_runtime.preflight_context
+        )
+        existing_preflight_routing = _copy_scan_pipeline_routing(
+            route_preflight_runtime.routing
+        )
+        _apply_routing_metadata(
+            payload=payload,
+            routing=cast(dict[str, object], copy.copy(existing_preflight_routing)),
+        )
+    elif _is_scan_metadata(preflight_context):
         preflight_routing = preflight_context.get("routing")
-        if isinstance(preflight_routing, dict):
-            existing_preflight_routing = copy.deepcopy(preflight_routing)
-            _apply_routing_metadata(payload=payload, routing=existing_preflight_routing)
+        if _is_scan_pipeline_routing(preflight_routing):
+            existing_preflight_routing = _copy_scan_pipeline_routing(preflight_routing)
+            _apply_routing_metadata(
+                payload=payload,
+                routing=cast(dict[str, object], copy.copy(existing_preflight_routing)),
+            )
 
     try:
+        plugin_factory = None
         if plugin_name == "unresolved":
             plugin_name = resolve_scan_pipeline_plugin_name(
                 scan_options=scan_options,
-                registry=registry,
+                registry=scan_pipeline_registry,
             )
-        plugin_class = resolve_scan_pipeline_plugin_class(
-            registry=registry,
-            plugin_name=plugin_name,
-        )
+        if (
+            route_preflight_runtime is not None
+            and route_preflight_runtime.plugin_factory is not None
+        ):
+            plugin_factory = route_preflight_runtime.plugin_factory
+        else:
+            plugin_factory = resolve_scan_pipeline_plugin_class(
+                registry=scan_pipeline_registry,
+                plugin_name=plugin_name,
+            )
     except Exception as exc:
-        routing = _build_routing_metadata(
+        _raise_execution_failure(
+            phase="runtime",
+            plugin_name=None if plugin_name == "unresolved" else plugin_name,
             failure_mode="runtime_execution_exception",
-            selected_plugin=None if plugin_name == "unresolved" else plugin_name,
-        )
-        _raise_contract_error(
-            code="scan_pipeline_execution_failed",
-            message="scan-pipeline runtime execution failed",
-            routing=routing,
             cause=exc,
         )
 
-    if plugin_class is None:
+    if plugin_factory is None:
         routing = _build_routing_metadata(
             failure_mode="plugin_not_found",
             selected_plugin=plugin_name,
@@ -449,16 +401,16 @@ def orchestrate_scan_payload_with_selected_plugin(
             routing=routing,
         )
 
-    assert plugin_class is not None
-    plugin_instance = plugin_class()
-    orchestrate_scan_payload: Any = getattr(
-        plugin_instance, "orchestrate_scan_payload", None
+    plugin_instance = _construct_scan_pipeline_plugin(
+        plugin_factory=plugin_factory,
+        plugin_name=plugin_name,
+        phase="runtime",
     )
     try:
-        if callable(orchestrate_scan_payload):
-            result = orchestrate_scan_payload(
+        if _is_orchestrate_scan_payload_plugin(plugin_instance):
+            result = plugin_instance.orchestrate_scan_payload(
                 payload=payload,
-                scan_options=scan_options,
+                scan_options=_copy_scan_options(scan_options),
                 strict_mode=strict_mode,
                 preflight_context=preflight_context,
             )
@@ -471,43 +423,61 @@ def orchestrate_scan_payload_with_selected_plugin(
                 strict_mode=strict_mode,
                 preflight_context=preflight_context,
             )
+    except PrismRuntimeError:
+        raise
     except Exception as exc:
-        routing = _build_routing_metadata(
+        _raise_execution_failure(
+            phase="runtime",
+            plugin_name=plugin_name,
             failure_mode="runtime_execution_exception",
-            selected_plugin=plugin_name,
-        )
-        _raise_contract_error(
-            code="scan_pipeline_execution_failed",
-            message="scan-pipeline runtime execution failed",
-            routing=routing,
             cause=exc,
         )
 
+    if not isinstance(result, dict):
+        _raise_invalid_plugin_output_error(
+            plugin_name=plugin_name,
+            plugin_output=result,
+        )
+
     if isinstance(result, dict) and existing_preflight_routing:
-        _apply_routing_metadata(payload=result, routing=existing_preflight_routing)
+        _apply_routing_metadata(
+            payload=result,
+            routing=cast(dict[str, object], copy.copy(existing_preflight_routing)),
+        )
     return result
 
 
 def route_scan_payload_orchestration(
     *,
     role_path: str,
-    scan_options: dict[str, Any],
-    kernel_orchestrator_fn: Callable[..., dict[str, Any]],
-    registry: Any | None = None,
-) -> dict[str, Any]:
+    scan_options: ScanOptionsDict,
+    kernel_orchestrator_fn: KernelOrchestrator,
+    registry: object | None = None,
+) -> dict[str, object]:
     """Route orchestration using registered scan-pipeline plugin decision context."""
     if registry is None:
         raise ValueError("registry must be provided for scan pipeline routing")
+    scan_pipeline_registry = _require_scan_pipeline_registry(registry)
 
-    plugin_name = resolve_scan_pipeline_plugin_name(
-        scan_options=scan_options,
-        registry=registry,
-    )
-
-    plugin_class = resolve_scan_pipeline_plugin_class(
-        registry=registry,
-        plugin_name=plugin_name,
-    )
+    plugin_name = "unresolved"
+    try:
+        plugin_name = resolve_scan_pipeline_plugin_name(
+            scan_options=scan_options,
+            registry=scan_pipeline_registry,
+        )
+        plugin_class = resolve_scan_pipeline_plugin_class(
+            registry=scan_pipeline_registry,
+            plugin_name=plugin_name,
+        )
+    except PrismRuntimeError:
+        raise
+    except Exception as exc:
+        _raise_execution_failure(
+            phase="preflight",
+            plugin_name=None if plugin_name == "unresolved" else plugin_name,
+            failure_mode="preflight_resolution_exception",
+            cause=exc,
+        )
 
     if plugin_class is None:
         if hasattr(
@@ -546,18 +516,62 @@ def route_scan_payload_orchestration(
             ),
         )
 
-    plugin_context = execute_scan_pipeline_plugin(
-        plugin_class=plugin_class,
-        scan_options=dict(scan_options),
-        scan_context={"role_path": role_path},
+    plugin_instance = _construct_scan_pipeline_plugin(
+        plugin_factory=plugin_class,
+        plugin_name=plugin_name,
+        phase="preflight",
     )
+    if not _is_process_scan_pipeline_plugin(plugin_instance):
+        _raise_contract_error(
+            code="scan_pipeline_execution_failed",
+            message=(
+                f"scan-pipeline plugin '{plugin_name}' does not implement "
+                "process_scan_pipeline"
+            ),
+            routing=_build_routing_metadata(
+                mode=_ROUTING_MODE_PLUGIN,
+                selected_plugin=plugin_name,
+                failure_mode="invalid_preflight_contract",
+            ),
+        )
+    try:
+        plugin_context = plugin_instance.process_scan_pipeline(
+            scan_options=_copy_scan_options(scan_options),
+            scan_context=ScanMetadata(),
+        )
+    except PrismRuntimeError:
+        raise
+    except Exception as exc:
+        _raise_execution_failure(
+            phase="preflight",
+            plugin_name=plugin_name,
+            failure_mode="preflight_execution_exception",
+            cause=exc,
+        )
 
-    plugin_enabled: Any = None
-    if isinstance(plugin_context, dict):
-        plugin_enabled = plugin_context.get("plugin_enabled")
+    if not isinstance(plugin_context, dict):
+        _raise_invalid_preflight_output_error(
+            plugin_name=plugin_name,
+            plugin_output=plugin_context,
+        )
 
-    if plugin_enabled is None:
-        plugin_enabled = True
+    plugin_enabled: object | None = None
+    plugin_enabled = plugin_context.get("plugin_enabled")
+
+    if not isinstance(plugin_enabled, bool):
+        _raise_contract_error(
+            code="scan_pipeline_execution_failed",
+            message=(
+                f"scan-pipeline plugin '{plugin_name}' returned invalid preflight "
+                f"'plugin_enabled' value type '{type(plugin_enabled).__name__}'; "
+                "expected bool"
+            ),
+            routing=_build_routing_metadata(
+                mode=_ROUTING_MODE_PLUGIN,
+                selected_plugin=plugin_name,
+                failure_mode="invalid_preflight_contract",
+            ),
+        )
 
     if not bool(plugin_enabled):
         raise PrismRuntimeError(
@@ -569,103 +583,15 @@ def route_scan_payload_orchestration(
 
     route_preflight_runtime = _build_route_preflight_runtime_carrier(
         plugin_name=plugin_name,
-        plugin_context=(
-            dict(plugin_context) if isinstance(plugin_context, dict) else None
+        plugin_context=_copy_scan_metadata(plugin_context),
+        plugin_factory=plugin_class,
+    )
+    return cast(
+        dict[str, object],
+        _invoke_kernel_orchestrator(
+            kernel_orchestrator_fn=kernel_orchestrator_fn,
+            role_path=role_path,
+            scan_options=_copy_scan_options(scan_options),
+            route_preflight_runtime=route_preflight_runtime,
         ),
     )
-    return _invoke_kernel_orchestrator(
-        kernel_orchestrator_fn=kernel_orchestrator_fn,
-        role_path=role_path,
-        scan_options=dict(scan_options),
-        route_preflight_runtime=route_preflight_runtime,
-    )
-
-
-def run_kernel_plugin_orchestrator(
-    *,
-    platform: str,
-    target_path: str,
-    scan_options: dict[str, Any],
-    load_plugin_fn: Callable[[str], Any],
-    scan_id: str = "kernel-scan",
-    fail_fast: bool = True,
-    context: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Execute baseline lifecycle phases on a loaded kernel plugin."""
-    request: dict[str, Any] = {
-        "scan_id": scan_id,
-        "platform": platform,
-        "target_path": target_path,
-        "options": dict(scan_options),
-    }
-    if isinstance(context, dict):
-        request["context"] = dict(context)
-
-    response: dict[str, Any] = {
-        "scan_id": scan_id,
-        "platform": platform,
-        "phase_results": {},
-        "metadata": {"kernel_orchestrator": "fsrc-v1"},
-    }
-
-    plugin = load_plugin_fn(platform)
-    phases = ("prepare", "scan", "analyze", "finalize")
-
-    for phase in phases:
-        handler = getattr(plugin, phase, None)
-        if not callable(handler):
-            response["phase_results"][phase] = {"phase": phase, "status": "skipped"}
-            continue
-
-        try:
-            if phase in {"prepare", "scan"}:
-                phase_output = handler(request)
-            else:
-                phase_output = handler(request, response)
-        except Exception as exc:
-            error_envelope = {
-                "code": "KERNEL_PLUGIN_PHASE_FAILED",
-                "message": str(exc),
-                "phase": phase,
-                "recoverable": not fail_fast,
-            }
-            response.setdefault("errors", []).append(error_envelope)
-            response["phase_results"][phase] = {
-                "phase": phase,
-                "status": "failed",
-                "error": error_envelope,
-            }
-            if fail_fast:
-                break
-            continue
-
-        _merge_phase_output(response=response, phase=phase, phase_output=phase_output)
-        response["phase_results"][phase] = {"phase": phase, "status": "completed"}
-
-    return response
-
-
-def _merge_phase_output(
-    *,
-    response: dict[str, Any],
-    phase: str,
-    phase_output: Any,
-) -> None:
-    if not isinstance(phase_output, dict):
-        return
-
-    if phase == "scan" and "payload" not in phase_output:
-        response["payload"] = dict(phase_output)
-
-    payload = phase_output.get("payload")
-    if isinstance(payload, dict):
-        response["payload"] = dict(payload)
-
-    metadata = phase_output.get("metadata")
-    if isinstance(metadata, dict):
-        response.setdefault("metadata", {}).update(metadata)
-
-    for key in ("warnings", "errors", "provenance"):
-        value = phase_output.get(key)
-        if isinstance(value, list):
-            response.setdefault(key, []).extend(value)

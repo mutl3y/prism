@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol, cast
+import copy
+from typing import Any, Protocol, TypeGuard
 
 from prism.scanner_data.contracts_output import (
     AnnotationQualityCounters,
@@ -152,6 +153,26 @@ def invoke_readme_section_renderer(
     return normalize_section_body_render_result(raw)
 
 
+def _is_scanner_counters(value: object) -> TypeGuard[ScannerCounters]:
+    """Type guard for ScannerCounters TypedDict."""
+    return isinstance(value, dict)
+
+
+def _is_variable_insights_list(value: object) -> TypeGuard[list[dict[str, Any]]]:
+    """Type guard for variable insights list."""
+    return isinstance(value, list)
+
+
+def _is_features_dict(value: object) -> TypeGuard[dict[str, Any]]:
+    """Type guard for features dict."""
+    return isinstance(value, dict)
+
+
+def _is_parse_failures_list(value: object) -> TypeGuard[list[dict[str, object]]]:
+    """Type guard for parse failures list."""
+    return isinstance(value, list)
+
+
 def coerce_optional_scanner_report_metadata_fields(
     metadata: ScannerReportMetadata,
 ) -> NormalizedScannerReportMetadata:
@@ -163,21 +184,19 @@ def coerce_optional_scanner_report_metadata_fields(
 
     return {
         "scanner_counters": (
-            cast(ScannerCounters, raw_counters)
-            if isinstance(raw_counters, dict)
-            else None
+            copy.copy(raw_counters) if _is_scanner_counters(raw_counters) else None
         ),
         "variable_insights": (
-            cast(list[dict[str, Any]], raw_variable_insights)
-            if isinstance(raw_variable_insights, list)
+            list(raw_variable_insights)
+            if _is_variable_insights_list(raw_variable_insights)
             else []
         ),
         "features": (
-            cast(dict[str, Any], raw_features) if isinstance(raw_features, dict) else {}
+            copy.copy(raw_features) if _is_features_dict(raw_features) else {}
         ),
         "yaml_parse_failures": (
-            cast(list[dict[str, object]], raw_parse_failures)
-            if isinstance(raw_parse_failures, list)
+            list(raw_parse_failures)
+            if _is_parse_failures_list(raw_parse_failures)
             else []
         ),
     }

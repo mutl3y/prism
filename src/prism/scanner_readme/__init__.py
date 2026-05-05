@@ -3,10 +3,6 @@
 from __future__ import annotations
 
 from prism.scanner_readme.render import (
-    ALL_SECTION_IDS,
-    DEFAULT_SECTION_SPECS,
-    EXTRA_SECTION_IDS,
-    SCANNER_STATS_SECTION_IDS,
     render_readme,
     append_scanner_report_section_if_enabled,
 )
@@ -34,10 +30,6 @@ def refresh_policy_derived_state(policy: dict) -> None:
 
 
 __all__ = [
-    "ALL_SECTION_IDS",
-    "DEFAULT_SECTION_SPECS",
-    "EXTRA_SECTION_IDS",
-    "SCANNER_STATS_SECTION_IDS",
     "render_readme",
     "append_scanner_report_section_if_enabled",
     "render_guide_section_body",

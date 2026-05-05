@@ -126,7 +126,7 @@ Baseline: `roles25-refresh-20260322-candidate8` (batch 8) | Candidate: `overnigh
 
 **Motivation:** `ansible-opnsense` alone has 128 unresolved variables of which a large subset are Jinja2 loop-scoped or role-internal computed names following `__*` / `_*` naming conventions (e.g. `__ipsec_section`, `__ipsec_section_loop`, `__uuid`, `_checkelements`, `_configd_action`). These are never intended as public role inputs but the scanner currently classifies them as `unresolved_no_static_definition` noise. Similar patterns exist across other roles in the cohort.
 
-**Target variables (examples from unresolved-provenance-batch15.md):**
+**Target variables (examples from a historical unresolved-provenance cohort snapshot):**
 
 - Double-underscore prefix: `__ipsec_section`, `__ipsec_section_listname`, `__ipsec_section_loop`, `__ipsec_section_settings`, `__ipsec_section_settings_elem`, `__swanctl_section`, `__uuid`, `__uuidsettings`
 - Single-underscore prefix: `_checkelements`, `_configd_action`, `_device`, `_gateways`, `_netiface`

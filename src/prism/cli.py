@@ -5,18 +5,15 @@ from __future__ import annotations
 import argparse
 from collections.abc import Sequence
 import json
+import logging
 import sys
 from urllib.error import HTTPError, URLError
 
 import prism.api as api
 from prism.errors import PrismRuntimeError
-from prism.scanner_io.collection_renderer import (
-    format_collection_summary,
-    render_collection_markdown,
-)
+from prism.scanner_config.audit_rules import AuditReport
+import prism.scanner_io as scanner_io
 from prism.scanner_io.output import (
-    resolve_output_path,
-    write_output,
     write_role_scan_output,
 )
 
@@ -26,9 +23,11 @@ CLI_RETAINED_COMPATIBILITY_SEAMS: tuple[str, ...] = ("_handle_repo_command",)
 
 __all__ = ["main", "build_parser"]
 
+_logger = logging.getLogger(__name__)
+
 _EXIT_CODE_GENERIC_ERROR = 2
 _EXIT_CODE_NOT_FOUND = 3
-EXIT_CODE_AUDIT_VIOLATIONS = 2
+EXIT_CODE_AUDIT_VIOLATIONS = 8
 _EXIT_CODE_PERMISSION_DENIED = 4
 _EXIT_CODE_JSON_PAYLOAD_ERROR = 5
 _EXIT_CODE_NETWORK_ERROR = 6
@@ -186,6 +185,12 @@ def _add_shared_scan_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help=f"Exit with code {EXIT_CODE_AUDIT_VIOLATIONS} if audit policy violations are found.",
     )
+    parser.add_argument(
+        "--progress",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Stream phase-by-phase scan progress to stderr (stdout stays clean).",
+    )
 
 
 def _add_output_arguments(
@@ -312,11 +317,8 @@ def _maybe_run_audit(args: argparse.Namespace, payload: dict) -> int:
     if not rules_path:
         return 0
 
-    from prism.scanner_plugins.audit.loader import load_audit_rules_from_file
-    from prism.scanner_plugins.audit.runner import run_audit
-
-    rules = load_audit_rules_from_file(rules_path)
-    report = run_audit(payload, rules)
+    rules = api.load_audit_rules_from_file(rules_path)
+    report: AuditReport = api.run_audit(payload, rules)
 
     payload["audit_report"] = {
         "summary": report.summary,
@@ -430,17 +432,17 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
             json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n"
         )
     else:
-        rendered = render_collection_markdown(dict(payload))
+        rendered = scanner_io.render_collection_markdown(dict(payload))
 
     if args.dry_run:
         print(rendered, end="")
         return 0
 
-    output_path = resolve_output_path(args.output, args.format)
+    output_path = scanner_io.resolve_output_path(args.output, args.format)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    written_path = write_output(output_path, rendered)
+    written_path = scanner_io.write_output(output_path, rendered)
 
-    print(format_collection_summary(dict(payload)))
+    print(scanner_io.format_collection_summary(dict(payload)))
 
     audit_exit = _maybe_run_audit(args, dict(payload))
     if audit_exit != 0:
@@ -550,20 +552,40 @@ def main(argv: Sequence[str] | None = None) -> int:
         return int(exc.code) if exc.code is not None else 0
 
     try:
-        if args.command == "role":
-            return _handle_role_command(args)
-        if args.command == "collection":
-            return _handle_collection_command(args)
-        if args.command == "repo":
-            return _handle_repo_command(args)
         if args.command == "completion":
             return _handle_completion_command(args)
+        progress_enabled = getattr(args, "progress", False) and args.command in (
+            "role",
+            "collection",
+            "repo",
+        )
+        if progress_enabled:
+            from prism.progress import progress_reporter_enabled
+
+            with progress_reporter_enabled():
+                return _dispatch_scan_command(args)
+        return _dispatch_scan_command(args)
     except KeyboardInterrupt:
         return _EXIT_CODE_INTERRUPTED
     except Exception as exc:
+        _logger.exception(
+            "CLI command %r failed with %s",
+            getattr(args, "command", None),
+            type(exc).__name__,
+        )
         print(_format_top_level_exception(exc), file=sys.stderr)
         return _map_top_level_exception_to_exit_code(exc)
 
+    return 0
+
+
+def _dispatch_scan_command(args: argparse.Namespace) -> int:
+    if args.command == "role":
+        return _handle_role_command(args)
+    if args.command == "collection":
+        return _handle_collection_command(args)
+    if args.command == "repo":
+        return _handle_repo_command(args)
     return 0
 
 

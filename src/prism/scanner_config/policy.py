@@ -41,6 +41,13 @@ def _load_policy_config_dict(
         ) from exc
 
     if not isinstance(raw, dict):
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "Policy config file %s did not parse to a dict; returning empty dict",
+            cfg_file,
+        )
         return {}
     return raw
 
@@ -54,23 +61,76 @@ def _coerce_bool(value: object) -> bool | None:
             return True
         if lowered in {"0", "false", "no", "off"}:
             return False
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "Failed to coerce string value '%s' to bool; unrecognized value; returning None",
+            value,
+        )
+        return None
+    if value is not None:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "Failed to coerce value of type %s to bool; returning None",
+            type(value).__name__,
+        )
     return None
 
 
 def _coerce_positive_int(value: object) -> int | None:
     if isinstance(value, bool):
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning("Failed to coerce bool to positive int; returning None")
         return None
     if isinstance(value, int):
-        return value if value > 0 else None
+        if value > 0:
+            return value
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "Failed to coerce int value %d to positive int; value is not positive; returning None",
+            value,
+        )
+        return None
     if isinstance(value, str):
         text = value.strip()
         if not text:
             return None
         try:
             parsed = int(text)
-        except ValueError:
+        except ValueError as exc:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "Failed to coerce value '%s' to int: %s; returning None", value, exc
+            )
             return None
-        return parsed if parsed > 0 else None
+        if parsed > 0:
+            return parsed
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "Failed to coerce string '%s' to positive int; parsed value %d is not positive; returning None",
+            value,
+            parsed,
+        )
+        return None
+    if value is not None:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "Failed to coerce value of type %s to positive int; returning None",
+            type(value).__name__,
+        )
     return None
 
 

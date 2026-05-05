@@ -13,6 +13,10 @@ from prism.scanner_plugins.ansible import (
 from prism.scanner_plugins.parsers.jinja import (
     collect_undeclared_jinja_variables as _collect_undeclared_jinja_variables,
 )
+from prism.scanner_data.contracts_request import TaskAnnotation, TaskMapping
+from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
+    NormalizesMarkerPrefix,
+)
 
 
 DEFAULT_DOC_MARKER_PREFIX = task_annotation_strategy.DEFAULT_DOC_MARKER_PREFIX
@@ -23,6 +27,8 @@ _ANSIBLE_ROLE_INCLUDE_KEYS = task_line_parsing_module.ROLE_INCLUDE_KEYS
 
 class AnsibleTaskLineParsingPolicyPlugin:
     """Expose ansible task-line parsing contracts via a policy plugin object."""
+
+    PLUGIN_IS_STATELESS: bool = True
 
     TASK_INCLUDE_KEYS: Collection[str] = frozenset(
         task_line_parsing_module.TASK_INCLUDE_KEYS
@@ -41,11 +47,11 @@ class AnsibleTaskLineParsingPolicyPlugin:
     TEMPLATED_INCLUDE_RE = task_line_parsing_module.TEMPLATED_INCLUDE_RE
 
     @staticmethod
-    def extract_constrained_when_values(task: dict, variable: str) -> list[str]:
+    def extract_constrained_when_values(task: TaskMapping, variable: str) -> list[str]:
         return task_traversal_bare.extract_constrained_when_values(task, variable)
 
     @staticmethod
-    def detect_task_module(task: dict) -> str | None:
+    def detect_task_module(task: TaskMapping) -> str | None:
         return task_line_parsing_module.detect_task_module(task)
 
 
@@ -69,19 +75,21 @@ class AnsibleTaskTraversalPolicyPlugin:
         )
 
     @staticmethod
-    def expand_include_target_candidates(task: dict, include_target: str) -> list[str]:
+    def expand_include_target_candidates(
+        task: TaskMapping, include_target: str
+    ) -> list[str]:
         return task_traversal_bare.expand_include_target_candidates(
             task, include_target
         )
 
     @staticmethod
-    def iter_role_include_targets(task: dict) -> list[str]:
+    def iter_role_include_targets(task: TaskMapping) -> list[str]:
         return task_traversal_bare.iter_role_include_targets(
             task, role_include_keys=_ANSIBLE_ROLE_INCLUDE_KEYS
         )
 
     @staticmethod
-    def iter_dynamic_role_include_targets(task: dict) -> list[str]:
+    def iter_dynamic_role_include_targets(task: TaskMapping) -> list[str]:
         return task_traversal_bare.iter_dynamic_role_include_targets(
             task, role_include_keys=_ANSIBLE_ROLE_INCLUDE_KEYS
         )
@@ -132,11 +140,10 @@ class AnsibleVariableExtractorPolicyPlugin:
         return _collect_undeclared_jinja_variables(text)
 
 
-class AnsibleTaskAnnotationPolicyPlugin:
+class AnsibleTaskAnnotationPolicyPlugin(NormalizesMarkerPrefix):
     """Expose ansible task-annotation parsing via a policy plugin object."""
 
     COMMENT_CONTINUATION_RE = task_annotation_strategy.COMMENT_CONTINUATION_RE
-    COMMENTED_TASK_ENTRY_RE = task_annotation_strategy.COMMENTED_TASK_ENTRY_RE
     TASK_ENTRY_RE = task_annotation_strategy.TASK_ENTRY_RE
     YAML_LIKE_KEY_VALUE_RE = task_annotation_strategy.YAML_LIKE_KEY_VALUE_RE
     YAML_LIKE_LIST_ITEM_RE = task_annotation_strategy.YAML_LIKE_LIST_ITEM_RE
@@ -144,10 +151,6 @@ class AnsibleTaskAnnotationPolicyPlugin:
     @staticmethod
     def split_task_annotation_label(text: str) -> tuple[str, str]:
         return task_annotation_strategy.split_task_annotation_label(text)
-
-    @staticmethod
-    def normalize_marker_prefix(marker_prefix: str | None) -> str:
-        return task_annotation_strategy.normalize_marker_prefix(marker_prefix)
 
     @staticmethod
     def get_marker_line_re(marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX):
@@ -166,7 +169,7 @@ class AnsibleTaskAnnotationPolicyPlugin:
         lines: list[str],
         marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX,
         include_task_index: bool = False,
-    ) -> tuple[list[dict[str, object]], dict[str, list[dict[str, object]]]]:
+    ) -> tuple[list[TaskAnnotation], dict[str, list[TaskAnnotation]]]:
         return task_annotation_strategy.extract_task_annotations_for_file(
             lines=lines,
             marker_prefix=marker_prefix,

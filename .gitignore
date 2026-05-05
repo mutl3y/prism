@@ -22,8 +22,10 @@ debug_readmes/
 # Stray files
 et *
 .local/
+.gate/
+.mutl3y-gate/
 
-docs/plan
+
 
 # temp test/debug output files
 test_out.txt
@@ -31,3 +33,6 @@ test_output.txt
 out.txt
 pytest_output.txt
 README.json
+.benchmarks/
+.tmp_exported_skill/
+.tmp_exported_skills/

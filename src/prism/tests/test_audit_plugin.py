@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -110,10 +111,8 @@ class _ParamAwareRule:
         ]
 
 
-def _plugin_with(*evaluators: object) -> BuiltinAuditPlugin:
-    return BuiltinAuditPlugin(
-        rule_registry={ev.RULE_ID: ev for ev in evaluators}  # type: ignore[attr-defined]
-    )
+def _plugin_with(*evaluators: Any) -> BuiltinAuditPlugin:
+    return BuiltinAuditPlugin(rule_registry={ev.RULE_ID: ev for ev in evaluators})
 
 
 def test_runner_dispatches_to_registered_evaluator() -> None:

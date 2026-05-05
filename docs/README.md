@@ -3,7 +3,7 @@ layout: default
 title: Prism Documentation
 ---
 
-Prism documentation in a dual-lane format: fast onboarding for average users and operational depth for DevOps professionals.
+Prism documentation for users, operators, and maintainers.
 
 ## What Prism Solves
 
@@ -51,25 +51,25 @@ prism role path/to/role -o README.md
 
 You should see: a generated README at the output path.
 
-## Dual-Lane Paths
+## Common Paths
 
-For average users:
+For users generating documentation:
 
 - [Demos](./demos.md)
 - [Getting Started](./getting-started.md)
 - [User Guide](./user-guide.md)
 
-For DevOps professionals:
+For operators and CI owners:
 
 - [DevOps Guide](./devops-guide.md)
-- [Feedback Integration](./feedback-integration.md)
+- [Policy Inputs and Audit Rules](./feedback-integration.md)
 
 Shared quality references:
 
 - [Provenance Tracking](./provenance-tracking.md)
 - [Prism-Friendly Role Authoring](./prism-friendly-role-authoring.md)
 - [Comment-Driven Documentation](./comment-driven-documentation.md)
-- [Changelog](./changelog.md)
+- [Release Notes](./changelog.md)
 
 ## Full Navigation
 
@@ -79,8 +79,9 @@ Shared quality references:
 - [Provenance Tracking](./provenance-tracking.md): why Prism output is auditable and trustworthy
 - [Comment-Driven Documentation](./comment-driven-documentation.md): marker-driven notes, runbooks, and task annotations
 - [DevOps Guide](./devops-guide.md): build CI and policy workflows
+- [Release Notes](./changelog.md): short user-facing milestone history
 
 ## Developer Docs
 
 Contributor and architecture content is in [dev_docs](./dev_docs/README.md).
-For the current package ownership and submodule capability map, start with [Package Capabilities](./dev_docs/package-capabilities.md).
+For the current package ownership and capability map, start with [Package Capabilities](./dev_docs/package-capabilities.md).

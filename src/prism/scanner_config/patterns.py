@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import copy
+import functools
 import hashlib
 import json
+import logging
 import os
 import urllib.error
 import urllib.request
@@ -14,6 +16,8 @@ from typing import Any
 import yaml
 
 from prism.scanner_data.contracts_request import PolicyContext
+
+logger = logging.getLogger(__name__)
 
 # Try fsrc data dir first, fall back to src data dir (sibling in repo)
 _CANDIDATE_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -45,8 +49,42 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     try:
         with path.open(encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
-        return data if isinstance(data, dict) else {}
-    except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):
+        if isinstance(data, dict):
+            return data
+        logger.warning(
+            "Pattern file parsed to non-dict type %s for %s; returning empty dict",
+            type(data).__name__,
+            path,
+        )
+        return {}
+    except OSError as exc:
+        logger.warning(
+            "Pattern file IO error (%s) for %s: %s; returning empty dict",
+            type(exc).__name__,
+            path,
+            exc,
+        )
+        return {}
+    except UnicodeDecodeError as exc:
+        logger.warning(
+            "Pattern file encoding error for %s: %s; returning empty dict",
+            path,
+            exc,
+        )
+        return {}
+    except yaml.YAMLError as exc:
+        logger.warning(
+            "Pattern file YAML parse error for %s: %s; returning empty dict",
+            path,
+            exc,
+        )
+        return {}
+    except ValueError as exc:
+        logger.warning(
+            "Pattern file value error for %s: %s; returning empty dict",
+            path,
+            exc,
+        )
         return {}
 
 
@@ -73,6 +111,11 @@ def _normalise(policy: dict[str, Any]) -> dict[str, Any]:
                     if value:
                         values.add(value)
             return values
+        if raw is not None:
+            logger.warning(
+                "_normalise_token_collection received unexpected type %s; returning empty set",
+                type(raw).__name__,
+            )
         return set()
 
     policy.setdefault("section_aliases", {})
@@ -83,17 +126,14 @@ def _normalise(policy: dict[str, Any]) -> dict[str, Any]:
     policy["sensitivity"].setdefault("url_prefixes", [])
     policy.setdefault("variable_guidance", {})
     policy["variable_guidance"].setdefault("priority_keywords", [])
-    policy.setdefault("ansible_builtin_variables", [])
     policy.setdefault("ignored_identifiers", [])
-    policy["ansible_builtin_variables"] = _normalise_token_collection(
-        policy["ansible_builtin_variables"]
-    )
     policy["ignored_identifiers"] = _normalise_token_collection(
         policy["ignored_identifiers"]
     )
     return policy
 
 
+@functools.cache
 def _load_builtin_policy() -> dict[str, Any]:
     """Load and merge all per-topic YAML files from the data directory."""
     if not _BUILTIN_DATA_DIR.is_dir():
@@ -144,7 +184,7 @@ def load_pattern_config(
     search_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Load pattern configuration policy from built-in and override sources."""
-    policy = _load_builtin_policy()
+    policy = copy.deepcopy(_load_builtin_policy())
 
     for override_file in _iter_default_override_paths(search_root=search_root):
         if override_file.exists():
@@ -234,12 +274,25 @@ def fetch_remote_policy(
 
     raw_bytes: bytes | None = None
     try:
+        if not url.lower().startswith("https://"):
+            raise RuntimeError(
+                "REMOTE_POLICY_URL_CONTRACT_INVALID: remote policy URL must use HTTPS"
+            )
         with urllib.request.urlopen(url, timeout=timeout) as resp:  # noqa: S310
             raw_bytes = resp.read()
-    except urllib.error.URLError as exc:
+    except urllib.error.HTTPError as exc:
+        logger.warning(
+            "Remote policy HTTP error from %s: %s (code=%s)", url, exc, exc.code
+        )
         if cache_path is None:
             raise RuntimeError(
-                f"Failed to fetch remote patterns from {url}: {exc}"
+                f"Failed to fetch remote patterns from {url}: HTTP {exc.code}"
+            ) from exc
+    except urllib.error.URLError as exc:
+        logger.warning("Remote policy URL error from %s: %s", url, exc.reason)
+        if cache_path is None:
+            raise RuntimeError(
+                f"Failed to fetch remote patterns from {url}: {exc.reason}"
             ) from exc
 
     if raw_bytes is not None:
@@ -263,10 +316,17 @@ def fetch_remote_policy(
 
     try:
         data = yaml.safe_load(raw_bytes)
-    except Exception as exc:
+    except yaml.YAMLError as exc:
+        logger.error("Remote policy YAML parse error: %s", exc)
         raise RuntimeError(
             f"Failed to parse remote pattern policy YAML: {exc}"
         ) from exc
+    except (TypeError, ValueError, UnicodeDecodeError) as exc:
+        logger.error("Remote policy parse error (type/value/unicode): %s", exc)
+        raise RuntimeError(
+            f"Failed to parse remote pattern policy YAML: {exc}"
+        ) from exc
+    # Any other unexpected error should propagate and not be masked here.
 
     if not isinstance(data, dict):
         raise RuntimeError("Remote pattern policy YAML did not parse to a mapping")

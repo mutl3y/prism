@@ -2,32 +2,34 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, TypeGuard
 
-from prism.scanner_data.variable_helpers import format_inline_yaml
-from prism.scanner_data.variable_helpers import find_variable_line_in_yaml
-from prism.scanner_data.variable_helpers import infer_variable_type
-from prism.scanner_data.variable_helpers import is_sensitive_variable
-from prism.scanner_data.variable_helpers import JINJA_IDENTIFIER_RE
+from prism.scanner_plugins.ansible.extract_utils import format_inline_yaml
+from prism.scanner_plugins.ansible.extract_utils import find_variable_line_in_yaml
+from prism.scanner_plugins.ansible.extract_utils import infer_variable_type
+from prism.scanner_plugins.ansible.extract_utils import is_sensitive_variable
+from prism.scanner_plugins.ansible.extract_utils import JINJA_IDENTIFIER_RE
 from prism.scanner_data.builders import VariableRowBuilder
+from prism.scanner_data.contracts_request import YamlParseFailure
 from prism.scanner_data.contracts_variables import VariableRow
-from prism.scanner_extract.task_file_traversal import collect_task_files
-from prism.scanner_extract.task_file_traversal import is_path_excluded
-from prism.scanner_extract.task_file_traversal import iter_task_mappings
-from prism.scanner_extract.task_file_traversal import (
-    load_yaml_file as load_task_yaml_file,
+from prism.scanner_plugins.ansible.extract_utils import collect_task_files
+from prism.scanner_plugins.ansible.extract_utils import is_path_excluded
+from prism.scanner_plugins.ansible.extract_utils import iter_task_mappings
+from prism.scanner_plugins.ansible.extract_utils import (
+    load_task_yaml_file,
 )
-from prism.scanner_io.loader import load_yaml_file as _load_yaml_loader_file
 from prism.scanner_io.loader import map_argument_spec_type as _map_argument_spec_type
-from prism.scanner_io.loader import parse_yaml_candidate
-from prism.scanner_extract.discovery import (
+from prism.scanner_plugins.ansible.extract_utils import (
     iter_role_variable_map_candidates as _iter_variable_map_candidates,
 )
 from prism.scanner_plugins.ansible import (
     variable_extractor as variable_extractor_module,
 )
+
+logger = logging.getLogger(__name__)
 
 IGNORED_IDENTIFIERS: frozenset[str] = frozenset(
     {
@@ -119,39 +121,34 @@ IGNORED_IDENTIFIERS: frozenset[str] = frozenset(
 )
 
 
-def _require_prepared_policy(
-    options: dict[str, Any] | None,
-    policy_name: str,
-    context_name: str,
+def _get_task_line_parsing_policy(
+    options: dict[str, Any] | None = None,
 ) -> Any:
-    if not isinstance(options, dict):
-        raise ValueError(
-            "prepared_policy_bundle must be provided before "
-            f"{context_name} native execution"
-        )
-    bundle = options.get("prepared_policy_bundle")
-    if not isinstance(bundle, dict):
-        raise ValueError(
-            "prepared_policy_bundle must be provided before "
-            f"{context_name} native execution"
-        )
-    policy = bundle.get(policy_name)
+    bundle = (
+        options.get("prepared_policy_bundle") if isinstance(options, dict) else None
+    )
+    policy = bundle.get("task_line_parsing") if isinstance(bundle, dict) else None
     if policy is None:
         raise ValueError(
-            f"prepared_policy_bundle.{policy_name} must be provided before "
-            f"{context_name} native execution"
+            "prepared_policy_bundle.task_line_parsing must be provided before "
+            "VariableDiscovery canonical execution"
         )
     return policy
 
 
-def _get_task_line_parsing_policy(
+def _get_yaml_parsing_policy(
     options: dict[str, Any] | None = None,
 ) -> Any:
-    return _require_prepared_policy(
-        options,
-        "task_line_parsing",
-        "VariableDiscovery",
+    bundle = (
+        options.get("prepared_policy_bundle") if isinstance(options, dict) else None
     )
+    policy = bundle.get("yaml_parsing") if isinstance(bundle, dict) else None
+    if policy is None:
+        raise ValueError(
+            "prepared_policy_bundle.yaml_parsing must be provided before "
+            "VariableDiscovery canonical execution"
+        )
+    return policy
 
 
 JINJA_VARIABLE_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_\.]*)")
@@ -201,25 +198,47 @@ def _load_yaml_mapping_with_metadata(
     path: Path,
     *,
     role_root: Path | None = None,
-    yaml_failure_collector: list[dict[str, object]] | None = None,
+    options: dict[str, Any] | None = None,
+    yaml_failure_collector: list[YamlParseFailure] | None = None,
     di: object | None = None,
 ) -> dict[str, Any]:
     if not path.exists():
         return {}
+    yaml_policy = _get_yaml_parsing_policy(options)
+    load_yaml_file = getattr(yaml_policy, "load_yaml_file", None)
+    parse_yaml_candidate = getattr(yaml_policy, "parse_yaml_candidate", None)
+    if not callable(load_yaml_file):
+        raise ValueError(
+            f"yaml_parsing policy plugin {type(yaml_policy)!r} must implement "
+            f"load_yaml_file"
+        )
+    if not callable(parse_yaml_candidate):
+        raise ValueError(
+            f"yaml_parsing policy plugin {type(yaml_policy)!r} must implement "
+            f"parse_yaml_candidate"
+        )
     try:
-        parsed = _load_yaml_loader_file(path, di=di)
-    except Exception:
+        parsed = load_yaml_file(path)
+    # Broad: YAML loader can raise scanner/parser/IO errors; failures are
+    # captured into yaml_failure_collector for downstream best-effort reporting.
+    except Exception as exc:
+        logger.warning(
+            "YAML loading failed for %s with %s: %s",
+            path,
+            type(exc).__name__,
+            exc,
+        )
         if yaml_failure_collector is not None:
             collector_root = role_root or path.resolve().parent
-            failure = parse_yaml_candidate(path, collector_root, di=di)
-            if isinstance(failure, dict):
+            failure = parse_yaml_candidate(path, collector_root)
+            if failure is not None:
                 yaml_failure_collector.append(failure)
         return {}
     if parsed is None:
         if yaml_failure_collector is not None:
             collector_root = role_root or path.resolve().parent
-            failure = parse_yaml_candidate(path, collector_root, di=di)
-            if isinstance(failure, dict):
+            failure = parse_yaml_candidate(path, collector_root)
+            if failure is not None:
                 yaml_failure_collector.append(failure)
         return {}
     if not isinstance(parsed, dict):
@@ -227,14 +246,24 @@ def _load_yaml_mapping_with_metadata(
     return {str(key): value for key, value in parsed.items() if isinstance(key, str)}
 
 
-def _iter_role_argument_spec_entries(role_root: Path, *, di: object | None = None):
-    return _iter_role_argument_spec_entries_with_metadata(role_root, di=di)
+def _iter_role_argument_spec_entries(
+    role_root: Path,
+    *,
+    options: dict[str, Any] | None = None,
+    di: object | None = None,
+):
+    return _iter_role_argument_spec_entries_with_metadata(
+        role_root,
+        options=options,
+        di=di,
+    )
 
 
 def _iter_role_argument_spec_entries_with_metadata(
     role_root: Path,
     *,
-    yaml_failure_collector: list[dict[str, object]] | None = None,
+    options: dict[str, Any] | None = None,
+    yaml_failure_collector: list[YamlParseFailure] | None = None,
     di: object | None = None,
 ):
     sources: list[tuple[str, dict[str, Any]]] = []
@@ -243,6 +272,7 @@ def _iter_role_argument_spec_entries_with_metadata(
         loaded = _load_yaml_mapping_with_metadata(
             arg_specs_file,
             role_root=role_root,
+            options=options,
             yaml_failure_collector=yaml_failure_collector,
             di=di,
         )
@@ -252,6 +282,7 @@ def _iter_role_argument_spec_entries_with_metadata(
     meta_main = _load_yaml_mapping_with_metadata(
         role_root / "meta" / "main.yml",
         role_root=role_root,
+        options=options,
         yaml_failure_collector=yaml_failure_collector,
         di=di,
     )
@@ -290,7 +321,7 @@ def _read_variable_sources(
     exclude_paths: list[str] | None,
     options: dict[str, Any] | None = None,
     di: object | None = None,
-    yaml_failure_collector: list[dict[str, object]] | None = None,
+    yaml_failure_collector: list[YamlParseFailure] | None = None,
 ) -> VariableSources:
     defaults_map: dict[str, Any] = {}
     vars_map: dict[str, Any] = {}
@@ -301,6 +332,7 @@ def _read_variable_sources(
         loaded = _load_yaml_mapping_with_metadata(
             candidate,
             role_root=role_root,
+            options=options,
             yaml_failure_collector=yaml_failure_collector,
             di=di,
         )
@@ -313,6 +345,7 @@ def _read_variable_sources(
             loaded = _load_yaml_mapping_with_metadata(
                 candidate,
                 role_root=role_root,
+                options=options,
                 yaml_failure_collector=yaml_failure_collector,
                 di=di,
             )
@@ -338,6 +371,7 @@ def _read_variable_sources(
             loaded = _load_yaml_mapping_with_metadata(
                 candidate,
                 role_root=role_root,
+                options=options,
                 yaml_failure_collector=yaml_failure_collector,
                 di=di,
             )
@@ -354,7 +388,7 @@ def _collect_set_fact_names(
     *,
     options: dict[str, Any] | None = None,
     di: object | None = None,
-    yaml_failure_collector: list[dict[str, object]] | None = None,
+    yaml_failure_collector: list[YamlParseFailure] | None = None,
 ) -> set[str]:
     names: set[str] = set()
     set_fact_keys = _get_task_line_parsing_policy(options).SET_FACT_KEYS
@@ -411,11 +445,15 @@ def _collect_undeclared_jinja_variables(
     *,
     options: dict[str, Any] | None = None,
 ) -> set[str]:
-    plugin = _require_prepared_policy(
-        options,
-        "jinja_analysis",
-        "VariableDiscovery",
+    bundle = (
+        options.get("prepared_policy_bundle") if isinstance(options, dict) else None
     )
+    plugin = bundle.get("jinja_analysis") if isinstance(bundle, dict) else None
+    if plugin is None:
+        raise ValueError(
+            "prepared_policy_bundle.jinja_analysis must be provided before "
+            "VariableDiscovery canonical execution"
+        )
     analyzer = getattr(plugin, "collect_undeclared_jinja_variables", None)
     if not callable(analyzer):
         raise ValueError(
@@ -486,12 +524,29 @@ def _build_uncertainty_reason(variable_name: str) -> str:
     return "Referenced but not defined in role"
 
 
+def _is_yaml_parse_failure(value: object) -> TypeGuard[YamlParseFailure]:
+    if not isinstance(value, dict):
+        return False
+    file_value = value.get("file")
+    line_value = value.get("line")
+    column_value = value.get("column")
+    error_value = value.get("error")
+    return (
+        isinstance(file_value, str)
+        and (line_value is None or isinstance(line_value, int))
+        and (column_value is None or isinstance(column_value, int))
+        and isinstance(error_value, str)
+    )
+
+
 class AnsibleVariableDiscoveryPlugin:
     """Ansible-specific variable discovery plugin.
 
     Implements the VariableDiscoveryPlugin protocol, containing all
     Ansible-native discovery logic previously inline in VariableDiscovery.
     """
+
+    PLUGIN_IS_STATELESS = True
 
     def __init__(self, di: Any = None) -> None:
         self._di = di
@@ -502,7 +557,7 @@ class AnsibleVariableDiscoveryPlugin:
         options: dict[str, Any],
     ) -> tuple[VariableRow, ...]:
         role_root = Path(role_path).resolve()
-        yaml_parse_failures: list[dict[str, object]] = []
+        yaml_parse_failures: list[YamlParseFailure] = []
         defaults_map, defaults_sources, vars_map, vars_sources = _read_variable_sources(
             role_root,
             include_vars_main=bool(options.get("include_vars_main", True)),
@@ -573,6 +628,7 @@ class AnsibleVariableDiscoveryPlugin:
             spec,
         ) in _iter_role_argument_spec_entries_with_metadata(
             role_root,
+            options=options,
             yaml_failure_collector=yaml_parse_failures,
             di=self._di,
         ):
@@ -632,23 +688,26 @@ class AnsibleVariableDiscoveryPlugin:
 
         if yaml_parse_failures:
             existing = options.get("yaml_parse_failures")
-            merged = list(existing) if isinstance(existing, list) else []
+            merged = (
+                [item for item in existing if _is_yaml_parse_failure(item)]
+                if isinstance(existing, list)
+                else []
+            )
             seen: set[tuple[Any, ...]] = {
                 (
-                    str(item.get("file")),
+                    item["file"],
                     item.get("line"),
                     item.get("column"),
-                    str(item.get("error")),
+                    item["error"],
                 )
                 for item in merged
-                if isinstance(item, dict)
             }
             for failure in yaml_parse_failures:
                 key = (
-                    str(failure.get("file")),
+                    failure["file"],
                     failure.get("line"),
                     failure.get("column"),
-                    str(failure.get("error")),
+                    failure["error"],
                 )
                 if key in seen:
                     continue

@@ -1,0 +1,136 @@
+- id: LESSON-01
+  cycle: g1
+  category: typing
+  kind: anti_pattern
+  fingerprint: typing:unknown:a4e9d24ce5dd
+  lesson: Module-level collections that encode frozen intent should use immutable types such as frozenset, MappingProxyType, or frozen dataclasses.
+  pattern: module-level constant-like sets or dicts that are only read
+  false_positive_signature: Skip collections that are genuinely mutated at runtime, such as registries or caches.
+- id: LESSON-02
+  cycle: g1
+  category: abstraction
+  kind: anti_pattern
+  fingerprint: abstraction:unknown:3f023070daec
+  lesson: Cross-module imports of underscore-prefixed symbols are abstraction leaks; either promote the symbol or route through a public seam.
+  pattern: from other_module import _private_name
+  false_positive_signature: Tests may import private symbols only when asserting a public invariant of the private implementation.
+- id: LESSON-03
+  cycle: g1
+  category: typing
+  kind: anti_pattern
+  fingerprint: typing:unknown:b0a26d908b27
+  lesson: Bare tuple returns with four or more elements are weak contracts; prefer NamedTuple-style returns with stable field names.
+  pattern: function returns tuple[A, B, C, D, ...]
+  false_positive_signature: Small tuples and homogeneous tuples used as idiomatic coordinate or range pairs are fine.
+- id: LESSON-04
+  cycle: g1
+  category: silent_fallback
+  kind: anti_pattern
+  fingerprint: silent_fallback:unknown:babc25104e5e
+  lesson: Broad exception boundaries in kernel, plugin-loader, and policy-isolation paths may be intentional contracts; check the closure record before tightening them.
+  pattern: except Exception at plugin-isolation or runtime-boundary seams
+  false_positive_signature: If a documented boundary requires broad isolation, document why instead of narrowing the catch blindly.
+- id: LESSON-05
+  cycle: g1
+  category: duplication
+  kind: anti_pattern
+  fingerprint: duplication:unknown:a12fcc279396
+  lesson: Apparent duplicate constants across generic and platform packages may be an intentional neutral-versus-specialized split rather than real duplication.
+  pattern: matching constant sets across generic and platform-specific modules
+  false_positive_signature: If one side is proven neutral and the other is a tested superset, treat it as an ownership question, not duplication.
+- id: LESSON-06
+  cycle: g2
+  category: ownership
+  kind: anti_pattern
+  fingerprint: ownership:unknown:ce6866e4cddb
+  lesson: Platform-specific classes do not belong in generic packages even when their constants remain generic.
+  pattern: platform-named concrete class defined in a non-platform package
+  false_positive_signature: Abstract base classes or genuine shared interfaces may stay in generic packages.
+- id: LESSON-07
+  cycle: g2
+  category: abstraction
+  kind: anti_pattern
+  fingerprint: abstraction:unknown:65de7f360b1d
+  lesson: Callable[..., Any] at architectural boundaries is unnamed contract debt; prefer Protocols or type[X] for injected classes.
+  pattern: Callable[..., Any] on DI, kernel, or plugin boundary surfaces
+  false_positive_signature: Small local helper callbacks do not need the same formalization.
+- id: LESSON-08
+  cycle: g2
+  category: graph
+  kind: anti_pattern
+  fingerprint: graph:unknown:e378bba023fd
+  lesson: Shared constants or data should not live in packages whose __init__.py eagerly loads plugins; move canonical data to side-effect-free modules.
+  pattern: cross-layer shared data hosted inside an eager-loading package
+  false_positive_signature: Data consumed only within the same eager-load tree is usually safe to leave in place.
+- id: LESSON-09
+  cycle: g34
+  category: subagent_dispatch
+  kind: anti_pattern
+  fingerprint: subagent_dispatch:unknown:bf761ff803ab
+  lesson: Any subagent asked to write an artifact must verify that the artifact exists on disk before reporting success.
+  pattern: file-writing dispatch without explicit artifact existence verification
+  false_positive_signature: Pure terminal-only tasks do not need a disk check.
+- id: LESSON-10
+  cycle: g34
+  category: metrics_tracking
+  kind: anti_pattern
+  fingerprint: metrics_tracking:unknown:c83a21db53bf
+  lesson: Model usage ledgers must be updated immediately after each dispatch result, not deferred to the end of a cycle.
+  pattern: ledger write deferred beyond a wave barrier or handoff point
+  false_positive_signature: Single-dispatch cycles are lower risk, but immediate recording is still the right default.
+- id: LESSON-11
+  cycle: g34
+  category: subagent_dispatch
+  kind: anti_pattern
+  fingerprint: subagent_dispatch:unknown:99793b01f25d
+  lesson: Builders that normalize plugin callsites must run tests from all upstream layers that consume the changed callsite, not just owned-file tests.
+  pattern: wrapper or normalization added around a plugin callsite
+  false_positive_signature: Purely additive changes that do not alter an existing callsite do not need this broader gate.
+- id: LESSON-12
+  cycle: g34
+  category: typing
+  kind: anti_pattern
+  fingerprint: typing:unknown:bd3771313f24
+  lesson: Test mocks for Protocol methods must match the declared return type exactly or later normalization changes will fail at runtime.
+  pattern: mock return shape incompatible with the Protocol it stands in for
+  false_positive_signature: Fully typed mocks already validated by mypy are fine.
+- id: LESSON-13
+  cycle: g35
+  category: missed_finding
+  kind: prompt_rule
+  fingerprint: uncategorized:unknown:879d742a90d0
+  lesson: Registry-authority reviews need paired inspection of execution request builders and downstream resolver consumers whenever plugin_registry appears outside DIContainer.
+  pattern: registry authority split across request assembly and loader/default consumers
+  false_positive_signature: None.
+- id: LESSON-14
+  cycle: mutl3y-g1
+  category: phase0_output_contract
+  kind: prompt_rule
+  fingerprint: workflow:artifact_schema_failure:phase0:scout-graph:invalid-yaml
+  lesson: Phase 0 scout artifacts must use a strict single-line evidence snippet schema so the barrier can parse them reliably.
+  pattern: YAML scout artifact with multiline or unterminated evidence fields
+  false_positive_signature: None.
+- id: LESSON-15
+  cycle: mutl3y-g1
+  category: phase0_output_contract
+  kind: prompt_rule
+  fingerprint: workflow:prompt_contract_drift:phase0:scout-ownership:alternate-schema
+  lesson: Ownership scouts must emit the exact Phase 0 observation schema rather than alternate summary shapes.
+  pattern: scout artifact keys drift from the required Phase 0 schema
+  false_positive_signature: None.
+- id: LESSON-16
+  cycle: mutl3y-g1
+  category: phase0_barrier
+  kind: gate_rule
+  fingerprint: workflow:barrier_recovery_rule:phase0:yaml-parse-before-clear
+  lesson: Parse-check every Scout-*.yaml artifact before clearing the Phase 0 barrier.
+  pattern: Phase 0 barrier clear attempted before YAML validation of scout artifacts
+  false_positive_signature: None.
+- id: LESSON-17
+  cycle: g73
+  category: clean_checkpoint_review
+  kind: prompt_rule
+  fingerprint: clean_checkpoint_review:g73:fresh-independent-review
+  lesson: When a checkpoint looks clean, require a fresh independent review that ignores previous artifacts and findings before treating the state as safe.
+  pattern: sign-off temptation after a clean-looking checkpoint
+  false_positive_signature: A cycle with open high-severity findings should continue active remediation instead of triggering this sign-off guard.

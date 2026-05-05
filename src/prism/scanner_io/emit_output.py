@@ -2,13 +2,35 @@
 
 from __future__ import annotations
 
+import copy
 import os
 from pathlib import Path
-from typing import Any, Callable, Protocol, cast
+from typing import Any, Callable, Protocol
 
 from prism.scanner_data.contracts_output import RunScanOutputPayload
 from prism.scanner_data.contracts_request import ScanMetadata
 from prism.scanner_io.output import resolve_output_path, write_output
+
+
+def _coerce_metadata_str(value: Any) -> str:
+    """Type-guard coercion for metadata string fields."""
+    if isinstance(value, str):
+        return value
+    return str(value) if value else ""
+
+
+def _coerce_metadata_dict(value: Any) -> dict[str, Any]:
+    """Type-guard coercion for metadata dict fields."""
+    if isinstance(value, dict):
+        return value
+    return {}
+
+
+def _coerce_metadata_list(value: Any) -> list[Any]:
+    """Type-guard coercion for metadata list fields."""
+    if isinstance(value, list):
+        return value
+    return []
 
 
 class ScanOutputRenderer(Protocol):
@@ -21,7 +43,7 @@ class ScanOutputRenderer(Protocol):
         output_format: str,
         template: str | None,
         dry_run: bool,
-        metadata: dict[str, Any],
+        metadata: ScanMetadata,
         **kwargs: Any,
     ) -> str | bytes: ...
 
@@ -75,7 +97,7 @@ def write_concise_scanner_report_if_enabled(
         scanner_report_output=scanner_report_output,
         out_path=out_path,
     )
-    sidecar_metadata: ScanMetadata = cast(ScanMetadata, dict(metadata))
+    sidecar_metadata = copy.copy(metadata)
     sidecar_metadata["concise_readme"] = True
     sidecar_metadata["include_scanner_report_link"] = include_scanner_report_link
 
@@ -101,20 +123,20 @@ def write_optional_runbook_outputs(
     runbook_csv_output: str | None,
     role_name: str,
     metadata: ScanMetadata,
-    render_runbook: Callable[[str, dict[str, Any] | None], str],
-    render_runbook_csv: Callable[[dict[str, Any] | None], str],
+    render_runbook: Callable[[str, ScanMetadata], str],
+    render_runbook_csv: Callable[[ScanMetadata], str],
 ) -> None:
     """Write standalone runbook outputs when requested."""
     if runbook_output:
         rb_path = Path(runbook_output)
         rb_path.parent.mkdir(parents=True, exist_ok=True)
-        rb_content = render_runbook(role_name, cast(dict[str, Any], metadata))
+        rb_content = render_runbook(role_name, metadata)
         rb_path.write_text(rb_content, encoding="utf-8")
 
     if runbook_csv_output:
         rb_csv_path = Path(runbook_csv_output)
         rb_csv_path.parent.mkdir(parents=True, exist_ok=True)
-        rb_csv_content = render_runbook_csv(cast(dict[str, Any], metadata))
+        rb_csv_content = render_runbook_csv(metadata)
         rb_csv_path.write_text(rb_csv_content, encoding="utf-8")
 
 
@@ -147,7 +169,7 @@ def emit_primary_output(
         output_format=output_format,
         template=template,
         dry_run=dry_run,
-        metadata=cast(dict[str, Any], metadata),
+        metadata=metadata,
     )
 
 
@@ -172,14 +194,15 @@ def emit_scanner_report_sidecar(
         scanner_report_output=scanner_report_output,
         out_path=out_path,
         include_scanner_report_link=include_scanner_report_link,
-        role_name=role_name or cast(str, metadata.get("role_name", "")),
-        description=description or cast(str, metadata.get("description", "")),
+        role_name=role_name or _coerce_metadata_str(metadata.get("role_name", "")),
+        description=description
+        or _coerce_metadata_str(metadata.get("description", "")),
         display_variables=display_variables
-        or cast(dict[str, Any], metadata.get("display_variables", {})),
+        or _coerce_metadata_dict(metadata.get("display_variables", {})),
         requirements_display=requirements_display
-        or cast(list[Any], metadata.get("requirements_display", [])),
+        or _coerce_metadata_list(metadata.get("requirements_display", [])),
         undocumented_default_filters=undocumented_default_filters
-        or cast(list[Any], metadata.get("undocumented_default_filters", [])),
+        or _coerce_metadata_list(metadata.get("undocumented_default_filters", [])),
         metadata=metadata,
         dry_run=dry_run,
         build_scanner_report_markdown=render_scanner_report,
@@ -191,15 +214,15 @@ def emit_runbook_sidecars(
     runbook_output: str | None,
     runbook_csv_output: str | None,
     metadata: ScanMetadata,
-    render_runbook: Callable[[str, dict[str, Any] | None], str],
-    render_runbook_csv: Callable[[dict[str, Any] | None], str],
+    render_runbook: Callable[[str, ScanMetadata], str],
+    render_runbook_csv: Callable[[ScanMetadata], str],
     role_name: str | None = None,
 ) -> None:
     """Emit runbook sidecar outputs when requested."""
     write_optional_runbook_outputs(
         runbook_output=runbook_output,
         runbook_csv_output=runbook_csv_output,
-        role_name=role_name or cast(str, metadata.get("role_name", "")),
+        role_name=role_name or _coerce_metadata_str(metadata.get("role_name", "")),
         metadata=metadata,
         render_runbook=render_runbook,
         render_runbook_csv=render_runbook_csv,
@@ -244,12 +267,12 @@ def orchestrate_output_emission(
     args: dict[str, Any],
     render_and_write: ScanOutputRenderer,
     render_scanner_report: ScanReportRenderer,
-    render_runbook: Callable[[str, dict[str, Any] | None], str],
-    render_runbook_csv: Callable[[dict[str, Any] | None], str],
+    render_runbook: Callable[[str, ScanMetadata], str],
+    render_runbook_csv: Callable[[ScanMetadata], str],
 ) -> str | bytes:
     """Orchestrate coordinated output emission (primary plus sidecars)."""
     out_path = resolve_output_file_path(Path(args["output"]), args["output_format"])
-    metadata: ScanMetadata = cast(ScanMetadata, dict(args["metadata"]))
+    metadata: ScanMetadata = copy.copy(args["metadata"])
 
     if not args["dry_run"]:
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -291,7 +314,7 @@ def orchestrate_output_emission(
             display_variables=args["display_variables"],
             requirements_display=args["requirements_display"],
             undocumented_default_filters=args["undocumented_default_filters"],
-            metadata=cast(dict[str, Any], metadata),
+            metadata=metadata,
             template=kw["template"],
             dry_run=kw["dry_run"],
         ),

@@ -1,0 +1,34 @@
+{
+  "name": "context-engineering",
+  "version": "2.1.0",
+  "description": "Context engineering skills for building production-grade AI agent systems, covering fundamentals, degradation patterns, compression, optimization, multi-agent coordination, memory systems, tool design, evaluation, and more.",
+  "author": {
+    "name": "Muratcan Koylan",
+    "url": "https://github.com/muratcankoylan"
+  },
+  "homepage": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+  "repository": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "context-engineering",
+    "agents",
+    "multi-agent",
+    "evaluation"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Context Engineering",
+    "shortDescription": "Skill bundle for building stronger agent systems.",
+    "longDescription": "A bundled set of context engineering skills for production-grade AI agent systems, including context design, compression, evaluation, memory, tool design, and multi-agent coordination patterns.",
+    "developerName": "Muratcan Koylan",
+    "category": "Productivity",
+    "websiteURL": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+    "defaultPrompt": [
+      "Explain the main context failure modes in long agent runs.",
+      "Design a memory and context strategy for a coding agent.",
+      "Recommend context compression patterns for a multi-agent workflow."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

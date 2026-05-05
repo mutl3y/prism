@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import TypedDict
 
 import yaml
+
+_logger = logging.getLogger(__name__)
 
 
 CONTEXT_VERSION = "1.0"
@@ -32,6 +35,12 @@ def build_repo_context_graph(
 ) -> RepoCrossRoleContext | None:
     """Build sparse cross-role variable context graph when kernel is enabled."""
     if not is_kernel_enabled():
+        _logger.info(
+            "Skipping repo context graph build because %s is not truthy (value=%r, role_count=%d)",
+            KERNEL_ENABLED_ENV_VAR,
+            os.environ.get(KERNEL_ENABLED_ENV_VAR),
+            len(role_paths),
+        )
         return None
 
     role_variable_index: dict[str, list[str]] = {
@@ -75,15 +84,32 @@ def discover_role_variable_names(role_path: str) -> list[str]:
 def _scan_yaml_keys(path: Path) -> list[str]:
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    except OSError as exc:
+        _logger.warning(
+            "_scan_yaml_keys: read error (%s) for %s; returning empty list",
+            type(exc).__name__,
+            path,
+            exc_info=True,
+        )
         return []
 
     try:
         data = yaml.safe_load(text)
-    except yaml.YAMLError:
+    except yaml.YAMLError as exc:
+        _logger.warning(
+            "_scan_yaml_keys: YAML parse error (%s) for %s; returning empty list",
+            type(exc).__name__,
+            path,
+            exc_info=True,
+        )
         return []
 
     if not isinstance(data, dict):
+        _logger.warning(
+            "_scan_yaml_keys: loaded YAML is type %s (not dict) for %s; returning empty list",
+            type(data).__name__,
+            path,
+        )
         return []
 
     return [k for k in data if isinstance(k, str) and k.isidentifier()]

@@ -6,15 +6,18 @@ import re
 from pathlib import Path
 from typing import Any
 
-from prism.scanner_data.di_helpers import scan_options_from_di
+import yaml
+
+from prism.scanner_core.di_helpers import scan_options_from_di
 from prism.scanner_extract.task_file_traversal import (
     collect_task_files as _tft_collect_task_files,
     load_yaml_file as _tft_load_yaml_file,
 )
+from prism.scanner_extract.variable_helpers import is_sensitive_variable
 from prism.scanner_io.loader import load_yaml_file
 
 
-def _get_variable_extractor_policy(di: object | None = None):
+def get_variable_extractor_policy(di: object | None = None):
     scan_options = scan_options_from_di(di)
     if isinstance(scan_options, dict):
         prepared_policy_bundle = scan_options.get("prepared_policy_bundle")
@@ -29,14 +32,18 @@ def _get_variable_extractor_policy(di: object | None = None):
 
 
 DEFAULT_TARGET_RE = re.compile(r"\b(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*\|\s*default\b")
-JINJA_VAR_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)")
-JINJA_IDENTIFIER_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\b")
+from prism.scanner_data.patterns_jinja import (  # noqa: E402, F401  (re-exported for back-compat)
+    JINJA_IDENTIFIER_RE,
+    JINJA_VAR_RE,
+)
+
+# JINJA_VAR_RE definition replaced
 VAULT_KEY_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*!vault\b", re.MULTILINE)
 
 
-def looks_secret_name(name: str) -> bool:
-    token = name.lower()
-    return any(marker in token for marker in ("password", "secret", "token", "key"))
+def looks_secret_name(name: str, value: Any = "") -> bool:
+    """Backward-compatible thin wrapper over is_sensitive_variable."""
+    return is_sensitive_variable(name, value)
 
 
 def resembles_password_like(value: str) -> bool:
@@ -57,7 +64,7 @@ def collect_include_vars_files(
     *,
     di: object | None = None,
 ) -> list[Path]:
-    return _get_variable_extractor_policy(di).collect_include_vars_files(
+    return get_variable_extractor_policy(di).collect_include_vars_files(
         role_path=role_path,
         exclude_paths=exclude_paths,
         collect_task_files=_tft_collect_task_files,
@@ -82,9 +89,10 @@ def load_seed_variables(
             continue
         try:
             loaded = load_yaml_file(candidate, di=di)
-        except Exception:
+        except (OSError, yaml.YAMLError, UnicodeDecodeError, ValueError, RuntimeError):
             # Seed files are optional user-supplied inputs; silently skip
-            # unreadable or malformed entries rather than aborting the scan.
+            # unreadable or malformed entries. Programmer errors (TypeError,
+            # AttributeError) are intentionally NOT caught and will propagate.
             continue
         if not isinstance(loaded, dict):
             continue
@@ -93,7 +101,7 @@ def load_seed_variables(
                 continue
             seed_values[name] = value
             seed_sources[name] = str(candidate)
-            if looks_secret_name(name):
+            if looks_secret_name(name, value if isinstance(value, str) else ""):
                 seed_secrets.add(name)
 
     return seed_values, seed_secrets, seed_sources

@@ -1,0 +1,33 @@
+{
+  "name": "context-engineering-fundamentals",
+  "version": "2.1.0",
+  "description": "Foundational context engineering skills covering context anatomy, degradation patterns, and compression techniques.",
+  "author": {
+    "name": "Muratcan Koylan",
+    "url": "https://github.com/muratcankoylan"
+  },
+  "homepage": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+  "repository": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+  "license": "MIT",
+  "keywords": [
+    "context-engineering",
+    "fundamentals",
+    "skills",
+    "agents"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Context Engineering Fundamentals",
+    "shortDescription": "Core context concepts and failure modes.",
+    "longDescription": "A focused bundle of the foundational context engineering skills: context fundamentals, context degradation, and context compression.",
+    "developerName": "Muratcan Koylan",
+    "category": "Productivity",
+    "websiteURL": "https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering",
+    "defaultPrompt": [
+      "Explain the core mechanics of context windows in agent systems.",
+      "Diagnose lost-in-the-middle and other context failure modes.",
+      "Recommend ways to compress long agent context safely."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

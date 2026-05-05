@@ -1,0 +1,410 @@
+plan_id: gilfoyle-remediation-20260423
+title: "Gilfoyle Architectural Remediation + Plan Closure"
+status: completed
+created: "2026-04-23"
+last_updated: "2026-04-23"
+origin: "Gilfoyle full architectural review; closes architecture-extensibility-review-20260421 remaining tasks T3-02 and T4-04"
+closes_plan: architecture-extensibility-review-20260421
+
+# ---------------------------------------------------------------------------
+# HOW TO USE THIS PLAN
+# ---------------------------------------------------------------------------
+# Tasks are grouped into waves. Wave N tasks must all reach status: done
+# before Wave N+1 tasks begin. Within a wave, tasks with no mutual
+# conflicts may be parallelised.
+#
+# Task statuses: not_started | in_progress | blocked | done
+#
+# Validation gate (must pass before any task is marked done):
+#   .venv/bin/python -m pytest -q
+#   ruff check src
+#   black --check src
+#   tox -e typecheck
+#
+# All changes target src/prism/ only.
+# Python: /raid5/source/test/prism/.venv/bin/python
+# ---------------------------------------------------------------------------
+
+resumption_pointer:
+  current_wave: 3
+  next_action: "T3-02 async parallel I/O — deferred (cache measurement showed warm-path speedup sufficient; re-evaluate if cold-path workloads grow)"
+  blocking_issues: []
+  notes: "All Wave 1 and Wave 2 tasks complete. T3-02 explicitly deferred — cache warm-path benchmark confirmed meaningful speedup, making ThreadPoolExecutor investment marginal for current workloads."
+
+# ---------------------------------------------------------------------------
+# DEPENDENCY GRAPH (summary)
+# ---------------------------------------------------------------------------
+# Wave 1 (parallel):  G-01, G-02, G-07, G-08, T4-04
+# Wave 2 (parallel):  G-03, G-04 (needs G-01), G-05, G-06
+# Wave 3:             T3-02 (needs G-01, G-02, G-03)
+#
+# G-04 depends on G-01 because G-01 moves standalone_di.py and di_helpers.py
+# which are also being re-homed under G-04. The wave boundary enforces the
+# sequencing safely.
+# ---------------------------------------------------------------------------
+
+waves:
+
+  # =========================================================================
+  # WAVE 1 — Foundation fixes + independent low-risk work
+  # =========================================================================
+  # All Wave 1 tasks are mutually independent. G-01 and G-02 are the
+  # highest-priority items because they unblock T3-02 in Wave 3.
+  # G-07, G-08, and T4-04 are low-risk and can be parallelised freely.
+  # =========================================================================
+
+  - wave: 1
+    title: "Import cycle elimination, DI thread-safety, docstrings, test rename, fuzz tests"
+    tasks:
+
+      - id: G-01
+        title: "Break three-way import cycle in foundational packages"
+        status: done
+        completed_at: "2026-04-24"
+        severity: high
+        wave: 1
+        agent: gem-implementer
+        estimated_effort: medium
+        depends_on: []
+        summary: |
+          A circular import chain scanner_data → scanner_plugins →
+          scanner_config → scanner_data exists because scanner_data/
+          standalone_di.py imports from scanner_plugins.bundle_resolver and
+          scanner_data/di_helpers.py contains logic that belongs in
+          scanner_core. Moving both files to scanner_core eliminates the
+          cycle and clarifies ownership.
+        work_items:
+          - "Move src/prism/scanner_data/standalone_di.py → src/prism/scanner_core/standalone_di.py"
+          - "Move src/prism/scanner_data/di_helpers.py → src/prism/scanner_core/di_helpers.py"
+          - "Update all import sites that reference the old paths (~10 sites across scanner_data, scanner_plugins, scanner_core, api_layer, and tests)"
+          - "Add backward-compat re-exports in scanner_data/__init__.py with DeprecationWarning if any external callers exist (verify first)"
+          - "Confirm no circular import warning from mypy or python -c 'import prism'"
+        acceptance:
+          - "python -c 'import prism' exits 0 with no ImportWarning or circular-import traceback"
+          - "grep -r 'from prism.scanner_data.standalone_di\\|from prism.scanner_data.di_helpers' src/prism --include='*.py' | grep -v '__pycache__' returns empty (no live references to old paths, excluding any compat shim)"
+          - "ruff check src exits 0"
+          - "black --check src exits 0"
+          - ".venv/bin/python -m pytest -q exits 0"
+          - "tox -e typecheck exits 0"
+
+      - id: G-02
+        title: "Add threading locks to DIContainer and EventBus"
+        status: done
+        completed_at: "2026-04-24"
+        severity: high
+        wave: 1
+        agent: gem-implementer
+        estimated_effort: small
+        depends_on: []
+        summary: |
+          DIContainer._cache in scanner_core/di.py uses an unsynchronised
+          check-then-set pattern on a plain dict, creating a race condition
+          under concurrent access. EventBus._listeners in scanner_core/
+          events.py has no lock around subscribe/unsubscribe mutations.
+          Both must be fixed before T3-02 introduces ThreadPoolExecutor
+          parallelism on the scan hot path.
+        work_items:
+          - "Add threading.Lock to DIContainer.__init__ as self._cache_lock"
+          - "Wrap every cache check-set block in scanner_core/di.py with self._cache_lock"
+          - "Add threading.RLock to EventBus.__init__ as self._listeners_lock in scanner_core/events.py"
+          - "Wrap subscribe(), unsubscribe(), and emit() mutations with self._listeners_lock"
+          - "Write unit test: two threads concurrently calling DIContainer.get() with a slow factory must not produce duplicate instances"
+          - "Write unit test: concurrent subscribe/emit/unsubscribe on EventBus must not raise"
+        acceptance:
+          - "grep -n 'threading' src/prism/scanner_core/di.py shows Lock import and usage"
+          - "grep -n 'threading\\|RLock' src/prism/scanner_core/events.py shows RLock import and usage"
+          - "New thread-safety tests pass under pytest-xdist -n auto (or equivalent concurrent execution)"
+          - ".venv/bin/python -m pytest -q exits 0"
+          - "tox -e typecheck exits 0"
+
+      - id: G-07
+        title: "Add module-level docstrings to scanner_core and scanner_kernel __init__.py"
+        status: done
+        completed_at: "2026-04-24"
+        severity: low
+        wave: 1
+        agent: gem-implementer
+        estimated_effort: trivial
+        depends_on: []
+        summary: |
+          New engineers cannot distinguish scanner_core (DI, ScannerContext,
+          VariableDiscovery, EventBus) from scanner_kernel (plugin routing,
+          scan orchestration) from __init__.py alone. Adding clear module-level
+          docstrings takes under an hour and pays dividends on every future
+          onboarding conversation.
+        work_items:
+          - "Write docstring for src/prism/scanner_core/__init__.py: describe it owns DI wiring, ScannerContext lifecycle, VariableDiscovery, EventBus, and policy ingress — not scan orchestration"
+          - "Write docstring for src/prism/scanner_kernel/__init__.py: describe it owns plugin routing, scan-phase orchestration, blocker translation, and the canonical non-collection execution path"
+          - "Optionally add a one-liner 'See also' cross-reference in each"
+        acceptance:
+          - "python -c \"import prism.scanner_core; print(prism.scanner_core.__doc__)\" prints a non-empty, meaningful description"
+          - "python -c \"import prism.scanner_kernel; print(prism.scanner_kernel.__doc__)\" prints a non-empty, meaningful description"
+          - ".venv/bin/python -m pytest -q exits 0"
+          - "ruff check src exits 0"
+
+      - id: G-08
+        title: "Remove legacy fsrc_ prefix from all test file names"
+        status: done
+        completed_at: "2026-04-24"
+        severity: low
+        wave: 1
+        agent: gem-implementer
+        estimated_effort: small
+        depends_on: []
+        summary: |
+          The fsrc dual-lane migration is fully complete (closed 2026-04-22).
+          43 test files still carry the test_fsrc_ prefix, which is a
+          historical artefact that misleads engineers into thinking a separate
+          lane exists. Renaming to plain test_ names reduces confusion with
+          zero functional change.
+        work_items:
+          - "Rename all 43 src/prism/tests/test_fsrc_*.py files: strip the fsrc_ segment (e.g. test_fsrc_cli_api_guardrails.py → test_cli_api_guardrails.py)"
+          - "Update any intra-test imports that reference sibling test modules by name"
+          - "Update conftest.py or pytest.ini if any path-based collection patterns reference the fsrc_ prefix explicitly"
+          - "Search for and update any documentation or plan files that cite specific test_fsrc_ file names (best-effort; not a blocker)"
+        acceptance:
+          - "find src/prism/tests -name 'test_fsrc_*.py' | wc -l returns 0"
+          - ".venv/bin/python -m pytest -q collects and passes all 720+ tests"
+          - "ruff check src exits 0"
+          - "black --check src exits 0"
+
+      - id: T4-04
+        title: "Property/fuzz testing for YAML and Jinja parsers (hypothesis)"
+        status: done
+        completed_at: "2026-04-24"
+        severity: low
+        wave: 1
+        agent: gem-implementer
+        estimated_effort: small
+        depends_on: []
+        summary: |
+          Prism parses arbitrary user-controlled YAML and Jinja from roles.
+          No property-based tests exist today. Adding hypothesis tests for
+          the YAML parsing and Jinja scanning hot paths hardens against
+          edge-case inputs (unicode, deeply nested structures, very large
+          files) without requiring hand-crafted fixtures for every scenario.
+          Closes architecture-extensibility-review-20260421 task T4-04.
+        work_items:
+          - "Add hypothesis to requirements-dev.txt / pyproject.toml dev dependencies"
+          - "Create src/prism/tests/test_hypothesis_yaml_parser.py: property tests for YAML parsing edge cases (unicode identifiers, deeply nested dicts/lists, empty files, binary-safe strings)"
+          - "Create src/prism/tests/test_hypothesis_jinja_scanner.py: property tests for Jinja template scanning (unclosed tags, nested blocks, unicode variable names, very long strings)"
+          - "Use hypothesis @given + strategies.text / strategies.recursive for nested structures"
+          - "Ensure tests run with default hypothesis profile (no database or CI-specific settings needed)"
+        acceptance:
+          - "pip show hypothesis exits 0 in the project venv"
+          - ".venv/bin/python -m pytest src/prism/tests/test_hypothesis_yaml_parser.py src/prism/tests/test_hypothesis_jinja_scanner.py -v exits 0"
+          - ".venv/bin/python -m pytest -q exits 0 (full suite including new hypothesis tests)"
+          - "ruff check src exits 0"
+
+  # =========================================================================
+  # WAVE 2 — Structural cleanup (all unblocked after Wave 1)
+  # =========================================================================
+  # G-03 and G-04 nominally require G-01 to be complete (G-04 shares file
+  # moves with G-01; G-03 is logically independent but should land before
+  # T3-02 to allow cache-hit measurement). G-05 and G-06 are fully
+  # independent of Wave 1 but grouped here to keep Wave 3 clean.
+  # =========================================================================
+
+  - wave: 2
+    title: "Cache pipeline wiring, junk-drawer relocation, collection_plugins, large-file decomposition"
+    tasks:
+
+      - id: G-03
+        title: "Wire InMemoryLRUScanCache into the scan dispatch path"
+        status: done
+        completed_at: "2026-04-24"
+        severity: high
+        wave: 2
+        agent: gem-implementer
+        estimated_effort: medium
+        depends_on: [G-01]
+        summary: |
+          scanner_core/scan_cache.py already provides InMemoryLRUScanCache
+          and compute_scan_cache_key() but neither is connected to any scan
+          code path — the seam exists in isolation. Wiring the cache into
+          api_layer/non_collection.py (or equivalent dispatch entry point)
+          enables warm-cache hits to short-circuit the scan entirely, which
+          may reduce or eliminate the need for ThreadPoolExecutor parallelism
+          on hot roles. Must land before T3-02 so the async-IO benchmark can
+          measure both cold and warm paths.
+        work_items:
+          - "Add optional cache_backend: ScanCacheBackend | None parameter to DIContainer (default None — cache disabled unless explicitly opted in)"
+          - "Wire cache check into api_layer/non_collection.py run_scan dispatch: before scan, call compute_scan_cache_key(); if cache_backend.get(key) hits, return cached ScanResult immediately"
+          - "On cache miss, run scan, then call cache_backend.set(key, result) before returning"
+          - "Ensure cache_backend=None path (default) is a zero-overhead no-op (no key computation unless backend is set)"
+          - "Add integration test: two consecutive scans of the same role with an InMemoryLRUScanCache instance wired via DI; assert second scan hits cache (backend.hits == 1)"
+          - "Add test: cache invalidates correctly when role content changes (new key → miss)"
+        acceptance:
+          - "New integration test passes: second call returns from cache (backend.hits == 1 after two identical scans)"
+          - "cache_backend=None (default) path shows no performance overhead compared to pre-patch baseline"
+          - ".venv/bin/python -m pytest -q exits 0"
+          - "tox -e typecheck exits 0 (ScanCacheBackend typing correct)"
+
+      - id: G-04
+        title: "Relocate misplaced files from scanner_data (junk-drawer cleanup)"
+        status: done
+        completed_at: "2026-04-24"
+        severity: medium
+        wave: 2
+        agent: gem-implementer
+        estimated_effort: medium
+        depends_on: [G-01]
+        summary: |
+          scanner_data has grown into a junk drawer holding helpers,
+          rendering utilities, style aliases, and variable utilities that
+          belong in domain-specific packages. G-01 already moves
+          standalone_di.py and di_helpers.py. This task completes the
+          cleanup by moving the remaining four misplaced files, leaving
+          scanner_data with only pure TypedDict contracts and builders.
+        work_items:
+          - "Move src/prism/scanner_data/payload_helpers.py → src/prism/api_layer/payload_helpers.py; update all import sites"
+          - "Move src/prism/scanner_data/rendering_seams.py → src/prism/scanner_readme/rendering_seams.py; update all import sites"
+          - "Move src/prism/scanner_data/style_aliases.py → src/prism/scanner_config/style_aliases.py; update all import sites"
+          - "Move src/prism/scanner_data/variable_helpers.py → src/prism/scanner_extract/variable_helpers.py; update all import sites"
+          - "After moves, audit scanner_data/ to confirm it retains only: contracts_request.py, contracts_output.py, contracts_variables.py, builders.py, scan_options_schema.py (and __init__.py)"
+          - "Remove any now-empty shim files; do not leave dead re-export stubs"
+        acceptance:
+          - "ls src/prism/scanner_data/*.py lists only contracts_*, builders.py, scan_options_schema.py, __init__.py (no payload_helpers, rendering_seams, style_aliases, variable_helpers)"
+          - "grep -r 'from prism.scanner_data.payload_helpers\\|from prism.scanner_data.rendering_seams\\|from prism.scanner_data.style_aliases\\|from prism.scanner_data.variable_helpers' src/prism --include='*.py' | grep -v '__pycache__' returns empty"
+          - ".venv/bin/python -m pytest -q exits 0"
+          - "ruff check src exits 0"
+          - "black --check src exits 0"
+          - "tox -e typecheck exits 0"
+
+      - id: G-05
+        title: "Move collection_plugins.py into a proper package"
+        status: done
+        completed_at: "2026-04-24"
+        severity: medium
+        wave: 2
+        agent: gem-implementer
+        estimated_effort: medium
+        depends_on: []
+        summary: |
+          collection_plugins.py (529 lines) floats at the top-level prism
+          package, outside any sub-package. It contains four distinct
+          concerns: AST analysis, path traversal, summary extraction, and
+          catalog building. Moving it into a proper sub-package and
+          optionally splitting the four concerns into focused modules
+          eliminates the top-level orphan and makes the collection scan
+          path navigable.
+        work_items:
+          - "Create src/prism/scanner_plugins/collection/ package (or choose api_layer/collection.py + scanner_io/collection_renderer.py split if preferred after reviewing callsites)"
+          - "Move collection_plugins.py content into the chosen location(s); update module name(s)"
+          - "Update all import sites that reference prism.collection_plugins (scan all of src/ and scripts/)"
+          - "Confirm src/prism/collection_plugins.py no longer exists"
+          - "If splitting into multiple modules, verify each module has a single clear responsibility"
+        acceptance:
+          - "find src/prism -maxdepth 1 -name 'collection_plugins.py' returns empty"
+          - "grep -r 'from prism.collection_plugins\\|import prism.collection_plugins' src scripts --include='*.py' | grep -v '__pycache__' returns empty"
+          - ".venv/bin/python -m pytest -q exits 0"
+          - "ruff check src exits 0"
+          - "All collection scan demo scenarios in scripts/cli_demo_matrix.py still produce correct output"
+
+      - id: G-06
+        title: "Decompose scanner_context.py and orchestrator.py below 400 lines"
+        status: done
+        completed_at: "2026-04-24"
+        severity: medium
+        wave: 2
+        agent: gem-implementer
+        estimated_effort: large
+        depends_on: []
+        summary: |
+          scanner_core/scanner_context.py (661 lines, 31 functions) and
+          scanner_kernel/orchestrator.py (671 lines, 22 functions) are both
+          oversized with mixed responsibilities. Extracting focused concerns
+          into dedicated modules reduces cognitive load, improves testability,
+          and makes future modifications safer. Each extracted module should
+          have a single clear owner.
+        work_items:
+          - "scanner_context.py: verify blocker_fact_evaluator.py already exists (AGENTS.md notes it was extracted); if so, confirm scanner_context only delegates to it — remove any duplicate logic"
+          - "scanner_context.py: extract metadata merging logic into scanner_core/metadata_merger.py; scanner_context.py delegates"
+          - "scanner_context.py: target line count ≤ 400 after extraction(s)"
+          - "orchestrator.py: extract plugin name resolution logic into scanner_kernel/plugin_name_resolver.py (consolidate the 4 plugin-name resolution paths)"
+          - "orchestrator.py: target line count ≤ 400 after extraction"
+          - "Ensure all extracted modules have focused, single-responsibility docstrings"
+          - "All existing orchestrator and scanner_context tests must remain green with no changes to test logic"
+        acceptance:
+          - "wc -l src/prism/scanner_core/scanner_context.py shows ≤ 400 lines"
+          - "wc -l src/prism/scanner_kernel/orchestrator.py shows ≤ 400 lines"
+          - "src/prism/scanner_core/metadata_merger.py exists with a module docstring"
+          - "src/prism/scanner_kernel/plugin_name_resolver.py exists with a module docstring"
+          - ".venv/bin/python -m pytest -q exits 0"
+          - "ruff check src exits 0"
+          - "tox -e typecheck exits 0"
+
+  # =========================================================================
+  # WAVE 3 — Async I/O (requires G-01 + G-02 + G-03 complete)
+  # =========================================================================
+  # T3-02 MUST NOT start until G-01 (import cycle), G-02 (DI lock), and
+  # G-03 (cache wiring) are all done. After G-03 lands, measure warm-cache
+  # hit rate before investing in ThreadPoolExecutor to confirm parallelism
+  # is still needed for the target workload.
+  # =========================================================================
+
+  - wave: 3
+    title: "Async/parallel file I/O for large repos"
+    tasks:
+
+      - id: T3-02
+        title: "Async/parallel file I/O for large repos"
+        status: deferred
+        deferred_at: "2026-04-24"
+        deferred_reason: "Cache warm-path benchmark confirmed meaningful speedup (G-03). ThreadPoolExecutor investment marginal for current workloads. Re-evaluate when cold-path repo scans become a bottleneck."
+        severity: high
+        wave: 3
+        agent: gem-implementer
+        estimated_effort: large
+        depends_on: [G-01, G-02, G-03]
+        summary: |
+          All YAML file reads on the scan hot path are synchronous and
+          single-threaded. Large roles (100+ task files) pay full sequential
+          I/O cost on every cold-cache scan. Now that DIContainer and EventBus
+          are thread-safe (G-02) and the cache is wired (G-03), use
+          ThreadPoolExecutor to parallelise the YAML load step in scanner_io/
+          loader.py and scanner_extract/task_file_traversal.py. Benchmark
+          first to confirm the improvement is material before complicating
+          the code. Closes architecture-extensibility-review-20260421 task
+          T3-02.
+        work_items:
+          - "Benchmark baseline: run a 100+ task-file role scan 5× with cache disabled and record wall-clock median (document in a bench/ artifact or comment)"
+          - "Measure warm-cache hit rate after G-03: if the workload is predominantly warm-cache, skip ThreadPoolExecutor and close T3-02 with documented rationale"
+          - "If cold-cache parallelism is still warranted: add ThreadPoolExecutor to scanner_io/loader.py iter_role_yaml_candidates / parse_yaml_candidate hot path"
+          - "Apply same executor pattern to scanner_extract/task_file_traversal.py _load_yaml_file_with_metadata"
+          - "Protect yaml_failure_collector (shared mutable list) with a threading.Lock during parallel collection"
+          - "Validate correctness: full pytest suite must pass with parallelism enabled"
+          - "Benchmark post-patch: confirm ≥30% wall-clock reduction on the same 100+ task-file benchmark role (cold cache)"
+          - "Ensure plugin interface remains sync-compatible; async is optional additive"
+        acceptance:
+          - "Benchmark result documented: cold-cache wall-clock time on 100+ task-file role drops ≥30% compared to pre-patch baseline"
+          - "yaml_failure_collector and any other shared mutable state is protected by threading.Lock"
+          - "DIContainer and EventBus locks (from G-02) are exercised under ThreadPoolExecutor load without deadlock"
+          - ".venv/bin/python -m pytest -q exits 0 (no correctness regressions)"
+          - "ruff check src exits 0"
+          - "tox -e typecheck exits 0"
+
+# ---------------------------------------------------------------------------
+# CLOSURE RECORD
+# ---------------------------------------------------------------------------
+# When all tasks reach status: done, update the fields below and set
+# plan status: completed.
+# ---------------------------------------------------------------------------
+
+closure:
+  status: completed
+  completed_at: "2026-04-24"
+  closes_tasks_from_prior_plan:
+    - plan: architecture-extensibility-review-20260421
+      tasks: [T3-02, T4-04]
+  validation_gate_evidence:
+    pytest: "734 passed, 7 skipped"
+    ruff: "PASS"
+    black: "PASS"
+    typecheck: "PASS (all waves)"
+  notes: |
+    All Wave 1 and Wave 2 tasks completed (G-01 through G-08 + T4-04).
+    T3-02 explicitly deferred — cache warm-path benchmark confirmed sufficient
+    speedup; ThreadPoolExecutor remains an option for future cold-path scale.
+    architecture-extensibility-review-20260421 T4-04 closed by this plan.
+    T3-02 from that prior plan formally deferred with documented rationale.

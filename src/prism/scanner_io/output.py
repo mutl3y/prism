@@ -81,13 +81,13 @@ def render_final_output(
     if output_format == "pdf":
         try:
             from weasyprint import HTML
-        except Exception as exc:
+        except ImportError as exc:
             raise RuntimeError(
                 "PDF output requires optional dependency 'weasyprint'"
             ) from exc
         return HTML(string=html_doc).write_pdf()
 
-    return html_doc
+    raise ValueError(f"unknown output_format {output_format!r}")
 
 
 def write_output(path: Path, content: str | bytes) -> str:
