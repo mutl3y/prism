@@ -22,6 +22,8 @@ debug_readmes/
 # Stray files
 et *
 .local/
+.gate/
+.mutl3y-gate/
 
 
 
