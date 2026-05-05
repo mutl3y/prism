@@ -152,6 +152,51 @@ def test_parse_yaml_candidate_uses_default_policy(tmp_path: Path) -> None:
     assert "error" in failure
 
 
+def test_parse_yaml_candidate_reports_encoding_errors(tmp_path: Path) -> None:
+    import prism.scanner_io.loader as loader_module
+
+    role_root = tmp_path
+    bad = tmp_path / "tasks" / "encoded.yml"
+    bad.parent.mkdir()
+    bad.write_bytes(b"\xff\xfe\x00\x00")
+
+    original_get_policy = loader_module._get_yaml_parsing_policy
+    loader_module._get_yaml_parsing_policy = lambda di=None: object()
+    try:
+        failure = loader_module.parse_yaml_candidate(bad, role_root)
+    finally:
+        loader_module._get_yaml_parsing_policy = original_get_policy
+
+    assert failure is not None
+    assert failure["file"] == "tasks/encoded.yml"
+    assert str(failure["error"]).startswith("encoding_error:")
+
+
+def test_parse_yaml_candidate_reports_value_errors(tmp_path: Path) -> None:
+    import prism.scanner_io.loader as loader_module
+
+    role_root = tmp_path
+    bad = tmp_path / "tasks" / "value.yml"
+    bad.parent.mkdir()
+    bad.write_text("ignored: true\n", encoding="utf-8")
+
+    original_get_policy = loader_module._get_yaml_parsing_policy
+    original_safe_load = loader_module.yaml.safe_load
+    loader_module._get_yaml_parsing_policy = lambda di=None: object()
+    loader_module.yaml.safe_load = lambda text: (_ for _ in ()).throw(
+        ValueError("bad value for value.yml")
+    )
+    try:
+        failure = loader_module.parse_yaml_candidate(bad, role_root)
+    finally:
+        loader_module._get_yaml_parsing_policy = original_get_policy
+        loader_module.yaml.safe_load = original_safe_load
+
+    assert failure is not None
+    assert failure["file"] == "tasks/value.yml"
+    assert failure["error"] == "value_error: bad value for value.yml"
+
+
 def test_iter_role_yaml_candidates_filters_extensions_and_excludes(
     tmp_path: Path,
 ) -> None:
@@ -192,6 +237,23 @@ def test_collect_yaml_parse_failures_returns_failures(tmp_path: Path) -> None:
     )
     assert len(failures) == 1
     assert failures[0]["file"] == "x.yml"
+
+
+def test_collect_yaml_parse_failures_preserves_candidate_order(tmp_path: Path) -> None:
+    from prism.scanner_io.loader import collect_yaml_parse_failures
+
+    first = tmp_path / "b.yml"
+    first.write_text("a: [oops\n", encoding="utf-8")
+    second = tmp_path / "a.yml"
+    second.write_text("b: [oops\n", encoding="utf-8")
+
+    failures = collect_yaml_parse_failures(
+        str(tmp_path),
+        exclude_paths=None,
+        iter_yaml_candidates_fn=lambda root, ex: [first, second],
+    )
+
+    assert [failure["file"] for failure in failures] == ["b.yml", "a.yml"]
 
 
 # ---- scanner_extract/dataload.py ------------------------------------------

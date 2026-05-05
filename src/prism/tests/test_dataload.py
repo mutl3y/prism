@@ -56,6 +56,35 @@ def test_load_role_variable_maps_collects_defaults_and_vars() -> None:
     assert rvm.vars_sources["v"] == Path("/r/vars/main.yml")
 
 
+def test_load_role_variable_maps_preserves_candidate_precedence() -> None:
+    candidates = {
+        "defaults": [Path("/r/defaults/main.yml"), Path("/r/defaults/extra.yml")],
+        "vars": [Path("/r/vars/main.yml"), Path("/r/vars/extra.yml")],
+    }
+
+    def iter_candidates(_root: Path, kind: str) -> list[Path]:
+        return candidates[kind]
+
+    yaml_files: dict[Path, dict] = {
+        Path("/r/defaults/main.yml"): {"shared": "defaults-main", "alpha": 1},
+        Path("/r/defaults/extra.yml"): {"shared": "defaults-extra", "beta": 2},
+        Path("/r/vars/main.yml"): {"shared": "vars-main", "gamma": 3},
+        Path("/r/vars/extra.yml"): {"shared": "vars-extra", "delta": 4},
+    }
+
+    rvm = load_role_variable_maps(
+        "/r",
+        True,
+        iter_candidates,
+        lambda path: yaml_files[path],
+    )
+
+    assert rvm.defaults_data == {"shared": "defaults-extra", "alpha": 1, "beta": 2}
+    assert rvm.vars_data == {"shared": "vars-extra", "gamma": 3, "delta": 4}
+    assert rvm.defaults_sources["shared"] == Path("/r/defaults/extra.yml")
+    assert rvm.vars_sources["shared"] == Path("/r/vars/extra.yml")
+
+
 def test_load_role_variable_maps_skips_vars_when_include_vars_main_false() -> None:
     def iter_candidates(_root: Path, kind: str) -> list[Path]:
         return [Path(f"/r/{kind}/main.yml")]
@@ -109,6 +138,125 @@ def test_load_variables_strict_raises_on_invalid_yaml(tmp_path: Path) -> None:
             collect_include_vars_files=lambda _role_path, _exclude_paths: [],
             strict=True,
         )
+
+
+def test_load_variables_non_strict_keeps_good_values_and_collects_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    role_root = tmp_path
+    defaults_dir = role_root / "defaults"
+    defaults_dir.mkdir()
+    vars_dir = role_root / "vars"
+    vars_dir.mkdir()
+    include_dir = role_root / "tasks"
+    include_dir.mkdir()
+
+    defaults_file = defaults_dir / "main.yml"
+    vars_file = vars_dir / "main.yml"
+    include_file = include_dir / "extra.yml"
+    defaults_file.write_text("defaults_only: 1\nshared: defaults\n", encoding="utf-8")
+    vars_file.write_text("ignored: true\n", encoding="utf-8")
+    include_file.write_text("shared: include\ninclude_only: 2\n", encoding="utf-8")
+
+    def _load_yaml_file(path: Path, di=None) -> object:
+        if path == vars_file:
+            raise OSError("cannot read vars")
+        if path == defaults_file:
+            return {"defaults_only": 1, "shared": "defaults"}
+        if path == include_file:
+            return {"shared": "include", "include_only": 2}
+        return {}
+
+    monkeypatch.setattr(discovery, "load_yaml_file", _load_yaml_file)
+    warnings: list[str] = []
+
+    loaded = load_variables(
+        str(role_root),
+        collect_include_vars_files=lambda _role_path, _exclude_paths: [include_file],
+        warning_collector=warnings,
+    )
+
+    assert loaded == {
+        "defaults_only": 1,
+        "shared": "include",
+        "include_only": 2,
+    }
+    assert warnings == [f"{VARIABLE_FILE_IO_ERROR}: {vars_file}: cannot read vars"]
+
+
+def test_load_variables_preserves_candidate_order_with_parallel_loads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    role_root = tmp_path
+    defaults_main = role_root / "defaults" / "main.yml"
+    defaults_extra = role_root / "defaults" / "main" / "10-extra.yml"
+    vars_main = role_root / "vars" / "main.yml"
+    include_file = role_root / "tasks" / "more.yml"
+    defaults_extra.parent.mkdir(parents=True)
+    defaults_main.parent.mkdir(exist_ok=True)
+    vars_main.parent.mkdir(parents=True)
+    include_file.parent.mkdir(parents=True)
+    for path in [defaults_main, defaults_extra, vars_main, include_file]:
+        path.write_text("placeholder: true\n", encoding="utf-8")
+
+    def _iter_candidates(role_root: Path, subdir: str) -> list[Path]:
+        mapping = {
+            "defaults": [defaults_main, defaults_extra],
+            "vars": [vars_main],
+        }
+        return mapping[subdir]
+
+    def _load_yaml_file(path: Path, di=None) -> object:
+        payloads = {
+            defaults_main: {"shared": "defaults-main", "alpha": 1},
+            defaults_extra: {"shared": "defaults-extra", "beta": 2},
+            vars_main: {"shared": "vars-main", "gamma": 3},
+            include_file: {"shared": "include", "delta": 4},
+        }
+        return payloads[path]
+
+    monkeypatch.setattr(
+        discovery, "iter_role_variable_map_candidates", _iter_candidates
+    )
+    monkeypatch.setattr(discovery, "load_yaml_file", _load_yaml_file)
+
+    loaded = load_variables(
+        str(role_root),
+        collect_include_vars_files=lambda _role_path, _exclude_paths: [include_file],
+    )
+
+    assert loaded == {
+        "shared": "include",
+        "alpha": 1,
+        "beta": 2,
+        "gamma": 3,
+        "delta": 4,
+    }
+
+
+def test_load_requirements_non_strict_collects_io_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    meta_dir = tmp_path / "meta"
+    meta_dir.mkdir()
+    req_file = meta_dir / "requirements.yml"
+    req_file.write_text("- name: demo\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        discovery,
+        "load_yaml_file",
+        lambda _path, di=None: (_ for _ in ()).throw(
+            OSError("cannot read requirements")
+        ),
+    )
+    warnings: list[str] = []
+
+    loaded = load_requirements(str(tmp_path), warning_collector=warnings)
+
+    assert loaded == []
+    assert warnings == [
+        f"{discovery.REQUIREMENTS_IO_ERROR}: {req_file}: cannot read requirements"
+    ]
 
 
 def test_load_meta_strict_raises_on_non_mapping_payload(

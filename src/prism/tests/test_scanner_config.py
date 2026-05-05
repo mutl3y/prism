@@ -17,7 +17,10 @@ from prism.scanner_config.legacy_retirement import (
     LEGACY_RUNTIME_PATH_UNAVAILABLE,
     format_legacy_retirement_error,
 )
-from prism.scanner_config.readme import resolve_role_config_file
+from prism.scanner_config.readme import (
+    load_readme_section_config,
+    resolve_role_config_file,
+)
 from prism.scanner_config.marker import load_readme_marker_prefix
 from prism.scanner_config.policy import (
     load_fail_on_unconstrained_dynamic_includes,
@@ -269,6 +272,103 @@ class TestLoadSectionDisplayTitles:
         result = load_section_display_titles(f, warning_collector=warnings)
         assert result == {}
         assert any("YAML" in w or "yaml" in w.lower() for w in warnings)
+
+
+class TestLoadReadmeSectionConfig:
+    def test_loads_enabled_sections_modes_and_style_titles(self, tmp_path):
+        role_root = tmp_path / "role"
+        role_root.mkdir()
+        cfg = role_root / ".prism.yml"
+        cfg.write_text(
+            """
+readme:
+  include_sections:
+    - Role Variables
+    - requirements
+  exclude_sections:
+    - requirements
+  section_content_modes:
+    Role Variables: merge
+  adopt_heading_mode: style
+""".strip()
+            + "\n",
+            encoding="utf-8",
+        )
+        display_titles = tmp_path / "display_titles.yml"
+        display_titles.write_text(
+            "display_titles:\n  role_variables: Variables\n",
+            encoding="utf-8",
+        )
+
+        result = load_readme_section_config(
+            str(role_root),
+            config_path=None,
+            adopt_heading_mode=None,
+            all_section_ids={"role_variables", "requirements", "examples"},
+            section_aliases={"role variables": "role_variables"},
+            normalize_heading=lambda value: " ".join(value.strip().lower().split()),
+            display_titles_path=display_titles,
+        )
+
+        assert result is not None
+        assert result["enabled_sections"] == {"role_variables"}
+        assert result["section_title_overrides"] == {
+            "role_variables": "Role Variables",
+            "requirements": "requirements",
+        }
+        assert result["section_content_modes"] == {"role_variables": "merge"}
+
+    def test_loads_popular_display_titles_when_requested(self, tmp_path):
+        role_root = tmp_path / "role"
+        role_root.mkdir()
+        cfg = role_root / ".prism.yml"
+        cfg.write_text(
+            "readme:\n  include_sections:\n    - role_variables\n",
+            encoding="utf-8",
+        )
+        display_titles = tmp_path / "display_titles.yml"
+        display_titles.write_text(
+            "display_titles:\n  role_variables: Popular Variables\n",
+            encoding="utf-8",
+        )
+
+        result = load_readme_section_config(
+            str(role_root),
+            config_path=None,
+            adopt_heading_mode="popular",
+            all_section_ids={"role_variables"},
+            section_aliases={},
+            normalize_heading=lambda value: value.strip().lower(),
+            display_titles_path=display_titles,
+        )
+
+        assert result is not None
+        assert result["section_title_overrides"] == {
+            "role_variables": "Popular Variables"
+        }
+
+    def test_collects_shape_warning_for_non_mapping_root(self, tmp_path):
+        role_root = tmp_path / "role"
+        role_root.mkdir()
+        cfg = role_root / ".prism.yml"
+        cfg.write_text("- just\n- a-list\n", encoding="utf-8")
+        warnings: list[str] = []
+
+        result = load_readme_section_config(
+            str(role_root),
+            config_path=None,
+            adopt_heading_mode=None,
+            all_section_ids={"role_variables"},
+            section_aliases={},
+            normalize_heading=lambda value: value.strip().lower(),
+            display_titles_path=tmp_path / "missing.yml",
+            warning_collector=warnings,
+        )
+
+        assert result is None
+        assert warnings == [
+            f"README_SECTION_CONFIG_SHAPE_INVALID: {cfg}: config root must be a mapping"
+        ]
 
 
 class TestScannerConfigImports:

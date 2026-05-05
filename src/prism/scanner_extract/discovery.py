@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any, Callable, NamedTuple
 
+from prism.scanner_io.loader import _ordered_parallel_map
 from prism.scanner_io.loader import load_yaml_file
 from prism.scanner_io.loader import parse_yaml_candidate
 
@@ -273,15 +274,21 @@ def load_variables(
     if include_vars_main:
         subdirs.append("vars")
 
+    def _load_variable_payload(path: Path) -> object:
+        try:
+            return load_yaml_file(path, di=di)
+        except Exception as exc:
+            return exc
+
     for sub in subdirs:
-        for path in iter_role_variable_map_candidates(role_root, sub):
-            try:
-                data = load_yaml_file(path, di=di)
-                if data is None:
-                    data = {}
-                if isinstance(data, dict):
-                    vars_out.update(data)
-            except Exception as exc:
+        candidates = iter_role_variable_map_candidates(role_root, sub)
+        for path, data in zip(
+            candidates,
+            _ordered_parallel_map(candidates, _load_variable_payload),
+            strict=True,
+        ):
+            if isinstance(data, Exception):
+                exc = data
                 if strict:
                     raise RuntimeError(
                         f"{VARIABLE_FILE_IO_ERROR}: {path}: {exc}"
@@ -294,15 +301,21 @@ def load_variables(
                 )
                 if warning_collector is not None:
                     warning_collector.append(f"{VARIABLE_FILE_IO_ERROR}: {path}: {exc}")
+                continue
 
-    for extra_path in collect_include_vars_files(role_path, exclude_paths):
-        try:
-            data = load_yaml_file(extra_path, di=di)
             if data is None:
                 data = {}
             if isinstance(data, dict):
                 vars_out.update(data)
-        except Exception as exc:
+
+    extra_paths = collect_include_vars_files(role_path, exclude_paths)
+    for extra_path, data in zip(
+        extra_paths,
+        _ordered_parallel_map(extra_paths, _load_variable_payload),
+        strict=True,
+    ):
+        if isinstance(data, Exception):
+            exc = data
             if strict:
                 raise RuntimeError(
                     f"{VARIABLE_FILE_IO_ERROR}: {extra_path}: {exc}"
@@ -317,6 +330,12 @@ def load_variables(
                 warning_collector.append(
                     f"{VARIABLE_FILE_IO_ERROR}: {extra_path}: {exc}"
                 )
+            continue
+
+        if data is None:
+            data = {}
+        if isinstance(data, dict):
+            vars_out.update(data)
 
     return vars_out
 

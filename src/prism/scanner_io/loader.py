@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, TypeGuard, cast
+from typing import TYPE_CHECKING, Callable, TypeGuard, TypeVar, cast
 
 import yaml
 
@@ -19,6 +20,9 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+_InputT = TypeVar("_InputT")
+_ResultT = TypeVar("_ResultT")
 
 
 def build_yaml_load_error(path: Path, exc: Exception) -> PrismRuntimeError:
@@ -119,6 +123,25 @@ def format_candidate_failure_path(candidate: Path, role_root: Path) -> str:
     if relpath is not None:
         return relpath
     return candidate.resolve().as_posix()
+
+
+def _recommended_parallel_workers(item_count: int) -> int:
+    if item_count <= 1:
+        return 1
+    cpu_count = os.cpu_count() or 1
+    return min(item_count, cpu_count + 4, 32)
+
+
+def _ordered_parallel_map(
+    items: list[_InputT],
+    worker: Callable[[_InputT], _ResultT],
+) -> list[_ResultT]:
+    max_workers = _recommended_parallel_workers(len(items))
+    if max_workers <= 1:
+        return [worker(item) for item in items]
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        return list(executor.map(worker, items))
 
 
 def iter_role_yaml_candidates(
@@ -255,17 +278,19 @@ def collect_yaml_parse_failures(
 ) -> list[YamlParseFailure]:
     """Collect YAML parse failures with file/line context across a role tree."""
     role_root = Path(role_path).resolve()
-    failures: list[YamlParseFailure] = []
+    candidates = list(
+        iter_yaml_candidates_fn(
+            role_root,
+            exclude_paths,
+        )
+    )
 
-    for candidate in iter_yaml_candidates_fn(
-        role_root,
-        exclude_paths,
-    ):
-        failure = parse_yaml_candidate(candidate, role_root, di=di)
-        if failure is not None:
-            failures.append(failure)
+    def _parse_candidate(candidate: Path) -> YamlParseFailure | None:
+        return parse_yaml_candidate(candidate, role_root, di=di)
 
-    return failures
+    failures = _ordered_parallel_map(candidates, _parse_candidate)
+
+    return [failure for failure in failures if failure is not None]
 
 
 def load_yaml_file(path: Path, *, di: object | None = None) -> object:

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable, NamedTuple
 
 from prism.scanner_io.loader import (
+    _ordered_parallel_map,
     collect_yaml_parse_failures,
     iter_role_yaml_candidates,
     map_argument_spec_type,
@@ -44,17 +45,25 @@ def load_role_variable_maps(
     defaults_sources: dict[str, Path] = {}
     vars_sources: dict[str, Path] = {}
     role_root = Path(role_path)
+    default_candidates = iter_variable_map_candidates_fn(role_root, "defaults")
 
-    for candidate in iter_variable_map_candidates_fn(role_root, "defaults"):
-        loaded = load_yaml_file_fn(candidate)
+    for candidate, loaded in zip(
+        default_candidates,
+        _ordered_parallel_map(default_candidates, load_yaml_file_fn),
+        strict=True,
+    ):
         if isinstance(loaded, dict):
             for name in loaded:
                 defaults_sources[name] = candidate
             defaults_data.update(loaded)
 
     if include_vars_main:
-        for candidate in iter_variable_map_candidates_fn(role_root, "vars"):
-            loaded = load_yaml_file_fn(candidate)
+        vars_candidates = iter_variable_map_candidates_fn(role_root, "vars")
+        for candidate, loaded in zip(
+            vars_candidates,
+            _ordered_parallel_map(vars_candidates, load_yaml_file_fn),
+            strict=True,
+        ):
             if isinstance(loaded, dict):
                 for name in loaded:
                     vars_sources[name] = candidate
