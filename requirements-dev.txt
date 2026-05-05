@@ -7,7 +7,7 @@ pytest-benchmark
 pyfakefs
 hypothesis
 ruff==0.15.6
-black==25.1.0
+black==26.3.1
 markdown
 pylint
 mypy
