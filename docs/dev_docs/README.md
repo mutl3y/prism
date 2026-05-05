@@ -5,35 +5,28 @@ title: Developer Documentation
 
 Reference index for engineering, maintenance, and governance.
 
-## Strategic Orientation
+## Start Here
 
-- contract-first docs generation from static source analysis
-- uncertainty surfaced through provenance/confidence signaling
-- policy and reporting loops driven by scanner outputs and `prism-learn`
+- [Architecture](./architecture.md): current package boundaries, runtime flow, and ownership rules
+- [Package Capabilities](./package-capabilities.md): capability ownership by public surface and internal package
+- [Contributing](./contributing.md): setup, validation, and contribution workflow
 
-## Current Guidance
+## Core References
 
-- [Contributing](./contributing.md): setup, validation, and PR expectations
-- [Architecture](./architecture.md): scanner and renderer design overview
-- [Package Capabilities](./package-capabilities.md): current capability ownership by stable facade and package
-- [Static Analysis Scope](./static-analysis-scope.md): in-scope vs out-of-scope guarantees
-- [Provenance Tracking](./provenance-tracking.md): confidence model and source metadata
-- [CI Starter Workflows](./ci-starter-workflows.md): baseline pipeline templates
 - [CLI Targets](./cli-targets.md): subcommand intent and output strategy
-- [Dependency Hygiene](./dependency-hygiene.md): automated and local dependency vulnerability review path
+- [Static Analysis Scope](./static-analysis-scope.md): in-scope versus out-of-scope guarantees
+- [Provenance Tracking](./provenance-tracking.md): confidence model and source metadata
+- [Provenance Categories](./provenance-categories.md): current provenance issue taxonomy
+- [Dependency Hygiene](./dependency-hygiene.md): dependency review and maintenance path
+- [CI Starter Workflows](./ci-starter-workflows.md): baseline pipeline templates
+- [Style Guide Sources](./style-guide-sources.md): supported style-guide source patterns
 
-## Governance and Plans
+## Operational References
 
-- [Developer Changelog](./changelog.md): internal evolution history
-- [Roadmap and Backlog](./roadmap.md): active initiatives and priorities
-- [Review Follow-Up Implementation Plan](./review-followup-implementation-plan-20260403.md): trackable implementation plan derived from the latest broad code review
-- [Completed Plans Archive](./completed-plans.md): closed planning artifacts, including the architecture review/package-split closure
-- [Annotation Quality Workoff](./annotation-quality-workoff.md): quality policy implementation plan (complete)
-- [Style Guide Sources](./style-guide-sources.md): external standards references
+- [Roadmap](./roadmap.md): current focus areas and delivered themes
+- [Error Boundary Audit](./error-boundary-audit-20260424.md): point-in-time audit of runtime error boundaries
+- [Performance Benchmark Suite](./perf-benchmark-suite-20260424.md): benchmark harness and intent
 
-## Historical Reference
+## Historical Material
 
-- [Modernization Plan v2](./modernization-plan-v2.md): archived modernization baseline and transition history; use Architecture and Package Capabilities for current ownership guidance
-- [Modernization v2 Completion & Sign-Off](./modernization-v2-completion-signoff.md): modernization closure record and metrics
-- [Source Evaluation Matrix](./source-evaluation-matrix.md): original docs migration and destination audit
-- [Unresolved Provenance Batch 15](./unresolved-provenance-batch15.md): historical unresolved-provenance snapshot used for earlier analysis lanes
+- [docs/plan/](../plan/INDEX.md): planning, review, and execution artifacts

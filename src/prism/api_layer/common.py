@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import traceback
-from typing import Any
+from typing import Any, Mapping, NotRequired, TypedDict, cast
 
 from prism.errors import (
     ERROR_CATEGORY_RUNTIME,
@@ -14,9 +14,14 @@ from prism.errors import (
     SCAN_ROLE_PAYLOAD_SHAPE_INVALID,
     SCAN_ROLE_PAYLOAD_TYPE_INVALID,
 )
-from prism.scanner_data.payload_helpers import (  # noqa: F401  (re-export)
+from prism.api_layer.payload_helpers import (  # noqa: F401  (re-export)
     normalize_scan_role_payload_shape,
 )
+
+
+class ScanRolePayload(TypedDict, total=False):
+    role_name: str
+    metadata: NotRequired[dict[str, object]]
 
 
 def collection_role_failure_details(
@@ -33,9 +38,9 @@ def collection_role_failure_details(
     return ROLE_SCAN_FAILED, ERROR_CATEGORY_RUNTIME, None
 
 
-def parse_scan_role_payload(payload: str | dict[str, Any]) -> dict[str, Any]:
-    if isinstance(payload, dict):
-        parsed = payload
+def parse_scan_role_payload(payload: str | Mapping[str, object]) -> ScanRolePayload:
+    if isinstance(payload, Mapping):
+        parsed: object = dict(payload)
     else:
         try:
             parsed = json.loads(payload)
@@ -59,7 +64,7 @@ def parse_scan_role_payload(payload: str | dict[str, Any]) -> dict[str, Any]:
             f"{SCAN_ROLE_PAYLOAD_SHAPE_INVALID}: expected metadata=object when present"
         )
 
-    return parsed
+    return cast(ScanRolePayload, parsed)
 
 
 def build_failure_record(

@@ -59,7 +59,6 @@ from prism.scanner_extract.requirements import (
     build_requirements_display,
 )
 
-
 __all__ = [
     "TASK_INCLUDE_KEYS",
     "ROLE_INCLUDE_KEYS",

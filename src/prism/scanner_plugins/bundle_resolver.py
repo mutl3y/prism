@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any, Protocol, cast, runtime_checkable
 
-from prism.scanner_data.contracts_request import PreparedPolicyBundle
+from prism.scanner_data.contracts_request import (
+    PreparedPolicyBundle,
+    resolve_strict_phase_failures,
+)
 from prism.scanner_plugins.defaults import resolve_jinja_analysis_policy_plugin
 from prism.scanner_plugins.defaults import resolve_task_annotation_policy_plugin
 from prism.scanner_plugins.defaults import resolve_task_line_parsing_policy_plugin
@@ -16,7 +19,6 @@ from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
     normalize_marker_prefix,
 )
 
-
 _TASK_LINE_REQUIRED_ATTRIBUTES = (
     "TASK_INCLUDE_KEYS",
     "ROLE_INCLUDE_KEYS",
@@ -25,6 +27,11 @@ _TASK_LINE_REQUIRED_ATTRIBUTES = (
     "TASK_BLOCK_KEYS",
     "TASK_META_KEYS",
 )
+
+
+@runtime_checkable
+class HasReplaceScanOptions(Protocol):
+    def replace_scan_options(self, scan_options: dict[str, Any]) -> None: ...
 
 
 def _validate_task_line_policy(plugin: object) -> None:
@@ -99,7 +106,7 @@ def ensure_prepared_policy_bundle(
     bundle: dict[str, Any] = (
         dict(existing_bundle) if isinstance(existing_bundle, dict) else {}
     )
-    strict_mode = bool(scan_options.get("strict_phase_failures", True))
+    strict_mode = resolve_strict_phase_failures(scan_options)
 
     if bundle.get("task_line_parsing") is None:
         bundle["task_line_parsing"] = resolve_task_line_parsing_policy_plugin(
@@ -154,4 +161,6 @@ def ensure_prepared_policy_bundle(
     _validate_prepared_policy_bundle(bundle)
 
     scan_options["prepared_policy_bundle"] = bundle
+    if isinstance(di, HasReplaceScanOptions):
+        di.replace_scan_options(scan_options)
     return cast(PreparedPolicyBundle, bundle)

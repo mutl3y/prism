@@ -16,7 +16,10 @@ from prism.scanner_io.loader import (
     map_argument_spec_type,
     parse_yaml_candidate,
 )
-from prism.scanner_io.collection_renderer import render_collection_markdown
+from prism.scanner_io.collection_renderer import (
+    format_collection_summary,
+    render_collection_markdown,
+)
 from prism.scanner_io.output import (
     FinalOutputPayload,
     build_final_output_payload,
@@ -33,6 +36,7 @@ __all__ = [
     "load_yaml_file",
     "map_argument_spec_type",
     "parse_yaml_candidate",
+    "format_collection_summary",
     "render_collection_markdown",
     "FinalOutputPayload",
     "build_final_output_payload",

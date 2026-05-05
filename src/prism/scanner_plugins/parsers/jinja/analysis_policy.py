@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import jinja2
 import jinja2.nodes
 from jinja2 import meta
+from jinja2.sandbox import SandboxedEnvironment
 
-_JINJA_ENV = jinja2.Environment()
+# T4-05: SandboxedEnvironment used as defense-in-depth. This module only calls
+# .parse() (AST-only inspection); no template is ever rendered or evaluated
+# from role content. Sandbox guards against future regressions where a render
+# path is added by mistake.
+JINJA_ENV = SandboxedEnvironment()
 
 
-class JinjaAnalysisPolicyPlugin:
+class DefaultJinjaAnalysisPolicyPlugin:
     """Default Jinja analysis policy implementation for fsrc."""
+
+    PLUGIN_IS_STATELESS: ClassVar[bool] = True
 
     @staticmethod
     def collect_undeclared_jinja_variables(text: str) -> set[str]:
@@ -21,16 +30,19 @@ def collect_undeclared_jinja_variables(text: str) -> set[str]:
     if "{{" not in text and "{%" not in text:
         return set()
     try:
-        parsed = _JINJA_ENV.parse(text)
+        parsed = JINJA_ENV.parse(text)
     except (
         jinja2.exceptions.TemplateAssertionError,
         jinja2.exceptions.TemplateSyntaxError,
     ):
         return set()
+    ast_names = _collect_undeclared_jinja_variables_from_ast(parsed)
     try:
-        return set(meta.find_undeclared_variables(parsed))
+        # Jinja omits some built-in globals such as `namespace` from the meta
+        # result even when this scanner contract needs to surface them.
+        return set(meta.find_undeclared_variables(parsed)) | ast_names
     except jinja2.exceptions.TemplateAssertionError:
-        return _collect_undeclared_jinja_variables_from_ast(parsed)
+        return ast_names
 
 
 def _collect_undeclared_jinja_variables_from_ast(
@@ -83,6 +95,6 @@ def _extract_name_targets(node: object) -> set[str]:
 
 
 __all__ = [
-    "JinjaAnalysisPolicyPlugin",
+    "DefaultJinjaAnalysisPolicyPlugin",
     "collect_undeclared_jinja_variables",
 ]

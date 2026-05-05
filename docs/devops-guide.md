@@ -69,23 +69,31 @@ Why this matters:
 - JSON supports trend and compliance reporting in `prism-learn`
 - CSV/markdown runbooks reduce manual interpretation during on-call events
 
-## Step 4: Integrate Feedback Inputs
+## Step 4: Apply Replacement Policy Inputs
 
-Feedback-driven settings are supported via local file or API endpoint.
+The older learn-feedback ingestion path has been retired. Use explicit local
+policy inputs instead.
 
-```bash
-prism role path/to/role \
-  --feedback-from-learn /path/to/feedback.json \
-  -o README.generated.md
-```
+Use built-in strict flags for native scanner controls:
 
 ```bash
 prism role path/to/role \
-  --feedback-from-learn "https://learn.example.com/api/feedback?role=my_role" \
+  --fail-on-unconstrained-dynamic-includes \
+  --fail-on-yaml-like-task-annotations \
   -o README.generated.md
 ```
 
-You should see: selected settings adjusted according to validated recommendations.
+Use Policy as Code for payload-level governance checks:
+
+```bash
+prism role path/to/role \
+  --audit-rules policy-rules.yml \
+  --fail-on-audit-violations \
+  -f json -o role_scan.json
+```
+
+You should see: explicit fail/pass behavior driven by checked-in or
+deterministically generated policy files.
 
 ## Step 5: Standardize Operational Policy
 
@@ -104,8 +112,8 @@ Example checks teams commonly automate:
 - alert when runbook annotation coverage drops below internal target
 - ticket when dependency declarations violate approved collection policy
 
-These checks are implemented in CI policy scripts using scanner flags and JSON
-output fields.
+These checks are implemented with scanner flags, local audit-rule files, and
+JSON output fields.
 
 Leadership checks to operationalize:
 
@@ -116,5 +124,6 @@ Leadership checks to operationalize:
 ## Reference
 
 - CLI target details: [Developer CLI Targets](./dev_docs/cli-targets.md)
+- replacement policy model: [Policy Inputs and Audit Rules](./feedback-integration.md)
 - provenance model: [Provenance Tracking](./provenance-tracking.md)
 - authoring patterns: [Prism-Friendly Role Authoring](./prism-friendly-role-authoring.md)

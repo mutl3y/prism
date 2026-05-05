@@ -29,11 +29,15 @@ from prism.scanner_reporting.report import (
     render_scanner_report_section,
     render_scanner_report_yaml_parse_failure_row,
 )
-from prism.scanner_reporting.runbook import (
-    build_runbook_rows,
-    render_runbook,
-    render_runbook_csv,
+from prism.scanner_plugins.defaults import (
+    resolve_render_runbook,
+    resolve_render_runbook_csv,
+    resolve_runbook_rows,
 )
+
+build_runbook_rows = resolve_runbook_rows()
+render_runbook = resolve_render_runbook()
+render_runbook_csv = resolve_render_runbook_csv()
 
 __all__ = [
     "AnnotationQualityCounters",

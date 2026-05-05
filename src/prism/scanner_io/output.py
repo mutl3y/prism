@@ -54,7 +54,7 @@ def _render_html_document(markdown_content: str, title: str) -> str:
     else:
         try:
             html_body = _md.markdown(markdown_content, extensions=["extra", "toc"])
-        except (ImportError, AttributeError, TypeError, ValueError):
+        except ImportError, AttributeError, TypeError, ValueError:
             html_body = f"<pre>{_html.escape(markdown_content)}</pre>"
 
     escaped_title = _html.escape(title, quote=True)
@@ -81,13 +81,13 @@ def render_final_output(
     if output_format == "pdf":
         try:
             from weasyprint import HTML
-        except Exception as exc:
+        except ImportError as exc:
             raise RuntimeError(
                 "PDF output requires optional dependency 'weasyprint'"
             ) from exc
         return HTML(string=html_doc).write_pdf()
 
-    return html_doc
+    raise ValueError(f"unknown output_format {output_format!r}")
 
 
 def write_output(path: Path, content: str | bytes) -> str:

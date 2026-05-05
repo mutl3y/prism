@@ -1,0 +1,330 @@
+{{ role_name }}
+=========
+
+{{ description }}
+
+{% set enabled_sections = metadata.enabled_sections if metadata.enabled_sections is defined else None %}
+
+{% if not enabled_sections or "galaxy_info" in enabled_sections %}
+Galaxy Info
+-----------
+
+{% set g = metadata.meta.galaxy_info if metadata.meta and metadata.meta.galaxy_info else {} %}
+
+{% if g %}
+- **Role name**: {{ g.get('role_name', role_name) }}
+- **Description**: {{ g.get('description', description) }}
+- **License**: {{ g.get('license', 'N/A') }}
+- **Min Ansible Version**: {{ g.get('min_ansible_version', 'N/A') }}
+{% if g.get('galaxy_tags') %}- **Tags**: {{ g.get('galaxy_tags')|join(', ') }}{% endif %}
+{% else %}
+No Galaxy metadata found.
+{% endif %}
+{% endif %}
+
+{% if not enabled_sections or "requirements" in enabled_sections %}
+Requirements
+------------
+
+{% if requirements %}
+{% for r in requirements %}
+- {{ r }}
+{% endfor %}
+{% else %}
+No additional requirements.
+{% endif %}
+{% endif %}
+
+{% if not enabled_sections or "purpose" in enabled_sections %}
+Role purpose and capabilities
+-----------------------------
+
+{% if metadata.doc_insights %}
+{{ metadata.doc_insights.purpose_summary }}
+
+{% if metadata.doc_insights.capabilities %}
+Capabilities:
+{% for capability in metadata.doc_insights.capabilities %}
+- {{ capability }}
+{% endfor %}
+{% endif %}
+{% else %}
+No inferred role summary available.
+{% endif %}
+{% endif %}
+
+{% if not enabled_sections or "role_notes" in enabled_sections %}
+Role notes
+----------
+
+{% set role_notes = metadata.role_notes if metadata.role_notes is defined else {} %}
+{% set warnings = role_notes.warnings if role_notes and role_notes.warnings else [] %}
+{% set deprecations = role_notes.deprecations if role_notes and role_notes.deprecations else [] %}
+{% set notes = role_notes.notes if role_notes and role_notes.notes else [] %}
+{% set additionals = role_notes.additionals if role_notes and role_notes.additionals else [] %}
+{% if warnings or deprecations or notes or additionals %}
+{% if warnings %}
+Warnings:
+{% for item in warnings %}
+- {{ item }}
+{% endfor %}
+{% endif %}
+{% if deprecations %}
+
+Deprecations:
+{% for item in deprecations %}
+- {{ item }}
+{% endfor %}
+{% endif %}
+{% if notes %}
+
+Notes:
+{% for item in notes %}
+- {{ item }}
+{% endfor %}
+{% endif %}
+{% if additionals %}
+
+Additionals:
+{% for item in additionals %}
+- {{ item }}
+{% endfor %}
+{% endif %}
+{% else %}
+No role notes were found in comment annotations.
+{% endif %}
+{% endif %}
+
+{% if not enabled_sections or "variable_summary" in enabled_sections %}
+Inputs / variables summary
+--------------------------
+
+{% if metadata.variable_insights %}
+| Name | Type | Default | Source |
+| --- | --- | --- | --- |
+{% for row in metadata.variable_insights %}
+| `{{ row.name }}` | {{ row.type }} | `{{ row.default | replace("`","'") }}` | {{ row.source }}{% if row.secret %} (secret){% endif %} |
+{% endfor %}
+
+{% set unresolved = metadata.variable_insights | selectattr('is_unresolved', 'equalto', true) | list %}
+{% set ambiguous = metadata.variable_insights | selectattr('is_ambiguous', 'equalto', true) | list %}
+{% if unresolved or ambiguous %}
+
+Variable provenance and confidence notes:
+
+{% if unresolved %}
+Unresolved variables:
+{% for row in unresolved %}
+- `{{ row.name }}`: {{ row.uncertainty_reason if row.uncertainty_reason else "Unknown source." }}
+{% endfor %}
+{% endif %}
+
+{% if ambiguous %}
+Ambiguous variables:
+{% for row in ambiguous %}
+- `{{ row.name }}`: {{ row.uncertainty_reason if row.uncertainty_reason else "Multiple possible sources." }}
+{% endfor %}
+{% endif %}
+{% endif %}
+{% else %}
+No variable insights available.
+{% endif %}
+{% endif %}
+
+{% if (not metadata.concise_readme) and (not enabled_sections or "task_summary" in enabled_sections) %}
+Task/module usage summary
+-------------------------
+
+{% if metadata.doc_insights and metadata.doc_insights.task_summary %}
+- **Task files scanned**: {{ metadata.doc_insights.task_summary.task_files_scanned }}
+- **Tasks scanned**: {{ metadata.doc_insights.task_summary.tasks_scanned }}
+- **Recursive includes**: {{ metadata.doc_insights.task_summary.recursive_task_includes }}
+- **Unique modules**: {{ metadata.doc_insights.task_summary.module_count }}
+- **Handlers referenced**: {{ metadata.doc_insights.task_summary.handler_count }}
+{% else %}
+No task summary available.
+{% endif %}
+{% endif %}
+
+{% if not enabled_sections or "example_usage" in enabled_sections %}
+Inferred example usage
+----------------------
+
+{% if metadata.doc_insights and metadata.doc_insights.example_playbook %}
+```yaml
+{{ metadata.doc_insights.example_playbook }}
+```
+{% else %}
+No inferred example available.
+{% endif %}
+{% endif %}
+
+{% if (not metadata.concise_readme) and (not enabled_sections or "role_variables" in enabled_sections) %}
+Role Variables
+--------------
+
+{% if variables %}
+The following variables are available:
+{% for variable, value in variables.items() %}
+- `{{ variable }}`: {{ value }}
+{% endfor %}
+{% else %}
+No variables found.
+{% endif %}
+{% endif %}
+
+{% if (not metadata.concise_readme) and (not enabled_sections or "role_contents" in enabled_sections) %}
+Role contents summary
+---------------------
+
+The scanner collected these role subdirectories (counts):
+
+{% for key, items in metadata.items() if key not in ('meta', 'features', 'comparison', 'variable_insights', 'doc_insights', 'role_notes', 'scanner_counters') and items is sequence and (items is not string) %}
+- **{{ key }}**: {{ items|length }} files
+{% endfor %}
+
+{% for key, items in metadata.items() if key not in ('meta', 'features', 'comparison', 'variable_insights', 'doc_insights', 'role_notes', 'scanner_counters', 'collection_compliance_notes', 'keep_unknown_style_sections', 'include_task_parameters', 'include_task_runbooks', 'inline_task_runbooks') %}
+{% if items %}
+### {{ key|capitalize }}
+
+{% if key == 'task_catalog' and items is sequence and items|length > 0 and items[0] is mapping %}
+{% set include_params = metadata.include_task_parameters if metadata.include_task_parameters is defined else true %}
+{% set include_runbooks = metadata.include_task_runbooks if metadata.include_task_runbooks is defined else true %}
+{% set inline_runbooks = metadata.inline_task_runbooks if metadata.inline_task_runbooks is defined else true %}
+
+| File | Task | Module{% if include_params %} | Parameters{% endif %}{% if include_runbooks %} | Runbook{% endif %} |
+| --- | --- | ---{% if include_params %} | ---{% endif %}{% if include_runbooks %} | ---{% endif %} |
+{% for task in items %}
+{% if loop.index0 < 50 %}
+{% set runbook = task.runbook if task.runbook is defined else '' %}
+| `{{ task.file }}` | [{{ task.name }}](#{{ task.anchor }}) | {{ task.module }}{% if include_params %} | {{ task.parameters[:80] }}{% if task.parameters|length > 80 %}...{% endif %}{% endif %}{% if include_runbooks %} | {% if runbook and inline_runbooks and runbook|length <= 80 %}{{ runbook | replace('|', '\\|') }}{% elif runbook %}[Details](#{{ task.anchor }}){% else %}-{% endif %}{% endif %} |
+{% endif %}
+{% endfor %}
+{% if items|length > 50 %}
+
+... and {{ items|length - 50 }} more tasks
+{% endif %}
+
+{% if include_runbooks %}
+{% set task_notes = items | selectattr('annotations') | list %}
+{% if task_notes %}
+
+#### Task details and runbooks
+
+{% for task in items %}
+{% if loop.index0 < 50 and task.annotations is defined and task.annotations %}
+<a id="{{ task.anchor }}"></a>
+**`{{ task.file }}` • {{ task.name }}**
+
+{% if include_params and task.parameters %}
+- Parameters: `{{ task.parameters | replace('`', "'") }}`
+{% endif %}
+
+{% for note in task.annotations %}
+{% if note.kind == 'runbook' %}
+<details>
+<summary>Runbook</summary>
+
+{{ note.text }}
+
+</details>
+{% else %}
+- {{ note.kind | capitalize }}: {{ note.text }}
+{% endif %}
+{% endfor %}
+
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endif %}
+
+{% elif key == 'handler_catalog' and items is sequence and items|length > 0 and items[0] is mapping %}
+| File | Name | Module |
+| --- | --- | --- |
+{% for handler in items %}
+{% if loop.index0 < 50 %}
+| `{{ handler.file }}` | {{ handler.name }} | {{ handler.module }} |
+{% endif %}
+{% endfor %}
+{% if items|length > 50 %}
+
+... and {{ items|length - 50 }} more handlers
+{% endif %}
+
+{% elif items is sequence %}
+{% for it in items %}
+{% if loop.index0 < 20 %}
+- {{ it }}
+{% endif %}
+{% endfor %}
+
+{% if items|length > 20 %}
+... and {{ items|length - 20 }} more
+{% endif %}
+
+{% elif items is mapping %}
+{% for k, v in items.items() %}
+- {{ k }}: {{ v }}
+{% endfor %}
+
+{% else %}
+- {{ items }}
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if (not metadata.concise_readme) and (not enabled_sections or "features" in enabled_sections) %}
+Auto-detected role features
+---------------------------
+
+{% if metadata.features %}
+{% for k, v in metadata.features.items() %}
+- **{{ k }}**: {{ v }}
+{% endfor %}
+{% else %}
+No role features detected.
+{% endif %}
+{% endif %}
+
+{% if (not metadata.concise_readme) and (not enabled_sections or "comparison" in enabled_sections) %}
+Comparison against local baseline role
+-------------------------------------
+
+{% if metadata.comparison %}
+- **Baseline path**: {{ metadata.comparison.baseline_path }}
+- **Target score**: {{ metadata.comparison.target_score }}/100
+- **Baseline score**: {{ metadata.comparison.baseline_score }}/100
+- **Score delta**: {{ metadata.comparison.score_delta }}
+
+{% for metric, values in metadata.comparison.metrics.items() %}
+- **{{ metric }}**: target={{ values.target }}, baseline={{ values.baseline }}, delta={{ values.delta }}
+{% endfor %}
+{% else %}
+No comparison baseline provided.
+{% endif %}
+{% endif %}
+
+{% if (not metadata.concise_readme) and (not enabled_sections or "default_filters" in enabled_sections) %}
+Detected usages of the default() filter
+---------------------------------------
+
+{% if default_filters %}
+The scanner found undocumented variables using `default()` in role files:
+
+{% for occ in default_filters %}
+- {{ occ.file }}:{{ occ.line_no }} — `{{ occ.match | replace("`","'") }}`
+  args: `{{ occ.args | replace("`","'") }}`
+{% endfor %}
+
+{% else %}
+No undocumented variables using `default()` were detected.
+{% endif %}
+{% endif %}
+
+{% if metadata.concise_readme and metadata.include_scanner_report_link and (not enabled_sections or "scanner_report" in enabled_sections) %}
+Scanner report
+--------------
+
+Detailed scanner output is available in `{{ metadata.scanner_report_relpath }}`. It contains task/module statistics, role-content inventory, baseline comparison details, and undocumented `default()` findings.
+{% endif %}
