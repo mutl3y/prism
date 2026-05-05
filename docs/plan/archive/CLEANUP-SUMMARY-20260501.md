@@ -62,4 +62,3 @@
 **Option 1**: Start Tier 3 work from active architecture-extensibility plan
 **Option 2**: Review & approve readme-renderer design for implementation
 **Option 3**: Run full cleanup audit if other stale folders remain in docs/plan/
-
