@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
-from typing import Any, Protocol, TypedDict, cast
+from typing import Protocol, TypedDict
 
 from prism.errors import (
     REPO_CLONE_FAILED,
@@ -55,7 +55,7 @@ class RepoScanRunResult:
     scan_output: RepoScanPayload
 
 
-RepoScanPayload = RunScanOutputPayload | dict[str, Any] | str
+RepoScanPayload = RunScanOutputPayload | dict[str, object] | str
 
 
 class RepoScanRoleRunner(Protocol):
@@ -317,11 +317,11 @@ def normalize_repo_scan_payload(
     if not isinstance(payload, dict):
         raise RuntimeError(REPO_SCAN_PAYLOAD_TYPE_INVALID)
 
-    payload_dict = cast(dict[str, Any], payload)
+    payload_dict: dict[str, object] = dict(payload)
 
     metadata_value = payload_dict.get("metadata")
     if metadata_value is None:
-        metadata_dict: dict[str, Any] = {}
+        metadata_dict: dict[str, object] = {}
         payload_dict["metadata"] = metadata_dict
     elif isinstance(metadata_value, dict):
         metadata_dict = metadata_value
@@ -330,7 +330,7 @@ def normalize_repo_scan_payload(
 
     style_guide_value = metadata_dict.get("style_guide")
     if style_guide_value is None:
-        style_guide_dict: dict[str, Any] = {}
+        style_guide_dict: dict[str, object] = {}
         metadata_dict["style_guide"] = style_guide_dict
     elif isinstance(style_guide_value, dict):
         style_guide_dict = style_guide_value
@@ -342,7 +342,7 @@ def normalize_repo_scan_payload(
     if scanner_report_relpath:
         metadata_dict["scanner_report_relpath"] = scanner_report_relpath
 
-    return payload
+    return payload_dict
 
 
 def run_repo_scan(

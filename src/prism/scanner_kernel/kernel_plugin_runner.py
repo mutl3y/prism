@@ -106,7 +106,29 @@ def run_kernel_plugin_orchestrator(
         "metadata": {"kernel_orchestrator": "fsrc-v1"},
     }
 
-    plugin = load_plugin_fn(platform)
+    try:
+        plugin = load_plugin_fn(platform)
+    except Exception as exc:
+        load_error_envelope: KernelPhaseFailure = {
+            "code": "KERNEL_PLUGIN_LOAD_FAILED",
+            "message": str(exc),
+            "phase": "load_plugin",
+            "recoverable": not fail_fast,
+        }
+        _response_list(response, "errors").append(load_error_envelope)
+        response["phase_results"]["load_plugin"] = {
+            "phase": "load_plugin",
+            "status": "failed",
+            "error": load_error_envelope,
+        }
+        for phase in ("prepare", "scan", "analyze", "finalize"):
+            response["phase_results"][phase] = {
+                "phase": phase,
+                "status": "skipped_due_to_upstream_failure",
+                "reason": "Plugin loading failed before phase execution",
+            }
+        return response
+
     phase_handlers: list[tuple[str, _PhaseHandler | None]] = [
         ("prepare", _resolve_phase_handler(plugin, "prepare")),
         ("scan", _resolve_phase_handler(plugin, "scan")),
@@ -251,7 +273,7 @@ def _merge_phase_output(
             else {}
         )
         existing_metadata.update(_copy_mapping(metadata))
-        response["metadata"] = cast(ScanMetadata, existing_metadata)
+        response["metadata"] = existing_metadata
 
     for key in _RESPONSE_LIST_KEYS:
         value = phase_output.get(key)

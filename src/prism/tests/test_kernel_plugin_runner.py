@@ -202,6 +202,28 @@ def test_run_kernel_plugin_orchestrator_continues_after_failure_when_fail_fast_f
     assert error["phase"] == "prepare", "Error should identify failed phase"
 
 
+def test_run_kernel_plugin_orchestrator_wraps_loader_failure_in_kernel_error() -> None:
+    response = run_kernel_plugin_orchestrator(
+        platform="ansible",
+        target_path="/tmp/role",
+        scan_options={},
+        load_plugin_fn=lambda _platform: (_ for _ in ()).throw(
+            RuntimeError("load failed")
+        ),
+        fail_fast=False,
+    )
+
+    assert response["phase_results"]["load_plugin"]["status"] == "failed"
+    error = _first_error(response)
+    assert error["phase"] == "load_plugin"
+    assert error["message"] == "load failed"
+    assert error["recoverable"] is True
+    assert (
+        response["phase_results"]["prepare"]["status"]
+        == "skipped_due_to_upstream_failure"
+    )
+
+
 def test_run_kernel_plugin_orchestrator_merges_phase_payload_metadata_and_lists() -> (
     None
 ):

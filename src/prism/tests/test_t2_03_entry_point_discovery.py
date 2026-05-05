@@ -186,6 +186,32 @@ def test_bootstrap_fails_closed_on_entry_point_discovery_defect(monkeypatch) -> 
         bootstrap_module._DEFAULT_REGISTRY = original_default_registry
 
 
+def test_custom_bootstrap_fails_closed_on_entry_point_discovery_defect(
+    monkeypatch,
+) -> None:
+    from prism import scanner_plugins
+    from prism.scanner_plugins import discovery as discovery_module
+    from prism.scanner_plugins.registry import PluginRegistry
+
+    registry = PluginRegistry()
+
+    def _raise_on_discovery(**_kwargs):
+        raise EntryPointPluginLoadError("discovery boom")
+
+    monkeypatch.setattr(
+        discovery_module,
+        "discover_entry_point_plugins",
+        _raise_on_discovery,
+    )
+
+    with pytest.raises(EntryPointPluginLoadError, match="discovery boom"):
+        scanner_plugins.bootstrap_default_plugins(registry)
+
+    assert registry.list_scan_pipeline_plugins() == []
+    assert registry.list_extract_policy_plugins() == []
+    assert registry.get_default_platform_key() is None
+
+
 def test_bootstrap_concurrent_first_initialization_is_atomic(monkeypatch) -> None:
     from prism.scanner_plugins import bootstrap as bootstrap_module
     from prism.scanner_plugins import discovery as discovery_module

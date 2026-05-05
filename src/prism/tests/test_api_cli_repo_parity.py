@@ -137,6 +137,32 @@ def test_fsrc_repo_services_objective_critical_signature_parity_with_src() -> No
         assert "repo_url" in inspect.signature(fn).parameters
 
 
+def test_fsrc_normalize_repo_scan_payload_adds_repo_metadata() -> None:
+    with _prefer_prism_lane_on_sys_path(FSRC_SOURCE_ROOT):
+        repo_services_module = importlib.import_module("prism.repo_services")
+
+    payload = {
+        "role_name": "demo",
+        "description": "role",
+        "display_variables": {},
+        "requirements_display": [],
+        "undocumented_default_filters": [],
+        "metadata": {},
+    }
+
+    normalized = repo_services_module.normalize_repo_scan_payload(
+        payload,
+        repo_style_readme_path="docs/style.md",
+        scanner_report_relpath="reports/scanner.md",
+    )
+
+    normalized_dict = _expect_mapping(normalized)
+    metadata = _expect_mapping(normalized_dict["metadata"])
+    style_guide = _expect_mapping(metadata["style_guide"])
+    assert style_guide["path"] == "docs/style.md"
+    assert metadata["scanner_report_relpath"] == "reports/scanner.md"
+
+
 def test_fsrc_cli_parser_exposes_collection_and_completion_commands() -> None:
     with _prefer_fsrc_prism_on_sys_path():
         cli_module = importlib.import_module("prism.cli")
