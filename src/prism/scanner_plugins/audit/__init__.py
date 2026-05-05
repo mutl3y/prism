@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from prism.scanner_config.audit_rules import AuditRule, AuditViolation
+from prism.scanner_plugins.audit.loader import load_audit_rules_from_file
+from prism.scanner_plugins.audit.runner import run_audit
 
 
 @runtime_checkable
@@ -22,4 +24,8 @@ class AuditPlugin(Protocol):
         ...
 
 
-__all__ = ["AuditPlugin"]
+__all__ = [
+    "AuditPlugin",
+    "load_audit_rules_from_file",
+    "run_audit",
+]

@@ -3,19 +3,11 @@
 from __future__ import annotations
 
 import re
+import sys
+from collections.abc import Collection
 from typing import Any, Iterator
 
-from prism.scanner_data.di_helpers import require_prepared_policy
-
-
-def _get_task_line_parsing_policy(di=None):
-    return require_prepared_policy(di, "task_line_parsing", "task_line_parsing")
-
-
-def _get_task_annotation_policy(di: object | None = None):
-    return require_prepared_policy(
-        di, "task_annotation_parsing", "task_annotation_parsing"
-    )
+from prism.scanner_core.di_helpers import require_prepared_policy
 
 
 class _PolicyBackedCollectionProxy:
@@ -23,7 +15,10 @@ class _PolicyBackedCollectionProxy:
         self._policy_attr_name = policy_attr_name
 
     def _current_value(self) -> object:
-        return getattr(_get_task_line_parsing_policy(), self._policy_attr_name)
+        return getattr(
+            require_prepared_policy(None, "task_line_parsing", "task_line_parsing"),
+            self._policy_attr_name,
+        )
 
     def __iter__(self) -> Iterator[Any]:
         value = self._current_value()
@@ -52,7 +47,10 @@ class _PolicyBackedRegexProxy:
         self._policy_attr_name = policy_attr_name
 
     def _current_regex(self) -> re.Pattern[str]:
-        current = getattr(_get_task_line_parsing_policy(), self._policy_attr_name)
+        current = getattr(
+            require_prepared_policy(None, "task_line_parsing", "task_line_parsing"),
+            self._policy_attr_name,
+        )
         if isinstance(current, re.Pattern):
             return current
         raise ValueError(
@@ -73,40 +71,46 @@ class _PolicyBackedRegexProxy:
         return getattr(self._current_regex(), name)
 
 
-TASK_INCLUDE_KEYS = _PolicyBackedCollectionProxy("TASK_INCLUDE_KEYS")
-ROLE_INCLUDE_KEYS = _PolicyBackedCollectionProxy("ROLE_INCLUDE_KEYS")
-INCLUDE_VARS_KEYS = _PolicyBackedCollectionProxy("INCLUDE_VARS_KEYS")
-SET_FACT_KEYS = _PolicyBackedCollectionProxy("SET_FACT_KEYS")
-TASK_BLOCK_KEYS = _PolicyBackedCollectionProxy("TASK_BLOCK_KEYS")
-TASK_META_KEYS = _PolicyBackedCollectionProxy("TASK_META_KEYS")
+TASK_INCLUDE_KEYS: Collection[str] = _PolicyBackedCollectionProxy("TASK_INCLUDE_KEYS")  # type: ignore[assignment]
+ROLE_INCLUDE_KEYS: Collection[str] = _PolicyBackedCollectionProxy("ROLE_INCLUDE_KEYS")  # type: ignore[assignment]
+INCLUDE_VARS_KEYS: Collection[str] = _PolicyBackedCollectionProxy("INCLUDE_VARS_KEYS")  # type: ignore[assignment]
+SET_FACT_KEYS: Collection[str] = _PolicyBackedCollectionProxy("SET_FACT_KEYS")  # type: ignore[assignment]
+TASK_BLOCK_KEYS: Collection[str] = _PolicyBackedCollectionProxy("TASK_BLOCK_KEYS")  # type: ignore[assignment]
+TASK_META_KEYS: Collection[str] = _PolicyBackedCollectionProxy("TASK_META_KEYS")  # type: ignore[assignment]
+
+
+def _task_line_policy_attr(di: object | None, attr: str) -> object:
+    return getattr(
+        require_prepared_policy(di, "task_line_parsing", "task_line_parsing"), attr
+    )
 
 
 def get_task_include_keys(di: object | None = None) -> object:
-    return _get_task_line_parsing_policy(di).TASK_INCLUDE_KEYS
+    return _task_line_policy_attr(di, "TASK_INCLUDE_KEYS")
 
 
 def get_role_include_keys(di: object | None = None) -> object:
-    return _get_task_line_parsing_policy(di).ROLE_INCLUDE_KEYS
+    return _task_line_policy_attr(di, "ROLE_INCLUDE_KEYS")
 
 
 def get_include_vars_keys(di: object | None = None) -> object:
-    return _get_task_line_parsing_policy(di).INCLUDE_VARS_KEYS
+    return _task_line_policy_attr(di, "INCLUDE_VARS_KEYS")
 
 
 def get_set_fact_keys(di: object | None = None) -> object:
-    return _get_task_line_parsing_policy(di).SET_FACT_KEYS
+    return _task_line_policy_attr(di, "SET_FACT_KEYS")
 
 
 def get_task_block_keys(di: object | None = None) -> object:
-    return _get_task_line_parsing_policy(di).TASK_BLOCK_KEYS
+    return _task_line_policy_attr(di, "TASK_BLOCK_KEYS")
 
 
 def get_task_meta_keys(di: object | None = None) -> object:
-    return _get_task_line_parsing_policy(di).TASK_META_KEYS
+    return _task_line_policy_attr(di, "TASK_META_KEYS")
 
 
 def get_templated_include_re(di: object | None = None) -> re.Pattern[str] | object:
-    return _get_task_line_parsing_policy(di).TEMPLATED_INCLUDE_RE
+    return _task_line_policy_attr(di, "TEMPLATED_INCLUDE_RE")
 
 
 def _extract_constrained_when_values(
@@ -115,9 +119,9 @@ def _extract_constrained_when_values(
     *,
     di: object | None = None,
 ) -> list[str]:
-    return _get_task_line_parsing_policy(di).extract_constrained_when_values(
-        task, variable
-    )
+    return require_prepared_policy(
+        di, "task_line_parsing", "task_line_parsing"
+    ).extract_constrained_when_values(task, variable)
 
 
 def _normalize_marker_prefix(
@@ -125,7 +129,9 @@ def _normalize_marker_prefix(
     *,
     di: object | None = None,
 ) -> str:
-    return _get_task_annotation_policy(di).normalize_marker_prefix(marker_prefix)
+    return require_prepared_policy(
+        di, "task_annotation_parsing", "task_annotation_parsing"
+    ).normalize_marker_prefix(marker_prefix)
 
 
 def _build_marker_line_re(
@@ -134,7 +140,9 @@ def _build_marker_line_re(
     di: object | None = None,
 ):
     normalized_prefix = _normalize_marker_prefix(marker_prefix, di=di)
-    return _get_task_annotation_policy(di).get_marker_line_re(normalized_prefix)
+    return require_prepared_policy(
+        di, "task_annotation_parsing", "task_annotation_parsing"
+    ).get_marker_line_re(normalized_prefix)
 
 
 def get_marker_line_re(marker_prefix, *, di: object | None = None):
@@ -142,10 +150,19 @@ def get_marker_line_re(marker_prefix, *, di: object | None = None):
 
 
 class _PolicyBackedMarkerLineRegexProxy:
-    """Proxy that resolves marker-line regex from annotation policy at call time."""
+    """
+    Proxy that resolves marker-line regex from annotation policy at call time.
+
+    The match/search/fullmatch methods proxy to the current re.Pattern[str] instance
+    returned by the annotation policy. These methods accept the same arguments as
+    re.Pattern[str] and return the same types. This proxy is needed because the
+    underlying regex may change at runtime depending on policy configuration.
+    """
 
     def _current_regex(self) -> re.Pattern[str]:
-        policy = _get_task_annotation_policy()
+        policy = require_prepared_policy(
+            None, "task_annotation_parsing", "task_annotation_parsing"
+        )
         regex = policy.get_marker_line_re(policy.normalize_marker_prefix(None))
         if isinstance(regex, re.Pattern):
             return regex
@@ -154,14 +171,20 @@ class _PolicyBackedMarkerLineRegexProxy:
             "must return a compiled re.Pattern"
         )
 
-    def match(self, *args: Any, **kwargs: Any):
-        return self._current_regex().match(*args, **kwargs)
+    def match(
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
+    ) -> re.Match[str] | None:
+        return self._current_regex().match(string, pos, endpos)
 
-    def search(self, *args: Any, **kwargs: Any):
-        return self._current_regex().search(*args, **kwargs)
+    def search(
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
+    ) -> re.Match[str] | None:
+        return self._current_regex().search(string, pos, endpos)
 
-    def fullmatch(self, *args: Any, **kwargs: Any):
-        return self._current_regex().fullmatch(*args, **kwargs)
+    def fullmatch(
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
+    ) -> re.Match[str] | None:
+        return self._current_regex().fullmatch(string, pos, endpos)
 
     def __getattr__(self, name: str) -> object:
         return getattr(self._current_regex(), name)
@@ -176,7 +199,13 @@ class _PolicyBackedAnnotationRegexProxy:
         self._policy_attr_name = policy_attr_name
 
     def _current_regex(self) -> re.Pattern[str]:
-        current = getattr(_get_task_annotation_policy(), self._policy_attr_name, None)
+        current = getattr(
+            require_prepared_policy(
+                None, "task_annotation_parsing", "task_annotation_parsing"
+            ),
+            self._policy_attr_name,
+            None,
+        )
         if isinstance(current, re.Pattern):
             return current
         raise ValueError(
@@ -184,14 +213,20 @@ class _PolicyBackedAnnotationRegexProxy:
             f"must be a compiled regex pattern"
         )
 
-    def match(self, *args: Any, **kwargs: Any):
-        return self._current_regex().match(*args, **kwargs)
+    def match(
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
+    ) -> re.Match[str] | None:
+        return self._current_regex().match(string, pos, endpos)
 
-    def search(self, *args: Any, **kwargs: Any):
-        return self._current_regex().search(*args, **kwargs)
+    def search(
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
+    ) -> re.Match[str] | None:
+        return self._current_regex().search(string, pos, endpos)
 
-    def fullmatch(self, *args: Any, **kwargs: Any):
-        return self._current_regex().fullmatch(*args, **kwargs)
+    def fullmatch(
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
+    ) -> re.Match[str] | None:
+        return self._current_regex().fullmatch(string, pos, endpos)
 
     def __getattr__(self, name: str) -> object:
         return getattr(self._current_regex(), name)
@@ -199,9 +234,6 @@ class _PolicyBackedAnnotationRegexProxy:
 
 COMMENT_CONTINUATION_RE = _PolicyBackedAnnotationRegexProxy(
     "COMMENT_CONTINUATION_RE",
-)
-COMMENTED_TASK_ENTRY_RE = _PolicyBackedAnnotationRegexProxy(
-    "COMMENTED_TASK_ENTRY_RE",
 )
 TASK_ENTRY_RE = _PolicyBackedAnnotationRegexProxy(
     "TASK_ENTRY_RE",

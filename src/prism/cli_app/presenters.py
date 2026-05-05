@@ -8,7 +8,10 @@ import re
 import shutil
 import yaml
 
-from prism.scanner_io.collection_renderer import render_collection_markdown
+from prism.scanner_io.collection_renderer import (
+    format_collection_summary,
+    render_collection_markdown,
+)
 
 CAPTURE_SCHEMA_VERSION = 1
 CAPTURE_MAX_SECTIONS = 50
@@ -68,6 +71,10 @@ def bounded_list(items: list[dict], limit: int) -> tuple[list[dict], int]:
 
 def render_collection_markdown_payload(payload: dict) -> str:
     return render_collection_markdown(payload)
+
+
+def format_collection_summary_payload(payload: dict) -> str:
+    return format_collection_summary(payload)
 
 
 def emit_success(

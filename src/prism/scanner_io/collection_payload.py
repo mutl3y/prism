@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import traceback
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping, cast
 
 import yaml
 
@@ -21,9 +21,17 @@ from prism.errors import (
     ROLE_SCAN_RUNTIME_ERROR,
     to_failure_detail,
 )
+from prism.scanner_data import (
+    CollectionDependencies,
+    CollectionFailureRecord,
+    CollectionIdentity,
+    CollectionPluginCatalog,
+    CollectionRoleEntry,
+    CollectionScanResult,
+)
 
 
-from prism.collection_plugins import PLUGIN_TYPES as _PLUGIN_TYPES
+from prism.scanner_io.collection_plugins import PLUGIN_TYPES as _PLUGIN_TYPES
 
 _PLUGIN_CATALOG_SCHEMA_VERSION = 1
 
@@ -37,7 +45,7 @@ _COLLECTION_ROLE_FAILURE_CODES: tuple[tuple[type[Exception], str, str], ...] = (
 )
 
 
-def normalize_collection_role_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def normalize_collection_role_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     normalized = dict(payload)
     if "variables" not in normalized and "display_variables" in normalized:
         normalized["variables"] = normalized["display_variables"]
@@ -115,7 +123,7 @@ def empty_plugin_catalog() -> dict[str, Any]:
 def build_collection_role_entry(
     *,
     role_dir: Path,
-    payload: dict[str, Any],
+    payload: Mapping[str, Any],
     rendered_readme: str | None,
 ) -> dict[str, Any]:
     normalized_payload = normalize_collection_role_payload(payload)
@@ -131,7 +139,7 @@ def build_collection_role_entry(
 def render_collection_role_readme(
     *,
     role_name: str,
-    payload: dict[str, Any],
+    payload: Mapping[str, Any],
     render_readme_fn,
 ) -> str:
     normalized_payload = normalize_collection_role_payload(payload)
@@ -199,28 +207,28 @@ def build_collection_failure_record(
 def build_collection_scan_result(
     *,
     collection_root: Path,
-    collection_identity: dict[str, Any] | None = None,
-    dependencies: dict[str, Any] | None = None,
-    plugin_catalog: dict[str, Any] | None = None,
-    roles: list[dict[str, Any]],
-    failures: list[dict[str, Any]],
-) -> dict[str, Any]:
+    collection_identity: CollectionIdentity | None = None,
+    dependencies: CollectionDependencies | None = None,
+    plugin_catalog: CollectionPluginCatalog | None = None,
+    roles: list[CollectionRoleEntry],
+    failures: list[CollectionFailureRecord],
+) -> CollectionScanResult:
+    resolved_collection = cast(
+        CollectionIdentity,
+        collection_identity or build_collection_identity(collection_root),
+    )
+    resolved_dependencies = cast(
+        CollectionDependencies,
+        dependencies or empty_collection_dependencies(),
+    )
+    resolved_plugin_catalog = cast(
+        CollectionPluginCatalog,
+        plugin_catalog or empty_plugin_catalog(),
+    )
     return {
-        "collection": (
-            dict(collection_identity)
-            if isinstance(collection_identity, dict)
-            else build_collection_identity(collection_root)
-        ),
-        "dependencies": (
-            dict(dependencies)
-            if isinstance(dependencies, dict)
-            else empty_collection_dependencies()
-        ),
-        "plugin_catalog": (
-            dict(plugin_catalog)
-            if isinstance(plugin_catalog, dict)
-            else empty_plugin_catalog()
-        ),
+        "collection": resolved_collection,
+        "dependencies": resolved_dependencies,
+        "plugin_catalog": resolved_plugin_catalog,
         "roles": roles,
         "failures": failures,
         "summary": {

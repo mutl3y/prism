@@ -2,17 +2,33 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
-from dataclasses import dataclass
+import copy
 import logging
-from pathlib import Path
-from typing import Any, Callable, cast
+from collections.abc import Collection, Mapping
+from typing import Any, Callable, TypeGuard, cast
 
 from prism.errors import PrismRuntimeError
-from prism.scanner_data.contracts_request import ScanContextPayload, ScanOptionsDict
-from prism.scanner_data.contracts_request import ScanPolicyBlockerFacts
-from prism.scanner_core.di import resolve_platform_key
-from prism.scanner_plugins.filters.underscore_policy import (
+from prism.scanner_core.di import DIContainer
+from prism.scanner_core.metadata_merger import merge_policy_warning_entries
+from prism.scanner_data.contracts_request import (
+    DisplayVariables,
+    FeaturesContext,
+    PreparedPolicyBundle,
+    PreparedJinjaAnalysisPolicy,
+    PreparedTaskLineParsingPolicy,
+    RequirementsDisplayEntry,
+    ScanContextPayload,
+    ScanErrorEntry,
+    ScanMetadata,
+    ScanOptionsDict,
+    ScanPolicyBlockerFacts,
+    resolve_strict_phase_failures,
+)
+from prism.scanner_core.execution_request_builder import (
+    NonCollectionRunScanExecutionRequest,
+    build_non_collection_run_scan_execution_request,
+)
+from prism.scanner_core.filters.underscore_policy import (
     apply_underscore_reference_filter,
 )
 
@@ -44,418 +60,215 @@ _REQUIRED_SCAN_OPTION_KEYS: frozenset[str] = frozenset(
 _RECOVERABLE_PHASE_ERRORS: tuple[type[Exception], ...] = (PrismRuntimeError,)
 
 
+def _is_scan_metadata(value: object) -> TypeGuard[ScanMetadata]:
+    return isinstance(value, dict)
+
+
+def _copy_scan_metadata(metadata: object) -> ScanMetadata:
+    """Preserve the ScanMetadata TypedDict contract across shallow copies."""
+    if not _is_scan_metadata(metadata):
+        raise ValueError(
+            "prepare_scan_context metadata must be a dict before ScannerContext orchestration"
+        )
+
+    copied_metadata = ScanMetadata(**metadata)
+    role_notes = copied_metadata.get("role_notes")
+    if role_notes is not None:
+        _validate_role_notes(role_notes)
+
+    yaml_parse_failures = copied_metadata.get("yaml_parse_failures")
+    if yaml_parse_failures is not None:
+        _validate_yaml_parse_failures(yaml_parse_failures)
+
+    return copied_metadata
+
+
+def _copy_features_metadata(features: FeaturesContext) -> dict[str, object]:
+    """Project feature facts into metadata without mutating detector-owned state."""
+    return {key: value for key, value in features.items()}
+
+
+def _copy_display_variables(display_variables: object) -> DisplayVariables:
+    if not isinstance(display_variables, dict):
+        raise ValueError(
+            "prepare_scan_context display_variables must be a dict before ScannerContext orchestration"
+        )
+
+    copied_display_variables = copy.copy(display_variables)
+    for variable_name, entry in copied_display_variables.items():
+        if not isinstance(variable_name, str) or not variable_name:
+            raise ValueError(
+                "prepare_scan_context display_variables keys must be non-empty strings"
+            )
+        if not isinstance(entry, dict):
+            raise ValueError(
+                f"prepare_scan_context display_variables.{variable_name} must be a dict"
+            )
+    return copied_display_variables
+
+
+def _validate_role_notes(role_notes: object) -> None:
+    if not isinstance(role_notes, dict):
+        raise ValueError(
+            "prepare_scan_context metadata.role_notes must be a dict[str, list[str]]"
+        )
+    for bucket in ("warnings", "deprecations", "notes", "additionals"):
+        bucket_value = role_notes.get(bucket)
+        if not isinstance(bucket_value, list) or any(
+            not isinstance(item, str) for item in bucket_value
+        ):
+            raise ValueError(
+                f"prepare_scan_context metadata.role_notes.{bucket} must be a list[str]"
+            )
+
+
+def _validate_yaml_parse_failures(yaml_parse_failures: object) -> None:
+    if not isinstance(yaml_parse_failures, list):
+        raise ValueError(
+            "prepare_scan_context metadata.yaml_parse_failures must be a list"
+        )
+    for index, row in enumerate(yaml_parse_failures):
+        if not isinstance(row, dict):
+            raise ValueError(
+                f"prepare_scan_context metadata.yaml_parse_failures[{index}] must be a dict"
+            )
+        if not isinstance(row.get("file"), str) or not isinstance(
+            row.get("error"), str
+        ):
+            raise ValueError(
+                f"prepare_scan_context metadata.yaml_parse_failures[{index}] must include string file and error fields"
+            )
+        line = row.get("line")
+        column = row.get("column")
+        if line is not None and not isinstance(line, int):
+            raise ValueError(
+                f"prepare_scan_context metadata.yaml_parse_failures[{index}].line must be int | None"
+            )
+        if column is not None and not isinstance(column, int):
+            raise ValueError(
+                f"prepare_scan_context metadata.yaml_parse_failures[{index}].column must be int | None"
+            )
+
+
+def _copy_requirements_display(
+    requirements_display: object,
+) -> list[RequirementsDisplayEntry]:
+    if not isinstance(requirements_display, list):
+        raise ValueError(
+            "prepare_scan_context requirements_display must be a list before ScannerContext orchestration"
+        )
+
+    copied_requirements_display: list[RequirementsDisplayEntry] = []
+    for index, entry in enumerate(requirements_display):
+        if not isinstance(entry, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in entry.items()
+        ):
+            raise ValueError(
+                f"prepare_scan_context requirements_display[{index}] must be a dict[str, str]"
+            )
+        copied_requirements_display.append(
+            cast(RequirementsDisplayEntry, copy.copy(entry))
+        )
+    return copied_requirements_display
+
+
+def _is_prepared_policy_bundle(value: object) -> TypeGuard[PreparedPolicyBundle]:
+    return isinstance(value, dict)
+
+
+def _is_string_collection(value: object) -> bool:
+    return (
+        isinstance(value, Collection)
+        and not isinstance(value, (Mapping, str, bytes))
+        and all(isinstance(item, str) for item in value)
+    )
+
+
+def _has_prepared_task_line_policy_shape(
+    value: object,
+) -> TypeGuard[PreparedTaskLineParsingPolicy]:
+    if isinstance(value, Mapping):
+        return False
+
+    required_collection_attrs = (
+        "TASK_INCLUDE_KEYS",
+        "ROLE_INCLUDE_KEYS",
+        "INCLUDE_VARS_KEYS",
+        "SET_FACT_KEYS",
+        "TASK_BLOCK_KEYS",
+        "TASK_META_KEYS",
+    )
+    if not all(
+        _is_string_collection(getattr(value, attr_name, None))
+        for attr_name in required_collection_attrs
+    ):
+        return False
+
+    return callable(getattr(value, "detect_task_module", None))
+
+
+def _has_prepared_jinja_analysis_policy_shape(
+    value: object,
+) -> TypeGuard[PreparedJinjaAnalysisPolicy]:
+    if isinstance(value, Mapping):
+        return False
+    return callable(getattr(value, "collect_undeclared_jinja_variables", None))
+
+
 def _require_prepared_policy_bundle(
     scan_options: ScanOptionsDict,
-) -> dict[str, Any]:
+) -> PreparedPolicyBundle:
     prepared_policy_bundle = scan_options.get("prepared_policy_bundle")
-    if not isinstance(prepared_policy_bundle, dict):
+    if not _is_prepared_policy_bundle(prepared_policy_bundle):
         raise ValueError(
             "scan_options must include a prepared_policy_bundle before "
             "ScannerContext orchestration"
         )
 
     task_line_policy = prepared_policy_bundle.get("task_line_parsing")
-    if task_line_policy is None:
+    if not _has_prepared_task_line_policy_shape(task_line_policy):
         raise ValueError(
-            "prepared_policy_bundle.task_line_parsing must be provided before "
-            "ScannerContext orchestration"
+            "prepared_policy_bundle.task_line_parsing must provide canonical "
+            "task-line policy members before ScannerContext orchestration"
         )
 
     jinja_analysis_policy = prepared_policy_bundle.get("jinja_analysis")
-    if jinja_analysis_policy is None:
+    if not _has_prepared_jinja_analysis_policy_shape(jinja_analysis_policy):
         raise ValueError(
-            "prepared_policy_bundle.jinja_analysis must be provided before "
-            "ScannerContext orchestration"
+            "prepared_policy_bundle.jinja_analysis must provide canonical "
+            "Jinja analysis members before ScannerContext orchestration"
         )
 
-    return cast(dict[str, Any], prepared_policy_bundle)
+    return prepared_policy_bundle
 
 
-def _copy_policy_warning_entries(raw_warnings: object) -> list[dict[str, Any]]:
-    if not isinstance(raw_warnings, list):
-        return []
-    return [dict(warning) for warning in raw_warnings if isinstance(warning, dict)]
-
-
-def _merge_policy_warning_entries(
-    ingress_warnings: object,
-    metadata_warnings: object,
-) -> list[dict[str, Any]]:
-    merged: list[dict[str, Any]] = []
-    for warning in _copy_policy_warning_entries(ingress_warnings):
-        if warning not in merged:
-            merged.append(warning)
-    for warning in _copy_policy_warning_entries(metadata_warnings):
-        if warning not in merged:
-            merged.append(warning)
-    return merged
-
-
-@dataclass(frozen=True)
-class NonCollectionRunScanExecutionRequest:
-    """Canonical scanner_core execution request for the non-collection run_scan path."""
-
-    role_path: str
-    scan_options: ScanOptionsDict
-    strict_mode: bool
-    runtime_registry: Any
-    scanner_context: ScannerContext
-    build_payload_fn: Callable[[], dict[str, Any]]
-
-
-class _ScanStateBridge:
-    """Bridge mutable scan state between recording wrappers and context preparation."""
-
-    def __init__(
-        self,
-        *,
-        variable_discovery_cls: Callable[..., Any],
-        feature_detector_cls: Callable[..., Any],
-        extract_role_description_fn: Callable[[Path, str], str],
-        resolve_comment_driven_documentation_plugin_fn: Callable[[Any], Any],
-    ) -> None:
-        self._discovered_rows: tuple[dict[str, Any], ...] = ()
-        self._features: dict[str, Any] = {}
-        self._variable_discovery_cls = variable_discovery_cls
-        self._feature_detector_cls = feature_detector_cls
-        self._extract_role_description_fn = extract_role_description_fn
-        self._resolve_cdd_plugin_fn = resolve_comment_driven_documentation_plugin_fn
-        self._container: Any = None
-
-    def set_container(self, container: Any) -> None:
-        self._container = container
-
-    def variable_discovery_factory(
-        self,
-        di: Any,
-        resolved_role_path: str,
-        options: dict[str, Any],
-    ) -> Any:
-        discovery = self._variable_discovery_cls(di, resolved_role_path, options)
-        bridge = self
-
-        class _RecordingVariableDiscovery:
-            def discover(self) -> tuple[dict[str, Any], ...]:
-                rows = tuple(discovery.discover())
-                bridge._discovered_rows = rows
-                return rows
-
-        return _RecordingVariableDiscovery()
-
-    def feature_detector_factory(
-        self,
-        di: Any,
-        resolved_role_path: str,
-        options: dict[str, Any],
-    ) -> Any:
-        detector = self._feature_detector_cls(di, resolved_role_path, options)
-        bridge = self
-
-        class _RecordingFeatureDetector:
-            def detect(self) -> dict[str, Any]:
-                features = dict(detector.detect())
-                bridge._features = features
-                return features
-
-        return _RecordingFeatureDetector()
-
-    def prepare_scan_context(
-        self,
-        scan_options: ScanOptionsDict,
-        canonical_options: ScanOptionsDict,
-    ) -> ScanContextPayload:
-        if self._container is None:
-            raise ValueError(
-                "_ScanStateBridge.set_container() must be called before prepare_scan_context()"
-            )
-        resolved_role_path = str(scan_options["role_path"])
-        role_root = Path(resolved_role_path).resolve()
-        role_name = str(scan_options.get("role_name_override") or role_root.name)
-        rows = self._discovered_rows
-        features = dict(self._features)
-
-        display_variables = self._build_display_variables(rows)
-        requirements_display = self._build_requirements_display(features)
-
-        yaml_parse_failures = canonical_options.get("yaml_parse_failures")
-        normalized = (
-            list(yaml_parse_failures) if isinstance(yaml_parse_failures, list) else []
-        )
-
-        return {
-            "rp": resolved_role_path,
-            "role_name": role_name,
-            "description": self._extract_role_description_fn(role_root, role_name),
-            "requirements_display": requirements_display,
-            "undocumented_default_filters": [],
-            "display_variables": display_variables,
-            "metadata": {
-                "features": features,
-                "variable_insights": [dict(row) for row in rows],
-                "yaml_parse_failures": normalized,
-                "role_notes": self._resolve_cdd_plugin_fn(
-                    self._container
-                ).extract_role_notes_from_comments(
-                    resolved_role_path,
-                    exclude_paths=scan_options.get("exclude_path_patterns"),
-                ),
-            },
-        }
-
-    @staticmethod
-    def _build_display_variables(
-        rows: tuple[dict[str, Any], ...],
-    ) -> dict[str, dict[str, Any]]:
-        display_variables: dict[str, dict[str, Any]] = {}
-        for row in sorted(rows, key=lambda item: str(item.get("name", ""))):
-            row_name = str(row.get("name") or "")
-            if not row_name:
-                continue
-            display_variables[row_name] = {
-                "type": row.get("type"),
-                "default": row.get("default"),
-                "source": row.get("source"),
-                "required": bool(row.get("required", False)),
-                "documented": bool(row.get("documented", False)),
-                "secret": bool(row.get("secret", False)),
-                "is_unresolved": bool(row.get("is_unresolved", False)),
-                "is_ambiguous": bool(row.get("is_ambiguous", False)),
-                "uncertainty_reason": row.get("uncertainty_reason"),
-            }
-        return display_variables
-
-    @staticmethod
-    def _build_requirements_display(
-        features: dict[str, Any],
-    ) -> list[dict[str, str]]:
-        raw_collections = str(features.get("external_collections") or "none")
-        if raw_collections == "none":
-            return []
-        return [
-            {"collection": name.strip()}
-            for name in raw_collections.split(",")
-            if name.strip()
-        ]
-
-
-def build_non_collection_run_scan_execution_request(
-    *,
-    role_path: str,
-    role_name_override: str | None = None,
-    readme_config_path: str | None = None,
-    policy_config_path: str | None = None,
-    concise_readme: bool = False,
-    scanner_report_output: str | None = None,
-    include_vars_main: bool = True,
-    include_scanner_report_link: bool = True,
-    exclude_path_patterns: list[str] | None = None,
-    detailed_catalog: bool = False,
-    include_task_parameters: bool = True,
-    include_task_runbooks: bool = True,
-    inline_task_runbooks: bool = True,
-    include_collection_checks: bool = True,
-    keep_unknown_style_sections: bool = True,
-    adopt_heading_mode: str | None = None,
-    vars_seed_paths: list[str] | None = None,
-    style_readme_path: str | None = None,
-    style_source_path: str | None = None,
-    style_guide_skeleton: bool = False,
-    compare_role_path: str | None = None,
-    fail_on_unconstrained_dynamic_includes: bool | None = None,
-    fail_on_yaml_like_task_annotations: bool | None = None,
-    ignore_unresolved_internal_underscore_references: bool | None = None,
-    policy_context: dict[str, object] | None = None,
-    strict_phase_failures: bool = True,
-    scan_pipeline_plugin: str | None = None,
-    validate_role_path_fn: Callable[[str], str],
-    extract_role_description_fn: Callable[[Path, str], str],
-    build_run_scan_options_canonical_fn: Callable[..., ScanOptionsDict],
-    di_container_cls: Callable[..., Any],
-    feature_detector_cls: Callable[..., Any],
-    scanner_context_cls: Callable[..., ScannerContext],
-    variable_discovery_cls: Callable[..., Any],
-    resolve_comment_driven_documentation_plugin_fn: Callable[[Any], Any],
-    default_plugin_registry: Any,
-    ensure_prepared_policy_bundle_fn: Callable[..., Any] | None = None,
-) -> NonCollectionRunScanExecutionRequest:
-    """Build the scanner_core-owned execution request for non-collection run_scan."""
-    validated_role_path = validate_role_path_fn(role_path)
-
-    canonical_options = _build_canonical_options(
-        validated_role_path=validated_role_path,
-        role_name_override=role_name_override,
-        readme_config_path=readme_config_path,
-        policy_config_path=policy_config_path,
-        concise_readme=concise_readme,
-        scanner_report_output=scanner_report_output,
-        include_vars_main=include_vars_main,
-        include_scanner_report_link=include_scanner_report_link,
-        exclude_path_patterns=exclude_path_patterns,
-        detailed_catalog=detailed_catalog,
-        include_task_parameters=include_task_parameters,
-        include_task_runbooks=include_task_runbooks,
-        inline_task_runbooks=inline_task_runbooks,
-        include_collection_checks=include_collection_checks,
-        keep_unknown_style_sections=keep_unknown_style_sections,
-        adopt_heading_mode=adopt_heading_mode,
-        vars_seed_paths=vars_seed_paths,
-        style_readme_path=style_readme_path,
-        style_source_path=style_source_path,
-        style_guide_skeleton=style_guide_skeleton,
-        compare_role_path=compare_role_path,
-        fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
-        fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
-        ignore_unresolved_internal_underscore_references=(
-            ignore_unresolved_internal_underscore_references
-        ),
-        policy_context=policy_context,
-        strict_phase_failures=strict_phase_failures,
-        scan_pipeline_plugin=scan_pipeline_plugin,
-        build_run_scan_options_canonical_fn=build_run_scan_options_canonical_fn,
-    )
-
-    bridge = _ScanStateBridge(
-        variable_discovery_cls=variable_discovery_cls,
-        feature_detector_cls=feature_detector_cls,
-        extract_role_description_fn=extract_role_description_fn,
-        resolve_comment_driven_documentation_plugin_fn=(
-            resolve_comment_driven_documentation_plugin_fn
-        ),
-    )
-
-    return _assemble_execution_request(
-        canonical_options=canonical_options,
-        bridge=bridge,
-        di_container_cls=di_container_cls,
-        scanner_context_cls=scanner_context_cls,
-        build_run_scan_options_canonical_fn=build_run_scan_options_canonical_fn,
-        default_plugin_registry=default_plugin_registry,
-        ensure_prepared_policy_bundle_fn=ensure_prepared_policy_bundle_fn,
+def _build_empty_features_context() -> FeaturesContext:
+    """Initialize an empty FeaturesContext with all required keys."""
+    return FeaturesContext(
+        task_files_scanned=0,
+        tasks_scanned=0,
+        recursive_task_includes=0,
+        unique_modules="",
+        external_collections="",
+        handlers_notified="",
+        privileged_tasks=0,
+        conditional_tasks=0,
+        tagged_tasks=0,
+        included_role_calls=0,
+        included_roles="",
+        dynamic_included_role_calls=0,
+        dynamic_included_roles="",
+        disabled_task_annotations=0,
+        yaml_like_task_annotations=0,
     )
 
 
-def _build_canonical_options(
-    *,
-    validated_role_path: str,
-    role_name_override: str | None,
-    readme_config_path: str | None,
-    policy_config_path: str | None,
-    concise_readme: bool,
-    scanner_report_output: str | None,
-    include_vars_main: bool,
-    include_scanner_report_link: bool,
-    exclude_path_patterns: list[str] | None,
-    detailed_catalog: bool,
-    include_task_parameters: bool,
-    include_task_runbooks: bool,
-    inline_task_runbooks: bool,
-    include_collection_checks: bool,
-    keep_unknown_style_sections: bool,
-    adopt_heading_mode: str | None,
-    vars_seed_paths: list[str] | None,
-    style_readme_path: str | None,
-    style_source_path: str | None,
-    style_guide_skeleton: bool,
-    compare_role_path: str | None,
-    fail_on_unconstrained_dynamic_includes: bool | None,
-    fail_on_yaml_like_task_annotations: bool | None,
-    ignore_unresolved_internal_underscore_references: bool | None,
-    policy_context: dict[str, object] | None,
-    strict_phase_failures: bool,
-    scan_pipeline_plugin: str | None,
-    build_run_scan_options_canonical_fn: Callable[..., ScanOptionsDict],
-) -> ScanOptionsDict:
-    canonical_options = build_run_scan_options_canonical_fn(
-        role_path=validated_role_path,
-        role_name_override=role_name_override,
-        readme_config_path=readme_config_path,
-        policy_config_path=policy_config_path,
-        include_vars_main=include_vars_main,
-        exclude_path_patterns=exclude_path_patterns,
-        detailed_catalog=detailed_catalog,
-        include_task_parameters=include_task_parameters,
-        include_task_runbooks=include_task_runbooks,
-        inline_task_runbooks=inline_task_runbooks,
-        include_collection_checks=include_collection_checks,
-        keep_unknown_style_sections=keep_unknown_style_sections,
-        adopt_heading_mode=adopt_heading_mode,
-        vars_seed_paths=vars_seed_paths,
-        style_readme_path=style_readme_path,
-        style_source_path=style_source_path,
-        style_guide_skeleton=style_guide_skeleton,
-        compare_role_path=compare_role_path,
-        fail_on_unconstrained_dynamic_includes=fail_on_unconstrained_dynamic_includes,
-        fail_on_yaml_like_task_annotations=fail_on_yaml_like_task_annotations,
-        ignore_unresolved_internal_underscore_references=(
-            ignore_unresolved_internal_underscore_references
-        ),
-        policy_context=policy_context,
-    )
-    canonical_options["strict_phase_failures"] = bool(strict_phase_failures)
-    canonical_options["concise_readme"] = bool(concise_readme)
-    canonical_options["scanner_report_output"] = scanner_report_output
-    canonical_options["include_scanner_report_link"] = bool(include_scanner_report_link)
-    if isinstance(scan_pipeline_plugin, str) and scan_pipeline_plugin.strip():
-        canonical_options["scan_pipeline_plugin"] = scan_pipeline_plugin.strip()
-    return canonical_options
-
-
-def _assemble_execution_request(
-    *,
-    canonical_options: ScanOptionsDict,
-    bridge: _ScanStateBridge,
-    di_container_cls: Callable[..., Any],
-    scanner_context_cls: Callable[..., ScannerContext],
-    build_run_scan_options_canonical_fn: Callable[..., ScanOptionsDict],
-    default_plugin_registry: Any,
-    ensure_prepared_policy_bundle_fn: Callable[..., Any] | None,
-) -> NonCollectionRunScanExecutionRequest:
-    resolved_platform_key = resolve_platform_key(
-        canonical_options, default_plugin_registry
-    )
-
-    container = di_container_cls(
-        role_path=str(canonical_options["role_path"]),
-        scan_options=canonical_options,
-        registry=default_plugin_registry,
-        platform_key=resolved_platform_key,
-        scanner_context_wiring={
-            "scanner_context_cls": scanner_context_cls,
-            "prepare_scan_context_fn": lambda opts: bridge.prepare_scan_context(
-                opts, canonical_options
-            ),
-            "build_run_scan_options_fn": build_run_scan_options_canonical_fn,
-        },
-        factory_overrides={
-            "variable_discovery_factory": bridge.variable_discovery_factory,
-            "feature_detector_factory": bridge.feature_detector_factory,
-        },
-    )
-    bridge.set_container(container)
-
-    if ensure_prepared_policy_bundle_fn is None:
-        raise ValueError(
-            "ensure_prepared_policy_bundle_fn is required for "
-            "non-collection execution request construction"
-        )
-    ensure_prepared_policy_bundle_fn(
-        scan_options=cast(dict[str, Any], canonical_options),
-        di=container,
-    )
-    scanner_context = container.factory_scanner_context()
-    strict_mode = bool(canonical_options.get("strict_phase_failures", True))
-    runtime_registry = (
-        canonical_options.get("plugin_registry") or default_plugin_registry
-    )
-
-    return NonCollectionRunScanExecutionRequest(
-        role_path=str(canonical_options["role_path"]),
-        scan_options=canonical_options,
-        strict_mode=strict_mode,
-        runtime_registry=runtime_registry,
-        scanner_context=scanner_context,
-        build_payload_fn=scanner_context.orchestrate_scan,
-    )
+__all__ = [
+    "NonCollectionRunScanExecutionRequest",
+    "ScannerContext",
+    "build_non_collection_run_scan_execution_request",
+]
 
 
 class ScannerContext:
@@ -464,10 +277,9 @@ class ScannerContext:
     def __init__(
         self,
         *,
-        di: Any,
+        di: DIContainer,
         role_path: str,
         scan_options: ScanOptionsDict,
-        build_run_scan_options_fn: Callable[..., ScanOptionsDict] | None = None,
         prepare_scan_context_fn: (
             Callable[[ScanOptionsDict], ScanContextPayload] | None
         ) = None,
@@ -483,19 +295,17 @@ class ScannerContext:
         self._role_path = role_path
         self._scan_options = scan_options
         self._prepare_scan_context_fn = prepare_scan_context_fn
-        self._strict_phase_failures = bool(
-            self._scan_options.get("strict_phase_failures", True)
-        )
+        self._strict_phase_failures = resolve_strict_phase_failures(self._scan_options)
 
         self._discovered_variables: tuple[Any, ...] = ()
-        self._detected_features: dict[str, Any] = {}
-        self._scan_metadata: dict[str, Any] = {}
-        self._scan_errors: list[dict[str, str]] = []
+        self._detected_features: FeaturesContext = _build_empty_features_context()
+        self._scan_metadata: ScanMetadata = ScanMetadata()
+        self._scan_errors: list[ScanErrorEntry] = []
 
     def orchestrate_scan(self) -> dict[str, Any]:
         self._discovered_variables = ()
-        self._detected_features = {}
-        self._scan_metadata = {}
+        self._detected_features = _build_empty_features_context()
+        self._scan_metadata = ScanMetadata()
         self._scan_errors = []
 
         _require_prepared_policy_bundle(self._scan_options)
@@ -505,17 +315,17 @@ class ScannerContext:
 
         return self._build_output_payload()
 
-    def _record_phase_error(self, phase: str, error: Exception) -> dict[str, str]:
-        entry = {
+    def _record_phase_error(self, phase: str, error: Exception) -> ScanErrorEntry:
+        entry: ScanErrorEntry = {
             "phase": phase,
             "error_type": error.__class__.__name__,
             "message": str(error),
         }
         self._scan_errors.append(entry)
-        self._scan_metadata = {
-            "scan_errors": list(self._scan_errors),
-            "scan_degraded": True,
-        }
+        self._scan_metadata = ScanMetadata(
+            scan_errors=list(self._scan_errors),
+            scan_degraded=True,
+        )
         return entry
 
     def _discover_variables(self) -> tuple[Any, ...]:
@@ -537,7 +347,7 @@ class ScannerContext:
             )
             return ()
 
-    def _detect_features(self) -> dict[str, Any]:
+    def _detect_features(self) -> FeaturesContext:
         try:
             detector = self._di.factory_feature_detector()
             return detector.detect()
@@ -554,18 +364,20 @@ class ScannerContext:
                 "Feature detection failed; continuing in best-effort mode",
                 extra={"scan_error": entry},
             )
-            return {"task_files_scanned": 0, "tasks_scanned": 0}
+            return _build_empty_features_context()
 
-    def _build_output_payload(self) -> dict[str, Any]:
+    def _build_output_payload(self) -> dict[str, object]:
         self._validate_required_scan_option_keys()
         context_payload = self._build_context_payload()
-        metadata = dict(context_payload.get("metadata") or {})
+        metadata = _copy_scan_metadata(context_payload.get("metadata"))
         self._merge_features_into_metadata(metadata)
         self._merge_policy_warnings_into_metadata(metadata)
         display_variables = self._apply_underscore_reference_policy(
             scan_options=self._scan_options,
             metadata=metadata,
-            display_variables=dict(context_payload.get("display_variables") or {}),
+            display_variables=_copy_display_variables(
+                context_payload.get("display_variables")
+            ),
         )
         metadata["scan_policy_blocker_facts"] = self._build_scan_policy_blocker_facts(
             scan_options=self._scan_options,
@@ -578,7 +390,9 @@ class ScannerContext:
             "role_name": context_payload["role_name"],
             "description": context_payload["description"],
             "display_variables": display_variables,
-            "requirements_display": list(context_payload["requirements_display"]),
+            "requirements_display": _copy_requirements_display(
+                context_payload["requirements_display"]
+            ),
             "undocumented_default_filters": list(
                 context_payload["undocumented_default_filters"]
             ),
@@ -603,19 +417,19 @@ class ScannerContext:
             )
         return self._prepare_scan_context_fn(self._scan_options)
 
-    def _merge_features_into_metadata(self, metadata: dict[str, Any]) -> None:
+    def _merge_features_into_metadata(self, metadata: ScanMetadata) -> None:
         if "features" not in metadata and self._detected_features:
-            metadata["features"] = dict(self._detected_features)
+            metadata["features"] = _copy_features_metadata(self._detected_features)
 
-    def _merge_policy_warnings_into_metadata(self, metadata: dict[str, Any]) -> None:
-        policy_warning_list = _merge_policy_warning_entries(
+    def _merge_policy_warnings_into_metadata(self, metadata: ScanMetadata) -> None:
+        policy_warning_list = merge_policy_warning_entries(
             self._scan_options.get("scan_policy_warnings"),
             metadata.get("scan_policy_warnings"),
         )
         if policy_warning_list:
             metadata["scan_policy_warnings"] = policy_warning_list
 
-    def _record_scan_errors_into_metadata(self, metadata: dict[str, Any]) -> None:
+    def _record_scan_errors_into_metadata(self, metadata: ScanMetadata) -> None:
         if self._scan_errors:
             metadata["scan_errors"] = list(self._scan_errors)
             metadata["scan_degraded"] = True
@@ -624,7 +438,7 @@ class ScannerContext:
         self,
         *,
         scan_options: ScanOptionsDict,
-        metadata: dict[str, Any],
+        metadata: ScanMetadata,
     ) -> ScanPolicyBlockerFacts:
         builder_fn = self._di.factory_blocker_fact_builder()
         return builder_fn(
@@ -637,9 +451,9 @@ class ScannerContext:
         self,
         *,
         scan_options: ScanOptionsDict,
-        metadata: dict[str, Any],
-        display_variables: dict[str, Any],
-    ) -> dict[str, Any]:
+        metadata: ScanMetadata,
+        display_variables: DisplayVariables,
+    ) -> DisplayVariables:
         return apply_underscore_reference_filter(
             display_variables=display_variables,
             metadata=metadata,
@@ -653,9 +467,9 @@ class ScannerContext:
         return self._discovered_variables
 
     @property
-    def detected_features(self) -> dict[str, Any]:
-        return deepcopy(self._detected_features)
+    def detected_features(self) -> FeaturesContext:
+        return copy.deepcopy(self._detected_features)
 
     @property
-    def scan_metadata(self) -> dict[str, Any]:
-        return deepcopy(self._scan_metadata)
+    def scan_metadata(self) -> ScanMetadata:
+        return copy.deepcopy(self._scan_metadata)

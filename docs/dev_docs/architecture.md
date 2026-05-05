@@ -3,168 +3,66 @@ layout: default
 title: Architecture
 ---
 
-Prism is a static-analysis documentation engine for Ansible roles and collections.
+Prism is a source-driven automation knowledge and policy engine.
 
-It is best understood as a contract-and-governance pipeline, not only a renderer.
+The live package scans roles, collections, and repositories to produce
+README content, runbooks, reports, and machine-readable payloads that can
+feed review and Policy-as-Code workflows.
 
-## Pipeline Overview
+The implementation is organized around stable public entry surfaces and
+package-owned layers so request shaping, runtime orchestration, rendering,
+and policy evaluation stay in their owning packages.
 
-1. discover role/collection structure
-2. parse YAML and Jinja signals
-3. compute variable insights and scanner counters
-4. render docs and machine-readable payloads
+## Public Surfaces
 
-## Primary Components
+- `prism.api`: public library entrypoint for role, collection, repo, and audit flows
+- `prism.cli`: CLI entrypoint, parser construction, top-level exit handling, and policy/audit invocation
+- `prism.repo_services`: shared repository-intake helpers used by API and CLI flows
 
-- scanner core for role analysis
-- collection plugin catalog extraction
-- CLI orchestration (`role`, `collection`, `repo`)
-- output rendering (`md`, `json`, `html`, `pdf`)
+These modules are intentionally stable for callers. They should stay small and
+should not become the default home for new multi-step implementation.
 
-## Current Architecture Status
+## Package Ownership
 
-The current architecture is no longer in a transition-first state.
-
-- `prism.scanner`, `prism.api`, `prism.cli`, and `prism.repo_services` are the stable top-level facades
-- package-owned implementation is the default home for extension work
-- the `prism-architecture-review-top50-20260401` closure finalized the CLI/API/repo split and froze the intentional facade seam registers
-- stable facade does not mean default extension target; new implementation should land in the owning package first and be surfaced through the facade only when the public contract truly needs it
-
-## Package Naming Standard
-
-Use fully qualified package names when describing ownership or extension targets.
-
-- prefer `prism.api_layer`, not `api_layer`, when the import/package contract is what matters
-- prefer `prism.cli_app`, `prism.repo_layer`, and `prism.scanner_core` in architecture docs and tests
-- reserve bare directory names such as `api_layer/` for filesystem-oriented discussion only
-
-## Scanner Package Decomposition
-
-`prism.scanner` remains a public facade and delegates canonical runtime behavior to package-owned modules under `src/prism/`:
-
-| Package | Ownership boundary |
+| Package | Owns |
 | --- | --- |
-| `prism.scanner_core` | request normalization, DI-driven orchestration, scan runtime/context assembly, variable discovery orchestration |
-| `prism.scanner_data` | typed contracts and builders for request/result envelopes, scan payloads, report metadata, and variable rows |
-| `prism.scanner_extract` | YAML/task traversal, variable/reference extraction, role feature collection, requirements and discovery loaders |
-| `prism.scanner_readme` | README rendering, style parsing/normalization, documentation insights, section composition |
-| `prism.scanner_reporting` | scanner metrics, report shaping, runbook generation, and related reporting/dependency artifacts |
-| `prism.scanner_io` | output rendering/writing, scan output emission, YAML candidate loading and parse-failure reporting |
-| `prism.scanner_config` | policy/config loading, style/section markers, legacy retirement behavior, runtime scan policy switches |
-| `prism.scanner_compat` | compatibility bridge helpers isolated from canonical runtime paths |
+| `prism.api_layer` | API-specific request parsing, result normalization, scan orchestration, and audit/plugin facade seams |
+| `prism.cli_app` | CLI parser, commands, presenters, runtime helpers, and shared option handling |
+| `prism.repo_services` | repository clone/workspace lifecycle, repo target resolution, and repo-scan execution helpers |
+| `prism.scanner_core` | runtime orchestration, DI wiring, scan context assembly, and feature/variable coordination |
+| `prism.scanner_kernel` | routing, preflight, and strict versus non-strict runtime behavior |
+| `prism.scanner_plugins` | platform-specific and policy-specific plugin implementations |
+| `prism.scanner_data` | typed contracts and builders shared across the pipeline |
+| `prism.scanner_extract` | YAML, task, Jinja, and dependency extraction |
+| `prism.scanner_readme` | README composition, style parsing, and documentation rendering helpers |
+| `prism.scanner_reporting` | scanner reports, counters, runbooks, collection reporting, and provenance issue shaping |
+| `prism.scanner_io` | output rendering, file emission, and YAML candidate loading |
+| `prism.scanner_config` | config loading, policy loading, audit-rule types, and style/section resolution |
+| `prism.scanner_compat` | isolated compatibility helpers outside canonical runtime flow |
 
-Cross-package architecture guardrails enforce one-way decomposition: canonical scanner packages must not reverse-import `prism.scanner`, and private cross-package imports are blocked except for explicitly whitelisted seams.
+## Runtime Flow
 
-`src/prism/repo_services.py` is the stable shared repo facade. Package-owned repository intake and metadata logic now lives under `prism.repo_layer`, and both `prism.api` and `prism.cli` import the curated facade rather than top-level repo helper modules.
+1. `prism.cli` or `prism.api` accepts a scan or audit request.
+2. `prism.api_layer`, `prism.cli_app`, or `prism.repo_services` normalizes inputs and selects the appropriate execution path.
+3. `prism.scanner_core` assembles typed runtime state and DI-backed collaborators.
+4. `prism.scanner_kernel` resolves plugin routing, preflight behavior, and strict versus non-strict failure handling.
+5. `prism.scanner_extract` gathers source facts and task-level signals.
+6. `prism.scanner_readme`, `prism.scanner_reporting`, and `prism.scanner_io` render and emit documentation and structured outputs.
+7. Policy rules are loaded through `prism.api_layer` and typed in `prism.scanner_config` so audits stay at the public boundary instead of leaking into core runtime ownership.
 
-## API And CLI Facades
+## Architecture Rules
 
-`prism.api` and `prism.cli` remain the stable top-level public facades.
-They should stay small and unsurprising:
+- Prefer package-owned implementation over top-level facade growth.
+- Keep request shaping and public compatibility handling at the edges.
+- Keep platform-specific behavior in plugin-owned modules rather than `scanner_core`.
+- Keep audit-rule loading and policy entry handling at public/package seams rather than inside `scanner_core`.
+- Keep typed contracts in `prism.scanner_data` when a boundary is shared across packages.
+- Treat `prism.repo_services` as the live shared repo-intake owner unless an explicit package split is introduced.
 
-- `api.py` owns public API exports and final public-boundary compatibility normalization
-- `cli.py` owns the top-level `main()` entrypoint, parser export, and top-level exit handling
-- neither facade should own multi-step orchestration or become the default home for new helpers
+## Extension Guidance
 
-Concrete internal package names are now frozen and in active use:
-
-| Package | Ownership boundary |
-| --- | --- |
-| `prism.api_layer` | package-owned API orchestration split across `common.py`, `role.py`, `repo.py`, and `collection.py` |
-| `prism.cli_app` | package-owned CLI parser, dispatch, runtime, presenter, and shared helper ownership in `parser.py`, `commands.py`, `runtime.py`, `presenters.py`, and `shared.py` |
-| `prism.repo_layer` | package-owned repo clone/workspace orchestration and repo metadata helpers in `intake.py` and `metadata.py` |
-
-Naming rule:
-
-- do not introduce `src/prism/api/` while `src/prism/api.py` remains the stable public module
-- do not introduce `src/prism/cli/` while `src/prism/cli.py` remains the stable public module
-- internal modules under `prism.api_layer` must not import back through `prism.api`
-- internal modules under `prism.cli_app` must not import back through `prism.cli`
-- internal modules under `prism.repo_layer` must not import back through `prism.repo_services`
-
-Extension rule:
-
-- add new public API behavior in `prism.api_layer` first, then expose it from `api.py` only if it belongs on the public surface
-- add new CLI parser, dispatch, and shared runtime helpers under `prism.cli_app`, not `cli.py`
-- keep `cli.py` and `api.py` focused on stable facade seams, compatibility wrappers, and top-level entry handling
-
-Current compatibility note:
-
-- `repo_services.py` remains the shared repo-intake facade used by both `api.py` and `cli.py`
-- package-owned repo internals live under `prism.repo_layer`, not as top-level `repo_*` modules
-- boundary tests should prefer callable contract and owner-module checks over exact alias identity unless identity is itself the public contract
-
-For a current capability-by-package inventory, see [Package Capabilities](./package-capabilities.md).
-
-Explicit seam register:
-
-- `api.py` should retain only `API_PUBLIC_ENTRYPOINTS`, `API_SHARED_REPO_COMPATIBILITY_SEAMS`, and `API_RETAINED_PATCHABLE_SEAMS`
-- `cli.py` should retain only `CLI_PUBLIC_ENTRYPOINTS`, `CLI_SHARED_REPO_COMPATIBILITY_SEAMS`, `CLI_RETAINED_COMPATIBILITY_SEAMS`, and narrowly scoped `CLI_TRANSITIONAL_COMPATIBILITY_SEAMS`
-- `repo_services.py` is the canonical shared repo boundary and records that surface via `REPO_SERVICE_CANONICAL_SURFACE` plus `REPO_SERVICE_COMPATIBILITY_SEAMS`
-
-## Typed Seam Contracts
-
-Typed contracts are centralized in `prism.scanner_data` and exposed via
-`prism.scanner_data.contracts` and domain split modules
-(`contracts_request.py`, `contracts_output.py`, `contracts_report.py`,
-`contracts_variables.py`, `contracts_collection.py`, `contracts_errors.py`).
-
-Primary scanner boundaries:
-
-- request/runtime: `ScanOptionsDict`, `ScanContext`, `ScanBaseContext`, `ScanContextPayload`, `FailurePolicyContract`
-- output envelopes: `ScanRenderPayload`, `RunScanOutputPayload`, `RunbookSidecarPayload`, `FinalOutputPayload`
-- reporting: `ScannerReportMetadata`, `NormalizedScannerReportMetadata`, `ScannerCounters`, `AnnotationQualityCounters`, report row contracts
-- public API results: `RoleScanResult`, `CollectionScanResult`, `RepoScanResult`
-
-## Mypy Gate
-
-`tox -e typecheck` runs `mypy` over `src/`. The gate is also wired as a pre-commit hook (`mypy-seams`) and runs in CI on every push/PR via `.github/workflows/prism.yml`.
-
-Flags: `--ignore-missing-imports --disable-error-code=import-untyped --follow-imports=silent`
-
-## Contract And Governance Layers
-
-- contract layer: generated markdown/json defines automation interface behavior
-- confidence layer: provenance and uncertainty flags mark non-deterministic areas
-- governance layer: CI policies consume scanner flags and JSON fields
-- learning loop: `prism-learn` aggregates fleet-wide trends and recommendations
-
-## Design Principle
-
-Prefer deterministic, reviewable output over speculative runtime inference.
-
-## Latest Outstanding Unresolved
-
-From the latest available unresolved provenance report for batch 15 (`overnigh_500-builtins-top20-20260324`):
-
-- unresolved variables: 1,300 of 5,257 total (24.73%)
-- top unresolved repositories by count:
-  - `ansible-opnsense`: 128 unresolved
-  - `AZURE-CIS`: 128 unresolved
-  - `bitcoin_core`: 96 unresolved
-  - `open_ondemand`: 94 unresolved
-  - `rhel6_stig`: 76 unresolved
-
-Built-in variable leakage is still visible in unresolved output, including `ansible_distribution`, `ansible_distribution_major_version`, and `ansible_mounts`.
-
-### Dynamic include_vars Example (Path Unknown At Scan Time)
-
-Concrete report example: in `rhel7_stig`, batch 15 includes:
-
-- `Dynamic include_vars (path unknown at scan time) (1)`
-- unresolved variable: `ansible_distribution` (an Ansible gathered fact for OS name, not a role variable expected in `meta/main.yml`)
-
-Representative pattern (matching real RHEL8-CIS style):
-
-```yaml
-- name: Include OS specific variables
-  tags: always
-  ansible.builtin.include_vars:
-    file: "{{ ansible_distribution }}.yml"
-```
-
-`ansible_distribution` returns the OS name exactly as Ansible reports it — e.g. `RedHat` for Red Hat Enterprise Linux (note: `RedHat` is the correct spelling, matching the Ansible fact value). For a role that declares only `EL` platforms in `meta/main.yml` (as `RHEL8-CIS` does), the complete set of possible `ansible_distribution` values at runtime is bounded and known: `RedHat`, `CentOS`, `Rocky`, `AlmaLinux`, `OracleLinux`. If `vars/RedHat.yml` exists in the role, the scanner *could* statically prove provenance for `ansible_distribution` in this pattern — by cross-referencing the `meta/main.yml` platform list against the vars files present on disk. Currently the scanner treats this as path-unknown at scan time; this is the concrete improvement opportunity for the next lane.
-
-## Implication For Next Lane
-
-Lane A next cycle: implement constrained `include_vars` resolution for roles whose `meta/main.yml` declares a single OS family (e.g. `EL`). When `ansible_distribution` is used as the sole template token in an `include_vars` path, enumerate the bounded set of `ansible_distribution` values for that platform family and check which `vars/<value>.yml` files exist. Mark matched variables as resolved (provenance: `include_vars_platform_constrained`) rather than `unresolved_dynamic_include_vars`. This eliminates false unresolved noise for EL-only roles using the standard `RedHat.yml`/`AlmaLinux.yml` vars-file pattern without masking genuinely missing definitions.
+- Add new public-library behavior in `prism.api_layer` first.
+- Add new CLI behavior in `prism.cli_app` first.
+- Add new repository-intake behavior in `prism.repo_services` first.
+- Add new scan runtime behavior in the owning `prism.scanner_*` package first.
+- Re-export from a top-level module only when the behavior belongs on the supported public surface.

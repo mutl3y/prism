@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable
+from typing import Callable, NamedTuple
 
 from prism.scanner_io.loader import (
+    _ordered_parallel_map,
     collect_yaml_parse_failures,
     iter_role_yaml_candidates,
     map_argument_spec_type,
@@ -19,7 +20,17 @@ __all__ = [
     "parse_yaml_candidate",
     "load_role_variable_maps",
     "iter_role_argument_spec_entries",
+    "RoleVariableMaps",
 ]
+
+
+class RoleVariableMaps(NamedTuple):
+    """Defaults/vars variable maps and their source-file lookup tables."""
+
+    defaults_data: dict
+    vars_data: dict
+    defaults_sources: dict[str, Path]
+    vars_sources: dict[str, Path]
 
 
 def load_role_variable_maps(
@@ -27,30 +38,38 @@ def load_role_variable_maps(
     include_vars_main: bool,
     iter_variable_map_candidates_fn: Callable[[Path, str], list[Path]],
     load_yaml_file_fn: Callable[[Path], object],
-) -> tuple[dict, dict, dict[str, Path], dict[str, Path]]:
+) -> RoleVariableMaps:
     """Load defaults/vars variable maps from conventional role paths."""
     defaults_data: dict = {}
     vars_data: dict = {}
     defaults_sources: dict[str, Path] = {}
     vars_sources: dict[str, Path] = {}
     role_root = Path(role_path)
+    default_candidates = iter_variable_map_candidates_fn(role_root, "defaults")
 
-    for candidate in iter_variable_map_candidates_fn(role_root, "defaults"):
-        loaded = load_yaml_file_fn(candidate)
+    for candidate, loaded in zip(
+        default_candidates,
+        _ordered_parallel_map(default_candidates, load_yaml_file_fn),
+        strict=True,
+    ):
         if isinstance(loaded, dict):
             for name in loaded:
                 defaults_sources[name] = candidate
             defaults_data.update(loaded)
 
     if include_vars_main:
-        for candidate in iter_variable_map_candidates_fn(role_root, "vars"):
-            loaded = load_yaml_file_fn(candidate)
+        vars_candidates = iter_variable_map_candidates_fn(role_root, "vars")
+        for candidate, loaded in zip(
+            vars_candidates,
+            _ordered_parallel_map(vars_candidates, load_yaml_file_fn),
+            strict=True,
+        ):
             if isinstance(loaded, dict):
                 for name in loaded:
                     vars_sources[name] = candidate
                 vars_data.update(loaded)
 
-    return defaults_data, vars_data, defaults_sources, vars_sources
+    return RoleVariableMaps(defaults_data, vars_data, defaults_sources, vars_sources)
 
 
 def iter_role_argument_spec_entries(

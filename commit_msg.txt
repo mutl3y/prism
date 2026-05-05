@@ -1,0 +1,29 @@
+gilfoyle-g1: close FIND-01,04,05,06,07,08,11; defer FIND-02,03 (g2), FIND-10 (g3)
+
+Cycle: g1 — focus_axis: typing — grade: C
+Gate: GREEN (754 passed, 7 skipped, ruff clean, black clean)
+
+Closed:
+  FIND-01 abstraction: promote _merge_policy_warning_entries → merge_policy_warning_entries
+  FIND-04 typing: introduce RoleVariableMaps + FilterSymbolExtraction NamedTuples
+  FIND-05 typing: freeze module-level constants (frozenset / MappingProxyType)
+  FIND-06 silent_fallback: 4 plugin-boundary except sites — audited intentional + rationale comments
+  FIND-07 silent_fallback: 4 kernel except sites — audited SCB1 boundary, kept intact
+  FIND-08 silent_fallback: 2 scanner_context except sites — SCB1 closure paths, kept intact
+  FIND-11 test_gap: dedicated tests for legacy_retirement.py + ansible/task_traversal_bare.py
+
+Deferred to g2 (focus_axis=architecture):
+  FIND-02 needs_replan — not duplication; intentional generic/specialization split
+  FIND-03 — Callable→Protocol promotion sequenced after architecture rewire
+
+Deferred to g3 (focus_axis=coupling):
+  FIND-10 — scanner_core←scanner_plugins layer direction
+
+Pre-existing rot fixed during gate:
+  api_layer/non_collection.py: _logger undefined + unused logging import
+  scanner_extract/variable_extractor.py: E402 import below code
+
+Skill update: gilfoyle-review-loop SKILL.md adds blocking subagent-first dispatch policy.
+
+Plan: docs/plan/gilfoyle-review-20260425/findings.yaml
+Ledger: docs/plan/.gilfoyle-lessons/{closed_findings,lessons,focus-axis-log,digest}.yaml + cycle-log.md

@@ -5,21 +5,35 @@ from __future__ import annotations
 from collections.abc import Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
-from types import MappingProxyType
 from typing import Any
 
-from prism.scanner_data.style_aliases import (
+from prism.scanner_config.style_aliases import (
     get_default_style_section_aliases_snapshot,
 )
 
 _STYLE_SECTION_ALIASES: dict[str, str] = get_default_style_section_aliases_snapshot()
 
 
-STYLE_SECTION_ALIASES: Mapping[str, str] = MappingProxyType(_STYLE_SECTION_ALIASES)
 _SECTION_ALIAS_OVERRIDE: ContextVar[dict[str, str] | None] = ContextVar(
     "prism_style_section_alias_override",
     default=None,
 )
+
+
+class _StyleSectionAliasesView(Mapping[str, str]):
+    """Expose the current global alias snapshot without sharing mutable state."""
+
+    def __getitem__(self, key: str) -> str:
+        return _STYLE_SECTION_ALIASES[key]
+
+    def __iter__(self):
+        return iter(_STYLE_SECTION_ALIASES)
+
+    def __len__(self) -> int:
+        return len(_STYLE_SECTION_ALIASES)
+
+
+STYLE_SECTION_ALIASES: Mapping[str, str] = _StyleSectionAliasesView()
 
 
 @contextmanager
@@ -43,19 +57,15 @@ def get_style_section_aliases_snapshot() -> dict[str, str]:
 def refresh_policy_derived_state(policy: dict[str, Any]) -> None:
     """Refresh module-level policy state after scanner policy reloads.
 
-    WARNING: This function mutates global module state in-place (.clear + .update)
-    and is NOT thread-safe. Concurrent calls or reads during refresh may observe
-    a partially-updated alias table. Intended for single-threaded scanner execution
-    only. The public STYLE_SECTION_ALIASES MappingProxyType reflects changes
-    immediately since it wraps the same underlying dict.
+    Alias state is replaced as a fresh snapshot so readers never observe a
+    partially-updated table during refresh.
     """
+    global _STYLE_SECTION_ALIASES
+
     section_aliases = policy.get("section_aliases")
     if isinstance(section_aliases, dict):
-        _STYLE_SECTION_ALIASES.clear()
-        _STYLE_SECTION_ALIASES.update(
-            {
-                str(key): str(value)
-                for key, value in section_aliases.items()
-                if isinstance(key, str) and isinstance(value, str)
-            }
-        )
+        _STYLE_SECTION_ALIASES = {
+            str(key): str(value)
+            for key, value in section_aliases.items()
+            if isinstance(key, str) and isinstance(value, str)
+        }

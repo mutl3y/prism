@@ -2,9 +2,46 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Protocol
+
+logger = logging.getLogger(__name__)
+
+
+class CollectTaskFilesFn(Protocol):
+    """Protocol for task file collection callable."""
+
+    def __call__(
+        self, role_root: Path, exclude_paths: list[str] | None
+    ) -> list[Path]: ...
+
+
+class IsRelpathExcludedFn(Protocol):
+    """Protocol for relative path exclusion check callable."""
+
+    def __call__(self, relpath: str, exclude_paths: list[str] | None) -> bool: ...
+
+
+class IsPathExcludedFn(Protocol):
+    """Protocol for absolute path exclusion check callable."""
+
+    def __call__(
+        self, path: Path, role_root: Path, exclude_paths: list[str] | None
+    ) -> bool: ...
+
+
+class ScanFileForDefaultFiltersFn(Protocol):
+    """Protocol for scanning a file for default() filter usage."""
+
+    def __call__(self, file_path: Path, role_root: Path) -> list[dict]: ...
+
+
+class ScanFileForAllFiltersFn(Protocol):
+    """Protocol for scanning a file for all discovered Jinja filters."""
+
+    def __call__(self, file_path: Path, role_root: Path) -> list[dict]: ...
 
 
 def scan_for_default_filters(
@@ -12,12 +49,16 @@ def scan_for_default_filters(
     *,
     exclude_paths: list[str] | None,
     ignored_dirs: tuple[str, ...],
-    collect_task_files: Callable[[Path, list[str] | None], list[Path]],
-    is_relpath_excluded: Callable[[str, list[str] | None], bool],
-    is_path_excluded: Callable[[Path, Path, list[str] | None], bool],
-    scan_file_for_default_filters: Callable[[Path, Path], list[dict]],
+    collect_task_files: CollectTaskFilesFn,
+    is_relpath_excluded: IsRelpathExcludedFn,
+    is_path_excluded: IsPathExcludedFn,
+    scan_file_for_default_filters: ScanFileForDefaultFiltersFn,
 ) -> list[dict]:
-    """Scan files under role_path for uses of the default() filter."""
+    """Scan files under role_path for uses of the default() filter.
+
+    Invariant: All callable parameters must match their Protocol signatures.
+    Filters directories atomically to prevent partial-state corruption during os.walk().
+    """
     occurrences: list[dict] = []
     role_root = Path(role_path).resolve()
     scanned_files: set[Path] = set()
@@ -28,7 +69,8 @@ def scan_for_default_filters(
 
     role_path_str = str(role_root)
     for root, dirs, files in os.walk(role_path_str):
-        dirs[:] = [
+        # Eliminate partial-state risk: filter into a new list, then clear/extend dirs atomically
+        filtered_dirs = [
             d
             for d in dirs
             if d not in ignored_dirs
@@ -37,6 +79,8 @@ def scan_for_default_filters(
                 exclude_paths,
             )
         ]
+        dirs.clear()
+        dirs.extend(filtered_dirs)
         for fname in files:
             fpath = Path(root) / fname
             if is_path_excluded(fpath, role_root, exclude_paths):
@@ -53,12 +97,16 @@ def scan_for_all_filters(
     *,
     exclude_paths: list[str] | None,
     ignored_dirs: tuple[str, ...],
-    collect_task_files: Callable[[Path, list[str] | None], list[Path]],
-    is_relpath_excluded: Callable[[str, list[str] | None], bool],
-    is_path_excluded: Callable[[Path, Path, list[str] | None], bool],
-    scan_file_for_all_filters: Callable[[Path, Path], list[dict]],
+    collect_task_files: CollectTaskFilesFn,
+    is_relpath_excluded: IsRelpathExcludedFn,
+    is_path_excluded: IsPathExcludedFn,
+    scan_file_for_all_filters: ScanFileForAllFiltersFn,
 ) -> list[dict]:
-    """Scan files under role_path for all discovered Jinja filters."""
+    """Scan files under role_path for all discovered Jinja filters.
+
+    Invariant: All callable parameters must match their Protocol signatures.
+    Filters directories atomically to prevent partial-state corruption during os.walk().
+    """
     occurrences: list[dict] = []
     role_root = Path(role_path).resolve()
     scanned_files: set[Path] = set()
@@ -69,7 +117,8 @@ def scan_for_all_filters(
 
     role_path_str = str(role_root)
     for root, dirs, files in os.walk(role_path_str):
-        dirs[:] = [
+        # Eliminate partial-state risk: filter into a new list, then clear/extend dirs atomically
+        filtered_dirs = [
             d
             for d in dirs
             if d not in ignored_dirs
@@ -78,6 +127,8 @@ def scan_for_all_filters(
                 exclude_paths,
             )
         ]
+        dirs.clear()
+        dirs.extend(filtered_dirs)
         for fname in files:
             fpath = Path(root) / fname
             if is_path_excluded(fpath, role_root, exclude_paths):
@@ -132,7 +183,12 @@ def scan_file_for_default_filters(
                         "args": args,
                     }
                 )
-    except (UnicodeDecodeError, PermissionError, OSError):
+    except UnicodeDecodeError, PermissionError, OSError:
+        logger.warning(
+            "scan_file_for_default_filters: file skipped due to error: %s",
+            file_path,
+            exc_info=True,
+        )
         return []
     return occurrences
 
@@ -184,6 +240,11 @@ def scan_file_for_all_filters(
                         "filter_name": filter_name,
                     }
                 )
-    except (UnicodeDecodeError, PermissionError, OSError):
+    except UnicodeDecodeError, PermissionError, OSError:
+        logger.warning(
+            "scan_file_for_all_filters: file skipped due to error: %s",
+            file_path,
+            exc_info=True,
+        )
         return []
     return occurrences

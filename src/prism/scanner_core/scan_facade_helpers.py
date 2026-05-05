@@ -43,7 +43,7 @@ def collect_role_contents(
     meta_warnings: list[str] = []
     try:
         result["meta"] = load_meta(role_path, warning_collector=meta_warnings)
-    except Exception as exc:
+    except RuntimeError as exc:
         result["meta"] = {}
         meta_warnings.append(f"ROLE_METADATA_LOAD_FAILED: {exc}")
     if meta_warnings:

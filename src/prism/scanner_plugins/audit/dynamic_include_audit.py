@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from prism.scanner_extract.task_file_traversal import (  # noqa: F401
+from prism.scanner_plugins.ansible.extract_utils import (  # noqa: F401
     collect_unconstrained_dynamic_role_includes,
     collect_unconstrained_dynamic_task_includes,
 )

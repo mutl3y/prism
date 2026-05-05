@@ -56,7 +56,6 @@ Common advanced options:
 - `--detailed-catalog`
 - `--runbook-output <directory>`
 - `--runbook-csv-output <directory>`
-- `--feedback-from-learn <file-or-url>`
 
 ## Target: repo
 
@@ -73,7 +72,6 @@ Common advanced options:
 - `--repo-ref <branch-or-tag>`
 - `--repo-timeout <seconds>`
 - `--repo-style-readme-path <path>`
-- `--feedback-from-learn <file-or-url>`
 
 ## Target: completion
 

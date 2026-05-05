@@ -1,4 +1,4 @@
-"""Prism next-generation package root hosted under fsrc/src."""
+"""Prism package root (canonical src/ lane)."""
 
 from importlib.metadata import PackageNotFoundError, version
 

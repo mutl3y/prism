@@ -1,26 +1,31 @@
 ---
 layout: default
-title: Roadmap and Backlog
+title: Roadmap
 ---
 
-This file summarizes delivered backlog themes and future direction.
+This file summarizes durable product direction rather than execution-wave history.
 
 ## Delivered Themes
 
-- richer role realism and README generation quality
-- repo-source intake and style-guide support
-- variable discovery and provenance improvements
-- collection plugin inventory and CLI subcommand redesign
-- annotation quality metrics and strict policy options
-- shared repo facade complete: `prism.repo_services` is the canonical repo-intake boundary over package-owned `prism.repo_layer` internals
-- scanner package decomposition complete: `prism.scanner` now delegates canonical runtime behavior to `prism.scanner_core`, `prism.scanner_data`, `prism.scanner_extract`, `prism.scanner_readme`, `prism.scanner_reporting`, `prism.scanner_io`, `prism.scanner_config`, and `prism.scanner_compat`
-- typed seam contracts complete: `prism.scanner_data` centralizes TypedDict contracts and builder helpers, with `tox -e typecheck` enforced in CI
-- CLI/API package split complete (2026-04-03): `prism.api` and `prism.cli` remain stable facades over `prism.api_layer` and `prism.cli_app`, with seam registers and reverse-import guardrails frozen
-- VS Code extension lane active in-repo: `plugins/prism-comment-highlighter` is now linted, typechecked, and tested in CI as a first-class plugin package
+- stable top-level API, CLI, and shared repo entry surfaces
+- repository-intake ownership consolidated in `prism.repo_services` rather than a separate repo layer
+- package-owned scanner decomposition across core, kernel, extract, config, IO, README, reporting, and plugin layers
+- runtime ownership split clearly across `prism.scanner_core`, `prism.scanner_kernel`, and `prism.scanner_plugins`
+- typed contract boundaries centralized in `prism.scanner_data`
+- role, collection, and repo scanning flows with README, runbook, and machine-readable outputs
+- public audit-rule and policy hooks exposed through API and CLI seams for local workflows or CI
+- VS Code extension support for Prism comment-driven annotations
 
-## Ongoing Focus
+## Current Focus
 
-- reduce ambiguity in inferred variables
-- maintain high test coverage on scanner and parser paths
+- keep architecture and capability docs aligned with the live package layout
+- maintain high confidence in parser, scanner, and rendering paths
 - improve operator ergonomics for fleet-scale usage
-- keep architecture and capability docs aligned with package-owned extension boundaries
+- keep public policy, audit, and repo-intake guidance aligned with the supported seams
+- continue reducing avoidable ambiguity in inferred variable and provenance output
+
+## Deferred Or Future Expansion
+
+- Kubernetes and Terraform plugin implementations remain future work
+- deeper fleet-learning and `prism-learn` integrations remain separate-repo concerns
+- avoid reopening compatibility behavior on the canonical runtime path unless a new public seam is intentionally introduced

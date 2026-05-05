@@ -1,0 +1,147 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.2, pytest-9.0.2, pluggy-1.6.0
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /raid5/source/test/prism
+configfile: setup.cfg
+testpaths: src/prism/tests
+plugins: pyfakefs-6.1.6, cov-7.0.0, hypothesis-6.151.10, xdist-3.8.0, benchmark-5.2.3
+collected 740 items / 1 skipped
+
+src/prism/tests/test_api_cli_entrypoints.py .....................        [  2%]
+src/prism/tests/test_api_cli_repo_parity.py .......FFFF.F.....           [  5%]
+src/prism/tests/test_api_layer_common.py .......                         [  6%]
+src/prism/tests/test_audit_modules.py ....                               [  6%]
+src/prism/tests/test_audit_plugin.py ............                        [  8%]
+src/prism/tests/test_blocker_fact_evaluator.py ....                      [  8%]
+src/prism/tests/test_cli_api_guardrails.py ..                            [  9%]
+src/prism/tests/test_cli_app.py ..........................               [ 12%]
+src/prism/tests/test_collection_contract.py ..............
+
+=================================== FAILURES ===================================
+____________ test_fsrc_api_scan_repo_uses_fsrc_repo_services_facade ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd3ec188ff0>
+
+    def test_fsrc_api_scan_repo_uses_fsrc_repo_services_facade(monkeypatch) -> None:
+        captured: dict[str, object] = {}
+
+        with _prefer_fsrc_prism_on_sys_path():
+            api_module = importlib.import_module("prism.api")
+
+            def fake_run_repo_scan(**kwargs: object) -> object:
+                captured.update(kwargs)
+                return {
+                    "role_name": "demo-role",
+                    "metadata": {"style_guide": {"path": "README.md"}},
+                }
+
+            class _FakeFacade:
+                def run_repo_scan(self, **kwargs: object) -> object:
+                    return fake_run_repo_scan(**kwargs)
+
+>           monkeypatch.setattr(api_module, "_repo_scan_facade", _FakeFacade())
+E           AttributeError: <module 'prism.api' from '/raid5/source/test/prism/src/prism/api.py'> has no attribute '_repo_scan_facade'
+
+src/prism/tests/test_api_cli_repo_parity.py:255: AttributeError
+_____ test_fsrc_api_scan_repo_uses_non_collection_repo_resolver_when_unset _____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd3ed0a5590>
+
+    def test_fsrc_api_scan_repo_uses_non_collection_repo_resolver_when_unset(
+        monkeypatch,
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        with _prefer_fsrc_prism_on_sys_path():
+            api_module = importlib.import_module("prism.api")
+
+            class _FakeFacade:
+                def run_repo_scan(self, **kwargs: object) -> object:
+                    captured.update(kwargs)
+                    return {"role_name": "delegated-role", "metadata": {}}
+
+>           monkeypatch.setattr(api_module, "_repo_scan_facade", None)
+E           AttributeError: <module 'prism.api' from '/raid5/source/test/prism/src/prism/api.py'> has no attribute '_repo_scan_facade'
+
+src/prism/tests/test_api_cli_repo_parity.py:282: AttributeError
+_____ test_fsrc_api_scan_repo_forwards_role_name_override_to_scan_role_fn ______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd3ec1bc950>
+
+    def test_fsrc_api_scan_repo_forwards_role_name_override_to_scan_role_fn(
+        monkeypatch,
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        with _prefer_fsrc_prism_on_sys_path():
+            api_module = importlib.import_module("prism.api")
+
+            class _FakeFacade:
+                def run_repo_scan(self, **kwargs: object) -> object:
+                    captured.update(kwargs)
+                    scan_role_fn = kwargs["scan_role_fn"]
+                    assert callable(scan_role_fn)
+                    return scan_role_fn(
+                        "/tmp/repo-role",
+                        style_readme_path="README.repo.md",
+                        role_name_override="derived-role-name",
+                    )
+
+>           monkeypatch.setattr(api_module, "_repo_scan_facade", _FakeFacade())
+E           AttributeError: <module 'prism.api' from '/raid5/source/test/prism/src/prism/api.py'> has no attribute '_repo_scan_facade'
+
+src/prism/tests/test_api_cli_repo_parity.py:314: AttributeError
+_____ test_fsrc_api_scan_repo_forwards_policy_config_path_to_scan_role_fn ______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd3ece382d0>
+
+    def test_fsrc_api_scan_repo_forwards_policy_config_path_to_scan_role_fn(
+        monkeypatch,
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        with _prefer_fsrc_prism_on_sys_path():
+            api_module = importlib.import_module("prism.api")
+
+            class _FakeFacade:
+                def run_repo_scan(self, **kwargs: object) -> object:
+                    scan_role_fn = kwargs["scan_role_fn"]
+                    assert callable(scan_role_fn)
+                    return scan_role_fn("/tmp/repo-role")
+
+>           monkeypatch.setattr(api_module, "_repo_scan_facade", _FakeFacade())
+E           AttributeError: <module 'prism.api' from '/raid5/source/test/prism/src/prism/api.py'> has no attribute '_repo_scan_facade'
+
+src/prism/tests/test_api_cli_repo_parity.py:370: AttributeError
+_ test_fsrc_api_scan_repo_forwards_non_collection_output_options_to_scan_role_fn _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd3ee510c90>
+
+    def test_fsrc_api_scan_repo_forwards_non_collection_output_options_to_scan_role_fn(
+        monkeypatch,
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        with _prefer_fsrc_prism_on_sys_path():
+            api_module = importlib.import_module("prism.api")
+
+            class _FakeFacade:
+                def run_repo_scan(self, **kwargs: object) -> object:
+                    scan_role_fn = kwargs["scan_role_fn"]
+                    assert callable(scan_role_fn)
+                    return scan_role_fn("/tmp/repo-role", role_name_override="repo-role")
+
+>           monkeypatch.setattr(api_module, "_repo_scan_facade", _FakeFacade())
+E           AttributeError: <module 'prism.api' from '/raid5/source/test/prism/src/prism/api.py'> has no attribute '_repo_scan_facade'
+
+src/prism/tests/test_api_cli_repo_parity.py:431: AttributeError
+=========================== short test summary info ============================
+FAILED src/prism/tests/test_api_cli_repo_parity.py::test_fsrc_api_scan_repo_uses_fsrc_repo_services_facade
+FAILED src/prism/tests/test_api_cli_repo_parity.py::test_fsrc_api_scan_repo_uses_non_collection_repo_resolver_when_unset
+FAILED src/prism/tests/test_api_cli_repo_parity.py::test_fsrc_api_scan_repo_forwards_role_name_override_to_scan_role_fn
+FAILED src/prism/tests/test_api_cli_repo_parity.py::test_fsrc_api_scan_repo_forwards_policy_config_path_to_scan_role_fn
+FAILED src/prism/tests/test_api_cli_repo_parity.py::test_fsrc_api_scan_repo_forwards_non_collection_output_options_to_scan_role_fn
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! KeyboardInterrupt !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+<string>:0: KeyboardInterrupt
+(to show a full traceback on KeyboardInterrupt use --full-trace)
+=================== 5 failed, 103 passed, 1 skipped in 4.96s ===================

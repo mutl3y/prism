@@ -33,17 +33,17 @@ jobs:
         run: |
           tox -e typecheck
 
-      - name: Run Wave 1 dual-scope lint checks
+      - name: Run targeted runtime lint checks
         run: |
-          tox -e lint-wave1-scopes
+          tox -e lint-runtime-slices
 
-      - name: Run Wave 1 dual-scope typecheck
+      - name: Run targeted runtime typecheck
         run: |
-          tox -e typecheck-wave1-scopes
+          tox -e typecheck-runtime-slices
 
-      - name: Run dual smoke lanes
+      - name: Run smoke imports
         run: |
-          tox -e smoke-lanes
+          tox -e smoke-imports
 
   tests:
     runs-on: ubuntu-latest
@@ -70,7 +70,7 @@ jobs:
 
       - name: Run tests
         run: |
-          python -m pytest -q --cov=src/prism --cov-report=xml:debug_readmes/coverage.xml --cov-fail-under=65
+          python -m pytest -q --cov=src/prism --cov-report=xml:debug_readmes/coverage.xml --cov-fail-under=70
 
   docs:
     runs-on: ubuntu-latest

@@ -17,9 +17,10 @@ pip install -e .[dev]
 ## Validation
 
 ```bash
-pytest -q
-tox -q
-ruff check .
+.venv/bin/python -m pytest -q
+.venv/bin/python -m ruff check src/prism
+.venv/bin/python -m black --check src/prism
+.venv/bin/python -m tox -e typecheck
 ```
 
 ## Pull Request Expectations

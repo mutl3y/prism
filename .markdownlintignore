@@ -1,0 +1,11 @@
+# Generated scanner output
+demos/output/
+
+# VS Code extension vendor
+plugins/vs_code/prism-comment-highlighter/node_modules/
+
+# Python build artifacts
+build/
+
+# Old dual-lane directory
+fsrc/

@@ -2,18 +2,33 @@
 
 from __future__ import annotations
 
-from typing import Any
+import copy
+from typing import TypeGuard
 
-from prism.scanner_data.contracts_request import PreparedPolicyBundle
-from prism.scanner_data.contracts_request import ScanOptionsDict
+from prism.scanner_data.contracts_request import (
+    PreparedPolicyBundle,
+    ScanOptionsDict,
+    ScanPolicyContext,
+    ScanPolicyWarning,
+)
+from prism.scanner_data.scan_options_schema import validate_scan_options
+
+
+def _is_scan_policy_context(value: object) -> TypeGuard[ScanPolicyContext]:
+    return isinstance(value, dict)
+
+
+def _copy_scan_policy_context(policy_context: ScanPolicyContext) -> ScanPolicyContext:
+    """Preserve the ScanPolicyContext TypedDict contract across shallow copies."""
+    return ScanPolicyContext(**policy_context)
 
 
 def _normalize_policy_context(
-    policy_context: dict[str, object] | None,
-) -> tuple[dict[str, object] | None, list[dict[str, object]]]:
-    if not isinstance(policy_context, dict):
+    policy_context: ScanPolicyContext | None,
+) -> tuple[ScanPolicyContext | None, list[ScanPolicyWarning]]:
+    if not _is_scan_policy_context(policy_context):
         return None, []
-    return dict(policy_context), []
+    return _copy_scan_policy_context(policy_context), []
 
 
 def build_run_scan_options_canonical(
@@ -39,8 +54,8 @@ def build_run_scan_options_canonical(
     fail_on_unconstrained_dynamic_includes: bool | None,
     fail_on_yaml_like_task_annotations: bool | None,
     ignore_unresolved_internal_underscore_references: bool | None,
-    policy_context: dict[str, object] | None = None,
-    prepared_policy_bundle: PreparedPolicyBundle | dict[str, Any] | None = None,
+    policy_context: ScanPolicyContext | None = None,
+    prepared_policy_bundle: PreparedPolicyBundle | None = None,
 ) -> ScanOptionsDict:
     """Return canonical option map for scanner-context execution."""
     if not isinstance(role_path, str) or not role_path.strip():
@@ -76,9 +91,10 @@ def build_run_scan_options_canonical(
     }
 
     if isinstance(prepared_policy_bundle, dict):
-        options["prepared_policy_bundle"] = dict(prepared_policy_bundle)
+        options["prepared_policy_bundle"] = copy.copy(prepared_policy_bundle)
 
     if policy_warnings:
         options["scan_policy_warnings"] = list(policy_warnings)
 
+    validate_scan_options(options)
     return options
