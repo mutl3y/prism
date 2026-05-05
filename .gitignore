@@ -36,3 +36,4 @@ README.json
 .benchmarks/
 .tmp_exported_skill/
 .tmp_exported_skills/
+.github/skills/
