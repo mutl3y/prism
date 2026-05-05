@@ -16,7 +16,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SCANNER_PLUGINS_DIR = PROJECT_ROOT / "src" / "prism" / "scanner_plugins"
 ALLOWED_BRIDGE_FILE = Path("ansible") / "extract_utils.py"
@@ -33,7 +32,7 @@ def _extract_imports_from_file(file_path: Path) -> list[str]:
     try:
         content = file_path.read_text(encoding="utf-8")
         tree = ast.parse(content, filename=str(file_path))
-    except (OSError, SyntaxError):
+    except OSError, SyntaxError:
         return []
 
     imports = []

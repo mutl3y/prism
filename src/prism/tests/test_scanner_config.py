@@ -307,8 +307,7 @@ readme:
   section_content_modes:
     Role Variables: merge
   adopt_heading_mode: style
-""".strip()
-            + "\n",
+""".strip() + "\n",
             encoding="utf-8",
         )
         display_titles = tmp_path / "display_titles.yml"

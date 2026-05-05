@@ -12,7 +12,6 @@ from prism.scanner_plugins import get_default_plugin_registry
 from prism.scanner_plugins.ansible.readme_renderer import AnsibleReadmeRendererPlugin
 from prism.scanner_plugins.registry import PluginRegistry, PluginStatelessRequired
 
-
 # ---- round-trip register/get ---------------------------------------------
 
 

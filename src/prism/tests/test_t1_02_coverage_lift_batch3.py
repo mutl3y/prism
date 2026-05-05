@@ -10,7 +10,6 @@ from typing import Any, cast
 
 import pytest
 
-
 # ---- scanner_io/output.py -------------------------------------------------
 
 

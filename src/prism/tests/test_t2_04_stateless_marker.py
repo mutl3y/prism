@@ -14,7 +14,6 @@ from prism.scanner_plugins.registry import (
     require_stateless_plugin,
 )
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _WARNING_GUARDRAIL_FILES = (
     "src/prism/tests/test_t2_01_plugin_api_version.py::test_registry_accepts_plugin_with_matching_version",

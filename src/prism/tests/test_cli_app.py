@@ -22,7 +22,6 @@ from prism.cli_app.presenters import (
 )
 from prism.cli_app.shared import resolve_effective_readme_config
 
-
 # --- EXIT_CODE constants ---
 
 

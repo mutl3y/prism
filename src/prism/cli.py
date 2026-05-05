@@ -17,7 +17,6 @@ from prism.scanner_io.output import (
     write_role_scan_output,
 )
 
-
 CLI_PUBLIC_ENTRYPOINTS: tuple[str, ...] = ("main", "build_parser")
 CLI_RETAINED_COMPATIBILITY_SEAMS: tuple[str, ...] = ("_handle_repo_command",)
 

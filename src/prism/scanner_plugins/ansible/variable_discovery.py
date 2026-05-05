@@ -487,7 +487,7 @@ def _collect_referenced_variable_names(
                 continue
             try:
                 text = file_path.read_text(encoding="utf-8")
-            except (UnicodeDecodeError, OSError):
+            except UnicodeDecodeError, OSError:
                 continue
 
             for token in _collect_undeclared_jinja_variables(
@@ -736,7 +736,7 @@ class AnsibleVariableDiscoveryPlugin:
         if readme_path.exists():
             try:
                 readme_text = readme_path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
+            except OSError, UnicodeDecodeError:
                 readme_text = ""
             for token in _collect_undeclared_jinja_variables(
                 readme_text,

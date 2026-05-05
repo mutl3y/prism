@@ -21,7 +21,6 @@ from prism.errors import (
 )
 from prism.scanner_data.contracts_output import RunScanOutputPayload
 
-
 REPO_SERVICE_CANONICAL_SURFACE: tuple[str, ...] = (
     "build_repo_intake_components",
     "clone_repo",

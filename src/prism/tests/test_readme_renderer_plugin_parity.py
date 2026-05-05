@@ -12,7 +12,6 @@ import pytest
 
 from prism.scanner_plugins.ansible.readme_renderer import AnsibleReadmeRendererPlugin
 
-
 _PLUGIN = AnsibleReadmeRendererPlugin()
 
 # ---------------------------------------------------------------------------

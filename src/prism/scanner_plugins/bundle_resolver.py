@@ -19,7 +19,6 @@ from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
     normalize_marker_prefix,
 )
 
-
 _TASK_LINE_REQUIRED_ATTRIBUTES = (
     "TASK_INCLUDE_KEYS",
     "ROLE_INCLUDE_KEYS",

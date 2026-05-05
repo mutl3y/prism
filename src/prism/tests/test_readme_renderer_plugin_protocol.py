@@ -13,7 +13,6 @@ import pathlib
 from prism.scanner_plugins.ansible.readme_renderer import AnsibleReadmeRendererPlugin
 from prism.scanner_plugins.interfaces import ReadmeRendererPlugin
 
-
 # ---- class-level metadata ------------------------------------------------
 
 

@@ -333,7 +333,7 @@ Respond with ONLY a number from 0-100."""
                         confidence=p.get("confidence", 0.5),
                     )
                     result.patterns.append(pattern)
-                except (KeyError, ValueError):
+                except KeyError, ValueError:
                     continue
 
             # Parse scores

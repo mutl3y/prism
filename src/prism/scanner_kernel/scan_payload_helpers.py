@@ -7,7 +7,6 @@ from typing import Any
 
 from prism.errors import PrismRuntimeError
 
-
 _SCAN_PIPELINE_SELECTION_ORDER: tuple[str, ...] = (
     "request.option.scan_pipeline_plugin",
     "policy_context.selection.plugin",

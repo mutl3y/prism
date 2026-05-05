@@ -10,7 +10,6 @@ from typing import Any
 
 import yaml
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REQUIRED_PLAN_KEYS = (
     "plan_id",

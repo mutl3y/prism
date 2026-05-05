@@ -1221,8 +1221,7 @@ The summary should include:
     print("\n" + "=" * 70)
     print("SUMMARY")
     print("=" * 70)
-    print(
-        f"""
+    print(f"""
 The optimization loop demonstrated:
 
 1. INTERLEAVED THINKING
@@ -1248,8 +1247,7 @@ The optimization loop demonstrated:
    - MiniMax: minimax.io
    - DAIR.AI: promptingguide.ai
    - Research papers: arxiv.org
-"""
-    )
+""")
 
 
 if __name__ == "__main__":

@@ -12,7 +12,6 @@ from prism.scanner_plugins.interfaces import (
 )
 from prism.scanner_data.contracts_output import RunScanOutputPayload
 
-
 PLUGIN_CONTRACT_VERSION: types.MappingProxyType[str, int] = types.MappingProxyType(
     {"major": 1, "minor": 0}
 )

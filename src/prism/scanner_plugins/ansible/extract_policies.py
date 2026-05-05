@@ -18,7 +18,6 @@ from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
     NormalizesMarkerPrefix,
 )
 
-
 DEFAULT_DOC_MARKER_PREFIX = task_annotation_strategy.DEFAULT_DOC_MARKER_PREFIX
 
 _ANSIBLE_TASK_INCLUDE_KEYS = task_line_parsing_module.TASK_INCLUDE_KEYS

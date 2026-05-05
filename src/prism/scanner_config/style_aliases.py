@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 DEFAULT_STYLE_SECTION_ALIASES: dict[str, str] = {
     "galaxy info": "galaxy_info",
     "requirements": "requirements",

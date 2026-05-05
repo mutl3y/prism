@@ -11,7 +11,6 @@ from typing import Any
 
 import yaml
 
-
 OUTPUT_DIR_NAME = "mutl3y-artifacts"
 LEGACY_OUTPUT_DIR_NAME = "artifacts"
 

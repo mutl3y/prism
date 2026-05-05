@@ -15,7 +15,6 @@ from typing import Any
 
 import yaml
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PLAN_ROOT = REPO_ROOT / "docs" / "plan"
 ARCHIVE_ROOT = PLAN_ROOT / "archive"

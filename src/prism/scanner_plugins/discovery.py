@@ -28,7 +28,6 @@ from prism.scanner_plugins.registry import (
     plugin_registry as canonical_plugin_registry,
 )
 
-
 PRISM_PLUGIN_ENTRY_POINT_GROUP = "prism.scanner_plugins"
 
 

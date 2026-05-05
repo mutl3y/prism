@@ -13,7 +13,6 @@ from prism.scanner_plugins.parsers.jinja.analysis_policy import (
     collect_undeclared_jinja_variables,
 )
 
-
 _IDENTIFIER = st.text(
     alphabet=string.ascii_lowercase + string.digits + "_",
     min_size=1,

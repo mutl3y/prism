@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-
 CONFIG_NAME = ".prism.yml"
 
 

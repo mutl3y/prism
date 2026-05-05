@@ -45,7 +45,7 @@ def days_since(date_str):
     try:
         date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
         return (datetime.now(date.tzinfo) - date).days
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return 999
 
 

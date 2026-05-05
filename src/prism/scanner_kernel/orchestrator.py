@@ -25,7 +25,6 @@ from prism.scanner_kernel.scan_payload_helpers import (
     apply_scan_policy_blocker_runtime_outcomes,
 )
 
-
 _ROUTING_MODE_PLUGIN = "scan_pipeline_plugin"
 
 

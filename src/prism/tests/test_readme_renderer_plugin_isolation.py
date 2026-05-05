@@ -14,7 +14,6 @@ from typing import Any
 from prism.scanner_plugins.ansible.readme_renderer import AnsibleReadmeRendererPlugin
 from prism.scanner_plugins.registry import PluginRegistry
 
-
 # ---------------------------------------------------------------------------
 # Stub plugin fixture
 # ---------------------------------------------------------------------------

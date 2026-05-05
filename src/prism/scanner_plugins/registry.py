@@ -18,7 +18,6 @@ from prism.scanner_plugins.interfaces import ScanPipelinePlugin
 from prism.scanner_plugins.interfaces import VariableDiscoveryPlugin
 from prism.scanner_plugins.interfaces import YAMLParsingPolicyPlugin
 
-
 PRISM_PLUGIN_API_VERSION: tuple[int, int] = (1, 0)
 
 
@@ -156,7 +155,7 @@ def require_di_constructor(
         return
     try:
         signature = inspect.signature(plugin_class)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return
     try:
         signature.bind_partial(di=None)

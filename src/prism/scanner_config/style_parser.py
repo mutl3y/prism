@@ -14,7 +14,6 @@ from prism.scanner_config.style_aliases import (
     get_default_style_section_aliases_snapshot,
 )
 
-
 _MARKDOWN_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 _NON_ALPHANUM_RE = re.compile(r"[^a-z0-9()]+")
 _WHITESPACE_RE = re.compile(r"\s+")

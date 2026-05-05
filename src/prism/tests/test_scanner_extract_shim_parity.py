@@ -8,7 +8,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"

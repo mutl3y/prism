@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 from typing import Callable, Protocol
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -184,7 +183,7 @@ def scan_file_for_default_filters(
                         "args": args,
                     }
                 )
-    except (UnicodeDecodeError, PermissionError, OSError):
+    except UnicodeDecodeError, PermissionError, OSError:
         logger.warning(
             "scan_file_for_default_filters: file skipped due to error: %s",
             file_path,
@@ -241,7 +240,7 @@ def scan_file_for_all_filters(
                         "filter_name": filter_name,
                     }
                 )
-    except (UnicodeDecodeError, PermissionError, OSError):
+    except UnicodeDecodeError, PermissionError, OSError:
         logger.warning(
             "scan_file_for_all_filters: file skipped due to error: %s",
             file_path,

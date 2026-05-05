@@ -17,7 +17,6 @@ from prism.scanner_data.contracts_output import RunScanOutputPayload
 from prism.scanner_data.contracts_request import ScanMetadata, ScanOptionsDict
 from prism.scanner_data.contracts_request import ScanPolicyBlockerFacts
 
-
 KernelPayload: TypeAlias = dict[str, object]
 
 

@@ -15,7 +15,6 @@ from prism.scanner_plugins.audit.loader import (
 )
 from prism.scanner_plugins.audit.runner import BuiltinAuditPlugin, run_audit
 
-
 # ---------- loader ----------------------------------------------------------
 
 

@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-
 # ---- scanner_plugins/ansible/task_line_parsing.py -------------------------
 
 

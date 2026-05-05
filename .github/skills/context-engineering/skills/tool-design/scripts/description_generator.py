@@ -31,7 +31,6 @@ from typing import Any, Dict, List, Optional, Protocol, Sequence
 import json
 import re
 
-
 __all__ = [
     "generate_tool_description",
     "generate_usage_context",

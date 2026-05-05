@@ -7,7 +7,6 @@ from pathlib import Path
 import re
 from typing import Any, NamedTuple
 
-
 PLUGIN_CATALOG_SCHEMA_VERSION = 1
 PLUGIN_EXTRACTION_METHOD_AST = "ast"
 PLUGIN_EXTRACTION_METHOD_PATH_INVENTORY = "path_inventory"

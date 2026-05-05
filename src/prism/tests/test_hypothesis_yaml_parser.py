@@ -15,7 +15,6 @@ from prism.scanner_plugins.parsers.yaml.parsing_policy import (
     DefaultYAMLParsingPolicyPlugin,
 )
 
-
 _YAML_SCALAR = st.one_of(
     st.none(),
     st.booleans(),

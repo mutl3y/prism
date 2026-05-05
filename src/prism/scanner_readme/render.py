@@ -11,7 +11,6 @@ from prism.scanner_plugins.defaults import resolve_readme_renderer_plugin
 from prism.scanner_readme.rendering_seams import build_render_jinja_environment
 from prism.scanner_readme.style import format_heading
 
-
 DEFAULT_MERGE_GENERATED_CONTENT_LABEL = "Generated content"
 
 

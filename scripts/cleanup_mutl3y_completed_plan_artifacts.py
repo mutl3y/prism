@@ -15,7 +15,6 @@ from typing import Any
 
 import yaml
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PRUNABLE_ARTIFACT_KEYS = (
     "wave_start_audit",

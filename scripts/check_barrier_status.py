@@ -18,7 +18,6 @@ from typing import Any
 
 import yaml
 
-
 RESULT_SUCCESS = {"success"}
 RESULT_FAILED = {"route_failure", "quality_failure"}
 FAILURE_TYPES_CANCEL = {"cancelled", "empty_response", "timeout", "startup"}

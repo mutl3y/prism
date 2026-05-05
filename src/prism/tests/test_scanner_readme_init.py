@@ -6,7 +6,6 @@ import pytest
 
 import prism.scanner_readme as scanner_readme
 
-
 _EXPECTED_ALL = {
     "render_readme",
     "append_scanner_report_section_if_enabled",
