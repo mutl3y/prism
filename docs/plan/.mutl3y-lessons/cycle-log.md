@@ -1,12 +1,5 @@
 # Gilfoyle review-loop cycle log
 
-## g73 fresh independent review addendum — 2026-05-04 — focus_axis: clean-checkpoint guardrail
-
-- Trigger: user requested a fresh in-depth Prism scan that did not rely on prior knowledge or prior scans.
-- Result: five source-backed High findings surfaced after a clean-looking checkpoint; three folded into existing g73 registry/contract findings and two became new active fixes.
-- Fix table: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase2/fresh-independent-review-fix-table.md
-- Process lesson: independent reviewers looked properly only after the prompt explicitly forbade prior artifacts/memories, split axes across architecture/security/adversarial/QA, and required foreman behavior checks before promotion. Captured as LESSON-17.
-
 ## g1 — 2026-04-25 — focus_axis: typing — grade: C
 
 - Scope: high + typing severities (9 of 13 findings).
@@ -418,3 +411,10 @@ registry_boilerplate → ownership → ownership-impl) all GREEN. Sign-off bar e
 - g62 (2026-05-03): mutl3y-review-20260503-g62; gate=GREEN; promoted_lessons=0
 
 - g63 (2026-05-04): mutl3y-review-20260503-g63; gate=GREEN; promoted_lessons=0
+
+## g73 fresh independent review addendum — 2026-05-04 — focus_axis: clean-checkpoint guardrail
+
+- Trigger: user requested a fresh in-depth Prism scan that did not rely on prior knowledge or prior scans.
+- Result: five source-backed High findings surfaced after a clean-looking checkpoint; three folded into existing g73 registry/contract findings and two became new active fixes.
+- Fix table: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase2/fresh-independent-review-fix-table.md
+- Process lesson: independent reviewers looked properly only after the prompt explicitly forbade prior artifacts/memories, split axes across architecture/security/adversarial/QA, and required foreman behavior checks before promotion. Captured as LESSON-17.
