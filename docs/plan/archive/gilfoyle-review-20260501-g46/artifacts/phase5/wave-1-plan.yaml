@@ -1,0 +1,23 @@
+wave: 1
+cycle: g46
+status: in_progress
+workers:
+  - agent_name: Builder-ControlFlow
+    findings:
+      - G46-H01
+      - G46-H02
+    owned_files:
+      - src/prism/repo_services.py
+      - src/prism/tests/test_api_cli_repo_parity.py
+      - src/prism/tests/test_t3_06_path_safety.py
+    invariant: "Repo-scoped operations must remain confined to repo_root, and git clone argv must never treat untrusted repo_url as an option."
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_repo_parity.py src/prism/tests/test_t3_06_path_safety.py
+  - agent_name: Builder-Ownership
+    findings:
+      - G46-H03
+    owned_files:
+      - src/prism/scanner_plugins/ansible/default_policies.py
+      - src/prism/tests/test_variable_discovery_pipeline.py
+      - src/prism/tests/test_gilfoyle_blockers_runtime.py
+    invariant: "include_vars discovery may only load files that remain under role_root after path resolution, matching task include containment rules."
+    suggested_narrow_gate: pytest -q src/prism/tests/test_variable_discovery_pipeline.py src/prism/tests/test_gilfoyle_blockers_runtime.py

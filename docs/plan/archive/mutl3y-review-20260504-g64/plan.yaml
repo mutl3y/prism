@@ -1,0 +1,47 @@
+plan_id: mutl3y-review-20260504-g64
+cycle: g64
+review_type: thorough
+focus_axis: error_handling
+status: completed
+target: src/prism
+origin: >-
+  Required thorough follow-up after g63 closed as a clean light checkpoint.
+  Scope is the full src/prism package with minimum-density scout coverage.
+resumption_pointer:
+  current_phase: COMPLETE
+  next_action: "Superseded by g72 and g73 for live review flow; archive this plan and treat its promoted Medium findings as deferred backlog, not active review debt."
+  blocking_issues: []
+artifacts:
+  findings: docs/plan/mutl3y-review-20260504-g64/findings.yaml
+  phase0_start_audit: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/phase-start-audit.yaml
+  learning_context: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/learning-context.yaml
+  phase0_barrier_summary: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/barrier-summary.yaml
+  phase0_scout_typing: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  phase0_scout_ownership: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  phase0_scout_controlflow: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  phase0_scout_graph: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  phase1_grading_summary: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase1/grading-summary.yaml
+  phase2_persist_summary: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase2/persist-summary.yaml
+  phase5_wave_1_start_audit: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/wave-1-start-audit.yaml
+  phase5_wave_1_plan: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/wave-1-plan.yaml
+  phase5_wave_1_barrier_summary: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+  phase5_wave_2_start_audit: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/wave-2-start-audit.yaml
+  phase5_wave_2_plan: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/wave-2-plan.yaml
+  phase5_wave_2_barrier_summary: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/wave-2-barrier-summary.yaml
+  phase6_gate_summary: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase6/Gatekeeper-wave-2-summary.md
+  phase7_closure_control_gate: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase7/closure-control-gate.yaml
+  phase7_paused_resume: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase7/paused-resume.yaml
+  execution_trace: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/execution-trace.yaml
+  model_usage_ledger: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/model-usage-ledger.yaml
+readiness_state:
+  ready: true
+  focus_axis_due_next: error_handling
+  memory_dir: /raid5/source/test/prism/docs/plan/.mutl3y-lessons
+  degraded_models: []
+  watch_models:
+    - "GPT-4.1 (copilot)"
+    - "GPT-5 mini (copilot)"
+pause_state:
+  paused: false
+  reason: ""
+  resume_artifact: ""

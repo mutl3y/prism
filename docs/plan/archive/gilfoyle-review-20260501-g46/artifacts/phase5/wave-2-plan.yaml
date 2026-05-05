@@ -1,0 +1,35 @@
+wave: 2
+cycle: g46
+status: in_progress
+workers:
+  - agent_name: Builder-Ownership
+    findings:
+      - G46-H04
+      - G46-H05
+    owned_files:
+      - src/prism/scanner_plugins/__init__.py
+      - src/prism/scanner_plugins/bootstrap.py
+      - src/prism/scanner_plugins/discovery.py
+      - src/prism/scanner_plugins/registry.py
+      - src/prism/scanner_kernel/plugin_name_resolver.py
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/tests/test_scanner_guardrails.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+      - src/prism/tests/test_t2_03_entry_point_discovery.py
+      - src/prism/tests/test_di_registry_resolution.py
+      - src/prism/tests/test_scanner_core_di.py
+    invariant: "Importing prism.scanner_plugins must stay side-effect free until explicit registry access, bootstrap must fail closed on entry-point discovery defects, and runtime fallback selection must use an explicit default authority instead of registry order."
+    suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_guardrails.py src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_t2_03_entry_point_discovery.py src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_scanner_core_di.py
+  - agent_name: Builder-ControlFlow
+    findings:
+      - G46-H06
+    owned_files:
+      - src/prism/scanner_core/di.py
+      - src/prism/scanner_core/feature_detector.py
+      - src/prism/scanner_core/variable_discovery.py
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_t3_03_scan_cache.py
+      - src/prism/tests/test_g03_scan_cache_integration.py
+    invariant: "Plugins must not receive live mutable caller control-plane state, and cache boundaries must not expose mutable shared result objects back to later callers."
+    suggested_narrow_gate: pytest -q src/prism/tests/test_t3_03_scan_cache.py src/prism/tests/test_g03_scan_cache_integration.py

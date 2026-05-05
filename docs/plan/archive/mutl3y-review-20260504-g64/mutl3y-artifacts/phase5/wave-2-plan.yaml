@@ -1,0 +1,52 @@
+plan_id: mutl3y-review-20260504-g64
+cycle: g64
+phase: P5
+wave: 2
+status: ready
+objective: "Close the independent-review High queue from g65 without widening into the medium backlog."
+decision_basis:
+  - docs/plan/mutl3y-review-20260504-g64/findings.yaml
+  - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+  - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase1/grading-summary.yaml
+workers:
+  - agent_name: Builder-ControlFlow
+    task_id: g64-wave2-builder-controlflow
+    finding_ids:
+      - G64-H02
+    category: cache-correctness
+    fix_group_key: non_collection.cache_wiring_identity
+    owned_files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/tests/test_g03_scan_cache_integration.py
+      - src/prism/tests/test_t3_03_scan_cache.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    summary_artifact: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-2-summary.md
+    suggested_narrow_gate: pytest -q src/prism/tests/test_g03_scan_cache_integration.py src/prism/tests/test_t3_03_scan_cache.py -k 'cache'
+    importer_layer_tests:
+      - pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'cache'
+    invariant: "Cache hits must remain semantically tied to the runtime wiring that can change the returned payload; a shared cache must not replay payloads across distinct orchestration or registry behavior."
+  - agent_name: Builder-Ownership
+    task_id: g64-wave2-builder-ownership
+    finding_ids:
+      - G64-H03
+    category: concurrency
+    fix_group_key: execution_request.default_listener_isolation
+    owned_files:
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/scanner_core/events.py
+      - src/prism/scanner_core/telemetry.py
+      - src/prism/progress.py
+      - src/prism/tests/test_execution_request_builder.py
+      - src/prism/tests/test_t3_05_scan_telemetry.py
+      - src/prism/tests/test_t4_03_cli_progress.py
+    summary_artifact: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/Builder-Ownership-wave-2-summary.md
+    suggested_narrow_gate: pytest -q src/prism/tests/test_execution_request_builder.py src/prism/tests/test_t3_05_scan_telemetry.py src/prism/tests/test_t4_03_cli_progress.py -k 'listener or telemetry or progress or inherit'
+    importer_layer_tests:
+      - pytest -q src/prism/tests/test_t3_01_scan_phase_events.py -k event_bus
+    invariant: "Request-local observability must stay isolated per scan; runtime assembly must not inherit process-global listeners in a way that leaks telemetry or progress across overlapping requests."
+barrier_rules:
+  - Launch both builders in one batch because their owned file sets are disjoint.
+  - Stop on scope expansion instead of widening into the medium backlog or unrelated listener APIs.
+  - Run the suggested narrow gate before reporting completion when feasible.
+  - Foreman owns ledger updates, anti-pattern grep, wave barrier validation, and execution-trace checkpointing.

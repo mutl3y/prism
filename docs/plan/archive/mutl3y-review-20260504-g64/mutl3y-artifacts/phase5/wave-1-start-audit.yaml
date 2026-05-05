@@ -1,0 +1,15 @@
+plan_id: mutl3y-review-20260504-g64
+cycle: g64
+phase: P5
+wave: 1
+status: OK
+finding: G64-H01
+worker: Builder-ControlFlow
+owned_file_set:
+  - src/prism/scanner_io/loader.py
+  - src/prism/tests/test_di_registry_resolution.py
+  - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-1-summary.md
+preconditions:
+  - Phase 1 grading promoted G64-H01 as the highest-risk actionable slice.
+  - Nearby tests already cover standalone YAML policy fallback and DI registry authority.
+next_action: Dispatch Builder-ControlFlow for the G64-H01 registry-authority wave.

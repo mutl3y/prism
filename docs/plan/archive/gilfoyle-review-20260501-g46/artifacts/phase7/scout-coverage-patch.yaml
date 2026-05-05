@@ -1,0 +1,32 @@
+- kind: missed_finding
+  missed_by:
+    - Scout-Ownership
+    - Scout-ControlFlow
+  found_by: Gilfoyle Code Review God Mode
+  severity: high
+  pattern: "Repo-scoped scan inputs resolved paths outside repo_root without containment validation"
+  why_missed: "Scouts reviewed repo orchestration and path handling separately, but did not probe repo-relative input joins for post-resolve containment."
+  new_probe: 'rg -n "repo_role_path|repo_style_readme_path|resolve\(|relative_to\(|path_safety" src/prism/repo_services.py src/prism/api.py src/prism/cli.py'
+  prompt_target: references/scout-scan-patterns.md
+  proposed_memory_update: "Teach Scout-Ownership and Scout-ControlFlow to verify containment after resolving repo-relative user inputs, not just existence checks."
+- kind: missed_finding
+  missed_by:
+    - Scout-ControlFlow
+  found_by: Gilfoyle Code Review God Mode
+  severity: high
+  pattern: "Subprocess argument vectors accepted attacker-controlled leading-dash values without a -- delimiter"
+  why_missed: "The scout checked shell injection posture but did not test tool-native option injection through argv framing."
+  new_probe: 'rg -n "subprocess|git clone|\[''git''|--depth|--branch" src/prism/repo_services.py src/prism/tests'
+  prompt_target: references/scout-scan-patterns.md
+  proposed_memory_update: "Teach Scout-ControlFlow to treat leading-dash argv inputs as command-execution risk even when subprocess avoids a shell."
+- kind: missed_finding
+  missed_by:
+    - Scout-ControlFlow
+    - Scout-Graph
+  found_by: Gilfoyle Code Review God Mode
+  severity: high
+  pattern: "Role-scoped include_vars resolution loaded files outside role_root because containment was not enforced after path resolution"
+  why_missed: "Scouts knew task include traversal had a root-boundary guard, but did not compare that rule against neighboring include_vars resolution paths."
+  new_probe: 'rg -n "include_vars|role_root|relative_to\(|resolve\(|_load_yaml_mapping_with_metadata" src/prism/scanner_plugins/ansible src/prism/scanner_core'
+  prompt_target: references/scout-scan-patterns.md
+  proposed_memory_update: "Teach Scout-ControlFlow and Scout-Graph to compare neighboring path-resolution seams for missing containment checks when one path already has a role-root guard."

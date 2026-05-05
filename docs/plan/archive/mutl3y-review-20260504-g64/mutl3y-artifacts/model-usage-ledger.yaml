@@ -1,0 +1,166 @@
+- timestamp: '2026-05-04T02:50:08.226417+00:00'
+  cycle: g64
+  phase: P0
+  worker: Scout-Typing
+  task_id: g64-phase0-scout-typing
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: quality_failure_recovered
+  failure_type: schema_drift
+  artifact_path: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: artifact_schema_repair
+  notes: Scout-Typing produced useful observations but required artifact schema normalization before the
+    Phase 0 barrier could clear.
+  lane_tag: discovery
+- timestamp: '2026-05-04T02:50:08.315622+00:00'
+  cycle: g64
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g64-phase0-scout-controlflow
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: quality_failure_recovered
+  failure_type: schema_drift
+  artifact_path: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: artifact_schema_repair
+  notes: Scout-ControlFlow produced useful observations but required artifact schema normalization before
+    grading.
+  lane_tag: discovery
+- timestamp: '2026-05-04T02:50:08.407828+00:00'
+  cycle: g64
+  phase: P0
+  worker: Scout-Graph
+  task_id: g64-phase0-scout-graph
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: quality_failure_recovered
+  failure_type: schema_drift
+  artifact_path: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: artifact_schema_repair
+  notes: Scout-Graph produced useful observations but required artifact schema normalization before grading.
+  lane_tag: discovery
+- timestamp: '2026-05-04T02:50:08.504084+00:00'
+  cycle: g64
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g64-phase0-scout-ownership-initial
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: route_failure
+  failure_type: missing_artifact
+  artifact_path: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 1
+  needed_reedit: true
+  recovery_action: reroute_same_tier
+  notes: Initial Scout-Ownership dispatch returned a summary but wrote no artifact.
+  lane_tag: discovery
+- timestamp: '2026-05-04T02:50:08.604296+00:00'
+  cycle: g64
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g64-phase0-scout-ownership-reroute
+  requested_tier: low-cost
+  requested_model: GPT-4.1 (copilot)
+  actual_model: GPT-4.1 (copilot)
+  result: route_failure
+  failure_type: missing_artifact
+  artifact_path: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 1
+  needed_reedit: true
+  recovery_action: artifact_recovery_worker
+  notes: Rerouted Scout-Ownership still reported no artifact; zero-finding result was recovered as []
+    by the repair worker.
+  lane_tag: discovery
+- timestamp: '2026-05-04T02:50:08.710080+00:00'
+  cycle: g64
+  phase: P0
+  worker: Builder-ArtifactRepair
+  task_id: g64-phase0-scout-artifact-recovery
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Builder recovered the missing Scout-Ownership artifact as [] and normalized all scout artifacts
+    to valid schema.
+  lane_tag: discovery
+- timestamp: '2026-05-04T02:59:56.858215+00:00'
+  cycle: g64
+  phase: P5
+  worker: Builder-ControlFlow
+  task_id: g64-wave1-builder-controlflow
+  requested_tier: low-cost
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-1-summary.md
+  quality_score: 5
+  needed_reedit: false
+  recovery_action: none
+  notes: Implemented the G64-H01 loader registry-authority slice with focused gate green.
+  lane_tag: builder
+- timestamp: '2026-05-04T11:50:31.315926+00:00'
+  cycle: g64
+  phase: P5
+  worker: Builder-ControlFlow
+  task_id: g64-wave2-builder-controlflow
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-2-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Wave 2 cache seam fix landed with focused pytest coverage plus importer-layer cache assertions.
+  lane_tag: builder
+- timestamp: '2026-05-04T11:50:31.434223+00:00'
+  cycle: g64
+  phase: P5
+  worker: Builder-Ownership
+  task_id: g64-wave2-builder-ownership
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/Builder-Ownership-wave-2-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Wave 2 listener isolation fix landed with focused execution-builder, telemetry, and progress
+    coverage.
+  lane_tag: builder
+- timestamp: '2026-05-04T11:58:07.237138+00:00'
+  cycle: g64
+  phase: P6
+  worker: Gatekeeper
+  task_id: g64-phase6-gatekeeper-wave2
+  requested_tier: low-cost
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase6/Gatekeeper-wave-2-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Retained wave 2 validation bundle completed; pytest exposed two local regressions while ruff,
+    black, and focused mypy stayed green.
+  lane_tag: gate

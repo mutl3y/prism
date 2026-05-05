@@ -1,0 +1,360 @@
+plan_id: gilfoyle-review-20260501-g46
+cycle: g46
+target: src/prism
+review_type: thorough
+focus_axis: unconstrained
+status: in_progress
+decision_summary:
+  - "Fix the three concrete boundary High findings first: repo path containment, git argv validation, and include_vars role-root containment."
+  - "Wave 1 is closed: repo path containment, git argv validation, and include_vars role-root containment now have regression coverage and a green focused gate."
+  - "Wave 2 targets the residual bootstrap/fail-open/plugin-selection and shared-mutable-state/cache-integrity clusters before returning to fresh external review."
+suppressed_highs: []
+findings:
+  - id: G46-H01
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: input-validation
+    fingerprint: input-validation:repo-services:repo-relative-containment
+    title: "Repo-scoped paths escape repo_root after resolve() without containment validation"
+    files:
+      - src/prism/repo_services.py
+      - src/prism/tests/test_api_cli_repo_parity.py
+      - src/prism/tests/test_t3_06_path_safety.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/God-Mode.yaml
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase7/scout-coverage-patch.yaml
+    summary: "resolve_repo_scan_target resolves repo_role_path and repo_style_readme_path against repo_root but never proves the resolved target stays under repo_root."
+    decision_deadline: g46
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_repo_parity.py src/prism/tests/test_t3_06_path_safety.py
+    closed_evidence:
+      line_citation: "src/prism/repo_services.py:67, src/prism/repo_services.py:117, src/prism/repo_services.py:167"
+      regression_test: "src/prism/tests/test_api_cli_repo_parity.py:645, src/prism/tests/test_api_cli_repo_parity.py:665, src/prism/tests/test_api_cli_repo_parity.py:696"
+      gate: "Focused wave-1 gate: pytest -q src/prism/tests/test_api_cli_repo_parity.py src/prism/tests/test_variable_discovery_pipeline.py src/prism/tests/test_gilfoyle_blockers_runtime.py src/prism/tests/test_t3_06_path_safety.py -> 75 passed"
+
+  - id: G46-H02
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: command-execution
+    fingerprint: command-execution:repo-services:git-leading-dash-argv
+    title: "clone_repo allows Git option injection via leading-dash repo_url"
+    files:
+      - src/prism/repo_services.py
+      - src/prism/tests/test_api_cli_repo_parity.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/God-Mode.yaml
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase7/scout-coverage-patch.yaml
+    summary: "clone_repo appends repo_url directly to argv without a -- delimiter or a leading-dash rejection rule."
+    decision_deadline: g46
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_repo_parity.py -k clone_repo
+    closed_evidence:
+      line_citation: "src/prism/repo_services.py:117"
+      regression_test: "src/prism/tests/test_api_cli_repo_parity.py:645"
+      gate: "Focused wave-1 gate: pytest -q src/prism/tests/test_api_cli_repo_parity.py src/prism/tests/test_variable_discovery_pipeline.py src/prism/tests/test_gilfoyle_blockers_runtime.py src/prism/tests/test_t3_06_path_safety.py -> 75 passed"
+
+  - id: G46-H03
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: path-traversal
+    fingerprint: path-traversal:ansible-default-policies:include-vars-role-root
+    title: "include_vars resolution accepts files outside role_root"
+    files:
+      - src/prism/scanner_plugins/ansible/default_policies.py
+      - src/prism/tests/test_variable_discovery_pipeline.py
+      - src/prism/tests/test_gilfoyle_blockers_runtime.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/God-Mode.yaml
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase7/scout-coverage-patch.yaml
+    summary: "Ansible include_vars targets are resolved but never constrained back under role_root before being loaded into variable discovery."
+    decision_deadline: g46
+    suggested_narrow_gate: pytest -q src/prism/tests/test_variable_discovery_pipeline.py src/prism/tests/test_gilfoyle_blockers_runtime.py
+    closed_evidence:
+      line_citation: "src/prism/scanner_plugins/ansible/default_policies.py:90, src/prism/scanner_plugins/ansible/default_policies.py:109"
+      regression_test: "src/prism/tests/test_variable_discovery_pipeline.py:155, src/prism/tests/test_gilfoyle_blockers_runtime.py:295"
+      gate: "Focused wave-1 gate: pytest -q src/prism/tests/test_api_cli_repo_parity.py src/prism/tests/test_variable_discovery_pipeline.py src/prism/tests/test_gilfoyle_blockers_runtime.py src/prism/tests/test_t3_06_path_safety.py -> 75 passed"
+
+  - id: G46-H04
+    status: closed
+    decision: fixed_in_wave_2
+    severity: high
+    category: composition_root
+    fingerprint: composition-root:scanner-plugins:lazy-bootstrap-fail-closed
+    title: "Default plugin registry still bootstraps third-party entry points through import-time or implicit access"
+    files:
+      - src/prism/scanner_plugins/__init__.py
+      - src/prism/scanner_plugins/bootstrap.py
+      - src/prism/scanner_plugins/discovery.py
+      - src/prism/tests/test_scanner_guardrails.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+      - src/prism/tests/test_t2_03_entry_point_discovery.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/God-Mode-post-wave1.yaml
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/Independent-post-wave1.md
+    summary: "The package-level default registry still resolves through bootstrap/discovery side effects, and bootstrap currently tolerates degraded third-party discovery instead of failing closed."
+    decision_deadline: g46
+    suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_guardrails.py src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_t2_03_entry_point_discovery.py
+    closed_evidence:
+      line_citation: "src/prism/scanner_plugins/__init__.py:180, src/prism/scanner_plugins/bootstrap.py:26, src/prism/scanner_plugins/bootstrap.py:186, src/prism/scanner_plugins/bootstrap.py:192"
+      regression_test: "src/prism/tests/test_scanner_guardrails.py:385, src/prism/tests/test_scanner_guardrails.py:418, src/prism/tests/test_t2_03_entry_point_discovery.py:140, src/prism/tests/test_plugin_kernel_extension_parity.py:107"
+      gate: "Wave-2 focused gate: python3 -m pytest -q src/prism/tests/test_scanner_guardrails.py src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_t2_03_entry_point_discovery.py src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_scanner_core_di.py src/prism/tests/test_t3_03_scan_cache.py src/prism/tests/test_g03_scan_cache_integration.py -> 146 passed, 2 expected fixture warnings"
+
+  - id: G46-H05
+    status: closed
+    decision: fixed_in_wave_2
+    severity: high
+    category: plugin_selection
+    fingerprint: plugin-selection:registry:explicit-default-platform
+    title: "Platform and scan-pipeline selection still fall back to implicit registry order"
+    files:
+      - src/prism/scanner_plugins/registry.py
+      - src/prism/scanner_kernel/plugin_name_resolver.py
+      - src/prism/scanner_core/di.py
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/tests/test_di_registry_resolution.py
+      - src/prism/tests/test_scanner_core_di.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/God-Mode-post-wave1.yaml
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/Independent-post-wave1.md
+    summary: "Registry and runtime selection depended on implicit registration order whenever more than one platform candidate existed and no explicit default was declared."
+    decision_deadline: g46
+    suggested_narrow_gate: pytest -q src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_scanner_core_di.py
+    closed_evidence:
+      line_citation: "src/prism/scanner_plugins/registry.py:425, src/prism/scanner_kernel/plugin_name_resolver.py:49, src/prism/scanner_kernel/plugin_name_resolver.py:65, src/prism/scanner_plugins/bootstrap.py:186"
+      regression_test: "src/prism/tests/test_di_registry_resolution.py:206, src/prism/tests/test_di_registry_resolution.py:245, src/prism/tests/test_scanner_core_di.py:101"
+      gate: "Wave-2 focused gate: python3 -m pytest -q src/prism/tests/test_scanner_guardrails.py src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_t2_03_entry_point_discovery.py src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_scanner_core_di.py src/prism/tests/test_t3_03_scan_cache.py src/prism/tests/test_g03_scan_cache_integration.py -> 146 passed, 2 expected fixture warnings"
+
+  - id: G46-H06
+    status: closed
+    decision: fixed_in_wave_2
+    severity: high
+    category: shared_mutable_state
+    fingerprint: shared-mutable-state:runtime:scan-options-and-cache-payloads
+    title: "Runtime plugins and cache callers still share live mutable control-plane and result objects"
+    files:
+      - src/prism/scanner_core/di.py
+      - src/prism/scanner_core/feature_detector.py
+      - src/prism/scanner_core/variable_discovery.py
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_t3_03_scan_cache.py
+      - src/prism/tests/test_g03_scan_cache_integration.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/God-Mode-post-wave1.yaml
+    summary: "DI hands runtime components a live scan_options dict, plugins receive it by reference, and cache set/get still stores and returns mutable result objects without copying."
+    decision_deadline: g46
+    suggested_narrow_gate: pytest -q src/prism/tests/test_t3_03_scan_cache.py src/prism/tests/test_g03_scan_cache_integration.py
+    closed_evidence:
+      line_citation: "src/prism/scanner_core/di.py:69, src/prism/scanner_core/di.py:197, src/prism/scanner_core/feature_detector.py:61, src/prism/scanner_core/variable_discovery.py:47, src/prism/scanner_core/scan_cache.py:89, src/prism/scanner_core/scan_cache.py:97"
+      regression_test: "src/prism/tests/test_t3_03_scan_cache.py:142, src/prism/tests/test_t3_03_scan_cache.py:152, src/prism/tests/test_t3_03_scan_cache.py:197, src/prism/tests/test_t3_03_scan_cache.py:215, src/prism/tests/test_t3_03_scan_cache.py:237, src/prism/tests/test_g03_scan_cache_integration.py:103"
+      gate: "Wave-2 focused gate: python3 -m pytest -q src/prism/tests/test_scanner_guardrails.py src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_t2_03_entry_point_discovery.py src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_scanner_core_di.py src/prism/tests/test_t3_03_scan_cache.py src/prism/tests/test_g03_scan_cache_integration.py -> 146 passed, 2 expected fixture warnings"
+
+  - id: G46-H07
+    status: closed
+    decision: fixed_in_g47_checkpoint
+    severity: high
+    category: trust_boundary
+    fingerprint: trust-boundary:api:unconfined-sibling-file-inputs
+    title: "Public API path safety still validates only the primary role or collection root while sibling file inputs stay unconstrained"
+    files:
+      - src/prism/api.py
+      - src/prism/scanner_config/readme.py
+      - src/prism/scanner_config/style_parser.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+      - src/prism/tests/test_collection_contract.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/God-Mode-post-wave1.yaml
+    summary: "role_path and collection_path are guarded, but related file-bearing inputs like readme/style/policy config paths still bypass the same confinement rule."
+    decision_deadline: g47
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py
+    closed_evidence:
+      artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase5/wave-1-barrier-summary.yaml
+      gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_dataload.py -> 116 passed, 12 warnings
+
+  - id: G46-H08
+    status: closed
+    decision: fixed_in_g47_checkpoint
+    severity: high
+    category: fail_open
+    fingerprint: fail-open:collection:runtime-errors-demoted
+    title: "Collection scans still demote broad runtime failures into per-role recoverable errors"
+    files:
+      - src/prism/api.py
+      - src/prism/api_layer/collection.py
+      - src/prism/tests/test_collection_contract.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/God-Mode-post-wave1.yaml
+    summary: "Collection orchestration currently treats PrismRuntimeError and RuntimeError as recoverable per-role fallout, masking control-plane defects as partial collection output."
+    decision_deadline: g47
+    suggested_narrow_gate: pytest -q src/prism/tests/test_collection_contract.py
+    closed_evidence:
+      artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase5/wave-1-barrier-summary.yaml
+      gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_dataload.py -> 116 passed, 12 warnings
+
+  - id: G46-H09
+    status: closed
+    decision: fixed_in_g47_direct_followup
+    severity: high
+    category: trust_boundary
+    fingerprint: trust-boundary:kernel-runtime:plugin-preflight-and-construction
+    title: "Kernel/plugin routing still accepts malformed preflight output and leaks raw constructor/runtime exceptions"
+    files:
+      - src/prism/scanner_kernel/orchestrator.py
+      - src/prism/scanner_core/di.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/God-Mode-post-wave2.yaml
+    summary: "Preflight still treats non-mapping output as silent success, constructor/runtime failures are not consistently normalized at kernel and DI boundaries, and the public role facade still trusts dict-shaped runtime payloads without validating their shape."
+    decision_deadline: g46
+    suggested_narrow_gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py
+    closed_evidence:
+      artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase7/closure-summary.yaml
+      gate: pytest -q src/prism/tests/test_scanner_core_di.py -k 'bad_constructor or constructor_exception' -> 4 passed, 53 deselected; pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'normalizes_payload_shape_from_non_collection_seam' -> 1 passed, 26 deselected
+
+  - id: G46-H10
+    status: closed
+    decision: fixed_in_g47_checkpoint
+    severity: high
+    category: fail_open
+    fingerprint: fail-open:prepared-policy:non-strict-fallback-substitution
+    title: "Non-strict prepared-policy resolution still substitutes fallback plugins after plugin faults"
+    files:
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/scanner_plugins/bundle_resolver.py
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+      - src/prism/tests/test_platform_routing_fail_closed.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/God-Mode-post-wave2.yaml
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/Principal-post-wave2.md
+    summary: "Public non-strict mode still lets malformed or unconstructable policy plugins degrade into fallback-plugin behavior, so content-tolerance also weakens plugin-integrity guarantees."
+    decision_deadline: g46
+    suggested_narrow_gate: pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_platform_routing_fail_closed.py
+    closed_evidence:
+      artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase5/wave-1-barrier-summary.yaml
+      gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_dataload.py -> 116 passed, 12 warnings
+
+  - id: G46-H11
+    status: closed
+    decision: fixed_in_g47_checkpoint
+    severity: high
+    category: error_channel
+    fingerprint: error-channel:yaml-loading:none-normalized-to-success
+    title: "Strict YAML-loading intent is still erased into None and then normalized into empty success-shaped data"
+    files:
+      - src/prism/scanner_plugins/parsers/yaml/parsing_policy.py
+      - src/prism/scanner_io/loader.py
+      - src/prism/scanner_extract/discovery.py
+      - src/prism/tests/test_dataload.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/God-Mode-post-wave2.yaml
+    summary: "The default YAML policy still collapses parse/load defects to None, and discovery paths still treat that sentinel as empty data in places where the surrounding code suggests strict failure behavior."
+    decision_deadline: g46
+    suggested_narrow_gate: pytest -q src/prism/tests/test_dataload.py
+    closed_evidence:
+      artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase5/wave-1-barrier-summary.yaml
+      gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_dataload.py -> 116 passed, 12 warnings
+
+  - id: G46-H12
+    status: closed
+    decision: fixed_in_g47_direct_followup
+    severity: high
+    category: cache_integrity
+    fingerprint: cache-integrity:style-guide:path-only-keying
+    title: "Scan cache keys still ignore external style-guide content even though rendered output depends on it"
+    files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/scanner_config/style_parser.py
+      - src/prism/tests/test_g03_scan_cache_integration.py
+      - src/prism/tests/test_t3_03_scan_cache.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/God-Mode-post-wave2.yaml
+    summary: "Cache keys hash the style_readme_path string but not the external file contents that actually influence rendered output, so style-guide edits can leave cached results stale."
+    decision_deadline: g46
+    suggested_narrow_gate: pytest -q src/prism/tests/test_t3_03_scan_cache.py src/prism/tests/test_g03_scan_cache_integration.py
+    closed_evidence:
+      artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase7/closure-summary.yaml
+      gate: pytest -q src/prism/tests/test_g03_scan_cache_integration.py src/prism/tests/test_t3_03_scan_cache.py -> 20 passed
+
+  - id: G46-H13
+    status: closed
+    decision: fixed_in_g47_checkpoint
+    severity: high
+    category: composition_root
+    fingerprint: composition-root:defaults:standalone-di-helper-path
+    title: "scanner_plugins.defaults still owns a second standalone composition path outside the canonical runtime"
+    files:
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/Principal-post-wave2.md
+    summary: "Exported helper flows in scanner_plugins.defaults still build a synthetic DI object and prepared-policy bundle path instead of reusing the canonical request-prepared runtime path."
+    decision_deadline: g47
+    suggested_narrow_gate: pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py
+    closed_evidence:
+      artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase5/wave-1-barrier-summary.yaml
+      gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_dataload.py -> 116 passed, 12 warnings
+
+  - id: G46-ARCH-BOOTSTRAP-01
+    status: closed
+    decision: superseded_by_G46-H04
+    severity: high
+    category: composition_root
+    fingerprint: composition-root:scanner-plugins:import-time-bootstrap
+    title: "scanner_plugins import still bootstraps the default registry and entry-point discovery at import time"
+    files:
+      - src/prism/scanner_plugins/__init__.py
+      - src/prism/scanner_plugins/bootstrap.py
+      - src/prism/scanner_plugins/discovery.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+      - src/prism/tests/test_scanner_guardrails.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/independant.md
+    summary: "Importing prism.scanner_plugins still executes default registry bootstrap and entry-point discovery as a hidden composition root."
+    decision_deadline: g47
+    suggested_narrow_gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_scanner_guardrails.py
+    closed_evidence:
+      line_citation: "Closed by G46-H04 wave-2 lazy bootstrap change in src/prism/scanner_plugins/__init__.py:180 and src/prism/scanner_plugins/bootstrap.py:26"
+      regression_test: "src/prism/tests/test_scanner_guardrails.py:385 and src/prism/tests/test_scanner_guardrails.py:418"
+      gate: "Wave-2 focused gate: python3 -m pytest -q src/prism/tests/test_scanner_guardrails.py src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_t2_03_entry_point_discovery.py src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_scanner_core_di.py src/prism/tests/test_t3_03_scan_cache.py src/prism/tests/test_g03_scan_cache_integration.py -> 146 passed, 2 expected fixture warnings"
+
+  - id: G46-ARCH-CONTRACT-01
+    status: deferred
+    decision: deferred_to_architecture_backlog
+    severity: high
+    category: orchestration_seam
+    fingerprint: orchestration-seam:public-kernel-plugin:dict-any-contracts
+    title: "Public runtime and kernel/plugin seams remain dict-heavy and Any-heavy"
+    files:
+      - src/prism/api.py
+      - src/prism/scanner_data/__init__.py
+      - src/prism/scanner_plugins/interfaces.py
+      - src/prism/scanner_core/protocols_runtime.py
+      - src/prism/scanner_kernel/kernel_plugin_runner.py
+      - src/prism/scanner_io/output_orchestrator.py
+      - src/prism/api_layer/collection.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/independant.md
+      - docs/plan/gilfoyle-review-20260501-g45/artifacts/phase1/g45-grading-summary.yaml
+    summary: "The runtime design is cleaner than before, but the highest-value boundaries still rely on dict-shaped payloads, Any-heavy protocols, and casts instead of stable contracts."
+    decision_deadline: g47
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_plugin_kernel_extension_parity.py
+    carry_forward_plan: docs/plan/architecture-extensibility-review-20260421/plan.yaml
+
+  - id: G46-M01
+    status: deferred
+    decision: deferred_to_architecture_backlog
+    severity: medium
+    category: correctness
+    fingerprint: correctness:scanner-extract-discovery:non-strict-empty-results
+    title: "Non-strict discovery still reduces malformed role inputs to empty metadata/requirements/vars"
+    files:
+      - src/prism/scanner_extract/discovery.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/artifacts/phase0/God-Mode.yaml
+    summary: "Non-strict discovery paths still return empty success-shaped containers for malformed metadata, requirements, and variable files."
+    decision_deadline: g47
+    suggested_narrow_gate: pytest -q src/prism/tests/test_dataload.py
+    carry_forward_plan: docs/plan/architecture-extensibility-review-20260421/plan.yaml

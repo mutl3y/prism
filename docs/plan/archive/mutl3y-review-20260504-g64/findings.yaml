@@ -1,0 +1,151 @@
+cycle: g64
+review_type: thorough
+status: backlog_only
+promoted:
+  - id: G64-M01
+    status: deferred
+    decision: deferred_to_architecture_backlog
+    severity: medium
+    category: silent_fallback
+    title: "Seed variable loading silently suppresses malformed or unreadable optional inputs"
+    files:
+      - src/prism/scanner_extract/variable_extractor.py
+      - src/prism/tests/test_variable_extractor.py
+    summary: >-
+      load_seed_variables currently treats unreadable, malformed, and runtime-failing
+      optional seed files as silent skips without a structured warning or error
+      channel.
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase1/grading-summary.yaml
+    fix_group_key: variable_extractor.seed_file_silent_skip
+    suggested_narrow_gate: pytest -q src/prism/tests/test_variable_extractor.py::test_load_seed_variables_handles_malformed
+    carry_forward_plan: docs/plan/architecture-extensibility-review-20260421/plan.yaml
+  - id: G64-M02
+    status: deferred
+    decision: deferred_to_architecture_backlog
+    severity: medium
+    category: policy_coercion
+    title: "Task-line policy proxies still reopen global prepared-policy fallback resolution"
+    files:
+      - src/prism/scanner_extract/task_line_parsing.py
+      - src/prism/tests/test_task_parser_precedence_matrix.py
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+    summary: >-
+      task_line_parsing still exposes proxy helpers that call
+      require_prepared_policy(None, ...) instead of flowing explicit DI or a
+      prepared bundle, preserving a global fallback path in the task-line seam.
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase1/grading-summary.yaml
+    fix_group_key: task_line_parsing.require_prepared_policy_none
+    suggested_narrow_gate: pytest -q src/prism/tests/test_task_parser_precedence_matrix.py::test_policy_backed_proxies_resolve
+    carry_forward_plan: docs/plan/architecture-extensibility-review-20260421/plan.yaml
+  - id: G64-M03
+    status: deferred
+    decision: deferred_to_architecture_backlog
+    severity: medium
+    category: error_channel
+    title: "Role metadata loading collapses RuntimeError into empty meta plus warning text"
+    files:
+      - src/prism/scanner_core/scan_facade_helpers.py
+      - src/prism/tests/test_scan_facade_helpers.py
+    summary: >-
+      collect_role_contents converts RuntimeError from load_meta into an empty
+      metadata mapping with only a warning string, weakening the structured
+      error channel at a facade seam.
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase1/grading-summary.yaml
+    fix_group_key: scan_facade_helpers.meta_load_swallow
+    suggested_narrow_gate: pytest -q src/prism/tests/test_scan_facade_helpers.py::TestCollectRoleContents::test_load_meta_exception_adds_meta_load_warnings
+    carry_forward_plan: docs/plan/architecture-extensibility-review-20260421/plan.yaml
+  - id: G64-M04
+    status: deferred
+    decision: deferred_to_architecture_backlog
+    severity: medium
+    category: typing
+    title: "Request and display contracts still leave key error-path payload fields as object"
+    files:
+      - src/prism/scanner_data/contracts_request.py
+    summary: >-
+      contracts_request keeps several request/display payload fields typed as
+      object, leaving malformed-input and error-handling shapes weakly specified.
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase1/grading-summary.yaml
+    fix_group_key: weak-typed-contracts
+    suggested_narrow_gate: .venv/bin/python -m mypy src/prism/scanner_data/contracts_request.py
+    carry_forward_plan: docs/plan/architecture-extensibility-review-20260421/plan.yaml
+  - id: G64-M05
+    status: deferred
+    decision: deferred_to_architecture_backlog
+    severity: medium
+    category: facade_leakage
+    title: "scanner_extract exports DI-bound regex and collection proxies as public package API"
+    files:
+      - src/prism/scanner_extract/__init__.py
+      - src/prism/scanner_extract/task_line_parsing.py
+      - src/prism/tests/test_scanner_extract_shim_parity.py
+    summary: >-
+      scanner_extract exposes policy-backed regex and collection proxies at the
+      package facade even though they require hidden prepared-policy context to
+      function outside canonical execution.
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+      - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase1/grading-summary.yaml
+    fix_group_key: scanner_extract.public_proxy_facade
+    suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_extract_shim_parity.py
+    carry_forward_plan: docs/plan/architecture-extensibility-review-20260421/plan.yaml
+closed:
+  - id: G64-H01
+    closed_in_wave: 1
+    disposition: fixed
+    summary: >-
+      loader._get_yaml_parsing_policy now resolves one effective registry
+      authority and threads it explicitly into
+      resolve_yaml_parsing_policy_plugin, removing the loader-side split
+      fallback decision while preserving standalone behavior.
+    files:
+      - src/prism/scanner_io/loader.py
+      - src/prism/tests/test_di_registry_resolution.py
+    closure_artifacts:
+      - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+  - id: G64-H02
+    closed_in_wave: 2
+    disposition: fixed
+    summary: >-
+      non_collection.run_scan now fingerprints semantics-bearing runtime wiring
+      inputs in the cache identity path, and scan_cache exposes a dedicated
+      runtime wiring identity helper so cached payloads cannot be replayed
+      across distinct orchestration or registry behavior.
+    files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/tests/test_g03_scan_cache_integration.py
+      - src/prism/tests/test_t3_03_scan_cache.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    closure_artifacts:
+      - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-2-summary.md
+      - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/wave-2-barrier-summary.yaml
+  - id: G64-H03
+    closed_in_wave: 2
+    disposition: fixed
+    summary: >-
+      execution_request_builder runtime assembly no longer opts runtime DI
+      containers into inheriting process-global default listeners, preventing
+      telemetry and progress observers from leaking across overlapping requests.
+    files:
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/tests/test_execution_request_builder.py
+      - src/prism/tests/test_t3_05_scan_telemetry.py
+      - src/prism/tests/test_t4_03_cli_progress.py
+      - src/prism/tests/test_t3_01_scan_phase_events.py
+    closure_artifacts:
+      - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/Builder-Ownership-wave-2-summary.md
+      - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/wave-2-barrier-summary.yaml
+suppressed_or_deferred:
+  suppressed:
+    - reason: "intentional tested degraded-mode boundary"
+      note: "Suppress Scout-ControlFlow-02 and ST-001 as standalone findings; ScannerContext best-effort classification is directly tested and records scan_degraded plus scan_errors while re-raising non-recoverable failures."
+    - reason: "duplicate supporting evidence under promoted registry-authority split"
+      note: "Suppress Scout-Graph-01 and ST-002 as separate findings; they support G64-H01 but do not outrank it as independent defects in this cycle."
+    - reason: "documented product-constraint debt"
+      note: "Suppress Scout-Graph-02 and Scout-Graph-05 as explicit ansible-first bootstrap/default fallback constraints already documented in code comments and not newly broken in this cycle."
+  deferred: []

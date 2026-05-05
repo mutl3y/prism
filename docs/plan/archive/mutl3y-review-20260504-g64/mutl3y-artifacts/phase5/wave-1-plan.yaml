@@ -1,0 +1,23 @@
+plan_id: mutl3y-review-20260504-g64
+cycle: g64
+phase: P5
+wave: 1
+finding: G64-H01
+objective: >-
+  Collapse YAML policy resolution to one explicit registry authority in the
+  loader path while preserving the standalone contract exercised in
+  test_di_registry_resolution.
+hypothesis: >-
+  If loader._get_yaml_parsing_policy resolves the effective registry once and
+  passes it explicitly into defaults.resolve_yaml_parsing_policy_plugin, the
+  loader path stops depending on defaults._resolve_registry's secondary
+  bootstrap fallback decision without breaking standalone behavior.
+owned_file_set:
+  - src/prism/scanner_io/loader.py
+  - src/prism/tests/test_di_registry_resolution.py
+  - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-1-summary.md
+validation:
+  - .venv/bin/python -m pytest -q src/prism/tests/test_di_registry_resolution.py -k 'yaml_policy_resolution'
+  - .venv/bin/python -m ruff check src/prism/scanner_io/loader.py src/prism/tests/test_di_registry_resolution.py
+  - .venv/bin/python -m black --check src/prism/scanner_io/loader.py src/prism/tests/test_di_registry_resolution.py
+next_phase: P5

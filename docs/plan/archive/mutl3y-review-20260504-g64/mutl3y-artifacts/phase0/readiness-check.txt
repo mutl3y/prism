@@ -1,0 +1,12 @@
+{
+  "degraded_models": [],
+  "focus_axis_due_next": "error_handling",
+  "memory_dir": "/raid5/source/test/prism/docs/plan/.mutl3y-lessons",
+  "missing": [],
+  "ready": true,
+  "warnings": [],
+  "watch_models": [
+    "GPT-4.1 (copilot)",
+    "GPT-5 mini (copilot)"
+  ]
+}
