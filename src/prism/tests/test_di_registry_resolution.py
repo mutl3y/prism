@@ -503,19 +503,32 @@ def test_live_yaml_policy_resolution_preserves_loader_standalone_contract():
     with _prefer_fsrc_prism_on_sys_path():
         loader_module = importlib.import_module("prism.scanner_io.loader")
 
-        class _DIWithoutRegistry:
-            pass
-
-        policy = loader_module._get_yaml_parsing_policy(_DIWithoutRegistry())
+        policy = loader_module._get_yaml_parsing_policy(None)
         assert policy is not None
         assert callable(getattr(policy, "load_yaml_file", None))
 
 
-def test_loader_yaml_policy_resolution_threads_explicit_di_registry_authority(
+def test_live_yaml_policy_resolution_fails_closed_with_di_without_prepared_policy():
+    """Loader YAML policy resolution must fail closed once a DI context is present."""
+    with _prefer_fsrc_prism_on_sys_path():
+        errors_module = importlib.import_module("prism.errors")
+        loader_module = importlib.import_module("prism.scanner_io.loader")
+
+        class _DIWithoutPreparedPolicy:
+            scan_options = {"role_path": "/tmp/role"}
+
+        with pytest.raises(
+            errors_module.PrismRuntimeError,
+            match="prepared_policy_bundle\.yaml_parsing",
+        ):
+            loader_module._get_yaml_parsing_policy(_DIWithoutPreparedPolicy())
+
+
+def test_loader_policy_helper_threads_explicit_di_registry_authority(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """_get_yaml_parsing_policy must pass the loader-resolved DI registry explicitly."""
+    """_resolve_policy_with_registry must pass the loader-resolved DI registry explicitly."""
     with _prefer_fsrc_prism_on_sys_path():
         loader_module = importlib.import_module("prism.scanner_io.loader")
         defaults_module = importlib.import_module("prism.scanner_plugins.defaults")
@@ -551,7 +564,10 @@ def test_loader_yaml_policy_resolution_threads_explicit_di_registry_authority(
             _resolve_yaml_parsing_policy_plugin,
         )
 
-        policy = loader_module._get_yaml_parsing_policy(container)
+        policy = loader_module._resolve_policy_with_registry(
+            defaults_module.resolve_yaml_parsing_policy_plugin,
+            container,
+        )
 
         yaml_path = tmp_path / "sample.yml"
         yaml_path.write_text("key: value\n", encoding="utf-8")

@@ -5,16 +5,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, NamedTuple
 
+from prism.scanner_plugins.interfaces import ReadmeRendererPlugin
 from prism.scanner_readme.guide import render_guide_section_body
-from prism.scanner_readme.style import format_heading
-from prism.scanner_readme.rendering_seams import build_render_jinja_environment
 from prism.scanner_plugins.defaults import resolve_readme_renderer_plugin
+from prism.scanner_readme.rendering_seams import build_render_jinja_environment
+from prism.scanner_readme.style import format_heading
 
 
 DEFAULT_MERGE_GENERATED_CONTENT_LABEL = "Generated content"
 
 
-def _get_readme_renderer_plugin(metadata: dict[str, Any]) -> Any:
+def _get_readme_renderer_plugin(metadata: dict[str, Any]) -> ReadmeRendererPlugin:
     platform_key = str(metadata.get("platform_key") or "ansible")
     return resolve_readme_renderer_plugin(platform_key)
 
@@ -24,7 +25,7 @@ def _generated_merge_markers(
     prefixes: tuple[str, ...] | None = None,
 ) -> list[tuple[str, str]]:
     """Return supported hidden marker pairs for generated merge payloads."""
-    active_prefixes = prefixes or ("prism", "ansible-role-doc")
+    active_prefixes = prefixes or ("prism",)
     return [
         (
             f"<!-- {prefix}:generated:start:{section_id} -->",
@@ -34,11 +35,18 @@ def _generated_merge_markers(
     ]
 
 
-def _strip_prior_generated_merge_block(section: dict[str, Any], guide_body: str) -> str:
+def _strip_prior_generated_merge_block(
+    section: dict[str, Any],
+    guide_body: str,
+    metadata: dict[str, Any] | None = None,
+) -> str:
     """Remove previously generated merge payload for a section, if present."""
     section_id = str(section.get("id") or "")
     cleaned = guide_body
-    for start_marker, end_marker in _generated_merge_markers(section_id):
+    prefixes = None
+    if metadata:
+        prefixes = _get_readme_renderer_plugin(metadata).legacy_merge_marker_prefixes()
+    for start_marker, end_marker in _generated_merge_markers(section_id, prefixes):
         start_idx = cleaned.find(start_marker)
         end_idx = cleaned.find(end_marker)
         if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
@@ -60,7 +68,9 @@ def _strip_prior_generated_merge_block(section: dict[str, Any], guide_body: str)
 
 
 def _resolve_section_content_mode(
-    section: dict[str, Any], modes: dict[str, str]
+    section: dict[str, Any],
+    modes: dict[str, str],
+    plugin: ReadmeRendererPlugin | None = None,
 ) -> str:
     """Resolve content handling mode for a style section."""
     section_id = str(section.get("id") or "")
@@ -68,17 +78,25 @@ def _resolve_section_content_mode(
     configured = str(modes.get(section_id) or "").strip().lower()
     if configured in {"generate", "replace", "merge"}:
         return configured
-    if section_id == "requirements":
-        return "merge"
-    if guide_body and section_id in {
-        "purpose",
-        "task_summary",
-        "local_testing",
-        "handlers",
-        "template_overrides",
-        "faq_pitfalls",
-        "contributing",
-    }:
+    merge_eligible_ids = (
+        plugin.merge_eligible_section_ids()
+        if plugin is not None
+        else frozenset(
+            {
+                "requirements",
+                "purpose",
+                "task_summary",
+                "local_testing",
+                "handlers",
+                "template_overrides",
+                "faq_pitfalls",
+                "contributing",
+            }
+        )
+    )
+    if section_id == "requirements" or (
+        guide_body and section_id in merge_eligible_ids
+    ):
         return "merge"
     return "generate"
 
@@ -218,6 +236,7 @@ def _render_readme_with_style_guide(
         section_content_modes,
         style_guide_skeleton,
     ) = _resolve_ordered_style_sections(style_guide, metadata)
+    plugin = _get_readme_renderer_plugin(metadata)
 
     rendered_title = role_name
     if style_guide.get("title_text"):
@@ -255,7 +274,11 @@ def _render_readme_with_style_guide(
             default_filters,
             metadata,
         ).strip()
-        mode = _resolve_section_content_mode(section, section_content_modes)
+        mode = _resolve_section_content_mode(
+            section,
+            section_content_modes,
+            plugin,
+        )
         body = _compose_section_body(section, body, mode, metadata)
         if not body:
             continue

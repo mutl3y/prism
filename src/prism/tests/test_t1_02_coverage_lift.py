@@ -169,6 +169,21 @@ def test_refresh_policy_derived_state_no_change_when_missing() -> None:
     refresh_policy_derived_state({})
 
 
+def test_refresh_policy_derived_state_replaces_public_alias_snapshot() -> None:
+    from prism.scanner_readme.style_config import (
+        STYLE_SECTION_ALIASES,
+        refresh_policy_derived_state,
+    )
+
+    refresh_policy_derived_state({"section_aliases": {"first": "value"}})
+    before_refresh = dict(STYLE_SECTION_ALIASES)
+
+    refresh_policy_derived_state({"section_aliases": {"second": "value"}})
+
+    assert before_refresh == {"first": "value"}
+    assert dict(STYLE_SECTION_ALIASES) == {"second": "value"}
+
+
 # ---- api_layer/payload_helpers.py ----------------------------------------
 
 
@@ -269,3 +284,18 @@ def test_get_marker_line_re_matches_marker_lines() -> None:
     custom = get_marker_line_re("doc-x")
     m2 = custom.match("#doc-x ~ note: hi")
     assert m2 is not None and m2.group("label") == "note"
+
+
+def test_get_marker_line_re_cache_is_bounded() -> None:
+    from prism.scanner_plugins.parsers.comment_doc.marker_utils import (
+        get_marker_line_re,
+    )
+
+    get_marker_line_re.cache_clear()
+
+    for index in range(160):
+        get_marker_line_re(f"doc-{index}")
+
+    cache_info = get_marker_line_re.cache_info()
+    assert cache_info.maxsize == 128
+    assert cache_info.currsize <= cache_info.maxsize

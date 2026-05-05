@@ -3,13 +3,13 @@ layout: default
 title: Getting Started
 ---
 
-Start with one role scan, then branch to either average-user or DevOps workflows.
+Start with one role scan, then branch into documentation, repository, or DevOps workflows.
 
 ## Prerequisites
 
 - Python 3.14+
 - local checkout of Prism
-- role or collection source to scan
+- role, collection, or repository source to scan
 
 ## Expectation Setting
 
@@ -44,6 +44,15 @@ prism collection path/to/collection -f md -o COLLECTION_DOCS.md
 ```
 
 You should see: role totals and plugin catalog sections in collection output.
+
+## Step 3B: Run Through A Repository Path
+
+```bash
+prism repo path/to/repository --relative-role-path roles/example -o README.md
+```
+
+You should see: the same role-oriented output, but resolved through repository
+intake and path validation.
 
 ## Step 4: Add Runbook Context To Tasks
 
@@ -85,19 +94,19 @@ For more marker patterns, including `prism~note` and `prism~task` in both
 explicit-target and next-task forms, see
 [comment-driven-documentation.md](./comment-driven-documentation.md).
 
-## Dual-Lane Next Step
+## Choose Your Next Guide
 
-Average user lane:
+For routine documentation work:
 
 - continue with [User Guide](./user-guide.md) common tasks
 - use [Comment-Driven Documentation](./comment-driven-documentation.md) when adding operational context
 - read [Provenance Tracking](./provenance-tracking.md) to understand scanner confidence
 - use defaults + marker best practices from role authoring guide
 
-DevOps lane:
+For CI, policy, and team-wide rollout:
 
 - continue with [DevOps Guide](./devops-guide.md) for CI policy enforcement
-- add feedback workflows from [Feedback Integration](./feedback-integration.md)
+- use [Policy Inputs and Audit Rules](./feedback-integration.md) for the replacement policy model
 
 ## Troubleshooting Checkpoint
 
@@ -105,4 +114,4 @@ DevOps lane:
 - collection docs include plugin catalog sections
 - marker comments appear in runbook/task details
 
-Next: [User Guide](./user-guide.md) or [DevOps Guide](./devops-guide.md).
+Next: [User Guide](./user-guide.md), [DevOps Guide](./devops-guide.md), or [Developer Docs](./dev_docs/README.md).

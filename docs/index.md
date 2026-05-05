@@ -5,11 +5,12 @@ title: Prism Documentation Home
 
 ## Overview
 
-Build practical, trustworthy Ansible documentation from source code.
+Build practical, trustworthy automation documentation and review artifacts from source code.
 
-Prism helps teams keep existing conventions while still producing consistent
-documentation and runbook artifacts. This reduces migration friction and enables
-incremental quality improvement instead of all-at-once rewrites.
+Prism scans roles, collections, and repositories to produce reviewable README,
+runbook, report, and machine-readable artifacts. It is designed to make
+automation interfaces and operational expectations visible without guessing
+through runtime-only behavior.
 
 Prism uses static analysis, so unresolved runtime behavior is surfaced as
 explicit uncertainty instead of hidden assumptions.
@@ -20,7 +21,7 @@ Prism is most useful when readers can trust what it says. Provenance tracking
 shows where facts came from and how confident the scanner is, which makes the
 output auditable for authors, consumers, and platform teams.
 
-## Why Teams Standardize On Prism
+## Why Teams Use Prism
 
 - **Automation API contract**: generated docs make role inputs and behavior reviewable
 - **Knowledge capital**: each scan adds queryable documentation intelligence
@@ -35,7 +36,7 @@ pip install -e .
 prism role path/to/role -o README.md
 ```
 
-## Learning Order
+## Start Here
 
 1. [Demos](./demos.md)
 2. [Getting Started](./getting-started.md)
@@ -44,12 +45,12 @@ prism role path/to/role -o README.md
 5. [Comment-Driven Documentation](./comment-driven-documentation.md)
 6. [Prism-Friendly Role Authoring](./prism-friendly-role-authoring.md)
 7. [DevOps Guide](./devops-guide.md)
-8. [Feedback Integration](./feedback-integration.md)
-9. [Changelog](./changelog.md)
+8. [Policy Inputs and Audit Rules](./feedback-integration.md)
+9. [Developer Docs](./dev_docs/README.md)
 
 ## Track By Role
 
-For average users:
+For day-to-day users:
 
 - run Demos first for runnable reference workflows
 - start at Getting Started and complete the first role scan
@@ -57,13 +58,13 @@ For average users:
 - use Provenance Tracking to understand what Prism knows versus infers
 - add marker-based context with Comment-Driven Documentation patterns
 - use Prism-Friendly Role Authoring when output quality is low
-- keep current section naming conventions while improving structure over time
+- keep existing section naming conventions while improving structure over time
 
 For DevOps professionals:
 
 - implement policy-enforced CI in DevOps Guide
 - add JSON and runbook CSV artifacts for automation
-- add feedback-driven recommendations from prism-learn
+- use explicit policy files and JSON-driven governance workflows from Policy Inputs and Audit Rules
 - use generated runbook steps to reduce incident response cognitive load
 
 ## Leadership and Governance View
@@ -86,4 +87,5 @@ short product explanation before the engineering details.
 
 Engineering and project maintenance documentation lives under `dev_docs/`.
 
-For runnable examples, start with [demos.md](./demos.md).
+Start with [dev_docs/README.md](./dev_docs/README.md) for architecture,
+capability ownership, contributor guidance, and maintenance references.

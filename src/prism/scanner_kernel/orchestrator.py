@@ -11,6 +11,7 @@ from prism.scanner_data.contracts_request import ScanMetadata, ScanOptionsDict
 from prism.scanner_kernel.plugin_name_resolver import (
     RoutePreflightRuntimeCarrier,
     ScanPipelineRegistry,
+    ScanPipelinePluginFactory,
     ScanPipelineRouting,
     _resolve_policy_context_scan_pipeline_plugin_name,
     resolve_scan_pipeline_plugin_class,
@@ -53,15 +54,9 @@ class _OrchestrateScanPayloadPlugin(Protocol):
     ) -> dict[str, object]: ...
 
 
-class _ScanPipelinePluginFactory(Protocol):
-    """Factory contract for scan-pipeline plugin classes."""
-
-    def __call__(self) -> object: ...
-
-
 def _is_scan_pipeline_plugin_factory(
     value: object,
-) -> TypeGuard[_ScanPipelinePluginFactory]:
+) -> TypeGuard[ScanPipelinePluginFactory]:
     return callable(value)
 
 
@@ -174,7 +169,7 @@ def _build_route_preflight_runtime_carrier(
         preflight_context=preflight_context_data,
         routing=_copy_scan_pipeline_routing(routing),
         plugin_factory=(
-            cast(_ScanPipelinePluginFactory, plugin_factory)
+            cast(ScanPipelinePluginFactory, plugin_factory)
             if _is_scan_pipeline_plugin_factory(plugin_factory)
             else None
         ),

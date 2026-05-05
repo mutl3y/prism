@@ -33,4 +33,5 @@ test_output.txt
 out.txt
 pytest_output.txt
 README.json
+.tmp_exported_skill/
 .tmp_exported_skills/

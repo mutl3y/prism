@@ -12,6 +12,7 @@ import re
 from prism.scanner_config.section import DEFAULT_DOC_MARKER_PREFIX
 
 COMMENT_CONTINUATION_RE = re.compile(r"^\s*#\s?(.*)$")
+_MARKER_LINE_RE_CACHE_SIZE = 128
 
 
 def normalize_marker_prefix(marker_prefix: str | None) -> str:
@@ -33,7 +34,7 @@ class NormalizesMarkerPrefix:
         return normalize_marker_prefix(marker_prefix)
 
 
-@functools.cache
+@functools.lru_cache(maxsize=_MARKER_LINE_RE_CACHE_SIZE)
 def get_marker_line_re(marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX):
     escaped_prefix = re.escape(normalize_marker_prefix(marker_prefix))
     return re.compile(

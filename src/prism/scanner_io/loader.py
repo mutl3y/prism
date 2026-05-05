@@ -24,6 +24,13 @@ logger = logging.getLogger(__name__)
 _InputT = TypeVar("_InputT")
 _ResultT = TypeVar("_ResultT")
 
+# Keep the parallel path parked behind a conservative threshold for now.
+# The current benchmarked workloads regressed at 24- and 100-file batches on
+# this machine, so current scans stay sequential by default. Retain this as a
+# future-expansion seam for materially larger workloads, and only lower the
+# gate when a workload-shaped benchmark proves a better cutoff.
+_PARALLEL_YAML_BATCH_THRESHOLD = 128
+
 
 def build_yaml_load_error(path: Path, exc: Exception) -> PrismRuntimeError:
     return PrismRuntimeError(
@@ -98,10 +105,23 @@ def _get_yaml_parsing_policy(di: object | None = None) -> PreparedYAMLParsingPol
         )
         return cast("PreparedYAMLParsingPolicy", policy)
 
+    if di is not None:
+        raise PrismRuntimeError(
+            code="scan_yaml_policy_missing",
+            category=category_for_code("scan_yaml_policy_missing"),
+            message=(
+                "prepared_policy_bundle.yaml_parsing must be provided before "
+                "scanner_io.loader canonical execution"
+            ),
+            detail={
+                "required_policy": "yaml_parsing",
+                "owner": "scanner_io.loader",
+            },
+        )
+
     # NOTE: Intentional dual-path — soft fallback to registry-resolved default.
-    # Loader runs in discovery paths that execute before a prepared_policy_bundle
-    # is threaded through (e.g. standalone file-load helpers, pre-scan discovery).
-    # Unlike other policy getters, this path does NOT raise on a missing bundle.
+    # This standalone helper path remains available only when no DI context is
+    # provided at all.
     from prism.scanner_plugins.defaults import (
         resolve_yaml_parsing_policy_plugin as _resolve_yaml_plugin,
     )
@@ -126,7 +146,13 @@ def format_candidate_failure_path(candidate: Path, role_root: Path) -> str:
 
 
 def _recommended_parallel_workers(item_count: int) -> int:
-    if item_count <= 1:
+    """Keep present-day YAML batches sequential until larger workloads justify a pool.
+
+    The ordered-parallel loader path is intentionally retained for future
+    repo-scale expansion, but current benchmarked batches regress on this
+    machine unless the fan-out is materially larger.
+    """
+    if item_count < _PARALLEL_YAML_BATCH_THRESHOLD:
         return 1
     cpu_count = os.cpu_count() or 1
     return min(item_count, cpu_count + 4, 32)
@@ -136,6 +162,12 @@ def _ordered_parallel_map(
     items: list[_InputT],
     worker: Callable[[_InputT], _ResultT],
 ) -> list[_ResultT]:
+    """Preserve input order while keeping the parallel path available for later.
+
+    This helper is intentionally not dead code: current scans fall back to the
+    sequential branch below the threshold, while larger future YAML batches can
+    reuse the same ordering-preserving seam without reintroducing the helper.
+    """
     max_workers = _recommended_parallel_workers(len(items))
     if max_workers <= 1:
         return [worker(item) for item in items]

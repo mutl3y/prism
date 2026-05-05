@@ -4,98 +4,73 @@ status: active
 
 user_stories:
   - as_a: ansible role author
-    i_want: prism to scan my role and generate a complete, accurate README
+    i_want: prism to scan my role and generate an accurate README and runbook context
     so_that: my role is self-documenting with minimal manual effort
   - as_a: collection maintainer
     i_want: prism to scan all roles in a collection and produce collection-level documentation
     so_that: downstream users can browse the whole collection from one artifact
   - as_a: platform engineer
-    i_want: prism to support multiple Ansible platforms (Ansible, Kubernetes, Terraform)
-    so_that: I can apply the same documentation workflow across my infrastructure stack
+    i_want: Prism outputs and audit seams to be structured enough for policy checks and automation workflows
+    so_that: documentation quality can be enforced in CI
   - as_a: prism maintainer
-    i_want: a single, canonical src/prism/ codebase with a registry-driven plugin architecture
-    so_that: platform support can be added or removed without touching scanner core
+    i_want: package-owned scanner layers with stable public entry surfaces and explicit repo-intake ownership
+    so_that: the package can evolve without constantly rewriting its public API
 
 scope:
   in_scope:
-    - single unified src/prism/ codebase (fsrc migration complete as of 2026-04-22)
-    - plugin-registry-driven DI -- platform plugins resolve via PluginRegistry, not hardcoded imports
-    - pure scanner_core -- no Ansible-specific logic in scanner_core or scanner_extract
-    - scanner_plugins.ansible as the canonical Ansible implementation
-    - scanner_plugins.defaults as the canonical plugin wiring surface
-    - collection scanning and collection-level report rendering
-    - CLI and API surfaces (cli.py, api.py) unchanged for consumers
-    - policy-as-code audit plugin layer (stub artefacts landed, wave 1 deferred)
-    - CI gate: pytest -q + ruff check src/ + black --check src/ + tox -e typecheck
+    - single canonical src/prism/ codebase
+    - stable public entry surfaces in api.py, cli.py, and repo_services.py
+    - repository-intake ownership consolidated in repo_services.py
+    - plugin-driven scanner execution with package-owned core, kernel, extract, config, IO, README, and reporting layers
+    - explicit runtime ownership split across scanner_core, scanner_kernel, and scanner_plugins
+    - role, collection, and repo scans
+    - markdown, report, and machine-readable output generation
+    - comment-driven documentation and runbook generation
+    - public policy and audit hooks for local workflows and CI
   out_of_scope:
-    - Kubernetes and Terraform scanner plugin implementations (architecture ready; plugins not yet implemented)
-    - feedback.py / --feedback-from-learn integration (MG-03/MG-09 -- redesigned as Policy as Code audit plugin)
-    - prism-learn integration tests (separate repo)
+    - Kubernetes and Terraform scanner implementations
+    - prism-learn integration tests and separate-repo operational flows
 
 acceptance_criteria:
-  - criterion: Single unified src/prism/ codebase
-    verification: No fsrc/ or _src_retired/ directories exist; all tests run from src/prism/tests/
-  - criterion: Plugin architecture enforced in scanner_core
-    verification: Zero Ansible-specific imports in scanner_core; DI resolves via PluginRegistry
-  - criterion: All tests pass
-    verification: pytest -q from src/prism/tests/ reports 0 failures (506 passed, 6 skipped as of 2026-04-22)
-  - criterion: Lint and typecheck clean
-    verification: ruff check src/ and black --check src/ and tox -e typecheck all pass
-  - criterion: CLI and API surfaces unchanged
-    verification: api.py and cli.py public signatures preserved; existing consumers unaffected
+  - criterion: Public entry surfaces remain stable
+    verification: api.py, cli.py, and repo_services.py retain the supported entrypoints used by current tests and callers
+  - criterion: Scanner behavior is package-owned
+    verification: runtime behavior is implemented through scanner packages rather than a monolithic top-level runtime module
+  - criterion: Repo intake and policy seams stay explicit
+    verification: repo_services.py remains the shared repo-intake owner, while public audit-rule entry handling stays at the API/CLI boundary rather than moving into scanner_core
+  - criterion: Quality gates remain green
+    verification: pytest, ruff, black --check, and tox -e typecheck pass for the live package
+  - criterion: Core docs match the live tree
+    verification: current-facing docs describe api.py, cli.py, repo_services.py, cli_app, api_layer, and scanner_* ownership accurately
 
 features:
-  - name: Single unified src/ codebase
-    overview: >
-      Completed fsrc->src migration (2026-04-22). The fsrc/src/prism/ experimental lane has been
-      promoted as the single source of truth. The legacy src/ lane (_src_retired) is deleted.
-      All tests, CI, tox, and demo scripts now target src/ only.
+  - name: Role scanning
+    overview: Generate role documentation, scanner reports, and optional runbook artifacts from static analysis.
     status: complete
 
-  - name: Plugin-registry-driven DI
-    overview: >
-      DIContainer resolves platform plugins through PluginRegistry instead of hardcoded imports.
-      Zero Ansible imports remain in scanner_core or scanner_extract.
+  - name: Collection scanning
+    overview: Scan collections, aggregate role results, and render collection-level documentation and dependency views.
     status: complete
 
-  - name: Pure scanner_core
-    overview: >
-      scanner_core owns only generic classifier and routing primitives. Ansible-specific logic
-      lives exclusively in scanner_plugins.ansible. Supported Ansible target seeds, repo
-      role-shape heuristics, and kernel runtime resolution are composed from scanner_plugins.defaults.
+  - name: Repo scanning
+    overview: Clone or inspect repository sources, resolve repo-relative targets safely, and run downstream role scans through shared repo intake helpers.
     status: complete
 
-  - name: scanner_plugins.ansible
-    overview: >
-      Canonical Ansible implementation: AnsibleVariableDiscoveryPlugin, AnsibleFeatureDetectionPlugin,
-      AnsibleScannerPlugin. Replaces scattered Ansible logic previously in scanner_core and scanner_extract.
+  - name: Comment-driven documentation
+    overview: Render task notes, warnings, and runbook context from Prism comment markers.
     status: complete
 
-  - name: Policy as Code audit plugin layer
-    overview: >
-      Wave 1 complete: rule loader (YAML/JSON), BuiltinAuditPlugin orchestrator
-      dispatching by rule.id, CLI hook in role + collection handlers attaching
-      AuditReport to scan payload, --fail-on-audit-violations exits with
-      EXIT_CODE_AUDIT_VIOLATIONS (2) on any error-severity violation. Three
-      builtin rule classes (no-shell-without-runbook, runbook-coverage-min,
-      dependency-compliance) remain stubs requiring scanner_config payload
-      additions; unimplemented evaluators surface as warning-severity
-      violations rather than silent skips. --feedback-from-learn flag retired.
+  - name: Policy and audit hooks
+    overview: Support policy-config input and public audit rule evaluation so teams can enforce documentation quality in automation.
     status: complete
 
-  - name: Collection scanning and rendering
-    overview: >
-      scan_collection() API and collection-level markdown/JSON report rendering. Collection
-      compatibility shims remain in prism.api and prism.cli; canonical ownership in
-      api_layer/collection.py and cli_app/commands.py.
+  - name: Plugin-driven execution architecture
+    overview: Keep scanner orchestration generic while platform-specific behavior lives in plugin-owned modules.
     status: complete
 
-  - name: Multi-platform plugin protocols
-    overview: >
-      Platform expansion readiness gate passed (2026-04-19). Protocol and registry seams are
-      in place for Kubernetes and Terraform plugin implementations. No K8s/Terraform plugins
-      yet implemented -- expansion planning can proceed.
-    status: ready_for_expansion
+  - name: Shared repository intake
+    overview: Resolve repo-relative targets, workspace lifecycle, and downstream role scans through repo_services-owned seams.
+    status: complete
 
 errors:
   - code: LEGACY_SECTION_CONFIG_UNSUPPORTED
@@ -106,39 +81,13 @@ errors:
     when: Triggered when a user-facing command or input requests a retired legacy mode.
 
 decisions:
-  - decision: fsrc/ experimental lane promoted to canonical src/ (2026-04-22)
-    rationale: >
-      The fsrc lane had the correct architecture (pure scanner_core, plugin registry, registry-driven DI).
-      Rather than continue dual-lane maintenance, it was promoted as the single source of truth and the
-      old src/ lane deleted.
-  - decision: Plugin architecture uses PluginRegistry, not hardcoded imports
-    rationale: Allows platform plugins to be added or removed without changing scanner_core.
-  - decision: feedback.py / MG-03 / MG-09 deliberately excluded from migration
-    rationale: Being redesigned as Policy as Code audit plugin. Stub layer landed; full implementation deferred.
-  - decision: Policy as Code uses 'passed:bool' not 'pass:bool' in AuditReport TypedDict
-    rationale: "'pass' is a Python reserved keyword; 'passed' preserves intent without SyntaxError."
+  - decision: Keep public entry surfaces stable
+    rationale: api.py, cli.py, and repo_services.py are the supported top-level boundaries for callers.
+  - decision: Keep scanner implementation package-owned
+    rationale: package-owned layers are easier to evolve, test, and guard than a monolithic runtime module.
+  - decision: Keep detailed execution history out of the PRD
+    rationale: wave-by-wave change history belongs in git and docs/plan, not in the current product definition.
 
 changes:
   - version: 6.0.0
-    change: >
-      2026-04-22 -- Completed fsrc->src migration. fsrc/src/prism/ promoted to canonical src/prism/.
-      Old src/ lane (_src_retired) deleted. All tests, CI, tox, and demo scripts target src/ only.
-      506 tests pass, 6 skipped. ruff, black, mypy all clean. prism_next/ empty directory removed.
-  - version: 5.9.0
-    change: "2026-04-03 -- Recorded completion of prism-architecture-review-top50-20260401 Wave 5 closeout (A46-A50)."
-  - version: 5.8.0
-    change: "2026-03-29 -- Recorded closure for scanner-godfile-decomposition-wave9-fasttrack."
-  - version: 5.7.0
-    change: "2026-03-29 -- Recorded closure for scanner-godfile-decomposition-wave8."
-  - version: 5.6.0
-    change: "2026-03-29 -- Recorded closure for scanner-godfile-decomposition-wave7."
-  - version: 5.5.0
-    change: "2026-03-29 -- Recorded closure for scanner-godfile-decomposition-wave6."
-  - version: 5.4.0
-    change: "2026-03-29 -- Recorded closure for scanner-godfile-decomposition-wave5."
-  - version: 5.3.0
-    change: "2026-03-29 -- Recorded closure for scanner-readme-input-parser-extract."
-  - version: 5.2.0
-    change: "2026-03-29 -- Marked legacy ansible_role_doc retirement complete."
-  - version: 5.0.0
-    change: "2026-03-29 -- Reframed PRD as ansible_role_doc legacy-path retirement program."
+    change: "2026-05-05 -- Refreshed docs to reflect the live package layout, explicit repo-intake ownership, public policy/audit seams, and current supported feature set."

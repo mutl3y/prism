@@ -6,7 +6,7 @@ import copy
 import logging
 from pathlib import Path
 import threading
-from collections.abc import Collection, Mapping
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Callable, NotRequired, Protocol, cast
 
 if TYPE_CHECKING:
@@ -427,22 +427,26 @@ def _bundle_value_fingerprint(value: object) -> object:
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
     if isinstance(value, (list, tuple)):
-        fingerprints = [_bundle_value_fingerprint(v) for v in value]
-        if any(item is _UNCACHEABLE_BUNDLE_VALUE for item in fingerprints):
+        sequence_fingerprints: list[object] = [
+            _bundle_value_fingerprint(v) for v in value
+        ]
+        if any(item is _UNCACHEABLE_BUNDLE_VALUE for item in sequence_fingerprints):
             return _UNCACHEABLE_BUNDLE_VALUE
-        return fingerprints
+        return sequence_fingerprints
     if isinstance(value, (set, frozenset)):
-        fingerprints = [_bundle_value_fingerprint(v) for v in value]
-        if any(item is _UNCACHEABLE_BUNDLE_VALUE for item in fingerprints):
+        unordered_fingerprints: list[object] = [
+            _bundle_value_fingerprint(v) for v in value
+        ]
+        if any(item is _UNCACHEABLE_BUNDLE_VALUE for item in unordered_fingerprints):
             return _UNCACHEABLE_BUNDLE_VALUE
-        return sorted(fingerprints, key=lambda item: repr(item))
+        return sorted(unordered_fingerprints, key=repr)
     if isinstance(value, dict):
-        fingerprints = [
+        mapping_fingerprints: list[tuple[str, object]] = [
             (str(key), _bundle_value_fingerprint(item)) for key, item in value.items()
         ]
-        if any(item is _UNCACHEABLE_BUNDLE_VALUE for _, item in fingerprints):
+        if any(item is _UNCACHEABLE_BUNDLE_VALUE for _, item in mapping_fingerprints):
             return _UNCACHEABLE_BUNDLE_VALUE
-        return sorted(fingerprints)
+        return sorted(mapping_fingerprints, key=lambda item: item[0])
     if isinstance(value, CacheFingerprintProvider):
         return value.cache_fingerprint()
     if getattr(type(value), "PLUGIN_IS_STATELESS", False):
@@ -451,11 +455,17 @@ def _bundle_value_fingerprint(value: object) -> object:
 
 
 def _is_string_collection(value: object) -> bool:
-    return (
-        isinstance(value, Collection)
-        and not isinstance(value, (Mapping, str, bytes))
-        and all(isinstance(item, str) for item in value)
-    )
+    if isinstance(value, (Mapping, str, bytes)):
+        return False
+    if isinstance(value, list):
+        return all(isinstance(item, str) for item in value)
+    if isinstance(value, tuple):
+        return all(isinstance(item, str) for item in value)
+    if isinstance(value, set):
+        return all(isinstance(item, str) for item in value)
+    if isinstance(value, frozenset):
+        return all(isinstance(item, str) for item in value)
+    return False
 
 
 def _has_prepared_task_line_policy_shape(value: object) -> bool:

@@ -216,6 +216,23 @@ class TestLoadPatternConfig:
         result = load_pattern_config(override_path=override)
         assert result["section_aliases"].get("my_alias") == "target_section"
 
+    def test_returns_isolated_policy_objects_across_calls(self):
+        first = load_pattern_config()
+        second = load_pattern_config()
+
+        assert first is not second
+        assert first["section_aliases"] is not second["section_aliases"]
+
+    def test_mutating_returned_policy_does_not_change_later_calls(self):
+        first = load_pattern_config()
+        first["section_aliases"]["g74_test_alias"] = "mutated"
+        first["ignored_identifiers"].add("g74_test_identifier")
+
+        second = load_pattern_config()
+
+        assert "g74_test_alias" not in second["section_aliases"]
+        assert "g74_test_identifier" not in second["ignored_identifiers"]
+
 
 class TestBuildPolicyContext:
     def test_returns_policy_context_with_expected_keys(self):

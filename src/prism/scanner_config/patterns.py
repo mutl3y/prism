@@ -184,7 +184,7 @@ def load_pattern_config(
     search_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Load pattern configuration policy from built-in and override sources."""
-    policy = _load_builtin_policy()
+    policy = copy.deepcopy(_load_builtin_policy())
 
     for override_file in _iter_default_override_paths(search_root=search_root):
         if override_file.exists():

@@ -158,14 +158,31 @@ def _build_plan_payload(
     }
 
 
-def test_validate_mutl3y_plan_contract_accepts_live_realrun_plan() -> None:
+def test_validate_mutl3y_plan_contract_accepts_minimal_in_progress_plan(
+    tmp_path: Path,
+) -> None:
     validator = _load_validator()
     validate_plan = validator["validate_plan"]
     assert callable(validate_plan)
 
-    plan_path = (
-        REPO_ROOT / "docs/plan/mutl3y-review-workflow-realrun-20260502/plan.yaml"
+    plan_dir = tmp_path / "mutl3y-review-workflow-test"
+    plan_dir.mkdir()
+    trace_path = plan_dir / "execution-trace.yaml"
+    _write_minimal_trace(
+        trace_path, plan_id="mutl3y-review-workflow-test", cycle="mutl3y-test-1"
     )
+    plan_path = plan_dir / "plan.yaml"
+    _write_yaml(
+        plan_path,
+        _build_plan_payload(
+            plan_id="mutl3y-review-workflow-test",
+            cycle="mutl3y-test-1",
+            status="in_progress",
+            current_phase="P5",
+            artifacts={"execution_trace": str(trace_path)},
+        ),
+    )
+
     failures = validate_plan(plan_path)
 
     assert failures == []

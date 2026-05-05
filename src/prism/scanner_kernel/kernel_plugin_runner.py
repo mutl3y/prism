@@ -251,7 +251,7 @@ def _merge_phase_output(
             else {}
         )
         existing_metadata.update(_copy_mapping(metadata))
-        response["metadata"] = cast(ScanMetadata, existing_metadata)
+        response["metadata"] = existing_metadata
 
     for key in _RESPONSE_LIST_KEYS:
         value = phase_output.get(key)

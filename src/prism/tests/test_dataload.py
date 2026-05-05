@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from prism.scanner_extract import discovery
+from prism.scanner_io import loader as loader_module
 from prism.scanner_extract.discovery import (
     REQUIREMENTS_YAML_INVALID,
     ROLE_METADATA_SHAPE_INVALID,
@@ -232,6 +233,23 @@ def test_load_variables_preserves_candidate_order_with_parallel_loads(
         "gamma": 3,
         "delta": 4,
     }
+
+
+def test_ordered_parallel_map_skips_pool_below_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _unexpected_executor(*args, **kwargs):
+        raise AssertionError("ThreadPoolExecutor should not be used below threshold")
+
+    monkeypatch.setattr(loader_module, "ThreadPoolExecutor", _unexpected_executor)
+
+    values = [1, 2, 3]
+
+    assert loader_module._ordered_parallel_map(values, lambda value: value * 2) == [
+        2,
+        4,
+        6,
+    ]
 
 
 def test_load_requirements_non_strict_collects_io_warning(

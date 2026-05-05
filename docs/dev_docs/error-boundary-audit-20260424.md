@@ -6,7 +6,7 @@ Public API entry points (`prism.api.run_scan`, `scan_role`, `scan_collection`,
 `scan_repo`) and CLI commands are the only callers expected to translate raw
 exceptions into structured `PrismRuntimeError` instances with stable codes.
 Internal modules (`scanner_core`, `scanner_io`, `scanner_extract`,
-`scanner_analysis`) historically raise `ValueError`, `RuntimeError`,
+`scanner_readme`, `scanner_reporting`) historically raise `ValueError`, `RuntimeError`,
 `TypeError`, or `KeyError` for invariant violations.
 
 T3-04 establishes a **regression-blocking baseline** rather than a one-shot

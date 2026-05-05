@@ -3,17 +3,18 @@ layout: default
 title: User Guide
 ---
 
-Use this page as the task catalog for day-to-day usage.
+Use this page as the task catalog for day-to-day scanning, documentation,
+and policy workflows.
 
 For runnable end-to-end examples, see [demos.md](./demos.md).
 
-## Role Contract Mindset
+## Automation Contract Mindset
 
-Treat generated output as the role's interface contract.
+Treat generated output as the automation contract for the target you scanned.
 
-- consumers use it to understand accepted inputs and expected behavior
-- authors use it to spot unclear variable/task design early
-- teams use JSON output to validate contract quality in CI
+- consumers use it to understand accepted inputs, task behavior, and operating context
+- authors use it to spot unclear variable or task design early
+- teams use JSON output, runbooks, and policy checks to validate contract quality in CI
 
 ## Workflow 1: Generate Role Docs
 
@@ -31,13 +32,21 @@ prism collection <collection_path> -f md -o COLLECTION_DOCS.md
 
 You should see: role scan summary plus plugin catalog coverage.
 
+## Workflow 2B: Scan A Repository Entry Path
+
+```bash
+prism repo <repo_path> --relative-role-path roles/example -o README.md
+```
+
+Use this mode when Prism needs repository context before resolving the target role.
+
 ## Workflow 3: Produce Machine-Readable Payload
 
 ```bash
 prism role <role_path> -f json -o role_scan.json
 ```
 
-Use this output for automation and quality reporting.
+Use this output for automation, governance, and quality reporting.
 
 Contract validation pattern:
 
@@ -67,17 +76,17 @@ prism role <role_path> \
 
 Use markdown for human review and CSV for automation.
 
-## Lane Notes
+## Workflow Notes
 
-Average user lane:
+For routine authoring:
 
 - start with workflow 1 and 2
 - use workflow 4 only when you need deeper reviewer detail
 
-DevOps lane:
+For CI and operational consumers:
 
 - run workflow 3 and 5 in pipelines
-- combine with strict policy controls from DevOps Guide
+- combine with strict policy controls and audit rules from DevOps Guide
 
 ## Marker Style Rules
 
@@ -139,10 +148,10 @@ marker line.
 
 Avoid YAML-like marker payloads (`key: value`).
 
-## Migration Guide: Legacy Support Removal
+## Legacy Compatibility Notes
 
-This is the primary migration reference for users moving from retired
-`ansible_role_doc` legacy names to canonical Prism names.
+These legacy names remain useful only when cleaning up older automation or CI
+settings. New Prism usage should start directly from the canonical names below.
 
 ### Legacy Names Removed and Canonical Replacements
 
@@ -160,7 +169,7 @@ This is the primary migration reference for users moving from retired
 | `LEGACY_SECTION_CONFIG_UNSUPPORTED` | The legacy role config file `.ansible_role_doc.yml` is no longer accepted. | Rename/migrate the file to `.prism.yml`. |
 | `LEGACY_RUNTIME_PATH_UNAVAILABLE` | A retired runtime compatibility path was requested (for example, the legacy style-source env var). | Remove legacy runtime settings and use canonical Prism behavior. |
 
-### Migration Checklist
+### Cleanup Checklist
 
 1. Rename role config files from `.ansible_role_doc.yml` to `.prism.yml`.
 2. Replace `ANSIBLE_ROLE_DOC_STYLE_SOURCE` with `PRISM_STYLE_SOURCE` in shell profiles, CI, and container/runtime env files.
@@ -171,7 +180,7 @@ This is the primary migration reference for users moving from retired
 rg -n "\.ansible_role_doc\.yml|ANSIBLE_ROLE_DOC_STYLE_SOURCE|ansible_role_doc/STYLE_GUIDE_SOURCE\.md"
 ```
 
-1. Run a post-migration scan and confirm it completes without legacy-retirement errors:
+1. Run a verification scan and confirm it completes without legacy-retirement errors:
 
 ```bash
 prism role <role_path> -o README.md

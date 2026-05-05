@@ -1,7 +1,6 @@
 version: 1
-generated_at: '2026-05-04T01:29:27.699295+00:00'
+generated_at: '2026-05-05T00:00:00+00:00'
 source:
-  history_path: /raid5/source/test/prism/docs/plan/.mutl3y-lessons/model-usage-history.yaml
   cycle_count: 13
 windows:
   all_time:
