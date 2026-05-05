@@ -1,0 +1,16 @@
+cycle: g56
+phase: P1
+models:
+  unknown:
+    attempts: 5
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.4
+    lane_tags:
+      - calibration
+      - discovery
+    status: healthy
+notes:
+  - Scout-ControlFlow surfaced the target strict-mode seam directly in the fresh cycle after the prompt calibration update.
+  - God Mode added no new High or Critical on g56, so the calibration reduced the independent-review delta versus g55.

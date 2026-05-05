@@ -1,0 +1,71 @@
+plan_id: mutl3y-review-20260504-g65
+cycle: g65
+target: src/prism
+review_type: thorough
+focus_axis: unconstrained
+status: carried_forward_to_g64
+decision_summary:
+  - "g65 exists as an independent review surface only; remediation still runs through g64."
+  - "Promote every High or Critical from the unconstrained God Mode artifact into this file and carry the actionable queue into g64 before Phase 5 restarts there."
+  - "The unconstrained pass returned two Highs and one Medium; the two Highs are now carried into g64 wave 2 as G64-H02 and G64-H03."
+findings:
+  - id: GI-H1
+    status: carried_to_g64_wave2
+    decision: carry_forward
+    severity: high
+    category: cache-correctness
+    fingerprint: "non_collection_cache_key_missing_runtime_wiring_identity"
+    title: "run_scan cache key ignores injected runtime wiring and registry identity"
+    files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/tests/test_g03_scan_cache_integration.py
+      - src/prism/tests/test_t3_03_scan_cache.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+      - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "The independent review found that non-collection run_scan can return a cached payload built under different injected routing or registry behavior because cache identity ignores runtime wiring overrides."
+    decision_deadline: g65
+    carry_forward_plan: docs/plan/mutl3y-review-20260504-g64/plan.yaml
+    suggested_narrow_gate: pytest -q src/prism/tests/test_g03_scan_cache_integration.py src/prism/tests/test_t3_03_scan_cache.py -k 'cache'
+  - id: GI-H2
+    status: carried_to_g64_wave2
+    decision: carry_forward
+    severity: high
+    category: concurrency
+    fingerprint: "execution_request_builder_default_listener_cross_request_leak"
+    title: "API scan containers inherit process-global listeners and leak events across overlapping requests"
+    files:
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/scanner_core/events.py
+      - src/prism/scanner_core/telemetry.py
+      - src/prism/progress.py
+      - src/prism/tests/test_execution_request_builder.py
+      - src/prism/tests/test_t3_05_scan_telemetry.py
+      - src/prism/tests/test_t4_03_cli_progress.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+      - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "The independent review found that runtime container assembly always inherits process-global default listeners, so overlapping telemetry or progress contexts bleed into unrelated requests."
+    decision_deadline: g65
+    carry_forward_plan: docs/plan/mutl3y-review-20260504-g64/plan.yaml
+    suggested_narrow_gate: pytest -q src/prism/tests/test_execution_request_builder.py src/prism/tests/test_t3_05_scan_telemetry.py src/prism/tests/test_t4_03_cli_progress.py -k 'listener or telemetry or progress or inherit'
+  - id: GI-M1
+    status: backlog
+    decision: defer_after_wave2
+    severity: medium
+    category: public-facade-leakage
+    fingerprint: "scanner_extract_public_proxy_facade_exports_policy_bound_regex"
+    title: "scanner_extract exports DI-bound regex and collection proxies as public package API"
+    files:
+      - src/prism/scanner_extract/__init__.py
+      - src/prism/scanner_extract/task_line_parsing.py
+      - src/prism/tests/test_scanner_extract_shim_parity.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+      - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "scanner_extract exposes policy-backed regex and collection proxies as package-level facade objects even though they require hidden prepared-policy context to work."
+    decision_deadline: g66
+    suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_extract_shim_parity.py
+suppressed_highs: []

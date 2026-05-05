@@ -1,0 +1,71 @@
+- id: Scout-Ownership-01
+  category: facade_leakage
+  fingerprint: "facade_leakage:scanner_plugins:__all__:registry_and_interfaces_exported_without_package_contract"
+  file: src/prism/scanner_plugins/__init__.py
+  line: 179
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "scanner_plugins.__all__ publishes interfaces and registry, while the package-export contract only enumerates scanner_data/scanner_extract/scanner_readme/scanner_io."
+  evidence_command: "src/prism/scanner_plugins/__init__.py#L179-L190; src/prism/tests/test_package_export_parity.py#L15-L17; src/prism/tests/test_package_export_parity.py#L170-L171"
+  related_symbols: ["__all__", "interfaces", "registry", "REQUIRED_SCANNER_PACKAGE_EXPORTS"]
+  fix_group_key: "scanner_plugins.package_export.raw_registry_interfaces"
+  proposed_fix_class: seam_facade
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_package_export_parity.py"
+
+- id: Scout-Ownership-02
+  category: singleton_pollution
+  fingerprint: "singleton_pollution:scanner_plugins.bootstrap:canonical_registry_aliases_module_global_plugin_registry"
+  file: src/prism/scanner_plugins/bootstrap.py
+  line: 67
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "initialize_default_registry aliases registry.plugin_registry as canonical_registry, stages bootstrap work against a copy, then writes the staged state back into the module-global singleton."
+  evidence_command: "src/prism/scanner_plugins/bootstrap.py#L65-L72; src/prism/scanner_plugins/registry.py#L532; src/prism/tests/test_t2_03_entry_point_discovery.py#L160-L185"
+  related_symbols: ["initialize_default_registry", "plugin_registry", "canonical_registry", "_DEFAULT_REGISTRY", "replace_state"]
+  fix_group_key: "registry.singleton.canonical_module_global"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_t2_03_entry_point_discovery.py::test_bootstrap_fails_closed_on_entry_point_discovery_defect"
+
+- id: Scout-Ownership-03
+  category: composition_root
+  fingerprint: "composition_root:api_non_collection:default_registry_authority_split_between_public_api_and_internal_seam"
+  file: src/prism/api_layer/non_collection.py
+  line: 628
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "prism.api.run_scan injects get_default_scan_pipeline_registry(), but api_layer.non_collection.run_scan falls back to raw get_default_plugin_registry() when direct callers omit default_plugin_registry."
+  evidence_command: "src/prism/api.py#L315; src/prism/api_layer/non_collection.py#L628-L629; src/prism/tests/test_api_cli_entrypoints.py#L1847-L1850"
+  related_symbols: ["run_scan", "default_plugin_registry", "get_default_scan_pipeline_registry", "get_default_plugin_registry"]
+  fix_group_key: "api_layer.non_collection.default_registry_authority"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'api_run_scan_uses_plugin_facade_scan_pipeline_registry_seam or non_collection_run_scan'"
+
+- id: Scout-Ownership-04
+  category: test_fixture_coupling
+  fingerprint: "test_fixture_coupling:task_parser_precedence:private_registry_storage_mutation"
+  file: src/prism/tests/test_task_parser_precedence_matrix.py
+  line: 159
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "Task parser precedence tests mutate plugin_registry._extract_policy_plugins directly to restore/remove registry state instead of going through snapshot/replace_state or a dedicated fixture helper."
+  evidence_command: "src/prism/tests/test_task_parser_precedence_matrix.py#L137-L159; src/prism/tests/test_task_parser_precedence_matrix.py#L209-L245"
+  related_symbols: ["plugin_registry", "_extract_policy_plugins", "register_extract_policy_plugin", "snapshot_state"]
+  fix_group_key: "tests.registry_private_state_mutation"
+  proposed_fix_class: isolate_test_fixture
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_task_parser_precedence_matrix.py"

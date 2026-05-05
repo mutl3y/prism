@@ -1,0 +1,129 @@
+- timestamp: '2026-05-02T19:26:41.062577+00:00'
+  cycle: g50
+  phase: P0
+  worker: Scout-Typing
+  task_id: g50-p0-scout-typing
+  requested_tier: low-cost
+  requested_model: Claude Haiku 4.5 (copilot)
+  actual_model: Claude Haiku 4.5 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Phase 0 typing scout artifact written with 8 observations
+  lane_tag: discovery
+- timestamp: '2026-05-02T19:26:41.152110+00:00'
+  cycle: g50
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g50-p0-scout-ownership
+  requested_tier: low-cost
+  requested_model: Claude Haiku 4.5 (copilot)
+  actual_model: Claude Haiku 4.5 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Phase 0 ownership scout artifact written with 10 observations
+  lane_tag: discovery
+- timestamp: '2026-05-02T19:26:41.247909+00:00'
+  cycle: g50
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g50-p0-scout-controlflow
+  requested_tier: low-cost
+  requested_model: Claude Haiku 4.5 (copilot)
+  actual_model: Claude Haiku 4.5 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Phase 0 control-flow scout artifact written with 10 observations
+  lane_tag: discovery
+- timestamp: '2026-05-02T19:26:41.348441+00:00'
+  cycle: g50
+  phase: P0
+  worker: Scout-Graph
+  task_id: g50-p0-scout-graph
+  requested_tier: low-cost
+  requested_model: Claude Haiku 4.5 (copilot)
+  actual_model: Claude Haiku 4.5 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Phase 0 graph scout artifact written with 7 observations
+  lane_tag: discovery
+- timestamp: '2026-05-02T19:58:28.487889+00:00'
+  cycle: g50
+  phase: P5
+  worker: Builder-Typing
+  task_id: g50-p5-wave1-builder-typing
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+  quality_score: 3
+  needed_reedit: false
+  recovery_action: foreman_recovery
+  notes: Wave-1 typing slice landed; foreman recovered missing summary artifact at barrier
+  lane_tag: builder
+- timestamp: '2026-05-02T19:58:28.592674+00:00'
+  cycle: g50
+  phase: P5
+  worker: Builder-ControlFlow
+  task_id: g50-p5-wave1-builder-controlflow
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Wave-1 non-collection seam typing slice landed with green focused pytest
+  lane_tag: builder
+- timestamp: '2026-05-02T19:58:28.708373+00:00'
+  cycle: g50
+  phase: P5
+  worker: Builder-Abstraction
+  task_id: g50-p5-wave1-builder-abstraction
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/Builder-Abstraction-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Wave-1 output orchestrator options typing slice landed with green focused pytest
+  lane_tag: builder
+- timestamp: '2026-05-02T20:02:34.407366+00:00'
+  cycle: g50
+  phase: P6
+  worker: Gatekeeper
+  task_id: g50-p6-wave1-focused-gate
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: quality_failure
+  failure_type: mis-scoped_output
+  artifact_path: docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase6/gate-summary.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: foreman_recovery
+  notes: Validation logs completed green, but Gatekeeper summary misreported FAIL; foreman recovered verdict
+    from logs
+  lane_tag: validation

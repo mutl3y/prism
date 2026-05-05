@@ -1,0 +1,12 @@
+cycle: g67
+phase: P5
+wave: 1
+status: ready
+builder: Builder-Ownership
+fix_group_key: public_cache_semantics.stable_default_registry
+owned_files:
+  - src/prism/api_layer/plugin_facade.py
+  - src/prism/tests/test_g03_scan_cache_integration.py
+foreman_recovery: false
+blocking_issues: []
+suggested_narrow_gate: pytest -q src/prism/tests/test_g03_scan_cache_integration.py -k cache

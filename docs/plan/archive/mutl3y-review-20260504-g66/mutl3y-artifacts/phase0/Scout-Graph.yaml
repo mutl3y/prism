@@ -1,0 +1,68 @@
+- id: Scout-Graph-01
+  category: typing
+  fingerprint: "typing:api:run_scan:scan_pipeline_registry_cast"
+  file: src/prism/api.py
+  line: 289
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "default_plugin_registry = cast(\"plugin_facade.PluginRegistry\", ...)"
+  evidence_command: "src/prism/api.py#L289-L291; src/prism/api_layer/plugin_facade.py#L312-L316"
+  related_symbols: ["run_scan", "default_plugin_registry", "get_default_scan_pipeline_registry"]
+  fix_group_key: "scan-pipeline-registry.protocol-alignment"
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_fsrc_api_run_scan_uses_plugin_facade_scan_pipeline_registry_seam"
+- id: Scout-Graph-02
+  category: registry_authority
+  fingerprint: "registry_authority:api_layer/non_collection:raw_registry_default_fallback"
+  file: src/prism/api_layer/non_collection.py
+  line: 595
+  severity_hint: low
+  confidence: medium
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "default_plugin_registry = plugin_facade.get_default_plugin_registry()"
+  evidence_command: "src/prism/api.py#L289-L291; src/prism/api_layer/non_collection.py#L591-L596; src/prism/scanner_core/execution_request_builder.py#L566-L579"
+  related_symbols: ["run_scan", "default_plugin_registry", "get_default_plugin_registry", "runtime_registry"]
+  fix_group_key: "scan-pipeline-registry.protocol-alignment"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_execution_request_builder_uses_default_registry_over_scan_options_bypass"
+- id: Scout-Graph-03
+  category: typing
+  fingerprint: "typing:scanner_core/execution_request_builder:pluginregistry_overstated_contract"
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 567
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "default_plugin_registry: \"PluginRegistry\""
+  evidence_command: "src/prism/scanner_core/execution_request_builder.py#L566-L579; src/prism/scanner_core/execution_request_builder.py#L78-L103"
+  related_symbols: ["_assemble_runtime_participants", "default_plugin_registry", "runtime_registry"]
+  fix_group_key: "scan-pipeline-registry.protocol-alignment"
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py::test_runtime_participants_wires_bridge_and_registry_identity"
+- id: Scout-Graph-04
+  category: graph
+  fingerprint: "graph:scanner_core/scanner_context:dicontainer_runtime_import_annotation_only"
+  file: src/prism/scanner_core/scanner_context.py
+  line: 10
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "from prism.scanner_core.di import DIContainer"
+  evidence_command: "src/prism/scanner_core/scanner_context.py#L9-L11; src/prism/scanner_core/scanner_context.py#L186-L195 (TYPE_CHECKING-safe)"
+  related_symbols: ["ScannerContext", "DIContainer"]
+  fix_group_key: "scanner_context.di-type-only-import"
+  proposed_fix_class: type_only_import
+  blocking_preconditions: []
+  suggested_narrow_gate: ""

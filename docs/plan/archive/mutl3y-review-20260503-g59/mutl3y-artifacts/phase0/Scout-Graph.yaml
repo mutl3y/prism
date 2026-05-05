@@ -1,0 +1,149 @@
+- id: Scout-Graph-01
+  category: registry_authority
+  fingerprint: "registry_authority:scanner_plugins/bootstrap:_DEFAULT_REGISTRY:singleton"
+  file: src/prism/scanner_plugins/bootstrap.py
+  line: 22
+  severity_hint: high
+  confidence: high
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "_DEFAULT_REGISTRY: PluginRegistry | None = None"
+  related_symbols: ["_DEFAULT_REGISTRY", "get_default_plugin_registry", "initialize_default_registry"]
+  fix_group_key: "registry-singleton-authority"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+
+- id: Scout-Graph-02
+  category: registry_authority
+  fingerprint: "registry_authority:scanner_core/di:_get_registry:fail_closed"
+  file: src/prism/scanner_core/di.py
+  line: 352
+  severity_hint: medium
+  confidence: high
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "if self._registry is None: raise ValueError(...)"
+  related_symbols: ["DIContainer._get_registry", "factory_variable_discovery_plugin", "factory_feature_detection_plugin"]
+  fix_group_key: "di-registry-composition"
+  proposed_fix_class: composition_root
+  blocking_preconditions: []
+
+- id: Scout-Graph-03
+  category: composition_root
+  fingerprint: "composition_root:api_layer/non_collection:default_plugin_registry:lazy_load"
+  file: src/prism/api_layer/non_collection.py
+  line: 509
+  severity_hint: high
+  confidence: high
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "default_plugin_registry: plugin_facade.PluginRegistry | None = None"
+  related_symbols: ["run_scan", "plugin_facade.get_default_plugin_registry", "default_plugin_registry"]
+  fix_group_key: "composition-root-split"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+
+- id: Scout-Graph-04
+  category: composition_root
+  fingerprint: "composition_root:api_layer/plugin_facade:facade_pattern:lazy_import"
+  file: src/prism/api_layer/plugin_facade.py
+  line: 32
+  severity_hint: medium
+  confidence: high
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "def get_default_plugin_registry() -> PluginRegistry: from prism.scanner_plugins.bootstrap import get_default_plugin_registry as _get"
+  related_symbols: ["get_default_plugin_registry", "plugin_facade", "bootstrap module"]
+  fix_group_key: "facade-lazy-import"
+  proposed_fix_class: boundary_seam
+  blocking_preconditions: []
+
+- id: Scout-Graph-05
+  category: typing
+  fingerprint: "typing:scanner_core/di:cast_scan_options:dict_safety"
+  file: src/prism/scanner_core/di.py
+  line: 78
+  severity_hint: medium
+  confidence: high
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "cast(ScanOptionsDict, {key: _clone_container_structure(value) ...})"
+  related_symbols: ["clone_scan_options", "ScanOptionsDict", "cast"]
+  fix_group_key: "typing-cast-dict"
+  proposed_fix_class: type_safety
+  blocking_preconditions: []
+
+- id: Scout-Graph-06
+  category: typing
+  fingerprint: "typing:scanner_core/di:_construct_runtime_plugin:plugin_class_any"
+  file: src/prism/scanner_core/di.py
+  line: 135
+  severity_hint: low
+  confidence: high
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "def _construct_runtime_plugin(plugin_class: type[Any], *, ...) -> Any:"
+  related_symbols: ["_construct_runtime_plugin", "plugin_class", "type[Any]"]
+  fix_group_key: "typing-plugin-any"
+  proposed_fix_class: type_safety
+  blocking_preconditions: []
+
+- id: Scout-Graph-07
+  category: test_fixture_coupling
+  fingerprint: "test_fixture_coupling:test_di_container:sys_modules_isolation"
+  file: src/prism/tests/test_di_container.py
+  line: 15
+  severity_hint: medium
+  confidence: high
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "def _prefer_fsrc_prism_on_sys_path() -> Iterator[None]: del sys.modules[module_name]"
+  related_symbols: ["_prefer_fsrc_prism_on_sys_path", "sys.modules", "test isolation"]
+  fix_group_key: "test-fixture-sys-isolation"
+  proposed_fix_class: test_isolation
+  blocking_preconditions: []
+
+- id: Scout-Graph-08
+  category: singleton_pollution
+  fingerprint: "singleton_pollution:bootstrap:_DEFAULT_REGISTRY_INIT_LOCK:threading"
+  file: src/prism/scanner_plugins/bootstrap.py
+  line: 23
+  severity_hint: low
+  confidence: high
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "_DEFAULT_REGISTRY_INIT_LOCK = threading.Lock()"
+  related_symbols: ["_DEFAULT_REGISTRY_INIT_LOCK", "threading", "global state"]
+  fix_group_key: "registry-singleton-authority"
+  proposed_fix_class: singleton_thread_safety
+  blocking_preconditions: []
+
+- id: Scout-Graph-09
+  category: composition_root
+  fingerprint: "composition_root:api:_wrap_scan_pipeline_plugin_factory:wrapper_nesting"
+  file: src/prism/api.py
+  line: 257
+  severity_hint: low
+  confidence: medium
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "class _OrchestratingScanPipelinePluginIsolationWrapper: ... class _ScanPipelinePluginIsolationWrapper:"
+  related_symbols: ["_wrap_scan_pipeline_plugin_factory", "_OrchestratingScanPipelinePluginIsolationWrapper", "_ScanPipelinePluginIsolationWrapper"]
+  fix_group_key: "api-plugin-wrapper-nesting"
+  proposed_fix_class: plugin_isolation
+  blocking_preconditions: []
+
+- id: Scout-Graph-10
+  category: typing
+  fingerprint: "typing:scanner_data/contracts_request:dict_typing_payload"
+  file: src/prism/scanner_data/contracts_request.py
+  line: 73
+  severity_hint: low
+  confidence: high
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "def _load_yaml(path: Path) -> dict[str, Any]:"
+  related_symbols: ["_load_yaml", "dict[str, Any]", "yaml loading"]
+  fix_group_key: "typing-payload-any"
+  proposed_fix_class: type_safety
+  blocking_preconditions: []

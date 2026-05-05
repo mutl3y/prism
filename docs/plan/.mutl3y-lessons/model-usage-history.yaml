@@ -1,0 +1,244 @@
+version: 1
+cycles:
+- cycle: g35
+  plan_id: gilfoyle-review-20260501-g35
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g35/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T07:39:53.403496+00:00'
+  model_snapshot:
+    Claude Haiku 4.5:
+      attempts: 2
+      successes: 2
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 2
+      quality_avg: 3.0
+      status: healthy
+    GPT-5.4 mini:
+      attempts: 3
+      successes: 3
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+    Claude Sonnet 4.5:
+      attempts: 1
+      successes: 1
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+    GPT-5.4:
+      attempts: 2
+      successes: 2
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+- cycle: g36
+  plan_id: gilfoyle-review-20260501-g36
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g36/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T07:59:27.280255+00:00'
+  model_snapshot:
+    GPT-5.4 mini:
+      attempts: 4
+      successes: 4
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+    Claude Sonnet 4.5:
+      attempts: 1
+      successes: 1
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+- cycle: g40
+  plan_id: gilfoyle-review-20260501-g40
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g40/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T13:08:35.000801+00:00'
+  model_snapshot:
+    GPT-5.4 mini:
+      attempts: 4
+      successes: 4
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+- cycle: g41
+  plan_id: gilfoyle-review-20260501-g41
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g41/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T13:08:35.424453+00:00'
+  model_snapshot:
+    GPT-5.4 mini:
+      attempts: 4
+      successes: 4
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+- cycle: g42
+  plan_id: gilfoyle-review-20260501-g42
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g42/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T13:08:35.887362+00:00'
+  model_snapshot: {}
+- cycle: g43
+  plan_id: gilfoyle-review-20260501-g43
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g43/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T13:08:36.362714+00:00'
+  model_snapshot: {}
+- cycle: g44
+  plan_id: gilfoyle-review-20260501-g44
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g44/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T13:08:36.785706+00:00'
+  model_snapshot: {}
+- cycle: g45
+  plan_id: gilfoyle-review-20260501-g45
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260501-g45/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-01T13:43:02.052661+00:00'
+  model_snapshot:
+    GPT-5.4 mini:
+      attempts: 4
+      successes: 2
+      route_failures: 0
+      quality_failures: 2
+      reedit_count: 2
+      quality_avg: 3.0
+      status: watch
+    Claude Haiku 4.5:
+      attempts: 2
+      successes: 2
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+- cycle: mutl3y-g1
+  plan_id: mutl3y-review-workflow-smoke-20260502
+  ledger_path: /raid5/source/test/prism/docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-02T01:08:13.883505+00:00'
+  model_snapshot:
+    GPT-5 mini (copilot):
+      attempts: 4
+      successes: 4
+      route_failures: 0
+      quality_failures: 1
+      reedit_count: 1
+      quality_avg: 3.25
+      status: watch
+- cycle: g47
+  plan_id: gilfoyle-review-20260502-g47
+  ledger_path: /raid5/source/test/prism/docs/plan/gilfoyle-review-20260502-g47/artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-02T17:54:41.870024+00:00'
+  model_snapshot:
+    GPT-5.4 mini (copilot):
+      attempts: 1
+      successes: 0
+      route_failures: 1
+      quality_failures: 1
+      reedit_count: 1
+      quality_avg: 1.0
+      status: watch
+    unknown:
+      attempts: 3
+      successes: 0
+      route_failures: 0
+      quality_failures: 3
+      reedit_count: 3
+      quality_avg: 2.0
+      status: watch
+- cycle: g59
+  plan_id: mutl3y-review-20260503-g59
+  ledger_path: /raid5/source/test/prism/docs/plan/mutl3y-review-20260503-g59/mutl3y-artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-03T18:05:33.652870+00:00'
+  model_snapshot:
+    Claude Haiku 4.5 (copilot):
+      attempts: 4
+      successes: 4
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 3.25
+      status: healthy
+    GPT-5.4 (copilot):
+      attempts: 2
+      successes: 2
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 1
+      quality_avg: 4.0
+      status: healthy
+- cycle: g62
+  plan_id: mutl3y-review-20260503-g62
+  ledger_path: /raid5/source/test/prism/docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-03T23:42:29.737309+00:00'
+  model_snapshot:
+    GPT-5 mini (copilot):
+      attempts: 8
+      successes: 7
+      route_failures: 1
+      quality_failures: 1
+      reedit_count: 1
+      quality_avg: 3.62
+      status: healthy
+    GPT-5.4 (copilot):
+      attempts: 8
+      successes: 8
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+    GPT-4.1 (copilot):
+      attempts: 1
+      successes: 0
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 1
+      quality_avg: 3.0
+      status: healthy
+    GPT-5.4 mini (copilot):
+      attempts: 1
+      successes: 1
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 5.0
+      status: healthy
+- cycle: g63
+  plan_id: mutl3y-review-20260503-g63
+  ledger_path: /raid5/source/test/prism/docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/model-usage-ledger.yaml
+  updated_at: '2026-05-04T01:29:27.687045+00:00'
+  model_snapshot:
+    GPT-5 mini (copilot):
+      attempts: 4
+      successes: 0
+      route_failures: 0
+      quality_failures: 4
+      reedit_count: 4
+      quality_avg: 2.0
+      status: watch
+    GPT-5.4 (copilot):
+      attempts: 3
+      successes: 2
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+    GPT-5.4 mini (copilot):
+      attempts: 1
+      successes: 1
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: healthy
+updated_at: '2026-05-04T01:29:27.687061+00:00'

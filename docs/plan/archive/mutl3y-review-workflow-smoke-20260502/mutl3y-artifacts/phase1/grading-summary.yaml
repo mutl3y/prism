@@ -1,0 +1,46 @@
+cycle: mutl3y-g1
+plan_id: mutl3y-review-workflow-smoke-20260502
+phase: P1
+target_path: src/prism/scanner_core/di.py
+status: graded_for_smoke
+focus_axis: ownership
+scout_artifacts:
+  - agent: Scout-Typing
+    artifact: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Typing.yaml
+    observations: 4
+  - agent: Scout-Ownership
+    artifact: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+    observations: 5
+  - agent: Scout-ControlFlow
+    artifact: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+    observations: 4
+  - agent: Scout-Graph
+    artifact: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Graph.yaml
+    observations: 4
+observation_totals:
+  total: 17
+  high_or_above: 2
+  do_not_re_flag_matches: 3
+top_fix_groups:
+  - fix_group_key: composition_root:di:execution_request_builder
+    severity: high
+    source: Scout-Graph-01
+  - fix_group_key: registry:origin_to_consumer
+    severity: high
+    source: Scout-Graph-02
+  - fix_group_key: di-platform-key-resolution
+    severity: medium
+    source: Scout-Typing-02
+  - fix_group_key: di.eventbus.default-listeners
+    severity: medium
+    source: Scout-ControlFlow-01
+  - fix_group_key: di-typing-plugins
+    severity: medium
+    source: Scout-Typing-01
+workflow_observations:
+  - Phase 0 barrier succeeded only after local artifact recovery for Scout-Graph.yaml.
+  - Scout-Ownership returned valid YAML but did not follow the stricter observation schema from the sweep prompt.
+  - Existing memory correctly suppressed or downgraded known seams including FIND-G3-02 and FIND-G3-03.
+recommended_next_step: >-
+  Continue to Phase 2 only if this smoke run is being promoted into a real review cycle; otherwise,
+  treat this as a workflow validation pass that reached P1 with artifact-backed evidence.

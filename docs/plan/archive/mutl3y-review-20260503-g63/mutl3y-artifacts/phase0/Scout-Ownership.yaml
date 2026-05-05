@@ -1,0 +1,53 @@
+- id: Scout-Ownership-01
+  category: facade_leakage
+  fingerprint: "facade_leakage:scanner_plugins:__all__:interfaces_registry_export"
+  file: src/prism/scanner_plugins/__init__.py
+  line: 179
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "__all__ exports interfaces, registry, and get_default_plugin_registry from scanner_plugins."
+  evidence_command: "src/prism/scanner_plugins/__init__.py#L179-L189"
+  related_symbols: ["interfaces", "registry", "get_default_plugin_registry"]
+  fix_group_key: "scanner_plugins.package_export.interfaces_registry"
+  proposed_fix_class: seam_facade
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_package_export_parity.py::test_scanner_plugins_package_exports"
+
+- id: Scout-Ownership-02
+  category: test_fixture_coupling
+  fingerprint: "test_fixture_coupling:tests/test_comment_doc_plugin_resolution:registry_mutation"
+  file: src/prism/tests/test_comment_doc_plugin_resolution.py
+  line: 352
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "Test mutates module-global plugin_registry and restores _comment_driven_doc_plugins manually."
+  evidence_command: "src/prism/tests/test_comment_doc_plugin_resolution.py#L352-L366"
+  related_symbols: ["plugin_registry", "register_comment_driven_doc_plugin", "_comment_driven_doc_plugins"]
+  fix_group_key: "tests.registry_mutation"
+  proposed_fix_class: isolate_test_fixture
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py::test_extract_role_notes_prefers_di_over_registry_default"
+
+- id: Scout-Ownership-03
+  category: singleton_pollution
+  fingerprint: "singleton:scanner_plugins/registry:plugin_registry:module_global"
+  file: src/prism/scanner_plugins/registry.py
+  line: 532
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "plugin_registry = PluginRegistry()"
+  evidence_command: "src/prism/scanner_plugins/registry.py#L532"
+  related_symbols: ["plugin_registry", "PluginRegistry"]
+  fix_group_key: "registry.singleton.module_global"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_w2_hardwiring_audit.py::test_registry_singleton_invariants"

@@ -1,0 +1,16 @@
+cycle: mutl3y-live-di-2
+plan_id: mutl3y-review-workflow-live-di-warning-cleanup-20260502
+phase: P6
+worker: Auditor-Regression
+status: pass
+scope:
+  - src/prism/tests/test_di_registry_resolution.py
+checks:
+  - "Mandatory anti-pattern grep barrier"
+  - "Regression scan for new cast(Any), lossy dict-cast, or except Exception: pass usage"
+result_summary: "No anti-pattern hits introduced by the warning-cleanup builder wave."
+logs:
+  - .mutl3y-gate/live-di-wave2-antipattern.log
+  - .mutl3y-gate/tmp/live-di-wave2-cast-any.txt
+  - .mutl3y-gate/tmp/live-di-wave2-typeddict-lossy-cast.txt
+  - .mutl3y-gate/tmp/live-di-wave2-except-pass.txt

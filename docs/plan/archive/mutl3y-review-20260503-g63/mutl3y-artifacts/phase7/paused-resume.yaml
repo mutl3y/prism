@@ -1,0 +1,27 @@
+plan_id: mutl3y-review-20260503-g63
+cycle: g63
+phase: P7
+status: PAUSED
+pause_reason: User requested pause before Phase 1 grading.
+superseded_by: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase7/closure-summary.yaml
+superseded_reason: g63 resumed, completed its light checkpoint work, and advanced to g64.
+current_checkpoint:
+  phase: P1
+  latest_barrier: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/barrier-summary.yaml
+  execution_trace: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/execution-trace.yaml
+resume_from:
+  plan: docs/plan/mutl3y-review-20260503-g63/plan.yaml
+  phase: P1
+  next_action: Grade g63 scout observations and promote the actionable shortlist.
+  required_inputs:
+    - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Typing.yaml
+    - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+    - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+    - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Graph.yaml
+why_overall_stop_is_not_valid: >-
+  g62 closed only as a checkpoint and opened g63 as the required light
+  follow-up cycle. g63 has started but grading and subsequent phases are still
+  pending.
+commit_status:
+  status: deferred
+  reason: The user did not request or approve a repository commit.

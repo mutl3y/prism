@@ -1,0 +1,269 @@
+- id: SO-T48-01
+  category: composition_root
+  fingerprint: "composition_root:scanner_plugins/defaults:module_level_singletons:fallback_plugins"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 82
+  severity_hint: medium
+  confidence: high
+  detector: direct_observation
+  memory_status: documented_design
+  memory_match: ""
+  evidence_snippet: "_TASK_LINE_PARSING_FALLBACK = AnsibleDefaultTaskLineParsingPolicyPlugin()"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L82-L87"
+  related_symbols: ["_TASK_LINE_PARSING_FALLBACK", "_TASK_ANNOTATION_FALLBACK", "_TASK_TRAVERSAL_FALLBACK", "_VARIABLE_EXTRACTOR_FALLBACK", "_YAML_PARSING_FALLBACK", "_JINJA_ANALYSIS_FALLBACK"]
+  fix_group_key: "singleton-fallback-composition"
+  proposed_fix_class: per_call_factories
+  blocking_preconditions: ["ReadmeRendererPlugin protocol design (FIND-G6-06) must be resolved first"]
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py"
+
+- id: SO-T48-02
+  category: weak_typing
+  fingerprint: "weak_typing:scanner_kernel/kernel_plugin_runner:phase_handlers:orchestration_seam"
+  file: src/prism/scanner_kernel/kernel_plugin_runner.py
+  line: 87
+  severity_hint: medium
+  confidence: high
+  detector: pattern_scan
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "phase_handlers: list[tuple[str, Callable[..., dict[str, Any] | None] | None]]"
+  evidence_command: "src/prism/scanner_kernel/kernel_plugin_runner.py#L85-L92"
+  related_symbols: ["run_kernel_plugin_orchestrator", "phase_handlers", "_merge_phase_output"]
+  fix_group_key: "kernel-orchestration-typing"
+  proposed_fix_class: protocol_definition
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_kernel_plugin_runner.py -k orchestrator"
+
+- id: SO-T48-03
+  category: weak_typing
+  fingerprint: "weak_typing:scanner_kernel/kernel_plugin_runner:phase_output_any"
+  file: src/prism/scanner_kernel/kernel_plugin_runner.py
+  line: 170
+  severity_hint: low
+  confidence: high
+  detector: pattern_scan
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "phase_output: Any,"
+  evidence_command: "src/prism/scanner_kernel/kernel_plugin_runner.py#L168-L172"
+  related_symbols: ["_merge_phase_output", "phase_output"]
+  fix_group_key: "kernel-orchestration-typing"
+  proposed_fix_class: typed_return_annotation
+  blocking_preconditions: []
+  suggested_narrow_gate: "python -m mypy src/prism/scanner_kernel/kernel_plugin_runner.py"
+
+- id: SO-T48-04
+  category: weak_typing
+  fingerprint: "weak_typing:scanner_kernel/plugin_name_resolver:registry_any"
+  file: src/prism/scanner_kernel/plugin_name_resolver.py
+  line: 22
+  severity_hint: medium
+  confidence: high
+  detector: pattern_scan
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "registry: Any,"
+  evidence_command: "src/prism/scanner_kernel/plugin_name_resolver.py#L20-L25"
+  related_symbols: ["resolve_scan_pipeline_plugin_class", "registry", "execute_scan_pipeline_plugin"]
+  fix_group_key: "registry-typing-protocol"
+  proposed_fix_class: protocol_definition
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_platform_routing_fail_closed.py"
+
+- id: SO-T48-05
+  category: facade_leakage
+  fingerprint: "facade_leakage:api_layer/plugin_facade:default_plugin_registry_reexport"
+  file: src/prism/api_layer/plugin_facade.py
+  line: 37
+  severity_hint: low
+  confidence: high
+  detector: direct_observation
+  memory_status: documented_design
+  memory_match: ""
+  evidence_snippet: "from prism.scanner_plugins import DEFAULT_PLUGIN_REGISTRY"
+  evidence_command: "src/prism/api_layer/plugin_facade.py#L35-L40"
+  related_symbols: ["get_default_plugin_registry", "DEFAULT_PLUGIN_REGISTRY"]
+  fix_group_key: "facade-singleton-leakage"
+  proposed_fix_class: boundary_enforcement
+  blocking_preconditions: ["confirm whether DEFAULT_PLUGIN_REGISTRY is a supported public contract"]
+  suggested_narrow_gate: "grep -r 'from prism.api_layer.plugin_facade import' src/prism"
+
+- id: SO-T48-06
+  category: composition_root
+  fingerprint: "composition_root:scanner_plugins/__init__:default_plugin_registry_export"
+  file: src/prism/scanner_plugins/__init__.py
+  line: 181
+  severity_hint: low
+  confidence: high
+  detector: direct_observation
+  memory_status: documented_design
+  memory_match: ""
+  evidence_snippet: "if name == \"DEFAULT_PLUGIN_REGISTRY\": return plugin_registry"
+  evidence_command: "src/prism/scanner_plugins/__init__.py#L180-L187"
+  related_symbols: ["DEFAULT_PLUGIN_REGISTRY", "get_plugin_api"]
+  fix_group_key: "facade-singleton-leakage"
+  proposed_fix_class: boundary_enforcement
+  blocking_preconditions: ["determine scope of public API exports"]
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_package_export_parity.py"
+
+- id: SO-T48-07
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_io/loader:yaml_parsing_dual_path"
+  file: src/prism/scanner_io/loader.py
+  line: 65
+  severity_hint: medium
+  confidence: high
+  detector: code_flow_analysis
+  memory_status: documented_residual
+  memory_match: "residual prepared-policy ownership after NCK1+SCB1+MP1"
+  evidence_snippet: "# NOTE: Intentional dual-path — soft fallback to registry-resolved default."
+  evidence_command: "src/prism/scanner_io/loader.py#L63-L79"
+  related_symbols: ["_get_yaml_parsing_policy", "get_prepared_policy_or_none", "resolve_yaml_parsing_policy_plugin"]
+  fix_group_key: "loader-fallback-paths"
+  proposed_fix_class: documentation_and_validation
+  blocking_preconditions: ["verify whether soft fallback is necessary post-prepared-bundle ingress"]
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_dataload.py -k yaml_policy"
+
+- id: SO-T48-08
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_extract/discovery:metadata_load_fail_open"
+  file: src/prism/scanner_extract/discovery.py
+  line: 84
+  severity_hint: medium
+  confidence: high
+  detector: code_flow_analysis
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "logger.warning(...); return {}"
+  evidence_command: "src/prism/scanner_extract/discovery.py#L79-L97"
+  related_symbols: ["load_meta", "ROLE_METADATA_YAML_INVALID", "ROLE_METADATA_IO_ERROR"]
+  fix_group_key: "loader-fallback-paths"
+  proposed_fix_class: error_propagation
+  blocking_preconditions: ["confirm whether silent-empty fallback is correct behavior for strict mode"]
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_dataload.py::test_load_meta_*"
+
+- id: SO-T48-09
+  category: weak_typing
+  fingerprint: "weak_typing:scanner_kernel/orchestrator:payload_dict_any"
+  file: src/prism/scanner_kernel/scan_payload_helpers.py
+  line: 69
+  severity_hint: low
+  confidence: high
+  detector: pattern_scan
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "payload: dict[str, Any]) -> dict[str, Any]:"
+  evidence_command: "src/prism/scanner_kernel/scan_payload_helpers.py#L69-L80"
+  related_symbols: ["_ensure_payload_metadata", "payload"]
+  fix_group_key: "kernel-payload-typing"
+  proposed_fix_class: typed_data_structure
+  blocking_preconditions: []
+  suggested_narrow_gate: "python -m mypy src/prism/scanner_kernel/"
+
+- id: SO-T48-10
+  category: ownership
+  fingerprint: "ownership:scanner_readme/guide:plugin_defaults_direct_import"
+  file: src/prism/scanner_readme/guide.py
+  line: 8
+  severity_hint: low
+  confidence: high
+  detector: direct_observation
+  memory_status: documented_residual
+  memory_match: "pure-execution-core-plugin-architecture-20260413 marker-prefix ownership"
+  evidence_snippet: "from prism.scanner_plugins.defaults import resolve_readme_renderer_plugin"
+  evidence_command: "src/prism/scanner_readme/guide.py#L1-L20"
+  related_symbols: ["resolve_readme_renderer_plugin", "guide.py", "render.py"]
+  fix_group_key: "readme-layer-ownership"
+  proposed_fix_class: facade_delegation
+  blocking_preconditions: ["verify whether scanner_readme is in canonical layer hierarchy"]
+  suggested_narrow_gate: "grep -rn 'from prism.scanner_plugins' src/prism/scanner_readme/"
+
+- id: SO-T48-11
+  category: weak_typing
+  fingerprint: "weak_typing:api_layer/non_collection:cast_role_scan_result"
+  file: src/prism/api_layer/non_collection.py
+  line: 387
+  severity_hint: low
+  confidence: medium
+  detector: pattern_scan
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "cast(RoleScanResult, normalize_scan_role_payload_shape(result))"
+  evidence_command: "src/prism/api_layer/non_collection.py#L385-L390"
+  related_symbols: ["cast", "normalize_scan_role_payload_shape", "RoleScanResult"]
+  fix_group_key: "api-cast-patterns"
+  proposed_fix_class: explicit_validation
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_layer_contracts.py -k role_scan"
+
+- id: SO-T48-12
+  category: weak_typing
+  fingerprint: "weak_typing:scanner_kernel/kernel_plugin_runner:cast_kernel_lifecycle_plugin"
+  file: src/prism/scanner_kernel/kernel_plugin_runner.py
+  line: 84
+  severity_hint: low
+  confidence: high
+  detector: pattern_scan
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "plugin: KernelLifecyclePlugin = cast(KernelLifecyclePlugin, load_plugin_fn(platform))"
+  evidence_command: "src/prism/scanner_kernel/kernel_plugin_runner.py#L82-L86"
+  related_symbols: ["cast", "KernelLifecyclePlugin", "load_plugin_fn"]
+  fix_group_key: "kernel-orchestration-typing"
+  proposed_fix_class: runtime_validation
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_kernel_plugin_runner.py"
+
+- id: SO-T48-13
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_io/loader:getattr_plugin_registry_none"
+  file: src/prism/scanner_io/loader.py
+  line: 41
+  severity_hint: low
+  confidence: high
+  detector: pattern_scan
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "registry = getattr(di, \"plugin_registry\", None)"
+  evidence_command: "src/prism/scanner_io/loader.py#L38-L48"
+  related_symbols: ["getattr", "_resolve_plugin_registry"]
+  fix_group_key: "loader-fallback-paths"
+  proposed_fix_class: documentation_and_validation
+  blocking_preconditions: []
+  suggested_narrow_gate: "grep -rn 'getattr.*plugin_registry' src/prism/scanner_io/"
+
+- id: SO-T48-14
+  category: weak_typing
+  fingerprint: "weak_typing:api_layer/non_collection:prepare_bundle_protocol_any"
+  file: src/prism/api_layer/non_collection.py
+  line: 185
+  severity_hint: low
+  confidence: high
+  detector: pattern_scan
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_resolved_ensure_fn: Any"
+  evidence_command: "src/prism/api_layer/non_collection.py#L183-L190"
+  related_symbols: ["_EnsurePreparedPolicyBundleFn", "_resolved_ensure_fn"]
+  fix_group_key: "api-callable-typing"
+  proposed_fix_class: protocol_assignment
+  blocking_preconditions: []
+  suggested_narrow_gate: "python -m mypy src/prism/api_layer/non_collection.py"
+
+- id: SO-T48-15
+  category: ownership
+  fingerprint: "ownership:scanner_core/di:deferred_import_plugin_defaults"
+  file: src/prism/scanner_core/di.py
+  line: 301
+  severity_hint: low
+  confidence: high
+  detector: code_flow_analysis
+  memory_status: documented_design
+  memory_match: "FIND-G3-03"
+  evidence_snippet: "from prism.scanner_plugins.defaults import"
+  evidence_command: "src/prism/scanner_core/di.py#L299-L310"
+  related_symbols: ["_create_variable_discovery", "resolve_variable_discovery_plugin"]
+  fix_group_key: "di-factory-bootstrap"
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py"

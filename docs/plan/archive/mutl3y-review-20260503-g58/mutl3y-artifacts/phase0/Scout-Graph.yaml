@@ -1,0 +1,91 @@
+- id: Scout-Graph-01
+  category: registry_authority
+  fingerprint: "registry_authority:di._get_registry:missing_registry_raises"
+  file: src/prism/scanner_core/di.py
+  line: 309
+  severity_hint: high
+  confidence: high
+  detector: graph_probe
+  evidence_snippet: "raise ValueError(\"No plugin registry provided to DIContainer\")"
+  evidence_command: "src/prism/scanner_core/di.py#L309-L312"
+  related_symbols: ["DIContainer._get_registry", "DIContainer.factory_variable_discovery_plugin"]
+  origin:
+    file: src/prism/scanner_core/di.py
+    line: 309
+    note: "DI enforces injected registry presence by raising when _registry is None"
+  downstream_consumer:
+    file: src/prism/scanner_core/di.py
+    line: 331
+    note: "factory_variable_discovery_plugin calls self._get_registry() and will surface the raise to callers"
+  fix_group_key: "registry-split-authority"
+  proposed_fix_class: single_composition_root
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_variable_discovery_plugin_fail_closed_no_registry"
+
+- id: Scout-Graph-02
+  category: composition_root
+  fingerprint: "composition_root:execution_request_builder:passes_registry_into_DI"
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 549
+  severity_hint: medium
+  confidence: high
+  detector: graph_probe
+  evidence_snippet: "resolved_platform_key = resolve_platform_key(canonical_options, runtime_registry)"
+  evidence_command: "src/prism/scanner_core/execution_request_builder.py#L549-L555"
+  related_symbols: ["_assemble_runtime_participants", "di_container_cls", "runtime_registry"]
+  origin:
+    file: src/prism/scanner_core/execution_request_builder.py
+    line: 549
+    note: "_assemble_runtime_participants resolves platform and constructs DIContainer with registry=runtime_registry"
+  downstream_consumer:
+    file: src/prism/scanner_core/di.py
+    line: 180
+    note: "DIContainer stores passed registry on self._registry and later uses it for plugin resolution"
+  fix_group_key: "execution_request:composition_root"
+  proposed_fix_class: composition_root_validation
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py::TestRuntimeAssemblySeam::test_runtime_participants_use_authoritative_registry_and_bridge_factories"
+
+- id: Scout-Graph-03
+  category: registry_authority
+  fingerprint: "registry_fallback_mismatch:loader_vs_defaults:yaml_policy"
+  file: src/prism/scanner_io/loader.py
+  line: 51
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  evidence_snippet: "def _resolve_plugin_registry(di: object | None = None): ... Does NOT fall back to bootstrap singleton"
+  evidence_command: "src/prism/scanner_io/loader.py#L51-L90"
+  related_symbols: ["_resolve_plugin_registry", "_get_yaml_parsing_policy", "prism.scanner_plugins.defaults._resolve_registry"]
+  origin:
+    file: src/prism/scanner_io/loader.py
+    line: 51
+    note: "Loader intentionally refrains from falling back to bootstrap singleton (returns None when no DI registry)"
+  downstream_consumer:
+    file: src/prism/scanner_plugins/defaults.py
+    line: 65
+    note: "defaults._resolve_registry falls back to prism.scanner_plugins.bootstrap.get_default_plugin_registry() — different authority policy"
+  fix_group_key: "registry-fallback-mismatch"
+  proposed_fix_class: unify_registry_resolution_policy
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_defaults.py::test_validate_shape_non_strict_mode_uses_fallback_when_registry_construction_fails"
+
+- id: Scout-Graph-04
+  category: composition_root
+  fingerprint: "prepared_policy_bundle:bundle_resolver:writeback_and_replace_scan_options"
+  file: src/prism/scanner_plugins/bundle_resolver.py
+  line: 95
+  severity_hint: medium
+  confidence: high
+  detector: graph_probe
+  evidence_snippet: "scan_options['prepared_policy_bundle'] = bundle; if isinstance(di, HasReplaceScanOptions): di.replace_scan_options(scan_options)"
+  evidence_command: "src/prism/scanner_plugins/bundle_resolver.py#L95-L102,src/prism/scanner_plugins/bundle_resolver.py#L161-L162"
+  related_symbols: ["ensure_prepared_policy_bundle", "HasReplaceScanOptions", "DIContainer.replace_scan_options"]
+  origin:
+    file: src/prism/scanner_plugins/bundle_resolver.py
+    line: 95
+    note: "Bundle resolver assembles prepared_policy_bundle and writes it into scan_options; calls di.replace_scan_options when available"
+  downstream_consumer:
+    file: src/prism/scanner_core/execution_request_builder.py
+    line: 515
+    note: "_finalize_execution_request requires ensure_prepared_policy_bundle_fn and then calls runtime.container.replace_scan_options(canonical_options)"
+  fix_group_key: "prepared_policy_bundle.writeback"
+  proposed_fix_class: explicit_bundle_contract
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py::TestRuntimeAssemblySeam::test_execution_request_finalization_order_is_unchanged"

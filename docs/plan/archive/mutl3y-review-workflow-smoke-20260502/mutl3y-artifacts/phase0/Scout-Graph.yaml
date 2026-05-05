@@ -1,0 +1,71 @@
+- id: Scout-Graph-01
+  category: composition_root
+  fingerprint: composition_root|execution_request_builder|container_creation
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 486
+  severity_hint: high
+  confidence: high
+  detector: graph_slice
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "container = di_container_cls(...)"
+  evidence_command: sed -n '480,492p' src/prism/scanner_core/execution_request_builder.py
+  related_symbols: [DIContainer, di_container_cls]
+  fix_group_key: composition_root:di:execution_request_builder
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_di_registry_resolution.py::test_default_registry_initialization
+
+- id: Scout-Graph-02
+  category: registry_authority
+  fingerprint: registry_authority|plugin_registry_origin_to_di_consumer
+  file: src/prism/scanner_plugins/registry.py
+  line: 463
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "plugin_registry = PluginRegistry()  (origin) -- consumed by resolve_platform_key(...) at src/prism/scanner_core/di.py:109"
+  evidence_command: "sed -n '456,468p' src/prism/scanner_plugins/registry.py && sed -n '99,112p' src/prism/scanner_core/di.py"
+  related_symbols: [PluginRegistry, plugin_registry, get_default_platform_key, resolve_platform_key]
+  fix_group_key: registry:origin_to_consumer
+  proposed_fix_class: registry_property
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_di_registry_resolution.py::test_default_platform_key
+
+- id: Scout-Graph-03
+  category: singleton_pollution
+  fingerprint: singleton_pollution|registry_module_and_bootstrap_singletons
+  file: src/prism/scanner_plugins/bootstrap.py
+  line: 201
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_DEFAULT_REGISTRY = canonical_registry"
+  evidence_command: sed -n '192,204p' src/prism/scanner_plugins/bootstrap.py
+  related_symbols: [_DEFAULT_REGISTRY, plugin_registry]
+  fix_group_key: singleton:registry:bootstrap
+  proposed_fix_class: consolidate
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_di_registry_resolution.py::test_singleton_invariants
+
+- id: Scout-Graph-04
+  category: composition_root
+  fingerprint: composition_root|factory_blocker_fact_builder|intentional_seam
+  file: src/prism/scanner_core/di.py
+  line: 286
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_do_not_re_flag
+  memory_match: FIND-G3-03
+  evidence_snippet: "def factory_blocker_fact_builder(self) -> \"BlockerFactBuilder\":"
+  evidence_command: sed -n '270,292p' src/prism/scanner_core/di.py
+  related_symbols: [factory_blocker_fact_builder, resolve_blocker_fact_builder]
+  fix_group_key: do_not_re_flag:FIND-G3-03
+  proposed_fix_class: null
+  blocking_preconditions: []
+  suggested_narrow_gate: ""

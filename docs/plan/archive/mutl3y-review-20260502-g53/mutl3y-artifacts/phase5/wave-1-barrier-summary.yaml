@@ -1,0 +1,21 @@
+plan_id: mutl3y-review-20260502-g53
+cycle: g53
+phase: P5
+wave: 1
+status: completed
+builder: Builder-ControlFlow
+closed_findings:
+  - G53-H01
+validation:
+  pytest:
+    command: pytest -q src/prism/tests/test_execution_request_builder.py src/prism/tests/test_di_registry_resolution.py -k 'execution_request or authoritative_registry'
+    status: PASS
+    detail: 17 passed, 28 deselected
+  ruff:
+    command: .venv/bin/python -m ruff check src/prism/scanner_core/execution_request_builder.py src/prism/tests/test_execution_request_builder.py src/prism/tests/test_di_registry_resolution.py
+    status: PASS
+  black:
+    command: .venv/bin/python -m black --check src/prism/scanner_core/execution_request_builder.py src/prism/tests/test_execution_request_builder.py src/prism/tests/test_di_registry_resolution.py
+    status: PASS
+notes:
+  - Wave 1 extracted `_assemble_runtime_participants()` and kept registry-authority and bridge-slot behavior intact.

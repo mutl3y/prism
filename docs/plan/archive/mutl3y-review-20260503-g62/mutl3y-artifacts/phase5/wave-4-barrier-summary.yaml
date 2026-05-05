@@ -1,0 +1,10 @@
+wave_id: wave-4
+phase: P5
+summary: "Builder-Typing aligned the non_collection cache marker with the tightened prepared-policy-bundle contract and closed the high-severity H02 runtime boundary."
+builders:
+  - worker: Builder-Typing
+    task_id: g62-wave4-builder-typing
+    result: success
+    artifact: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Typing-wave-4-summary.md
+    notes: "Malformed prepared-policy-bundle dict placeholders now emit explicit malformed state in cache-key metadata instead of being fingerprinted as canonical prepared bundles."
+ready_for_next_slice: true

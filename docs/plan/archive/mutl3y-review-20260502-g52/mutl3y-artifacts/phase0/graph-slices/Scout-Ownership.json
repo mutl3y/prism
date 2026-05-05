@@ -1,0 +1,17 @@
+{
+  "agent": "Scout-Ownership",
+  "cycle": "g52",
+  "focus_axis": "composition_root",
+  "review_surface": [
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/tests/test_scanner_core_di.py",
+    "src/prism/tests/test_comment_doc_plugin_resolution.py"
+  ],
+  "questions": [
+    "Where is plugin construction still owned at runtime instead of at a single explicit composition root?",
+    "Which helper modules still carry dual responsibility for fallback behavior and object construction?"
+  ]
+}

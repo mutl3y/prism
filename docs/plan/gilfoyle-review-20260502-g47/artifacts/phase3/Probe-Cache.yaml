@@ -1,0 +1,25 @@
+phase: P3
+cycle: g47
+worker: Probe-Cache
+finding: G46-H12
+status: completed
+verdict: confirmed_live_high
+summary: "The cache slice still appears live: cache keys hash role content and option values but do not prove invalidation on external style-guide content changes at the same path."
+evidence:
+  - path: src/prism/scanner_core/scan_cache.py
+    line: 130
+    note: "compute_scan_cache_key keys on role_content_hash plus JSON-serialized scan_options."
+  - path: src/prism/scanner_core/scan_cache.py
+    line: 143
+    note: "compute_role_content_hash only walks the role tree, not external style-guide files."
+  - path: src/prism/api_layer/non_collection.py
+    line: 242
+    note: "run_scan computes role content hash from execution_request.role_path only."
+  - path: src/prism/api_layer/non_collection.py
+    line: 272
+    note: "prepared_policy_bundle is reduced to a fingerprint path rather than an explicit external-style-content invalidation contract."
+  - path: src/prism/tests/test_g03_scan_cache_integration.py
+    line: 29
+    note: "Current cache tests do not mutate style_readme_path content and therefore do not close the defect."
+suggested_narrow_gate: "pytest -q src/prism/tests/test_t3_03_scan_cache.py src/prism/tests/test_g03_scan_cache_integration.py"
+priority_note: "This remains a live High, but it is queued behind the user-directed confirmed cluster for the immediate wave."

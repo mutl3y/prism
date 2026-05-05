@@ -1,0 +1,10 @@
+cycle: g59
+phase: P1
+summary: "Light cycle g59 promoted 1 High and 1 Medium finding; registry singleton chatter suppressed as already-closed."
+promoted_counts:
+  high: 1
+  medium: 1
+  low: 0
+suppressed:
+  - reason: duplicate_or_already_closed
+    note: "Bootstrap singleton/global-registry observations reflagged in scouts are already-closed after g58 and suppressed."

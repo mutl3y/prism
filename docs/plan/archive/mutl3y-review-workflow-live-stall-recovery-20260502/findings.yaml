@@ -1,0 +1,32 @@
+plan_id: mutl3y-review-workflow-live-stall-recovery-20260502
+cycle: mutl3y-live-stall-1
+target: src/prism/tests/test_t2_01_plugin_api_version.py
+review_type: live_narrow_run
+focus_axis: control_flow
+status: completed
+decision_summary:
+  - "Use one named builder to remove the remaining warning source in the target test file."
+  - "Keep the fix confined to the test file and prove it with the focused file gate."
+carried_open_findings: []
+suppressed_highs: []
+findings:
+  - id: FIND-LIVE-STALL-01
+    status: closed
+    decision: fixed_in_wave_1
+    severity: medium
+    category: control_flow
+    fingerprint: plugin_api_version_test_fake_scan_pipeline_missing_stateless_marker
+    title: "Plugin API version test emits a stateless-marker warning for a fake scan-pipeline plugin"
+    files:
+      - src/prism/tests/test_t2_01_plugin_api_version.py
+    source_artifacts:
+      - .mutl3y-gate/live-stall-target.log
+    summary: "test_registry_accepts_plugin_with_matching_version registers a fake scan-pipeline plugin without PLUGIN_IS_STATELESS = True, producing one warning during the focused gate."
+    decision_deadline: mutl3y-live-stall-1
+    suggested_narrow_gate: pytest -q src/prism/tests/test_t2_01_plugin_api_version.py
+    closed_at: "2026-05-02"
+    closed_evidence:
+      - "Code: src/prism/tests/test_t2_01_plugin_api_version.py adds PLUGIN_IS_STATELESS = True to the fake scan-pipeline plugin used by test_registry_accepts_plugin_with_matching_version."
+      - "Builder: docs/plan/mutl3y-review-workflow-live-stall-recovery-20260502/mutl3y-artifacts/phase5/Builder-Typing-summary.md records the preserved invariant and focused validation."
+      - "Gate: .mutl3y-gate/live-stall-target.log => 17 passed in 0.31s after the builder fix."
+      - "Cluster: .mutl3y-gate/live-workflow-cluster-regression.log => 73 passed in 1.41s across the full exercised workflow slice cluster."

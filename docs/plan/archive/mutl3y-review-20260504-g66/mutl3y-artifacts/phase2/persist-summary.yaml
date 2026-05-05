@@ -1,0 +1,14 @@
+plan_id: mutl3y-review-20260504-g66
+cycle: g66
+phase: P2
+status: OK
+summary: >-
+  The g66 shortlist is now persisted: five new High families and one new Medium
+  family were added ahead of the carried-forward g64 Medium queue, and the plan
+  pointer now advances to wave-sizing and decision work.
+persisted_artifacts:
+  - docs/plan/mutl3y-review-20260504-g66/findings.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase1/grading-summary.yaml
+next_action: >-
+  Write the g66 decision summary and size the first implementation wave from the
+  persisted High shortlist.

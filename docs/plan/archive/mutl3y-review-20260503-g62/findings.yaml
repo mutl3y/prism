@@ -1,0 +1,135 @@
+cycle: g62
+review_type: thorough
+status: active_shortlist
+closed:
+  - id: G62-H01
+    severity: high
+    category: registry_authority
+    title: "Plugin registry authority remains split across singleton, bootstrap, DI ingress, and facade re-export seams"
+    files:
+      - src/prism/scanner_plugins/__init__.py
+      - src/prism/api_layer/plugin_facade.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+      - src/prism/tests/test_di_registry_resolution.py
+      - src/prism/tests/test_scanner_guardrails.py
+    summary: >-
+      The actionable registry-authority leak in the public package surface is
+      now retired: prism.scanner_plugins no longer exposes
+      DEFAULT_PLUGIN_REGISTRY, owned tests moved to the explicit bootstrap
+      getter, and the remaining bootstrap and DI seams are guarded as the
+      canonical authority path rather than a duplicate public singleton export.
+    closed_evidence:
+      - "Wave 1 focused validation: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k 'default_plugin_registry or bootstrap' src/prism/tests/test_di_registry_resolution.py -k 'through_registry or default_platform_key' -> 5 passed, 56 deselected"
+      - "Wave 1 importer validation: pytest -q src/prism/tests/test_feature_detector.py src/prism/tests/test_variable_discovery_pipeline.py -k 'registry or plugin' -> 3 passed, 14 deselected"
+      - "Wave 2 focused validation: pytest -q src/prism/tests/test_scanner_guardrails.py -k 'plugin_registry_bootstrap_initialization_smoke or scanner_plugins_package_import_does_not_initialize_registry' -> 2 passed, 11 deselected"
+      - "Wave 2 importer validation: pytest -q src/prism/tests/test_t2_01_plugin_api_version.py -k default_bootstrap_plugins_register_without_error -> 1 passed, 16 deselected"
+      - "Builder artifacts: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Ownership-summary.md and docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Ownership-wave-2-summary.md"
+    closure_note: "The scout batch over-grouped intentional bootstrap and DI authority seams with the real defect. Closing this finding retires the package-root registry export leak while preserving bootstrap.get_default_plugin_registry() as the sole canonical public registry getter."
+
+  - id: G62-H02
+    severity: high
+    category: typing
+    title: "Prepared policy bundle boundaries still accept raw dict and object-typed shapes"
+    files:
+      - src/prism/scanner_core/scanner_context.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_scanner_context.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    summary: >-
+      The high-severity fail-open boundary is now closed: scanner_context no
+      longer accepts arbitrary dict/object placeholders as prepared policy
+      bundles, and non_collection cache-key logic no longer fingerprints
+      malformed dict placeholders as if they were canonical prepared bundles.
+    closed_evidence:
+      - "Wave 3 focused validation: pytest -q src/prism/tests/test_scanner_context.py -k 'requires_prepared_policy_bundle_without_mutating_ingress_options or prepared_policy_bundle_rejects_invalid_bundle' -> 3 passed, 16 deselected"
+      - "Wave 3 importer validation: .venv/bin/python -m mypy src/prism/scanner_core/scanner_context.py src/prism/tests/test_scanner_context.py -> success"
+      - "Wave 4 focused validation: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'prepared_policy_bundle_state' -> 2 passed, 31 deselected"
+      - "Wave 4 importer validation: .venv/bin/python -m mypy src/prism/api_layer/non_collection.py src/prism/tests/test_api_cli_entrypoints.py -> success"
+      - "Builder artifacts: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Typing-summary.md and docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Typing-wave-4-summary.md"
+    closure_note: "The remaining scout evidence around object-typed protocols and Any-heavy task-line proxies is residual typing debt, but the dangerous runtime prepared-bundle acceptance path that made this high severity is now fail-closed and covered by direct tests."
+
+  - id: G62-M01
+    severity: medium
+    category: error_channel
+    title: "Scan-cache fallback paths mask unreadable inputs and trust cached payload shape too early"
+    files:
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/tests/test_t3_03_scan_cache.py
+    summary: >-
+      The actionable cache-hash defect is now fixed: unreadable single-file
+      paths no longer collapse to a shared sentinel-only digest. The second
+      half of the scout bundle did not hold up on local read, because cached
+      hits still pass through _normalize_non_collection_result_shape(), which
+      validates payload structure before returning it.
+    closed_evidence:
+      - "Wave 5 focused validation: pytest -q src/prism/tests/test_t3_03_scan_cache.py -k 'unreadable or content_hash' -> 3 passed, 14 deselected"
+      - "Wave 5 importer validation: .venv/bin/python -m mypy src/prism/scanner_core/scan_cache.py src/prism/tests/test_t3_03_scan_cache.py -> success"
+      - "Builder artifact: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md"
+      - "Adjacent code read: api_layer/non_collection.py still normalizes cached hits through validate_run_scan_output_payload before returning them"
+    closure_note: "The scout finding over-grouped a real single-file unreadable-hash collision with a cached-payload concern that is already guarded by the existing non_collection result normalizer."
+
+  - id: G62-M02
+    severity: medium
+    category: facade_leakage
+    title: "Public API and plugin facade still re-export private helpers and internal registry accessors"
+    files:
+      - src/prism/api.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    summary: >-
+      The actionable public-surface leak is now retired: api.py no longer
+      re-exports the private _NormalizedNonCollectionResult alias. The
+      remaining plugin_facade.ensure_prepared_policy_bundle reference is a
+      single internal api_layer seam used by non_collection rather than a
+      separate public contract leak.
+    closed_evidence:
+      - "Wave 6 focused validation: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'delegates_to_non_collection_api_layer or normalizes_payload_shape_from_non_collection_seam' -> 4 passed, 29 deselected"
+      - "Wave 6 importer validation: .venv/bin/python -m mypy src/prism/api.py src/prism/tests/test_api_cli_entrypoints.py -> success"
+      - "Builder artifact: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Ownership-wave-6-summary.md"
+      - "Usage check: ensure_prepared_policy_bundle has only one remaining internal api_layer consumer in api_layer/non_collection.py"
+    closure_note: "The scout finding over-grouped one real public alias leak with one internal api_layer seam. Retiring the alias removed the public contract leakage without forcing an unnecessary bundle_resolver ownership change in the same cycle."
+
+  - id: G62-H03
+    severity: high
+    category: registry_authority
+    title: "Public API downgrades reserved unsupported platform routing failures"
+    files:
+      - src/prism/api.py
+      - src/prism/api_layer/plugin_facade.py
+      - src/prism/scanner_kernel/orchestrator.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+      - src/prism/tests/test_platform_routing_fail_closed.py
+    summary: >-
+      Gilfoyle Code Review God Mode found that prism.api.run_scan passes the
+      isolated scan-pipeline registry wrapper into non-collection runtime
+      orchestration. That wrapper does not expose
+      is_reserved_unsupported_platform(), so scanner_kernel routing skips the
+      reserved-platform branch and reports reserved platforms such as terraform
+      or kubernetes as platform_not_registered instead of platform_not_supported
+      on the public API path.
+    closed_evidence:
+      - "Wave 7 focused API seam validation: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'reserved or scan_pipeline_registry_seam' -> 2 passed, 32 deselected"
+      - "Wave 7 lower-level routing validation: pytest -q src/prism/tests/test_platform_routing_fail_closed.py -> 12 passed"
+      - "Wave 7 importer validation: .venv/bin/python -m mypy src/prism/api_layer/plugin_facade.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_platform_routing_fail_closed.py -> success"
+      - "Wave 7 lint/format validation: ruff check and black --check on touched files -> success"
+      - "Builder artifact: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Ownership-wave-7-summary.md"
+    closure_note: "The isolated scan-pipeline registry now forwards reserved unsupported platform classification, preserving platform_not_supported on the public API path without weakening scan_context isolation."
+
+promoted: []
+
+suppressed_or_deferred:
+  suppressed:
+    - reason: "already-tracked fallback-singleton debt"
+      note: "Suppress scanner_plugins.defaults fallback singleton observations for now; Scout-Ownership-04 is already tagged as matches_active_lesson and does not outrank the registry-authority split promoted as G62-H01."
+
+    - reason: "subordinate duplicate under promoted registry authority seam"
+      note: "Suppress the retired DEFAULT_PLUGIN_REGISTRY export as a standalone finding because G62-H01 is now closed and the remaining plugin_facade registry getter is treated as the canonical bootstrap seam, not a duplicate package export."
+
+    - reason: "lower-priority fallback semantics beneath cache/error shortlist"
+      note: "Suppress the loader dual-path fallback and kernel exception envelope observations for the first shortlist pass; keep them as supporting context unless a later wave exhausts the current higher-leverage slices."
+    - reason: "post-H02 residual typing debt now downgraded beneath runtime-boundary fixes"
+      note: "Suppress the remaining PreparedVariableExtractorPolicy object-typed callback surface and task_line_parsing Any-heavy proxy cleanup for now; the high-severity fail-open prepared-bundle boundary is closed and the residual protocol typing work can be reconsidered as lower-priority follow-up if needed."
+    - reason: "post-M01 cached-payload concern not confirmed on local code read"
+      note: "Suppress the unchecked cached-payload reuse phrasing from the original scout bundle; cached values still flow through _normalize_non_collection_result_shape() and validate_run_scan_output_payload before returning from non_collection."
+    - reason: "post-M02 internal api_layer seam not a separate public contract leak"
+      note: "Suppress plugin_facade.ensure_prepared_policy_bundle as a standalone follow-up in this cycle; current usage is limited to api_layer/non_collection and does not expose a separate public API contract after the api.py alias re-export was retired."
+  deferred: []

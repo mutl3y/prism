@@ -1,0 +1,21 @@
+{
+  "agent": "Scout-Ownership",
+  "cycle": "g48",
+  "focus_axis": "typing",
+  "review_surface": [
+    "src/prism/api.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_plugins/bundle_resolver.py",
+    "src/prism/scanner_plugins/interfaces.py",
+    "src/prism/scanner_plugins/parsers/yaml/parsing_policy.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/scanner_extract/discovery.py",
+    "src/prism/tests/test_comment_doc_plugin_resolution.py",
+    "src/prism/tests/test_platform_routing_fail_closed.py",
+    "src/prism/tests/test_dataload.py"
+  ],
+  "questions": [
+    "Which exported helpers or facade paths still own second-class typed seams or fallback-owned behavior?",
+    "Do plugin resolution and YAML-loading modules still hide ownership behind generic helper surfaces?"
+  ]
+}

@@ -1,0 +1,33 @@
+cycle: g47
+plan_id: gilfoyle-review-20260502-g47
+phase: P7
+status: completed
+closed_findings:
+- G47-PROBE-H09
+- G47-PROBE-H12
+validation_bundle:
+- docs/plan/gilfoyle-review-20260502-g47/.mutl3y-gate/h09-di-closeout.log
+- docs/plan/gilfoyle-review-20260502-g47/.mutl3y-gate/h09-payload-closeout.log
+- docs/plan/gilfoyle-review-20260502-g47/.mutl3y-gate/h12-closeout.log
+artifact_cleanup_assessment:
+  retained_artifacts:
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase1/grading-summary.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase3/Probe-Kernel.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase3/Probe-Cache.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase5/wave-1-barrier-summary.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase7/closure-summary.yaml
+  cleanup_candidates:
+  - Run the repo-local cleanup helper on completed plans to prune pure wave scaffolding once closure summary
+    and execution trace are retained.
+  cleanup_actions:
+  - 'Removed stale phase5_wave_start_audit scaffolding artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase5/wave-1-start-audit.yaml'
+  - 'Removed stale phase5_wave_plan scaffolding artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase5/wave-1-plan.yaml'
+notes:
+- Direct follow-up closed H09 by fail-closing DI constructor exceptions and normalizing non-collection
+  run_scan payload shape before return and cache writes.
+- Direct follow-up closed H12 by fingerprinting external style-guide content in the cache key and proving
+  same-path content changes invalidate cache.
+- Phase 7 learning rollup completed successfully with zero new durable lessons promoted for g47 and refreshed
+  routing guidance in docs/plan/.gilfoyle-lessons/digest.yaml.
+- Automatic cleanup should now remove only pure wave scaffolding from completed plans; canonical evidence
+  remains the closure summary, execution trace, findings, retained barrier evidence, and model telemetry.

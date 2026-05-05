@@ -1,0 +1,82 @@
+- id: G63-CF-01
+  category: silent_fallback
+  fingerprint: scanner_context:phase_fallback_v1
+  file: src/prism/scanner_core/scanner_context.py
+  line: 240
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except Exception as error: ... logger.error(...); return () in best-effort mode"
+  evidence_command: sed -n '240,256p' src/prism/scanner_core/scanner_context.py
+  related_symbols:
+    - ScannerContext._discover_variables
+    - ScannerContext._detect_features
+    - _RECOVERABLE_PHASE_ERRORS
+    - strict_phase_failures
+  fix_group_key: scanner_context_phase_fallback
+  proposed_fix_class: typed_error_channel
+  blocking_preconditions: []
+  suggested_narrow_gate: unit-tests:scan-phase-failure-handling
+
+- id: G63-CF-02
+  category: silent_fallback
+  fingerprint: variable_extractor:seedfile_skip_v1
+  file: src/prism/scanner_extract/variable_extractor.py
+  line: 75
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except (OSError, yaml.YAMLError, UnicodeDecodeError, ValueError, RuntimeError): continue"
+  evidence_command: sed -n '75,100p' src/prism/scanner_extract/variable_extractor.py
+  related_symbols:
+    - load_seed_variables
+    - load_yaml_file
+  fix_group_key: variable_extractor_seedfile_fallback
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: unit-tests:seedfile-error-classification
+
+- id: G63-CF-03
+  category: policy_coercion
+  fingerprint: task_line_parsing:require_prepared_policy_none_v1
+  file: src/prism/scanner_extract/task_line_parsing.py
+  line: 1
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "Proxy calls require_prepared_policy(None, \"task_line_parsing\", ...) for current values."
+  evidence_command: sed -n '1,40p' src/prism/scanner_extract/task_line_parsing.py
+  related_symbols:
+    - require_prepared_policy
+    - _PolicyBackedCollectionProxy
+    - _PolicyBackedRegexProxy
+  fix_group_key: prepared_policy_resolution_consistency
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: unit-tests:prepared-policy-resolution
+
+- id: G63-CF-04
+  category: error_channel
+  fingerprint: scan_cache:unreadable_marker_v1
+  file: src/prism/scanner_core/scan_cache.py
+  line: 168
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except OSError: h.update(b\"\\x00UNREADABLE\\x00\") instead of surfacing file-read failure"
+  evidence_command: sed -n '168,190p' src/prism/scanner_core/scan_cache.py
+  related_symbols:
+    - compute_path_content_hash
+    - compute_scan_cache_key
+  fix_group_key: scan_cache_unreadable_handling
+  proposed_fix_class: typed_error_channel
+  blocking_preconditions: []
+  suggested_narrow_gate: unit-tests:cache-identity-on-unreadable-files

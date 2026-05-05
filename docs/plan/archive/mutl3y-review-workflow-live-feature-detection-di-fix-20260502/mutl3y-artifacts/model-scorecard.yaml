@@ -1,0 +1,15 @@
+cycle: mutl3y-live-fd-1
+phase: P7
+models:
+  GPT-5.4 mini:
+    attempts: 1
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.0
+    lane_tags:
+      - builder
+    status: healthy
+notes:
+  - "Wave started with one named builder against the feature-detection stateless-marker test file."
+  - "The final gate is warning-clean because the expected backward-compat warning is now asserted explicitly in the test."

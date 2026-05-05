@@ -1,0 +1,143 @@
+- id: Scout-ControlFlow-01
+  category: policy_coercion
+  fingerprint: "policy_coercion:non_collection:_coerce_scan_metadata:silent_empty_default"
+  file: src/prism/api_layer/non_collection.py
+  line: 188
+  severity_hint: medium
+  confidence: high
+  detector: deterministic_probe
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if not isinstance(value, dict): return ScanMetadata()"
+  evidence_command: "src/prism/api_layer/non_collection.py#L186-L191"
+  related_symbols: ["_coerce_scan_metadata"]
+  fix_group_key: "policy_coercion.scan_metadata"
+  proposed_fix_class: explicit_failure_on_type_mismatch
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_*non_collection* -k coerce"
+
+- id: Scout-ControlFlow-02
+  category: silent_fallback
+  fingerprint: "silent_fallback:non_collection:_resolve_run_scan_default_classes:conditional_import"
+  file: src/prism/api_layer/non_collection.py
+  line: 156
+  severity_hint: medium
+  confidence: high
+  detector: deterministic_probe
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "DIContainer if di_container_cls is None else di_container_cls"
+  evidence_command: "src/prism/api_layer/non_collection.py#L141-L165"
+  related_symbols: ["_resolve_run_scan_default_classes"]
+  fix_group_key: "silent_fallback.default_class_resolution"
+  proposed_fix_class: explicit_required_args
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_run_scan_with_none_classes"
+
+- id: Scout-ControlFlow-03
+  category: silent_fallback
+  fingerprint: "silent_fallback:api:run_scan:module_state_patch"
+  file: src/prism/api.py
+  line: 458
+  severity_hint: low
+  confidence: high
+  detector: deterministic_probe
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if not hasattr(scanner_core_di, 'ScannerContext'): setattr(...)"
+  evidence_command: "src/prism/api.py#L456-L461"
+  related_symbols: ["run_scan"]
+  fix_group_key: "silent_fallback.module_patching"
+  proposed_fix_class: fail_closed_or_document
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_run_scan_module_setup"
+
+- id: Scout-ControlFlow-04
+  category: silent_fallback
+  fingerprint: "silent_fallback:api:_wrap_scan_pipeline_plugin_factory:conditional_copy_behavior"
+  file: src/prism/api.py
+  line: 267
+  severity_hint: low
+  confidence: high
+  detector: deterministic_probe
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "copy.deepcopy(scan_context) if isinstance(scan_context, dict) else scan_context"
+  evidence_command: "src/prism/api.py#L260-L271"
+  related_symbols: ["_wrap_scan_pipeline_plugin_factory", "_OrchestratingScanPipelinePluginIsolationWrapper"]
+  fix_group_key: "silent_fallback.isolation_behavior"
+  proposed_fix_class: document_type_narrowing_semantics
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py -k isolation"
+
+- id: Scout-ControlFlow-05
+  category: weak_typing
+  fingerprint: "weak_typing:api:_wrap_scan_pipeline_plugin_factory:unchecked_cast_protocol"
+  file: src/prism/api.py
+  line: 243
+  severity_hint: low
+  confidence: high
+  detector: deterministic_probe
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "cast(_PluginRegistryProtocol, registry)"
+  evidence_command: "src/prism/api.py#L240-L250"
+  related_symbols: ["_isolate_scan_pipeline_registry", "_PluginRegistryProtocol"]
+  fix_group_key: "weak_typing.protocol_enforcement"
+  proposed_fix_class: isinstance_check_before_protocol_cast
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py"
+
+- id: Scout-ControlFlow-06
+  category: weak_typing
+  fingerprint: "weak_typing:api:_wrap_scan_pipeline_plugin_factory:hasattr_protocol_detection"
+  file: src/prism/api.py
+  line: 253
+  severity_hint: low
+  confidence: high
+  detector: deterministic_probe
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if hasattr(plugin_factory, 'orchestrate_scan_payload')"
+  evidence_command: "src/prism/api.py#L251-L256"
+  related_symbols: ["_wrap_scan_pipeline_plugin_factory", "_ProcessScanPipelinePlugin"]
+  fix_group_key: "weak_typing.protocol_enforcement"
+  proposed_fix_class: runtime_isinstance_protocol_check
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_scan_pipeline_plugin_dispatch"
+
+- id: Scout-ControlFlow-07
+  category: guard
+  fingerprint: "guard:api:_assert_safe_optional_path:silent_none_acceptance"
+  file: src/prism/api.py
+  line: 317
+  severity_hint: low
+  confidence: high
+  detector: deterministic_probe
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if path_value is None: return"
+  evidence_command: "src/prism/api.py#L315-L320"
+  related_symbols: ["_assert_safe_optional_path"]
+  fix_group_key: "guard.optional_path_handling"
+  proposed_fix_class: document_optional_semantics
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_package_import_smoke.py"
+
+- id: Scout-ControlFlow-08
+  category: duplication
+  fingerprint: "duplication:api:wrapper_isolation_pattern:repeated_deepcopy_logic"
+  file: src/prism/api.py
+  line: 265
+  severity_hint: low
+  confidence: medium
+  detector: deterministic_probe
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "copy.deepcopy(...) if isinstance(scan_context, dict) else scan_context"
+  evidence_command: "src/prism/api.py#L260-L288"
+  related_symbols: ["_OrchestratingScanPipelinePluginIsolationWrapper", "_ScanPipelinePluginIsolationWrapper"]
+  fix_group_key: "duplication.isolation_wrapper"
+  proposed_fix_class: extract_shared_isolation_helper
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py -k wrapper"

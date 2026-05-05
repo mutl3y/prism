@@ -1,0 +1,51 @@
+status: ok
+phase: P0
+cycle: g63
+wave: null
+review_type: light
+focus_axis: ownership
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/learning-context.yaml
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Graph.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/learning-context.yaml
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Graph.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+resume_dirty_tree:
+  status: OK
+  source_artifact: .mutl3y-gate/resume-dirty-tree.yaml
+  ruff_exit: 0
+  black_exit: 0
+  changed_files_source: .mutl3y-gate/resume-dirty-tree.yaml
+next_dispatch_targets:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+owned_file_sets:
+  - agent_name: Scout-Typing
+    files:
+      - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - agent_name: Scout-Ownership
+    files:
+      - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - agent_name: Scout-ControlFlow
+    files:
+      - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - agent_name: Scout-Graph
+    files:
+      - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Graph.yaml
+notes: >-
+  g63 is the required light follow-up after g62 fixed a reopened High. Scout
+  scope is recently changed tracked Python files plus immediate neighbours,
+  with ownership as the primary focus axis.
+barrier_result:
+  status: OK
+  summary: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/barrier-summary.yaml

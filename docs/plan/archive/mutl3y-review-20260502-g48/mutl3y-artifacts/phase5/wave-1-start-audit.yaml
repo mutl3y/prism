@@ -1,0 +1,34 @@
+status: ok
+phase: P5
+cycle: g48
+wave: 1
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/wave-1-plan.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/wave-1-start-audit.yaml
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/wave-1-plan.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Builder-Typing
+  - Builder-ControlFlow
+  - Builder-Abstraction
+owned_file_sets:
+  - agent_name: Builder-Typing
+    files:
+      - src/prism/scanner_io/output_orchestrator.py
+      - src/prism/tests/test_output_orchestration.py
+  - agent_name: Builder-ControlFlow
+    files:
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/tests/test_defaults.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+  - agent_name: Builder-Abstraction
+    files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+      - src/prism/tests/test_collection_contract.py
+notes: >-
+  Wave 1 is valid for dispatch: the plan exists on disk, file ownership is
+  disjoint across all three builders, and the selected high findings align with
+  the persisted Phase 2 shortlist.

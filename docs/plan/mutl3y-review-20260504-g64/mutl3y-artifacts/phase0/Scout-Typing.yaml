@@ -1,0 +1,71 @@
+- id: ST-001
+  category: error_channel
+  fingerprint: scanner_context-except-exception-244-263
+  file: src/prism/scanner_core/scanner_context.py
+  line: 244
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "try: discovery = self._di.factory_variable_discovery(); return discovery.discover(); except Exception as error: ..."
+  evidence_command: nl -ba src/prism/scanner_core/scanner_context.py | sed -n '240,276p'
+  related_symbols: [ScannerContext._discover_variables, ScannerContext._detect_features]
+  fix_group_key: broad-except-handler
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: Add unit test asserting non-recoverable exceptions propagate
+
+- id: ST-002
+  category: orchestration_seam
+  fingerprint: loader-get_yaml_parsing_policy-soft-fallback-82-115
+  file: src/prism/scanner_io/loader.py
+  line: 82
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def _get_yaml_parsing_policy(di: object | None = None) -> PreparedYAMLParsingPolicy: # NOTE: Intentional dual-path - soft fallback to registry-resolved default. Unlike other policy getters, this path does NOT raise on a missing bundle. ..."
+  evidence_command: nl -ba src/prism/scanner_io/loader.py | sed -n '82,116p'
+  related_symbols: [_get_yaml_parsing_policy, parse_yaml_candidate, load_yaml_file]
+  fix_group_key: loader-dual-path-yaml-policy
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: Add unit test showing intended fallback behavior and a contract comment in public API
+
+- id: ST-003
+  category: silent_fallback
+  fingerprint: variable_extractor-load_seed_variables-except-90-96
+  file: src/prism/scanner_extract/variable_extractor.py
+  line: 90
+  severity_hint: medium
+  confidence: medium
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "try: loaded = load_yaml_file(candidate, di=di); except (OSError, yaml.YAMLError, UnicodeDecodeError, ValueError, RuntimeError): continue"
+  evidence_command: nl -ba src/prism/scanner_extract/variable_extractor.py | sed -n '86,100p'
+  related_symbols: [load_seed_variables, get_variable_extractor_policy]
+  fix_group_key: silent-skip-seed-files
+  proposed_fix_class: typed_error_channel
+  blocking_preconditions: []
+  suggested_narrow_gate: Add unit test verifying skip logging or metadata warning behavior
+
+- id: ST-004
+  category: typing
+  fingerprint: contracts_request-wide-object-usage-59-101-250-260
+  file: src/prism/scanner_data/contracts_request.py
+  line: 59
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "class VariableInsight(TypedDict, total=False): name: str; type: object; default: object; class DisplayVariableEntry(TypedDict, total=False): type: object; default: object; class PreparedPolicyBundle(TypedDict, total=False): task_line_parsing: Required[PreparedTaskLineParsingPolicy]; jinja_analysis: Required[PreparedJinjaAnalysisPolicy]"
+  evidence_command: nl -ba src/prism/scanner_data/contracts_request.py | sed -n '59,104p'
+  related_symbols: [PreparedPolicyBundle, DisplayVariableEntry, VariableInsight]
+  fix_group_key: weak-typed-contracts
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: Run mypy typecheck after incremental narrowing on a small subset of fields

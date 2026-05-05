@@ -1,0 +1,17 @@
+wave_id: wave-1
+phase: P5
+summary: "Both builders returned and are ready for closure."
+builders:
+  - worker: Builder-APISeam
+    task_id: g59-wave1-builder-apiseam
+    result: success
+    artifact: docs/plan/mutl3y-review-20260503-g59/mutl3y-artifacts/phase5/Builder-APISeam-summary.md
+    notes: "API seam builder removed module patch and added regression proving scanner_context_cls forwarding."
+
+  - worker: Builder-CollectionClassifier
+    task_id: g59-wave1-builder-collection-classifier
+    result: success
+    artifact: docs/plan/mutl3y-review-20260503-g59/mutl3y-artifacts/phase5/Builder-CollectionClassifier-summary.md
+    notes: "Added regression proving scan_collection demotes PrismRuntimeError with role_content_ codes."
+
+ready_for_closure: true

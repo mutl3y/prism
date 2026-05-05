@@ -1,0 +1,198 @@
+- id: Scout-Ownership-01
+  category: facade_leakage
+  fingerprint: facade_leakage:api:scanner_core:unexported_imports
+  file: src/prism/api.py
+  line: 31
+  severity_hint: medium
+  confidence: high
+  detector: import_boundary_scan
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: "from prism.scanner_core import (\n    DIContainer,\n    FeatureDetector,\n\
+    \    ScanCacheBackend,\n    ScannerContext,\n)"
+  evidence_command: src/prism/api.py#L30-L35
+  related_symbols:
+  - DIContainer
+  - FeatureDetector
+  - ScanCacheBackend
+  - ScannerContext
+  fix_group_key: api.facade_leakage.scanner_core_types
+  proposed_fix_class: facade_cleanup
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_api*.py -k 'import'
+- id: Scout-Ownership-02
+  category: ownership
+  fingerprint: ownership:api:__all__:incomplete_declaration
+  file: src/prism/api.py
+  line: 55
+  severity_hint: low
+  confidence: high
+  detector: import_boundary_scan
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: __all__ = ["scan_collection", "scan_repo", "scan_role"]
+  evidence_command: src/prism/api.py#L55
+  related_symbols:
+  - __all__
+  fix_group_key: api.facade_leakage.scanner_core_types
+  proposed_fix_class: explicit_export_control
+  blocking_preconditions: []
+  suggested_narrow_gate: rg '__all__' src/prism/api.py
+- id: Scout-Ownership-03
+  category: ownership
+  fingerprint: ownership:loader:registry_split_authority:getattr_access
+  file: src/prism/scanner_io/loader.py
+  line: 41
+  severity_hint: high
+  confidence: high
+  detector: registry_access_scan
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: registry = getattr(di, "plugin_registry", None)
+  evidence_command: src/prism/scanner_io/loader.py#L37-L47
+  related_symbols:
+  - _resolve_plugin_registry
+  - plugin_registry
+  fix_group_key: registry-split-authority
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_dataload.py::test_load_yaml_file
+    -v
+- id: Scout-Ownership-04
+  category: ownership
+  fingerprint: ownership:defaults:registry_split_authority:getattr_access
+  file: src/prism/scanner_plugins/defaults.py
+  line: 53
+  severity_hint: high
+  confidence: high
+  detector: registry_access_scan
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: di_registry = getattr(di, "plugin_registry", None)
+  evidence_command: src/prism/scanner_plugins/defaults.py#L48-L60
+  related_symbols:
+  - _resolve_registry
+  - plugin_registry
+  fix_group_key: registry-split-authority
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py
+    -v
+- id: Scout-Ownership-05
+  category: typing
+  fingerprint: typing:defaults:untyped_callables:blocker_fact_builder
+  file: src/prism/scanner_plugins/defaults.py
+  line: 546
+  severity_hint: medium
+  confidence: high
+  detector: typing_scan
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def resolve_blocker_fact_builder() -> Callable[..., Any]:'
+  evidence_command: src/prism/scanner_plugins/defaults.py#L546-L556
+  related_symbols:
+  - resolve_blocker_fact_builder
+  - BlockerFactBuilder
+  fix_group_key: typing.untyped_callables.resolver_functions
+  proposed_fix_class: protocol_typing
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_core_di.py -v
+- id: Scout-Ownership-06
+  category: typing
+  fingerprint: typing:non_collection:untyped_return:dict_any
+  file: src/prism/api_layer/non_collection.py
+  line: 316
+  severity_hint: medium
+  confidence: high
+  detector: typing_scan
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: ') -> dict[str, Any]:'
+  evidence_command: src/prism/api_layer/non_collection.py#L311-L320
+  related_symbols:
+  - _kernel_orchestrator
+  fix_group_key: typing.untyped_return_types.dict_any
+  proposed_fix_class: typed_payload_contract
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_api_layer_non_collection.py
+    -v
+- id: Scout-Ownership-07
+  category: composition_root
+  fingerprint: composition:non_collection:lazy_registry_resolution:fallback_path
+  file: src/prism/api_layer/non_collection.py
+  line: 223
+  severity_hint: high
+  confidence: high
+  detector: composition_scan
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: "if default_plugin_registry is None:\n        default_plugin_registry\
+    \ = plugin_facade.get_default_plugin_registry()"
+  evidence_command: src/prism/api_layer/non_collection.py#L223-L225
+  related_symbols:
+  - default_plugin_registry
+  - get_default_plugin_registry
+  fix_group_key: composition-root-lazy-fallback
+  proposed_fix_class: explicit_wiring
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_api_layer_non_collection.py::test_ensure_default_registry
+    -v
+- id: Scout-Ownership-08
+  category: ownership
+  fingerprint: ownership:bundle_resolver:untyped_cast:prepared_policy_bundle
+  file: src/prism/scanner_plugins/bundle_resolver.py
+  line: 157
+  severity_hint: low
+  confidence: high
+  detector: typing_scan
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: return cast(PreparedPolicyBundle, bundle)
+  evidence_command: src/prism/scanner_plugins/bundle_resolver.py#L150-L160
+  related_symbols:
+  - ensure_prepared_policy_bundle
+  - cast
+  fix_group_key: typing.untyped_return_types.dict_any
+  proposed_fix_class: typed_narrowing
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_api_layer_non_collection.py
+    -v
+- id: Scout-Ownership-09
+  category: ownership
+  fingerprint: ownership:loader:untyped_cast:yaml_parsing_policy
+  file: src/prism/scanner_io/loader.py
+  line: 76
+  severity_hint: low
+  confidence: high
+  detector: typing_scan
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: return cast("PreparedYAMLParsingPolicy", policy)
+  evidence_command: src/prism/scanner_io/loader.py#L72-L80
+  related_symbols:
+  - _get_yaml_parsing_policy
+  - cast
+  fix_group_key: typing.untyped_return_types.yaml_policy
+  proposed_fix_class: typed_narrowing
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_dataload.py -v
+- id: Scout-Ownership-10
+  category: ownership
+  fingerprint: ownership:defaults:fallback_singletons:stateless_invariant
+  file: src/prism/scanner_plugins/defaults.py
+  line: 78
+  severity_hint: medium
+  confidence: high
+  detector: composition_scan
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: _TASK_LINE_PARSING_FALLBACK = AnsibleDefaultTaskLineParsingPolicyPlugin()
+  evidence_command: src/prism/scanner_plugins/defaults.py#L78-L86
+  related_symbols:
+  - _FALLBACK_SINGLETONS
+  - PLUGIN_IS_STATELESS
+  fix_group_key: composition-root-fallback-singletons
+  proposed_fix_class: explicit_stateless_contract
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_plugins_defaults.py
+    -v

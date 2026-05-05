@@ -1,0 +1,21 @@
+{
+  "agent": "Scout-Graph",
+  "cycle": "g50",
+  "focus_axis": "typing",
+  "review_surface": [
+    "src/prism/api.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_core/protocols_runtime.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_plugins/registry.py",
+    "src/prism/scanner_io/output_orchestrator.py",
+    "src/prism/scanner_data/contracts.py",
+    "src/prism/tests/test_scanner_core_di.py"
+  ],
+  "questions": [
+    "Where do construction, registry authority, and runtime consumption still split across modules in ways that typing work should prioritize?",
+    "Would a TYPE_CHECKING move or protocol extraction break runtime behavior on any current import-pressure seam?"
+  ]
+}

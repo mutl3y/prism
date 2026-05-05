@@ -1,0 +1,196 @@
+- id: Scout-Typing-01
+  category: composition_root
+  fingerprint: composition_root:di:plugin_class_type_any
+  file: src/prism/scanner_core/di.py
+  line: 125
+  severity_hint: high
+  confidence: high
+  detector: read_file
+  memory_status: no_match
+  evidence_snippet: "plugin_class: type[Any],"
+  evidence_command: "read_file src/prism/scanner_core/di.py 120 135"
+  related_symbols:
+    - _construct_runtime_plugin
+    - DIContainer.factory_variable_discovery_plugin
+    - DIContainer.factory_feature_detection_plugin
+  fix_group_key: late-bound-constructor-contracts
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py src/prism/tests/test_api_cli_entrypoints.py"
+
+- id: Scout-Typing-02
+  category: composition_root
+  fingerprint: composition_root:di:factory_override_weak_dict
+  file: src/prism/scanner_core/di.py
+  line: 167
+  severity_hint: medium
+  confidence: high
+  detector: read_file
+  memory_status: no_match
+  evidence_snippet: "factory_overrides: dict[str, \"DIFactoryOverride\"] | None = None,"
+  evidence_command: "read_file src/prism/scanner_core/di.py 160 175"
+  related_symbols:
+    - DIContainer.__init__
+    - factory_overrides
+    - DIFactoryOverride
+  fix_group_key: late-bound-constructor-contracts
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_di_factory_override_injection"
+
+- id: Scout-Typing-03
+  category: composition_root
+  fingerprint: composition_root:di:scanner_context_wiring_any_dict
+  file: src/prism/scanner_core/di.py
+  line: 165
+  severity_hint: medium
+  confidence: high
+  detector: read_file
+  memory_status: no_match
+  evidence_snippet: "scanner_context_wiring: dict[str, Any] | None = None,"
+  evidence_command: "read_file src/prism/scanner_core/di.py 160 180"
+  related_symbols:
+    - DIContainer.__init__
+    - scanner_context_wiring
+    - factory_scanner_context
+  fix_group_key: weak-protocol-boundaries
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_scanner_context_wiring"
+
+- id: Scout-Typing-04
+  category: weak_protocol_boundary
+  fingerprint: protocol:defaults:validate_plugin_shape_any_params
+  file: src/prism/scanner_plugins/defaults.py
+  line: 226
+  severity_hint: medium
+  confidence: high
+  detector: read_file
+  memory_status: no_match
+  evidence_snippet: "plugin: Any,"
+  evidence_command: "read_file src/prism/scanner_plugins/defaults.py 220 250"
+  related_symbols:
+    - _validate_plugin_shape
+    - plugin
+    - fallback_plugin
+  fix_group_key: weak-protocol-boundaries
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_plugins_defaults.py"
+
+- id: Scout-Typing-05
+  category: composition_root
+  fingerprint: composition_root:defaults:construct_registry_plugin_type_any
+  file: src/prism/scanner_plugins/defaults.py
+  line: 265
+  severity_hint: high
+  confidence: high
+  detector: read_file
+  memory_status: no_match
+  evidence_snippet: "plugin_class: type[Any],"
+  evidence_command: "read_file src/prism/scanner_plugins/defaults.py 260 290"
+  related_symbols:
+    - _construct_registry_plugin
+    - plugin_class
+    - resolve_task_line_parsing_policy_plugin
+  fix_group_key: late-bound-constructor-contracts
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_plugins_defaults.py"
+
+- id: Scout-Typing-06
+  category: weak_protocol_boundary
+  fingerprint: protocol:defaults:validate_return_any
+  file: src/prism/scanner_plugins/defaults.py
+  line: 291
+  severity_hint: medium
+  confidence: high
+  detector: read_file
+  memory_status: no_match
+  evidence_snippet: ") -> Any:"
+  evidence_command: "read_file src/prism/scanner_plugins/defaults.py 285 295"
+  related_symbols:
+    - _validate_plugin_shape
+    - return_type
+  fix_group_key: weak-protocol-boundaries
+  proposed_fix_class: narrow_protocol_return
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_plugins_defaults.py"
+
+- id: Scout-Typing-07
+  category: weak_protocol_boundary
+  fingerprint: protocol:protocols_runtime:plugin_loader_object_return
+  file: src/prism/scanner_core/protocols_runtime.py
+  line: 81
+  severity_hint: medium
+  confidence: high
+  detector: read_file
+  memory_status: no_match
+  evidence_snippet: "def __call__(self, platform: str) -> object: ..."
+  evidence_command: "read_file src/prism/scanner_core/protocols_runtime.py 75 85"
+  related_symbols:
+    - PluginLoader
+    - object
+  fix_group_key: weak-protocol-boundaries
+  proposed_fix_class: narrow_protocol_return
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_kernel_*.py"
+
+- id: Scout-Typing-08
+  category: composition_root
+  fingerprint: protocol:protocols_runtime:di_factory_override_object_return
+  file: src/prism/scanner_core/protocols_runtime.py
+  line: 109
+  severity_hint: high
+  confidence: high
+  detector: read_file
+  memory_status: no_match
+  evidence_snippet: "def __call__(\n        self, di: \"DIContainer\", role_path: str, scan_options: ScanOptionsDict\n    ) -> object: ..."
+  evidence_command: "read_file src/prism/scanner_core/protocols_runtime.py 103 112"
+  related_symbols:
+    - DIFactoryOverride
+    - object
+  fix_group_key: late-bound-constructor-contracts
+  proposed_fix_class: narrow_protocol_return
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py"
+
+- id: Scout-Typing-09
+  category: orchestration_seam
+  fingerprint: orchestration_seam:orchestrator:dict_str_object_payload
+  file: src/prism/scanner_kernel/orchestrator.py
+  line: 35
+  severity_hint: medium
+  confidence: high
+  detector: read_file
+  memory_status: no_match
+  evidence_snippet: "def process_scan_pipeline(\n        self,\n        scan_options: dict[str, object],"
+  evidence_command: "read_file src/prism/scanner_kernel/orchestrator.py 30 55"
+  related_symbols:
+    - _ProcessScanPipelinePlugin
+    - scan_options
+    - scan_context
+  fix_group_key: weak-protocol-boundaries
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py"
+
+- id: Scout-Typing-10
+  category: orchestration_seam
+  fingerprint: orchestration_seam:orchestrator:dict_str_object_orchestrate
+  file: src/prism/scanner_kernel/orchestrator.py
+  line: 47
+  severity_hint: medium
+  confidence: high
+  detector: read_file
+  memory_status: no_match
+  evidence_snippet: "def orchestrate_scan_payload(\n        self,\n        *,\n        payload: dict[str, object],"
+  evidence_command: "read_file src/prism/scanner_kernel/orchestrator.py 44  60"
+  related_symbols:
+    - _OrchestrateScanPayloadPlugin
+    - payload
+    - scan_options
+  fix_group_key: weak-protocol-boundaries
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py"

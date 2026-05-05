@@ -1,0 +1,13 @@
+cycle: g57
+phase: P5
+wave: 1
+status: ok
+target_finding: G57-H01
+worker: Builder-Ownership
+owned_files:
+  - src/prism/api_layer/non_collection.py
+  - src/prism/tests/test_api_cli_entrypoints.py
+guardrails:
+  - Do not edit scanner_core/execution_request_builder.py in this wave.
+  - Preserve lower-level execution-request builder testability.
+  - Validate on the nearest API entrypoint seam tests first.

@@ -1,0 +1,256 @@
+review_id: g46-phase0-god-mode-post-wave2
+scope:
+  root: /raid5/source/test/prism/src/prism
+  method: fresh broad whole-codebase review
+  sources: code_only
+summary:
+  unable_to_honestly_find_ten_highs: true
+  note: >-
+    I could not honestly support 10 distinct High findings from code alone after the
+    current wave-2 fixes. The residual durable set below is 0 Critical, 8 High, 4 Medium.
+counts:
+  critical: 0
+  high: 8
+  medium: 4
+top_findings:
+  - G46-P0-H01
+  - G46-P0-H05
+  - G46-P0-H06
+  - G46-P0-H07
+  - G46-P0-H08
+findings:
+  - id: G46-P0-H01
+    severity: high
+    title: Scan-pipeline preflight accepts malformed non-mapping output and proceeds as success
+    evidence:
+      - path: /raid5/source/test/prism/src/prism/scanner_kernel/orchestrator.py
+        line: 379
+      - path: /raid5/source/test/prism/src/prism/scanner_kernel/orchestrator.py
+        line: 386
+      - path: /raid5/source/test/prism/src/prism/scanner_kernel/orchestrator.py
+        line: 101
+      - path: /raid5/source/test/prism/src/prism/scanner_kernel/orchestrator.py
+        line: 310
+    impact: >-
+      Preflight plugin code can return any non-dict object and Prism will silently discard it,
+      default plugin_enabled to true, and continue into runtime. That breaks the plugin trust
+      boundary and turns malformed third-party preflight behavior into silent success.
+    rationale: >-
+      Runtime output is explicitly rejected when it is not a dict, but preflight output is not.
+      The asymmetry makes malformed preflight behavior durable and user-visible.
+
+  - id: G46-P0-H02
+    severity: high
+    title: Preflight plugin exceptions escape the routing boundary as raw exceptions
+    evidence:
+      - path: /raid5/source/test/prism/src/prism/scanner_kernel/orchestrator.py
+        line: 379
+      - path: /raid5/source/test/prism/src/prism/scanner_kernel/orchestrator.py
+        line: 298
+    impact: >-
+      Any exception raised by plugin_class() or process_scan_pipeline() during preflight bypasses
+      PrismRuntimeError wrapping and can cross API and CLI boundaries as arbitrary plugin errors.
+    rationale: >-
+      The route_scan_payload_orchestration preflight call sits outside the guarded error handling
+      used later for runtime execution, so the public boundary is inconsistent and fail-open on exception typing.
+
+  - id: G46-P0-H03
+    severity: high
+    title: Runtime scan-pipeline plugin construction is also outside the guarded error boundary
+    evidence:
+      - path: /raid5/source/test/prism/src/prism/scanner_kernel/orchestrator.py
+        line: 78
+      - path: /raid5/source/test/prism/src/prism/scanner_kernel/orchestrator.py
+        line: 278
+      - path: /raid5/source/test/prism/src/prism/scanner_kernel/orchestrator.py
+        line: 298
+    impact: >-
+      A selected scan-pipeline plugin with a failing constructor can terminate scans with raw TypeError,
+      ValueError, or plugin-defined exceptions before Prism converts the failure into a stable contract error.
+    rationale: >-
+      The protected runtime try/except starts after _instantiate_scan_pipeline_plugin() returns,
+      so constructor-time failures are uncontained.
+
+  - id: G46-P0-H04
+    severity: high
+    title: DI runtime plugin construction only normalizes TypeError and leaks all other constructor failures
+    evidence:
+      - path: /raid5/source/test/prism/src/prism/scanner_core/di.py
+        line: 124
+      - path: /raid5/source/test/prism/src/prism/scanner_core/di.py
+        line: 139
+    impact: >-
+      Variable-discovery and feature-detection plugins can raise arbitrary exceptions from __init__ and those
+      exceptions will cross the DI boundary untyped unless they happen to be TypeError.
+    rationale: >-
+      This is another external-plugin trust-boundary leak: Prism partially normalizes constructor failures,
+      but only for one exception class.
+
+  - id: G46-P0-H05
+    severity: high
+    title: Public non-strict failure mode silently substitutes fallback policy plugins after plugin faults
+    evidence:
+      - path: /raid5/source/test/prism/src/prism/api_layer/non_collection.py
+        line: 341
+      - path: /raid5/source/test/prism/src/prism/scanner_plugins/bundle_resolver.py
+        line: 102
+      - path: /raid5/source/test/prism/src/prism/scanner_plugins/bundle_resolver.py
+        line: 105
+      - path: /raid5/source/test/prism/src/prism/scanner_plugins/defaults.py
+        line: 193
+      - path: /raid5/source/test/prism/src/prism/scanner_plugins/defaults.py
+        line: 200
+      - path: /raid5/source/test/prism/src/prism/scanner_plugins/defaults.py
+        line: 215
+      - path: /raid5/source/test/prism/src/prism/scanner_plugins/defaults.py
+        line: 232
+    impact: >-
+      scan_role(..., failure_policy=strict=False) does not just downgrade runtime failures; it also turns
+      malformed or unconstructable policy plugins into silent fallback behavior. The caller receives a
+      seemingly valid scan produced by different policy code than the configured plugin path.
+    rationale: >-
+      This is fallback-integrity breakage. Non-strict execution becomes "substitute defaults and keep going"
+      instead of "report degraded behavior with the selected plugin configuration."
+
+  - id: G46-P0-H06
+    severity: high
+    title: Strict YAML-loading intent is bypassed because the default policy erases failures into None
+    evidence:
+      - path: /raid5/source/test/prism/src/prism/scanner_plugins/parsers/yaml/parsing_policy.py
+        line: 20
+      - path: /raid5/source/test/prism/src/prism/scanner_plugins/parsers/yaml/parsing_policy.py
+        line: 26
+      - path: /raid5/source/test/prism/src/prism/scanner_io/loader.py
+        line: 265
+      - path: /raid5/source/test/prism/src/prism/scanner_io/loader.py
+        line: 266
+      - path: /raid5/source/test/prism/src/prism/scanner_extract/discovery.py
+        line: 111
+      - path: /raid5/source/test/prism/src/prism/scanner_extract/discovery.py
+        line: 112
+      - path: /raid5/source/test/prism/src/prism/scanner_extract/discovery.py
+        line: 206
+      - path: /raid5/source/test/prism/src/prism/scanner_extract/discovery.py
+        line: 225
+    impact: >-
+      Unreadable or invalid YAML can be converted to None by the policy, then immediately normalized to {} by
+      discovery paths. That suppresses real parse/load failures and causes variable and metadata loss instead of
+      the strict failure behavior the surrounding code appears to offer.
+    rationale: >-
+      The loader contract and the discovery strictness contract disagree. The policy says "None means failure",
+      while discovery frequently treats None as an empty successful payload.
+
+  - id: G46-P0-H07
+    severity: high
+    title: Scan cache keys ignore external style-guide content even though output reads it
+    evidence:
+      - path: /raid5/source/test/prism/src/prism/api_layer/non_collection.py
+        line: 242
+      - path: /raid5/source/test/prism/src/prism/api_layer/non_collection.py
+        line: 273
+      - path: /raid5/source/test/prism/src/prism/scanner_core/scan_cache.py
+        line: 143
+      - path: /raid5/source/test/prism/src/prism/scanner_config/style_parser.py
+        line: 141
+    impact: >-
+      Changing the style guide file at the same path does not invalidate cached scan results, even though the
+      README/rendering path reads that file's contents. Cached output can therefore remain stale while all key
+      inputs visible to the user have changed.
+    rationale: >-
+      The cache hashes only the scanned role tree plus option values. For style_readme_path it hashes the path
+      string, not the file contents that actually influence output.
+
+  - id: G46-P0-H08
+    severity: high
+    title: Public scan_role facade exports malformed runtime payloads without shape validation
+    evidence:
+      - path: /raid5/source/test/prism/src/prism/scanner_kernel/orchestrator.py
+        line: 310
+      - path: /raid5/source/test/prism/src/prism/api_layer/non_collection.py
+        line: 373
+    impact: >-
+      Once a runtime plugin returns any dict, the public scan_role facade treats it as RoleScanResult without
+      validating required fields or nested contracts. Plugin bugs can therefore escape as contract-shaped lies
+      rather than typed boundary failures.
+    rationale: >-
+      Dict-only validation is not enough for a public facade with a typed result contract. The final cast is
+      asserting trust instead of verifying it.
+
+  - id: G46-P0-M01
+    severity: medium
+    title: Repo-scan payload normalization raises bare RuntimeError codes across the public facade
+    evidence:
+      - path: /raid5/source/test/prism/src/prism/api_layer/non_collection.py
+        line: 410
+      - path: /raid5/source/test/prism/src/prism/repo_services.py
+        line: 199
+      - path: /raid5/source/test/prism/src/prism/repo_services.py
+        line: 209
+      - path: /raid5/source/test/prism/src/prism/repo_services.py
+        line: 218
+      - path: /raid5/source/test/prism/src/prism/repo_services.py
+        line: 225
+      - path: /raid5/source/test/prism/src/prism/repo_services.py
+        line: 232
+      - path: /raid5/source/test/prism/src/prism/repo_services.py
+        line: 316
+    impact: >-
+      Malformed downstream repo payloads emerge as bare RuntimeError values whose meaning lives in string codes,
+      not in PrismRuntimeError structure. Callers cannot reliably consume these failures via the project's typed
+      error contract.
+    rationale: >-
+      The repo facade validates some payload shape, but it does so with untyped runtime exceptions rather than the
+      structured public error mechanism used elsewhere.
+
+  - id: G46-P0-M02
+    severity: medium
+    title: Public quality-comparison helpers are stubbed and return incomplete metrics
+    evidence:
+      - path: /raid5/source/test/prism/src/prism/api.py
+        line: 484
+      - path: /raid5/source/test/prism/src/prism/api.py
+        line: 499
+      - path: /raid5/source/test/prism/src/prism/api.py
+        line: 503
+      - path: /raid5/source/test/prism/src/prism/api.py
+        line: 515
+      - path: /raid5/source/test/prism/src/prism/api.py
+        line: 518
+      - path: /raid5/source/test/prism/src/prism/api.py
+        line: 532
+    impact: >-
+      The exported helpers collect_role_contents, compute_quality_metrics, and build_comparison_report omit feature
+      extraction and variable loading by hardcoding empty implementations. The resulting scores undercount tasks,
+      modules, and variables and are not trustworthy as public API outputs.
+    rationale: >-
+      This is not an internal shortcut hidden behind a private helper; it is surfaced from prism.api.
+
+  - id: G46-P0-M03
+    severity: medium
+    title: VariableDiscovery.resolve_unresolved ignores an explicitly empty referenced set
+    evidence:
+      - path: /raid5/source/test/prism/src/prism/scanner_core/variable_discovery.py
+        line: 140
+    impact: >-
+      Callers cannot intentionally pass an empty referenced-variable set. The method re-runs discover_referenced()
+      instead, creating unnecessary I/O and violating the call contract for the empty-set case.
+    rationale: >-
+      This is a classic falsey-value bug. Empty collections are valid inputs, not absence markers.
+
+  - id: G46-P0-M04
+    severity: medium
+    title: Default plugin-registry bootstrap is unsynchronized around global first use
+    evidence:
+      - path: /raid5/source/test/prism/src/prism/scanner_plugins/bootstrap.py
+        line: 32
+      - path: /raid5/source/test/prism/src/prism/scanner_plugins/bootstrap.py
+        line: 56
+      - path: /raid5/source/test/prism/src/prism/scanner_plugins/bootstrap.py
+        line: 190
+      - path: /raid5/source/test/prism/src/prism/scanner_plugins/bootstrap.py
+        line: 201
+    impact: >-
+      Concurrent first access can execute built-in registration, entry-point discovery, and invariant validation
+      more than once against the shared canonical registry. That is a shared-mutable-state risk in the composition root.
+    rationale: >-
+      The singleton is lazily initialized, but there is no lock protecting the initialize path.

@@ -1,0 +1,134 @@
+- id: Scout-Ownership-01
+  category: contract_ownership
+  fingerprint: ownership:di:factory-override-protocol-generic
+  file: src/prism/scanner_core/protocols_runtime.py
+  line: 77
+  severity_hint: high
+  confidence: high
+  detector: protocol_usage_mismatch
+  memory_status: no_match
+  memory_match: null
+  evidence_snippet: "class DIFactoryOverride(Protocol):\n    def __call__(\n        self, di: \"DIContainer\", role_path: str, scan_options: ScanOptionsDict\n    ) -> object: ..."
+  evidence_command: "read_file src/prism/scanner_core/protocols_runtime.py 77 85"
+  related_symbols:
+    - DIFactoryOverride
+    - factory_variable_discovery
+    - factory_feature_detector
+    - factory_variable_discovery_plugin
+    - factory_feature_detection_plugin
+    - factory_comment_driven_doc_plugin
+    - factory_task_annotation_policy_plugin
+    - factory_task_line_parsing_policy_plugin
+    - factory_task_traversal_policy_plugin
+    - factory_variable_extractor_policy_plugin
+    - factory_yaml_parsing_policy_plugin
+    - factory_jinja_analysis_policy_plugin
+    - factory_audit_plugin
+  fix_group_key: di-override-protocol-ownership
+  proposed_fix_class: protocol_specification
+  blocking_preconditions: []
+  suggested_narrow_gate: "python -m mypy src/prism/scanner_core/di.py --no-error-summary | grep DIFactoryOverride | wc -l"
+
+- id: Scout-Ownership-02
+  category: contract_ownership
+  fingerprint: ownership:di:factory-override-return-types
+  file: src/prism/scanner_core/di.py
+  line: 246
+  severity_hint: high
+  confidence: high
+  detector: return_type_mismatch
+  memory_status: no_match
+  memory_match: null
+  evidence_snippet: "override = self._factory_overrides.get(\"variable_discovery_factory\")\n        if override is not None:\n            return override(self, self._role_path, self._snapshot_scan_options())"
+  evidence_command: "read_file src/prism/scanner_core/di.py 237 255"
+  related_symbols:
+    - factory_variable_discovery
+    - _factory_overrides
+    - DIFactoryOverride
+  fix_group_key: di-override-protocol-ownership
+  proposed_fix_class: protocol_specification
+  blocking_preconditions: []
+  suggested_narrow_gate: "python -m mypy src/prism/scanner_core/di.py --no-error-summary | head -30"
+
+- id: Scout-Ownership-03
+  category: contract_ownership
+  fingerprint: ownership:di:scan-options-dict-type
+  file: src/prism/scanner_core/di.py
+  line: 248
+  severity_hint: medium
+  confidence: high
+  detector: type_argument_mismatch
+  memory_status: no_match
+  memory_match: null
+  evidence_snippet: "def clone_scan_options(scan_options: Mapping[str, Any]) -> dict[str, Any]:\n    \"\"\"Return a container-only snapshot of scan options for runtime consumers.\"\"\"\n    return {\n        key: _clone_container_structure(value)\n        for key, value in scan_options.items()\n    }"
+  evidence_command: "read_file src/prism/scanner_core/di.py 65 76"
+  related_symbols:
+    - _snapshot_scan_options
+    - DIFactoryOverride
+    - ScanOptionsDict
+  fix_group_key: di-override-protocol-ownership
+  proposed_fix_class: type_alias_refinement
+  blocking_preconditions: []
+  suggested_narrow_gate: "python -m mypy src/prism/scanner_core/di.py --no-error-summary | grep \"dict\\[str, Any\\]\" | wc -l"
+
+- id: Scout-Ownership-04
+  category: protocol_ownership
+  fingerprint: ownership:defaults:blocker-fact-builder-factory
+  file: src/prism/scanner_plugins/defaults.py
+  line: 561
+  severity_hint: high
+  confidence: high
+  detector: factory_return_protocol
+  memory_status: no_match
+  memory_match: null
+  evidence_snippet: "def resolve_blocker_fact_builder() -> BlockerFactBuilder:\n    \"\"\"Return the canonical blocker-fact builder using the runtime protocol.\"\"\"\n    from prism.scanner_plugins.audit.blocker_fact_evaluator import (\n        build_scan_policy_blocker_facts,\n    )"
+  evidence_command: "read_file src/prism/scanner_plugins/defaults.py 561 585"
+  related_symbols:
+    - resolve_blocker_fact_builder
+    - BlockerFactBuilder
+    - build_blocker_facts
+  fix_group_key: di-override-protocol-ownership
+  proposed_fix_class: protocol_ownership_definition
+  blocking_preconditions: []
+  suggested_narrow_gate: "grep -n \"resolve_blocker_fact_builder\" src/prism -r"
+
+- id: Scout-Ownership-05
+  category: protocol_ownership
+  fingerprint: ownership:defaults:runbook-renderer-protocols
+  file: src/prism/scanner_plugins/defaults.py
+  line: 588
+  severity_hint: medium
+  confidence: high
+  detector: weak_callable_return_type
+  memory_status: no_match
+  memory_match: null
+  evidence_snippet: "def resolve_runbook_rows() -> Callable[[Mapping[str, Any] | None], list[\"RunbookRow\"]]:\n    \"\"\"Return build_runbook_rows from the canonical runbook renderer seam.\"\"\""
+  evidence_command: "read_file src/prism/scanner_plugins/defaults.py 588 608"
+  related_symbols:
+    - resolve_runbook_rows
+    - resolve_render_runbook
+    - resolve_render_runbook_csv
+  fix_group_key: di-override-protocol-ownership
+  proposed_fix_class: protocol_specification
+  blocking_preconditions: []
+  suggested_narrow_gate: "grep -A3 \"def resolve_runbook\" src/prism/scanner_plugins/defaults.py"
+
+- id: Scout-Ownership-06
+  category: test_typing_defect
+  fingerprint: test:ownership:factory-override-return-types
+  file: src/prism/tests/test_di_container.py
+  line: 160
+  severity_hint: high
+  confidence: high
+  detector: test_return_type_mismatch
+  memory_status: no_match
+  memory_match: null
+  evidence_snippet: "def _factory(\n        _container: object, _role_path: str, _options: dict[str, object]\n    ) -> str:\n        return \"task-annotation-policy\"\n    ...\n    assert container.factory_task_annotation_policy_plugin() == \"task-annotation-policy\""
+  evidence_command: "read_file src/prism/tests/test_di_container.py 155 175"
+  related_symbols:
+    - test_fsrc_di_container_task_annotation_policy_factory_override
+    - _factory
+  fix_group_key: di-override-protocol-ownership
+  proposed_fix_class: test_contract_specification
+  blocking_preconditions: []
+  suggested_narrow_gate: "grep -n \"def test_fsrc_di_container.*factory_override\" src/prism/tests/test_di_container.py | wc -l"

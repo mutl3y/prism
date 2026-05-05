@@ -1,0 +1,23 @@
+status: ok
+phase: P0
+cycle: g65
+wave: null
+review_type: thorough
+focus_axis: unconstrained
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase0/learning-context.yaml
+  - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase0/learning-context.yaml
+missing_artifacts:
+  - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - God-Mode-independent-review-unconstrained
+owned_file_sets:
+  - agent_name: God-Mode-independent-review-unconstrained
+    files:
+      - docs/plan/mutl3y-review-20260504-g65/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+notes:
+  - "g65 is a user-requested whole-target unconstrained Gilfoyle pass opened while g64 remains the active remediation cycle."
+  - "The resume-dirty-tree gate passed on 2026-05-04; reopening review work is allowed."

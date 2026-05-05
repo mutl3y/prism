@@ -1,0 +1,24 @@
+cycle: mutl3y-g1
+plan_id: mutl3y-review-workflow-trace-drill-20260502
+phase: P5
+wave: 1
+status: stall
+expected_workers:
+  - Builder-Typing
+  - Builder-Ownership
+returned_workers:
+  - Builder-Typing
+  - Builder-Ownership
+missing_workers: []
+expected_artifacts:
+  - docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+  - docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/Builder-Ownership-summary.md
+present_artifacts:
+  - docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+missing_artifacts:
+  - docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/Builder-Ownership-summary.md
+recovery_attempted:
+  - checked owned file set for Builder-Ownership
+  - confirmed no summary artifact exists
+next_action: Recover or re-dispatch Builder-Ownership before Phase 6.
+log: docs/plan/mutl3y-review-workflow-trace-drill-20260502/.mutl3y-gate/wave-1-barrier.log

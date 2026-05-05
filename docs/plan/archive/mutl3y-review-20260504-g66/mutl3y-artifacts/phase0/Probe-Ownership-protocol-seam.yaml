@@ -1,0 +1,50 @@
+finding_family:
+  verdict: split_family
+  summary: >-
+    The scan-pipeline protocol/facade seam is one coherent High fix family across
+    scanner_plugins/interfaces.py, api_layer/plugin_facade.py, and api.py, but
+    repo_services.py is a separate repo-intake orchestration seam and should not
+    be graded as the same finding.
+owning_files:
+  coherent_high_family:
+    - src/prism/scanner_plugins/interfaces.py
+    - src/prism/api_layer/plugin_facade.py
+    - src/prism/api.py
+  separate_neighbor_finding:
+    - src/prism/repo_services.py
+    - src/prism/api_layer/non_collection.py
+boundary_call_sites:
+  - file: src/prism/api.py
+    symbol: run_scan
+    note: Top-level API entrypoint obtains the isolated scan-pipeline registry via plugin_facade.get_default_scan_pipeline_registry and passes it into non-collection orchestration.
+  - file: src/prism/api_layer/non_collection.py
+    symbol: run_scan
+    note: Main caller boundary that consumes default_plugin_registry, builds the execution request, and routes through route_scan_payload_orchestration_fn.
+  - file: src/prism/scanner_kernel/orchestrator.py
+    symbol: route_scan_payload_orchestration
+    note: Runtime selector boundary that consumes registry.get_scan_pipeline_plugin and carries preflight context into the kernel orchestrator.
+  - file: src/prism/api_layer/non_collection.py
+    symbol: scan_repo
+    note: Separate repo-intake boundary that resolves _repo_scan_facade and calls run_repo_scan; this does not share the scan-pipeline protocol family.
+nearby_tests:
+  coherent_high_family:
+    - src/prism/tests/test_api_cli_entrypoints.py::test_fsrc_api_run_scan_uses_plugin_facade_scan_pipeline_registry_seam
+    - src/prism/tests/test_api_cli_entrypoints.py::test_fsrc_api_run_scan_preserves_reserved_platform_classification_through_scan_pipeline_registry_seam
+    - src/prism/tests/test_plugin_kernel_extension_parity.py::test_fsrc_kernel_route_orchestration_uses_scan_pipeline_plugin_selector
+  separate_neighbor_finding:
+    - src/prism/tests/test_api_cli_repo_parity.py::test_fsrc_api_scan_repo_uses_fsrc_repo_services_facade
+    - src/prism/tests/test_api_cli_repo_parity.py::test_fsrc_repo_services_objective_critical_signature_parity_with_src
+severity_recommendation:
+  coherent_high_family: keep_high
+  separate_neighbor_finding: grade_separately
+  note: >-
+    Keep the scan-pipeline family at High because the same weak contract spans the
+    public API seam, the facade isolation wrapper, and the registry/runtime selector;
+    grade repo_services separately because its loose callable bundle is exercised by
+    repo-scan forwarding tests rather than scan-pipeline routing tests.
+grading_note: >-
+  Phase 1 should grade one High family for scan-pipeline protocol/facade typing
+  alignment only, anchored at api.py run_scan -> api_layer/non_collection.py run_scan
+  -> scanner_kernel.orchestrator route_scan_payload_orchestration. The repo_services
+  callable-bundle seam is adjacent evidence but a distinct finding family owned by the
+  repo scan facade path.

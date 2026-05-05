@@ -1,0 +1,63 @@
+phase: P1
+status: completed
+cycle: g47
+review_type: light
+focus_axis: error_handling
+review_sources:
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Graph.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/learning-context.yaml
+  - docs/plan/gilfoyle-review-20260501-g46/findings.yaml
+comparison_summary:
+  confirmed_live_highs:
+    - finding: G46-H07
+      scout_evidence:
+        - Scout-Ownership-01
+      result: confirmed_live
+    - finding: G46-H08
+      scout_evidence:
+        - Scout-ControlFlow-01
+      result: confirmed_live
+    - finding: G46-H10
+      scout_evidence:
+        - Scout-ControlFlow-02
+      result: confirmed_live
+    - finding: G46-H11
+      scout_evidence:
+        - Scout-ControlFlow-03
+      result: confirmed_live
+    - finding: G46-H13
+      scout_evidence:
+        - Scout-Ownership-02
+        - Scout-Graph-01
+        - Scout-Graph-02
+      result: confirmed_live
+  supported_architecture_carry:
+    - finding: G46-ARCH-CONTRACT-01
+      scout_evidence:
+        - Scout-Typing-01
+        - Scout-Typing-02
+      result: carry_without_promotion
+  unreconfirmed_open_highs:
+    - finding: G46-H09
+      reason: "The light slice touched the neighboring kernel contract seam, but the recovered evidence did not re-establish the raw-exception and malformed-preflight defect strongly enough to reprioritize it ahead of the confirmed live highs."
+    - finding: G46-H12
+      reason: "The light slice included the cache path, but no recovered scout artifact re-established the external style-guide cache-key miss as strongly as the other confirmed live highs."
+  workflow_learning:
+    - "All four scouts violated the owned-artifact contract; persisted evidence came from foreman-local recovery only."
+    - "The g47 scorecard now records one route failure and three quality failures for the discovery batch, so future scout prompts should stay shorter and require an artifact-existence barrier check."
+shortlist:
+  confirmed_live_priority:
+    - G46-H07
+    - G46-H08
+    - G46-H10
+    - G46-H11
+    - G46-H13
+  carry_without_new_evidence:
+    - G46-H09
+    - G46-H12
+    - G46-ARCH-CONTRACT-01
+verdict: shortlist_still_valid_with_priority_narrowing
+next_step: choose between a fix wave for the confirmed live highs or a narrow probe on G46-H09 and G46-H12 before the next builder batch

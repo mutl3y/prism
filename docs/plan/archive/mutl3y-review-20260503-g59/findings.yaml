@@ -1,0 +1,49 @@
+cycle: g59
+review_type: light
+status: closed
+closed:
+  - id: G59-H01
+    severity: high
+    category: abstraction
+    fingerprint: api_run_scan_scanner_core_di_module_patch
+    title: "Top-level run_scan mutates prism.scanner_core.di module state to inject ScannerContext"
+    files:
+      - src/prism/api.py
+      - src/prism/tests/test_g03_scan_cache_integration.py
+    summary: >-
+      prism.api.run_scan previously backfilled scanner_core.di.ScannerContext via
+      a conditional module setattr, crossing ownership boundaries and duplicating
+      test-side behavior.
+    closed_evidence:
+      - "Focused validations: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k run_scan -> 20 passed, 11 deselected"
+      - "Focused validations: pytest -q src/prism/tests/test_g03_scan_cache_integration.py -> 5 passed"
+      - "Static checks: ruff and black --check on touched files -> pass; mypy src/prism/api.py -> success"
+      - "Builder artifact: docs/plan/mutl3y-review-20260503-g59/mutl3y-artifacts/phase5/Builder-APISeam-summary.md"
+    closure_note: "Removed top-level module patch; added regression proving scanner_context_cls forwarded without mutation."
+
+  - id: G59-M01
+    severity: medium
+    category: test_gap
+    fingerprint: collection_role_content_runtime_classifier_missing_direct_regression
+    title: "Collection role-content classifier lacks direct PrismRuntimeError regression coverage"
+    files:
+      - src/prism/api_layer/collection.py
+      - src/prism/tests/test_collection_contract.py
+    summary: >-
+      scan_collection lacked a direct regression proving PrismRuntimeError demotion
+      when the error code starts with role_content_.
+    closed_evidence:
+      - "Focused validation: pytest -q src/prism/tests/test_collection_contract.py -k role_content -> 2 passed, 21 deselected"
+      - "Static checks: ruff and black --check on touched files -> pass; mypy src/prism/api.py -> success"
+      - "Builder artifact: docs/plan/mutl3y-review-20260503-g59/mutl3y-artifacts/phase5/Builder-CollectionClassifier-summary.md"
+    closure_note: "Added regression proving scan_collection demotes PrismRuntimeError with role_content_ codes."
+
+suppressed_or_deferred:
+  suppressed:
+    - reason: "duplicate_or_already_closed"
+      note: "bootstrap singleton/global-registry observations already closed in g58; suppressed here."
+  deferred:
+    - id: D59-01
+      note: "_coerce_scan_metadata silent empty default in api_layer/non_collection.py - deferred typing/contract debt"
+    - id: D59-02
+      note: "private type alias exposure and cast/protocol typing weaknesses in api.py/non_collection.py - deferred typing debt"

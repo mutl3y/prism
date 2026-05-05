@@ -1,0 +1,9 @@
+phase2_persist_summary:
+  status: ok
+  shortlist_size: 1
+  summary: >-
+    The God Mode intake produced one verified High finding, which is now the
+    active shortlist for g67.
+  source_artifacts:
+    - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+    - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase1/grading-summary.yaml

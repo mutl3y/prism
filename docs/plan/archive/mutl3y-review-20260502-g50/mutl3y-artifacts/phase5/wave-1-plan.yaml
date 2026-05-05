@@ -1,0 +1,27 @@
+cycle: g50
+plan_id: mutl3y-review-20260502-g50
+phase: P5
+wave: 1
+status: started
+workers:
+  - worker: Builder-Typing
+    finding: G50-H01
+    owned_files:
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/tests/test_defaults.py
+    invariant: "Defaults resolver helper contracts must reflect the concrete runtime protocol instead of weakening to Callable[..., Any]."
+    suggested_narrow_gate: pytest -q src/prism/tests/test_defaults.py -k blocker
+  - worker: Builder-ControlFlow
+    finding: G50-H02
+    owned_files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    invariant: "The non-collection run-scan seam must use explicit local helper types and payload contracts instead of local Any or weak dict-return typing."
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py
+  - worker: Builder-Abstraction
+    finding: G50-H03
+    owned_files:
+      - src/prism/scanner_io/output_orchestrator.py
+      - src/prism/tests/test_output_orchestration.py
+    invariant: "OutputOrchestrator facade inputs must use the concrete options contract already enforced by the validation layer."
+    suggested_narrow_gate: pytest -q src/prism/tests/test_output_orchestration.py -k orchestrator

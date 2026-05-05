@@ -1,0 +1,17 @@
+{
+  "agent": "Scout-ControlFlow",
+  "cycle": "g52",
+  "focus_axis": "composition_root",
+  "review_surface": [
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/tests/test_api_cli_entrypoints.py",
+    "src/prism/tests/test_scanner_core_di.py"
+  ],
+  "questions": [
+    "Which runtime construction paths still hide composition responsibility under control flow or late imports?",
+    "Where do deferred imports or factory helpers change behavior depending on whether wiring was injected?"
+  ]
+}

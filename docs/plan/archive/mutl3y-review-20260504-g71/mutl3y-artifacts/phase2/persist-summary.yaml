@@ -1,0 +1,9 @@
+phase2_persist_summary:
+  status: ok
+  shortlist_size: 4
+  summary: >-
+    The g71 thorough scout batch produced four active High findings after
+    overlap collapse across YAML policy ownership, scan-pipeline preflight
+    gating, public API payload contracts, and public plugin protocol typing.
+  source_artifacts:
+    - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase1/grading-summary.yaml

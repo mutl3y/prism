@@ -1,0 +1,25 @@
+{
+  "agent": "Scout-ControlFlow",
+  "cycle": "g47",
+  "focus_axis": "error_handling",
+  "review_surface": [
+    "src/prism/api_layer/collection.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_plugins/bundle_resolver.py",
+    "src/prism/scanner_plugins/parsers/yaml/parsing_policy.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/scanner_extract/discovery.py",
+    "src/prism/scanner_core/scan_cache.py",
+    "src/prism/scanner_config/style_parser.py",
+    "src/prism/tests/test_collection_contract.py",
+    "src/prism/tests/test_platform_routing_fail_closed.py",
+    "src/prism/tests/test_dataload.py",
+    "src/prism/tests/test_t3_03_scan_cache.py",
+    "src/prism/tests/test_g03_scan_cache_integration.py"
+  ],
+  "questions": [
+    "Which non-strict or strict error paths still collapse faults into empty success-shaped outputs or fallback behavior?",
+    "Do cache or collection control paths still treat control-plane failures as recoverable data-path fallout?"
+  ]
+}

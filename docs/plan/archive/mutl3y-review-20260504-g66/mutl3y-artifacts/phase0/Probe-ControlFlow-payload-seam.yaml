@@ -1,0 +1,96 @@
+finding_family:
+  verdict: single boundary-seam finding
+  summary: >-
+    The reported High observations collapse into one execution-request to
+    scanner-context payload seam. Prepared-policy ingress is fail-closed before
+    ScannerContext runs, but the payload returned by prepare_scan_context_fn is
+    only typed by contract and is still partially coerced at runtime.
+  rationale: >-
+    execution_request_builder finalizes a canonical request only after
+    ensure_prepared_policy_bundle_fn has run, which makes malformed prepared
+    policy state a closed ingress problem. The remaining ambiguity sits at the
+    payload handoff: _ScanStateBridge.prepare_scan_context normalizes
+    yaml_parse_failures to [] when the canonical option is not a list, and
+    ScannerContext._build_output_payload shallow-copies metadata and
+    display_variables only when they are dict-shaped, otherwise defaulting to
+    empty typed dicts. Those coercions share one malformed-input boundary rather
+    than defining separate independent findings.
+owning_files:
+  - src/prism/scanner_core/execution_request_builder.py
+  - src/prism/scanner_core/scanner_context.py
+  - src/prism/scanner_data/contracts_request.py
+boundary_call_sites:
+  - path: src/prism/api_layer/non_collection.py
+    line: 599
+    symbol: _ensure_prepared_policy_bundle_for_execution_request
+    note: Upstream ingress seam that resolves and injects prepared_policy_bundle before request construction.
+  - path: src/prism/scanner_core/execution_request_builder.py
+    line: 523
+    symbol: _finalize_execution_request
+    note: Final request assembly invokes prepared-policy enforcement, replaces canonical scan_options on the container, and materializes ScannerContext.
+  - path: src/prism/scanner_core/execution_request_builder.py
+    line: 583
+    symbol: prepare_scan_context_fn bridge lambda
+    note: DI wiring forwards ScannerContext payload preparation through _ScanStateBridge into the canonical-options handoff.
+  - path: src/prism/scanner_core/execution_request_builder.py
+    line: 196
+    symbol: _ScanStateBridge.prepare_scan_context
+    note: Builder-owned payload preparation normalizes yaml_parse_failures to [] when the canonical value is not a list.
+  - path: src/prism/scanner_core/scanner_context.py
+    line: 214
+    symbol: ScannerContext.orchestrate_scan
+    note: Re-validates prepared_policy_bundle fail-closed before any payload assembly.
+  - path: src/prism/scanner_core/scanner_context.py
+    line: 278
+    symbol: ScannerContext._build_output_payload
+    note: Consumes the prepared payload and applies the runtime metadata/display-variable coercions.
+  - path: src/prism/scanner_core/scanner_context.py
+    line: 65
+    symbol: _copy_scan_metadata
+    note: Non-dict metadata is coerced to an empty ScanMetadata.
+  - path: src/prism/scanner_core/scanner_context.py
+    line: 77
+    symbol: _copy_display_variables
+    note: Non-dict display_variables is coerced to an empty DisplayVariables map.
+nearby_tests:
+  - path: src/prism/tests/test_scanner_context.py
+    line: 596
+    symbol: test_fsrc_scanner_context_requires_prepared_policy_bundle_without_mutating_ingress_options
+    relevance: Confirms missing prepared_policy_bundle is rejected before ScannerContext payload assembly.
+  - path: src/prism/tests/test_scanner_context.py
+    line: 651
+    symbol: test_fsrc_scanner_context_prepared_policy_bundle_rejects_invalid_bundle
+    relevance: Confirms malformed prepared-policy shapes are fail-closed at ScannerContext ingress.
+  - path: src/prism/tests/test_scanner_context.py
+    line: 341
+    symbol: test_fsrc_scanner_context_copies_metadata_without_mutating_context_payload
+    relevance: Confirms metadata is copied, but does not assert rejection of malformed payload metadata.
+  - path: src/prism/tests/test_scanner_context.py
+    line: 396
+    symbol: test_fsrc_scanner_context_copies_display_variables_without_mutating_context_payload
+    relevance: Confirms display_variables are copied, but does not assert rejection of malformed payload display_variables.
+  - path: src/prism/tests/test_scanner_context.py
+    line: 920
+    symbol: test_fsrc_scanner_core_builds_non_collection_execution_request
+    relevance: Covers the full execution-request to ScannerContext happy path with prepared-policy injection.
+  - path: src/prism/tests/test_execution_request_builder.py
+    line: 525
+    symbol: test_execution_request_finalization_order_is_unchanged
+    relevance: Confirms prepared-policy enforcement happens before ScannerContext construction in request finalization.
+severity_recommendation:
+  level: High
+  basis: >-
+    Keep this graded as one High boundary finding. The seam sits on a canonical
+    execution path, occurs after a typed payload contract is declared, and can
+    silently degrade malformed payload members into empty structures rather than
+    rejecting them. The evidence does not support splitting it into multiple
+    independent findings because the coercions share the same handoff and owner
+    pair.
+grading_note: >-
+  The cheapest discriminators are already nearby: the existing ingress tests
+  prove prepared-policy validation is fail-closed, while the copy tests show the
+  payload path is optimized for non-mutating consumption rather than runtime
+  rejection. What is still untested is malformed ScanContextPayload member
+  behavior for metadata/display_variables and builder-side yaml_parse_failures
+  normalization; that gap widens this single seam but does not create a second
+  independent family.

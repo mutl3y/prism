@@ -1,0 +1,57 @@
+plan_id: mutl3y-review-20260504-g66
+cycle: g66
+phase: P5
+wave: 1
+status: ready
+objective: "Close the first disjoint High batch without widening into the overlapping API/core typing cluster or the carried-forward Medium backlog."
+decision_basis:
+  - docs/plan/mutl3y-review-20260504-g66/findings.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase1/grading-summary.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase4/decision-summary.yaml
+workers:
+  - agent_name: Builder-ControlFlow
+    task_id: g66-wave1-builder-controlflow
+    finding_ids:
+      - G66-H03
+    category: error_channel
+    fix_group_key: collection-scan.metadata-shape-error-channel
+    owned_files:
+      - src/prism/api_layer/collection.py
+      - src/prism/tests/test_collection_contract.py
+    summary_artifact: docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-1-summary.md
+    suggested_narrow_gate: pytest -q src/prism/tests/test_collection_contract.py -k runbook
+    importer_layer_tests: []
+    invariant: "Collection reporting must preserve a typed error channel for malformed per-role metadata instead of silently degrading it to an empty mapping on the runbook path."
+  - agent_name: Builder-Ownership
+    task_id: g66-wave1-builder-ownership
+    finding_ids:
+      - G66-H04
+    category: facade_leakage
+    fix_group_key: api.scanner_core_assembly_symbol_leak
+    owned_files:
+      - src/prism/api.py
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+    summary_artifact: docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-Ownership-wave-1-summary.md
+    suggested_narrow_gate: pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py::test_run_scan_metadata_role_notes_uses_comment_doc_plugin_seam
+    importer_layer_tests:
+      - pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'run_scan'
+    invariant: "The public API surface must stop exposing scanner-core assembly symbols as patch points while preserving the comment-doc role-notes seam through an owned public contract."
+  - agent_name: Builder-Typing
+    task_id: g66-wave1-builder-typing
+    finding_ids:
+      - G66-H05
+    category: orchestration_seam
+    fix_group_key: repo-scan.protocolize-orchestration-seam
+    owned_files:
+      - src/prism/repo_services.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_api_cli_repo_parity.py
+    summary_artifact: docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-Typing-wave-1-summary.md
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_repo_parity.py -k repo_scan
+    importer_layer_tests: []
+    invariant: "Repo-scan intake must preserve the canonical repo-scan behavior through a named protocol-owned seam rather than loose callable bundles, without weakening the existing API-layer non-collection contract."
+barrier_rules:
+  - Launch all three builders in one batch because their owned file sets are disjoint.
+  - Stop on scope expansion instead of widening into G66-H01, G66-H02, or the carried-forward Medium backlog.
+  - Run each builder's suggested narrow gate before reporting completion when feasible.
+  - Foreman owns ledger updates, anti-pattern grep, wave barrier validation, and execution-trace checkpointing.

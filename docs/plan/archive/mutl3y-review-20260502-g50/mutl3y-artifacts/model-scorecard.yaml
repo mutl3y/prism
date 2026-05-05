@@ -1,0 +1,31 @@
+cycle: g50
+phase: P6
+models:
+  Claude Haiku 4.5 (copilot):
+    attempts: 4
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.0
+    lane_tags:
+    - discovery
+    status: healthy
+  GPT-5.4 (copilot):
+    attempts: 3
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 3.67
+    lane_tags:
+    - builder
+    status: healthy
+  GPT-5 mini (copilot):
+    attempts: 1
+    route_failures: 0
+    quality_failures: 1
+    reedit_count: 1
+    rolling_quality_avg: 2.0
+    lane_tags:
+    - validation
+    status: quarantined
+notes: []

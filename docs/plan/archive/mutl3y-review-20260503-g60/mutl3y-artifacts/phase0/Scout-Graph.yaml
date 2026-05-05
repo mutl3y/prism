@@ -1,0 +1,71 @@
+- id: Scout-Graph-01
+  category: registry_authority
+  fingerprint: "registry_authority:scanner_core/di:_get_registry:split_authority"
+  file: src/prism/scanner_core/di.py
+  line: 355
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if self._registry is None: raise ValueError(\"No plugin registry provided to DIContainer\")"
+  evidence_command: "src/prism/scanner_core/di.py#L351-L357"
+  related_symbols: ["DIContainer._get_registry","plugin_registry","get_default_plugin_registry"]
+  fix_group_key: "registry-split-authority"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_default_platform_key"
+
+- id: Scout-Graph-02
+  category: singleton_pollution
+  fingerprint: "singleton_pollution:scanner_plugins/defaults:_FALLBACK_SINGLETONS:module_singletons"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 178
+  severity_hint: medium
+  confidence: medium
+  detector: pattern_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_TASK_LINE_PARSING_FALLBACK = AnsibleDefaultTaskLineParsingPolicyPlugin()"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L176-L180"
+  related_symbols: ["_TASK_LINE_PARSING_FALLBACK","_FALLBACK_SINGLETONS","_validate_singleton_invariants"]
+  fix_group_key: "fallback-singleton-pollution"
+  proposed_fix_class: per_call_factory
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_defaults.py::test_validate_singleton_invariants"
+
+- id: Scout-Graph-03
+  category: test_fixture_coupling
+  fingerprint: "test_fixture_coupling:tests:mutate_global_plugin_registry"
+  file: src/prism/tests/test_comment_doc_plugin_resolution.py
+  line: 354
+  severity_hint: medium
+  confidence: high
+  detector: test_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "plugin_registry = importlib.import_module(\"prism.scanner_plugins.registry\").plugin_registry"
+  evidence_command: "src/prism/tests/test_comment_doc_plugin_resolution.py#L352-L360"
+  related_symbols: ["plugin_registry","prism.scanner_plugins.registry.plugin_registry"]
+  fix_group_key: "test-fixture-global-registry"
+  proposed_fix_class: test_isolation_fixture
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py::test_extract_role_notes_prefers_di_over_registry_default"
+
+- id: Scout-Graph-04
+  category: composition_root
+  fingerprint: "composition_root:scanner_plugins/bootstrap:canonical_registry_vs_default_singleton"
+  file: src/prism/scanner_plugins/bootstrap.py
+  line: 67
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "from prism.scanner_plugins.registry import ... plugin_registry as canonical_registry"
+  evidence_command: "src/prism/scanner_plugins/bootstrap.py#L66-L72"
+  related_symbols: ["_DEFAULT_REGISTRY","plugin_registry","initialize_default_registry"]
+  fix_group_key: "composition-root-duplication"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_guardrails.py::test_plugin_registry_bootstrap_idempotence"

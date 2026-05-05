@@ -1,0 +1,39 @@
+phase: P4
+status: completed
+cycle: g48
+options:
+  - option: wave_1_parallel_high_trio
+    findings:
+      - G48-H01
+      - G48-H02
+      - G48-H03
+    result: selected
+    reason: The three high findings have disjoint owned file sets and focused narrow gates, so they can run as one multiprocess builder batch.
+  - option: probe_medium_carries_first
+    findings:
+      - G48-M01
+      - G48-M02
+    result: rejected
+    reason: The medium findings are real but not ambiguous enough to block the higher-signal first wave.
+  - option: widen_registry_and_singleton_residuals
+    findings:
+      - registry-composition-root
+      - singleton-fallback-composition
+    result: rejected
+    reason: Those residuals are important debt, but they are not the right first-wave target for this typing-led cycle.
+selected_wave:
+  wave: 1
+  builders:
+    - Builder-Typing
+    - Builder-ControlFlow
+    - Builder-Abstraction
+selected_findings:
+  - G48-H01
+  - G48-H02
+  - G48-H03
+deferred_findings:
+  - G48-M01
+  - G48-M02
+  - registry-composition-root
+  - singleton-fallback-composition
+next_action: Dispatch the wave-1 builder batch and run the wave barrier checks.

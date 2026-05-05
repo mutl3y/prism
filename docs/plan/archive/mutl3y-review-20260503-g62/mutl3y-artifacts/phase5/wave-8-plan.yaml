@@ -1,0 +1,19 @@
+plan_id: mutl3y-review-20260503-g62
+cycle: g62
+phase: P5
+wave: 8
+repair_type: formatting_only
+objective: >-
+  Repair the Phase 6 black --check failure without changing behavior.
+owned_file_set:
+  - src/prism/tests/test_t3_03_scan_cache.py
+  - src/prism/tests/test_plugin_kernel_extension_parity.py
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Formatting-wave-8-summary.md
+required_actions:
+  - Run black on the two owned test files only.
+  - Do not make semantic source changes.
+  - Write the builder summary artifact.
+validation:
+  - .venv/bin/python -m black --check src/prism/tests/test_t3_03_scan_cache.py src/prism/tests/test_plugin_kernel_extension_parity.py
+  - .venv/bin/python -m ruff check src/prism/tests/test_t3_03_scan_cache.py src/prism/tests/test_plugin_kernel_extension_parity.py
+next_phase: P6

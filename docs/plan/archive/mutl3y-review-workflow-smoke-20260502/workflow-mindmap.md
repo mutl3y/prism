@@ -1,0 +1,182 @@
+```mermaid
+mindmap
+  root((Mutl3y Review Workflow))
+    Cycle setup and resume
+      Always-load references
+        foreman-execution-guardrails.md
+        team-topology.md
+        context-efficiency.md
+        ledger-read-protocol.md
+        self-improvement-protocol.md
+      Read memory inputs
+        digest.yaml
+        model-usage-rollup.yaml
+      Resume path
+        read plan.yaml
+        read findings.yaml
+        resolve current phase from artifact-backed state
+      New cycle path
+        assign cycle ID
+        choose focus axis
+      STALL when repo state is not trustworthy
+        missing prerequisite artifacts
+        contradictory plan pointer
+        cancelled worker not recovered
+    Phase 0 discovery
+      Start audit
+        write phase-start-audit.yaml
+        status must be ok before narration or dispatch
+      Load discovery references
+        phase-0-discovery.md
+        phase-0-sweep-prompt.md
+        scout-scan-patterns.md
+        parallel-execution.md
+        multiprocess-execution.md
+      Prepare shared context
+        refresh architecture graph when source mtimes require it
+        write graph slices for scouts
+        write learning-context.yaml
+      Dispatch scout batch
+        Scout-Typing
+        Scout-Ownership
+        Scout-ControlFlow
+        Scout-Graph
+      Optional widening pass
+        trigger on High or Medium candidate
+        widen to owner abstraction neighbors call sites and nearby tests
+      Phase 0 barrier
+        verify four scout artifacts on disk
+        parse-check artifact shape
+        update model-usage-ledger.yaml
+        update model-scorecard.yaml
+        emit P0 to P1 status only after barrier passes
+    Deep review extension
+      Triggers
+        every third thorough cycle
+        low signal efficiency in Phase 1
+        before major decomposition or platform expansion
+        after DI plugin bootstrap or registry wiring changes
+      Synthesizer-Architecture pass
+        read all scout artifacts together
+        inspect architecture-graph.json
+        search for cross-cutting misses
+      Gilfoyle Code Review God Mode calibration pass
+        independent pass
+        no access to current shortlist framing
+      Merge rules
+        verify net-new findings against live source
+        promote net-new High and Critical into findings.yaml
+        record deep_review_delta in digest.yaml
+        write scout-coverage-patch.yaml for missed High and Critical
+    Phase 1 grading
+      Load grading references
+        phase-1-grading.md
+        review-checklist.md
+        grading-rubric.md
+      Foreman grading work
+        merge scout artifacts into compact shortlist
+        run registry authority micro-check
+        run facade leakage micro-check
+      Optional independent grader
+        use for second opinion or skepticism on zero High and Critical result
+      Required persistence
+        record suppressed_highs rationale for every non-promoted high observation
+        write one compact grading artifact
+    Phase 2 persist plan
+      Canonical ledgers
+        write or update findings.yaml
+        write or update plan.yaml
+        sync resumption_pointer to artifact-backed phase state
+      Persistence outputs
+        write phase2 summary artifact
+      Routing decision
+        go to Phase 3 for needs_investigation
+        or go straight to Phase 4 when decision space is clear
+    Phase 3 investigation
+      Open only for ambiguous findings
+        finding status is needs_investigation
+        at least two evidence sources conflict
+      Micro-swarm shape
+        dispatch 3 to 6 named probes
+        one finding or one tightly coupled cluster only
+        each investigator answers a different question
+      Persistence
+        write phase3 investigation artifacts
+        merge investigation answers into decision-ready evidence
+    Phase 4 decide
+      Decision work
+        present mutually exclusive options
+        dedup and normalize across typing ownership control-flow and graph lanes
+        record decision in findings.yaml
+      Wave shaping
+        create disjoint owned-file waves
+        stop and re-slice if ownership overlaps
+        write phase4 decision summary
+    Phase 5 implementation
+      Wave entry
+        write wave-N-start-audit.yaml
+        write wave-N-plan.yaml
+      Builder dispatch rules
+        builders are the default
+        dispatch full disjoint batch before waiting
+        every builder gets an explicit owned file set
+      Wave barrier
+        verify one summary artifact per builder
+        inspect owned files first if an artifact is missing
+        recover or re-dispatch cancelled workers
+      Required checks before Phase 6
+        run narrow gate
+        run anti-pattern grep gate
+        sync model ledger scorecard and plan.yaml
+    Phase 6 validation
+      Gate execution
+        Gatekeeper is mandatory for full or path-filtered gates
+        Auditor-Regression is mandatory for scanner_core api_layer DI helpers factories and plugin boundaries
+      Evidence handling
+        keep full logs in .mutl3y-gate
+        surface only the failure slice needed for repair
+      Learning trigger
+        if narrow gate passed but full gate failed
+          write gate-escape learning candidate
+      Verdict
+        green gate goes to Phase 7
+        red gate returns to Phase 5 repair wave
+    Phase 7 close and learn
+      Closure work
+        close findings with evidence
+        require richer closed_evidence for architecture seam categories
+      Missed-finding response
+        if deep review or God Mode found missed High or Critical
+          write scout coverage patch
+          mark scout calibration required
+      Learning compiler
+        gather workflow-learning coverage and gate-escape artifacts
+        run update_learning_memory.py compile
+        refresh lessons history rollup and digest
+      Bookkeeping
+        record cycle log
+        record focus-axis log
+        complete closeout summaries
+    Iteration and sign-off
+      Cadence
+        light review while High or Critical findings remain open
+        first clean light review triggers thorough whole-codebase review
+        second clean thorough review must rotate focus axis
+      Final sign-off gate
+        after required clean thorough passes
+          dispatch Gilfoyle Code Review God Mode full unconstrained sign-off pass
+      Stop condition
+        if final God Mode review is clean
+          stop iterating
+        if final God Mode finds High or Critical
+          promote findings and start another cycle
+```
+
+If your Mermaid preview does not render the mind-map cleanly, open the raw
+companion file `workflow-mindmap.mmd` with the Mermaid previewer, or open the
+rendered `workflow-mindmap.svg` directly.
+
+This mind-map is a hierarchy view only. For the accurate phase transitions,
+decision points, and repair/sign-off loops, use `workflow-decision-map.*`.
+
+Open `workflow-mindmap.svg` for the rendered hierarchy view on disk.

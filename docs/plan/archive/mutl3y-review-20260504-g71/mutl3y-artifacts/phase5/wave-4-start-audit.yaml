@@ -1,0 +1,13 @@
+cycle: g71
+phase: P5
+wave: 4
+status: ready
+builder: Builder-Ownership
+fix_group_key: variable-discovery.yaml-policy-ingress
+owned_files:
+  - src/prism/scanner_plugins/ansible/variable_discovery.py
+  - src/prism/tests/test_variable_discovery_pipeline.py
+foreman_recovery: false
+blocking_issues: []
+suggested_narrow_gate: >-
+  pytest -q src/prism/tests/test_di_registry_resolution.py::test_live_yaml_policy_resolution_preserves_loader_standalone_contract src/prism/tests/test_variable_discovery_pipeline.py::test_fsrc_variable_discovery_requires_ingress_prepared_policy_bundle src/prism/tests/test_variable_discovery_pipeline.py::test_fsrc_variable_discovery_yaml_loading_prefers_prepared_policy_bundle

@@ -1,0 +1,79 @@
+- id: Scout-ControlFlow-01
+  category: policy_coercion
+  fingerprint: "policy_coercion:scanner_core/execution_request_builder:_normalize_role_notes:typed-bucket-list-coercion"
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 245
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "\"warnings\": list(raw_role_notes.get(\"warnings\", [])),"
+  evidence_command: "src/prism/scanner_core/execution_request_builder.py#L244-L248"
+  related_symbols:
+    - _normalize_role_notes
+    - RoleNotes
+    - CommentDrivenDocumentationPlugin.extract_role_notes_from_comments
+  fix_group_key: execution-request.role-notes-shape.fail-closed
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py -k role_notes"
+- id: Scout-ControlFlow-02
+  category: policy_coercion
+  fingerprint: "policy_coercion:scanner_core/execution_request_builder:variable-row-bool-fields:truthiness-cast"
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 261
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "\"required\": bool(row.get(\"required\", False)),"
+  evidence_command: "src/prism/scanner_core/execution_request_builder.py#L255-L297"
+  related_symbols:
+    - _build_variable_insights
+    - _build_display_variables
+    - VariableRow
+  fix_group_key: execution-request.variable-row-shape.fail-closed
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py -k \"display_variables or variable_insights\""
+- id: Scout-ControlFlow-03
+  category: policy_coercion
+  fingerprint: "policy_coercion:scanner_core/execution_request_builder:_build_requirements_display:stringify-external-collections"
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 307
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "raw_collections = str(features.get(\"external_collections\") or \"none\")"
+  evidence_command: "src/prism/scanner_core/execution_request_builder.py#L306-L314"
+  related_symbols:
+    - _build_requirements_display
+    - FeaturesContext
+  fix_group_key: execution-request.features-shape.fail-closed
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py -k external_collections"
+- id: Scout-ControlFlow-04
+  category: policy_coercion
+  fingerprint: "policy_coercion:scanner_core/scanner_context:payload-shape-empty-defaults:typed-payload-drop"
+  file: src/prism/scanner_core/scanner_context.py
+  line: 69
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return ScanMetadata()"
+  evidence_command: "src/prism/scanner_core/scanner_context.py#L64-L80"
+  related_symbols:
+    - _copy_scan_metadata
+    - _copy_display_variables
+    - ScanContextPayload
+  fix_group_key: scanner-context.payload-shape.fail-closed
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_context.py -k \"metadata or display_variables\""

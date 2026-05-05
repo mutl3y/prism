@@ -1,0 +1,21 @@
+plan_id: mutl3y-review-20260502-g54
+cycle: g54
+phase: P5
+wave: 1
+status: completed
+builder: Builder-ControlFlow
+closed_findings:
+  - G54-H01
+validation:
+  pytest:
+    command: pytest -q src/prism/tests/test_execution_request_builder.py -k finalization
+    status: PASS
+    detail: 2 passed, 15 deselected
+  ruff:
+    command: .venv/bin/python -m ruff check src/prism/scanner_core/execution_request_builder.py src/prism/tests/test_execution_request_builder.py
+    status: PASS
+  black:
+    command: .venv/bin/python -m black --check src/prism/scanner_core/execution_request_builder.py src/prism/tests/test_execution_request_builder.py
+    status: PASS
+notes:
+  - Wave 1 extracted `_finalize_execution_request()` and preserved prepared-policy enforcement plus finalization order.

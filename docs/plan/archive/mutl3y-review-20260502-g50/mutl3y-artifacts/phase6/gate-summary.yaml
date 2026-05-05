@@ -1,0 +1,56 @@
+worker: Gatekeeper
+plan: docs/plan/mutl3y-review-20260502-g50/plan.yaml
+artifact: docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase6/gate-summary.yaml
+verdict: GREEN
+note: Foreman recovered the verdict from complete on-disk logs after the cheap Gatekeeper route misreported FAIL.
+pytest_results:
+  - command: pytest -q src/prism/tests/test_defaults.py -k blocker
+    result: "1 passed, 3 deselected"
+    log: docs/plan/mutl3y-review-20260502-g50/.mutl3y-gate/pytest_defaults_blocker.log
+  - command: pytest -q src/prism/tests/test_api_cli_entrypoints.py
+    result: "29 passed"
+    log: docs/plan/mutl3y-review-20260502-g50/.mutl3y-gate/pytest_api_cli.log
+  - command: pytest -q src/prism/tests/test_output_orchestration.py -k orchestrator
+    result: "2 passed, 3 deselected"
+    log: docs/plan/mutl3y-review-20260502-g50/.mutl3y-gate/pytest_output_orch.log
+ruff_result:
+  command: .venv/bin/python -m ruff check src/prism/scanner_plugins/defaults.py src/prism/api_layer/non_collection.py src/prism/scanner_io/output_orchestrator.py src/prism/tests/test_defaults.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_output_orchestration.py
+  result: PASS
+  log: docs/plan/mutl3y-review-20260502-g50/.mutl3y-gate/ruff.log
+black_result:
+  command: .venv/bin/python -m black --check src/prism/scanner_plugins/defaults.py src/prism/api_layer/non_collection.py src/prism/scanner_io/output_orchestrator.py src/prism/tests/test_defaults.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_output_orchestration.py
+  result: PASS
+  log: docs/plan/mutl3y-review-20260502-g50/.mutl3y-gate/black.log
+mypy_result:
+  command: .venv/bin/python -m mypy --no-error-summary src/prism/scanner_plugins/defaults.py src/prism/api_layer/non_collection.py src/prism/scanner_io/output_orchestrator.py
+  result: baseline_only_external
+  log: docs/plan/mutl3y-review-20260502-g50/.mutl3y-gate/mypy.log
+baseline_only_issues:
+  - src/prism/scanner_core/metadata_merger.py:12 external accepted baseline outside touched files
+recovery_note:
+  - GPT-5 mini (copilot) completed the validation commands but returned a false FAIL wrapper; model ledger records this as a quality failure with foreman recovery.
+*** Add File: /raid5/source/test/prism/docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase7/closure-summary.yaml
+cycle: g50
+plan_id: mutl3y-review-20260502-g50
+phase: P7
+status: completed
+closed_findings:
+  - G50-H01
+  - G50-H02
+  - G50-H03
+validation_bundle:
+  - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+  - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase6/gate-summary.yaml
+deferred_clusters:
+  - registry-authority and composition-root ownership cluster from Scout-Ownership-03/04/07 and Scout-Graph-01/02/05
+learning_notes:
+  - Cheap-model validation is viable for focused gate work, but the gate artifact must be checked against on-disk logs before trusting a FAIL wrapper.
+  - Recovery at the barrier remained cheap because the worker logs were already written under .mutl3y-gate.
+artifact_cleanup_assessment:
+  keep:
+    - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase0/
+    - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/
+    - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase6/gate-summary.yaml
+    - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase7/closure-summary.yaml
+  notes:
+    - .mutl3y-gate logs remain useful retained evidence because the Phase 6 verdict required foreman recovery from those files.

@@ -1,0 +1,17 @@
+memory_source: docs/plan/.mutl3y-lessons
+active_lessons: []
+do_not_re_flag_count: 0
+focus_axis_due_next: unconstrained
+model_route_notes:
+  degraded: []
+  watch:
+    - "GPT-4.1 (copilot)"
+    - "GPT-5 mini (copilot)"
+stale_or_missing_memory: []
+readiness_check:
+  ready: true
+  focus_axis_due_next: error_handling
+  memory_dir: /raid5/source/test/prism/docs/plan/.mutl3y-lessons
+context_health_notes:
+  - "g65 is a user-directed independent review surface opened from artifact-backed g64 and the live readiness check."
+  - "This pass is intentionally unconstrained: no active shortlist, no scout storyline, and no focus-axis steering beyond whole-target review."

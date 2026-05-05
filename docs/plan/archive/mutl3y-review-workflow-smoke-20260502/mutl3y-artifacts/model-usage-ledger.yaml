@@ -1,0 +1,56 @@
+- timestamp: 2026-05-02T00:00:00Z
+  cycle: mutl3y-g1
+  phase: P0
+  worker: Scout-Typing
+  task_id: smoke-p0-scout-typing
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+- timestamp: 2026-05-02T00:00:00Z
+  cycle: mutl3y-g1
+  phase: P0
+  worker: Scout-Ownership
+  task_id: smoke-p0-scout-ownership
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 3
+  needed_reedit: false
+  recovery_action: none
+- timestamp: 2026-05-02T00:00:00Z
+  cycle: mutl3y-g1
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: smoke-p0-scout-controlflow
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+- timestamp: 2026-05-02T00:00:00Z
+  cycle: mutl3y-g1
+  phase: P0
+  worker: Scout-Graph
+  task_id: smoke-p0-scout-graph
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: local_artifact_repair_after_yaml_parse_failure

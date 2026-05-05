@@ -1,0 +1,109 @@
+phase4_decision_summary:
+  status: ok
+  selected_finding: G62-M02
+  selected_wave: wave-6
+  decision: >-
+    Start G62-M02 with the smallest public-surface leak: retire the
+    NormalizedNonCollectionResult alias re-export from api.py and keep the
+    module signatures on the canonical RunScanOutputPayload contract instead.
+  rejected_alternatives:
+    - finding: G62-M02-plugin-facade-helper
+      reason: >-
+        The plugin_facade ensure_prepared_policy_bundle seam may still be a
+        real ownership issue, but the api.py private type alias is the smaller
+        first slice with a direct public-surface boundary.
+    - finding: G62-M02-full
+      reason: >-
+        The full facade-leakage finding spans both api.py and plugin_facade.
+        Removing the private alias first gives the cheapest falsifying check on
+        whether the remaining seam still merits a follow-up wave.
+  wave_shape:
+    builder: Builder-Ownership
+    fix_group_key: api.normalized_result.type_alias_reexport
+    rationale: >-
+      Live code-usage checks show the alias is only self-referenced inside
+      api.py. That makes it a clean public-surface leak to retire without
+      dragging plugin_facade or the non_collection runtime seam into the same
+      wave.
+  suggested_narrow_gate: >-
+    pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'delegates_to_non_collection_api_layer or normalizes_payload_shape_from_non_collection_seam'
+*** Add File: /raid5/source/test/prism/docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/wave-5-start-audit.yaml
+status: ok
+phase: P5
+cycle: g62
+wave: 5
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/wave-5-plan.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase4/decision-summary.yaml
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/wave-5-plan.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Builder-ControlFlow
+owned_file_sets:
+  - agent_name: Builder-ControlFlow
+    files:
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/tests/test_t3_03_scan_cache.py
+notes: "Wave 5 isolates the unreadable single-file hash collision in scan_cache before widening G62-M01 into non_collection cached-payload reuse."
+*** Add File: /raid5/source/test/prism/docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/wave-5-plan.yaml
+wave_id: wave-5
+cycle: g62
+phase: P5
+finding: G62-M01
+fix_group_key: scan_cache.io_error_masking
+builder: Builder-ControlFlow
+task_id: g62-wave5-builder-controlflow
+owned_file_set:
+  - src/prism/scanner_core/scan_cache.py
+  - src/prism/tests/test_t3_03_scan_cache.py
+invariant_to_preserve: >-
+  Cache keys must remain stable for valid inputs, but unreadable single-file
+  paths must not collapse to one sentinel-only hash value shared across
+  distinct paths.
+suggested_narrow_gate: >-
+  pytest -q src/prism/tests/test_t3_03_scan_cache.py -k 'unreadable or content_hash'
+optional_importer_gate: >-
+  .venv/bin/python -m mypy src/prism/scanner_core/scan_cache.py src/prism/tests/test_t3_03_scan_cache.py
+summary_artifact: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+*** Add File: /raid5/source/test/prism/docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/wave-3-start-audit.yaml
+status: ok
+phase: P5
+cycle: g62
+wave: 3
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/wave-3-plan.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase4/decision-summary.yaml
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/wave-3-plan.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Builder-Typing
+owned_file_sets:
+  - agent_name: Builder-Typing
+    files:
+      - src/prism/scanner_core/scanner_context.py
+      - src/prism/tests/test_scanner_context.py
+notes: "Wave 3 isolates the controlling prepared-policy-bundle acceptance seam in scanner_context before widening G62-H02 into other runtime or typing surfaces."
+*** Add File: /raid5/source/test/prism/docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/wave-3-plan.yaml
+wave_id: wave-3
+cycle: g62
+phase: P5
+finding: G62-H02
+fix_group_key: prepared-policy-bundle.dict-acceptance
+builder: Builder-Typing
+task_id: g62-wave3-builder-typing
+owned_file_set:
+  - src/prism/scanner_core/scanner_context.py
+  - src/prism/tests/test_scanner_context.py
+invariant_to_preserve: >-
+  ScannerContext must fail closed when prepared policy bundle state is missing
+  or malformed, without mutating ingress scan_options and without weakening the
+  prepared policy contract to Any-like placeholders.
+suggested_narrow_gate: >-
+  pytest -q src/prism/tests/test_scanner_context.py -k 'requires_prepared_policy_bundle_without_mutating_ingress_options or prepared_policy_bundle_rejects_invalid_bundle'
+optional_importer_gate: >-
+  .venv/bin/python -m mypy src/prism/scanner_core/scanner_context.py src/prism/tests/test_scanner_context.py
+summary_artifact: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Typing-summary.md

@@ -1,0 +1,14 @@
+cycle: g59
+phase: P0
+scope: light diff-scoped scout
+summary: >-
+  The scout batch stayed within the 84 dirty Python files with zero first-degree neighbours.
+  Observations converged primarily on api / api_layer seams; no systemic network spread observed.
+observations_count:
+  Scout-Typing: 10
+  Scout-Ownership: 10
+  Scout-ControlFlow: 8
+  Scout-Graph: 10
+notes:
+  - "No first-degree neighbours were hit in this light, diff-scoped run."
+  - "Promoted findings focus on an api-level abstraction mutation and a test/regression gap."

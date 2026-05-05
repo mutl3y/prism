@@ -1,0 +1,83 @@
+agent: Scout-Typing
+plan_id: mutl3y-review-20260504-g70
+cycle: g70
+phase: P0
+review_type: light_changed_slice
+focus_axis: plugin_and_kernel_protocol_neighbors
+artifact_written: true
+scope:
+  triggering_cycle: g69
+  owned_files:
+    - src/prism/scanner_plugins/interfaces.py
+    - src/prism/scanner_plugins/ansible/__init__.py
+    - src/prism/tests/test_platform_execution_bundle.py
+    - src/prism/scanner_plugins/ansible/kernel.py
+    - src/prism/scanner_core/protocols_runtime.py
+    - src/prism/tests/test_kernel.py
+    - src/prism/scanner_data/contracts_output.py
+    - src/prism/scanner_data/contracts_request.py
+validation:
+  focused_tests:
+    command: .venv/bin/python -m pytest -q src/prism/tests/test_platform_execution_bundle.py src/prism/tests/test_kernel.py
+    result: pass
+    detail: 20 passed in 0.74s
+  mypy:
+    command: .venv/bin/python -m mypy src/prism/scanner_plugins/interfaces.py src/prism/scanner_plugins/ansible/__init__.py src/prism/scanner_plugins/ansible/kernel.py src/prism/scanner_core/protocols_runtime.py src/prism/scanner_data/contracts_output.py src/prism/scanner_data/contracts_request.py
+    result: pass
+    detail: Success: no issues found in 6 source files
+summary:
+  high_critical_candidates: 0
+  retained_lower_severity_observations: 3
+observations:
+  - id: ST-M01
+    severity: medium
+    disposition: suppressed_for_light_checkpoint
+    title: Kernel lifecycle seam still exports opaque warning/error/provenance lists
+    evidence:
+      - path: src/prism/scanner_core/protocols_runtime.py
+        line: 46
+        detail: KernelPhaseOutput keeps warnings, errors, and provenance as list[object].
+      - path: src/prism/scanner_core/protocols_runtime.py
+        line: 54
+        detail: KernelResponse repeats the same list[object] shape at the aggregate boundary.
+      - path: src/prism/scanner_data/contracts_request.py
+        line: 10
+        detail: Neighbor request contracts already define structured ScanErrorEntry and ScanPolicyWarning payloads.
+    risk: The wave hardened callable and bundle seams, but downstream kernel consumers still cannot type-check these list members beyond object.
+    suppression_reason: Focused pytest and mypy are green, and this slice shows no concrete misuse or regression; keep as contract-tightening follow-up, not a light-checkpoint escalation.
+  - id: ST-M02
+    severity: medium
+    disposition: suppressed_for_light_checkpoint
+    title: Scan-pipeline metadata handoff still relies on a cast from a generic payload alias
+    evidence:
+      - path: src/prism/scanner_plugins/interfaces.py
+        line: 79
+        detail: ScanPipelinePayload remains dict[str, object], so metadata arrives without a typed sub-contract.
+      - path: src/prism/scanner_plugins/ansible/__init__.py
+        line: 86
+        detail: orchestrate_scan_payload accepts the generic payload alias at the public seam.
+      - path: src/prism/scanner_plugins/ansible/__init__.py
+        line: 103
+        detail: The implementation casts copied payload metadata to ScanMetadata before process_scan_pipeline consumes it.
+    risk: The new protocol layer is typed, but this adjacent handoff still depends on an unchecked invariant rather than a validated metadata contract.
+    suppression_reason: The current Ansible implementation only merges metadata and the focused checks stay green; note as residual typing debt beside the repaired seam.
+  - id: ST-L01
+    severity: low
+    disposition: suppressed_for_light_checkpoint
+    title: Bundle protocol tests remain runtime-shape heavy instead of statically proving provider conformance
+    evidence:
+      - path: src/prism/tests/test_platform_execution_bundle.py
+        line: 121
+        detail: The generic bundle consumer takes Any, so the test only checks runtime dict shape.
+      - path: src/prism/tests/test_platform_execution_bundle.py
+        line: 139
+        detail: The public-contract test validates annotations via get_type_hints rather than a typed assignment or protocol-bound variable.
+      - path: src/prism/tests/test_platform_execution_bundle.py
+        line: 216
+        detail: The conforming provider stub also uses Any for both the parameter and return type.
+    risk: These tests will not catch some future protocol drift that mypy would catch if the test exercised a concrete provider against the Protocol directly.
+    suppression_reason: Coverage is still useful for the light slice and no failing behavior is present; retain as low-severity test-hardening follow-up only.
+top_hits:
+  - ST-M01
+  - ST-M02
+  - ST-L01

@@ -1,0 +1,148 @@
+plan_id: mutl3y-review-20260502-g50
+cycle: g50
+target: src/prism
+review_type: thorough
+focus_axis: typing
+status: completed
+decision_summary:
+  - "Start from a fresh thorough scout batch because the older carried g46 High findings are already closed in later cycles."
+  - "Use the lesson digest's next-due axis of typing as the initial prioritization lens for Phase 0."
+  - "Promote three disjoint typing findings for wave 1 and defer the registry/composition authority cluster to a later ownership-focused cycle."
+findings:
+  - id: G50-H01
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: typing
+    fingerprint: "typing:scanner_plugins/defaults:resolve_blocker_fact_builder:weak_callable"
+    title: "Defaults resolver still advertises blocker-fact builder through a weak Callable[..., Any] contract"
+    files:
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/tests/test_defaults.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase0/Scout-Typing.yaml
+    summary: "resolve_blocker_fact_builder still returns Callable[..., Any] instead of the concrete BlockerFactBuilder protocol, leaving a freshly touched public resolver seam weaker than its runtime contract."
+    decision_deadline: g50
+    suggested_narrow_gate: pytest -q src/prism/tests/test_defaults.py -k blocker
+    closed_evidence:
+      line_citation: "src/prism/scanner_plugins/defaults.py:551"
+      regression_test: "src/prism/tests/test_defaults.py:66"
+      gate: "Wave-1 focused gate: pytest -q src/prism/tests/test_defaults.py -k blocker -> 1 passed, 3 deselected; ruff PASS; black PASS; mypy baseline-only external metadata_merger.py"
+
+  - id: G50-H02
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: typing
+    fingerprint: "typing:api_layer/non_collection:local_helper_contract_drift"
+    title: "Non-collection orchestration still carries local Any and weak dict-return typing at the run-scan seam"
+    files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase0/Scout-Typing.yaml
+      - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+      - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase0/Scout-Graph.yaml
+    summary: "api_layer/non_collection still weakens the run-scan seam with a local Any-typed prepared-policy helper and dict[str, Any]-shaped helper returns instead of the already-declared protocol and payload contracts."
+    decision_deadline: g50
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py
+    closed_evidence:
+      line_citation: "src/prism/api_layer/non_collection.py:522, src/prism/api_layer/non_collection.py:524, src/prism/api_layer/non_collection.py:531"
+      regression_test: "src/prism/tests/test_api_cli_entrypoints.py:1244"
+      gate: "Wave-1 focused gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py -> 29 passed; ruff PASS; black PASS; mypy baseline-only external metadata_merger.py"
+
+  - id: G50-H03
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: typing
+    fingerprint: "typing:scanner_io/output_orchestrator:OutputOrchestrator:dict_any_param"
+    title: "OutputOrchestrator still exposes options through a dict[str, Any] facade boundary"
+    files:
+      - src/prism/scanner_io/output_orchestrator.py
+      - src/prism/tests/test_output_orchestration.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase0/Scout-Typing.yaml
+    summary: "OutputOrchestrator.__init__ still accepts an unbounded dict[str, Any] options payload rather than a concrete options contract, weakening a user-facing orchestration seam that is already validated structurally nearby."
+    decision_deadline: g50
+    suggested_narrow_gate: pytest -q src/prism/tests/test_output_orchestration.py -k orchestrator
+    closed_evidence:
+      line_citation: "src/prism/scanner_io/output_orchestrator.py:37"
+      regression_test: "src/prism/tests/test_output_orchestration.py:252"
+      gate: "Wave-1 focused gate: pytest -q src/prism/tests/test_output_orchestration.py -k orchestrator -> 2 passed, 3 deselected; ruff PASS; black PASS; mypy baseline-only external metadata_merger.py"
+
+suppressed_highs:
+  - observation_summary: "registry getattr access split across loader/defaults"
+    file: src/prism/scanner_io/loader.py
+    line: 41
+    rationale_code: deferred
+    rationale_detail: "Deferred to a later ownership-focused cycle because the registry-authority cluster spans multiple modules and is not needed to close the current typing-first wave."
+  - observation_summary: "registry getattr access split across loader/defaults"
+    file: src/prism/scanner_plugins/defaults.py
+    line: 53
+    rationale_code: deferred
+    rationale_detail: "Deferred with the same registry-authority cluster to avoid mixing ownership rewiring into the current typing slice."
+  - observation_summary: "non_collection still lazily resolves default plugin registry"
+    file: src/prism/api_layer/non_collection.py
+    line: 223
+    rationale_code: deferred
+    rationale_detail: "Deferred as architecture ownership work because it overlaps the broader registry/composition-root authority cluster."
+  - observation_summary: "DIContainer validates registry only at runtime factory use"
+    file: src/prism/scanner_core/di.py
+    line: 305
+    rationale_code: deferred
+    rationale_detail: "Deferred to the ownership cluster because it is the same delayed registry-authority boundary identified across DI and API layers."
+  - observation_summary: "non_collection has 7 lazy-import factory injection points"
+    file: src/prism/api_layer/non_collection.py
+    line: 210
+    rationale_code: deferred
+    rationale_detail: "Deferred to a later composition-root cycle because it requires architecture-sensitive explicit wiring changes beyond the current typing wave."
+  - observation_summary: "default_plugin_registry resolved late in api layer and DI"
+    file: src/prism/api_layer/non_collection.py
+    line: 224
+    rationale_code: deferred
+    rationale_detail: "Deferred with the registry-authority cluster so the first g50 wave stays disjoint and typing-scoped."
+*** Add File: /raid5/source/test/prism/docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+cycle: g50
+plan_id: mutl3y-review-20260502-g50
+phase: P5
+wave: 1
+status: completed
+barrier_status: ok
+expected_workers:
+  - Builder-Typing
+  - Builder-ControlFlow
+  - Builder-Abstraction
+returned_workers:
+  - Builder-Typing
+  - Builder-ControlFlow
+  - Builder-Abstraction
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+  - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+  - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/Builder-Abstraction-summary.md
+present_artifacts:
+  - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+  - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+  - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/Builder-Abstraction-summary.md
+missing_artifacts: []
+pytest_results:
+  - command: pytest -q src/prism/tests/test_defaults.py -k blocker
+    result: "1 passed, 3 deselected"
+  - command: pytest -q src/prism/tests/test_api_cli_entrypoints.py
+    result: "29 passed"
+  - command: pytest -q src/prism/tests/test_output_orchestration.py -k orchestrator
+    result: "2 passed, 3 deselected"
+static_results:
+  - command: .venv/bin/python -m ruff check src/prism/scanner_plugins/defaults.py src/prism/api_layer/non_collection.py src/prism/scanner_io/output_orchestrator.py src/prism/tests/test_defaults.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_output_orchestration.py
+    result: PASS
+  - command: .venv/bin/python -m black --check src/prism/scanner_plugins/defaults.py src/prism/api_layer/non_collection.py src/prism/scanner_io/output_orchestrator.py src/prism/tests/test_defaults.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_output_orchestration.py
+    result: PASS
+  - command: .venv/bin/python -m mypy --no-error-summary src/prism/scanner_plugins/defaults.py src/prism/api_layer/non_collection.py src/prism/scanner_io/output_orchestrator.py
+    result: baseline_only_external
+    notes:
+      - src/prism/scanner_core/metadata_merger.py:12 remains the accepted external baseline outside the touched slice.
+model_ledger_state: updated
+notes:
+  - Builder-Typing required foreman recovery only for the missing summary artifact; code and focused pytest evidence were already present on disk.
+  - Wave 1 closes the three promoted typing findings and defers the registry/composition authority cluster to a later ownership-focused cycle.

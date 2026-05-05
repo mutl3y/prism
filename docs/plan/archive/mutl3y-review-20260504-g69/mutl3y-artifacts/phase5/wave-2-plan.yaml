@@ -1,0 +1,27 @@
+cycle: g69
+phase: P5
+wave: 2
+builder: Builder-ControlFlow
+fix_group_key: strict-phase-failures.bool-coercion.public-seams
+findings_in_scope:
+  - G69-H04
+owned_files:
+  - src/prism/api_layer/non_collection.py
+  - src/prism/scanner_core/execution_request_builder.py
+  - src/prism/scanner_plugins/bundle_resolver.py
+  - src/prism/scanner_core/scanner_context.py
+  - src/prism/scanner_data/contracts_request.py
+  - src/prism/tests/test_api_cli_entrypoints.py
+  - src/prism/tests/test_execution_request_builder.py
+  - src/prism/tests/test_comment_doc_plugin_resolution.py
+  - src/prism/tests/test_scanner_context.py
+goal: >-
+  Make malformed strict_phase_failures values fail closed at ingress and preserve
+  a real boolean contract through public, execution-request, bundle-resolution,
+  and scanner-context boundaries.
+invariants:
+  - strict_phase_failures must remain bool-typed throughout the runtime carrier contract.
+  - Non-strict mode behavior for valid false inputs must remain unchanged.
+  - Do not widen this wave into the public plugin protocol typing or ansible kernel protocol work.
+suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k strict_phase_failures
+allowed_scope_expansion: false

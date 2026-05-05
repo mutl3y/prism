@@ -1,0 +1,24 @@
+cycle: g49
+plan_id: mutl3y-review-20260502-g49
+phase: P5
+wave: 1
+status: OK
+expected_workers:
+  - Builder-ControlFlow
+  - Builder-Typing
+returned_workers:
+  - Builder-ControlFlow
+  - Builder-Typing
+present_artifacts:
+  - docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+  - docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+missing_artifacts: []
+gate_results:
+  - pytest -q src/prism/tests/test_defaults.py src/prism/tests/test_comment_doc_plugin_resolution.py -k malformed -> 6 passed, 57 deselected
+  - pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k non_strict_shape_validation -> 1 passed, 29 deselected
+  - pytest -q src/prism/tests/test_dataload.py src/prism/tests/test_t1_02_coverage_lift_batch3.py -> 37 passed
+  - ruff check touched source and test files -> PASS
+  - black --check touched source and test files -> PASS
+  - mypy touched source files -> baseline-only external metadata_merger error accepted
+next_phase: P6
+next_action: Run the focused Gatekeeper pass for wave 1 and, if green, close g49 in Phase 7.

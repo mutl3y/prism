@@ -1,0 +1,316 @@
+---
+# God-Mode Independent Review — Unconstrained
+# Cycle: g58
+# Reviewer: Gilfoyle Code Review God Mode (independent pass)
+# Date: 2026-05-03
+# Target: src/prism (live source, full package scan)
+# Constraint: no foreman axis, no scout storyline, no preselected seam family
+#
+# Rules applied:
+#   - whole-package scan from live source only
+#   - surface highest-signal Critical/High wherever they actually are
+#   - Medium included only where they materially affect wave sizing
+#   - this pass can justify or block loop stop; skepticism > scout alignment
+
+meta:
+  cycle: g58
+  review_type: independent_unconstrained
+  reviewer_mode: god-mode
+  source_root: src/prism
+  findings_summary:
+    critical: 2
+    high: 3
+    medium: 2
+    net_new_critical: 2
+    net_new_high: 3
+
+verdict: |
+  Oh, look at this. Two Criticals hiding in the infrastructure layer that none of your scout
+  storylines were looking at. Congratulations — you've built a beautiful plugin architecture on
+  top of a bootstrap singleton with no lock and a cache that can never hit.
+
+  The codebase overall is structurally competent. The plugin registry, DI container, and
+  scanner_core boundary are well-intentioned. But the bootstrap initialization is a textbook
+  lock-free global mutation TOCTOU, and the cache key function encodes Python heap addresses
+  via `default=str`, making `InMemoryLRUScanCache` functionally useless for any real-world scan
+  that includes a prepared_policy_bundle.
+
+  These two Criticals have lived here since the fsrc-to-src promotion. They are not regression
+  candidates — they are founding defects. Fix them before you talk to me about wave sizing.
+
+  Loop stop is NOT justified at this cycle. C1 and C2 must close first.
+
+findings:
+
+  - id: GI-C1
+    severity: CRITICAL
+    category: concurrency
+    title: "bootstrap.initialize_default_registry() — lockless global mutation, double-initialization race"
+    file: src/prism/scanner_plugins/bootstrap.py
+    evidence_anchor: "initialize_default_registry"
+    description: |
+      `_DEFAULT_REGISTRY` is a module-level global mutated by `initialize_default_registry()`
+      with no lock protecting the check-then-act sequence:
+
+          if _DEFAULT_REGISTRY is not None:
+              return _DEFAULT_REGISTRY
+          # ... 120 lines of imports, registrations, discover_entry_point_plugins() ...
+          _DEFAULT_REGISTRY = canonical_registry
+
+      Under concurrent first access (e.g. parallel role scans, threaded collection scanning),
+      two threads can both observe `_DEFAULT_REGISTRY is None`, both proceed into the full
+      initialization body, and both call `discover_entry_point_plugins(canonical_registry)`.
+      External plugin `register` callables execute twice against the same `canonical_registry`
+      singleton. If any external plugin's registration callable is non-idempotent (emits metrics,
+      opens connections, logs once-only events, or registers with a side-effecting table),
+      this produces silent double-registration with no observable error.
+
+      The `_singleton_invariants_validated` flag in `defaults.py` has the same pattern.
+
+    root_cause: |
+      No threading.Lock guards the check-and-assign. Python's GIL does NOT protect this
+      because the initialization body releases the GIL repeatedly through imports, I/O,
+      and method calls on the registry object.
+
+    proof_of_exploit: |
+      Two threads call `get_default_plugin_registry()` simultaneously for the first time.
+      Both enter `initialize_default_registry()`. Thread A context-switches after the None
+      check. Thread B completes initialization. Thread A resumes at import/registration,
+      re-runs all _DIRECT_REGISTRATIONS, _DEFERRED_REGISTRATIONS, and
+      discover_entry_point_plugins() against the same canonical_registry instance.
+
+    impact: |
+      - External entry-point plugin registration functions run twice; non-idempotent
+        third-party register() callables produce undefined behavior.
+      - Double validation of `validate_plugin_api_version` and `require_di_constructor`
+        on already-registered classes adds unnecessary overhead but is non-destructive.
+      - Worst case: production scan with external plugins produces duplicate output
+        entries, corrupted registry state, or silent wrong-plugin execution.
+
+    fix_direction: |
+      Add a module-level threading.Lock() as `_INIT_LOCK`. Use double-checked locking:
+          with _INIT_LOCK:
+              if _DEFAULT_REGISTRY is not None:
+                  return _DEFAULT_REGISTRY
+              # ... initialization ...
+              _DEFAULT_REGISTRY = canonical_registry
+      Or replace the pattern with threading.local() if per-thread isolation is acceptable.
+
+  - id: GI-C2
+    severity: CRITICAL
+    category: correctness
+    title: "scan_cache.compute_scan_cache_key() — object repr encodes heap address, cache structurally useless"
+    file: src/prism/scanner_core/scan_cache.py
+    evidence_anchor: "compute_scan_cache_key"
+    description: |
+      `compute_scan_cache_key` builds its cache key as:
+
+          options_blob = json.dumps(scan_options, sort_keys=True, default=str)
+          options_hash = hashlib.sha256(options_blob.encode("utf-8")).hexdigest()
+
+      After ingress normalization, `scan_options["prepared_policy_bundle"]` is populated with
+      live Python plugin instances, e.g.:
+
+          {
+            "task_line_parsing": <AnsibleDefaultTaskLineParsingPolicyPlugin object at 0x7f3a4b2c1d50>,
+            "jinja_analysis": <DefaultJinjaAnalysisPolicyPlugin object at 0x7f3a4b2c2100>,
+            ...
+          }
+
+      `default=str` serializes these using `object.__str__()`, which includes the heap address.
+      This address changes on every process run and on every new instance construction within
+      the same process.
+
+    root_cause: |
+      `json.dumps(..., default=str)` is the correct pattern for making unserializable types
+      JSON-serializable, but it produces non-stable, non-comparable output for any object
+      whose __str__ is not content-defined. Plugin singletons declared at module scope have
+      stable addresses within a single run, but cross-process stability is zero.
+
+    proof_of_exploit: |
+      1. Warm a scan: compute_scan_cache_key returns key K1 containing heap address 0xABCD.
+      2. Restart process, warm the same scan: heap address is 0xEF01. Key K2 != K1.
+      3. Even within the same process: create two DIContainers for the same role_path.
+         If prepared_policy_bundle is built from fresh instances, the addresses differ.
+         Cache hit rate: 0%.
+
+      To confirm: inject two logically-identical prepared_policy_bundles built from different
+      plugin instance constructions and verify the resulting keys are distinct.
+
+    impact: |
+      - `InMemoryLRUScanCache` is functionally inert for any scan path that passes a
+        prepared_policy_bundle (which is the canonical post-ingress path for all non-collection
+        scans). Cache misses 100% of the time.
+      - The cache infrastructure, lock management, and LRU eviction overhead all run to zero
+        benefit. Callers that assume cache warmup will see perpetual cold performance.
+      - This defect has existed since the `compute_scan_cache_key` function was introduced.
+
+    fix_direction: |
+      Strip non-serializable objects (prepared_policy_bundle plugin instances) from the
+      key input before hashing. Use a stable surrogate for the bundle: the platform key,
+      plugin class names (e.g. type(policy).__qualname__), and relevant policy option flags.
+      Consider a dedicated `ScanCacheKeyBuilder` that explicitly enumerates stable key fields
+      rather than attempting to serialize all of scan_options.
+
+  - id: GI-H1
+    severity: HIGH
+    category: concurrency
+    title: "DIContainer.replace_scan_options() — unsynchronized mutation, no cache invalidation"
+    file: src/prism/scanner_core/di.py
+    evidence_anchor: "replace_scan_options"
+    description: |
+      `replace_scan_options()` writes `self._scan_options` without holding `self._cache_lock`:
+
+          def replace_scan_options(self, scan_options: Mapping[str, Any]) -> None:
+              self._scan_options = clone_scan_options(scan_options)
+
+      Factory methods such as `factory_variable_discovery()` read `self._scan_options`
+      (via `_snapshot_scan_options()`) while holding `self._cache_lock`. The write and
+      the read are guarded by different lock scopes, so a concurrent write is not blocked
+      by the factory's read lock acquisition.
+
+      Additionally, if `factory_variable_discovery()` has already populated `self._cache["variable_discovery"]`,
+      a subsequent call to `replace_scan_options()` does not invalidate that cache entry.
+      The cached `VariableDiscovery` instance carries a stale snapshot of scan_options in
+      `self._options`. Calling `factory_variable_discovery()` again returns the stale instance.
+
+    impact: |
+      - In CPython, dict reference assignment is a pointer store that is effectively atomic
+        at the GIL level; in practice the write-read data race is unlikely to corrupt state,
+        but it is undefined behavior in the Python memory model.
+      - The stale-cache concern is a real correctness trap for any caller that modifies options
+        after first factory access. The canonical flow avoids this, but the API provides no
+        invariant or guard to prevent out-of-order usage.
+
+    fix_direction: |
+      Guard `replace_scan_options()` with `self._cache_lock`. Clear (or conditionally
+      invalidate) dependent cache entries when options change. Consider making
+      `replace_scan_options()` unavailable after any factory has been used (raise if
+      cache is non-empty), enforcing ingress-first discipline at the API level.
+
+  - id: GI-H2
+    severity: HIGH
+    category: design
+    title: "events.py _DEFAULT_LISTENERS — process-global mutable state, permanent pollution across DIContainer lifetimes"
+    file: src/prism/scanner_core/events.py
+    evidence_anchor: "register_default_listener"
+    description: |
+      `register_default_listener()` appends to a process-global `_DEFAULT_LISTENERS` list
+      under `_DEFAULT_LISTENERS_LOCK`. Every `DIContainer.__init__` that receives no explicit
+      `event_listeners` calls `list(get_default_listeners())` to seed its internal `EventBus`.
+
+      Any code path (test, plugin bootstrap, or application layer) that calls
+      `register_default_listener()` without a corresponding `unregister_default_listener()`
+      permanently injects that listener into all subsequent `DIContainer` instances in the
+      process lifetime. There is no context-manager-based registration scope.
+
+    impact: |
+      - Test isolation: a test that registers a listener to spy on phase events and forgets
+        to unregister permanently contaminates all subsequent DIContainer instances in the
+        test session. Depending on test ordering, this produces spurious failures or hidden
+        side effects in unrelated tests.
+      - Library consumers: a host application that registers a default listener for one
+        scan session unintentionally injects it into all future scan sessions.
+      - Neither the function nor the module documents the global persistence semantics or
+        warns callers about cross-session contamination.
+
+    fix_direction: |
+      Provide a context-manager-based `default_listener_scope(listener)` that registers on
+      entry and unregisters on exit. Add a docstring warning to `register_default_listener`
+      that its effect is permanent for the process lifetime. Consider whether process-global
+      listeners are needed at all, or whether they should be session-scoped via DIContainer
+      construction.
+
+  - id: GI-H3
+    severity: HIGH
+    category: correctness
+    title: "defaults.py non-strict platform fallback — malformed third-party plugin silently substitutes Ansible defaults"
+    file: src/prism/scanner_plugins/defaults.py
+    evidence_anchor: "_fallback_or_raise_malformed_plugin_shape"
+    description: |
+      In non-strict mode (`strict_mode=False`), `_fallback_or_raise_malformed_plugin_shape()`
+      logs a warning and returns the hardcoded Ansible fallback singleton
+      (`_TASK_LINE_PARSING_FALLBACK`, `_TASK_ANNOTATION_FALLBACK`, etc.).
+
+      If a Kubernetes or Terraform plugin registration is added (the expansion path that
+      multiple plan closures describe as "unblocked") and that plugin has an incorrect shape
+      (e.g. missing a required callable due to an API version mismatch), the fallback
+      mechanism silently substitutes Ansible-specific behavior for a non-Ansible scan.
+      The Ansible singleton includes Ansible task module key sets and Ansible-specific
+      traversal logic. The scan appears to succeed but produces Ansible-flavored output
+      for a Kubernetes or Terraform role.
+
+    impact: |
+      - Wrong-platform output with no scan-level error, only a buried warning log.
+      - This class of failure becomes live the moment any non-Ansible plugin is registered
+        and used in non-strict mode (which is the default for some internal resolution paths).
+      - The fix requires platform-aware fallback dispatch, but the prerequisite seam
+        (FIND-G6-06 ReadmeRendererPlugin protocol design, referenced in defaults.py comments)
+        has not landed.
+
+    fix_direction: |
+      Until FIND-G6-06 lands, fail closed in non-strict mode too when a non-Ansible platform
+      plugin has a malformed shape: log the warning AND raise PrismRuntimeError rather than
+      silently substituting Ansible behavior. The non-strict fallback is acceptable only when
+      the fallback is platform-compatible with the current scan context.
+
+  - id: GI-M1
+    severity: MEDIUM
+    category: correctness
+    title: "scan_request.build_run_scan_options_canonical() — comment_doc_marker_prefix not projected into PreparedPolicyBundle at ingress"
+    file: src/prism/scanner_core/scan_request.py
+    evidence_anchor: "build_run_scan_options_canonical"
+    description: |
+      `build_run_scan_options_canonical()` copies a caller-provided `prepared_policy_bundle`
+      via `copy.copy()` but does NOT project `comment_doc_marker_prefix` into the bundle
+      from `policy_context.comment_doc_marker_prefix` or from the top-level policy_context.
+      The projection is deferred to `ensure_prepared_policy_bundle()` (not shown at ingress).
+
+      `AnsibleFeatureDetectionPlugin._resolve_marker_prefix()` requires
+      `prepared_policy_bundle.comment_doc_marker_prefix` to be set and raises ValueError if
+      it is not. If a caller provides a prepared_policy_bundle without this key (e.g. a test
+      that builds the bundle manually), feature detection fails at runtime rather than failing
+      at ingress normalization where the missing field could be diagnosed and filled.
+
+    wave_impact: |
+      Affects wave sizing because any hardening of the ingress-first policy model must include
+      comment_doc_marker_prefix projection at build_run_scan_options_canonical time, not
+      deferred to the execution path. Without this, the ingress boundary is incomplete.
+
+  - id: GI-M2
+    severity: MEDIUM
+    category: design
+    title: "registry.load_plugin_from_module() — importlib.import_module without sandboxing, arbitrary module execution at scan time"
+    file: src/prism/scanner_plugins/registry.py
+    evidence_anchor: "load_plugin_from_module"
+    description: |
+      `load_plugin_from_module(module_name, class_name)` calls
+      `importlib.import_module(module_name)` with a caller-supplied module path string.
+      The deferred plugin registration tables (in bootstrap.py) supply hardcoded module
+      strings, so the current built-in registration is safe. But the public API
+      (`register_deferred_variable_discovery_plugin(name, module_path, class_name)`)
+      accepts arbitrary strings and stores them for deferred import.
+
+      An external plugin package that calls this registration API with a malicious
+      `module_path` can trigger arbitrary module import at scan time. While this is
+      bounded by Python import mechanics, the `load_plugin_from_module` call has no
+      allowlist, no module path validation, and no sandboxing.
+
+    wave_impact: |
+      Included because the expansion readiness gate (K8s/Terraform) depends on external
+      plugin packages using the deferred registration API. If that API is not hardened,
+      the expansion path opens a dynamic import surface that must be accepted or mitigated
+      before external plugin support is declared production-ready.
+
+loop_stop_assessment:
+  recommendation: BLOCK
+  rationale: |
+    GI-C1 (bootstrap race) and GI-C2 (cache key corruption) are founding defects in
+    infrastructure that underlies every scan path. Neither is addressed by any current
+    active plan or wave. Loop stop requires both Criticals closed and all Highs triaged
+    with explicit accept or fix decisions.
+
+    GI-H3 (non-strict Ansible fallback) becomes a runtime correctness defect the moment
+    K8s or Terraform plugin expansion lands — and that expansion is explicitly described
+    as "unblocked" in multiple plan closures. It must be addressed before expansion work
+    begins, not after.

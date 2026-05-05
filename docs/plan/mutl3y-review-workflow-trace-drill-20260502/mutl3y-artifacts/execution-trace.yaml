@@ -1,0 +1,77 @@
+version: 1
+plan_id: "mutl3y-review-workflow-trace-drill-20260502"
+cycle: "mutl3y-g1"
+updated_at: "2026-05-02T12:00:00Z"
+authoritative_resume_anchor: "docs/plan/mutl3y-review-workflow-trace-drill-20260502/plan.yaml"
+
+latest_checkpoint:
+  phase: "P5"
+  wave: 1
+  status: "STALL"
+  status_line: "[mutl3y-g1 | P5 wave 1 barrier | STALL — Builder-Ownership missing artifact, investigating]"
+  next_action: "Recover the missing Builder-Ownership summary artifact at the wave-1 barrier before Phase 6."
+  blocking_issues:
+    - "docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/Builder-Ownership-summary.md missing"
+  plan_pointer_synced: true
+  receipt_proof:
+    - "Builder-Typing returned in this turn"
+    - "Builder-Ownership returned in this turn"
+  artifact_proof:
+    - "docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/wave-1-plan.yaml"
+    - "docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/Builder-Typing-summary.md"
+    - "docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml"
+  source_summary_artifact: "docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml"
+  failure_debug:
+    failure_class: "missing_artifact"
+    failing_workers: ["Builder-Ownership"]
+    expected_workers: ["Builder-Typing", "Builder-Ownership"]
+    returned_workers: ["Builder-Typing", "Builder-Ownership"]
+    missing_artifacts:
+      - "docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/Builder-Ownership-summary.md"
+    relevant_logs:
+      - "docs/plan/mutl3y-review-workflow-trace-drill-20260502/.mutl3y-gate/wave-1-barrier.log"
+    route_failures: []
+    last_successful_status_line: "[mutl3y-g1 | P5 wave 1 start | OK — audit written]"
+    suspected_slice: "Phase 5 wave barrier"
+    recovery_attempted:
+      - "checked owned file set"
+      - "confirmed missing summary artifact"
+    debug_hypothesis: "Builder-Ownership returned without writing its summary artifact."
+
+timeline:
+  - timestamp: "2026-05-02T11:50:00Z"
+    phase: "P5"
+    wave: 1
+    status: "OK"
+    event: "wave_start"
+    summary: "Wave 1 audit and plan written for two disjoint builders"
+    source_artifacts:
+      - "docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/wave-1-start-audit.yaml"
+      - "docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/wave-1-plan.yaml"
+    plan_pointer_synced: true
+    failure_debug: null
+  - timestamp: "2026-05-02T12:00:00Z"
+    phase: "P5"
+    wave: 1
+    status: "STALL"
+    event: "barrier_failure"
+    summary: "Builder-Ownership summary artifact missing at wave barrier"
+    source_artifacts:
+      - "docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml"
+    plan_pointer_synced: true
+    failure_debug:
+      failure_class: "missing_artifact"
+      failing_workers: ["Builder-Ownership"]
+      expected_workers: ["Builder-Typing", "Builder-Ownership"]
+      returned_workers: ["Builder-Typing", "Builder-Ownership"]
+      missing_artifacts:
+        - "docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/Builder-Ownership-summary.md"
+      relevant_logs:
+        - "docs/plan/mutl3y-review-workflow-trace-drill-20260502/.mutl3y-gate/wave-1-barrier.log"
+      route_failures: []
+      last_successful_status_line: "[mutl3y-g1 | P5 wave 1 start | OK — audit written]"
+      suspected_slice: "Phase 5 wave barrier"
+      recovery_attempted:
+        - "checked owned file set"
+        - "confirmed missing summary artifact"
+      debug_hypothesis: "Builder-Ownership returned without writing its summary artifact."

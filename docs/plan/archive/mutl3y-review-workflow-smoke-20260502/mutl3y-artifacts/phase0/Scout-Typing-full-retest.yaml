@@ -1,0 +1,71 @@
+- id: Scout-Typing-01
+  category: typing
+  fingerprint: "typing:di:scan_options:unparam_container"
+  file: src/prism/scanner_core/di.py
+  line: 69
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def clone_scan_options(scan_options: Mapping[str, Any]) -> dict[str, Any]:"
+  evidence_command: "src/prism/scanner_core/di.py#L69"
+  related_symbols: ["clone_scan_options", "DIContainer._snapshot_scan_options"]
+  fix_group_key: "di.typing.any_containers"
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: Scout-Typing-02
+  category: registry_authority
+  fingerprint: "registry_authority:scanner_core/di:_get_registry:split_authority"
+  file: src/prism/scanner_core/di.py
+  line: 304
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if self._registry is None: raise ValueError(\"No plugin registry provided to DIContainer\")"
+  evidence_command: "src/prism/scanner_core/di.py#L304"
+  related_symbols: ["DIContainer._get_registry", "_registry"]
+  fix_group_key: "registry-split-authority"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_default_platform_key"
+
+- id: Scout-Typing-03
+  category: ownership
+  fingerprint: "ownership:scanner_core/di:factory_blocker_fact_builder:runtime_import"
+  file: src/prism/scanner_core/di.py
+  line: 298
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_do_not_re_flag
+  memory_match: "FIND-G3-03"
+  evidence_snippet: "fn = resolve_blocker_fact_builder()"
+  evidence_command: "src/prism/scanner_core/di.py#L295-L298"
+  related_symbols: ["factory_blocker_fact_builder", "resolve_blocker_fact_builder"]
+  fix_group_key: "di.factory_blocker_fact_builder.runtime_import"
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_blocker_fact_builder_caches_callable"
+
+- id: Scout-Typing-04
+  category: typing
+  fingerprint: "typing:di:registry:param_any"
+  file: src/prism/scanner_core/di.py
+  line: 101
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "registry: Any | None = None,"
+  evidence_command: "src/prism/scanner_core/di.py#L101"
+  related_symbols: ["DIContainer.__init__", "_registry", "PluginRegistry"]
+  fix_group_key: "di.registry.weak_type"
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: ""

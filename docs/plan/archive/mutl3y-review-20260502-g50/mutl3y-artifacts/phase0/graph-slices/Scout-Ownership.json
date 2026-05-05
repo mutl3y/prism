@@ -1,0 +1,21 @@
+{
+  "agent": "Scout-Ownership",
+  "cycle": "g50",
+  "focus_axis": "typing",
+  "review_surface": [
+    "src/prism/api.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_plugins/bundle_resolver.py",
+    "src/prism/scanner_plugins/interfaces.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/scanner_extract/discovery.py",
+    "src/prism/scanner_readme/guide.py",
+    "src/prism/tests/test_comment_doc_plugin_resolution.py",
+    "src/prism/tests/test_dataload.py"
+  ],
+  "questions": [
+    "Which exported helpers or facades still own second-class typed seams or fallback-owned behavior?",
+    "Do generic helper modules still hide ownership behind compatibility-style surfaces after the recent closures?"
+  ]
+}

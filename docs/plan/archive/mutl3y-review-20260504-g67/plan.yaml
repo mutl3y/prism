@@ -1,0 +1,43 @@
+plan_id: mutl3y-review-20260504-g67
+cycle: g67
+review_type: unconstrained_god_mode
+focus_axis: none
+status: completed_checkpoint
+target: src/prism
+origin: >-
+  Cadence-required fresh unconstrained God Mode review after g64 and g66
+  completed as consecutive clean thorough checkpoints on different review
+  surfaces.
+resumption_pointer:
+  current_phase: P7
+  next_action: "Continue in g68 and grade the returned light-review artifact against live source."
+  blocking_issues: []
+artifacts:
+  findings: docs/plan/mutl3y-review-20260504-g67/findings.yaml
+  phase0_start_audit: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase0/phase-start-audit.yaml
+  phase1_god_mode_review: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+  phase1_grading_summary: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase1/grading-summary.yaml
+  phase2_persist_summary: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase2/persist-summary.yaml
+  phase4_wave_1_decision_summary: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase4/wave-1-decision-summary.yaml
+  phase5_wave_1_start_audit: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase5/wave-1-start-audit.yaml
+  phase5_wave_1_plan: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase5/wave-1-plan.yaml
+  phase5_wave_1_barrier_summary: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+  phase6_gate_summary: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase6/Gatekeeper-wave-1-summary.md
+  phase6_auditor_regression_summary: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase6/Auditor-Regression-wave-1.md
+  phase7_closure_control_gate: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase7/closure-control-gate.yaml
+  phase7_closure_summary: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase7/closure-summary.yaml
+  execution_trace: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/execution-trace.yaml
+  model_usage_ledger: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/model-usage-ledger.yaml
+  model_scorecard: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/model-scorecard.yaml
+readiness_state:
+  ready: true
+  focus_axis_due_next: none
+  memory_dir: /raid5/source/test/prism/docs/plan/.mutl3y-lessons
+  degraded_models: []
+  watch_models:
+    - "GPT-4.1 (copilot)"
+    - "GPT-5 mini (copilot)"
+pause_state:
+  paused: false
+  reason: ""
+  resume_artifact: ""

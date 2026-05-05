@@ -1,0 +1,12 @@
+cycle: g69
+phase: P5
+wave: 1
+status: ready
+builder: Builder-Ownership
+fix_group_key: api_layer.non_collection.default_registry_authority
+owned_files:
+  - src/prism/api_layer/non_collection.py
+  - src/prism/tests/test_api_cli_entrypoints.py
+foreman_recovery: false
+blocking_issues: []
+suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k non_collection_run_scan

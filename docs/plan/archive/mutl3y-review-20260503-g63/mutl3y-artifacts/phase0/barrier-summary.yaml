@@ -1,0 +1,44 @@
+plan_id: mutl3y-review-20260503-g63
+cycle: g63
+phase: P0
+status: OK
+review_type: light
+focus_axis: ownership
+expected_workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+returned_workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Graph.yaml
+artifact_validation:
+  yaml: PASS
+  schema: PASS
+  log: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/scout-yaml-validate.log
+schema_repair:
+  required: true
+  reason: Scout artifacts contained schema drift despite useful observations.
+  first_repair_attempt: blocked_by_read_only_scout_role
+  repair_worker: Builder-ArtifactRepair
+  result: PASS
+observation_counts:
+  Scout-Typing: 2
+  Scout-Ownership: 3
+  Scout-ControlFlow: 4
+  Scout-Graph: 3
+high_or_critical_counts:
+  critical: 0
+  high: 3
+resume_dirty_tree:
+  status: OK
+  artifact: .mutl3y-gate/resume-dirty-tree.yaml
+blockers: []
+next_action: Run Phase 1 grading and promote only verified High/Critical or necessary Medium findings.

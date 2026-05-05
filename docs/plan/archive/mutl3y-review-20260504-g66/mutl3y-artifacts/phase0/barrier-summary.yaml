@@ -1,0 +1,53 @@
+cycle: g66
+phase: P0
+status: OK
+focus_axis: typing
+summary: >-
+  The g66 thorough scout batch completed on the rotated typing axis, and the
+  required bounded widening pass split the protocol/facade typing seam from the
+  repo-scan orchestration seam while confirming one shared payload fail-open
+  boundary across execution_request_builder and scanner_context.
+scout_receipts:
+  - agent: Scout-Typing
+    artifact: docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Typing.yaml
+    observations: 5
+    top_fix_groups:
+      - scan-pipeline.protocol-contract-typing
+      - collection-scan.metadata-shape-error-channel
+      - repo-scan.protocolize-orchestration-seam
+  - agent: Scout-Ownership
+    artifact: docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+    observations: 4
+    top_fix_groups:
+      - api.scanner_core_assembly_symbol_leak
+      - defaults.ansible_owned_fallbacks_in_generic_module
+      - tests.global_plugin_registry_coupling
+  - agent: Scout-ControlFlow
+    artifact: docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+    observations: 4
+    top_fix_groups:
+      - execution-request.role-notes-shape.fail-closed
+      - execution-request.variable-row-shape.fail-closed
+      - execution-request.features-shape.fail-closed
+      - scanner-context.payload-shape.fail-closed
+  - agent: Scout-Graph
+    artifact: docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Graph.yaml
+    observations: 4
+    top_fix_groups:
+      - scan-pipeline-registry.protocol-alignment
+      - scanner_context.di-type-only-import
+bounded_widening:
+  - agent: Probe-Ownership
+    artifact: docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Probe-Ownership-protocol-seam.yaml
+    verdict: >-
+      The scan-pipeline protocol and facade path is one coherent High family,
+      while repo_services is a separate orchestration seam that should be
+      graded independently.
+  - agent: Probe-ControlFlow
+    artifact: docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Probe-ControlFlow-payload-seam.yaml
+    verdict: >-
+      The payload coercion observations form one boundary-seam finding across
+      execution_request_builder and scanner_context.
+next_action: >-
+  Grade the joined scout and probe artifacts, then promote the net-new g66
+  shortlist before any implementation wave is considered.

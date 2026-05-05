@@ -1,0 +1,25 @@
+cycle: g56
+phase: P5
+wave: 1
+wave_goal: "Repair G56-H01 and the nearest gate-fallout seams discovered while validating the same slice."
+findings:
+  - id: G56-H01
+    owned_files:
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/tests/test_defaults.py
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+adjacent_repair_files:
+  - src/prism/tests/test_plugin_kernel_extension_parity.py
+  - src/prism/tests/test_gilfoyle_blockers_runtime.py
+  - src/prism/scanner_extract/variable_extractor.py
+  - src/prism/tests/test_hypothesis_yaml_parser.py
+  - src/prism/cli.py
+  - src/prism/scanner_plugins/bundle_resolver.py
+  - src/prism/scanner_plugins/ansible/feature_flags.py
+  - src/prism/tests/test_plugin_extract_boundary.py
+  - src/prism/tests/test_package_export_parity.py
+focused_gate_bundle:
+  - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase5-wave1-focused.log
+  - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase5-wave1-ruff.log
+  - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase5-wave1-black.log
+  - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase5-wave1-mypy.log

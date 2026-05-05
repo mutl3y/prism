@@ -1,0 +1,39 @@
+- id: O1
+  category: [ownership, facade_leakage, composition_root]
+  severity: medium
+  location: src/prism/scanner_core/di.py
+  title: DI constructs plugin instances via registry
+  evidence: "factory_feature_detection_plugin and factory_variable_discovery_plugin call registry.get_*_plugin(...) then _construct_runtime_plugin(..., di=self) — DI performs plugin instantiation and enforces constructor shape."
+  recommendation: "Consider narrowing DI's responsibility to resolving plugin classes (returning factories) or provide an explicit composition callback so plugin-layer construction stays owned by plugin layer."
+
+- id: O2
+  category: [ownership, facade_leakage]
+  severity: low
+  location: src/prism/scanner_core/di.py
+  title: Exposed plugin_registry and _get_registry() coupling
+  evidence: "Property plugin_registry returns the injected registry; _get_registry() raises if missing. Callsites may depend on DI-held registry, increasing surface for facade leakage."
+  recommendation: "Encourage callers to use DI factory methods rather than accessing registry directly; document registry access contract or restrict visibility."
+
+- id: O3
+  category: [composition_root]
+  severity: medium
+  location: src/prism/scanner_core/di.py
+  title: ScannerContext wiring required at composition time
+  evidence: "factory_scanner_context() requires scanner_context_wiring with prepare_scan_context_fn and raises RuntimeError when omitted — caller must supply runtime seam wiring."
+  recommendation: "Make composition-time wiring explicit at high-level bootstrap and add clear factory docs/tests for composition root responsibilities."
+
+- id: O4
+  category: [ownership, facade_leakage]
+  severity: low
+  location: src/prism/scanner_core/di.py
+  title: Plugin-layer default resolution inside DI (blocker-fact builder)
+  evidence: "factory_blocker_fact_builder imports prism.scanner_plugins.defaults.resolve_blocker_fact_builder inside factory body as fallback. Digest marks this seam intentional, but it couples DI to plugin-layer default resolution at runtime."
+  recommendation: "Keep but document as intentional seam; consider explicit injection of plugin-layer defaults at composition time to make ownership clearer."
+
+- id: O5
+  category: [composition_root]
+  severity: low
+  location: src/prism/scanner_core/di.py
+  title: Rich test override surface (factory_overrides and inject_mock)
+  evidence: "_factory_overrides and inject_mock() allow runtime replacement of factories/mocks, increasing composition surface for tests and integrations."
+  recommendation: "This is valuable for tests; maintain but document allowed override keys and their intended scope to avoid accidental production usage."

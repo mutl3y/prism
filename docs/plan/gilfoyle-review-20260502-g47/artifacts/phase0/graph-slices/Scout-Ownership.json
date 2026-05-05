@@ -1,0 +1,21 @@
+{
+  "agent": "Scout-Ownership",
+  "cycle": "g47",
+  "focus_axis": "error_handling",
+  "review_surface": [
+    "src/prism/api.py",
+    "src/prism/scanner_config/readme.py",
+    "src/prism/scanner_config/style_parser.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_plugins/bundle_resolver.py",
+    "src/prism/scanner_plugins/parsers/yaml/parsing_policy.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/tests/test_api_cli_entrypoints.py",
+    "src/prism/tests/test_collection_contract.py",
+    "src/prism/tests/test_comment_doc_plugin_resolution.py"
+  ],
+  "questions": [
+    "Do public API and config entrypoints still bypass the same path or policy authority as the primary guarded inputs?",
+    "Does scanner_plugins.defaults still own an alternate composition path outside the canonical runtime?"
+  ]
+}

@@ -1,0 +1,57 @@
+plan_id: mutl3y-review-20260502-g55
+cycle: g55
+phase: P0
+worker: Synthesizer-Architecture
+status: completed
+summary: "Cross-cutting deep review found one net-new High at the execution-request ingress seam and several deferred contract debts adjacent to the DI/defaults typing cluster."
+net_new_highs:
+  - id: DR-G55-SYNTH-H01
+    title: Execution-request assembly still erases the DI/runtime contract at the ingress seam
+    severity: high
+    cross_cutting: true
+    scouts_that_missed:
+      - Scout-Typing
+      - Scout-ControlFlow
+      - Scout-Graph
+    promote_to_shortlist: true
+    anchors:
+      - src/prism/scanner_core/execution_request_builder.py:62
+      - src/prism/scanner_core/execution_request_builder.py:68
+      - src/prism/scanner_core/execution_request_builder.py:84
+      - src/prism/scanner_core/execution_request_builder.py:535
+      - src/prism/scanner_core/execution_request_builder.py:548
+      - src/prism/scanner_core/execution_request_builder.py:560
+      - src/prism/scanner_core/di.py:166
+      - src/prism/tests/test_execution_request_builder.py:232
+    verification_evidence: "_DIContainerFactory still accepts registry: object, scanner_context_wiring: dict[str, object], and factory_overrides: dict[str, object], and _assemble_runtime_participants() forwards exactly those placeholder contracts into DIContainer."
+    recommendation: promote_to_shortlist
+net_new_mediums:
+  - id: DR-G55-SYNTH-M01
+    title: strict-mode fallback semantics are threaded end to end but not honored by the defaults helpers
+    severity: medium
+    promote_to_shortlist: false
+    anchors:
+      - src/prism/api_layer/non_collection.py:555
+      - src/prism/scanner_plugins/bundle_resolver.py:90
+      - src/prism/scanner_plugins/defaults.py:183
+      - src/prism/tests/test_defaults.py:15
+    recommendation: keep_exhaustive
+  - id: DR-G55-SYNTH-M02
+    title: DI override tests institutionalize weak override contracts and will resist narrowing unless updated in the same wave
+    severity: medium
+    promote_to_shortlist: false
+    anchors:
+      - src/prism/tests/test_di_container.py:149
+      - src/prism/tests/test_scanner_core_di.py:183
+      - src/prism/scanner_core/di.py:237
+    recommendation: keep_exhaustive
+  - id: DR-G55-SYNTH-M03
+    title: registry authority is behaviorally unified but still enforced only by duck typing across defaults and loader
+    severity: medium
+    promote_to_shortlist: false
+    anchors:
+      - src/prism/scanner_plugins/defaults.py:57
+      - src/prism/scanner_io/loader.py:37
+      - src/prism/tests/test_di_registry_resolution.py:443
+    recommendation: keep_exhaustive
+final_recommendation: Continue with deep-review evidence before closing Phase 1, but keep the continuation narrow and promote only the execution-request ingress High now.

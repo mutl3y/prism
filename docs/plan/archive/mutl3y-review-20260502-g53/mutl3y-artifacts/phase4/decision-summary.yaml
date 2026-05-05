@@ -1,0 +1,8 @@
+plan_id: mutl3y-review-20260502-g53
+cycle: g53
+phase: P4
+status: completed
+decision_summary:
+  - "Wave 1 will target only execution_request_builder.py plus its nearest regression tests."
+  - "The local hypothesis is that extracting runtime participant assembly from _assemble_execution_request() will make the composition root explicit without widening behavior or ownership."
+  - "Do not widen into DI constructor typing cleanup or api_layer/non_collection in this wave."

@@ -1,0 +1,47 @@
+agent: Scout-Graph
+artifact_path: docs/plan/mutl3y-review-20260503-g57/mutl3y-artifacts/phase0/Scout-Graph.yaml
+observation_count: 6
+observations:
+  - id: G57-O01
+    summary: "Default plugin registry authority is centralized in scanner_plugins (DEFAULT_PLUGIN_REGISTRY) and exposed via api_layer.plugin_facade.get_default_plugin_registry()."
+    citations:
+      - path: src/prism/api_layer/plugin_facade.py
+        lines: 32-39
+      - path: src/prism/scanner_plugins/__init__.py
+        note: "defines DEFAULT_PLUGIN_REGISTRY"
+  - id: G57-O02
+    summary: "Kernel orchestration requires an explicit registry argument and will raise if none provided, placing runtime authority on callers that supply a registry."
+    citations:
+      - path: src/prism/scanner_kernel/orchestrator.py
+        lines: 273-281
+      - path: src/prism/scanner_kernel/orchestrator.py
+        lines: 301-306
+  - id: G57-O03
+    summary: "API layer non_collection resolves a default plugin registry but forwards execution_request.runtime_registry when present, allowing per-request override of registry authority."
+    citations:
+      - path: src/prism/api_layer/non_collection.py
+        lines: 542-551
+      - path: src/prism/api_layer/non_collection.py
+        lines: 663-670
+  - id: G57-O04
+    summary: "Facade functions (api_layer.plugin_facade) mostly pass-through to scanner_plugins.defaults and bundle_resolver, creating eager resolution seams in the API-to-plugins boundary."
+    citations:
+      - path: src/prism/api_layer/plugin_facade.py
+        lines: 42-55
+      - path: src/prism/api_layer/plugin_facade.py
+        lines: 58-66
+  - id: G57-O05
+    summary: "Prepared-policy bundle resolution is injectable via ensure_prepared_policy_bundle_fn but defaults to scanner_plugins.bundle_resolver.ensure_prepared_policy_bundle, producing multiple potential owners for prepared-policy authority."
+    citations:
+      - path: src/prism/api_layer/non_collection.py
+        lines: 514-555
+      - path: src/prism/api_layer/plugin_facade.py
+        lines: 42-55
+  - id: G57-O06
+    summary: "Orchestrator contains distinct error paths when a plugin name resolves but is not registered or when registry marks plugin 'reserved/unsupported', indicating runtime mismatch edges (name→registry inconsistency)."
+    citations:
+      - path: src/prism/scanner_kernel/orchestrator.py
+        lines: 320-326
+      - path: src/prism/scanner_kernel/orchestrator.py
+        lines: 407-411
+verdict: "Registry authority lives in scanner_plugins but is frequently shadowed/overridden by API-layer/runtime registry; watch per-request registry overrides and facade pass-throughs for ownership drift and eager resolution edges."

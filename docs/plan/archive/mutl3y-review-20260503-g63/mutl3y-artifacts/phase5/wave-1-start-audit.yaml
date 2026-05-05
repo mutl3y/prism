@@ -1,0 +1,14 @@
+plan_id: mutl3y-review-20260503-g63
+cycle: g63
+phase: P5
+wave: 1
+status: OK
+finding: G63-M01
+worker: Builder-Ownership
+owned_file_set:
+  - src/prism/tests/test_comment_doc_plugin_resolution.py
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase5/Builder-Ownership-wave-1-summary.md
+preconditions:
+  - Phase 1 grading promoted G63-M01 as the smallest actionable slice.
+  - Registry snapshot_state/replace_state seam exists and may remove the need for direct private dict mutation in tests.
+next_action: Dispatch Builder-Ownership for the wave 1 test-fixture coupling repair.

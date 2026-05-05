@@ -1,0 +1,321 @@
+- id: Scout-ControlFlow-01
+  category: composition_root
+  fingerprint: "composition_root:di:forward_reference_bridge_slot_lambda_closures"
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 506
+  severity_hint: high
+  confidence: high
+  detector: runtime_construction_circular_dependency_closure_pattern
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: |
+    _bridge_slot: list[_ScanStateBridge] = []
+    container = di_container_cls(
+        ...,
+        scanner_context_wiring={
+            "prepare_scan_context_fn": lambda opts: _bridge_slot[
+                0
+            ].prepare_scan_context(opts, canonical_options),
+        },
+        factory_overrides={
+            "variable_discovery_factory": lambda di, rp, opts: _bridge_slot[
+                0
+            ].variable_discovery_factory(di, rp, opts),
+            "feature_detector_factory": lambda di, rp, opts: _bridge_slot[
+                0
+            ].feature_detector_factory(di, rp, opts),
+        },
+    )
+    bridge = _ScanStateBridge(container=container, ...)
+    _bridge_slot.append(bridge)
+  evidence_command: "src/prism/scanner_core/execution_request_builder.py#L506-L536"
+  related_symbols: ["_bridge_slot", "_ScanStateBridge", "scanner_context_wiring", "factory_overrides", "prepare_scan_context_fn", "variable_discovery_factory", "feature_detector_factory"]
+  origin_location: "src/prism/scanner_core/execution_request_builder.py#L506"
+  consumer_locations:
+    - "src/prism/scanner_core/execution_request_builder.py#L526:container construction"
+    - "src/prism/scanner_core/execution_request_builder.py#L530:_ScanStateBridge instantiation"
+    - "src/prism/scanner_core/di.py#L246:factory_variable_discovery override check"
+    - "src/prism/scanner_core/di.py#L271:factory_feature_detector override check"
+  fix_group_key: "di-bridge-slot-forward-reference-composition"
+  proposed_fix_class: explicit_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py::test_assembly_creates_valid_scanner_context"
+  context: |
+    Forward reference resolution via list-slot closure pattern: DIContainer construction requires factory_overrides and scanner_context_wiring that delegate to _ScanStateBridge methods, but the bridge cannot be instantiated until the container exists. This is solved by pre-allocating _bridge_slot as an empty list, passing lambda closures that reference _bridge_slot[0] into the container, then immediately populating the slot after container construction. Composition responsibility is split across three separate code paths: (1) explicit factory_overrides passed to DIContainer, (2) the lambda closures in scanner_context_wiring, and (3) the bridge slot population after container construction. Callers cannot observe which path was taken or when the slot was populated without execution tracing through the lambda closures.
+
+- id: Scout-ControlFlow-02
+  category: factory_precedence
+  fingerprint: "factory_precedence:di:triple_path_factory_resolution_mock_override_default"
+  file: src/prism/scanner_core/di.py
+  line: 240
+  severity_hint: medium
+  confidence: high
+  detector: runtime_factory_method_triple_path_routing
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: |
+    def factory_variable_discovery(self) -> VariableDiscovery:
+        if "variable_discovery" in self._mocks:
+            return self._mocks["variable_discovery"]
+        override = self._factory_overrides.get("variable_discovery_factory")
+        if override is not None:
+            return override(self, self._role_path, self._snapshot_scan_options())
+        key = "variable_discovery"
+        with self._cache_lock:
+            if key not in self._cache:
+                self._cache[key] = _create_variable_discovery(
+                    self, self._role_path, self._snapshot_scan_options(),
+                )
+        return self._cache[key]
+  evidence_command: "src/prism/scanner_core/di.py#L240-L257"
+  related_symbols: ["factory_variable_discovery", "_mocks", "_factory_overrides", "_create_variable_discovery", "_cache"]
+  origin_location: "src/prism/scanner_core/di.py#L240"
+  consumer_locations:
+    - "src/prism/scanner_core/scanner_context.py (consumer of VariableDiscovery)"
+    - "src/prism/tests/test_scanner_core_di.py#L196 (mock injection test)"
+  fix_group_key: "di-factory-triple-path-type-contracts"
+  proposed_fix_class: narrow_factory_contracts
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_variable_discovery_uses_override_when_provided"
+  context: |
+    Triple-path factory resolution creates three distinct code paths: (1) mock injection (checks self._mocks), (2) factory override delegation (checks self._factory_overrides), (3) cached default construction (calls _create_variable_discovery). Each path has different exception handling behavior: mocks bypass construction entirely; overrides delegate to the provided callable (which can fail with any exception); defaults use cached, deferred imports via _create_variable_discovery. Behavior split: callers cannot predict which path will execute or what exceptions might be raised without examining mock state and override dict at runtime. Same triple-path pattern is replicated across factory_feature_detector (lines 265-281), factory_variable_discovery_plugin (lines 320-344), factory_feature_detection_plugin (lines 345-372), and policy plugin factories (lines 383-461). This pattern creates 10+ separate code paths (2 objects × 5+ factory methods), each with weak callables that hide type safety.
+
+- id: Scout-ControlFlow-03
+  category: registry_authority
+  fingerprint: "registry_authority:defaults:_resolve_plugin_with_precedence_tri_path"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 325
+  severity_hint: high
+  confidence: high
+  detector: registry_resolution_tri_path_precedence_routing
+  memory_status: existing
+  memory_match: "g52:Scout-ControlFlow-03"
+  evidence_snippet: |
+    def _resolve_plugin_with_precedence(
+        *,
+        di: object | None,
+        di_factory_name: str,
+        registry_plugin_name: str,
+        plugin_kind: str,
+        required_callables: tuple[str, ...],
+        any_of_callables: tuple[str, ...],
+        required_attributes: tuple[str, ...],
+        fallback_plugin: Any,
+        strict_mode: bool,
+        registry: "PluginRegistry | None" = None,
+        registry_getter_name: str = "get_extract_policy_plugin",
+    ) -> Any:
+        registry_obj = _resolve_registry(di, registry)
+        if di is not None:
+            plugin_factory = getattr(di, di_factory_name, None)
+            if callable(plugin_factory):
+                plugin = plugin_factory()
+                if plugin is not None:
+                    return _validate_plugin_shape(...)
+        registry_getter = getattr(registry_obj, registry_getter_name)
+        registry_plugin_class = registry_getter(registry_plugin_name)
+        if registry_plugin_class is not None:
+            plugin = _construct_registry_plugin(...)
+            return _validate_plugin_shape(...)
+        return fallback_plugin
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L325-L376"
+  related_symbols: ["_resolve_plugin_with_precedence", "_resolve_registry", "registry_obj", "di_factory_name", "fallback_plugin", "_validate_plugin_shape"]
+  origin_location: "src/prism/scanner_plugins/defaults.py#L325"
+  consumer_locations:
+    - "src/prism/scanner_plugins/defaults.py#L384:resolve_task_line_parsing_policy_plugin"
+    - "src/prism/scanner_plugins/defaults.py#L410:resolve_task_annotation_policy_plugin"
+    - "src/prism/scanner_plugins/defaults.py#L430:resolve_task_traversal_policy_plugin"
+    - "src/prism/scanner_plugins/defaults.py#L458:resolve_variable_extractor_policy_plugin"
+  fix_group_key: "plugin-resolution-precedence-type-contracts"
+  proposed_fix_class: narrow_resolver_contracts
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_registry_resolution_di_override_precedence"
+  context: |
+    Three-path plugin resolution with weak contracts hides behavior splits: (1) DI factory override path (calls getattr(di, di_factory_name), then getattr(...callable...)), (2) registry default path (calls getattr(registry_obj, registry_getter_name)), (3) fallback singleton path (returns module-level fallback). Each path has different shape-validation: DI override result is passed to _validate_plugin_shape which raises or returns fallback on mismatch; registry result is constructed via _construct_registry_plugin which has different error semantics; fallback is returned directly without validation. Validator divergence: _validate_plugin_shape can return either the validated plugin or the fallback_plugin on shape mismatch (depends on strict_mode). Precedence documentation lives in comments (lines 53-67 in defaults.py), not in type contracts. Six separate resolution functions (task_line, task_annotation, task_traversal, variable_extractor, yaml_parsing, jinja_analysis) all use _resolve_plugin_with_precedence with different required_callables, creating 6× implicit behavior splits without unified shape enforcement.
+
+- id: Scout-ControlFlow-04
+  category: type_contract_weakness
+  fingerprint: "type_contract_weakness:protocols_runtime:DIFactoryOverride_untyped_callables"
+  file: src/prism/scanner_core/protocols_runtime.py
+  line: 89
+  severity_hint: medium
+  confidence: high
+  detector: protocol_contract_too_permissive_callable_return
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: |
+    class DIFactoryOverride(Protocol):
+        """Overrides a DI factory: receives di + role_path + scan_options, returns the produced object."""
+        def __call__(
+            self, di: "DIContainer", role_path: str, scan_options: ScanOptionsDict
+        ) -> object: ...
+  evidence_command: "src/prism/scanner_core/protocols_runtime.py#L89-L95"
+  related_symbols: ["DIFactoryOverride", "object", "ScanOptionsDict"]
+  origin_location: "src/prism/scanner_core/protocols_runtime.py#L89"
+  consumer_locations:
+    - "src/prism/scanner_core/di.py#L33:import DIFactoryOverride"
+    - "src/prism/scanner_core/di.py#L167:factory_overrides parameter type"
+    - "src/prism/scanner_core/execution_request_builder.py#L526-L535:factory_overrides usage"
+  fix_group_key: "di-factory-override-return-type-narrowing"
+  proposed_fix_class: narrow_protocol_return_types
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py && mypy src/prism/scanner_core/di.py src/prism/scanner_core/execution_request_builder.py"
+  context: |
+    DIFactoryOverride Protocol's return type is `object`, hiding the actual constructed type from type checkers. When factory_overrides dict is accessed (e.g., override = self._factory_overrides.get("variable_discovery_factory")), the type of override is `Callable[[DIContainer, str, ScanOptionsDict], object] | None`. Callers cannot statically verify what type was produced without runtime inspection. Actual returns are VariableDiscovery, FeatureDetector, _RecordingVariableDiscovery, etc., but this is implicit from context, not encoded in the type contract. Lambdas passed in factory_overrides (execution_request_builder.py lines 527-535) use lambdas that internally check _bridge_slot[0], making the actual construction path invisible to the type system. Impact: mypy cannot catch type mismatches when override callables return wrong types, and IDE autocompletion cannot suggest correct methods on the returned object.
+
+- id: Scout-ControlFlow-05
+  category: platform_key_resolution
+  fingerprint: "platform_key_resolution:di:triple_path_precedence_with_weak_scan_options_access"
+  file: src/prism/scanner_core/di.py
+  line: 95
+  severity_hint: medium
+  confidence: medium
+  detector: scan_options_dict_access_implicit_precedence_routing
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: |
+    def resolve_platform_key(
+        scan_options: Mapping[str, Any],
+        registry: PluginRegistry | None = None,
+    ) -> str:
+        if isinstance(scan_options, dict):
+            explicit = scan_options.get("scan_pipeline_plugin")
+            if isinstance(explicit, str) and explicit:
+                return explicit
+            policy_context = scan_options.get("policy_context")
+            if isinstance(policy_context, dict):
+                selection = policy_context.get("selection")
+                if isinstance(selection, dict):
+                    plugin_key = selection.get("plugin")
+                    if isinstance(plugin_key, str) and plugin_key:
+                        return plugin_key
+        if registry is not None:
+            default_key = registry.get_default_platform_key()
+            if default_key is not None:
+                return default_key
+        raise ValueError(...)
+  evidence_command: "src/prism/scanner_core/di.py#L95-L116"
+  related_symbols: ["resolve_platform_key", "scan_options", "scan_pipeline_plugin", "policy_context", "registry"]
+  origin_location: "src/prism/scanner_core/di.py#L95"
+  consumer_locations:
+    - "src/prism/scanner_core/di.py#L318:_resolve_platform_key method"
+    - "src/prism/scanner_core/execution_request_builder.py#L500:resolved_platform_key assignment"
+  fix_group_key: "platform-key-resolution-precedence-clarity"
+  proposed_fix_class: narrow_implicit_precedence
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_platform_key_resolution_precedence"
+  context: |
+    Platform key resolution has three implicit precedence paths with weak key access patterns: (1) scan_options["scan_pipeline_plugin"] (direct string), (2) scan_options["policy_context"]["selection"]["plugin"] (nested dict traversal), (3) registry.get_default_platform_key() (registry fallback). Each path uses nested if isinstance() checks that hide the precedence logic. Behavior split: scan_pipeline_plugin is checked first but may be missing/None; policy_context.selection.plugin is checked second as a nested fallback; registry default is checked last only if both previous paths fail. Type safety: Mapping[str, Any] allows arbitrary dict-like types, but isinstance(scan_options, dict) narrows to dict only, creating a path where registry default is always used if scan_options is a Mapping but not a dict subclass. Precedence ordering (plugin > selection > registry) is documented in docstring but not enforced by type system.
+
+- id: Scout-ControlFlow-06
+  category: lazy_import_pattern
+  fingerprint: "lazy_import_pattern:di:deferred_imports_create_multiple_entry_points"
+  file: src/prism/scanner_core/di.py
+  line: 82
+  severity_hint: medium
+  confidence: high
+  detector: runtime_deferred_import_composition_entry_points
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: |
+    def _create_variable_discovery(
+        di: DIContainer,
+        role_path: str,
+        scan_options: dict[str, Any],
+    ) -> VariableDiscovery:
+        from prism.scanner_core.variable_discovery import VariableDiscovery
+        return VariableDiscovery(di, role_path, scan_options)
+
+    def _create_feature_detector(
+        di: DIContainer,
+        role_path: str,
+        scan_options: dict[str, Any],
+    ) -> FeatureDetector:
+        from prism.scanner_core.feature_detector import FeatureDetector
+        return FeatureDetector(di, role_path, scan_options)
+  evidence_command: "src/prism/scanner_core/di.py#L82-L98"
+  related_symbols: ["_create_variable_discovery", "_create_feature_detector", "VariableDiscovery", "FeatureDetector"]
+  origin_location: "src/prism/scanner_core/di.py#L82"
+  consumer_locations:
+    - "src/prism/scanner_core/di.py#L254:_create_variable_discovery called"
+    - "src/prism/scanner_core/di.py#L279:_create_feature_detector called"
+  fix_group_key: "di-deferred-imports-composition-visibility"
+  proposed_fix_class: explicit_import_boundary
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_deferred_imports_resolve_correctly"
+  context: |
+    Lazy imports in _create_variable_discovery and _create_feature_detector defer module loading until factory invocation. These are the default paths in the triple-path factory resolution (path 3: cache + deferred import). Composition entry points are split across three locations: (1) module-level imports at scanner_core.di (if any exist), (2) TYPE_CHECKING imports for type hints, (3) in-function imports in _create_variable_discovery and _create_feature_detector. Callers cannot observe which import path was taken without execution tracing. The deferred import pattern was intentionally added to break circular dependencies, but it splits composition visibility: callers of factory_variable_discovery() cannot know whether the import succeeded until runtime.
+
+- id: Scout-ControlFlow-07
+  category: plugin_validation_weakness
+  fingerprint: "plugin_validation_weakness:defaults:_validate_plugin_shape_fallback_silent_recovery"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 240
+  severity_hint: medium
+  confidence: high
+  detector: plugin_shape_validation_silent_fallback_routing
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: |
+    def _validate_plugin_shape(
+        *,
+        plugin: Any,
+        plugin_kind: str,
+        required_callables: tuple[str, ...],
+        any_of_callables: tuple[str, ...],
+        required_attributes: tuple[str, ...],
+        strict_mode: bool,
+        fallback_plugin: Any,
+    ) -> Any:
+        has_required_callables = all(...)
+        has_any_of_callables = True
+        if any_of_callables:
+            has_any_of_callables = any(...)
+        has_required_attributes = all(...)
+        if has_required_callables and has_any_of_callables and has_required_attributes:
+            return plugin
+        return _fallback_or_raise_malformed_plugin_shape(...)
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L240-L273"
+  related_symbols: ["_validate_plugin_shape", "strict_mode", "fallback_plugin", "has_required_callables"]
+  origin_location: "src/prism/scanner_plugins/defaults.py#L240"
+  consumer_locations:
+    - "src/prism/scanner_plugins/defaults.py#L354:used in _resolve_plugin_with_precedence"
+    - "src/prism/scanner_plugins/defaults.py#L367:used in _resolve_plugin_with_precedence"
+  fix_group_key: "plugin-shape-validation-strict-enforcement"
+  proposed_fix_class: explicit_validation_contracts
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_plugins_defaults.py::test_plugin_shape_validation_rejects_malformed"
+  context: |
+    _validate_plugin_shape has behavior split based on strict_mode parameter: in strict mode, shape mismatches raise exceptions via _fallback_or_raise_malformed_plugin_shape; in non-strict mode, the function would silently return fallback_plugin (though currently all calls route to raise). However, the strict_mode parameter is unused: _fallback_or_raise_malformed_plugin_shape always raises and never uses fallback_plugin, creating dead code. Behavior visibility: callers pass strict_mode but it has no effect, hiding the shape-validation behavior from the parameter name. Shape validation rules (required_callables, any_of_callables, required_attributes) are specified at call sites (e.g., line 394-397) with different combinations for each plugin type, creating 6+ different validation profiles without unified type contracts. Missing callables are detected via getattr(...) which returns None for missing attributes, making the validation implicit rather than explicit.
+
+- id: Scout-ControlFlow-08
+  category: lambda_closure_type_erasure
+  fingerprint: "lambda_closure_type_erasure:execution_request_builder:bridge_slot_lambdas_hide_return_types"
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 527
+  severity_hint: high
+  confidence: high
+  detector: lambda_closure_implicit_return_type_erasure
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: |
+    factory_overrides={
+        "variable_discovery_factory": lambda di, rp, opts: _bridge_slot[
+            0
+        ].variable_discovery_factory(di, rp, opts),
+        "feature_detector_factory": lambda di, rp, opts: _bridge_slot[
+            0
+        ].feature_detector_factory(di, rp, opts),
+    }
+  evidence_command: "src/prism/scanner_core/execution_request_builder.py#L527-L535"
+  related_symbols: ["factory_overrides", "lambda", "_bridge_slot", "variable_discovery_factory", "feature_detector_factory"]
+  origin_location: "src/prism/scanner_core/execution_request_builder.py#L527"
+  consumer_locations:
+    - "src/prism/scanner_core/di.py#L246:override check in factory_variable_discovery"
+    - "src/prism/scanner_core/di.py#L271:override check in factory_feature_detector"
+  fix_group_key: "lambda-closure-return-type-narrowing"
+  proposed_fix_class: explicit_lambda_protocols
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py && mypy src/prism/scanner_core/execution_request_builder.py"
+  context: |
+    Lambda closures in factory_overrides capture _bridge_slot[0] and delegate to its methods. Return types are inferred from lambda bodies: mypy must trace through _bridge_slot[0].variable_discovery_factory(...) to determine the return type. However, _bridge_slot is typed as list[_ScanStateBridge], so _bridge_slot[0] is typed as _ScanStateBridge. Type narrowing: the lambda return type depends on the static type of _ScanStateBridge.variable_discovery_factory return, which is typed as _RecordingVariableDiscovery. But at the DIContainer call site (line 246), override(...) is called and the result is compared to any existing cache. The DIFactoryOverride protocol specifies return type as object, creating a type mismatch: the lambda returns _RecordingVariableDiscovery, but the protocol expects object. Type erasure behavior: mypy treats override(...) result as object, requiring explicit type narrowing at the call site (which doesn't exist). Control flow visibility: callers of factory_variable_discovery() see the cached result type as VariableDiscovery, but never see that the factory override path returns _RecordingVariableDiscovery (a wrapper type). This causes type divergence between the mock/default/override paths.

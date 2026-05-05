@@ -1,0 +1,23 @@
+{
+  "agent": "Scout-ControlFlow",
+  "cycle": "g48",
+  "focus_axis": "typing",
+  "review_surface": [
+    "src/prism/api_layer/collection.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_plugins/bundle_resolver.py",
+    "src/prism/scanner_plugins/parsers/yaml/parsing_policy.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/scanner_extract/discovery.py",
+    "src/prism/tests/test_collection_contract.py",
+    "src/prism/tests/test_platform_routing_fail_closed.py",
+    "src/prism/tests/test_dataload.py"
+  ],
+  "questions": [
+    "Where do non-strict, silent-fallback, or None-to-success control paths still erase typed failure intent?",
+    "Do collection, plugin, and YAML-loading flows still downgrade control-plane faults into recoverable output?"
+  ]
+}

@@ -1,0 +1,83 @@
+cycle: g60
+review_type: thorough
+status: closed
+closed:
+  - id: G60-H01
+    severity: high
+    category: policy_coercion
+    fingerprint: scan_pipeline_preflight_plugin_enabled_truthiness_cast
+    title: "Preflight plugin_enabled accepts arbitrary truthy values instead of requiring a bool"
+    files:
+      - src/prism/scanner_kernel/orchestrator.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+    summary: >-
+      route_scan_payload_orchestration previously coerced preflight
+      plugin_enabled through bool(...), so malformed truthy non-bool values
+      silently enabled the plugin path instead of failing closed.
+    closed_evidence:
+      - "Focused validation: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k plugin_enabled -> 1 passed, 30 deselected"
+      - "Static checks: ruff and black --check on touched files -> pass; mypy src/prism/scanner_kernel/orchestrator.py -> success"
+      - "Builder artifact: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-PreflightContract-summary.md"
+    closure_note: "plugin_enabled must be bool when present; None still defaults true, and malformed non-bool values now fail closed."
+
+  - id: G60-M01
+    severity: medium
+    category: shell_boundary
+    fingerprint: cli_imports_collection_renderer_internals
+    title: "CLI imports collection rendering helpers directly from scanner_io internals"
+    files:
+      - src/prism/cli.py
+      - src/prism/scanner_io/__init__.py
+      - src/prism/tests/test_cli_app.py
+      - src/prism/tests/test_cli_api_guardrails.py
+      - src/prism/tests/test_collection_contract.py
+    summary: >-
+      cli.py was importing collection rendering helpers through a private
+      scanner_io internal module instead of the public scanner I/O package seam.
+      An intermediate prism.cli_app seam attempt was later repaired after full
+      guardrail feedback.
+    closed_evidence:
+      - "Focused validation: pytest -q src/prism/tests/test_cli_api_guardrails.py -k runtime_modules_do_not_import_src_facade_packages -> 1 passed, 1 deselected"
+      - "Focused validation: pytest -q src/prism/tests/test_collection_contract.py -k cli_collection_text_output -> 3 passed, 20 deselected"
+      - "Focused validation: pytest -q src/prism/tests/test_cli_app.py -k scanner_io_public_seam -> 1 passed, 26 deselected"
+      - "Static checks: ruff and black --check on cli.py scanner_io/__init__.py test_cli_app.py -> pass; mypy src/prism/cli.py src/prism/scanner_io/__init__.py -> success"
+      - "Builder artifact: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-CliPresenterOwnership-summary.md"
+    closure_note: "CLI now uses public prism.scanner_io exports; the initial prism.cli_app seam attempt was repaired after full-gate guardrail feedback."
+
+  - id: G60-M02
+    severity: medium
+    category: typing
+    fingerprint: prepared_task_contracts_still_use_object_any_shapes
+    title: "Prepared task-line and traversal contracts still expose object/Any-heavy shapes"
+    files:
+      - src/prism/scanner_data/contracts_request.py
+      - src/prism/scanner_plugins/ansible/extract_policies.py
+      - src/prism/scanner_plugins/ansible/default_policies.py
+      - src/prism/scanner_plugins/ansible/task_traversal_bare.py
+      - src/prism/scanner_extract/task_file_traversal.py
+    summary: >-
+      Prepared task-line and traversal contracts exposed object-heavy task
+      shapes on the extraction hot path, weakening the typed policy boundary.
+    closed_evidence:
+      - "Focused validation: .venv/bin/python -m mypy src/prism/scanner_data/contracts_request.py src/prism/scanner_plugins/ansible/extract_policies.py src/prism/scanner_plugins/ansible/default_policies.py src/prism/scanner_plugins/ansible/task_traversal_bare.py src/prism/scanner_extract/task_file_traversal.py -> success"
+      - "Focused validation: pytest -q src/prism/tests/test_extract_policies.py -> 13 passed"
+      - "Static checks: ruff and black --check on touched files -> pass"
+      - "Builder artifact: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-TaskContractTyping-summary.md"
+    closure_note: "Introduced a shared task-mapping alias and tightened only the task-shaped hot-path contracts."
+
+suppressed_or_deferred:
+  suppressed:
+    - reason: "api.py imports are public scanner_core exports"
+      note: "Suppress api.py importing DIContainer/FeatureDetector/ScanCacheBackend/ScannerContext from prism.scanner_core (public exports)."
+
+    - reason: "repo_services git clone argv hardened"
+      note: "Suppress repo_services git clone finding; argv already hardened with \"--\" in code and scout evidence confirms guard."
+
+    - reason: "policy_context normalization covered by test"
+      note: "Suppress non-dict policy_context normalization; test_scanner_core_small_surfaces.py asserts non-dict policy_context is ignored."
+
+    - reason: "lexical plugin-name fallback is tested"
+      note: "Suppress lexical plugin-name fallback; behavior is documented and tested in test_plugin_name_resolver.py."
+
+    - reason: "registry/default singleton background"
+      note: "Suppress registry/default singleton chatter as architecture background unless later synthesis shows concrete regression beyond already-closed seam family."

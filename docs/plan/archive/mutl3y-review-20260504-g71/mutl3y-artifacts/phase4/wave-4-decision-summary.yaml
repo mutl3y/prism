@@ -1,0 +1,25 @@
+phase: P4
+cycle: g71
+decision: wave_4_selected
+selected_findings:
+  - G71-H01
+deferred_findings: []
+fix_group_key: variable-discovery.yaml-policy-ingress
+rationale: >-
+  Probe-H01 showed the remaining active high is best reduced inside canonical
+  variable-discovery runtime routing, not by rewriting the shared standalone
+  YAML loader contract. That owned slice removes the high-severity runtime
+  reopening and leaves only the intentional standalone seam for demotion.
+owned_file_set:
+  - src/prism/scanner_plugins/ansible/variable_discovery.py
+  - src/prism/tests/test_variable_discovery_pipeline.py
+deferred_files:
+  - src/prism/scanner_io/loader.py
+  - src/prism/scanner_extract/discovery.py
+  - src/prism/tests/test_di_registry_resolution.py
+  - src/prism/tests/test_comment_doc_plugin_resolution.py
+scope_check:
+  overlap_detected: false
+  expansion_required: false
+suggested_narrow_gate: >-
+  pytest -q src/prism/tests/test_di_registry_resolution.py::test_live_yaml_policy_resolution_preserves_loader_standalone_contract src/prism/tests/test_variable_discovery_pipeline.py::test_fsrc_variable_discovery_requires_ingress_prepared_policy_bundle src/prism/tests/test_variable_discovery_pipeline.py::test_fsrc_variable_discovery_yaml_loading_prefers_prepared_policy_bundle

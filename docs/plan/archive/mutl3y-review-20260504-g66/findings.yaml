@@ -1,0 +1,305 @@
+plan_id: mutl3y-review-20260504-g66
+cycle: g66
+target: src/prism
+review_type: thorough
+focus_axis: typing
+status: cycle_complete
+decision_summary:
+  - "g66 exists because g64 is only the first clean thorough checkpoint; cadence requires a second thorough whole-codebase review on a different focus axis."
+  - "Carry forward G64-M01 through G64-M05 into the new cycle instead of leaving the Medium queue stranded in the paused predecessor surface."
+  - "New High or Critical findings from the g66 scout batch outrank this carry-forward Medium queue and must be promoted before implementation begins."
+  - "Phase 1 graded five new High families and one new Medium family: scan-pipeline protocol typing, execution-request payload fail-open coercion, collection metadata shape masking, api.py facade leakage, repo-scan orchestration callable bundles, and global plugin-registry test coupling."
+findings:
+  - id: G66-H01
+    status: closed
+    decision: fixed_in_wave2
+    severity: high
+    category: typing
+    fingerprint: scan_pipeline_protocol_facade_contract_alignment
+    title: "Scan-pipeline plugin routing still depends on dict[Any]-typed protocol seams across interface, facade, and API boundaries"
+    files:
+      - src/prism/scanner_plugins/interfaces.py
+      - src/prism/api_layer/plugin_facade.py
+      - src/prism/api.py
+      - src/prism/scanner_core/execution_request_builder.py
+    source_observations:
+      - Scout-Typing-02
+      - Scout-Typing-03
+      - Scout-Graph-01
+      - Scout-Graph-03
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Typing.yaml
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Graph.yaml
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Probe-Ownership-protocol-seam.yaml
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "The canonical scan-pipeline seam still advertises dict[str, Any] contracts in the plugin interface, re-expands that weak contract in api_layer/plugin_facade, and then relies on API/runtime casts rather than a typed protocol that matches the isolated registry seam."
+    resolution_summary: "The interface layer now owns the canonical scan-pipeline protocol, registry, and payload contracts, and the API/runtime handoff consumes that shared seam without facade-local protocol duplication or concrete-registry casts."
+    closed_in_wave: 2
+    closure_artifacts:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-Typing-wave-2-summary.md
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-2-barrier-summary.yaml
+    decision_deadline: g66
+    suggested_narrow_gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k scan_pipeline
+  - id: G66-H02
+    status: open
+    decision: fixed_in_wave3
+    severity: high
+    category: policy_coercion
+    fingerprint: execution_request_scanner_context_payload_fail_open_boundary
+    title: "Execution-request payload shaping still coerces malformed members instead of failing closed at the ScannerContext handoff"
+    files:
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/scanner_core/scanner_context.py
+      - src/prism/scanner_data/contracts_request.py
+    source_observations:
+      - Scout-ControlFlow-01
+      - Scout-ControlFlow-02
+      - Scout-ControlFlow-03
+      - Scout-ControlFlow-04
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Probe-ControlFlow-payload-seam.yaml
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "Prepared-policy ingress is already fail-closed, but the execution-request to ScannerContext payload handoff still normalizes malformed role-notes buckets, variable rows, feature collections, metadata, and display variables into acceptable-looking payload members instead of rejecting contract breaches."
+    resolution_summary: "execution_request_builder and scanner_context now reject malformed role notes, display variables, metadata, requirements-display members, external collection displays, and yaml-parse-failure rows at the handoff boundary instead of coercing them into empty or stringified defaults."
+    closed_in_wave: 3
+    closure_artifacts:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-3-summary.md
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-3-barrier-summary.yaml
+    decision_deadline: g66
+    suggested_narrow_gate: pytest -q src/prism/tests/test_execution_request_builder.py src/prism/tests/test_scanner_context.py -k "role_notes or display_variables or metadata or external_collections"
+  - id: G66-H03
+    status: closed
+    decision: fixed_in_wave1
+    severity: high
+    category: error_channel
+    fingerprint: collection_payload_metadata_invalid_shape_mask
+    title: "Collection scan masks invalid per-role payload metadata as empty dicts on the runbook path"
+    files:
+      - src/prism/api_layer/collection.py
+      - src/prism/tests/test_collection_contract.py
+    source_observations:
+      - Scout-Typing-04
+      - Scout-Typing-05
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Typing.yaml
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "api_layer.collection drops invalid payload metadata to {} on the runbook/render path, which hides a malformed per-role payload shape from callers and currently lacks a direct invalid-shape regression test."
+    resolution_summary: "api_layer.collection now routes invalid runbook metadata through the existing structured collection failure path and the runbook contract test locks that failure shape in place."
+    closed_in_wave: 1
+    closure_artifacts:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-1-summary.md
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+    decision_deadline: g66
+    suggested_narrow_gate: pytest -q src/prism/tests/test_collection_contract.py -k runbook
+  - id: G66-H04
+    status: closed
+    decision: fixed_in_wave1
+    severity: high
+    category: facade_leakage
+    fingerprint: api_public_facade_scanner_core_assembly_symbol_leak
+    title: "api.py still exposes scanner-core assembly symbols as public facade patch points"
+    files:
+      - src/prism/api.py
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+    source_observations:
+      - Scout-Ownership-01
+      - Scout-Ownership-02
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "prism.api imports scanner-core assembly symbols into the public facade and owned tests now monkeypatch api.DIContainer through that facade, freezing internal composition seams into the public API surface."
+    resolution_summary: "api.py now owns wrapper classes and the comment-doc resolver seam locally, so tests patch api-owned contracts instead of raw scanner-core assembly symbols."
+    closed_in_wave: 1
+    closure_artifacts:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-Ownership-wave-1-summary.md
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+    decision_deadline: g66
+    suggested_narrow_gate: pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py::test_run_scan_metadata_role_notes_uses_comment_doc_plugin_seam
+  - id: G66-H05
+    status: closed
+    decision: fixed_in_wave1
+    severity: high
+    category: orchestration_seam
+    fingerprint: repo_services_variadic_callable_bundle_repo_scan
+    title: "Repo-scan orchestration still hides its intake seam behind variadic callable bundles"
+    files:
+      - src/prism/repo_services.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_api_cli_repo_parity.py
+    source_observations:
+      - Scout-Typing-01
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Typing.yaml
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Probe-Ownership-protocol-seam.yaml
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "repo_services.run_repo_scan still routes its canonical intake boundary through loose Callable[..., Any]-style collaborators, and the widening pass confirmed that this is a separate repo-scan seam rather than just supporting evidence for the scan-pipeline protocol family."
+    resolution_summary: "repo_services now exposes explicit repo-scan protocols for both raw intake and normalized facade execution, and non_collection.scan_repo passes a named keyword-only adapter instead of a variadic lambda."
+    closed_in_wave: 1
+    closure_artifacts:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-Typing-wave-1-summary.md
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+    decision_deadline: g66
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_repo_parity.py -k repo_scan
+  - id: G66-M06
+    status: open
+    decision: promote_for_backlog
+    severity: medium
+    category: test_fixture_coupling
+    fingerprint: comment_doc_plugin_resolution_global_registry_mutation
+    title: "Comment-doc resolution tests still mutate the global plugin registry singleton directly"
+    files:
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+    source_observations:
+      - Scout-Ownership-03
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "The comment-doc resolution suite still snapshots and replaces the global plugin registry singleton directly, which preserves global-state coupling even though the tests restore state in try/finally blocks."
+    decision_deadline: g66
+    suggested_narrow_gate: pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py
+  - id: G66-M01
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: silent_fallback
+    fingerprint: variable_extractor_seed_file_silent_skip
+    title: "Seed variable loading silently suppresses malformed or unreadable optional inputs"
+    files:
+      - src/prism/scanner_extract/variable_extractor.py
+      - src/prism/tests/test_variable_extractor.py
+    source_observations:
+      - G64-M01
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g64/findings.yaml
+      - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "load_seed_variables treats unreadable, malformed, and runtime-failing optional seed files as silent skips without a structured warning or error channel."
+    decision_deadline: g66
+    suggested_narrow_gate: pytest -q src/prism/tests/test_variable_extractor.py::test_load_seed_variables_handles_malformed
+  - id: G66-M02
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: policy_coercion
+    fingerprint: task_line_parsing_require_prepared_policy_none_proxy
+    title: "Task-line policy proxies still reopen global prepared-policy fallback resolution"
+    files:
+      - src/prism/scanner_extract/task_line_parsing.py
+      - src/prism/tests/test_task_parser_precedence_matrix.py
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+    source_observations:
+      - G64-M02
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g64/findings.yaml
+      - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "task_line_parsing still exposes proxy helpers that call require_prepared_policy(None, ...) instead of flowing explicit DI or a prepared bundle, preserving a global fallback path in the task-line seam."
+    decision_deadline: g66
+    suggested_narrow_gate: pytest -q src/prism/tests/test_task_parser_precedence_matrix.py::test_policy_backed_proxies_resolve
+  - id: G66-M03
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: error_channel
+    fingerprint: scan_facade_helpers_meta_load_runtimeerror_swallow
+    title: "Role metadata loading collapses RuntimeError into empty meta plus warning text"
+    files:
+      - src/prism/scanner_core/scan_facade_helpers.py
+      - src/prism/tests/test_scan_facade_helpers.py
+    source_observations:
+      - G64-M03
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g64/findings.yaml
+      - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "collect_role_contents converts RuntimeError from load_meta into an empty metadata mapping with only a warning string, weakening the structured error channel at a facade seam."
+    decision_deadline: g66
+    suggested_narrow_gate: pytest -q src/prism/tests/test_scan_facade_helpers.py::TestCollectRoleContents::test_load_meta_exception_adds_meta_load_warnings
+  - id: G66-M04
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: typing
+    fingerprint: contracts_request_object_typed_error_payload_fields
+    title: "Request and display contracts still leave key error-path payload fields as object"
+    files:
+      - src/prism/scanner_data/contracts_request.py
+    source_observations:
+      - G64-M04
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g64/findings.yaml
+      - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "contracts_request keeps several request/display payload fields typed as object, leaving malformed-input and error-handling shapes weakly specified."
+    decision_deadline: g66
+    suggested_narrow_gate: .venv/bin/python -m mypy src/prism/scanner_data/contracts_request.py
+  - id: G66-M05
+    status: open
+    decision: carry_forward
+    severity: medium
+    category: facade_leakage
+    fingerprint: scanner_extract_public_proxy_facade_exports_policy_bound_regex
+    title: "scanner_extract exports DI-bound regex and collection proxies as public package API"
+    files:
+      - src/prism/scanner_extract/__init__.py
+      - src/prism/scanner_extract/task_line_parsing.py
+      - src/prism/tests/test_scanner_extract_shim_parity.py
+    source_observations:
+      - G64-M05
+      - GI-M1
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g64/findings.yaml
+      - docs/plan/mutl3y-review-20260504-g65/findings.yaml
+    summary: "scanner_extract exposes policy-backed regex and collection proxies at the package facade even though they require hidden prepared-policy context to function outside canonical execution."
+    decision_deadline: g66
+    suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_extract_shim_parity.py
+suppressed_highs:
+  - observation_id: Scout-Typing-03
+    rationale_code: duplicate_of
+    rationale: >-
+      Promoted as part of G66-H01; the facade wrapper weak contract is one
+      member of the broader scan-pipeline protocol family, not a separate High.
+  - observation_id: Scout-Ownership-02
+    rationale_code: duplicate_of
+    rationale: >-
+      Promoted as supporting evidence under G66-H04; the public-facade monkeypatch
+      is the test seam that freezes the api.py leak rather than a separate High.
+  - observation_id: Scout-ControlFlow-01
+    rationale_code: duplicate_of
+    rationale: >-
+      Promoted as part of G66-H02; role-notes list coercion is one manifestation
+      of the shared execution-request payload fail-open boundary.
+  - observation_id: Scout-ControlFlow-02
+    rationale_code: duplicate_of
+    rationale: >-
+      Promoted as part of G66-H02; variable-row truthiness casting shares the
+      same payload handoff owner pair and runtime boundary.
+  - observation_id: Scout-ControlFlow-03
+    rationale_code: duplicate_of
+    rationale: >-
+      Promoted as part of G66-H02; stringifying external_collections is another
+      member of the same execution-request payload coercion family.
+  - observation_id: Scout-ControlFlow-04
+    rationale_code: duplicate_of
+    rationale: >-
+      Promoted as part of G66-H02; ScannerContext empty-default coercions are the
+      downstream half of the same payload handoff seam.
+suppressed_observations:
+  - observation_id: Scout-Ownership-04
+    rationale: >-
+      Matches an older active lesson and is explicitly marked needs_recheck;
+      keep it below the new g66 shortlist until the platform-default ownership
+      decision is reopened intentionally.
+  - observation_id: Scout-Graph-01
+    rationale: >-
+      Supporting evidence for G66-H01; the api.py registry cast is a symptom of
+      the broader scan-pipeline protocol mis-typing rather than a separate fix family.
+  - observation_id: Scout-Graph-02
+    rationale: >-
+      Lower-priority fallback-authority nuance under the same scan-pipeline seam;
+      keep it as supporting context unless later grading needs a dedicated registry slice.
+  - observation_id: Scout-Graph-03
+    rationale: >-
+      Supporting evidence for G66-H01; overstated PluginRegistry typing at runtime
+      is one source of the promoted protocol-family cast pressure.
+  - observation_id: Scout-Graph-04
+    rationale: >-
+      TYPE_CHECKING-safe import hardening is real but low leverage compared with
+      the promoted High shortlist in this cycle.

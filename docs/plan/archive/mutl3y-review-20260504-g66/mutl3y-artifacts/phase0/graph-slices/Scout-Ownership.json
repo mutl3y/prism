@@ -1,0 +1,20 @@
+{
+  "agent": "Scout-Ownership",
+  "cycle": "g66",
+  "focus_axis": "typing",
+  "review_surface": [
+    "src/prism/api.py",
+    "src/prism/scanner_extract/__init__.py",
+    "src/prism/scanner_extract/task_line_parsing.py",
+    "src/prism/scanner_core/scan_facade_helpers.py",
+    "src/prism/scanner_core/variable_discovery.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/tests/test_scanner_extract_shim_parity.py",
+    "src/prism/tests/test_scan_facade_helpers.py",
+    "src/prism/tests/test_comment_doc_plugin_resolution.py"
+  ],
+  "questions": [
+    "Which public or semi-public facades still leak internal helpers, policy-bound proxies, or ownership confusion that typing-focused scouts might otherwise underrate?",
+    "Where does carried-forward facade or ownership debt still freeze internal seams into public tests or wrappers?"
+  ]
+}

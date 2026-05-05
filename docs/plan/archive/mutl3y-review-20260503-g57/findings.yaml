@@ -1,0 +1,35 @@
+plan_id: mutl3y-review-20260503-g57
+cycle: g57
+target: src/prism
+review_type: live_narrow_run
+focus_axis: ownership_contracts
+status: completed
+decision_summary:
+  - "g57 opens as a fresh follow-on cycle after g56 closed cleanly."
+  - "The cycle starts in Phase 0 with a rotated ownership/contracts lens instead of reopening the closed g56 control-flow seam."
+  - "The scout batch converged on a prepared-policy ownership seam at prism.api_layer.non_collection.run_scan, where a public override still controlled prepared-policy bundle assembly before execution-request ingress."
+  - "Wave 1 retired that public seam in the owning API layer, updated the nearest contract test, and the refreshed full pytest gate passed with zero failures."
+findings:
+  - id: G57-H01
+    status: closed
+    severity: high
+    category: ownership_contracts
+    fingerprint: ownership_prepared_policy_bundle_public_override
+    title: "api_layer.non_collection.run_scan still exposed a public prepared-policy bundle override ahead of canonical plugin_facade ownership"
+    files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260503-g57/mutl3y-artifacts/phase0/Scout-Typing.yaml
+      - docs/plan/mutl3y-review-20260503-g57/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+      - docs/plan/mutl3y-review-20260503-g57/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+      - docs/plan/mutl3y-review-20260503-g57/mutl3y-artifacts/phase0/Scout-Graph.yaml
+      - docs/plan/mutl3y-review-20260503-g57/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "The g57 scout lanes converged on a single ownership seam: the public non_collection.run_scan surface still accepted a prepared-policy bundle override even though bundle assembly is canonically owned by plugin_facade at execution-request ingress. Wave 1 removed the public override, kept lower-level execution-request builder testability intact, and updated the nearest API entrypoint test to assert canonical ownership."
+    decision_deadline: g57
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k "ensure_policy_bundle or run_scan_basic or per_call_default_registry_resolver"
+    closed_evidence:
+      - docs/plan/mutl3y-review-20260503-g57/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+      - docs/plan/mutl3y-review-20260503-g57/.mutl3y-gate/phase5-wave1-focused.log
+      - docs/plan/mutl3y-review-20260503-g57/.mutl3y-gate/phase6-refresh-pytest-1.log
+suppressed_highs: []

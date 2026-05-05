@@ -1,0 +1,21 @@
+plan_id: mutl3y-review-20260503-g57
+cycle: g57
+phase: P0
+status: completed
+workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+observation_counts:
+  Scout-Typing: 5
+  Scout-Ownership: 3
+  Scout-ControlFlow: 4
+  Scout-Graph: 6
+top_fix_group_keys:
+  - g57-prepared-policy-authority-split
+  - g57-public-bundle-override-seam
+  - g57-api-layer-ingress-ownership
+notes:
+  - The four scout lanes converged on the same narrow seam instead of producing a dispersed shortlist.
+  - The highest-leverage ownership defect sat at the public non_collection.run_scan seam rather than deeper in scanner_core.

@@ -1,0 +1,15 @@
+{
+  "agent": "Scout-Graph",
+  "cycle": "g52",
+  "focus_axis": "composition_root",
+  "review_surface": [
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/api_layer/non_collection.py"
+  ],
+  "questions": [
+    "What are the exact origin and consumer locations for runtime plugin construction authority in the deferred cluster?",
+    "Where does composition-root ownership fracture across DI, defaults, kernel, and API seams?"
+  ]
+}

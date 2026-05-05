@@ -1,0 +1,47 @@
+status: ok
+phase: P0
+cycle: g47
+wave: null
+expected_artifacts:
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Graph.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/learning-context.yaml
+present_artifacts:
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/phase-start-audit.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/graph-slices/Scout-Typing.json
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/graph-slices/Scout-Ownership.json
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/graph-slices/Scout-ControlFlow.json
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/graph-slices/Scout-Graph.json
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Graph.yaml
+  - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/learning-context.yaml
+missing_artifacts:
+  []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+owned_file_sets:
+  - agent_name: Scout-Typing
+    files:
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Typing.yaml
+  - agent_name: Scout-Ownership
+    files:
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Ownership.yaml
+  - agent_name: Scout-ControlFlow
+    files:
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-ControlFlow.yaml
+  - agent_name: Scout-Graph
+    files:
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Graph.yaml
+notes: >-
+  Phase 0 entry was valid and the scout routing slices were present before dispatch.
+  The named scouts returned summaries but did not write owned artifacts, so the
+  foreman recovered the barrier locally from the same routed slice and wrote the
+  missing scout artifacts plus learning-context on disk.

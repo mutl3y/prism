@@ -1,0 +1,43 @@
+wave_id: wave-1
+phase: P5
+purpose: "Promoted-finding closure bundle for the g60 shortlist"
+builders:
+  - name: Builder-PreflightContract
+    worker: Builder-PreflightContract
+    task_id: g60-wave1-builder-preflight-contract
+    owned_files:
+      - src/prism/scanner_kernel/orchestrator.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+    artifact: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-PreflightContract-summary.md
+
+  - name: Builder-CliPresenterOwnership
+    worker: Builder-CliPresenterOwnership
+    task_id: g60-wave2-builder-cli-presenter-ownership
+    owned_files:
+      - src/prism/cli.py
+      - src/prism/tests/test_cli_api_guardrails.py
+      - src/prism/tests/test_collection_contract.py
+    artifact: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-CliPresenterOwnership-summary.md
+
+  - name: Builder-CliPublicIOSeam
+    worker: Builder-CliPublicIOSeam
+    task_id: g60-wave2b-builder-cli-public-io-seam
+    owned_files:
+      - src/prism/cli.py
+      - src/prism/scanner_io/__init__.py
+      - src/prism/tests/test_cli_app.py
+    artifact: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-CliPresenterOwnership-summary.md
+
+  - name: Builder-TaskContractTyping
+    worker: Builder-TaskContractTyping
+    task_id: g60-wave3-builder-task-contract-typing
+    owned_files:
+      - src/prism/scanner_data/contracts_request.py
+      - src/prism/scanner_plugins/ansible/extract_policies.py
+      - src/prism/scanner_plugins/ansible/default_policies.py
+      - src/prism/scanner_plugins/ansible/task_traversal_bare.py
+      - src/prism/scanner_extract/task_file_traversal.py
+      - src/prism/tests/test_extract_policies.py
+    artifact: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-TaskContractTyping-summary.md
+
+notes: "Wave-1 closure bookkeeping records the full promoted-finding implementation bundle; builder task IDs preserve the actual execution history across the CLI repair pass and the typing slice."

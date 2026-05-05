@@ -1,0 +1,19 @@
+wave_id: wave-3
+cycle: g62
+phase: P5
+finding: G62-H02
+fix_group_key: prepared-policy-bundle.dict-acceptance
+builder: Builder-Typing
+task_id: g62-wave3-builder-typing
+owned_file_set:
+  - src/prism/scanner_core/scanner_context.py
+  - src/prism/tests/test_scanner_context.py
+invariant_to_preserve: >-
+  ScannerContext must fail closed when prepared policy bundle state is missing
+  or malformed, without mutating ingress scan_options and without weakening the
+  prepared policy contract to Any-like placeholders.
+suggested_narrow_gate: >-
+  pytest -q src/prism/tests/test_scanner_context.py -k 'requires_prepared_policy_bundle_without_mutating_ingress_options or prepared_policy_bundle_rejects_invalid_bundle'
+optional_importer_gate: >-
+  .venv/bin/python -m mypy src/prism/scanner_core/scanner_context.py src/prism/tests/test_scanner_context.py
+summary_artifact: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Typing-summary.md

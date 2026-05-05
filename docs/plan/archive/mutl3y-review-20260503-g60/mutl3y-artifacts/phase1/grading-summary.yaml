@@ -1,0 +1,23 @@
+phase1_grading_summary:
+  note: "Phase 1 local grading applied after Phase 0 usable scout artifacts. First scout batch was rerouted for schema invalidity; authoritative batch graded below."
+  promoted_count:
+    high: 1
+    medium: 2
+  promoted_findings:
+    - id: G60-H01
+      severity: high
+      title: "Preflight plugin_enabled accepts arbitrary truthy values instead of requiring a bool"
+      suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k plugin_enabled"
+
+    - id: G60-M01
+      severity: medium
+      title: "CLI imports collection rendering helpers directly from scanner_io internals"
+      suggested_narrow_gate: "pytest -q src/prism/tests/test_collection_renderer.py"
+
+    - id: G60-M02
+      severity: medium
+      title: "Prepared task-line and traversal contracts still expose object/Any-heavy shapes"
+      suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_context.py -k task"
+
+  grading_notes: |
+    The authoritative usable Phase 0 artifacts drove a shortlist focused on one fail-closed runtime defect (G60-H01) and two architectural/typing medium-severity findings (G60-M01, G60-M02). Proceed to implement G60-H01 first.

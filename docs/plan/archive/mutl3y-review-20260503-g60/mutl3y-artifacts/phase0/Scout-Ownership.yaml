@@ -1,0 +1,71 @@
+- id: Scout-Ownership-01
+  category: facade_leakage
+  fingerprint: "facade_leakage:api:internal_imports"
+  file: src/prism/api.py
+  line: 35
+  severity_hint: high
+  confidence: high
+  detector: import_graph_neighbor
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "from prism.scanner_core import DIContainer, FeatureDetector, ScanCacheBackend, ScannerContext"
+  evidence_command: src/prism/api.py#L35-L41
+  related_symbols: ["scan_collection", "scan_role", "scan_repo", "DIContainer", "ScannerContext"]
+  fix_group_key: "api.facade_internal_imports"
+  proposed_fix_class: facade_separation
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_repo_parity.py::test_api_public_surface"
+
+- id: Scout-Ownership-02
+  category: ownership
+  fingerprint: "ownership:cli:internal_renderer_import"
+  file: src/prism/cli.py
+  line: 15
+  severity_hint: medium
+  confidence: high
+  detector: grep_probe
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "from prism.scanner_io.collection_renderer import format_collection_summary, render_collection_markdown"
+  evidence_command: src/prism/cli.py#L12-L16
+  related_symbols: ["main", "build_parser", "format_collection_summary"]
+  fix_group_key: "cli.internal_renderer_imports"
+  proposed_fix_class: facade_use_api_layer
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: Scout-Ownership-03
+  category: shell_boundary
+  fingerprint: "shell_boundary:repo_services:git_clone_cmd"
+  file: src/prism/repo_services.py
+  line: 117
+  severity_hint: medium
+  confidence: high
+  detector: grep_probe
+  memory_status: matches_tests
+  memory_match: ""
+  evidence_snippet: "cmd.extend([\"--\", repo_url, str(destination)])"
+  evidence_command: src/prism/repo_services.py#L116-L122
+  related_symbols: ["clone_repo", "RepoScanTarget"]
+  fix_group_key: "repo_services.git_clone_cmd"
+  proposed_fix_class: shell_harden
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_repo_parity.py::test_clone_repo_wraps_subprocess_error_as_prism_runtime_error"
+
+- id: Scout-Ownership-04
+  category: ownership
+  fingerprint: "ownership:api:large_internal_surface"
+  file: src/prism/api.py
+  line: 1
+  severity_hint: medium
+  confidence: medium
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "API_PUBLIC_ENTRYPOINTS: tuple[str, ...] = (\"scan_collection\", \"scan_role\", \"scan_repo\",)"
+  evidence_command: src/prism/api.py#L20-L26
+  related_symbols: ["API_PUBLIC_ENTRYPOINTS", "__all__", "scan_collection"]
+  fix_group_key: "api.public_surface_review"
+  proposed_fix_class: public_surface_contract
+  blocking_preconditions: []
+  suggested_narrow_gate: ""

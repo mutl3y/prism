@@ -1,0 +1,35 @@
+plan_id: mutl3y-review-20260504-g66
+cycle: g66
+phase: P5
+wave: 2
+status: ready
+objective: "Close G66-H01 without widening into the H02 payload fail-closed follow-on until the scan-pipeline contract surface is tightened."
+decision_basis:
+  - docs/plan/mutl3y-review-20260504-g66/findings.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase3/Probe-Ownership-wave2-overlap.md
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase4/wave-2-decision-summary.yaml
+workers:
+  - agent_name: Builder-Typing
+    task_id: g66-wave2-builder-typing
+    finding_ids:
+      - G66-H01
+    category: typing
+    fix_group_key: scan-pipeline.protocol-facade-contract-alignment
+    owned_files:
+      - src/prism/scanner_plugins/interfaces.py
+      - src/prism/api_layer/plugin_facade.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/api.py
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    summary_artifact: docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-Typing-wave-2-summary.md
+    suggested_narrow_gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k scan_pipeline
+    importer_layer_tests:
+      - pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'run_scan'
+    invariant: "The scan-pipeline seam must use one typed protocol/facade contract across plugin interfaces, plugin_facade, and API/runtime handoff without widening to Any or changing payload-shaping behavior."
+barrier_rules:
+  - Serialized wave: do not dispatch the H02 follow-on until the H01 builder summary exists and the wave-2 barrier is evaluated.
+  - Stop on scope expansion instead of widening into scanner_context.py, contracts_request.py, or the carry-forward Medium backlog.
+  - Run the builder's suggested narrow gate before reporting completion when feasible.
+  - Foreman owns ledger updates, anti-pattern grep, wave barrier validation, and execution-trace checkpointing.

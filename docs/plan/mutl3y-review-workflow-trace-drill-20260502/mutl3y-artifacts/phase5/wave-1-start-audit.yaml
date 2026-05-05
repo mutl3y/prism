@@ -1,0 +1,23 @@
+status: ok
+phase: P5
+cycle: mutl3y-g1
+wave: 1
+expected_artifacts:
+  - docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/wave-1-plan.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/wave-1-start-audit.yaml
+  - docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/wave-1-plan.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Builder-Typing
+  - Builder-Ownership
+owned_file_sets:
+  - agent_name: Builder-Typing
+    files:
+      - src/prism/scanner_core/di.py
+  - agent_name: Builder-Ownership
+    files:
+      - src/prism/scanner_plugins/bootstrap.py
+notes: >-
+  Synthetic drill start audit. Ownership is disjoint and wave 1 may enter the barrier.

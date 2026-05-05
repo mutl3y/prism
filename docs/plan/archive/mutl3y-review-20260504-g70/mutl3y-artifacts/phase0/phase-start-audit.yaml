@@ -1,0 +1,46 @@
+cycle: g70
+phase: P0
+status: ready
+review_type: light_changed_slice
+focus_axis: plugin_and_kernel_protocol_neighbors
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260504-g70/plan.yaml
+  - docs/plan/mutl3y-review-20260504-g70/findings.yaml
+  - docs/plan/mutl3y-review-20260504-g70/mutl3y-artifacts/phase0/Scout-Typing-light-review.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260504-g70/plan.yaml
+  - docs/plan/mutl3y-review-20260504-g70/findings.yaml
+  - docs/plan/mutl3y-review-20260504-g70/mutl3y-artifacts/phase0/Scout-Typing-light-review.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Scout-Typing
+owned_file_sets:
+  - agent_name: Scout-Typing
+    files:
+      - src/prism/scanner_plugins/interfaces.py
+      - src/prism/scanner_plugins/ansible/__init__.py
+      - src/prism/tests/test_platform_execution_bundle.py
+      - src/prism/scanner_plugins/ansible/kernel.py
+      - src/prism/scanner_core/protocols_runtime.py
+      - src/prism/tests/test_kernel.py
+      - src/prism/scanner_data/contracts_output.py
+      - src/prism/scanner_data/contracts_request.py
+      - docs/plan/mutl3y-review-20260504-g70/mutl3y-artifacts/phase0/Scout-Typing-light-review.yaml
+target_files:
+  - src/prism/scanner_plugins/interfaces.py
+  - src/prism/scanner_plugins/ansible/__init__.py
+  - src/prism/scanner_plugins/ansible/kernel.py
+  - src/prism/scanner_core/protocols_runtime.py
+neighbor_files:
+  - src/prism/tests/test_platform_execution_bundle.py
+  - src/prism/tests/test_kernel.py
+  - src/prism/scanner_data/contracts_output.py
+  - src/prism/scanner_data/contracts_request.py
+triggering_cycle: g69
+triggering_evidence:
+  - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase6/Gatekeeper-wave-4-summary.md
+  - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase6/Auditor-Regression-wave-4.md
+blocking_issues: []
+notes:
+  - "This is a light changed-slice review of the g69 protocol-seam repair surface and its immediate typed-contract neighbors."

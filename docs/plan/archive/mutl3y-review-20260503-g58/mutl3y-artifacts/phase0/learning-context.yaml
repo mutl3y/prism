@@ -1,0 +1,34 @@
+memory_source: docs/plan/.mutl3y-lessons
+active_lessons:
+  - LESSON-01
+  - LESSON-02
+  - LESSON-03
+  - LESSON-04
+  - LESSON-05
+  - LESSON-06
+  - LESSON-07
+  - LESSON-08
+  - LESSON-09
+  - LESSON-10
+  - LESSON-11
+  - LESSON-12
+  - LESSON-13
+  - LESSON-14
+  - LESSON-15
+  - LESSON-16
+do_not_re_flag_count: 4
+focus_axis_due_next: seam_contracts
+model_route_notes:
+  - Narrow checkpoint cycles can close their own slice, but they cannot terminate the overall loop without the full cadence floor.
+  - When a later cycle supersedes an older active plan, reconcile the predecessor immediately instead of leaving it in_progress.
+  - Deep review and clean God Mode evidence remain mandatory before final stop claims.
+stale_or_missing_memory: []
+readiness_check:
+  ready: true
+  degraded_models: []
+  watch_models:
+    - GPT-5 mini (copilot)
+  warnings: []
+notes:
+  - g55 closed as a handoff cycle with four High findings carried forward.
+  - g56 and g57 are green narrow checkpoints, not terminal stop evidence for the overall loop.

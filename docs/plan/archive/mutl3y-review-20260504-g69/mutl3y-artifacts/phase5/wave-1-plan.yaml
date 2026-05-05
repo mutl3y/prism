@@ -1,0 +1,20 @@
+cycle: g69
+phase: P5
+wave: 1
+builder: Builder-Ownership
+fix_group_key: api_layer.non_collection.default_registry_authority
+findings_in_scope:
+  - G69-H01
+owned_files:
+  - src/prism/api_layer/non_collection.py
+  - src/prism/tests/test_api_cli_entrypoints.py
+goal: >-
+  Remove the raw default-plugin-registry fallback from the direct non-collection
+  run_scan seam so both public and direct callers share the isolated default
+  scan-pipeline registry authority.
+invariants:
+  - Caller-supplied default_plugin_registry must keep precedence.
+  - The direct non_collection seam must preserve the same scan-pipeline isolation contract as the public API seam.
+  - Do not widen this wave into strict_phase_failures coercion or scanner_context changes.
+suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k non_collection_run_scan
+allowed_scope_expansion: false

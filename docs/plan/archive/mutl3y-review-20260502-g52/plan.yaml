@@ -1,0 +1,41 @@
+plan_id: mutl3y-review-20260502-g52
+cycle: g52
+title: "Deferred composition-root construction follow-up after g51"
+status: completed
+created_at: "2026-05-02"
+review_type: live_narrow_run
+target: src/prism
+focus_axis: composition_root
+origin: "Continue immediately after g51 closure using the deferred DI/kernel/defaults runtime-construction cluster."
+
+resumption_pointer:
+  current_phase: P7
+  next_action: "Cycle closed with one carried-forward high; continue on g53 for the execution-request builder seam."
+  blocking_issues: []
+  notes: |
+    g51 closed the first ownership wave by consolidating registry-resolution
+    semantics between defaults.py and loader.py, and explicitly deferred the
+    broader DI/kernel/defaults runtime-construction cluster. g52 starts from
+    that deferred cluster with a fresh P0 scout batch focused on composition
+    roots, construction authority, and late-binding runtime seams. Phase 1
+    promoted the non_collection lazy composition-root cluster as the first wave.
+    Wave 1 landed and passed a focused gate, closing G52-H01. G52-H02 remains
+    real but is better handled as a fresh carried-forward cycle because it sits
+    in scanner_core/execution_request_builder.py and crosses a different code
+    ownership boundary than the completed non_collection wave. The constructor-
+    contract typing probe stays deferred after it widened into the broader
+    DIFactoryOverride object-return boundary.
+
+artifacts:
+  findings: docs/plan/mutl3y-review-20260502-g52/findings.yaml
+  execution_trace: docs/plan/mutl3y-review-20260502-g52/mutl3y-artifacts/execution-trace.yaml
+  phase0_start_audit: docs/plan/mutl3y-review-20260502-g52/mutl3y-artifacts/phase0/phase-start-audit.yaml
+  phase0_learning_context: docs/plan/mutl3y-review-20260502-g52/mutl3y-artifacts/phase0/learning-context.yaml
+  phase1_grading_summary: docs/plan/mutl3y-review-20260502-g52/mutl3y-artifacts/phase1/grading-summary.yaml
+  phase4_decision_summary: docs/plan/mutl3y-review-20260502-g52/mutl3y-artifacts/phase4/decision-summary.yaml
+  phase5_wave1_plan: docs/plan/mutl3y-review-20260502-g52/mutl3y-artifacts/phase5/wave-1-plan.yaml
+  phase5_wave1_barrier_summary: docs/plan/mutl3y-review-20260502-g52/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+  phase6_gate_summary: docs/plan/mutl3y-review-20260502-g52/mutl3y-artifacts/phase6/gate-summary.yaml
+  phase7_closure_summary: docs/plan/mutl3y-review-20260502-g52/mutl3y-artifacts/phase7/closure-summary.yaml
+  model_usage_ledger: docs/plan/mutl3y-review-20260502-g52/mutl3y-artifacts/model-usage-ledger.yaml
+  model_scorecard: docs/plan/mutl3y-review-20260502-g52/mutl3y-artifacts/model-scorecard.yaml

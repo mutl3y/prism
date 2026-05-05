@@ -1,0 +1,71 @@
+- id: Scout-ControlFlow-01
+  category: silent_fallback
+  fingerprint: "silent_fallback:di:factory_comment_driven_doc_plugin:return_none"
+  file: src/prism/scanner_core/di.py
+  line: 372
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return None"
+  evidence_command: "src/prism/scanner_core/di.py#L372-L372"
+  related_symbols: ["factory_comment_driven_doc_plugin"]
+  fix_group_key: "di.optional_plugin_return_none"
+  proposed_fix_class: typed_error_channel
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: Scout-ControlFlow-02
+  category: guard
+  fingerprint: "guard:di:plugin_registry:returns_optional"
+  file: src/prism/scanner_core/di.py
+  line: 202
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return self._registry"
+  evidence_command: "src/prism/scanner_core/di.py#L202-L202"
+  related_symbols: ["plugin_registry", "_registry", "_get_registry"]
+  fix_group_key: "di.plugin_registry.guard"
+  proposed_fix_class: registry_property
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: Scout-ControlFlow-03
+  category: ownership
+  fingerprint: "ownership:scanner_core/di:factory_blocker_fact_builder:runtime_import"
+  file: src/prism/scanner_core/di.py
+  line: 298
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_do_not_re_flag
+  memory_match: "FIND-G3-03"
+  evidence_snippet: "fn = resolve_blocker_fact_builder()"
+  evidence_command: "src/prism/scanner_core/di.py#L298-L298"
+  related_symbols: ["factory_blocker_fact_builder", "resolve_blocker_fact_builder"]
+  fix_group_key: "di.factory_blocker_fact_builder.runtime_import"
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: Scout-ControlFlow-04
+  category: silent_fallback
+  fingerprint: "silent_fallback:di:optional_plugin_factories:return_none_cluster"
+  file: src/prism/scanner_core/di.py
+  line: 372
+  severity_hint: medium
+  confidence: medium
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return None"
+  evidence_command: "src/prism/scanner_core/di.py#L372-L444"
+  related_symbols: ["factory_comment_driven_doc_plugin","factory_task_annotation_policy_plugin","factory_task_line_parsing_policy_plugin","factory_task_traversal_policy_plugin","factory_variable_extractor_policy_plugin","factory_yaml_parsing_policy_plugin","factory_jinja_analysis_policy_plugin"]
+  fix_group_key: "di.optional_plugin_returns"
+  proposed_fix_class: seam_facade
+  blocking_preconditions: []
+  suggested_narrow_gate: ""

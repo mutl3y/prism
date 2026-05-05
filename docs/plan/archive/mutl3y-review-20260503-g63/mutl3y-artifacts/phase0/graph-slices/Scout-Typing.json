@@ -1,0 +1,21 @@
+{
+  "agent": "Scout-Typing",
+  "cycle": "g63",
+  "review_type": "light",
+  "focus_axis": "ownership",
+  "review_surface": [
+    "src/prism/api_layer/plugin_facade.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_data/contracts_request.py",
+    "src/prism/scanner_core/protocols_runtime.py",
+    "src/prism/scanner_core/execution_request_builder.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/tests/test_api_cli_entrypoints.py",
+    "src/prism/tests/test_platform_routing_fail_closed.py"
+  ],
+  "changed_files_source": ".mutl3y-gate/resume-dirty-tree.yaml",
+  "questions": [
+    "Do recently changed public or plugin-facing seams still accept loose Any, raw dict, or object-shaped contract data where a Protocol or TypedDict boundary exists?",
+    "Do tests added or changed in g62 preserve the runtime contract they are asserting without relying on untyped helpers or facade internals?"
+  ]
+}

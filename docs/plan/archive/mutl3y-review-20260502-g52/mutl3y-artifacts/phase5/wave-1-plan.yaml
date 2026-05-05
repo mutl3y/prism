@@ -1,0 +1,17 @@
+plan_id: mutl3y-review-20260502-g52
+cycle: g52
+phase: P5
+wave: 1
+status: planned
+targets:
+  - finding: G52-H01
+    builder: Builder-ControlFlow
+    owned_files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+validation_scope:
+  - pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_run_scan_basic
+  - .venv/bin/python -m ruff check src/prism/api_layer/non_collection.py src/prism/tests/test_api_cli_entrypoints.py
+  - .venv/bin/python -m black --check src/prism/api_layer/non_collection.py src/prism/tests/test_api_cli_entrypoints.py
+notes:
+  - Do not widen this wave into execution_request_builder.py or DI typing cleanup.

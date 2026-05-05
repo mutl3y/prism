@@ -1,0 +1,56 @@
+wave: 1
+phase: phase5
+plan_id: mutl3y-recovery-20260503-orphaned-workflow-gate
+workstreams:
+  - id: Builder-RecoveryLintFix
+    owned_files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_kernel/orchestrator.py
+      - src/prism/scanner_plugins/__init__.py
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/scanner_core/di.py
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/scanner_plugins/registry.py
+      - src/prism/tests/test_di_registry_resolution.py
+      - src/prism/tests/test_execution_request_builder.py
+    invariant: >-
+      Restore repo-owned lint/format sanity for the orphaned slice without
+      widening into unrelated mypy debt.
+    suggested_narrow_gate: >-
+      .venv/bin/python -m ruff check src/prism/api_layer/non_collection.py \
+      src/prism/scanner_kernel/orchestrator.py \
+      src/prism/scanner_plugins/__init__.py \
+      src/prism/scanner_core/scan_cache.py \
+      src/prism/scanner_core/di.py \
+      src/prism/scanner_plugins/defaults.py \
+      src/prism/scanner_plugins/registry.py \
+      src/prism/tests/test_di_registry_resolution.py \
+      src/prism/tests/test_execution_request_builder.py && \
+      .venv/bin/python -m black --check src/prism/api_layer/non_collection.py \
+      src/prism/scanner_kernel/orchestrator.py \
+      src/prism/scanner_plugins/__init__.py \
+      src/prism/scanner_core/scan_cache.py \
+      src/prism/scanner_core/di.py \
+      src/prism/scanner_plugins/defaults.py \
+      src/prism/scanner_plugins/registry.py \
+      src/prism/tests/test_di_registry_resolution.py \
+      src/prism/tests/test_execution_request_builder.py
+
+  - id: Builder-ResumeGate
+    owned_files:
+      - ../agent_and_skills/.github/skills/mutl3y-review-workflow/SKILL.md
+      - ../agent_and_skills/.github/skills/mutl3y-review-workflow/references/phase-0-discovery.md
+      - ../agent_and_skills/.github/skills/mutl3y-review-workflow/references/foreman-execution-guardrails.md
+      - ../agent_and_skills/.github/skills/mutl3y-review-workflow/references/gate-commands.md
+    invariant: >-
+      Any resumed cycle with dirty tracked Python files must retain
+      artifact-first flow and run repo-wide `ruff` and `black --check` before
+      any new wave work starts.
+    suggested_narrow_gate: >-
+      Targeted markdown/reference consistency checks by reading the listed
+      references to confirm resume/gate semantics and commands.
+
+notes: >-
+  Two workstreams are intentionally disjoint: one fixes the orphaned Python
+  slice's lint/format state; the other hardens workflow references so resumed
+  cycles enforce repo-wide lint/format preconditions.

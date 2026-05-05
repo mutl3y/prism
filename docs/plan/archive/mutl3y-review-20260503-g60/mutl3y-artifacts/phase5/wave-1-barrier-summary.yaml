@@ -1,0 +1,29 @@
+wave_id: wave-1
+phase: P5
+summary: "All promoted-finding builders returned with closure-ready artifacts; the CLI ownership slice includes the later public seam repair that replaced the rejected prism.cli_app import hop."
+builders:
+  - worker: Builder-PreflightContract
+    task_id: g60-wave1-builder-preflight-contract
+    result: success
+    artifact: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-PreflightContract-summary.md
+    notes: "Preflight contract now requires bool plugin_enabled when present, preserves None -> true defaulting, and fails closed on malformed non-bool values."
+
+  - worker: Builder-CliPresenterOwnership
+    task_id: g60-wave2-builder-cli-presenter-ownership
+    result: success
+    artifact: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-CliPresenterOwnership-summary.md
+    notes: "Initial prism.cli_app seam attempt was superseded after full-gate guardrail feedback; closure records the repaired public scanner_io presenter boundary."
+
+  - worker: Builder-CliPublicIOSeam
+    task_id: g60-wave2b-builder-cli-public-io-seam
+    result: success
+    artifact: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-CliPresenterOwnership-summary.md
+    notes: "Restored prism.cli collection output flow to public prism.scanner_io exports and added the regression covering the runtime package seam."
+
+  - worker: Builder-TaskContractTyping
+    task_id: g60-wave3-builder-task-contract-typing
+    result: success
+    artifact: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-TaskContractTyping-summary.md
+    notes: "Shared task-mapping alias landed and tightened only the task-shaped extraction hot path contracts."
+
+ready_for_closure: true

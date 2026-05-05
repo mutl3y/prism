@@ -1,0 +1,23 @@
+plan_id: mutl3y-review-20260503-g58
+cycle: g58
+phase: P0
+status: completed
+workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+observation_counts:
+  Scout-Typing: 5
+  Scout-Ownership: 5
+  Scout-ControlFlow: 4
+  Scout-Graph: 4
+top_fix_group_keys:
+  - registry-split-authority
+  - ensure_prepared_policy_bundle.fn_di_object
+  - bundle_resolver.prepared_policy_bundle.mutation
+  - registry-fallback-mismatch
+  - api_layer.payload.object
+notes:
+  - The scout batch converged on a tight seam family rather than a dispersed shortlist: execution-request ingress contracts, prepared-policy bundle writeback ownership, and registry/defaults authority mismatches.
+  - The nearest tests are already in view across execution_request_builder, defaults, DI, and API entrypoint surfaces, so Phase 1 can grade without reopening g56 or g57.

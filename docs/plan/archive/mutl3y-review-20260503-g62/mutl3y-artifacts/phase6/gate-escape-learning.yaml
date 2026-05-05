@@ -1,0 +1,19 @@
+- kind: gate_escape
+  fix_group_key: g62-phase6-formatting-drift
+  narrow_gate_that_passed: >-
+    Wave 7 focused validation passed on the G62-H03 touched files.
+  full_gate_failure: >-
+    Phase 6 black --check found unrelated previously touched test files that
+    required formatting: src/prism/tests/test_t3_03_scan_cache.py and
+    src/prism/tests/test_plugin_kernel_extension_parity.py.
+  missing_gate: >-
+    Run black --check over all tracked Python changes or the full src/prism
+    tree before the Phase 6 aggregate gate when a cycle has accumulated many
+    fix waves.
+  proposed_memory_update: >-
+    Multi-wave cycles should refresh formatting over the whole changed Python
+    surface before the final aggregate gate, not only the last wave's files.
+  lesson_kind: gate_rule
+  evidence:
+    - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase6/Gatekeeper-wave7-full-gate-summary.md
+    - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/wave-8-barrier-summary.yaml

@@ -1,0 +1,23 @@
+{
+  "agent": "Scout-Graph",
+  "cycle": "g47",
+  "focus_axis": "error_handling",
+  "review_surface": [
+    "src/prism/api.py",
+    "src/prism/api_layer/collection.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_plugins/bundle_resolver.py",
+    "src/prism/scanner_plugins/parsers/yaml/parsing_policy.py",
+    "src/prism/scanner_extract/discovery.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/scanner_core/scan_cache.py",
+    "src/prism/scanner_config/style_parser.py"
+  ],
+  "questions": [
+    "Where do registry authority, composition, or fallback paths diverge across the open g46 High findings?",
+    "Do cache, plugin-selection, or YAML-loading paths still show split authority between canonical runtime ingress and secondary helper flows?"
+  ]
+}

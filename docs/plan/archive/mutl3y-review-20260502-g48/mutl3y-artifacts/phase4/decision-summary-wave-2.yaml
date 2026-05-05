@@ -1,0 +1,26 @@
+phase: P4
+status: completed
+cycle: g48
+wave: 2
+options:
+  - option: wave_2_parallel_medium_pair
+    findings:
+      - G48-M01
+      - G48-M02
+    result: selected
+    reason: The two remaining open findings are disjoint by owned files and both remain actionable after the green wave-1 gate.
+  - option: close_cycle_with_medium_carry
+    findings:
+      - G48-M01
+      - G48-M02
+    result: rejected
+    reason: Both medium findings still represent real maintenance debt in active runtime paths; carrying them immediately after a green wave-1 gate would leave obvious signal on the table.
+selected_wave:
+  wave: 2
+  builders:
+    - Builder-ControlFlow
+    - Builder-Typing
+selected_findings:
+  - G48-M01
+  - G48-M02
+next_action: Dispatch the wave-2 builder batch and run the wave barrier checks.

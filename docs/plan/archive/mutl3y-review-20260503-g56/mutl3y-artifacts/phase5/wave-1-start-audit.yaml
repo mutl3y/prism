@@ -1,0 +1,22 @@
+cycle: g56
+phase: P5
+wave: 1
+status: OK
+status_line: "[g56 | P4→P5 | OK — wave 1 start audit written]"
+focus_findings:
+  - G56-H01
+owned_file_set:
+  - src/prism/scanner_plugins/defaults.py
+  - src/prism/tests/test_defaults.py
+  - src/prism/tests/test_comment_doc_plugin_resolution.py
+  - src/prism/tests/test_plugin_kernel_extension_parity.py
+  - src/prism/tests/test_gilfoyle_blockers_runtime.py
+  - src/prism/scanner_extract/variable_extractor.py
+  - src/prism/tests/test_hypothesis_yaml_parser.py
+  - src/prism/cli.py
+  - src/prism/scanner_plugins/bundle_resolver.py
+  - src/prism/scanner_plugins/ansible/feature_flags.py
+  - src/prism/tests/test_plugin_extract_boundary.py
+  - src/prism/tests/test_package_export_parity.py
+serial_exception: "foreman_recovery: narrow local repair slice handled without delegated builders"
+next_action: "Land the Wave 1 repairs and run focused barrier validation."

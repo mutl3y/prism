@@ -1,0 +1,47 @@
+agent: Scout-Typing
+plan_id: mutl3y-review-20260504-g71
+phase: P0
+focus: runtime_contracts_and_boundary_surfaces
+observations:
+  - id: TYP-001
+    severity: HIGH
+    summary: Public API returns and accepts highly-typed-weak `dict[str, Any]` payloads
+    file: src/prism/api_layer/common.py
+    line: 36
+    detail: |-
+      `parse_scan_role_payload(payload: str | dict[str, Any]) -> dict[str, Any]` returns a raw dict
+      with no stable TypedDict contract. This is a runtime boundary (public API) where callers
+      and consumers rely on shape but static typing provides no guarantee.
+    recommendation: |-
+      Replace `dict[str, Any]` with a Named TypedDict/contract (e.g., `ScanRolePayload`) for
+      inbound API parsing and use that TypedDict as the documented return type.
+  - id: TYP-002
+    severity: HIGH
+    summary: Plugin protocol surfaces using `dict[str, Any]` / `list[Any]` weaken plugin contracts
+    file: src/prism/scanner_plugins/interfaces.py
+    line: 24
+    detail: |-
+      Multiple plugin Protocol methods accept/return untyped `dict[str, Any]` or `list[Any]` at
+      core plugin boundaries (e.g., `FeatureDetectionPlugin.analyze_task_catalog`,
+      `ReadmeRendererPlugin.render_section_body`, `OutputOrchestrationPlugin.orchestrate_output`).
+      These are core runtime boundaries where static contracts would improve safety and discoverability.
+    recommendation: |-
+      Define explicit TypedDicts / Protocol return types for plugin payloads (e.g.,
+      `FeatureAnalysisResult`, `ReadmeSectionMetadata`) and update the Protocols to use them.
+  - id: TYP-003
+    severity: MEDIUM
+    summary: Widespread `Any` usage in core modules (scan payload helpers, kernel, scan cache)
+    file: src/prism/scanner_kernel/scan_payload_helpers.py
+    line: 20
+    detail: |-
+      Helper utilities and cache layers frequently use `dict[str, Any]` and `Any` for payloads and
+      metadata. This is less urgent than public API/plugin boundaries but contributes to overall
+      brittleness and reduces value from type-checking during refactors.
+    recommendation: |-
+      Incrementally introduce TypedDicts for common payload shapes and narrow `Any` to `object` or
+      specific unions where feasible.
+meta:
+  high_count: 2
+  critical_count: 0
+  generated_by: Scout-Typing
+  generated_at: "2026-05-04T00:00:00Z"

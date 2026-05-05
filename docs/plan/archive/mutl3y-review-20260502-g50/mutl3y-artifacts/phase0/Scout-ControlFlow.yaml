@@ -1,0 +1,205 @@
+- id: FIND-CF-001
+  category: error_channel
+  fingerprint: "error_channel:api_layer/non_collection:_resolved_ensure_fn:any_type"
+  file: src/prism/api_layer/non_collection.py
+  line: 226
+  severity_hint: medium
+  confidence: high
+  detector: type_drift_read
+  memory_status: new
+  evidence_snippet: "_resolved_ensure_fn: Any"
+  evidence_command: "src/prism/api_layer/non_collection.py#L226-L230"
+  related_symbols: ["_resolved_ensure_fn", "_EnsurePreparedPolicyBundleFn", "ensure_prepared_policy_bundle_fn"]
+  fix_group_key: "non_collection.resolver_typing"
+  proposed_fix_class: explicit_type_annotation
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_collection_contract.py::test_scan_role_any_fn_arg"
+  details: |
+    Variable _resolved_ensure_fn is declared as Any but assigned either plugin_facade.ensure_prepared_policy_bundle
+    or the parameter ensure_prepared_policy_bundle_fn. Should be typed as _EnsurePreparedPolicyBundleFn | None
+    to match downstream consumption in build_non_collection_run_scan_execution_request at line 273.
+
+- id: FIND-CF-002
+  category: orchestration_seam
+  fingerprint: "orchestration_seam:api_layer/non_collection:cast_to_roleresult:typeddict_loss"
+  file: src/prism/api_layer/non_collection.py
+  line: 405
+  severity_hint: medium
+  confidence: high
+  detector: cast_without_contract_proof
+  memory_status: new
+  evidence_snippet: "return cast(RoleScanResult, normalize_scan_role_payload_shape(result))"
+  evidence_command: "src/prism/api_layer/non_collection.py#L403-L405"
+  related_symbols: ["normalize_scan_role_payload_shape", "RoleScanResult", "cast"]
+  fix_group_key: "payload_normalization.cast_safety"
+  proposed_fix_class: typed_normalization_contract
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_collection_contract.py::test_scan_role_result_shape"
+  details: |
+    normalize_scan_role_payload_shape returns dict[str, Any] but is cast to RoleScanResult (TypedDict).
+    The cast bypasses runtime shape validation. Should verify normalized payload contains required
+    RoleScanResult fields (role_name, payload) before returning.
+
+- id: FIND-CF-003
+  category: guard
+  fingerprint: "guard:scanner_kernel/orchestrator:dict_construct_loses_typing:preflight_context"
+  file: src/prism/scanner_kernel/orchestrator.py
+  line: 101
+  severity_hint: low
+  confidence: high
+  detector: typeddict_construction_loss
+  memory_status: new
+  evidence_snippet: "preflight_context = dict(plugin_context) if isinstance(plugin_context, dict) else {}"
+  evidence_command: "src/prism/scanner_kernel/orchestrator.py#L100-L102"
+  related_symbols: ["preflight_context", "dict()", "isinstance"]
+  fix_group_key: "orchestrator.payload_copy_typing"
+  proposed_fix_class: shallow_copy_preserves_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py"
+  details: |
+    dict(plugin_context) creates a plain dict and loses TypedDict identity. Should use copy.copy()
+    or assign directly if mutation safety is not required. Similar pattern appears at line 485.
+
+- id: FIND-CF-004
+  category: guard
+  fingerprint: "guard:scanner_kernel/orchestrator:dict_construct_loses_typing:fallback_none"
+  file: src/prism/scanner_kernel/orchestrator.py
+  line: 485
+  severity_hint: low
+  confidence: high
+  detector: typeddict_construction_loss
+  memory_status: new
+  evidence_snippet: "dict(plugin_context) if isinstance(plugin_context, dict) else None"
+  evidence_command: "src/prism/scanner_kernel/orchestrator.py#L483-L486"
+  related_symbols: ["dict()", "isinstance", "plugin_context"]
+  fix_group_key: "orchestrator.payload_copy_typing"
+  proposed_fix_class: shallow_copy_preserves_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py"
+  details: |
+    Duplicate of FIND-CF-003 pattern at different location. dict() loses TypedDict identity.
+
+- id: FIND-CF-005
+  category: error_channel
+  fingerprint: "error_channel:scanner_kernel/kernel_plugin_runner:getattr_dynamic_resolution:no_error"
+  file: src/prism/scanner_kernel/kernel_plugin_runner.py
+  line: 190
+  severity_hint: low
+  confidence: medium
+  detector: dynamic_attribute_access_fallback
+  memory_status: new
+  evidence_snippet: "candidate = getattr(plugin, phase, None)"
+  evidence_command: "src/prism/scanner_kernel/kernel_plugin_runner.py#L188-L192"
+  related_symbols: ["getattr", "plugin", "phase", "_resolve_phase_handler"]
+  fix_group_key: "plugin_resolution.dynamic_access"
+  proposed_fix_class: explicit_interface_check
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py::test_kernel_phase_handler_resolution"
+  details: |
+    Dynamic getattr access allows silent fallback when plugin lacks phase method. While checked
+    with callable() at line 191, this should be an explicit protocol check or validated at
+    plugin registration time rather than runtime introspection.
+
+- id: FIND-CF-006
+  category: orchestration_seam
+  fingerprint: "orchestration_seam:scanner_kernel/scan_payload_helpers:dict_merge_loses_typing"
+  file: src/prism/scanner_kernel/scan_payload_helpers.py
+  line: 64
+  severity_hint: low
+  confidence: high
+  detector: typeddict_construction_loss
+  memory_status: new
+  evidence_snippet: "merged = dict(existing) if isinstance(existing, dict) else {}"
+  evidence_command: "src/prism/scanner_kernel/scan_payload_helpers.py#L63-L65"
+  related_symbols: ["dict()", "_merge_routing_metadata", "existing"]
+  fix_group_key: "orchestrator.payload_copy_typing"
+  proposed_fix_class: shallow_copy_preserves_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py"
+  details: |
+    dict(existing) loses TypedDict identity during merge operation. Part of the same pattern
+    as FIND-CF-003 and FIND-CF-004. Should use copy.copy() for shallow copies.
+
+- id: FIND-CF-007
+  category: guard
+  fingerprint: "guard:scanner_kernel/plugin_name_resolver:getattr_registry_methods:no_validation"
+  file: src/prism/scanner_kernel/plugin_name_resolver.py
+  line: 77
+  severity_hint: low
+  confidence: medium
+  detector: dynamic_attribute_access_fallback
+  memory_status: new
+  evidence_snippet: "list_plugins = getattr(registry, 'list_scan_pipeline_plugins', None)"
+  evidence_command: "src/prism/scanner_kernel/plugin_name_resolver.py#L75-L80"
+  related_symbols: ["getattr", "registry", "list_plugins", "get_plugin", "get_default_platform_key"]
+  fix_group_key: "plugin_resolution.dynamic_access"
+  proposed_fix_class: explicit_interface_check
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py"
+  details: |
+    Registry methods are resolved via getattr with None fallback (lines 77-79). While downstream
+    code validates callable(), this allows silent behavior changes if registry interface
+    contracts drift. Should enforce registry protocol at registration time.
+
+- id: FIND-CF-008
+  category: error_channel
+  fingerprint: "error_channel:api_layer/collection:payload_metadata_fallback_empty_dict"
+  file: src/prism/api_layer/collection.py
+  line: 134
+  severity_hint: low
+  confidence: medium
+  detector: fallback_type_mismatch
+  memory_status: new
+  evidence_snippet: "return metadata if isinstance(metadata, dict) else {}"
+  evidence_command: "src/prism/api_layer/collection.py#L132-L135"
+  related_symbols: ["_payload_metadata", "ScanMetadata", "return"]
+  fix_group_key: "collection.metadata_fallback"
+  proposed_fix_class: explicit_type_narrowing
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_collection_contract.py::test_collection_metadata_extraction"
+  details: |
+    Function returns ScanMetadata but fallback is {} which is a plain dict. Since ScanMetadata is
+    a TypedDict with total=False, {} is technically valid, but pattern weakens type safety.
+    Consider using a typed empty constant or explicit ScanMetadata construction.
+
+- id: FIND-CF-009
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_kernel/orchestrator:preflight_routing_missing:dict_construction"
+  file: src/prism/scanner_kernel/orchestrator.py
+  line: 285
+  severity_hint: medium
+  confidence: high
+  detector: control_flow_seam
+  memory_status: new
+  evidence_snippet: "existing_preflight_routing: dict[str, object] = {}"
+  evidence_command: "src/prism/scanner_kernel/orchestrator.py#L278-L290"
+  related_symbols: ["existing_preflight_routing", "route_preflight_runtime", "preflight_context"]
+  fix_group_key: "orchestrator.payload_copy_typing"
+  proposed_fix_class: explicit_routing_initialization
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py"
+  details: |
+    existing_preflight_routing initialized as {} then conditionally populated from route_preflight_runtime.routing.
+    If route_preflight_runtime is None and preflight_context lacks routing, routing metadata is silently
+    absent. Should initialize with explicit routing schema or validate after construction.
+
+- id: FIND-CF-010
+  category: error_channel
+  fingerprint: "error_channel:scanner_kernel/kernel_plugin_runner:cast_without_contract:copy_operations"
+  file: src/prism/scanner_kernel/kernel_plugin_runner.py
+  line: 97
+  severity_hint: low
+  confidence: high
+  detector: cast_without_validation
+  memory_status: new
+  evidence_snippet: "cast(ScanOptionsDict, copy.copy(scan_options))"
+  evidence_command: "src/prism/scanner_kernel/kernel_plugin_runner.py#L96-L98"
+  related_symbols: ["cast", "ScanOptionsDict", "copy.copy", "scan_options"]
+  fix_group_key: "kernel_runner.copy_cast_safety"
+  proposed_fix_class: validated_copy_contract
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py"
+  details: |
+    cast(ScanOptionsDict, copy.copy(scan_options)) bypasses type validation. copy.copy returns a
+    plain dict, losing TypedDict information. Should verify scan_options conforms to ScanOptionsDict
+    contract before casting, or use a typed copy helper.

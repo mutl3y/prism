@@ -1,0 +1,21 @@
+wave_id: wave-1
+phase: P5
+purpose: "Disjoint builder wave to implement focused fixes for g59 findings"
+builders:
+  - name: Builder-APISeam
+    worker: Builder-APISeam
+    task_id: g59-wave1-builder-apiseam
+    owned_files:
+      - src/prism/api.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+      - src/prism/tests/test_g03_scan_cache_integration.py
+    artifact: docs/plan/mutl3y-review-20260503-g59/mutl3y-artifacts/phase5/Builder-APISeam-summary.md
+
+  - name: Builder-CollectionClassifier
+    worker: Builder-CollectionClassifier
+    task_id: g59-wave1-builder-collection-classifier
+    owned_files:
+      - src/prism/tests/test_collection_contract.py
+    artifact: docs/plan/mutl3y-review-20260503-g59/mutl3y-artifacts/phase5/Builder-CollectionClassifier-summary.md
+
+notes: "Builders are disjoint and focused: API seam mutation and collection classifier regression."

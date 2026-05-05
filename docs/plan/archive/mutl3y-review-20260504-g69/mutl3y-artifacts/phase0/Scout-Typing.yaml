@@ -1,0 +1,143 @@
+- id: "Scout-Typing-01"
+  category: "registry_authority"
+  fingerprint: "registry_authority:api_layer/non_collection:default_plugin_registry:raw_singleton_bypass"
+  file: "src/prism/api_layer/non_collection.py"
+  line: 629
+  severity_hint: "high"
+  confidence: "high"
+  detector: "neighbor_read"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: "default_plugin_registry = plugin_facade.get_default_plugin_registry()"
+  evidence_command: "src/prism/api_layer/non_collection.py#L624-L631"
+  related_symbols: ["run_scan", "default_plugin_registry", "plugin_facade.get_default_plugin_registry"]
+  fix_group_key: "scan-pipeline.registry-isolation-authority"
+  proposed_fix_class: "seam_facade"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py -k non_collection_run_scan"
+
+- id: "Scout-Typing-02"
+  category: "test_gap"
+  fingerprint: "test_gap:api_cli_entrypoints:non_collection_missing_registry_isolation_test"
+  file: "src/prism/tests/test_api_cli_entrypoints.py"
+  line: 1331
+  severity_hint: "medium"
+  confidence: "medium"
+  detector: "test_read"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: "def test_fsrc_api_run_scan_uses_plugin_facade_scan_pipeline_registry_seam("
+  evidence_command: "src/prism/tests/test_api_cli_entrypoints.py#L1331-L1407"
+  related_symbols: ["test_fsrc_api_run_scan_uses_plugin_facade_scan_pipeline_registry_seam", "api_non_collection.run_scan"]
+  fix_group_key: "scan-pipeline.registry-isolation-authority"
+  proposed_fix_class: "add_test"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py -k non_collection_run_scan"
+
+- id: "Scout-Typing-03"
+  category: "silent_fallback"
+  fingerprint: "silent_fallback:scanner_kernel/plugin_name_resolver:scan_pipeline_registry:getattr_mask"
+  file: "src/prism/scanner_kernel/plugin_name_resolver.py"
+  line: 77
+  severity_hint: "medium"
+  confidence: "high"
+  detector: "neighbor_read"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: "list_plugins = getattr(registry, \"list_scan_pipeline_plugins\", None)"
+  evidence_command: "src/prism/scanner_kernel/plugin_name_resolver.py#L76-L92"
+  related_symbols: ["_resolve_default_scan_pipeline_plugin_name", "ScanPipelineRegistry", "resolve_scan_pipeline_plugin_name"]
+  fix_group_key: "scan-pipeline.registry-contract-unification"
+  proposed_fix_class: "extract_protocol"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_name_resolver.py"
+
+- id: "Scout-Typing-04"
+  category: "typing"
+  fingerprint: "typing:scanner_plugins/interfaces:public_plugin_protocols:dict_any_surface"
+  file: "src/prism/scanner_plugins/interfaces.py"
+  line: 26
+  severity_hint: "high"
+  confidence: "high"
+  detector: "neighbor_read"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: "options: dict[str, Any],"
+  evidence_command: "src/prism/scanner_plugins/interfaces.py#L18-L65"
+  related_symbols: ["VariableDiscoveryPlugin", "FeatureDetectionPlugin", "OutputOrchestrationPlugin"]
+  fix_group_key: "plugin-interfaces.canonical-contract-typing"
+  proposed_fix_class: "add_type"
+  blocking_preconditions: []
+  suggested_narrow_gate: ".venv/bin/python -m mypy src/prism/scanner_plugins/interfaces.py src/prism/scanner_plugins/ansible/__init__.py"
+
+- id: "Scout-Typing-05"
+  category: "typing"
+  fingerprint: "typing:scanner_plugins/ansible/__init__:scan_pipeline_plugin:bare_dict_contract"
+  file: "src/prism/scanner_plugins/ansible/__init__.py"
+  line: 66
+  severity_hint: "medium"
+  confidence: "high"
+  detector: "neighbor_read"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: "scan_options: dict,"
+  evidence_command: "src/prism/scanner_plugins/ansible/__init__.py#L66-L92"
+  related_symbols: ["AnsibleScanPipelinePlugin", "process_scan_pipeline", "orchestrate_scan_payload"]
+  fix_group_key: "plugin-interfaces.canonical-contract-typing"
+  proposed_fix_class: "add_type"
+  blocking_preconditions: []
+  suggested_narrow_gate: ".venv/bin/python -m mypy src/prism/scanner_plugins/interfaces.py src/prism/scanner_plugins/ansible/__init__.py"
+
+- id: "Scout-Typing-06"
+  category: "test_gap"
+  fingerprint: "test_gap:platform_execution_bundle:provider_protocol_conformance:weak_dict_test"
+  file: "src/prism/tests/test_platform_execution_bundle.py"
+  line: 168
+  severity_hint: "medium"
+  confidence: "high"
+  detector: "test_read"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: "def test_conforming_provider_satisfies_bundle_provider_protocol() -> None:"
+  evidence_command: "src/prism/tests/test_platform_execution_bundle.py#L168-L176"
+  related_symbols: ["test_conforming_provider_satisfies_bundle_provider_protocol", "PlatformExecutionBundleProvider"]
+  fix_group_key: "plugin-interfaces.canonical-contract-typing"
+  proposed_fix_class: "add_test"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_platform_execution_bundle.py"
+
+- id: "Scout-Typing-07"
+  category: "orchestration_seam"
+  fingerprint: "orchestration_seam:scanner_plugins/ansible/kernel:baseline_kernel:variadic_callable_and_dict_io"
+  file: "src/prism/scanner_plugins/ansible/kernel.py"
+  line: 36
+  severity_hint: "high"
+  confidence: "high"
+  detector: "neighbor_read"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: "orchestrate_scan_payload_fn: Callable[..., dict[str, Any]] | None = None,"
+  evidence_command: "src/prism/scanner_plugins/ansible/kernel.py#L33-L106"
+  related_symbols: ["AnsibleBaselineKernelPlugin", "load_ansible_kernel_plugin", "orchestrate_scan_payload_fn"]
+  fix_group_key: "ansible-kernel.protocolize-lifecycle"
+  proposed_fix_class: "extract_protocol"
+  blocking_preconditions: []
+  suggested_narrow_gate: ".venv/bin/python -m mypy src/prism/scanner_plugins/ansible/kernel.py src/prism/scanner_core/protocols_runtime.py"
+
+- id: "Scout-Typing-08"
+  category: "test_gap"
+  fingerprint: "test_gap:test_kernel:baseline_kernel_missing_protocol_contract_gate"
+  file: "src/prism/tests/test_kernel.py"
+  line: 56
+  severity_hint: "medium"
+  confidence: "medium"
+  detector: "test_read"
+  memory_status: "new"
+  memory_match: ""
+  evidence_snippet: "def test_scan_with_orchestrator_invokes_callable_with_role_path_and_options() -> None:"
+  evidence_command: "src/prism/tests/test_kernel.py#L56-L68"
+  related_symbols: ["test_scan_with_orchestrator_invokes_callable_with_role_path_and_options", "AnsibleBaselineKernelPlugin"]
+  fix_group_key: "ansible-kernel.protocolize-lifecycle"
+  proposed_fix_class: "add_test"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_kernel.py"

@@ -1,0 +1,32 @@
+plan_id: mutl3y-review-workflow-live-di-warning-cleanup-20260502
+cycle: mutl3y-live-di-2
+target: src/prism/tests/test_di_registry_resolution.py
+review_type: live_narrow_run
+focus_axis: control_flow
+status: completed
+decision_summary:
+  - "Treat the remaining focused DI warning as a test-fixture defect, not a runtime plugin bug."
+  - "Use a single named builder with one owned test file and rerun the same focused DI gate."
+carried_open_findings: []
+suppressed_highs: []
+findings:
+  - id: FIND-LIVE-DI-02
+    status: closed
+    decision: fixed_in_wave_1
+    severity: medium
+    category: control_flow
+    fingerprint: di_registry_warning:test_fake_scan_pipeline_plugin_missing_stateless_marker
+    title: "Focused DI gate emits a warning from a test fake scan-pipeline plugin"
+    files:
+      - src/prism/tests/test_di_registry_resolution.py
+    source_artifacts:
+      - .mutl3y-gate/live-di-wave1-narrow.log
+    summary: "test_registry_get_default_platform_key_returns_explicit_default registers a fake scan-pipeline plugin without PLUGIN_IS_STATELESS = True, causing the focused DI gate to emit a warning even though the production Ansible plugin is already marked stateless."
+    decision_deadline: mutl3y-live-di-2
+    suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_core_di.py src/prism/tests/test_di_registry_resolution.py
+    closed_at: "2026-05-02"
+    closed_evidence:
+      - "Code: src/prism/tests/test_di_registry_resolution.py adds PLUGIN_IS_STATELESS = True to the fake scan-pipeline plugin used by test_registry_get_default_platform_key_returns_explicit_default."
+      - "Builder: docs/plan/mutl3y-review-workflow-live-di-warning-cleanup-20260502/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md records the owned-file invariant and focused validation."
+      - "Gate: .mutl3y-gate/live-di-wave2-narrow.log => 78 passed in 2.41s with no warning summary section."
+      - "Barrier: .mutl3y-gate/live-di-wave2-antipattern.log => cast_any_hits=0, typeddict_lossy_cast_hits=0, except_pass_hits=0."

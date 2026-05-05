@@ -1,0 +1,542 @@
+---
+# God Mode Independent Review — Cycle g58
+# Reviewer: Gilfoyle Code Review God Mode
+# Review date: 2026-05-03
+# Target: src/prism (live source, no shortlist framing)
+# Plan ID: mutl3y-review-20260503-g58
+# Phase: 1 — Independent unconstrained deep review
+
+meta:
+  cycle: g58
+  plan_id: mutl3y-review-20260503-g58
+  reviewer: Gilfoyle Code Review God Mode
+  review_date: "2026-05-03"
+  scope: src/prism
+  method: >
+    Unconstrained live-source review. No reliance on phase0 shortlist.
+    Full traversal of execution-request ingress seams, DI registry authority,
+    defaults and prepared-policy ownership, API facade and payload seams.
+
+verdict:
+  result: FAIL
+  severity: HIGH
+  net_new_high_critical_count: 10
+  summary: >
+    Ten High/Critical findings confirmed from live source. Two structurally
+    Critical (one late-validation inversion in the execution request builder,
+    one module-level global mutable process singleton in the plugin registry).
+    Eight High findings covering in-place mutation of ingress contracts,
+    TypedDict extension post-construction, symlink escape at the API path
+    boundary, forward-reference fragility in DI wiring, deferred singleton debt,
+    Ansible-hardcoded fallback singletons, and input sanitization gaps on
+    policy context construction. No PASS is possible while C-01 and C-02 remain
+    unresolved.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CRITICAL FINDINGS (2)
+# ─────────────────────────────────────────────────────────────────────────────
+critical_findings:
+
+  - id: C-01
+    severity: CRITICAL
+    category: execution-request-ingress
+    title: >
+      ensure_prepared_policy_bundle_fn guard fires after expensive DI assembly —
+      validation inversion at _finalize_execution_request
+    files:
+      - src/prism/scanner_core/execution_request_builder.py
+    live_evidence:
+      - >
+        _finalize_execution_request() checks
+        `if ensure_prepared_policy_bundle_fn is None: raise ValueError(...)` only
+        after _assemble_runtime_participants() has already:
+          (a) called resolve_platform_key() against the registry,
+          (b) instantiated _ScanStateBridge with closures over _bridge_slot,
+          (c) constructed DIContainer with full factory_overrides wiring,
+          (d) injected scanner_context_wiring into the container.
+      - >
+        build_non_collection_run_scan_execution_request() accepts
+        `ensure_prepared_policy_bundle_fn: _EnsurePreparedPolicyBundleFn | None = None`
+        as an optional parameter with a None default, then delegates to
+        _assemble_execution_request which delegates to _finalize_execution_request
+        where the check finally fires.
+    impact: >
+      A misconfigured caller triggers a confusing ValueError buried deep in the
+      call stack after all setup work is complete. Fail-fast is a basic
+      engineering principle; this inverts it. In test environments the error
+      surface is misleading because the stack includes full DI assembly traces
+      rather than a clean guard at entry.
+    remediation: >
+      Move the ensure_prepared_policy_bundle_fn is None guard to the entry of
+      build_non_collection_run_scan_execution_request(), before validate_role_path_fn
+      is called. Required-parameter validation belongs at function entry, not after
+      expensive side-effecting initialization.
+
+  - id: C-02
+    severity: CRITICAL
+    category: di-registry-authority
+    title: >
+      Module-level process-global mutable `plugin_registry = PluginRegistry()` singleton
+      in scanner_plugins/registry.py — shared mutable state across all importers
+    files:
+      - src/prism/scanner_plugins/registry.py
+      - src/prism/scanner_plugins/bootstrap.py
+    live_evidence:
+      - >
+        Line 463 of registry.py: `plugin_registry = PluginRegistry()` — a bare module-level
+        instantiation creating a process-global mutable PluginRegistry at import time.
+      - >
+        bootstrap.py imports it as `from prism.scanner_plugins.registry import plugin_registry
+        as canonical_registry` and writes directly to it in initialize_default_registry().
+      - >
+        _DEFAULT_REGISTRY in bootstrap.py is set to canonical_registry after population,
+        making the idempotency check `if _DEFAULT_REGISTRY is not None: return` guard the
+        already-populated instance. Any test that registers plugins onto canonical_registry
+        before initialize_default_registry() is called will permanently pollute the process
+        singleton for all subsequent callers.
+      - >
+        DIContainer.factory_variable_discovery_plugin() calls self._get_registry() which
+        returns self._registry — a reference passed at construction time, which is
+        canonical_registry in production flows. Registry mutations after container
+        construction are visible to all containers sharing that registry reference.
+    impact: >
+      Test pollution is the primary concern: plugins registered in test setup onto
+      canonical_registry persist for all subsequent tests in the same process unless
+      the test explicitly resets the singleton. The registry itself is not reset between
+      tests anywhere in the src/prism test suite by default. In production this is
+      acceptable only because the registry is populated once at bootstrap and then
+      treated as read-mostly; but the singleton is not contractually immutable after
+      bootstrap.
+    remediation: >
+      Either (a) make plugin_registry a factory function rather than a module-level
+      instance, giving callers their own registry unless they explicitly share one, or
+      (b) add a reset_registry() seam to the registry singleton for test isolation, or
+      (c) enforce that the canonical_registry is frozen after initialize_default_registry()
+      completes (raise on subsequent registrations unless in explicit test mode).
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HIGH FINDINGS (8)
+# ─────────────────────────────────────────────────────────────────────────────
+high_findings:
+
+  - id: H-01
+    severity: HIGH
+    category: prepared-policy-ownership
+    title: >
+      bundle_resolver.ensure_prepared_policy_bundle mutates caller-owned scan_options
+      in-place without explicit postcondition contract
+    files:
+      - src/prism/scanner_plugins/bundle_resolver.py
+    live_evidence:
+      - >
+        ensure_prepared_policy_bundle() writes scan_options["prepared_policy_bundle"] = bundle
+        and scan_options["ignore_unresolved_internal_underscore_references"] = resolved
+        in-place on the caller-supplied scan_options dict, then calls
+        di.replace_scan_options(scan_options) to sync the mutation back into the DI container.
+      - >
+        The function signature accepts `scan_options: dict[str, Any]` — typed as a plain dict,
+        not a copy. The mutation is invisible at call sites in non_collection.py and
+        execution_request_builder.py where scan_options is passed by reference.
+      - >
+        _resolve_underscore_reference_preference() also mutates both scan_options and bundle
+        without returning either.
+    impact: >
+      Any caller that passes scan_options into ensure_prepared_policy_bundle() will find
+      their dict mutated. This is particularly dangerous in the execution request builder
+      where canonical_options is passed to both ensure_prepared_policy_bundle_fn and
+      subsequently stored in the frozen NonCollectionRunScanExecutionRequest dataclass.
+      Silent in-place mutation of ingress contracts violates ownership boundaries and makes
+      the call graph harder to reason about.
+    remediation: >
+      Document the mutation postcondition explicitly in the function docstring and signature
+      (e.g., rename parameter to `mutable_scan_options` or add a return type of
+      `tuple[PreparedPolicyBundle, ScanOptionsDict]` for the updated options).
+      Alternatively, take a copy at entry and return the updated copy alongside the bundle.
+
+  - id: H-02
+    severity: HIGH
+    category: payload-seams
+    title: >
+      ScanOptionsDict TypedDict keys extended post-construction in _build_canonical_options
+      — TypedDict contract broken for strict_phase_failures, concise_readme, scanner_report_output,
+      include_scanner_report_link
+    files:
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/api_layer/non_collection.py
+    live_evidence:
+      - >
+        _build_canonical_options() calls build_run_scan_options_canonical_fn() which returns
+        a validated ScanOptionsDict, then immediately writes keys not declared in ScanOptionsDict:
+          canonical_options["strict_phase_failures"] = bool(strict_phase_failures)
+          canonical_options["concise_readme"] = bool(concise_readme)
+          canonical_options["scanner_report_output"] = scanner_report_output
+          canonical_options["include_scanner_report_link"] = bool(include_scanner_report_link)
+          canonical_options["scan_pipeline_plugin"] = scan_pipeline_plugin.strip()
+      - >
+        The same pattern is repeated in _build_canonical_options in non_collection.py.
+      - >
+        ScanOptionsDict is a TypedDict (contracts_request.py). None of these five keys are
+        declared as fields. Consumers reading scan_options.get("strict_phase_failures") have
+        no type-safe contract from the TypedDict; static analysis sees Any or an unresolved key.
+    impact: >
+      The TypedDict contract is post-hoc violated. mypy cannot catch callers incorrectly
+      reading or writing these keys. ScannerContext reads `strict_phase_failures` via
+      `self._scan_options.get("strict_phase_failures", True)` — this silently degrades to
+      the default if the key is ever missing. Two call paths diverge on these undeclared keys.
+    remediation: >
+      Add strict_phase_failures, concise_readme, scanner_report_output,
+      include_scanner_report_link, and scan_pipeline_plugin as NotRequired fields in
+      ScanOptionsDict, or extract them into a separate ExecutionOptions TypedDict that
+      wraps ScanOptionsDict. Do not extend a TypedDict in place after its construction.
+
+  - id: H-03
+    severity: HIGH
+    category: execution-request-ingress
+    title: >
+      _bridge_slot forward-reference anti-pattern in _assemble_runtime_participants —
+      IndexError latent if factory overrides fire before bridge population
+    files:
+      - src/prism/scanner_core/execution_request_builder.py
+    live_evidence:
+      - >
+        _assemble_runtime_participants() declares:
+          `_bridge_slot: list[_ScanStateBridge] = []`
+        then constructs DIContainer with factory_overrides containing:
+          "variable_discovery_factory": lambda di, rp, opts: _bridge_slot[0].variable_discovery_factory(...)
+          "feature_detector_factory":   lambda di, rp, opts: _bridge_slot[0].feature_detector_factory(...)
+        The bridge is appended to _bridge_slot only AFTER container construction, which means
+        there is a window where the container exists but _bridge_slot is empty.
+      - >
+        Any code path that invokes di_container_cls.__init__() and immediately calls
+        factory_variable_discovery() or factory_feature_detector() before control returns
+        to _assemble_runtime_participants() would raise IndexError: list index out of range
+        with no context about which bridge slot is missing.
+      - >
+        There is no assertion at the point the factory overrides are defined to guarantee
+        _bridge_slot will be populated before first use.
+    impact: >
+      Silent IndexError in DI factory resolution with no useful error message. The pattern
+      is implicitly safe only because DIContainer.__init__ does not call factory methods.
+      One refactor that eagerly resolves plugins at construction breaks this invariant silently.
+    remediation: >
+      Replace the list-slot pattern with a proper object forward reference (e.g., a mutable
+      wrapper class or a deferred callable that checks for None and raises a clear error).
+      Add an assertion after _bridge_slot.append(bridge) that validates _bridge_slot[0] is
+      the expected type.
+
+  - id: H-04
+    severity: HIGH
+    category: api-facade
+    title: >
+      _repo_scan_facade module-level singleton in non_collection.py — deferred GF2-W4-T03
+      still active, blocks concurrent multi-platform scanning and test isolation
+    files:
+      - src/prism/api_layer/non_collection.py
+    live_evidence:
+      - >
+        `_repo_scan_facade: repo_services.RepoScanFacade | None = None` and
+        `_repo_scan_facade_lock = threading.Lock()` are module-level globals.
+        _resolve_repo_scan_facade() initializes and caches the singleton under the lock.
+      - >
+        All non-collection run_scan calls that need repo services funnel through the same
+        singleton facade instance, meaning platform-specific state from one scan persists
+        to the next in the same process.
+      - >
+        GF2-W4-T03 explicitly acknowledged this as deferred with "18+ consumer call sites"
+        cited as the blocker. That blocker has not been resolved; the singleton is still live.
+    impact: >
+      Test isolation: tests that mock repo_services.repo_scan_facade must account for
+      the cached singleton or will get the production facade. Concurrent scanning: two
+      simultaneous scans with different platform requirements share one facade. Multi-platform
+      expansion (Kubernetes, Terraform) is blocked by this architectural assumption.
+    remediation: >
+      Resolve GF2-W4-T03. Inject repo_scan_facade through the run_scan function parameter
+      surface rather than via a module-level singleton. The 18+ consumer call sites can be
+      addressed systematically using the same Protocol-based injection pattern already used
+      elsewhere in the api_layer.
+
+  - id: H-05
+    severity: HIGH
+    category: defaults-prepared-policy-ownership
+    title: >
+      Six Ansible-backed fallback singletons instantiated at module import time in defaults.py —
+      non-strict fallback silently applies Ansible behavior for any runtime platform
+    files:
+      - src/prism/scanner_plugins/defaults.py
+    live_evidence:
+      - >
+        Lines 108-113 of defaults.py instantiate module-level globals at import time:
+          _TASK_LINE_PARSING_FALLBACK = AnsibleDefaultTaskLineParsingPolicyPlugin()
+          _TASK_ANNOTATION_FALLBACK   = AnsibleDefaultTaskAnnotationPolicyPlugin()
+          _TASK_TRAVERSAL_FALLBACK    = AnsibleDefaultTaskTraversalPolicyPlugin()
+          _VARIABLE_EXTRACTOR_FALLBACK = AnsibleDefaultVariableExtractorPolicyPlugin()
+          _YAML_PARSING_FALLBACK       = DefaultYAMLParsingPolicyPlugin()
+          _JINJA_ANALYSIS_FALLBACK     = DefaultJinjaAnalysisPolicyPlugin()
+      - >
+        _fallback_or_raise_malformed_plugin_shape() and _fallback_or_raise_plugin_construction_error()
+        return these module-level Ansible singletons when strict_mode=False, regardless of which
+        platform key is active.
+      - >
+        The "ANSIBLE-FIRST PRODUCT CONSTRAINT" comment acknowledges this is intentional but
+        defers the platform-aware default-provider seam to FIND-G6-06 (ReadmeRendererPlugin
+        protocol), which has not landed.
+    impact: >
+      Any scan running with strict_mode=False and a malformed or unregistered Kubernetes or
+      Terraform plugin will silently fall back to Ansible-shaped policies, producing
+      structurally incorrect scan output rather than a clear failure. The fallback is
+      invisible to callers. For platform expansion, this is a silent correctness bomb.
+    remediation: >
+      Either (a) make non-strict fallback raise for non-Ansible platforms (i.e., restrict
+      the silent fallback to Ansible only), or (b) resolve FIND-G6-06 and expose a
+      platform-declared default-provider seam, or (c) treat non-strict mode as deprecated
+      for non-Ansible platforms and log a WARNING with platform_key in the fallback path.
+
+  - id: H-06
+    severity: HIGH
+    category: api-facade
+    title: >
+      assert_safe_role_path does not resolve symlinks when allowed_root is not provided —
+      symlink escape of path safety check at API boundary
+    files:
+      - src/prism/path_safety.py
+      - src/prism/api.py
+    live_evidence:
+      - >
+        assert_safe_role_path() with allowed_root=None checks only for `..` in
+        `Path(raw).parts` and NUL bytes. It does NOT resolve symlinks.
+      - >
+        When allowed_root is provided, `Path(raw).resolve()` is called which follows
+        symlinks, giving correct containment semantics. When allowed_root is None (the
+        default), symlinks are never resolved.
+      - >
+        api.py calls _assert_safe_optional_path() without allowed_root on every caller-
+        supplied path: readme_config_path, policy_config_path, vars_seed_paths,
+        style_readme_path, style_source_path, compare_role_path.
+      - >
+        A symlink at /tmp/role_link -> /etc/passwd would pass all checks (no `..` in
+        `/tmp/role_link` parts, no NUL) and would be accepted as a valid readable path.
+    impact: >
+      Symlink traversal to arbitrary filesystem locations is not prevented at the API
+      boundary unless callers explicitly pass allowed_root. Production callers do not
+      pass allowed_root. This is a path-traversal surface that bypasses the explicit
+      `..` check via indirection.
+    remediation: >
+      Either (a) always resolve symlinks at the API boundary before returning the validated
+      path (resolve() unconditionally), so the returned path is canonical and symlink-free,
+      or (b) add an `resolve_symlinks: bool = True` parameter to assert_safe_role_path and
+      default it to True at the API boundary. Document the symlink policy explicitly.
+
+  - id: H-07
+    severity: HIGH
+    category: di-registry-authority
+    title: >
+      _copy_scan_policy_context uses TypedDict constructor ScanPolicyContext(**policy_context)
+      without input sanitization — unknown keys from user input propagate silently
+    files:
+      - src/prism/scanner_core/scan_request.py
+    live_evidence:
+      - >
+        _copy_scan_policy_context() calls `return ScanPolicyContext(**policy_context)`.
+        TypedDicts are plain dicts at runtime; `ScanPolicyContext(**{...})` is identical to
+        `dict(**{...})` and does not validate, reject, or strip unknown keys.
+      - >
+        build_run_scan_options_canonical_fn() accepts `policy_context: ScanPolicyContext | None`
+        but the execution request builder passes it as `dict[str, object] | None` from the
+        public API surface. User-supplied JSON bodies (via CLI or API) can include arbitrary
+        keys in policy_context without error.
+      - >
+        Unknown keys propagate into scan_options["policy_context"] and are later read via
+        policy_context.get() calls in bundle_resolver.py, scanner_context.py, and di.py.
+        Malformed keys can shadow valid keys through dict lookup if key names collide with
+        internal semantics.
+    impact: >
+      Input sanitization gap at the ingress normalization boundary. A caller injecting
+      unexpected keys into policy_context can influence downstream behavior in ways not
+      covered by the declared ScanPolicyContext contract. For public-facing APIs this is
+      a behavioral injection vector.
+    remediation: >
+      Either (a) add explicit key allowlist filtering to _copy_scan_policy_context to
+      strip keys not declared in the ScanPolicyContext TypedDict fields, or (b) use
+      a Pydantic model or equivalent schema for input validation at the API boundary
+      before the TypedDict copy.
+
+  - id: H-08
+    severity: HIGH
+    category: di-registry-authority
+    title: >
+      register_default_listener accumulates duplicate listeners without deduplication —
+      double-registration produces duplicate events
+    files:
+      - src/prism/scanner_core/events.py
+    live_evidence:
+      - >
+        register_default_listener() appends to `_DEFAULT_LISTENERS` under lock without
+        checking if the same listener is already present:
+          with _DEFAULT_LISTENERS_LOCK:
+              _DEFAULT_LISTENERS.append(listener)
+      - >
+        There is no deduplication, no idempotency, and no capacity guard. Calling
+        register_default_listener(fn) twice results in fn being called twice per event.
+      - >
+        progress.py uses a context manager pattern (register on enter, unregister on exit)
+        which is correct, but raw callers or callers that catch exceptions before unregister
+        can leak duplicate registrations.
+      - >
+        DIContainer copies get_default_listeners() at construction time. A process that
+        registers the same listener N times before constructing a DIContainer produces a
+        container where every event fires the listener N times.
+    impact: >
+      Duplicate event firing is a silent correctness bug for any listener that accumulates
+      state (counters, log entries, telemetry). In concurrent scan scenarios with many
+      containers, duplicate listeners can cause performance degradation.
+    remediation: >
+      Add identity deduplication to register_default_listener:
+        if listener not in _DEFAULT_LISTENERS: _DEFAULT_LISTENERS.append(listener)
+      Or document the lack of deduplication as a contractual decision and enforce that
+      callers must use the context manager form exclusively.
+
+  - id: H-09
+    severity: HIGH
+    category: execution-request-ingress
+    title: >
+      _ScanStateBridge.prepare_scan_context reads yaml_parse_failures from canonical_options —
+      key not in ScanOptionsDict, always empty at context-preparation time
+    files:
+      - src/prism/scanner_core/execution_request_builder.py
+    live_evidence:
+      - >
+        prepare_scan_context() reads:
+          yaml_parse_failures = canonical_options.get("yaml_parse_failures")
+          normalized = list(yaml_parse_failures) if isinstance(yaml_parse_failures, list) else []
+        `yaml_parse_failures` is NOT a declared key in ScanOptionsDict (contracts_request.py).
+        It is not set by build_run_scan_options_canonical_fn() nor by _build_canonical_options().
+      - >
+        The canonical flow runs: build options → assemble bridge → run variable discovery →
+        run feature detection → call prepare_scan_context(). YAML parsing failures that occur
+        during discovery/detection are not written back into canonical_options; they are
+        captured in VariableRow or feature metadata separately.
+      - >
+        The result is that `normalized` is always `[]` on this path. The key appears to be
+        a vestigial read from a deprecated or not-yet-connected flow.
+    impact: >
+      Silent dead code: yaml_parse_failures is always empty in the assembled context payload.
+      If YAML failures do occur during scanning and should be surfaced in the final payload,
+      they are silently dropped here. This is a correctness gap, not merely dead code.
+    remediation: >
+      Either (a) remove the yaml_parse_failures read and the normalized variable entirely
+      from prepare_scan_context() since there is no upstream writer in the current flow, or
+      (b) wire a YAML failure collection mechanism from variable_discovery/feature_detection
+      into canonical_options before prepare_scan_context() is called, and add the key to
+      ScanOptionsDict with NotRequired typing.
+
+  - id: H-10
+    severity: HIGH
+    category: defaults-prepared-policy-ownership
+    title: >
+      ensure_prepared_policy_bundle returns PreparedPolicyBundle but constructs via
+      cast(PreparedPolicyBundle, bundle) from dict[str, Any] — full type safety bypass
+    files:
+      - src/prism/scanner_plugins/bundle_resolver.py
+    live_evidence:
+      - >
+        ensure_prepared_policy_bundle() builds `bundle: dict[str, Any] = {}` and
+        populates it via `bundle["task_line_parsing"] = resolve_...()` etc. — all
+        values have type Any during construction because the dict is typed as dict[str, Any].
+      - >
+        The function returns `cast(PreparedPolicyBundle, bundle)` which is a static-only
+        annotation with zero runtime validation that the dict actually satisfies the
+        PreparedPolicyBundle TypedDict contract.
+      - >
+        _validate_prepared_policy_bundle(bundle) is called before the cast, but its
+        validation only checks task_line_parsing and jinja_analysis for method presence;
+        it does not validate task_traversal, yaml_parsing, variable_extractor, or
+        task_annotation_parsing shapes.
+      - >
+        PreparedPolicyBundle declares task_line_parsing and jinja_analysis as Required;
+        other policy slots are NotRequired. The validator confirms the Required slots'
+        method shapes but not their attribute shapes (TASK_INCLUDE_KEYS, etc. are checked
+        by _validate_task_line_policy, which is called only when task_line_policy is
+        not None — it IS checked but only after bundle assembly, not at each resolution
+        site).
+    impact: >
+      The cast bypasses type-checker enforcement of the Required fields contract. A resolver
+      function returning None (e.g., if a plugin returns None rather than raising) would
+      silently produce a bundle where `task_line_parsing` is None, passing _validate_prepared_policy_bundle
+      only because `if task_line_policy is not None` skips the check. Then ScannerContext's
+      _require_prepared_policy_bundle() would catch it at execution time — which is the right
+      place but too late in the call chain.
+    remediation: >
+      Make _validate_prepared_policy_bundle() assert Required fields are not None before
+      the cast, not conditionally. Change the check for task_line_parsing and jinja_analysis
+      from `if task_line_policy is not None:` to an unconditional validation that raises
+      if the value is None. This closes the gap between the TypedDict Required declaration
+      and the runtime validation.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONFIRMATION: phase0 overlap and net-new accounting
+# ─────────────────────────────────────────────────────────────────────────────
+phase0_overlap_notes:
+  method: >
+    This review was conducted independently from live source. Phase 0 shortlist
+    artifacts were not consulted during analysis. The findings below are the reviewer's
+    independent conclusions. Overlap with phase0 scouts is expected and confirms
+    convergence on real issues; net-new counts only findings not already classified
+    as High/Critical in phase0 shortlists.
+  net_new_count: 10
+  note: >
+    All 10 findings are confirmed live-source with specific file/line evidence.
+    C-01 (validation inversion) and H-03 (bridge_slot fragility) are judged as
+    net-new to this review cycle based on their technical specificity.
+    C-02, H-01, H-02, H-04, H-05, H-06 may have partial overlap with phase0 seam
+    findings; they are included here because they were independently derived from
+    live source without consulting the phase0 artifacts, and each has independent
+    evidence citations below.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REMEDIATION PRIORITY ORDER
+# ─────────────────────────────────────────────────────────────────────────────
+remediation_priority:
+  tier_1_immediate:
+    - C-01  # validation inversion — trivial move, high diagnostic value
+    - H-10  # Required field validation gap in bundle validator
+    - H-06  # symlink path traversal at API boundary
+  tier_2_next_wave:
+    - C-02  # registry singleton — needs test isolation seam
+    - H-01  # scan_options in-place mutation contract
+    - H-02  # TypedDict post-construction extension
+    - H-07  # policy_context unknown-key propagation
+  tier_3_tracked:
+    - H-03  # bridge_slot pattern fragility
+    - H-04  # repo_scan_facade singleton (GF2-W4-T03)
+    - H-05  # Ansible fallback singletons (FIND-G6-06 dependency)
+    - H-08  # duplicate listener accumulation
+    - H-09  # yaml_parse_failures vestigial read
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CLOSING REMARKS FROM THE REVIEWER
+# ─────────────────────────────────────────────────────────────────────────────
+reviewer_notes: >
+  You have a reasonably structured codebase marred by a consistent pattern of
+  deferred decisions that accumulate into architectural debt. The TypedDict-as-
+  mutable-dict pattern is particularly egregious: you define contracts in TypedDicts
+  and then immediately violate them by appending undeclared keys. This is not a
+  minor oversight; it undermines the entire point of using TypedDicts.
+
+  The validation inversion in C-01 is the kind of thing a first-year student gets
+  marked down for. You validate a required parameter AFTER building a DI container,
+  assembling bridges, and resolving platform keys. Congratulations on maximizing
+  wasted work before failing.
+
+  The symlink escape in H-06 is the most immediately concerning from a correctness
+  standpoint. You have a path safety module with a function named assert_safe_role_path
+  that does not assert safety against symlink traversal. The name is aspirational fiction.
+
+  The Ansible-fallback singletons and the deferred platform-default seam mean your
+  multi-platform expansion work will produce silent correctness failures before anyone
+  notices. Silent failures are worse than loud ones; they accumulate until someone
+  files a production incident.
+
+  Fix C-01, H-10, and H-06 immediately. Everything else can wait its turn, but
+  should not be deferred indefinitely.
+
+  — Gilfoyle

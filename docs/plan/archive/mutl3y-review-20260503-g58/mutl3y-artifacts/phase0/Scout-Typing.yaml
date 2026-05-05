@@ -1,0 +1,84 @@
+- id: Scout-Typing-01
+  category: typing
+  fingerprint: "execution_request.ensure_prepared_policy_bundle.di_object"
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 62
+  severity_hint: high
+  confidence: high
+  detector: type_probe
+  memory_status: new
+  evidence_snippet: "class _EnsurePreparedPolicyBundleFn(Protocol): def __call__(self, *, scan_options: ScanOptionsDict, di: object) -> None"
+  evidence_command: "src/prism/scanner_core/execution_request_builder.py#L62-L66"
+  related_symbols: ["_EnsurePreparedPolicyBundleFn", "_finalize_execution_request", "build_non_collection_run_scan_execution_request"]
+  fix_group_key: "ensure_prepared_policy_bundle.fn_di_object"
+  proposed_fix_class: tighten_protocol_annotation
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py::TestRuntimeAssemblySeam::test_execution_request_finalization_seam_requires_prepared_policy_enforcement"
+
+- id: Scout-Typing-02
+  category: plugin_shape
+  fingerprint: "defaults.resolve_plugin_with_precedence.di_object_and_any"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 347
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  evidence_snippet: "_resolve_plugin_with_precedence(di: object | None, ..., fallback_plugin: Any) -> Any — DI typed as object, plugin shapes accepted as Any"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L347-L370"
+  related_symbols: ["_resolve_plugin_with_precedence", "resolve_task_line_parsing_policy_plugin", "resolve_blocker_fact_builder"]
+  fix_group_key: "defaults.plugin_shape.object"
+  proposed_fix_class: explicit_protocols_for_di_and_plugins
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_defaults.py::test_validate_shape_strict_mode_raises_for_malformed_task_line_plugin"
+
+- id: Scout-Typing-03
+  category: public_api
+  fingerprint: "api_layer.non_collection.payload_object_contract"
+  file: src/prism/api_layer/non_collection.py
+  line: 312
+  severity_hint: high
+  confidence: high
+  detector: type_probe
+  memory_status: new
+  evidence_snippet: "def _normalize_non_collection_result_shape(payload: Mapping[str, object]) -> _NormalizedNonCollectionResult: casts, copy/merge and returns public payload — wide 'object' usage for public API payloads"
+  evidence_command: "src/prism/api_layer/non_collection.py#L312-L340"
+  related_symbols: ["_normalize_non_collection_result_shape", "_prepared_policy_bundle_cache_marker", "run_scan"]
+  fix_group_key: "api_layer.payload.object"
+  proposed_fix_class: narrow_public_payload_types
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_fsrc_api_run_scan_normalizes_payload_shape_from_non_collection_seam"
+
+- id: Scout-Typing-04
+  category: di_contract
+  fingerprint: "di.clone_scan_options.mapping_any"
+  file: src/prism/scanner_core/di.py
+  line: 69
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  evidence_snippet: "def clone_scan_options(scan_options: Mapping[str, Any]) -> dict[str, Any]: returns dict[str, Any] and propagates Any-shaped values through DI snapshot"
+  evidence_command: "src/prism/scanner_core/di.py#L69-L76"
+  related_symbols: ["clone_scan_options", "DIContainer.scan_options", "replace_scan_options"]
+  fix_group_key: "di.scan_options.any"
+  proposed_fix_class: tighten_scan_options_contract
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_container_scan_options_property_exposes_dict"
+
+- id: Scout-Typing-05
+  category: protocols
+  fingerprint: "protocols_runtime.kernel_payload_object"
+  file: src/prism/scanner_core/protocols_runtime.py
+  line: 21
+  severity_hint: medium
+  confidence: medium
+  detector: type_probe
+  memory_status: new
+  evidence_snippet: "KernelPayload: TypeAlias = dict[str, object] — kernel <-> core payload typed as object; reduces downstream static guarantees"
+  evidence_command: "src/prism/scanner_core/protocols_runtime.py#L21-L24"
+  related_symbols: ["KernelPayload", "KernelResponse", "KernelRequest"]
+  fix_group_key: "protocols.kernel_payload_object"
+  proposed_fix_class: incrementally_narrow_kernel_payload
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py::TestRuntimeAssemblySeam::test_runtime_participants_use_authoritative_registry_and_bridge_factories"

@@ -1,0 +1,68 @@
+- id: TYPING-01
+  category: typing
+  fingerprint: "typing:PreparedTaskLineParsingPolicy:detect_task_module:Any"
+  file: src/prism/scanner_data/contracts_request.py
+  line: 167
+  severity_hint: medium
+  confidence: high
+  detector: protocol_def
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def detect_task_module(self, task: dict[str, Any]) -> str | None: ..."
+  evidence_command: "src/prism/scanner_data/contracts_request.py#L167"
+  related_symbols: ["PreparedTaskLineParsingPolicy.detect_task_module", "PreparedTaskLineParsingPolicy"]
+  fix_group_key: "typing.prepare_taskline.detect_task_module"
+  proposed_fix_class: tighten_type_annotation
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_context.py::test_task_module_detection"
+- id: TYPING-02
+  category: typing
+  fingerprint: "typing:PreparedTaskTraversalPolicy:iter_task_mappings:object"
+  file: src/prism/scanner_data/contracts_request.py
+  line: 181
+  severity_hint: medium
+  confidence: high
+  detector: protocol_def
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def iter_task_mappings(self, data: object) -> object: ..."
+  evidence_command: "src/prism/scanner_data/contracts_request.py#L181"
+  related_symbols: ["PreparedTaskTraversalPolicy.iter_task_mappings", "PreparedTaskTraversalPolicy"]
+  fix_group_key: "typing.task_traversal.object_usage"
+  proposed_fix_class: narrow_object_to_TypedDict
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_context.py::test_task_traversal_contract"
+- id: TYPING-03
+  category: typing
+  fingerprint: "typing:PreparedTaskTraversalPolicy:expand_include_target_candidates:object"
+  file: src/prism/scanner_data/contracts_request.py
+  line: 183
+  severity_hint: medium
+  confidence: medium
+  detector: protocol_def
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def expand_include_target_candidates(self, task: dict[str, object], include_target: str) -> list[str]: ..."
+  evidence_command: "src/prism/scanner_data/contracts_request.py#L183"
+  related_symbols: ["PreparedTaskTraversalPolicy.expand_include_target_candidates"]
+  fix_group_key: "typing.task_traversal.expand_candidate_types"
+  proposed_fix_class: introduce_TaskTypedDict
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py::test_traversal_plugin_contracts"
+- id: TYPING-04
+  category: typing
+  fingerprint: "typing:VariableInsight:type_field_object"
+  file: src/prism/scanner_data/contracts_request.py
+  line: 58
+  severity_hint: low
+  confidence: high
+  detector: typed_dict_field
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "type: object"
+  evidence_command: "src/prism/scanner_data/contracts_request.py#L62"
+  related_symbols: ["VariableInsight", "DisplayVariableEntry"]
+  fix_group_key: "typing.variable_insight.type_field"
+  proposed_fix_class: narrow_variable_type_to_enum_or_str
+  blocking_preconditions: []
+  suggested_narrow_gate: ""

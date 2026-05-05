@@ -1,0 +1,19 @@
+plan_id: mutl3y-review-20260503-g62
+cycle: g62
+phase: P5
+wave: 8
+status: OK
+gate_repair: true
+reason: >-
+  Phase 6 after wave 7 failed only black --check; pytest, ruff, and tox
+  typecheck passed. Reproduced black failure on two test files.
+finding: phase6-formatting-repair
+worker: Builder-Formatting
+owned_file_set:
+  - src/prism/tests/test_t3_03_scan_cache.py
+  - src/prism/tests/test_plugin_kernel_extension_parity.py
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Formatting-wave-8-summary.md
+preconditions:
+  - Gatekeeper reroute reported black failure only.
+  - Foreman reproduced black --check failure on the two reported files.
+next_action: Dispatch Builder-Formatting for formatting-only repair.

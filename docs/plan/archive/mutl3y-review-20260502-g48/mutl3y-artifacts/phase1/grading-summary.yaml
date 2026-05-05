@@ -1,0 +1,136 @@
+phase: P1
+status: completed
+cycle: g48
+review_type: thorough
+focus_axis: typing
+grade: C
+review_sources:
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/learning-context.yaml
+  - docs/plan/gilfoyle-review-20260501-g46/findings.yaml
+comparison_summary:
+  confirmed_g46_carries:
+    - finding: G46-H10
+      scout_evidence:
+        - CF-001-defaults-validate-shape-unused-params
+        - CF-002-defaults-validate-shape-never-uses-fallback
+      result: confirmed_live_and_sharpened
+    - finding: G46-H11
+      scout_evidence:
+        - CF-006-discovery-metadata-load-silent-fallback
+        - CF-007-discovery-metadata-yaml-invalid-silent
+        - CF-010-discovery-requirements-exception-silent-list
+        - CF-011-discovery-requirements-shape-invalid-silent
+        - SO-T48-08
+      result: confirmed_live_and_widened
+    - finding: G46-ARCH-CONTRACT-01
+      scout_evidence:
+        - FIND-TYPING-01
+        - FIND-TYPING-02
+        - FIND-TYPING-03
+        - FIND-TYPING-04
+        - FIND-TYPING-05
+        - FIND-TYPING-10
+        - FIND-TYPING-11
+        - FIND-TYPING-12
+        - SO-T48-02
+        - SO-T48-04
+      result: strongly_confirmed
+  adjacent_new_highs:
+    - candidate: G48-H03
+      scout_evidence:
+        - CF-003-non-collection-prepared-bundle-silent-coercion
+        - FIND-TYPING-12
+      result: promote_as_new_high
+  deprioritized_residuals:
+    - cluster: registry-composition-root
+      scout_evidence:
+        - Scout-Graph-01
+        - Scout-Graph-02
+        - Scout-Graph-03
+      reason: Medium-severity structural debt, but not the highest-signal first-wave slice for this typing-led cycle.
+    - cluster: singleton-fallback-composition
+      scout_evidence:
+        - SO-T48-01
+        - Scout-Graph-13
+      reason: Real residual, but it carries design preconditions and should not crowd the first builder batch.
+shortlist:
+  priority_high:
+    - id: G48-H01
+      title: Output orchestration still relies on Any-typed DI and cast-based renderer signature drift
+      fix_group_key: output-layer-di-typing
+      files:
+        - src/prism/scanner_io/output_orchestrator.py
+        - src/prism/tests/test_output_orchestration.py
+      scout_evidence:
+        - FIND-TYPING-02
+        - FIND-TYPING-03
+        - FIND-TYPING-04
+        - FIND-TYPING-13
+        - Scout-Graph-05
+        - Scout-Graph-06
+      suggested_narrow_gate: pytest -q src/prism/tests/test_output_orchestration.py
+    - id: G48-H02
+      title: Plugin-shape validation still ignores fallback inputs and fails open on the fallback contract itself
+      fix_group_key: fallback-plugin-never-used-in-validation
+      files:
+        - src/prism/scanner_plugins/defaults.py
+        - src/prism/tests/test_defaults.py
+        - src/prism/tests/test_plugin_kernel_extension_parity.py
+      scout_evidence:
+        - CF-001-defaults-validate-shape-unused-params
+        - CF-002-defaults-validate-shape-never-uses-fallback
+      suggested_narrow_gate: pytest -q src/prism/tests/test_defaults.py -k validate_shape src/prism/tests/test_plugin_kernel_extension_parity.py
+    - id: G48-H03
+      title: Non-collection run_scan still coerces missing prepared-policy bundles into dict-shaped success state
+      fix_group_key: typed-bundle-coerced-to-empty-dict
+      files:
+        - src/prism/api_layer/non_collection.py
+        - src/prism/tests/test_api_cli_entrypoints.py
+        - src/prism/tests/test_collection_contract.py
+      scout_evidence:
+        - CF-003-non-collection-prepared-bundle-silent-coercion
+        - FIND-TYPING-12
+        - SO-T48-14
+      suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py
+  priority_medium:
+    - id: G48-M01
+      title: Discovery metadata and requirements loading still demote invalid YAML and shape failures into empty success values
+      fix_group_key: metadata-discovery-silent-fallbacks
+      files:
+        - src/prism/scanner_extract/discovery.py
+        - src/prism/tests/test_dataload.py
+      scout_evidence:
+        - CF-006-discovery-metadata-load-silent-fallback
+        - CF-007-discovery-metadata-yaml-invalid-silent
+        - CF-010-discovery-requirements-exception-silent-list
+        - CF-011-discovery-requirements-shape-invalid-silent
+        - SO-T48-08
+      suggested_narrow_gate: pytest -q src/prism/tests/test_dataload.py
+    - id: G48-M02
+      title: Kernel, collection, and runtime boundary protocols remain dict-heavy and Any-heavy
+      fix_group_key: public-runtime-contracts
+      files:
+        - src/prism/scanner_core/protocols_runtime.py
+        - src/prism/scanner_kernel/kernel_plugin_runner.py
+        - src/prism/scanner_kernel/plugin_name_resolver.py
+        - src/prism/api_layer/collection.py
+        - src/prism/scanner_data/__init__.py
+      scout_evidence:
+        - FIND-TYPING-01
+        - FIND-TYPING-05
+        - FIND-TYPING-06
+        - FIND-TYPING-07
+        - FIND-TYPING-10
+        - FIND-TYPING-11
+        - SO-T48-02
+        - SO-T48-04
+      suggested_narrow_gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_api_cli_entrypoints.py
+  carry_without_promotion:
+    - registry-composition-root
+    - singleton-fallback-composition
+verdict: multiple_high_findings_with_disjoint_first_wave_candidates
+next_step: Persist the shortlist into findings.yaml, then decide whether the first builder wave should run G48-H01, G48-H02, and G48-H03 in parallel.

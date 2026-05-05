@@ -1,0 +1,48 @@
+cycle: g47
+plan_id: gilfoyle-review-20260502-g47
+phase: P4
+status: decision_recorded
+selected_findings:
+  - G46-H07
+  - G46-H08
+  - G46-H10
+  - G46-H11
+  - G46-H13
+deferred_after_probe:
+  - G46-H09
+  - G46-H12
+decision:
+  option: launch_confirmed_live_cluster_wave
+  rationale: >-
+    The probe kept H09 behind the live cluster and re-confirmed H12 as live, but
+    the immediate user-directed wave is the confirmed cluster. Those findings
+    split into three disjoint owned-file groups, so they can be implemented as a
+    single parallel wave without overlapping writes.
+wave_shape:
+  parallel_safe: true
+  builders:
+    - Builder-Ownership
+    - Builder-ControlFlow
+    - Builder-Abstraction
+  owned_file_sets:
+    - agent_name: Builder-Ownership
+      files:
+        - src/prism/api.py
+        - src/prism/api_layer/collection.py
+        - src/prism/scanner_config/readme.py
+        - src/prism/scanner_config/style_parser.py
+        - src/prism/tests/test_api_cli_entrypoints.py
+        - src/prism/tests/test_collection_contract.py
+    - agent_name: Builder-ControlFlow
+      files:
+        - src/prism/scanner_plugins/defaults.py
+        - src/prism/scanner_plugins/bundle_resolver.py
+        - src/prism/tests/test_comment_doc_plugin_resolution.py
+        - src/prism/tests/test_platform_routing_fail_closed.py
+    - agent_name: Builder-Abstraction
+      files:
+        - src/prism/scanner_plugins/parsers/yaml/parsing_policy.py
+        - src/prism/scanner_io/loader.py
+        - src/prism/scanner_extract/discovery.py
+        - src/prism/tests/test_dataload.py
+next_phase: P5

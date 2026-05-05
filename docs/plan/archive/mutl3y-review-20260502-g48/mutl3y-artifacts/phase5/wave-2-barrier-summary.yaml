@@ -1,0 +1,29 @@
+status: ok
+phase: P5
+cycle: g48
+wave: 2
+expected_workers:
+  - Builder-ControlFlow
+  - Builder-Typing
+returned_workers:
+  - Builder-ControlFlow
+  - Builder-Typing
+route_failures: []
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-2-summary.md
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/Builder-Typing-wave-2-summary.md
+present_artifacts:
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-2-summary.md
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/Builder-Typing-wave-2-summary.md
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+gate_results:
+  - pytest -q src/prism/tests/test_dataload.py -> 12 passed
+  - pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_api_cli_entrypoints.py -> 58 passed
+  - pytest -q src/prism/tests/test_kernel_plugin_runner.py src/prism/tests/test_plugin_name_resolver.py -> 15 passed
+anti_pattern_logs:
+  - docs/plan/mutl3y-review-20260502-g48/.mutl3y-gate/tmp/wave-2-antipattern-cast-any.txt
+  - docs/plan/mutl3y-review-20260502-g48/.mutl3y-gate/tmp/wave-2-antipattern-typeddict-lossy-cast.txt
+  - docs/plan/mutl3y-review-20260502-g48/.mutl3y-gate/tmp/wave-2-antipattern-except-pass.txt
+next_phase: P6
+next_action: Run the final focused gate over wave 2 and, if green, close the cycle in Phase 7.

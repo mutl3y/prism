@@ -1,0 +1,19 @@
+status: ok
+phase: P5
+cycle: g62
+wave: 5
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/wave-5-plan.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase4/decision-summary.yaml
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/wave-5-plan.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Builder-ControlFlow
+owned_file_sets:
+  - agent_name: Builder-ControlFlow
+    files:
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/tests/test_t3_03_scan_cache.py
+notes: "Wave 5 isolates the unreadable single-file hash collision in scan_cache before widening G62-M01 into non_collection cached-payload reuse."

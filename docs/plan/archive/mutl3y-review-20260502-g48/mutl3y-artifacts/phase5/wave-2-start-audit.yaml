@@ -1,0 +1,32 @@
+status: ok
+phase: P5
+cycle: g48
+wave: 2
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/wave-2-plan.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/wave-2-start-audit.yaml
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/wave-2-plan.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Builder-ControlFlow
+  - Builder-Typing
+owned_file_sets:
+  - agent_name: Builder-ControlFlow
+    files:
+      - src/prism/scanner_extract/discovery.py
+      - src/prism/tests/test_dataload.py
+  - agent_name: Builder-Typing
+    files:
+      - src/prism/scanner_core/protocols_runtime.py
+      - src/prism/scanner_kernel/kernel_plugin_runner.py
+      - src/prism/scanner_kernel/plugin_name_resolver.py
+      - src/prism/api_layer/collection.py
+      - src/prism/scanner_data/__init__.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+notes: >-
+  Wave 2 is valid for dispatch: the wave plan exists on disk, the remaining
+  open findings are disjoint by owned files, and the accepted Phase 6 verdict
+  did not surface any local blocker in the wave-1 slice.

@@ -1,0 +1,9 @@
+phase2_persist_summary:
+  status: ok
+  shortlist_size: 4
+  summary: >-
+    The g69 thorough scout batch produced four active High findings after
+    overlap collapse across registry authority, public protocol typing,
+    ansible kernel lifecycle typing, and strict-phase-failures coercion.
+  source_artifacts:
+    - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase1/grading-summary.yaml

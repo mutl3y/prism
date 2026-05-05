@@ -1,0 +1,123 @@
+- id: Scout-Graph-01
+  category: abstraction
+  fingerprint: "abstraction:scanner_core/di:DIFactoryOverride_factory_overrides_Any_typed"
+  file: src/prism/scanner_core/di.py
+  line: 167
+  severity_hint: high
+  confidence: high
+  detector: protocol_parameter_untyped
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "factory_overrides: dict[str, \"DIFactoryOverride\"] | None = None"
+  evidence_command: "src/prism/scanner_core/di.py#L163-L189"
+  related_symbols: ["DIContainer.__init__", "factory_overrides", "DIFactoryOverride", "_factory_overrides"]
+  origin_location: "src/prism/scanner_core/di.py#L167"
+  consumer_locations:
+    - "src/prism/scanner_core/di.py#L238:factory_variable_discovery"
+    - "src/prism/scanner_core/di.py#L262:factory_feature_detector"
+    - "src/prism/tests/test_scanner_core_di.py#L183:test_factory_variable_discovery_uses_override"
+    - "src/prism/tests/test_scanner_core_di.py#L210:test_factory_feature_detector_uses_override"
+  fix_group_key: "di-factory-override-protocol-narrowing"
+  proposed_fix_class: protocol_narrowing
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_variable_discovery_uses_override"
+  context: |
+    DIContainer accepts factory_overrides dict parameter typed as dict[str, DIFactoryOverride] for explicit type safety, but at line 238 and 262 the override lookup returns the Protocol type without verification that the override is callable or matches the expected factory signature at the call site. The override lookup is not narrowed by the factory method's own return type, so type checkers cannot verify that the override produces the correct concrete type.
+
+- id: Scout-Graph-02
+  category: composition_root
+  fingerprint: "composition_root:scanner_core/di:factory_method_return_type_untyped"
+  file: src/prism/scanner_core/di.py
+  line: 237
+  severity_hint: high
+  confidence: high
+  detector: graph_factory_return_narrowing
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def factory_variable_discovery(self) -> VariableDiscovery:"
+  evidence_command: "src/prism/scanner_core/di.py#L237-L260"
+  related_symbols: ["factory_variable_discovery", "factory_feature_detector", "VariableDiscovery", "FeatureDetector"]
+  origin_location: "src/prism/scanner_core/di.py#L237"
+  consumer_locations:
+    - "src/prism/scanner_core/scanner_context.py#L200:factory_variable_discovery"
+    - "src/prism/tests/test_scanner_core_di.py#L180:assert c.factory_variable_discovery()"
+  fix_group_key: "di-factory-return-type-narrowing"
+  proposed_fix_class: explicit_type_narrowing
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_variable_discovery_uses_override && mypy src/prism/scanner_core/di.py"
+  context: |
+    Factory override code path bypasses the concrete return type by calling the DIFactoryOverride Protocol callable, then returning the untyped result directly to the caller. Mypy sees the Protocol return type as Any, not the declared concrete type.
+
+- id: Scout-Graph-03
+  category: abstraction
+  fingerprint: "abstraction:scanner_core/protocols_runtime:BlockerFactBuilder_no_narrowing_sites"
+  file: src/prism/scanner_core/protocols_runtime.py
+  line: 97
+  severity_hint: medium
+  confidence: high
+  detector: protocol_usage_untyped_context
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "class BlockerFactBuilder(Protocol):"
+  evidence_command: "src/prism/scanner_core/protocols_runtime.py#L97-L104"
+  related_symbols: ["BlockerFactBuilder", "ScanPolicyBlockerFacts"]
+  origin_location: "src/prism/scanner_core/protocols_runtime.py#L97"
+  consumer_locations:
+    - "src/prism/scanner_core/di.py#L170:blocker_fact_builder_fn: \"BlockerFactBuilder | None\" = None"
+    - "src/prism/scanner_core/di.py#L308:builder_fn = self._di.factory_blocker_fact_builder()"
+    - "src/prism/scanner_plugins/defaults.py#L561:def resolve_blocker_fact_builder() -> BlockerFactBuilder:"
+  fix_group_key: "blocker-fact-builder-protocol-usage"
+  proposed_fix_class: protocol_typing_audit
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_blocker_fact_builder_caches_callable"
+  context: |
+    BlockerFactBuilder Protocol is used at three sites without TypedDict at call sites to verify the callable accepts the expected arguments and returns ScanPolicyBlockerFacts correctly. Lower-priority because Protocol seals the contract, but callers should narrow.
+
+- id: Scout-Graph-04
+  category: abstraction
+  fingerprint: "abstraction:scanner_core/di_helpers:runtime_checkable_protocol_conformance"
+  file: src/prism/scanner_core/di_helpers.py
+  line: 25
+  severity_hint: medium
+  confidence: high
+  detector: runtime_protocol_no_static_guard
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "@runtime_checkable class HasScanOptions(Protocol):"
+  evidence_command: "src/prism/scanner_core/di_helpers.py#L25-L48"
+  related_symbols: ["runtime_checkable", "HasScanOptions", "EventBusProtocol"]
+  origin_location: "src/prism/scanner_core/di_helpers.py#L25"
+  consumer_locations:
+    - "src/prism/scanner_core/di_helpers.py#L73:if isinstance(di, HasScanOptions)"
+    - "src/prism/scanner_core/variable_discovery.py#L55:require_prepared_policy()"
+  fix_group_key: "di-helpers-runtime-protocol-narrowing"
+  proposed_fix_class: protocol_static_narrowing
+  blocking_preconditions: []
+  suggested_narrow_gate: "mypy --strict src/prism/scanner_core/di_helpers.py && pytest -q src/prism/tests/test_di_helpers.py"
+  context: |
+    Runtime checkable protocols allow isinstance() to work but prevent static type narrowing. After isinstance() check, parameter remains typed as `object` instead of narrowed Protocol type, preventing downstream attribute access type safety.
+
+- id: Scout-Graph-05
+  category: composition_root
+  fingerprint: "composition_root:scanner_plugins/defaults:_resolve_registry_Any_context"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 57
+  severity_hint: low
+  confidence: high
+  detector: untyped_registry_precedence_context
+  memory_status: existing
+  memory_match: "g52:Scout-Graph-04"
+  evidence_snippet: "def _resolve_registry(di: object | None = None, registry: \"PluginRegistry | None\" = None)"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L57-L74"
+  related_symbols: ["_resolve_registry", "_get_registry_from_di"]
+  origin_location: "src/prism/scanner_plugins/defaults.py#L57"
+  consumer_locations:
+    - "src/prism/scanner_plugins/defaults.py#L288:resolve_task_line_parsing_policy"
+    - "src/prism/scanner_plugins/defaults.py#L339:resolve_task_annotation_policy"
+    - "src/prism/scanner_plugins/defaults.py#L623:resolve_comment_driven_documentation_plugin"
+  fix_group_key: "registry-precedence-typing-audit"
+  proposed_fix_class: protocol_typing_audit
+  blocking_preconditions: []
+  suggested_narrow_gate: "mypy src/prism/scanner_plugins/defaults.py && pytest -q src/prism/scanner_plugins/tests/test_defaults.py"
+  context: |
+    _resolve_registry accepts di as untyped `object` and uses getattr without narrowing di to a protocol. The three consuming sites all pass di without guarding type, creating an untyped contract.

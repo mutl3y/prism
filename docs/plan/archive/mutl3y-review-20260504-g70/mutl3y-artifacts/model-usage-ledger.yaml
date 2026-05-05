@@ -1,0 +1,32 @@
+- timestamp: '2026-05-04T17:58:00+00:00'
+  cycle: g70
+  phase: P0
+  worker: Scout-Typing
+  task_id: g70-phase0-scout-typing-attempt-1
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: route_failure
+  failure_type: missing_artifact
+  artifact_path: docs/plan/mutl3y-review-20260504-g70/mutl3y-artifacts/phase0/Scout-Typing-light-review.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: rerouted_in_tier_plus_prompt_tighten
+  notes: Initial scout returned a chat summary but failed to write the required phase-0 artifact.
+  lane_tag: discovery
+- timestamp: '2026-05-04T18:02:00+00:00'
+  cycle: g70
+  phase: P0
+  worker: Scout-Typing
+  task_id: g70-phase0-scout-typing-attempt-2
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g70/mutl3y-artifacts/phase0/Scout-Typing-light-review.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Retry wrote the required artifact and returned zero High or Critical findings for the light review slice.
+  lane_tag: discovery

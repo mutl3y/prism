@@ -1,0 +1,67 @@
+- id: SEAM-001
+  category: control_flow_contracts
+  fingerprint: strict_mode_threaded_but_ignored_in_fallback_helpers
+  file: src/prism/scanner_plugins/defaults.py
+  line: 189
+  severity_hint: high
+  confidence: high
+  detector: ownership_signal_ignored
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def _fallback_or_raise_malformed_plugin_shape(..., strict_mode: bool, fallback_plugin: Any) -> Any:
+        del strict_mode
+        del fallback_plugin
+        _raise_malformed_plugin_shape_error(...)
+  fix_group_key: g56_fallback_strict_mode_reconciliation
+  rationale: |
+    bundle_resolver and defaults thread strict_mode as though policy ownership
+    includes a non-strict fallback branch, but the terminal helper discards the
+    signal entirely. The caller owns a control flag that the callee refuses to honor.
+
+- id: SEAM-002
+  category: control_flow_contracts
+  fingerprint: strict_phase_failures_not_passed_to_scan_options
+  file: src/prism/scanner_core/scan_request.py
+  line: 85
+  severity_hint: medium
+  confidence: high
+  detector: ingress_signal_drop
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def build_run_scan_options_canonical(...) -> ScanOptionsDict:
+        options: ScanOptionsDict = {
+            "role_path": role_path,
+            ...
+        }
+  fix_group_key: g56_strict_phase_failures_threading
+  rationale: |
+    The ingress path still leaves strict_phase_failures ownership ambiguous,
+    because build_run_scan_options_canonical does not make the signal explicit
+    even though downstream bundle resolution expects to read it from scan_options.
+
+- id: SEAM-003
+  category: control_flow_contracts
+  fingerprint: api_layer_strict_phase_failures_ownership_unclear
+  file: src/prism/api_layer/non_collection.py
+  line: 551
+  severity_hint: medium
+  confidence: medium
+  detector: ownership_boundary_blur
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def _ensure_prepared_policy_bundle_for_execution_request(
+        *,
+        scan_options: ScanOptionsDict,
+        di: object,
+    ) -> None:
+        prepared_policy_bundle = _resolved_ensure_fn(
+            scan_options=_copy_object_mapping(scan_options),
+            di=di,
+        )
+  fix_group_key: g56_api_layer_seam_clarity
+  rationale: |
+    The api layer still signals strict intent at ingress, but the ownership of
+    preserving that signal across the request seam is not encoded clearly.

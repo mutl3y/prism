@@ -1,0 +1,53 @@
+version: 1
+plan_id: mutl3y-review-20260503-g57
+cycle: g57
+phase: P0
+agent: Scout-Ownership
+target: src/prism
+focus_axis: ownership_contracts
+live_context: stable_rules + current_phase + active_findings + short_excerpts
+status: complete
+observation_count: 3
+verdict: "Public API and reporting surfaces still pull plugin ownership into import-time facades; smaller private-seam and legacy-bootstrap leaks remain live."
+checks:
+  - "g56 control-flow seam was not re-flagged."
+  - "Import probe: importing prism.api loaded 108 Prism modules, including prism.scanner_plugins.ansible.* and prism.scanner_plugins.defaults."
+  - "Import probe: importing prism.scanner_reporting loaded 84 Prism modules, including prism.scanner_plugins.defaults and prism.scanner_plugins.ansible.*."
+observations:
+  - id: G57-O01
+    severity: medium
+    category: facade_leakage
+    title: "Public API import drags plugin ownership into the facade surface"
+    files:
+      - /raid5/source/test/prism/src/prism/api.py
+      - /raid5/source/test/prism/src/prism/scanner_reporting/__init__.py
+    evidence:
+      - "api.py imports scanner_reporting at module scope, and scanner_reporting/__init__.py eagerly binds runbook helpers from scanner_plugins.defaults."
+      - "Import probe for prism.api showed 108 Prism modules loaded, including prism.scanner_plugins.ansible.*, prism.scanner_plugins.defaults, and prism.scanner_reporting."
+    impact: "Importing the public API is not a thin facade; it eagerly couples consumers to plugin-layer ownership before any scan call."
+  - id: G57-O02
+    severity: low
+    category: cross_layer_contract
+    title: "YAML loader reaches into a private registry seam"
+    files:
+      - /raid5/source/test/prism/src/prism/scanner_io/loader.py
+      - /raid5/source/test/prism/src/prism/scanner_plugins/defaults.py
+      - /raid5/source/test/prism/src/prism/tests/test_di_registry_resolution.py
+    evidence:
+      - "loader._resolve_plugin_registry calls the underscored _get_registry_from_di helper from scanner_plugins.defaults instead of a public DI contract."
+      - "The nearest tests explicitly lock in that shared seam, so the dependency is intentional but still private and cross-layer."
+    impact: "This keeps scanner_io coupled to plugin-defaults internals for registry authority resolution."
+  - id: G57-O03
+    severity: low
+    category: stale_compatibility_seam
+    title: "Deprecated package bootstrap wrapper still owns legacy Ansible wiring"
+    files:
+      - /raid5/source/test/prism/src/prism/scanner_plugins/__init__.py
+    evidence:
+      - "bootstrap_default_plugins(registry=...) remains in the package initializer as a deprecated compatibility path."
+      - "The wrapper still hardcodes Ansible/default-policy registrations and deferred module strings instead of delegating everything through the canonical bootstrap path."
+    impact: "This is a live compatibility seam rather than a canonical ownership path, so it remains a maintenance surface even though it is explicitly deprecated."
+top_hits:
+  - G57-O01
+  - G57-O02
+  - G57-O03

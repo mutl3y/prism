@@ -1,0 +1,41 @@
+- id: TYP-01
+  category: typing
+  fingerprint: "typing:prepared_policy_bundle:runtime_shape_mismatch"
+  file: src/prism/api_layer/non_collection.py
+  line: 427
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def _has_cacheable_prepared_policy_bundle_shape(raw_bundle: object) -> bool:"
+  evidence_command: src/prism/api_layer/non_collection.py#L427-L446
+  related_symbols:
+    - PreparedPolicyBundle
+    - _has_cacheable_prepared_policy_bundle_shape
+    - _has_prepared_task_line_policy_shape
+    - ensure_prepared_policy_bundle
+  fix_group_key: prepared_policy_bundle.runtime_shape_mismatch
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_variable_discovery_pipeline.py
+
+- id: TYP-02
+  category: typing
+  fingerprint: "typing:contracts_request:prepared_policy_bundle_requires_dict"
+  file: src/prism/scanner_data/contracts_request.py
+  line: 368
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if prepared_policy_bundle is not None and not isinstance(prepared_policy_bundle, dict):"
+  evidence_command: src/prism/scanner_data/contracts_request.py#L368-L386
+  related_symbols:
+    - validate_variable_discovery_inputs
+    - PreparedPolicyBundle
+  fix_group_key: prepared_policy_bundle.runtime_shape_mismatch
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_variable_discovery_pipeline.py

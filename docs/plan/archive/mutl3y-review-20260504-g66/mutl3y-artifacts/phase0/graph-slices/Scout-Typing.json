@@ -1,0 +1,21 @@
+{
+  "agent": "Scout-Typing",
+  "cycle": "g66",
+  "focus_axis": "typing",
+  "review_surface": [
+    "src/prism/api.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_data/contracts_request.py",
+    "src/prism/scanner_extract/task_line_parsing.py",
+    "src/prism/scanner_extract/variable_extractor.py",
+    "src/prism/scanner_core/scan_facade_helpers.py",
+    "src/prism/scanner_core/execution_request_builder.py",
+    "src/prism/tests/test_api_cli_entrypoints.py",
+    "src/prism/tests/test_task_parser_precedence_matrix.py",
+    "src/prism/tests/test_variable_extractor.py"
+  ],
+  "questions": [
+    "Which request, facade, or extraction seams still erase failure-shape information through object, Any, or weak mapping contracts?",
+    "Where do carry-forward typing debts overlap with neighboring runtime seams strongly enough to promote above backlog medium status?"
+  ]
+}

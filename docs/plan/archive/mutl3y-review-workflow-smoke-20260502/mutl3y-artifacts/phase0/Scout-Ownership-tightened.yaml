@@ -1,0 +1,35 @@
+- id: Scout-Ownership-01
+  category: ownership
+  fingerprint: "ownership:scanner_core/di:factory_blocker_fact_builder:runtime_import"
+  file: src/prism/scanner_core/di.py
+  line: 298
+  severity_hint: low
+  confidence: high
+  detector: grep
+  memory_status: matches_do_not_re_flag
+  memory_match: "FIND-G3-03"
+  evidence_snippet: "fn = resolve_blocker_fact_builder()"
+  evidence_command: "src/prism/scanner_core/di.py#L286-L300"
+  related_symbols: ["factory_blocker_fact_builder", "resolve_blocker_fact_builder"]
+  fix_group_key: "di.factory_blocker_fact_builder.runtime_import"
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_blocker_fact_builder_caches_callable"
+
+- id: Scout-Ownership-02
+  category: composition_root
+  fingerprint: "composition_root:scanner_core/di:_get_registry:missing_registry_raise"
+  file: src/prism/scanner_core/di.py
+  line: 305
+  severity_hint: high
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "raise ValueError(\"No plugin registry provided to DIContainer\")"
+  evidence_command: "src/prism/scanner_core/di.py#L302-L306"
+  related_symbols: ["_get_registry", "_registry"]
+  fix_group_key: "registry-split-authority"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_default_platform_key"

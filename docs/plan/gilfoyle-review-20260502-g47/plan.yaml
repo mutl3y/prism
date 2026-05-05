@@ -1,0 +1,68 @@
+plan_id: gilfoyle-review-20260502-g47
+cycle: g47
+title: Light review checkpoint for remaining g46 High findings
+status: completed
+created_at: '2026-05-02'
+review_type: light
+target: src/prism
+focus_axis: error_handling
+origin: Required light checkpoint because g46 still carries open High findings; review the affected code
+  paths and immediate neighbors before any further fix wave.
+resumption_pointer:
+  current_phase: P7
+  next_action: Cycle closed; use the refreshed lesson digest and routing rollup before starting the next
+    queue refresh.
+  blocking_issues: []
+  notes: 'This cycle is intentionally scoped as a light review. There are still open
+
+    High findings in g46, so the workflow requires a targeted checkpoint over
+
+    those live paths rather than another full unconstrained sweep. Phase 0 was
+
+    recovered locally after the scout batch failed its owned-artifact contract,
+
+    and Phase 1 grading now confirms the live shortlist from persisted artifacts.
+
+    Phase 3 probes re-ranked H09 as carry-forward and H12 as still live, but the
+
+    immediate user-directed fix wave remains the confirmed cluster H07/H08,
+
+    H10/H13, and H11 because those file sets are disjoint. The first wave barrier
+
+    initially failed on two adjacent runtime defects: the default ansible
+
+    scan-pipeline plugin self-disabled on ordinary run_scan when feature flags
+
+    were unset, and execution-request assembly did not refresh the DI snapshot
+
+    after prepared_policy_bundle ingress mutation. Both adjacent defects were
+
+    repaired locally, plugin-name fallback was realigned to the registered
+
+    "default" contract used by API tests, and the recovered focused gate passed.
+
+    Direct follow-up repairs have now also closed H09 and H12 with focused logs.
+
+    Phase 7 bookkeeping is complete: findings were reconciled, learning memory
+
+    was recompiled, and retained-artifact plus cleanup hygiene is now recorded
+
+    in the closure summary.
+
+    '
+artifacts:
+  execution_trace: docs/plan/gilfoyle-review-20260502-g47/artifacts/execution-trace.yaml
+  phase0_start_audit: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/phase-start-audit.yaml
+  phase0_learning_context: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/learning-context.yaml
+  scout_typing: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Typing.yaml
+  scout_ownership: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Ownership.yaml
+  scout_controlflow: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-ControlFlow.yaml
+  scout_graph: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Graph.yaml
+  phase1_grading_summary: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase1/grading-summary.yaml
+  phase3_probe_kernel: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase3/Probe-Kernel.yaml
+  phase3_probe_cache: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase3/Probe-Cache.yaml
+  phase4_decision_summary: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase4/decision-summary.yaml
+  phase5_barrier_summary: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase5/wave-1-barrier-summary.yaml
+  phase7_closure_summary: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase7/closure-summary.yaml
+  model_usage_ledger: docs/plan/gilfoyle-review-20260502-g47/artifacts/model-usage-ledger.yaml
+  model_scorecard: docs/plan/gilfoyle-review-20260502-g47/artifacts/model-scorecard.yaml

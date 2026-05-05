@@ -1,0 +1,25 @@
+phase: P3
+cycle: g47
+worker: Probe-Kernel
+finding: G46-H09
+status: completed
+verdict: carry_without_reprioritization
+summary: "The kernel/preflight slice no longer supports the strongest original claim because non-mapping preflight output is already rejected; the residual risk is narrower and does not outrank the confirmed live cluster."
+evidence:
+  - path: src/prism/scanner_kernel/orchestrator.py
+    line: 173
+    note: "Malformed preflight output is routed to _raise_invalid_preflight_output_error rather than accepted silently."
+  - path: src/prism/scanner_kernel/orchestrator.py
+    line: 462
+    note: "Preflight output is explicitly checked for dict shape before continuing."
+  - path: src/prism/scanner_core/di.py
+    line: 124
+    note: "_construct_runtime_plugin only normalizes TypeError; other constructor exceptions can still leak."
+  - path: src/prism/api_layer/non_collection.py
+    line: 306
+    note: "run_scan still returns raw dict payloads without deeper schema validation at that seam."
+  - path: src/prism/tests/test_plugin_kernel_extension_parity.py
+    line: 597
+    note: "Focused tests already cover invalid preflight/runtime output rejection and constructor wrapping on the main path."
+suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py"
+priority_note: "Keep behind H07/H08/H10/H11/H13 for the next wave; revisit after the confirmed live cluster unless new evidence appears."

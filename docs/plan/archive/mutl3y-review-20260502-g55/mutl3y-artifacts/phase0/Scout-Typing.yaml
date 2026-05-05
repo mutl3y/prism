@@ -1,0 +1,180 @@
+- find_id: FIND-G55-T01-constructor-wiring-weaktype
+  module: src/prism/scanner_core/di.py
+  line: 167
+  surface: DIContainer.__init__
+  fix_group: constructor_contracts
+  signature: scanner_context_wiring: dict[str, Any] | None
+  issue: |
+    Constructor parameter typed as dict[str, Any] but runtime access assumes
+    specific keys ("scanner_context_cls", "prepare_scan_context_fn"). Weak typing
+    allows unchecked key/type injection.
+  recommendation: |
+    Define ContextWiringDict TypedDict with required/optional keys, or
+    create ScannerContextWiring Protocol to encode access contract.
+  severity: medium
+  mypy_impact: allows unchecked dict key access
+  exemplar: "factory_scanner_context() accesses .get('scanner_context_cls') without type narrowing"
+
+- find_id: FIND-G55-T02-factory-override-protocol-return-weak
+  module: src/prism/scanner_core/protocols_runtime.py
+  line: 89
+  surface: DIFactoryOverride protocol
+  fix_group: di_override_contracts
+  signature: "def __call__(self, di: DIContainer, role_path: str, scan_options: ScanOptionsDict) -> object: ..."
+  issue: |
+    Protocol returns object instead of TypeVar bound. Callers expect specific types
+    (VariableDiscovery, FeatureDetector, plugins) but protocol permits any object;
+    no static guarantee that override produces correct type.
+  recommendation: |
+    Add TypeVar T bound to object, constrain return to -> T, and document
+    caller-specific subclass contracts (e.g., DIFactoryOverrideFor[VariableDiscovery]).
+  severity: high
+  mypy_impact: "type: ignore needed at all override call sites; callers can't trust override type"
+  exemplar: "di.factory_variable_discovery() calls override(...) and casts result implicitly"
+
+- find_id: FIND-G55-T03-resolve-registry-untyped-di
+  module: src/prism/scanner_plugins/defaults.py
+  line: 64
+  surface: _get_registry_from_di
+  fix_group: di_override_contracts
+  signature: "def _get_registry_from_di(di: object | None) -> PluginRegistry | None"
+  issue: |
+    Accepts di: object but downcasts via getattr without explicit guard.
+    Callers pass DIContainer or None, but signature accepts any object.
+  recommendation: |
+    Narrow di parameter to DIContainer | None, or use Protocol with
+    plugin_registry property to encode structural contract.
+  severity: low
+  mypy_impact: "Any cast on getattr(di, 'plugin_registry', None) silences type check"
+  exemplar: "_resolve_registry(di) -> passes di to _get_registry_from_di(di)"
+
+- find_id: FIND-G55-T04-resolve-plugin-with-precedence-return-any
+  module: src/prism/scanner_plugins/defaults.py
+  line: 375
+  surface: _resolve_plugin_with_precedence
+  fix_group: weak_protocol_returns
+  signature: "def _resolve_plugin_with_precedence(..., fallback_plugin: Any, ...) -> Any"
+  issue: |
+    Returns Any despite 8 explicit callers (resolve_task_line_parsing_policy_plugin,
+    resolve_task_annotation_policy_plugin, etc.) all declaring specific Protocol return
+    types. Internal Any breaks type safety of public resolve_* wrappers.
+  recommendation: |
+    Use TypeVar T bound to fallback_plugin's type; propagate T through return signature.
+    Add generic [T] to function signature and declare return -> T.
+  severity: high
+  mypy_impact: "public resolve_* functions return: Protocol but call: -> Any internally; type erasure"
+  exemplar: |
+    resolve_task_line_parsing_policy_plugin() -> PreparedTaskLineParsingPolicy
+    calls _resolve_plugin_with_precedence(...) -> Any
+
+- find_id: FIND-G55-T05-validate-plugin-shape-return-any
+  module: src/prism/scanner_plugins/defaults.py
+  line: 245
+  surface: _validate_plugin_shape
+  fix_group: weak_protocol_returns
+  signature: "def _validate_plugin_shape(..., plugin: Any, ..., fallback_plugin: Any, ...) -> Any"
+  issue: |
+    Returns Any instead of narrowing to plugin | fallback_plugin type. Both branches
+    return plugin (validated) or fallback_plugin, but explicit Type[T] return signature
+    would encode the union.
+  recommendation: |
+    Add TypeVar T; narrow parameters plugin: T, fallback_plugin: T; return -> T.
+    Or use overload: one branch returns plugin's narrowed type, other returns fallback type.
+  severity: medium
+  mypy_impact: "callers receive Any; loss of type information from validated plugin"
+  exemplar: "caller receives result but must re-cast to expected Protocol type"
+
+- find_id: FIND-G55-T06-construct-registry-plugin-return-any
+  module: src/prism/scanner_plugins/defaults.py
+  line: 262
+  surface: _construct_registry_plugin
+  fix_group: weak_protocol_returns
+  signature: "def _construct_registry_plugin(..., plugin_class: type[Any], ..., fallback_plugin: Any, ...) -> Any"
+  issue: |
+    Returns Any despite being passed a specific class and fallback. No type constraint
+    that return matches plugin_class or fallback_plugin. Breaks type narrowing in callers.
+  recommendation: |
+    Change signature to accept generic plugin_class: type[T], return -> T | type(fallback_plugin).
+    Or add overload branch for fallback case.
+  severity: medium
+  mypy_impact: "type loss; callers can't verify constructed plugin matches expected class"
+  exemplar: "plugin = _construct_registry_plugin(..., plugin_class=SomePluginClass) # returns Any"
+
+- find_id: FIND-G55-T07-fallback-error-handlers-return-any-or-noreturn
+  module: src/prism/scanner_plugins/defaults.py
+  line: 185
+  surface: "_fallback_or_raise_malformed_plugin_shape, _fallback_or_raise_plugin_construction_error"
+  fix_group: weak_protocol_returns
+  signature: |
+    _fallback_or_raise_malformed_plugin_shape(...) -> Any
+    _fallback_or_raise_plugin_construction_error(...) -> Any
+  issue: |
+    Both always raise (NoReturn) or return fallback_plugin. Current -> Any masks
+    the fact that only fallback path returns. Second function always raises;
+    first delegates to error handler that always raises.
+  recommendation: |
+    Declare both as -> NoReturn (they always raise after internal delegation).
+    Update caller control flow to reflect that these never return a value.
+  severity: low
+  mypy_impact: "control flow analysis assumes return is possible; unused return suppression"
+  exemplar: "return _fallback_or_raise_malformed_plugin_shape(...) # always raises, not a true return"
+
+- find_id: FIND-G55-T08-resolve-blocker-fact-builder-closure-untyped
+  module: src/prism/scanner_plugins/defaults.py
+  line: 495
+  surface: resolve_blocker_fact_builder
+  fix_group: constructor_contracts
+  signature: "def resolve_blocker_fact_builder() -> BlockerFactBuilder"
+  issue: |
+    Returns a closure build_blocker_facts that claims to match BlockerFactBuilder protocol,
+    but internal normalize_scan_metadata callback and ScanMetadata.items() type
+    are not explicitly verified to match BlockerFactBuilder.__call__ signature.
+  recommendation: |
+    Add explicit type annotation to internal build_blocker_facts closure:
+    def build_blocker_facts(...) -> ScanPolicyBlockerFacts matching BlockerFactBuilder
+    protocol exactly. Verify normalize_scan_metadata callback chain matches type contract.
+  severity: medium
+  mypy_impact: |
+    closure function signature not checked against protocol; runtime contract
+    assumption only
+  exemplar: |
+    def build_blocker_facts(...) -> ScanPolicyBlockerFacts: ...
+    (no explicit type on closure; protocol match is implicit)
+
+- find_id: FIND-G55-T09-di-container-scanner-wiring-factory-call-weak
+  module: src/prism/scanner_core/di.py
+  line: 202
+  surface: "DIContainer.factory_scanner_context()"
+  fix_group: constructor_contracts
+  signature: "scanner_context_cls(**scanner_context_kwargs) | None"
+  issue: |
+    Calls scanner_context_cls (from wiring dict) with kwargs dict. scanner_context_cls
+    type is not narrowed; wiring dict could contain wrong class. No explicit type check
+    that class constructor matches expected signature.
+  recommendation: |
+    Define ScannerContextClass Protocol with required __init__(di, role_path, scan_options,
+    prepare_scan_context_fn) signature. Store wiring as typed ScannerContextWiring
+    TypedDict with scanner_context_cls: type[ScannerContextClass].
+  severity: high
+  mypy_impact: |
+    cls(...) call accepts Any; no verification of parameter match or return type
+  exemplar: |
+    scanner_context_cls = self._scanner_context_wiring.get('scanner_context_cls')
+    # type: Any | None; no narrowing to callable class
+
+- find_id: FIND-G55-T10-di-factory-override-dict-weaktype-access
+  module: src/prism/scanner_core/di.py
+  line: 255
+  surface: "factory_variable_discovery(), factory_feature_detector()"
+  fix_group: di_override_contracts
+  signature: "override = self._factory_overrides.get('variable_discovery_factory') | None"
+  issue: |
+    Accesses _factory_overrides dict (typed dict[str, DIFactoryOverride]) by string key.
+    No exhaustiveness check that all supported override keys are defined.
+    Any caller can inject arbitrary keys without type safety.
+  recommendation: |
+    Define FactoryOverridesDict TypedDict with literal keys ('variable_discovery_factory',
+    'feature_detector_factory', ...). Or use Enum for override keys with exhaustiveness checking.
+  severity: low
+  mypy_impact: "string keys accept any name; no exhaustiveness guarantee"
+  exemplar: "'variable_discovery_factory' hardcoded as string; future key additions not caught"

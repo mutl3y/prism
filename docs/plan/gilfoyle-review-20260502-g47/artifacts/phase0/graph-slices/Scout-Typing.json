@@ -1,0 +1,22 @@
+{
+  "agent": "Scout-Typing",
+  "cycle": "g47",
+  "focus_axis": "error_handling",
+  "review_surface": [
+    "src/prism/api.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/api_layer/collection.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_plugins/interfaces.py",
+    "src/prism/scanner_core/protocols_runtime.py",
+    "src/prism/scanner_io/output_orchestrator.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/tests/test_api_cli_entrypoints.py",
+    "src/prism/tests/test_plugin_kernel_extension_parity.py"
+  ],
+  "questions": [
+    "Do the public runtime and kernel/plugin seams still rely on dict-shaped or Any-heavy contracts?",
+    "Do DI and non-collection runtime boundaries accept malformed payloads without validating shape?"
+  ]
+}

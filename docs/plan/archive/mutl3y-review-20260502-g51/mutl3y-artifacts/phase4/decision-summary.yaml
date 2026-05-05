@@ -1,0 +1,10 @@
+plan_id: mutl3y-review-20260502-g51
+cycle: g51
+phase: P4
+status: completed
+selected_wave: 1
+decision:
+  - G51-M01
+notes:
+  - "Wave 1 is a single-builder ownership slice because the registry-resolution fix overlaps both owned modules and their direct tests."
+  - "The DI/kernel/defaults runtime-construction cluster is deferred as a later architecture-sensitive wave instead of being bundled here."

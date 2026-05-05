@@ -1,0 +1,23 @@
+cycle: g56
+phase: P6
+status: OK
+status_line: "[g56 | P6 gate | OK — refreshed full pytest passed; contamination-family slice closed]"
+focused_green_logs:
+  - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase6-local-fallout.log
+  - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase6-seed-variables.log
+  - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase6-yaml-policy.log
+  - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase6-cli-audit-seam.log
+  - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase6-feature-detector.log
+  - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase6-feature-flags.log
+  - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase6-focused-status-final.log
+  - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase6-contamination-fix.log
+superseded_gate_logs:
+  - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase6-pytest.log
+  - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase6-refresh-pytest-2.log
+fresh_gate_log: docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase6-refresh-pytest-3.log
+summary:
+  - "The promoted g56 seam and its directly adjacent fallout slices remained green under focused validation."
+  - "The final red aggregate failures were traced to test-only prism module contamination in test_scanner_guardrails.py and were repaired in the owning test file."
+  - "The discriminating mixed repro bundle passed in phase6-contamination-fix.log and the refreshed full gate passed cleanly in phase6-refresh-pytest-3.log."
+blocking_issues: []
+next_action: "Advance to Phase 7 closeout and mark g56 completed."

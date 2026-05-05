@@ -1,0 +1,39 @@
+status: ok
+phase: P0
+cycle: g48
+expected_workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+returned_workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+route_failures: []
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-Graph.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-Graph.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+artifact_validation_log: docs/plan/mutl3y-review-20260502-g48/.mutl3y-gate/p0-artifacts-validate.log
+ledger_validation_log: docs/plan/mutl3y-review-20260502-g48/.mutl3y-gate/ledger-validate.log
+observation_counts:
+  Scout-Typing: 13
+  Scout-Ownership: 15
+  Scout-ControlFlow: 25
+  Scout-Graph: 14
+top_signals:
+  - output-layer typing drift and callable signature mismatches in output orchestration
+  - silent fallback and typed bundle coercion issues on plugin/default and non-collection paths
+  - registry/composition split authority still visible across defaults and DI seams
+next_phase: P1
+next_action: Read the four scout artifacts, merge the highest-signal observations, and write the Phase 1 grading summary.

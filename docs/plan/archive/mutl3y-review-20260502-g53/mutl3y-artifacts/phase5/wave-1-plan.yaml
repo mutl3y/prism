@@ -1,0 +1,19 @@
+plan_id: mutl3y-review-20260502-g53
+cycle: g53
+phase: P5
+wave: 1
+status: planned
+targets:
+  - finding: G53-H01
+    builder: Builder-ControlFlow
+    owned_files:
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/tests/test_execution_request_builder.py
+      - src/prism/tests/test_di_registry_resolution.py
+validation_scope:
+  - pytest -q src/prism/tests/test_execution_request_builder.py src/prism/tests/test_di_registry_resolution.py -k 'execution_request or authoritative_registry'
+  - .venv/bin/python -m ruff check src/prism/scanner_core/execution_request_builder.py src/prism/tests/test_execution_request_builder.py src/prism/tests/test_di_registry_resolution.py
+  - .venv/bin/python -m black --check src/prism/scanner_core/execution_request_builder.py src/prism/tests/test_execution_request_builder.py src/prism/tests/test_di_registry_resolution.py
+notes:
+  - Keep the wave at the execution-request builder seam only.
+  - Preserve behavior and existing registry-authority semantics.

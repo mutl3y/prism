@@ -1,0 +1,22 @@
+plan_id: mutl3y-review-20260503-g63
+cycle: g63
+phase: P5
+wave: 1
+finding: G63-M01
+category: test_fixture_coupling
+worker: Builder-Ownership
+objective: >-
+  Preserve the comment-doc DI-over-registry precedence tests while removing
+  direct private mutation of the module-global registry singleton state when a
+  public snapshot/restore seam already exists.
+owned_file_set:
+  - src/prism/tests/test_comment_doc_plugin_resolution.py
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase5/Builder-Ownership-wave-1-summary.md
+invariant: >-
+  Tests must continue to prove DI precedence and canonical-DI enforcement
+  without depending on plugin_registry._comment_driven_doc_plugins internals.
+suggested_narrow_gate: >-
+  .venv/bin/python -m pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py
+additional_importer_gate: >-
+  .venv/bin/python -m pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k comment_driven_doc
+next_phase: P6

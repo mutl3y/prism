@@ -1,0 +1,40 @@
+- id: Scout-Ownership-01
+  category: guard
+  fingerprint: guard:api:unconstrained-sibling-file-inputs
+  file: src/prism/api.py
+  line: 172
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_active_lesson
+  memory_match: G46-H07
+  evidence_snippet: "assert_safe_role_path(collection_path, field_name=\"collection_path\")"
+  evidence_command: "read_file src/prism/api.py 142 205"
+  related_symbols:
+    - scan_collection
+    - style_readme_path
+    - style_source_path
+    - policy_config_path
+  fix_group_key: public-path-containment
+  proposed_fix_class: guard_input
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py"
+- id: Scout-Ownership-02
+  category: composition_root
+  fingerprint: composition-root:defaults:standalone-di-helper
+  file: src/prism/scanner_plugins/defaults.py
+  line: 469
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_active_lesson
+  memory_match: G46-H13
+  evidence_snippet: "def _make_standalone_di(role_path: str, exclude_paths=None):"
+  evidence_command: "read_file src/prism/scanner_plugins/defaults.py 340 500"
+  related_symbols:
+    - _make_standalone_di
+    - extract_role_notes_from_comments
+  fix_group_key: secondary-composition-root
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py"

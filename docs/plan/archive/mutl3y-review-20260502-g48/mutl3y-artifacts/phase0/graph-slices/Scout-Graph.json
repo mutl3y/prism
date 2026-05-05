@@ -1,0 +1,24 @@
+{
+  "agent": "Scout-Graph",
+  "cycle": "g48",
+  "focus_axis": "typing",
+  "review_surface": [
+    "src/prism/api.py",
+    "src/prism/api_layer/collection.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_core/protocols_runtime.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/scanner_kernel/kernel_plugin_runner.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_plugins/bundle_resolver.py",
+    "src/prism/scanner_plugins/registry.py",
+    "src/prism/scanner_io/output_orchestrator.py",
+    "src/prism/tests/test_di_registry_resolution.py",
+    "src/prism/tests/test_plugin_kernel_extension_parity.py"
+  ],
+  "questions": [
+    "Where do registry authority, composition roots, or typed contract seams still diverge across public runtime flow?",
+    "Do Any-heavy orchestration edges still mask split authority between ingress, kernel, and plugin defaults?"
+  ]
+}

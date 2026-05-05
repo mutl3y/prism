@@ -1,0 +1,100 @@
+- id: Scout-ControlFlow-01
+  category: policy_coercion
+  fingerprint: "policy_coercion:api_layer/non_collection:scan_role:failure_policy_strict_truthiness"
+  file: src/prism/api_layer/non_collection.py
+  line: 799
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "strict_phase_failures = bool(failure_policy.strict)"
+  evidence_command: "src/prism/api_layer/non_collection.py#L797-L800"
+  related_symbols:
+    - scan_role
+    - FailurePolicy
+    - strict_phase_failures
+  fix_group_key: strict-phase-failures.bool-coercion.public-seams
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py -k strict_phase_failures"
+- id: Scout-ControlFlow-02
+  category: policy_coercion
+  fingerprint: "policy_coercion:scanner_core/execution_request_builder:_build_canonical_options:strict_phase_failures_truthiness"
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 692
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "canonical_options[\"strict_phase_failures\"] = bool(strict_phase_failures)"
+  evidence_command: "src/prism/scanner_core/execution_request_builder.py#L688-L695"
+  related_symbols:
+    - _build_canonical_options
+    - strict_phase_failures
+    - ScanOptionsDict
+  fix_group_key: strict-phase-failures.bool-coercion.public-seams
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py -k strict_mode"
+- id: Scout-ControlFlow-03
+  category: policy_coercion
+  fingerprint: "policy_coercion:scanner_core/execution_request_builder:_finalize_execution_request:strict_mode_truthiness"
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 767
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "strict_mode = bool(canonical_options.get(\"strict_phase_failures\", True))"
+  evidence_command: "src/prism/scanner_core/execution_request_builder.py#L763-L769"
+  related_symbols:
+    - _finalize_execution_request
+    - strict_mode
+    - NonCollectionRunScanExecutionRequest
+  fix_group_key: strict-phase-failures.bool-coercion.public-seams
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py -k strict_mode"
+- id: Scout-ControlFlow-04
+  category: policy_coercion
+  fingerprint: "policy_coercion:scanner_plugins/bundle_resolver:ensure_prepared_policy_bundle:strict_mode_truthiness"
+  file: src/prism/scanner_plugins/bundle_resolver.py
+  line: 107
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "strict_mode = bool(scan_options.get(\"strict_phase_failures\", True))"
+  evidence_command: "src/prism/scanner_plugins/bundle_resolver.py#L103-L109"
+  related_symbols:
+    - ensure_prepared_policy_bundle
+    - strict_mode
+    - resolve_task_line_parsing_policy_plugin
+  fix_group_key: strict-phase-failures.bool-coercion.public-seams
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py -k non_strict_mode"
+- id: Scout-ControlFlow-05
+  category: policy_coercion
+  fingerprint: "policy_coercion:scanner_core/scanner_context:__init__:strict_phase_failures_truthiness"
+  file: src/prism/scanner_core/scanner_context.py
+  line: 297
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "self._strict_phase_failures = bool(self._scan_options.get(\"strict_phase_failures\", True))"
+  evidence_command: "src/prism/scanner_core/scanner_context.py#L295-L299"
+  related_symbols:
+    - ScannerContext.__init__
+    - _strict_phase_failures
+    - scan_options
+  fix_group_key: strict-phase-failures.bool-coercion.public-seams
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_context.py -k strict_mode"

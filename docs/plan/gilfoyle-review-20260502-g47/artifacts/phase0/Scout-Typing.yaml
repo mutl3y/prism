@@ -1,0 +1,38 @@
+- id: Scout-Typing-01
+  category: typing
+  fingerprint: typing:api:policy-context-dict-surface
+  file: src/prism/api.py
+  line: 84
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: matches_active_lesson
+  memory_match: G46-ARCH-CONTRACT-01
+  evidence_snippet: "policy_context: dict[str, object] | None = None,"
+  evidence_command: "grep_search policy_context prism/src/prism/api.py"
+  related_symbols:
+    - scan_role
+    - policy_context
+  fix_group_key: public-runtime-contracts
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_plugin_kernel_extension_parity.py"
+- id: Scout-Typing-02
+  category: orchestration_seam
+  fingerprint: orchestration-seam:kernel:dict-preflight-carrier
+  file: src/prism/scanner_kernel/orchestrator.py
+  line: 101
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_active_lesson
+  memory_match: G46-ARCH-CONTRACT-01
+  evidence_snippet: "preflight_context = dict(plugin_context) if isinstance(plugin_context, dict) else {}"
+  evidence_command: "read_file src/prism/scanner_kernel/orchestrator.py 96 120"
+  related_symbols:
+    - _build_route_preflight_runtime_carrier
+    - RoutePreflightRuntimeCarrier
+  fix_group_key: public-runtime-contracts
+  proposed_fix_class: extract_protocol
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py"

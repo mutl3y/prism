@@ -1,0 +1,33 @@
+status: ok
+phase: P0
+cycle: g60
+wave: null
+expected_artifacts:
+  - mutl3y-artifacts/phase0/learning-context.yaml
+  - mutl3y-artifacts/phase0/graph-slices/Scout-Typing.json
+  - mutl3y-artifacts/phase0/graph-slices/Scout-Ownership.json
+  - mutl3y-artifacts/phase0/graph-slices/Scout-ControlFlow.json
+  - mutl3y-artifacts/phase0/graph-slices/Scout-Graph.json
+present_artifacts:
+  - .mutl3y-gate/resume-dirty-tree.yaml
+  - mutl3y-artifacts/phase0/learning-context.yaml
+  - mutl3y-artifacts/phase0/graph-slices/Scout-Typing.json
+  - mutl3y-artifacts/phase0/graph-slices/Scout-Ownership.json
+  - mutl3y-artifacts/phase0/graph-slices/Scout-ControlFlow.json
+  - mutl3y-artifacts/phase0/graph-slices/Scout-Graph.json
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+notes: |
+  g59 is complete. g60 is a thorough follow-up because the prior light cycle crossed the api -> scanner_core ownership boundary.
+  The fresh resume-dirty-tree gate is green; the canonical artifact is .mutl3y-gate/resume-dirty-tree.yaml.
+  Phase0 graph slices and the learning-context artifact are present on disk and referenced in expected/present artifacts prior to scout dispatch.
+resume_dirty_tree:
+  status: OK
+  ruff_exit: 0
+  black_exit: 0
+  artifact: .mutl3y-gate/resume-dirty-tree.yaml

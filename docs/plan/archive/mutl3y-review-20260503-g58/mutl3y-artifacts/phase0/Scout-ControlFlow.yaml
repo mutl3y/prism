@@ -1,0 +1,71 @@
+- id: Scout-ControlFlow-01
+  category: registry_authority
+  fingerprint: "registry:di._get_registry:v.bootstrap_mismatch"
+  file: src/prism/scanner_core/di.py
+  line: 309
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if self._registry is None: raise ValueError(\"No plugin registry provided to DIContainer\")"
+  evidence_command: "src/prism/scanner_core/di.py#L309-L314"
+  related_symbols: ["DIContainer._get_registry", "DIContainer._registry", "defaults._resolve_registry"]
+  fix_group_key: "registry.split_authority.di_vs_defaults"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_registry_get_default_platform_key_returns_explicit_default"
+
+- id: Scout-ControlFlow-02
+  category: default_fallback_policy
+  fingerprint: "defaults:ansible_first:fallback_singletons"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 85
+  severity_hint: medium
+  confidence: high
+  detector: comment_read
+  memory_status: matches_do_not_re_flag
+  memory_match: "FIND-G4-01"
+  evidence_snippet: "# ANSIBLE-FIRST PRODUCT CONSTRAINT (intentional, not an oversight)"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L85-L92"
+  related_symbols: ["_TASK_LINE_PARSING_FALLBACK", "resolve_task_line_parsing_policy_plugin"]
+  fix_group_key: "defaults.ansible_first_fallback"
+  proposed_fix_class: platform_default_provider
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_registry_get_default_platform_key_returns_explicit_default"
+
+- id: Scout-ControlFlow-03
+  category: prepared_policy_bundle
+  fingerprint: "bundle_resolver:double_replace:replace_scan_options"
+  file: src/prism/scanner_plugins/bundle_resolver.py
+  line: 163
+  severity_hint: medium
+  confidence: medium
+  detector: control_flow
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "scan_options[\"prepared_policy_bundle\"] = bundle\nif isinstance(di, HasReplaceScanOptions):\n    di.replace_scan_options(scan_options)"
+  evidence_command: "src/prism/scanner_plugins/bundle_resolver.py#L158-L166"
+  related_symbols: ["ensure_prepared_policy_bundle", "DIContainer.replace_scan_options", "execution_request_builder._finalize_execution_request"]
+  fix_group_key: "bundle.prepared_policy_double_replace"
+  proposed_fix_class: idempotent_prepare_and_replace
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py::TestRuntimeAssemblySeam::test_execution_request_finalization_seam_requires_prepared_policy_enforcement"
+
+- id: Scout-ControlFlow-04
+  category: execution_request_contract
+  fingerprint: "execution_request_builder:ensure_prepared_policy_bundle:required"
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 513
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if ensure_prepared_policy_bundle_fn is None: raise ValueError(\"ensure_prepared_policy_bundle_fn is required for non-collection execution request construction\")"
+  evidence_command: "src/prism/scanner_core/execution_request_builder.py#L513-L518"
+  related_symbols: ["_finalize_execution_request", "ensure_prepared_policy_bundle"]
+  fix_group_key: "execution_request.ensure_prepared_required"
+  proposed_fix_class: explicit_forwarding_contract
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py::TestRuntimeAssemblySeam::test_execution_request_finalization_seam_requires_prepared_policy_enforcement"

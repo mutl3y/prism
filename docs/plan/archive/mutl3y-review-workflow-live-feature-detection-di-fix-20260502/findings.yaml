@@ -1,0 +1,33 @@
+plan_id: mutl3y-review-workflow-live-feature-detection-di-fix-20260502
+cycle: mutl3y-live-fd-1
+target: src/prism/tests/test_t2_04_stateless_marker.py
+review_type: live_narrow_run
+focus_axis: typing
+status: completed
+decision_summary:
+  - "Align the feature-detection stateless-marker test fixture with the registry's DI constructor contract."
+  - "Keep the fix confined to the test file and prove it with the failing test file as the narrow gate."
+carried_open_findings: []
+suppressed_highs: []
+findings:
+  - id: FIND-LIVE-FD-01
+    status: closed
+    decision: fixed_in_wave_1
+    severity: medium
+    category: typing
+    fingerprint: stateless_marker_test_feature_detection_fixture_missing_di_constructor
+    title: "Feature-detection stateless-marker test fixture no longer satisfies DI constructor contract"
+    files:
+      - src/prism/tests/test_t2_04_stateless_marker.py
+    source_artifacts:
+      - .mutl3y-gate/live-stall-candidate.log
+    summary: "test_registry_does_not_enforce_stateless_for_feature_detection_slot uses a fake feature-detection plugin class that lacks a di=... constructor, so registry registration now fails before the test reaches its intended stateless-marker assertion."
+    decision_deadline: mutl3y-live-fd-1
+    suggested_narrow_gate: pytest -q src/prism/tests/test_t2_04_stateless_marker.py
+    closed_at: "2026-05-02"
+    closed_evidence:
+      - "Code: src/prism/tests/test_t2_04_stateless_marker.py adds a di=... constructor to the fake feature-detection plugin used by test_registry_does_not_enforce_stateless_for_feature_detection_slot."
+      - "Code: src/prism/tests/test_t2_04_stateless_marker.py now asserts the expected backward-compat warning with pytest.warns instead of leaking it into gate output."
+      - "Builder: docs/plan/mutl3y-review-workflow-live-feature-detection-di-fix-20260502/mutl3y-artifacts/phase5/Builder-Typing-summary.md records the invariant and focused builder validation."
+      - "Gate: .mutl3y-gate/live-feature-detection-narrow.log => 11 passed in 0.21s."
+      - "Barrier: .mutl3y-gate/live-feature-detection-antipattern.log => cast_any_hits=0, typeddict_lossy_cast_hits=0, except_pass_hits=0."

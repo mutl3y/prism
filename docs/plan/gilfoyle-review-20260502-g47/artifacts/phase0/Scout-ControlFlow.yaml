@@ -1,0 +1,56 @@
+- id: Scout-ControlFlow-01
+  category: error_channel
+  fingerprint: error-channel:collection:recoverable-runtime-demotion
+  file: src/prism/api_layer/collection.py
+  line: 159
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_active_lesson
+  memory_match: G46-H08
+  evidence_snippet: "recoverable_scan_errors = ("
+  evidence_command: "read_file src/prism/api_layer/collection.py 150 240"
+  related_symbols:
+    - scan_collection
+    - recoverable_scan_errors
+  fix_group_key: collection-fail-open
+  proposed_fix_class: typed_error_channel
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_collection_contract.py"
+- id: Scout-ControlFlow-02
+  category: silent_fallback
+  fingerprint: silent-fallback:defaults:non-strict-fallback-plugin-substitution
+  file: src/prism/scanner_plugins/defaults.py
+  line: 232
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_active_lesson
+  memory_match: G46-H10
+  evidence_snippet: "return fallback_plugin"
+  evidence_command: "read_file src/prism/scanner_plugins/defaults.py 170 340"
+  related_symbols:
+    - _construct_registry_plugin
+    - _resolve_plugin_with_precedence
+  fix_group_key: prepared-policy-fail-open
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_platform_routing_fail_closed.py"
+- id: Scout-ControlFlow-03
+  category: error_channel
+  fingerprint: error-channel:yaml-policy:none-normalized-success
+  file: src/prism/scanner_plugins/parsers/yaml/parsing_policy.py
+  line: 25
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_active_lesson
+  memory_match: G46-H11
+  evidence_snippet: "except (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError):"
+  evidence_command: "read_file src/prism/scanner_plugins/parsers/yaml/parsing_policy.py 1 120"
+  related_symbols:
+    - DefaultYAMLParsingPolicyPlugin.load_yaml_file
+  fix_group_key: yaml-none-success-shape
+  proposed_fix_class: typed_error_channel
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_dataload.py"

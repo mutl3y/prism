@@ -1,0 +1,35 @@
+plan_id: mutl3y-review-workflow-live-di-repair-20260502
+cycle: mutl3y-live-di-1
+target: src/prism/scanner_core/di.py
+review_type: live_narrow_run
+focus_axis: control_flow
+status: completed
+decision_summary:
+  - "Use a foreman-local fallback repair because the blocker collapsed to a one-line syntax defect before any meaningful builder batch existed."
+  - "Require the same repo-local narrow DI gate and the Phase 5 anti-pattern grep barrier before closure."
+carried_open_findings: []
+suppressed_highs: []
+findings:
+  - id: FIND-LIVE-DI-01
+    status: closed
+    decision: fixed_in_live_slice
+    severity: high
+    category: control_flow
+    fingerprint: di_constructor_indentation:scanner_core_di_init
+    title: "Misindented registry assignment broke prism.scanner_core.di imports"
+    files:
+      - src/prism/scanner_core/di.py
+      - src/prism/tests/test_scanner_core_di.py
+      - src/prism/tests/test_di_registry_resolution.py
+    source_artifacts:
+      - .mutl3y-gate/real-run-di-narrow.log
+      - .mutl3y-gate/live-di-wave1-narrow.log
+    summary: "DIContainer.__init__ had a misindented self._registry assignment, causing IndentationError during scanner_core DI imports and cascading failures across the focused DI test slice."
+    decision_deadline: mutl3y-live-di-1
+    suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_core_di.py src/prism/tests/test_di_registry_resolution.py
+    closed_at: "2026-05-02"
+    closed_evidence:
+      - "Code: src/prism/scanner_core/di.py restores self._registry to DIContainer.__init__ member indentation directly under self._scan_options."
+      - "Gate: .mutl3y-gate/live-di-wave1-narrow.log => 78 passed, 1 warning."
+      - "Barrier: .mutl3y-gate/live-di-wave1-antipattern.log => cast_any_hits=0, typeddict_lossy_cast_hits=0, except_pass_hits=0."
+      - "Trace: docs/plan/mutl3y-review-workflow-live-di-repair-20260502/mutl3y-artifacts/execution-trace.yaml records the repo-backed P5 and P6 checkpoints for this live slice."

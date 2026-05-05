@@ -1,0 +1,14 @@
+{
+  "agent": "Scout-Graph",
+  "cycle": "g55",
+  "focus_axis": "typing_contracts",
+  "review_surface": [
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_core/protocols_runtime.py"
+  ],
+  "questions": [
+    "What is the smallest connected graph slice for the deferred constructor-contract and DI override typing seam?",
+    "Which tests or call sites anchor the cheapest discriminating validation for that slice?"
+  ]
+}

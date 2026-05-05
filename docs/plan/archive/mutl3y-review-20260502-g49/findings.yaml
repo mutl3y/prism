@@ -1,0 +1,65 @@
+plan_id: mutl3y-review-20260502-g49
+cycle: g49
+target: src/prism
+review_type: live_narrow_run
+focus_axis: error_handling
+status: completed
+decision_summary:
+  - "g49 starts from carried g46 High findings instead of rerunning a fresh scout sweep."
+  - "Wave 1 pairs the prepared-policy fallback integrity defect with the earlier YAML-loading error-channel defect."
+carried_open_findings:
+  - G46-H10
+  - G46-H11
+findings:
+  - id: G49-H10
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: fail_open
+    fingerprint: fail-open:prepared-policy:non-strict-fallback-substitution
+    title: "Non-strict prepared-policy resolution still substitutes fallback plugins after plugin faults"
+    files:
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/tests/test_defaults.py
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/findings.yaml
+    summary: "Non-strict mode still tolerates malformed or unconstructable policy plugins by substituting fallback implementations, weakening plugin-integrity guarantees on the prepared-policy path."
+    decision_deadline: g49
+    suggested_narrow_gate: pytest -q src/prism/tests/test_defaults.py src/prism/tests/test_comment_doc_plugin_resolution.py -k malformed
+    closed_evidence:
+      line_citation: "src/prism/scanner_plugins/defaults.py:168, src/prism/scanner_plugins/defaults.py:187"
+      regression_test: "src/prism/tests/test_defaults.py:24, src/prism/tests/test_defaults.py:38, src/prism/tests/test_plugin_kernel_extension_parity.py:125"
+      gate: "Wave-1 focused gate: pytest -q src/prism/tests/test_defaults.py src/prism/tests/test_comment_doc_plugin_resolution.py -k malformed -> 6 passed, 57 deselected; pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k non_strict_shape_validation -> 1 passed, 29 deselected"
+      closure_summary: "docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase7/closure-summary.yaml"
+      validation_bundle:
+        - "docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml"
+        - "docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase6/gate-summary.yaml"
+
+  - id: G49-H11
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: error_channel
+    fingerprint: error-channel:yaml-loading:none-normalized-to-success
+    title: "Strict YAML-loading intent is still erased into None and then normalized into empty success-shaped data"
+    files:
+      - src/prism/scanner_plugins/parsers/yaml/parsing_policy.py
+      - src/prism/scanner_io/loader.py
+      - src/prism/scanner_extract/discovery.py
+      - src/prism/tests/test_dataload.py
+      - src/prism/tests/test_t1_02_coverage_lift_batch3.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260501-g46/findings.yaml
+    summary: "The YAML-loading seam still has stale or ambiguous None-as-success behavior around empty or failed loads, and neighboring discovery helpers normalize that state into empty result containers instead of preserving the failure contract."
+    decision_deadline: g49
+    suggested_narrow_gate: pytest -q src/prism/tests/test_dataload.py src/prism/tests/test_t1_02_coverage_lift_batch3.py
+    closed_evidence:
+      line_citation: "src/prism/scanner_io/loader.py:261, src/prism/scanner_extract/discovery.py:122, src/prism/scanner_extract/discovery.py:221"
+      regression_test: "src/prism/tests/test_t1_02_coverage_lift_batch3.py:119, src/prism/tests/test_dataload.py:172"
+      gate: "Wave-1 focused gate: pytest -q src/prism/tests/test_dataload.py src/prism/tests/test_t1_02_coverage_lift_batch3.py -> 37 passed"
+      closure_summary: "docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase7/closure-summary.yaml"
+      validation_bundle:
+        - "docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml"
+        - "docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase6/gate-summary.yaml"

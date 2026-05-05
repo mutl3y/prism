@@ -1,0 +1,44 @@
+plan_id: mutl3y-review-20260502-g51
+cycle: g51
+target: src/prism
+review_type: live_narrow_run
+focus_axis: ownership
+status: completed
+decision_summary:
+  - "Start from the deferred g50 ownership/registry cluster instead of reopening the closed typing wave."
+  - "Use a fresh Phase 0 scout batch to sharpen the composition-root and registry-authority evidence before deciding the first fix wave."
+  - "Promote the duplicated registry-resolution seam between defaults.py and loader.py as the first ownership wave; defer the larger DI/kernel composition-root construction cluster."
+findings:
+  - id: G51-M01
+    status: closed
+    decision: fixed_in_wave_1
+    severity: medium
+    category: registry_authority
+    fingerprint: registry_authority:defaults_loader_registry_resolution_split
+    title: "Registry resolution semantics are duplicated across defaults.py and loader.py"
+    files:
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/scanner_io/loader.py
+      - src/prism/tests/test_di_registry_resolution.py
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260502-g51/mutl3y-artifacts/phase0/Scout-Graph.yaml
+    summary: "defaults._resolve_registry and loader._resolve_plugin_registry encode overlapping registry-authority logic with different fallback semantics, leaving ownership of registry precedence split across helper seams."
+    decision_deadline: g51
+    suggested_narrow_gate: pytest -q src/prism/tests/test_di_registry_resolution.py -k 'loader_registry_resolution or live_yaml_policy_resolution'
+    closed_evidence:
+      line_citation: "src/prism/scanner_plugins/defaults.py:48, src/prism/scanner_io/loader.py:37"
+      regression_test: "src/prism/tests/test_di_registry_resolution.py:395, src/prism/tests/test_di_registry_resolution.py:405, src/prism/tests/test_di_registry_resolution.py:419"
+      gate: "Wave-1 focused gate: pytest -q src/prism/tests/test_di_registry_resolution.py -k 'loader_registry_resolution or live_yaml_policy_resolution' -> 3 passed, 26 deselected; ruff PASS; black PASS; mypy baseline-only external metadata_merger.py"
+suppressed_highs: []
+suppressed_mediums:
+  - observation_summary: "loader dual-path keeps soft fallback on missing prepared bundle"
+    file: src/prism/scanner_io/loader.py
+    line: 78
+    rationale_code: deferred
+    rationale_detail: "Deferred because the scout explicitly marked it as part of the older loader contract-reshape lane; it should be bundled with a standalone loader API decision instead of mixed into the registry-resolution wave."
+  - observation_summary: "DI/kernel/defaults still construct plugins at runtime across multiple seams"
+    file: src/prism/scanner_core/di.py
+    line: 330
+    rationale_code: deferred
+    rationale_detail: "Deferred because the composition-root construction cluster spans DI, defaults, kernel, and API seams and is too broad for the first ownership wave."

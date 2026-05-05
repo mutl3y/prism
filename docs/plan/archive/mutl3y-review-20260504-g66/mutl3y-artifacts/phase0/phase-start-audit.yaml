@@ -1,0 +1,48 @@
+status: ok
+phase: P0
+cycle: g66
+wave: null
+review_type: thorough
+focus_axis: typing
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/learning-context.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/graph-slices/Scout-Typing.json
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/graph-slices/Scout-Ownership.json
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/graph-slices/Scout-ControlFlow.json
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/graph-slices/Scout-Graph.json
+present_artifacts:
+  - .mutl3y-gate/resume-dirty-tree.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/learning-context.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/graph-slices/Scout-Typing.json
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/graph-slices/Scout-Ownership.json
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/graph-slices/Scout-ControlFlow.json
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/graph-slices/Scout-Graph.json
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+owned_file_sets:
+  - agent_name: Scout-Typing
+    files:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - agent_name: Scout-Ownership
+    files:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - agent_name: Scout-ControlFlow
+    files:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - agent_name: Scout-Graph
+    files:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Graph.yaml
+notes:
+  - "g66 is the required second thorough follow-up cycle after the clean g64 checkpoint."
+  - "The fresh resume-dirty-tree gate is green; the canonical artifact is .mutl3y-gate/resume-dirty-tree.yaml."
+  - "Phase 0 graph slices and the learning-context artifact are present on disk and referenced before scout dispatch."
+resume_dirty_tree:
+  status: OK
+  ruff_exit: 0
+  black_exit: 0
+  artifact: .mutl3y-gate/resume-dirty-tree.yaml

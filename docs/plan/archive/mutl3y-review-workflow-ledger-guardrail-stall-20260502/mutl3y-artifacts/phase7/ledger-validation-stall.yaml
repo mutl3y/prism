@@ -1,0 +1,7 @@
+cycle: mutl3y-ledger-guardrail-1
+plan_id: mutl3y-review-workflow-ledger-guardrail-stall-20260502
+phase: P7
+status: stall
+reason: "model-usage-ledger.yaml failed immediate YAML validation"
+next_action: "Repair ledger indentation, rerun validator, then continue closeout."
+log: .mutl3y-gate/ledger-validate.log

@@ -1,0 +1,27 @@
+plan_id: mutl3y-review-workflow-ledger-guardrail-stall-20260502
+cycle: mutl3y-ledger-guardrail-1
+target: docs/plan/mutl3y-review-workflow-ledger-guardrail-stall-20260502/mutl3y-artifacts/model-usage-ledger.yaml
+review_type: live_guardrail_drill
+focus_axis: bookkeeping
+status: completed
+decision_summary:
+  - "Prove the new ledger validation guardrail emits STALL on malformed YAML before cycle closeout proceeds."
+findings:
+  - id: FIND-LIVE-GUARDRAIL-01
+    status: closed
+    decision: validated_and_recovered
+    severity: medium
+    category: bookkeeping
+    fingerprint: ledger_validation:malformed_yaml:tab_indentation
+    title: "Ledger validation must stall on malformed YAML"
+    files:
+      - docs/plan/mutl3y-review-workflow-ledger-guardrail-stall-20260502/mutl3y-artifacts/model-usage-ledger.yaml
+    source_artifacts: []
+    summary: "The ledger file is intentionally malformed with tab indentation so the validator should fail and force a STALL before closeout."
+    decision_deadline: mutl3y-ledger-guardrail-1
+    suggested_narrow_gate: python3 .github/skills/mutl3y-review-workflow/scripts/validate_yaml_artifacts.py <ledger> <scorecard>
+    closed_at: "2026-05-02T13:31:28Z"
+    closed_evidence:
+      - .mutl3y-gate/ledger-validate-stall.log
+      - .mutl3y-gate/ledger-validate.log
+      - docs/plan/mutl3y-review-workflow-ledger-guardrail-stall-20260502/mutl3y-artifacts/phase7/ledger-validation-recovery.yaml

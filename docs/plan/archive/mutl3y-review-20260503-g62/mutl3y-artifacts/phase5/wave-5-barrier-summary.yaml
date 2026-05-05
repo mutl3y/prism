@@ -1,0 +1,10 @@
+wave_id: wave-5
+phase: P5
+summary: "Builder-ControlFlow fixed the unreadable single-file cache-hash collision and closed the actionable G62-M01 scan_cache slice."
+builders:
+  - worker: Builder-ControlFlow
+    task_id: g62-wave5-builder-controlflow
+    result: success
+    artifact: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+    notes: "Distinct unreadable single-file paths now hash differently; the adjacent cached-payload-reuse concern was not confirmed on local read because cached hits still pass through the non_collection result validator."
+ready_for_next_slice: true

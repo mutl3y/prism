@@ -1,0 +1,120 @@
+- id: Scout-Graph-01
+  category: composition_root
+  fingerprint: "composition_root:api_layer/non_collection:lazy_di_class_resolution"
+  file: src/prism/api_layer/non_collection.py
+  line: 490
+  severity_hint: high
+  confidence: high
+  detector: graph_composition_pattern
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if di_container_cls is None: from prism.scanner_core.di import DIContainer; di_container_cls = DIContainer"
+  evidence_command: "src/prism/api_layer/non_collection.py#L490-L525"
+  related_symbols: ["run_scan", "di_container_cls", "feature_detector_cls", "scanner_context_cls", "variable_discovery_cls", "DIContainer", "FeatureDetector", "ScannerContext", "VariableDiscovery"]
+  origin_location: "src/prism/api_layer/non_collection.py#L490"
+  consumer_locations:
+    - "src/prism/api_layer/non_collection.py#L537:build_non_collection_run_scan_execution_request"
+    - "src/prism/api_layer/non_collection.py#L618:_kernel_orchestrator"
+  fix_group_key: "composition-root-lazy-di-wiring"
+  proposed_fix_class: explicit_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_run_scan_basic"
+  context: |
+    Composition root fragments authority across lazy-loaded DI classes: run_scan() has 4 lazy-import factory resolution points (lines 490-513) where di_container_cls, feature_detector_cls, scanner_context_cls, and variable_discovery_cls are resolved at function-call time with in-function import statements instead of injected at module-load or bootstrap time. Each late-binding default resolver creates a separate composition-entry point. Contrast with the g50 Scout-Graph-02 finding that documented lazy_di_resolution at api_layer/non_collection:210; this finding expands to reveal the full 4-class lazy-resolution cluster.
+
+- id: Scout-Graph-02
+  category: registry_authority
+  fingerprint: "registry_authority:api_layer/non_collection:default_plugin_registry_late_binding"
+  file: src/prism/api_layer/non_collection.py
+  line: 515
+  severity_hint: high
+  confidence: high
+  detector: graph_registry_split_authority
+  memory_status: existing
+  memory_match: "g50:Scout-Graph-05"
+  evidence_snippet: "if default_plugin_registry is None: default_plugin_registry = plugin_facade.get_default_plugin_registry()"
+  evidence_command: "src/prism/api_layer/non_collection.py#L514-L516"
+  related_symbols: ["default_plugin_registry", "plugin_facade.get_default_plugin_registry", "get_default_plugin_registry"]
+  origin_location: "src/prism/api_layer/non_collection.py#L515"
+  consumer_locations:
+    - "src/prism/api_layer/non_collection.py#L537:build_non_collection_run_scan_execution_request"
+    - "src/prism/scanner_core/di.py#L156:DIContainer.__init__"
+    - "src/prism/scanner_kernel/orchestrator.py:route_scan_payload_orchestration"
+  fix_group_key: "registry-late-binding-consolidation"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_registry_override"
+  context: |
+    Registry resolution is split across composition boundary with three authority paths: (1) api_layer/non_collection.run_scan() resolves default_plugin_registry at line 515 via plugin_facade.get_default_plugin_registry(), (2) DIContainer accepts optional registry parameter at construction (scanner_core/di.py:156), and (3) scanner_kernel/orchestrator.py receives registry parameter independently. Execution request passes registry to DI, kernel, and orchestration layer, creating tripled registry authority without consolidated ingress.
+
+- id: Scout-Graph-03
+  category: composition_root
+  fingerprint: "composition_root:scanner_core/scanner_context:execution_request_orchestration_seam"
+  file: src/prism/api_layer/non_collection.py
+  line: 537
+  severity_hint: high
+  confidence: high
+  detector: graph_composition_seam_fragmentation
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "execution_request = build_non_collection_run_scan_execution_request(...)"
+  evidence_command: "src/prism/api_layer/non_collection.py#L537-L565"
+  related_symbols: ["build_non_collection_run_scan_execution_request", "execution_request", "runtime_registry", "build_payload_fn", "strict_mode"]
+  origin_location: "src/prism/api_layer/non_collection.py#L537"
+  consumer_locations:
+    - "src/prism/api_layer/non_collection.py#L618:_kernel_orchestrator"
+    - "src/prism/api_layer/non_collection.py#L637:route_scan_payload_orchestration_fn"
+  fix_group_key: "composition-root-execution-request-fragmentation"
+  proposed_fix_class: explicit_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_execution_request.py -k execution"
+  context: |
+    Execution request owns multiple composition concerns across seams: build_non_collection_run_scan_execution_request() orchestrates the full bootstrap including DI container instantiation, feature detector instantiation, scanner context preparation, variable discovery preparation, registry wiring, and payload-builder assignment. The execution request becomes a composition artifact holding runtime construction authority that spans orchestration, DI, kernel routing, and plugin resolution. This fragments the single composition-root authority across scanner_context -> execution_request -> api_layer/non_collection.
+
+- id: Scout-Graph-04
+  category: registry_authority
+  fingerprint: "registry_authority:scanner_plugins/defaults:_resolve_registry_tri_path"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 57
+  severity_hint: medium
+  confidence: high
+  detector: graph_registry_resolution_paths
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_resolve_registry(di: object | None = None, registry: PluginRegistry | None = None) -> PluginRegistry"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L57-L74"
+  related_symbols: ["_resolve_registry", "_get_registry_from_di", "get_default_plugin_registry"]
+  origin_location: "src/prism/scanner_plugins/defaults.py#L57"
+  consumer_locations:
+    - "src/prism/scanner_plugins/defaults.py#L288:resolve_task_line_parsing_policy"
+    - "src/prism/scanner_plugins/defaults.py#L339:resolve_task_annotation_policy"
+    - "src/prism/scanner_plugins/defaults.py#L623:resolve_comment_driven_documentation_plugin"
+  fix_group_key: "registry-resolution-tri-path-consolidation"
+  proposed_fix_class: single_authority_path
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/scanner_plugins/tests/test_defaults.py::test_registry_resolution_precedence"
+  context: |
+    Registry resolution has intentional three-level precedence cascade: explicit registry > DI-extracted registry > bootstrap singleton get_default_plugin_registry(). The _resolve_registry(di, registry) seam is used by three policy-resolution functions (task_line_parsing, task_annotation, comment_doc) to handle both DI-injected and late-binding registry cases. This tri-path is correct for plugin ownership, but creates a dependency-precedence surface that couples defaults.py registry logic to three consuming sites without a single canonical precedence policy.
+
+- id: Scout-Graph-05
+  category: abstraction
+  fingerprint: "abstraction:api_layer/non_collection:_resolved_ensure_fn_Any_typed"
+  file: src/prism/api_layer/non_collection.py
+  line: 518
+  severity_hint: low
+  confidence: high
+  detector: local_helper_untyped
+  memory_status: existing
+  memory_match: "g50:Scout-Graph-03"
+  evidence_snippet: "_resolved_ensure_fn = plugin_facade.ensure_prepared_policy_bundle"
+  evidence_command: "src/prism/api_layer/non_collection.py#L517-L520"
+  related_symbols: ["_resolved_ensure_fn", "_EnsurePreparedPolicyBundleFn", "ensure_prepared_policy_bundle_fn"]
+  origin_location: "src/prism/api_layer/non_collection.py#L518"
+  consumer_locations:
+    - "src/prism/api_layer/non_collection.py#L526:_ensure_prepared_policy_bundle_for_execution_request"
+  fix_group_key: "typing-ensure-policy-bundle-fn"
+  proposed_fix_class: protocol_narrowing
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py -k prepared_policy"
+  context: |
+    Late-bound function variable lacks protocol narrowing: _resolved_ensure_fn at line 518 is assigned either plugin_facade.ensure_prepared_policy_bundle or the ensure_prepared_policy_bundle_fn parameter, both match the _EnsurePreparedPolicyBundleFn protocol, but the ternary assignment lacks a type guard or explicit narrowing. Current runtime duck-typing is safe but prevents static type narrowing downstream in _ensure_prepared_policy_bundle_for_execution_request closure.

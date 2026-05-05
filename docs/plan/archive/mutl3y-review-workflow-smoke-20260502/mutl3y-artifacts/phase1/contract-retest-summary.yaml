@@ -1,0 +1,29 @@
+cycle: mutl3y-g1
+plan_id: mutl3y-review-workflow-smoke-20260502
+phase: P1
+status: retest_passed
+workflow_contract_updates:
+  - references/phase-0-sweep-prompt.md tightened with schema-lock rules and exemplar use
+  - references/phase-0-scout-artifact-exemplar.yaml added
+  - references/self-improvement-protocol.md extended with workflow lesson types and workflow_contract_failure candidates
+  - scripts/update_learning_memory.py extended to promote workflow contract failures into durable lessons
+compiler_retest:
+  command: python3 /raid5/source/test/agent_and_skills/.github/skills/mutl3y-review-workflow/scripts/update_learning_memory.py compile --repo-root . --plan-dir docs/plan/mutl3y-review-workflow-smoke-20260502 --plan-id mutl3y-review-workflow-smoke-20260502 --cycle mutl3y-g1 --focus-axis ownership --gate-result ACCEPTED
+  promoted_learning_candidates: 3
+  promoted_lessons:
+    - workflow:artifact_schema_failure:phase0:scout-graph:invalid-yaml
+    - workflow:prompt_contract_drift:phase0:scout-ownership:alternate-schema
+    - workflow:barrier_recovery_rule:phase0:yaml-parse-before-clear
+  non_promoted_candidates:
+    - workflow:worker_model_pairing:scout-graph:gpt-5-mini
+phase0_prompt_retest:
+  artifacts:
+    - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Ownership-tightened.yaml
+    - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Graph-tightened.yaml
+  validation:
+    yaml_parse: pass
+    exact_schema_keys: pass
+    multiline_evidence_snippet: pass
+notes:
+  - The previously failing Phase 0 scout contracts now hold on the same smoke slice.
+  - The worker-model pairing candidate remained non-promoted as intended because it was not yet repeated.

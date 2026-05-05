@@ -1,0 +1,51 @@
+plan_id: mutl3y-review-20260504-g66
+cycle: g66
+phase: P7
+loaded_references:
+  - references/phase-7-close-and-learn.md
+  - references/iteration-cadence.md
+  - references/deep-review-protocol.md
+  - references/foreman-execution-guardrails.md
+  - references/closure-control-gate.md
+cadence_state:
+  terminal_condition_met: false
+  reason: >-
+    g66 is the second consecutive clean thorough checkpoint on a different surface.
+    Cadence now requires a fresh unconstrained God Mode review before any terminal sign-off can be valid.
+required_next_action: >-
+  Continue in g67 and grade the independent whole-target God Mode review artifact,
+  promoting any verified High or Critical findings into the new cycle shortlist.
+god_mode_required: true
+god_mode_dispatch_status:
+  status: dispatched_for_next_cycle
+  artifact: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+god_mode_independence_check:
+  result: pass
+  prompt_excerpt: |-
+    Role: independent whole-target reviewer.
+
+    Target: /raid5/source/test/prism/src/prism
+    Plan ID: mutl3y-review-20260504-g67
+    Write full results to: /raid5/source/test/prism/docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+
+    Rules:
+    - Review the whole target from live source.
+    - Do not use current cycle findings, shortlist framing, focus-axis hints, or suspected seam families.
+    - Ignore the orchestrator's current hypothesis; surface the highest-signal High/Critical findings wherever they actually are.
+  reason: >-
+    The prompt was whole-target and omitted the current shortlist, current seam families,
+    focus-axis hints, and named candidate files beyond the broad target root.
+continuation_surface:
+  type: next_cycle_dispatch
+  plan: docs/plan/mutl3y-review-20260504-g67/plan.yaml
+  phase0_start_audit: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase0/phase-start-audit.yaml
+  review_artifact: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+commit_status:
+  status: deferred
+  reason: The user did not explicitly request or approve a repository commit in the current conversation.
+foreman_deviation_check:
+  local_review_used_as_substitute: false
+  generic_reviewer_used_as_substitute: false
+  biased_god_mode_prompt_attempted: false
+  closure_claim_before_required_dispatch: false
+verdict: OPEN_NEXT_CYCLE

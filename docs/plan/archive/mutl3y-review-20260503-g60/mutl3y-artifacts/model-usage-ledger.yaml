@@ -1,0 +1,220 @@
+- timestamp: '2026-05-03T18:14:00+00:00'
+  cycle: g60
+  phase: P0
+  worker: Scout-Typing
+  task_id: g60-p0-scout-typing
+  requested_tier: low-cost
+  requested_model: Claude Haiku 4.5 (copilot)
+  actual_model: Claude Haiku 4.5 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: reroute_for_schema
+  notes: on-topic but invalid wrapper schema
+  lane_tag: discovery
+- timestamp: '2026-05-03T18:14:05+00:00'
+  cycle: g60
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g60-p0-scout-ownership
+  requested_tier: low-cost
+  requested_model: Claude Haiku 4.5 (copilot)
+  actual_model: Claude Haiku 4.5 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: reroute_for_schema
+  notes: on-topic but invalid wrapper schema
+  lane_tag: discovery
+- timestamp: '2026-05-03T18:14:10+00:00'
+  cycle: g60
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g60-p0-scout-controlflow
+  requested_tier: low-cost
+  requested_model: Claude Haiku 4.5 (copilot)
+  actual_model: Claude Haiku 4.5 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: reroute_for_schema
+  notes: on-topic but invalid wrapper schema
+  lane_tag: discovery
+- timestamp: '2026-05-03T18:14:15+00:00'
+  cycle: g60
+  phase: P0
+  worker: Scout-Graph
+  task_id: g60-p0-scout-graph
+  requested_tier: low-cost
+  requested_model: Claude Haiku 4.5 (copilot)
+  actual_model: Claude Haiku 4.5 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: reroute_for_schema
+  notes: on-topic but invalid wrapper schema
+  lane_tag: discovery
+- timestamp: '2026-05-03T18:31:00+00:00'
+  cycle: g60
+  phase: P0
+  worker: Scout-Typing
+  task_id: g60-p0-scout-typing
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: usable artifact from second batch
+  lane_tag: discovery
+- timestamp: '2026-05-03T18:31:05+00:00'
+  cycle: g60
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g60-p0-scout-ownership
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: usable artifact from second batch
+  lane_tag: discovery
+- timestamp: '2026-05-03T18:31:10+00:00'
+  cycle: g60
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g60-p0-scout-controlflow
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: reroute_for_schema
+  notes: second batch still invalid for schema and required stronger reroute
+  lane_tag: discovery
+- timestamp: '2026-05-03T18:31:15+00:00'
+  cycle: g60
+  phase: P0
+  worker: Scout-Graph
+  task_id: g60-p0-scout-graph
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: usable artifact from second batch
+  lane_tag: discovery
+- timestamp: '2026-05-03T18:35:00+00:00'
+  cycle: g60
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g60-p0-scout-controlflow
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: rerouted balanced model produced authoritative ControlFlow artifact
+  lane_tag: discovery
+- timestamp: '2026-05-03T18:42:00+00:00'
+  cycle: g60
+  phase: P3
+  worker: Probe-Typing
+  task_id: g60-probe-m02-scope
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: probe-no-artifact
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  lane_tag: investigation
+- timestamp: '2026-05-03T18:50:00+00:00'
+  cycle: g60
+  phase: P5
+  worker: Builder-PreflightContract
+  task_id: g60-wave1-builder-preflight-contract
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-PreflightContract-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  lane_tag: implementation
+- timestamp: '2026-05-03T18:56:00+00:00'
+  cycle: g60
+  phase: P5
+  worker: Builder-CliPresenterOwnership
+  task_id: g60-wave2-builder-cli-presenter-ownership
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-CliPresenterOwnership-summary.md
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: local_repair_after_gate
+  lane_tag: implementation
+  notes: full repo guardrail later rejected prism.cli -> prism.cli_app import
+- timestamp: '2026-05-03T19:02:00+00:00'
+  cycle: g60
+  phase: P5
+  worker: Builder-CliPublicIOSeam
+  task_id: g60-wave2b-builder-cli-public-io-seam
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-CliPresenterOwnership-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  lane_tag: implementation
+- timestamp: '2026-05-03T19:08:00+00:00'
+  cycle: g60
+  phase: P5
+  worker: Builder-TaskContractTyping
+  task_id: g60-wave3-builder-task-contract-typing
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/Builder-TaskContractTyping-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  lane_tag: implementation

@@ -1,0 +1,10 @@
+wave_id: wave-3
+phase: P5
+summary: "Builder-Typing hardened scanner_context prepared-policy-bundle validation and flipped the direct invalid-bundle test to the intended fail-closed behavior."
+builders:
+  - worker: Builder-Typing
+    task_id: g62-wave3-builder-typing
+    result: success
+    artifact: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+    notes: "The controlling scanner_context seam is now fail-closed, but the broader G62-H02 finding still has one adjacent non_collection cache-marker path to align."
+ready_for_next_slice: false

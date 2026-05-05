@@ -1,0 +1,25 @@
+plan_id: mutl3y-review-20260503-g62
+cycle: g62
+phase: P5
+wave: 7
+finding: G62-H03
+worker: Builder-Ownership
+objective: >-
+  Preserve reserved unsupported platform semantics through the public API
+  registry-isolation path so terraform and kubernetes raise
+  platform_not_supported rather than platform_not_registered.
+owned_file_set:
+  - src/prism/api_layer/plugin_facade.py
+  - src/prism/tests/test_api_cli_entrypoints.py
+  - src/prism/tests/test_platform_routing_fail_closed.py
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Ownership-wave-7-summary.md
+expected_fix_shape:
+  - Extend the isolated scan-pipeline registry seam so behavior-bearing reserved-platform registry semantics are preserved.
+  - Add public API coverage for reserved unsupported platform classification.
+  - Keep scan_context isolation behavior intact.
+validation:
+  focused_tests:
+    - pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'reserved or scan_pipeline_registry_seam'
+    - pytest -q src/prism/tests/test_platform_routing_fail_closed.py
+  typecheck:
+    - .venv/bin/python -m mypy src/prism/api_layer/plugin_facade.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_platform_routing_fail_closed.py

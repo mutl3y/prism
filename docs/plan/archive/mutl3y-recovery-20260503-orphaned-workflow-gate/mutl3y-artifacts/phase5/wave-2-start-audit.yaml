@@ -1,0 +1,30 @@
+cycle: g58-recovery
+status: started
+summary: |
+  Resumed recovery wave under the orphaned-workflow gate. The workflow
+  references now include the resume-dirty-tree safeguard to prevent
+  accidental continuation on a dirty working tree.
+started_at: 2026-05-03
+workers:
+  - name: Builder-RecoveryTyping
+    owned_files:
+      - src/prism/scanner_core/di.py
+      - src/prism/scanner_kernel/orchestrator.py
+      - src/prism/scanner_core/metadata_merger.py
+      - src/prism/tests/test_execution_request_builder.py
+    invariant: |
+      Reduce focused mypy debt by tightening contracts instead of widening
+      to Any.
+    suggested_narrow_gate: |
+      .venv/bin/python -m mypy src/prism/scanner_core/di.py src/prism/scanner_kernel/orchestrator.py src/prism/scanner_core/metadata_merger.py src/prism/tests/test_execution_request_builder.py && .venv/bin/python -m pytest -q src/prism/tests/test_execution_request_builder.py src/prism/tests/test_plugin_kernel_extension_parity.py
+
+  - name: Builder-RecoveryFormat
+    owned_files:
+      - src/prism/tests/test_record_execution_trace.py
+      - src/prism/tests/test_mutl3y_plan_contract_validator.py
+      - src/prism/tests/test_scanner_guardrails.py
+      - src/prism/tests/test_variable_discovery_pipeline.py
+    invariant: |
+      Clear the remaining repo-wide black drift without behavior changes.
+    suggested_narrow_gate: |
+      .venv/bin/python -m black --check src/prism/tests/test_record_execution_trace.py src/prism/tests/test_mutl3y_plan_contract_validator.py src/prism/tests/test_scanner_guardrails.py src/prism/tests/test_variable_discovery_pipeline.py

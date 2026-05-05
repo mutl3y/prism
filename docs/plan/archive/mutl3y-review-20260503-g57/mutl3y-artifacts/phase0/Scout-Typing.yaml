@@ -1,0 +1,32 @@
+agent: Scout-Typing
+artifact: docs/plan/mutl3y-review-20260503-g57/mutl3y-artifacts/phase0/Scout-Typing.yaml
+observation_count: 5
+observations:
+  - id: G57-T01
+    summary: ScannerContext enforces PreparedPolicyBundle presence and specific required policies (task_line_parsing, jinja_analysis); orchestration raises ValueError if missing.
+    files:
+      - src/prism/scanner_core/scanner_context.py
+    lines: [_require_prepared_policy_bundle -> raises ValueError]
+  - id: G57-T02
+    summary: Execution request assembly requires and calls an ingress "ensure_prepared_policy_bundle_fn" before container.replace_scan_options; assembly fails if ensure_fn is None.
+    files:
+      - src/prism/scanner_core/execution_request_builder.py
+    lines: [_finalize_execution_request -> ensure_prepared_policy_bundle_fn call]
+  - id: G57-T03
+    summary: PreparedPolicyBundle is a TypedDict of Protocol-typed members (many Required/NotRequired entries); runtime code treats it as a dict (TypeGuard checks only dict-ness), creating a structural/runtime typing seam.
+    files:
+      - src/prism/scanner_data/contracts_request.py
+    lines: [PreparedPolicyBundle definition]
+  - id: G57-T04
+    summary: task_extract_adapters resolves marker prefix by reading scan_options.prepared_policy_bundle.comment_doc_marker_prefix and will raise ValueError if the bundle or prefix is absent — a live ownership/runtime dependency.
+    files:
+      - src/prism/scanner_core/task_extract_adapters.py
+    lines: [_resolve_marker_prefix -> raises ValueError]
+  - id: G57-T05
+    summary: VariableDiscovery resolves plugin factories via DI at runtime and validates callable/factory return values; plugin absence or non-callable factories produce ValueError at discovery time.
+    files:
+      - src/prism/scanner_core/variable_discovery.py
+    lines: [_resolve_plugin -> checks factory callable and plugin None handling]
+notes: |
+  - These are concrete typing/ownership seams that remain active in the current src lane and are likely to surface as runtime ValueError failures if prepared-policy bundle assembly or DI-factory wiring is incomplete.
+  - Priority follow-ups: verify ingress ensure_prepared_policy_bundle path and add narrow TypeGuards or structural checks where runtime dict assumptions are made.

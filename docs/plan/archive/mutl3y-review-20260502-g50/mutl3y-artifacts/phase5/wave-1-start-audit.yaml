@@ -1,0 +1,17 @@
+cycle: g50
+plan_id: mutl3y-review-20260502-g50
+phase: P5
+wave: 1
+status: started
+expected_workers:
+  - Builder-Typing
+  - Builder-ControlFlow
+  - Builder-Abstraction
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+  - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+  - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/Builder-Abstraction-summary.md
+present_artifacts:
+  - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/wave-1-start-audit.yaml
+  - docs/plan/mutl3y-review-20260502-g50/mutl3y-artifacts/phase5/wave-1-plan.yaml
+missing_artifacts: []

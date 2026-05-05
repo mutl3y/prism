@@ -1,0 +1,28 @@
+plan_id: mutl3y-review-20260502-g53
+cycle: g53
+target: src/prism
+review_type: live_narrow_run
+focus_axis: composition_root
+status: completed
+decision_summary:
+  - "Carry forward G52-H02 directly instead of reopening a new scout round."
+  - "Treat _assemble_execution_request() as the active composition seam: it currently mixes runtime bridge/container assembly with request finalization."
+findings:
+  - id: G53-H01
+    status: closed
+    severity: high
+    summary: "_assemble_execution_request() in execution_request_builder mixes runtime participant assembly with request finalization, obscuring the intended composition root."
+    fix_group_key: execution-request-assembly-split
+    source_observations:
+      - G52-H02
+    owned_files:
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/tests/test_execution_request_builder.py
+      - src/prism/tests/test_di_registry_resolution.py
+    suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py src/prism/tests/test_di_registry_resolution.py -k execution_request"
+    notes: "Wave 1 extracted the runtime bridge/container assembly seam. The remaining request finalization step moves to g54 as a smaller follow-up slice."
+suppressed_highs: []
+suppressed_mediums:
+  - id: G53-M01
+    source: G52-M01
+    notes: "Constructor-contract typing remains deferred until a dedicated DI contract cycle."

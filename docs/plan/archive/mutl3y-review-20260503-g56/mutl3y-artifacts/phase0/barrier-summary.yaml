@@ -1,0 +1,21 @@
+plan_id: mutl3y-review-20260503-g56
+cycle: g56
+phase: P0
+status: completed
+workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+observation_counts:
+  Scout-Typing: 4
+  Scout-Ownership: 3
+  Scout-ControlFlow: 3
+  Scout-Graph: 7
+top_fix_group_keys:
+  - g56-strict-mode-fallback-unplugged
+  - g56-strict-mode-fallback-seam
+  - g56_fallback_strict_mode_reconciliation
+notes:
+  - The fresh g56 scout batch surfaced the strict-mode fake-switch seam directly in the scout layer after the control-flow probe update.
+  - Scout-ControlFlow now identifies the same strict-mode seam that required God Mode escalation in g55, which is the signal this calibration run was meant to test.

@@ -1,0 +1,30 @@
+phase: P4
+cycle: g71
+decision: wave_3_selected
+selected_findings:
+  - G71-H04
+deferred_findings:
+  - G71-H01
+fix_group_key: feature-detection.task-catalog-contract
+rationale: >-
+  Probe-H04 showed the smallest coherent first wave is the task-catalog seam
+  around FeatureDetectionPlugin.analyze_task_catalog. That slice has concrete
+  implementations, a direct core consumer, and focused tests, while the README
+  renderer and variable-discovery surfaces remain deferred broader debt.
+owned_file_set:
+  - src/prism/scanner_plugins/interfaces.py
+  - src/prism/scanner_core/feature_detector.py
+  - src/prism/scanner_plugins/ansible/feature_detection.py
+  - src/prism/tests/test_feature_detector.py
+deferred_files:
+  - src/prism/scanner_plugins/ansible/readme_renderer.py
+  - src/prism/scanner_readme/guide.py
+  - src/prism/scanner_readme/render.py
+  - src/prism/scanner_reporting/report.py
+  - src/prism/scanner_data/contracts_output.py
+  - src/prism/scanner_core/variable_discovery.py
+  - src/prism/scanner_plugins/ansible/variable_discovery.py
+scope_check:
+  overlap_detected: false
+  expansion_required: false
+suggested_narrow_gate: pytest -q src/prism/tests/test_feature_detector.py

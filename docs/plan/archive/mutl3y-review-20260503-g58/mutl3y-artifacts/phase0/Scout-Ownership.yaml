@@ -1,0 +1,85 @@
+- id: Scout-Ownership-01
+  category: registry_authority
+  fingerprint: "registry_authority:scanner_core/di:_get_registry:split_authority"
+  file: src/prism/scanner_core/di.py
+  line: 309
+  severity_hint: high
+  confidence: high
+  detector: code_probe
+  memory_status: new
+  evidence_snippet: "if self._registry is None: raise ValueError(\"No plugin registry provided to DIContainer\")"
+  evidence_command: "src/prism/scanner_core/di.py#L306-L312"
+  related_symbols: ["DIContainer._get_registry", "DIContainer.plugin_registry", "DIContainer.__init__"]
+  fix_group_key: "registry-split-authority"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_default_platform_key"
+
+- id: Scout-Ownership-02
+  category: ownership
+  fingerprint: "ownership:scanner_core/di:factory_blocker_fact_builder:runtime_import"
+  file: src/prism/scanner_core/di.py
+  line: 293
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_do_not_re_flag
+  memory_match: "FIND-G3-03"
+  evidence_snippet: "from prism.scanner_plugins.defaults import (resolve_blocker_fact_builder,)"
+  evidence_command: "src/prism/scanner_core/di.py#L286-L302"
+  related_symbols: ["DIContainer.factory_blocker_fact_builder", "prism.scanner_plugins.defaults.resolve_blocker_fact_builder"]
+  fix_group_key: "di.factory_blocker_fact_builder.runtime_import"
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_blocker_fact_builder_caches_callable"
+
+- id: Scout-Ownership-03
+  category: ownership
+  fingerprint: "ownership:bundle_resolver:prepared_policy_bundle:mutation_and_di_replace"
+  file: src/prism/scanner_plugins/bundle_resolver.py
+  line: 161
+  severity_hint: high
+  confidence: high
+  detector: contract_read
+  memory_status: new
+  evidence_snippet: "scan_options[\"prepared_policy_bundle\"] = bundle\nif isinstance(di, HasReplaceScanOptions):\n    di.replace_scan_options(scan_options)"
+  evidence_command: "src/prism/scanner_plugins/bundle_resolver.py#L156-L164"
+  related_symbols: ["ensure_prepared_policy_bundle", "PreparedPolicyBundle", "DIContainer.replace_scan_options"]
+  fix_group_key: "bundle_resolver.prepared_policy_bundle.mutation"
+  proposed_fix_class: policy_boundary_localization
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_task_parser_precedence_matrix.py::test_marker_prefix_reads_and_prepared_bundle"
+
+- id: Scout-Ownership-04
+  category: ownership
+  fingerprint: "ownership:loader:yaml_policy_registry_fallback_mismatch"
+  file: src/prism/scanner_io/loader.py
+  line: 82
+  severity_hint: high
+  confidence: high
+  detector: semantic_read
+  memory_status: new
+  evidence_snippet: "# NOTE: Intentional dual-path — soft fallback to registry-resolved default.\n# Loader runs in discovery paths that execute before a prepared_policy_bundle is threaded through...\nreturn _resolve_yaml_plugin(di)"
+  evidence_command: "src/prism/scanner_io/loader.py#L78-L92"
+  related_symbols: ["_get_yaml_parsing_policy", "parse_yaml_candidate", "resolve_yaml_parsing_policy_plugin"]
+  fix_group_key: "loader.yaml_policy_registry_fallback_mismatch"
+  proposed_fix_class: registry_fallthrough_unify
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_t1_02_coverage_lift_batch3.py::test_yaml_loader_uses_prepared_bundle"
+
+- id: Scout-Ownership-05
+  category: facade_ownership
+  fingerprint: "facade:api_layer:ensure_prepared_policy_bundle:facade_ownership"
+  file: src/prism/api_layer/non_collection.py
+  line: 543
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  evidence_snippet: "def _ensure_prepared_policy_bundle_for_execution_request(*, scan_options, di):\n    prepared_policy_bundle = _resolved_ensure_fn(scan_options=_copy_object_mapping(scan_options), di=di)\n    scan_options[\"prepared_policy_bundle\"] = prepared_policy_bundle"
+  evidence_command: "src/prism/api_layer/non_collection.py#L543-L556"
+  related_symbols: ["run_scan", "build_non_collection_run_scan_execution_request", "plugin_facade.ensure_prepared_policy_bundle"]
+  fix_group_key: "api_layer.ensure_prepared_policy_bundle.facade_ownership"
+  proposed_fix_class: facade_ownership_contract
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py::test_build_non_collection_run_scan_execution_request_requires_ensure_fn"

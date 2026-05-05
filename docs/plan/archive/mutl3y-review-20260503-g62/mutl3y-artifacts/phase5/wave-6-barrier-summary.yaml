@@ -1,0 +1,10 @@
+wave_id: wave-6
+phase: P5
+summary: "Builder-Ownership retired the api.py private normalized-result alias re-export and closed the remaining actionable G62-M02 public-surface leak."
+builders:
+  - worker: Builder-Ownership
+    task_id: g62-wave6-builder-ownership
+    result: success
+    artifact: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Ownership-wave-6-summary.md
+    notes: "The private alias is gone from api.py, and the remaining ensure_prepared_policy_bundle reference is an internal api_layer seam rather than a separate public leak."
+ready_for_next_slice: true

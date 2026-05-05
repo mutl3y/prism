@@ -1,0 +1,35 @@
+- id: Scout-Ownership-01
+  category: test_gap
+  fingerprint: "test_gap:public_cache_neighbors:api.run_scan:scan_pipeline_registry_branch_coverage"
+  file: src/prism/tests/test_g03_scan_cache_integration.py
+  line: 269
+  severity_hint: medium
+  confidence: high
+  detector: test_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def test_public_run_scan_reuses_cache_with_stable_default_registry("
+  evidence_command: "src/prism/tests/test_g03_scan_cache_integration.py#L269-L313; src/prism/api.py#L315-L354; src/prism/api_layer/plugin_facade.py#L233-L240"
+  related_symbols: ["public_api.run_scan", "plugin_facade.get_default_scan_pipeline_registry", "_default_scan_pipeline_registry_source"]
+  fix_group_key: "public_cache.public_facade_registry_coverage"
+  proposed_fix_class: add_test
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_g03_scan_cache_integration.py -k public_run_scan"
+
+- id: Scout-Ownership-02
+  category: registry_authority
+  fingerprint: "registry_authority:api_layer/non_collection:default_plugin_registry_fallback:bypasses_public_registry_seam"
+  file: src/prism/api_layer/non_collection.py
+  line: 629
+  severity_hint: low
+  confidence: medium
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "default_plugin_registry = plugin_facade.get_default_plugin_registry()"
+  evidence_command: "src/prism/api_layer/non_collection.py#L628-L629; src/prism/api.py#L315-L354; src/prism/scanner_core/execution_request_builder.py#L793-L806"
+  related_symbols: ["run_scan", "default_plugin_registry", "plugin_facade.get_default_plugin_registry", "plugin_facade.get_default_scan_pipeline_registry", "runtime_registry"]
+  fix_group_key: "public_cache.runtime_registry_authority"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_g03_scan_cache_integration.py -k public_run_scan"

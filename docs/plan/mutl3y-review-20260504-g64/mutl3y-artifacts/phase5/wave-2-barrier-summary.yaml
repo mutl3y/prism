@@ -1,0 +1,39 @@
+phase: P5
+wave: 2
+status: OK
+summary: >-
+  Builder-ControlFlow and Builder-Ownership closed the two independent-review
+  High findings carried in from g65. Focused pytest, ruff, black, and the
+  mandatory anti-pattern grep gate all passed after one formatting-only repair
+  on the cache slice.
+builders:
+  - worker: Builder-ControlFlow
+    task_id: g64-wave2-builder-controlflow
+    finding_ids:
+      - G64-H02
+    artifact: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-2-summary.md
+    status: closed-ready
+  - worker: Builder-Ownership
+    task_id: g64-wave2-builder-ownership
+    finding_ids:
+      - G64-H03
+    artifact: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/Builder-Ownership-wave-2-summary.md
+    status: closed-ready
+validation:
+  - command: pytest -q src/prism/tests/test_g03_scan_cache_integration.py src/prism/tests/test_t3_03_scan_cache.py -k 'cache'
+    result: 24 passed
+  - command: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'cache'
+    result: 3 passed, 32 deselected
+  - command: pytest -q src/prism/tests/test_execution_request_builder.py src/prism/tests/test_t3_05_scan_telemetry.py src/prism/tests/test_t4_03_cli_progress.py -k 'listener or telemetry or progress or inherit'
+    result: 14 passed, 17 deselected
+  - command: pytest -q src/prism/tests/test_t3_01_scan_phase_events.py -k event_bus
+    result: 2 passed, 11 deselected
+  - command: ruff check touched wave-2 files
+    result: pass
+  - command: black --check touched wave-2 files
+    result: pass after formatting repair
+anti_pattern_grep:
+  cast_any_hits: 0
+  typeddict_lossy_cast_hits: 0
+  except_pass_hits: 0
+next_action: Run the g64 validation gate with the remaining medium backlog preserved.

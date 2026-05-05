@@ -1,0 +1,127 @@
+plan_id: mutl3y-review-20260502-g55
+cycle: g55
+target: src/prism
+review_type: live_narrow_run
+focus_axis: typing_contracts
+status: completed
+decision_summary:
+  - "Reopen the deferred DI/defaults typing seam with a fresh scout round instead of promoting the earlier reverted probe unchanged."
+  - "Focus discovery on constructor contracts, DI factory overrides, and weak protocol returns."
+  - "Phase 1 grading promoted two scout-backed DI typing highs, one deep-review composition-seam high, and one God Mode control-flow high."
+  - "The first builder wave stays narrow on the DI override return-contract cluster; defaults semantics and execution-request ingress typing stay queued behind that validation."
+  - "g55 did not run its planned builder wave; the four promoted High findings are carried forward into g58 so the overall loop resumes with a fresh thorough cycle instead of stopping on the later narrow checkpoints."
+findings:
+  - id: G55-H01
+    status: carried_forward
+    severity: high
+    category: typing_contracts
+    fingerprint: "typing:scanner_core:di_factory_override_return_contract"
+    title: "DIFactoryOverride and DIContainer factory overrides erase the concrete return contract on the canonical DI path"
+    files:
+      - src/prism/scanner_core/protocols_runtime.py
+      - src/prism/scanner_core/di.py
+      - src/prism/tests/test_di_container.py
+      - src/prism/tests/test_scanner_core_di.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260502-g55/mutl3y-artifacts/phase0/Scout-Typing.yaml
+      - docs/plan/mutl3y-review-20260502-g55/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+      - docs/plan/mutl3y-review-20260502-g55/mutl3y-artifacts/phase0/Scout-Graph.yaml
+      - docs/plan/mutl3y-review-20260502-g55/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "DIFactoryOverride still returns object and DIContainer returns override results directly from factory_variable_discovery() and factory_feature_detector(), so the canonical override seam lies about the produced runtime type and the tests currently reinforce that weak contract."
+    decision_deadline: g55
+    carried_forward_to: mutl3y-review-20260503-g58
+    suggested_narrow_gate: pytest -q src/prism/tests/test_di_container.py src/prism/tests/test_scanner_core_di.py -k "override or variable_discovery or feature_detector"
+  - id: G55-H02
+    status: carried_forward
+    severity: high
+    category: typing_contracts
+    fingerprint: "typing:scanner_plugins:defaults_precedence_any_return"
+    title: "Defaults plugin-precedence helpers erase public protocol returns through Any-typed helper chains"
+    files:
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/tests/test_defaults.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260502-g55/mutl3y-artifacts/phase0/Scout-Typing.yaml
+      - docs/plan/mutl3y-review-20260502-g55/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+      - docs/plan/mutl3y-review-20260502-g55/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "_resolve_plugin_with_precedence(), _validate_plugin_shape(), and _construct_registry_plugin() all return Any even when the public resolve_* wrappers advertise concrete policy protocols, so the defaults seam erases the type contract it claims to enforce."
+    decision_deadline: g55
+    carried_forward_to: mutl3y-review-20260503-g58
+    suggested_narrow_gate: pytest -q src/prism/tests/test_defaults.py -k "plugin or resolve"
+  - id: G55-H03
+    status: carried_forward
+    severity: high
+    category: seam_contracts
+    fingerprint: "typing:execution_request_builder:ingress_contract_erasure"
+    title: "Execution-request assembly still types DI and runtime seam inputs as object-or-dict placeholders at the composition boundary"
+    files:
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/scanner_core/di.py
+      - src/prism/tests/test_execution_request_builder.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260502-g55/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+      - docs/plan/mutl3y-review-20260502-g55/mutl3y-artifacts/phase0/Synthesizer-Architecture.yaml
+      - docs/plan/mutl3y-review-20260502-g55/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "execution_request_builder still accepts registry, scanner_context_wiring, and factory_overrides through object/dict[str, object] contracts, so narrowing di.py alone would leave the canonical api_layer to scanner_core ingress seam untyped."
+    decision_deadline: g55
+    carried_forward_to: mutl3y-review-20260503-g58
+    suggested_narrow_gate: pytest -q src/prism/tests/test_execution_request_builder.py -k "assembly or scanner_context"
+  - id: G55-H04
+    status: carried_forward
+    severity: high
+    category: control_flow_contracts
+    fingerprint: "controlflow:scanner_plugins:strict_mode_fake_switch"
+    title: "strict_mode is threaded through bundle resolution as a fallback control, but the defaults helpers always raise anyway"
+    files:
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/scanner_plugins/bundle_resolver.py
+      - src/prism/tests/test_defaults.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260502-g55/mutl3y-artifacts/phase1/God-Mode-independent-review.yaml
+      - docs/plan/mutl3y-review-20260502-g55/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "strict_phase_failures still flows from scan options into bundle resolution and defaults helpers, but both malformed-plugin and construction-error fallback helpers discard strict_mode and unconditionally raise, so the runtime contract advertises a non-strict branch that does not exist."
+    decision_deadline: g55
+    carried_forward_to: mutl3y-review-20260503-g58
+    suggested_narrow_gate: pytest -q src/prism/tests/test_defaults.py -k "strict or malformed"
+
+suppressed_highs:
+  - observation_summary: "Factory scanner_context wiring still permits any scanner_context_cls and prepare_scan_context_fn shape."
+    file: src/prism/scanner_core/di.py
+    line: 202
+    rationale_code: deferred
+    rationale_detail: "Keep constructor-wiring hardening behind the first DI override wave so the initial fix stays anchored on the sharper override-return seam."
+  - observation_summary: "Blocker-fact builder factory return contract remains only implicitly matched to the runtime protocol."
+    file: src/prism/scanner_plugins/defaults.py
+    line: 561
+    rationale_code: deferred
+    rationale_detail: "Real protocol debt, but it is a lower-priority callable-ownership audit than the override-return and defaults-precedence highs."
+  - observation_summary: "DI override tests institutionalize string-returning plugin and policy factories."
+    file: src/prism/tests/test_di_container.py
+    line: 160
+    rationale_code: duplicate_of
+    rationale_detail: "Covered inside G55-H01 because the first override-contract wave has to tighten the DI tests together with protocols_runtime.py and di.py."
+  - observation_summary: "Bridge-slot forward-reference closures still split composition authority across lambdas and post-construction slot population."
+    file: src/prism/scanner_core/execution_request_builder.py
+    line: 506
+    rationale_code: duplicate_of
+    rationale_detail: "Captured under G55-H03 because the deep-review ingress finding already keeps the execution-request seam in the backlog as a cross-cutting contract issue."
+  - observation_summary: "Defaults precedence routing still hides registry, DI, and fallback behavior behind a tri-path Any-return helper."
+    file: src/prism/scanner_plugins/defaults.py
+    line: 325
+    rationale_code: duplicate_of
+    rationale_detail: "Captured by G55-H02 because the first defaults shortlist item is exactly the Any-typed precedence helper chain."
+  - observation_summary: "Execution-request builder override lambdas still erase variable-discovery and feature-detector return types."
+    file: src/prism/scanner_core/execution_request_builder.py
+    line: 527
+    rationale_code: duplicate_of
+    rationale_detail: "Captured by G55-H03 because the ingress seam finding includes the typed bridge-slot override path."
+  - observation_summary: "DIContainer factory_overrides still expose a dict of weak override callables without method-specific narrowing."
+    file: src/prism/scanner_core/di.py
+    line: 167
+    rationale_code: duplicate_of
+    rationale_detail: "Captured by G55-H01 because the DI override return-contract wave starts at the factory_overrides protocol boundary."
+  - observation_summary: "factory_variable_discovery() still returns override results without a concrete static contract."
+    file: src/prism/scanner_core/di.py
+    line: 237
+    rationale_code: duplicate_of
+    rationale_detail: "Captured by G55-H01 because the promoted finding is centered on the direct override return path in DIContainer."

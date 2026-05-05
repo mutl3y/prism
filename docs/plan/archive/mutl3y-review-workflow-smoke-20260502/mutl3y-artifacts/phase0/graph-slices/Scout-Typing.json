@@ -1,0 +1,14 @@
+{
+  "agent_name": "Scout-Typing",
+  "plan_id": "mutl3y-review-workflow-smoke-20260502",
+  "focus_axis": "ownership",
+  "target_path": "src/prism/scanner_core/di.py",
+  "seed_files": [
+    "src/prism/scanner_core/di.py"
+  ],
+  "neighbor_files": [
+    "src/prism/scanner_core/di_helpers.py",
+    "src/prism/scanner_core/protocols_runtime.py"
+  ],
+  "notes": "Smoke slice for typing-focused discovery on the DI composition seam."
+}

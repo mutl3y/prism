@@ -1,0 +1,50 @@
+cycle: g72
+phase: P0
+review_type: light_changed_slice
+focus_axis: g71_changed_runtime_contract_neighbors
+reviewer: Scout-Typing
+scope:
+  target_files:
+    - src/prism/scanner_kernel/orchestrator.py
+    - src/prism/api_layer/common.py
+    - src/prism/scanner_plugins/interfaces.py
+    - src/prism/scanner_plugins/ansible/variable_discovery.py
+  neighbor_files:
+    - src/prism/tests/test_plugin_kernel_extension_parity.py
+    - src/prism/tests/test_api_layer_common.py
+    - src/prism/scanner_core/feature_detector.py
+    - src/prism/scanner_plugins/ansible/feature_detection.py
+    - src/prism/tests/test_feature_detector.py
+    - src/prism/tests/test_variable_discovery_pipeline.py
+summary:
+  total_findings: 3
+  promoted_high_critical: 0
+  recommendation: no_high_or_critical_regressions_found
+findings: []
+retained_observations:
+  - id: ST-M01
+    severity_hint: medium
+    area: prepared_policy_bundle_contract
+    summary: >-
+      Runtime usage expects prepared_policy_bundle while PlatformExecutionBundle
+      still exposes prepared_policy, leaving a caller/provider naming mismatch.
+    recommendation: >-
+      Unify the field name or add a small adapter at bundle construction so the
+      runtime and TypedDict contract agree.
+  - id: ST-M02
+    severity_hint: medium
+    area: plugin_policy_accessor_typing
+    summary: >-
+      A few helper accessors in variable discovery and feature detection still
+      widen policy access through loose Any or dict-shaped signatures.
+    recommendation: >-
+      Tighten those accessors to explicit protocol-facing types so fail-closed
+      prepared-policy requirements remain visible to callers.
+  - id: ST-L01
+    severity_hint: low
+    area: protocol_documentation
+    summary: >-
+      The public protocol does not make the prepared-policy requirement obvious
+      at the bundle boundary even though runtime behavior now depends on it.
+    recommendation: >-
+      Clarify the contract at the bundle/provider seam in a narrow follow-up.

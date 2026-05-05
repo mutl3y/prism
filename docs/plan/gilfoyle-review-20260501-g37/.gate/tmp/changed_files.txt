@@ -1,3 +1,0 @@
-src/prism/api.py
-src/prism/tests/test_api_cli_entrypoints.py
-src/prism/tests/test_gilfoyle_blockers_runtime.py

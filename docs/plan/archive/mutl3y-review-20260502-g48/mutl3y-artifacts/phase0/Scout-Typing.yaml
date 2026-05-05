@@ -1,0 +1,233 @@
+- id: FIND-TYPING-01
+  category: typing
+  fingerprint: "typing:protocols_runtime:KernelOrchestrator:route_preflight_runtime_untyped"
+  file: src/prism/scanner_core/protocols_runtime.py
+  line: 33
+  severity_hint: medium
+  confidence: high
+  detector: protocol_boundary_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "route_preflight_runtime: Any,"
+  evidence_command: "src/prism/scanner_core/protocols_runtime.py#L26-L36"
+  related_symbols: ["KernelOrchestrator", "RoutePreflightRuntimeCarrier"]
+  fix_group_key: "orchestrator-boundary-typing"
+  proposed_fix_class: protocol_refinement
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py"
+
+- id: FIND-TYPING-02
+  category: typing
+  fingerprint: "typing:output_orchestrator:__init__:di_any_param"
+  file: src/prism/scanner_io/output_orchestrator.py
+  line: 29
+  severity_hint: high
+  confidence: high
+  detector: constructor_parameter_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "di: Any,"
+  evidence_command: "src/prism/scanner_io/output_orchestrator.py#L26-L36"
+  related_symbols: ["OutputOrchestrator.__init__", "DIContainer"]
+  fix_group_key: "output-layer-di-typing"
+  proposed_fix_class: parameter_refinement
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_output_orchestration.py"
+
+- id: FIND-TYPING-03
+  category: typing
+  fingerprint: "typing:output_orchestrator:render_and_emit:cast_signature_mismatch"
+  file: src/prism/scanner_io/output_orchestrator.py
+  line: 52
+  severity_hint: high
+  confidence: high
+  detector: cast_signature_boundary_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "cast(Callable[[str, ScanMetadata], str], render_runbook),"
+  evidence_command: "src/prism/scanner_io/output_orchestrator.py#L45-L58"
+  related_symbols: ["render_runbook", "ScanMetadata", "render_and_emit"]
+  fix_group_key: "output-renderer-signature-contract"
+  proposed_fix_class: callable_signature_refinement
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_output_orchestration.py::test_render_and_emit"
+
+- id: FIND-TYPING-04
+  category: typing
+  fingerprint: "typing:output_orchestrator:render_and_emit:cast_csv_signature_mismatch"
+  file: src/prism/scanner_io/output_orchestrator.py
+  line: 53
+  severity_hint: high
+  confidence: high
+  detector: cast_signature_boundary_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "cast(Callable[[ScanMetadata], str], render_runbook_csv),"
+  evidence_command: "src/prism/scanner_io/output_orchestrator.py#L50-L58"
+  related_symbols: ["render_runbook_csv", "ScanMetadata"]
+  fix_group_key: "output-renderer-signature-contract"
+  proposed_fix_class: callable_signature_refinement
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_output_orchestration.py::test_render_and_emit"
+
+- id: FIND-TYPING-05
+  category: orchestration_seam
+  fingerprint: "orchestration_seam:kernel_plugin_runner:phase_handlers:callable_any_return"
+  file: src/prism/scanner_kernel/kernel_plugin_runner.py
+  line: 87
+  severity_hint: medium
+  confidence: high
+  detector: protocol_handler_list_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "Callable[..., dict[str, Any] | None] | None"
+  evidence_command: "src/prism/scanner_kernel/kernel_plugin_runner.py#L84-L95"
+  related_symbols: ["phase_handlers", "KernelLifecyclePlugin"]
+  fix_group_key: "kernel-plugin-handler-typing"
+  proposed_fix_class: handler_list_typing
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_kernel_plugin_runner.py"
+
+- id: FIND-TYPING-06
+  category: typing
+  fingerprint: "typing:scanner_data_init:CollectionDependencies:dict_any_payload"
+  file: src/prism/scanner_data/__init__.py
+  line: 55
+  severity_hint: medium
+  confidence: high
+  detector: typeddict_payload_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "collections: list[dict[str, Any]]"
+  evidence_command: "src/prism/scanner_data/__init__.py#L54-L58"
+  related_symbols: ["CollectionDependencies"]
+  fix_group_key: "scanner-data-payload-typing"
+  proposed_fix_class: typeddict_refinement
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py"
+
+- id: FIND-TYPING-07
+  category: typing
+  fingerprint: "typing:scanner_data_init:CollectionPluginCatalog:dict_any_fields"
+  file: src/prism/scanner_data/__init__.py
+  line: 62
+  severity_hint: medium
+  confidence: high
+  detector: typeddict_payload_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "summary: dict[str, Any]"
+  evidence_command: "src/prism/scanner_data/__init__.py#L61-L66"
+  related_symbols: ["CollectionPluginCatalog"]
+  fix_group_key: "scanner-data-payload-typing"
+  proposed_fix_class: typeddict_refinement
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py"
+
+- id: FIND-TYPING-08
+  category: typing
+  fingerprint: "typing:scanner_data_init:ScanRenderPayload:list_any_display"
+  file: src/prism/scanner_data/__init__.py
+  line: 118
+  severity_hint: low
+  confidence: high
+  detector: typeddict_payload_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "requirements_display: list[Any]"
+  evidence_command: "src/prism/scanner_data/__init__.py#L116-L122"
+  related_symbols: ["ScanRenderPayload"]
+  fix_group_key: "scanner-data-payload-typing"
+  proposed_fix_class: typeddict_refinement
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/"
+
+- id: FIND-TYPING-09
+  category: typing
+  fingerprint: "typing:kernel_plugin_runner:response_dict_construction"
+  file: src/prism/scanner_kernel/kernel_plugin_runner.py
+  line: 77
+  severity_hint: low
+  confidence: medium
+  detector: runtime_dict_construction_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "response: dict[str, Any] = {"
+  evidence_command: "src/prism/scanner_kernel/kernel_plugin_runner.py#L75-L85"
+  related_symbols: ["run_kernel_plugin_orchestrator"]
+  fix_group_key: "kernel-plugin-runner-response"
+  proposed_fix_class: return_type_specification
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_kernel_plugin_runner.py"
+
+- id: FIND-TYPING-10
+  category: typing
+  fingerprint: "typing:api_layer_collection:ScanRoleFn:mapping_any_payload"
+  file: src/prism/api_layer/collection.py
+  line: 40
+  severity_hint: medium
+  confidence: high
+  detector: protocol_return_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "-> Mapping[str, Any]: ..."
+  evidence_command: "src/prism/api_layer/collection.py#L35-L42"
+  related_symbols: ["ScanRoleFn"]
+  fix_group_key: "api-layer-return-typing"
+  proposed_fix_class: protocol_return_refinement
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py"
+
+- id: FIND-TYPING-11
+  category: typing
+  fingerprint: "typing:api_layer_collection:BuildCollectionIdentityFn:dict_any_return"
+  file: src/prism/api_layer/collection.py
+  line: 44
+  severity_hint: medium
+  confidence: high
+  detector: protocol_return_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "-> dict[str, Any]: ..."
+  evidence_command: "src/prism/api_layer/collection.py#L43-L45"
+  related_symbols: ["BuildCollectionIdentityFn"]
+  fix_group_key: "api-layer-return-typing"
+  proposed_fix_class: protocol_return_refinement
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py"
+
+- id: FIND-TYPING-12
+  category: orchestration_seam
+  fingerprint: "orchestration_seam:non_collection_run_scan:policy_bundle_union"
+  file: src/prism/api_layer/non_collection.py
+  line: 244
+  severity_hint: medium
+  confidence: high
+  detector: variable_initialization_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_bundle: PreparedPolicyBundle | dict[str, Any] = ("
+  evidence_command: "src/prism/api_layer/non_collection.py#L240-L250"
+  related_symbols: ["PreparedPolicyBundle", "_bundle"]
+  fix_group_key: "policy-bundle-type-clarity"
+  proposed_fix_class: union_clarification
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py"
+
+- id: FIND-TYPING-13
+  category: test_gap
+  fingerprint: "test_gap:output_orchestrator_di_typing:constructor_validation"
+  file: src/prism/tests/test_output_orchestration.py
+  line: 1
+  severity_hint: low
+  confidence: medium
+  detector: test_coverage_inference
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "No explicit DIContainer type validation in test setup"
+  evidence_command: "src/prism/tests/test_output_orchestration.py#L1-L40"
+  related_symbols: ["OutputOrchestrator", "DIContainer"]
+  fix_group_key: "output-layer-di-typing"
+  proposed_fix_class: test_gap_typing
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_output_orchestration.py"

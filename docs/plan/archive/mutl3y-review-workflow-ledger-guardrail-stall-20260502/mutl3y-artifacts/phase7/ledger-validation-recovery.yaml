@@ -1,0 +1,15 @@
+cycle: mutl3y-ledger-guardrail-1
+plan_id: mutl3y-review-workflow-ledger-guardrail-stall-20260502
+phase: P7
+status: recovered
+repair_path: scripts/record_model_usage.py
+inputs:
+  worker: Archivist-Ledger
+  task_id: guardrail-proof-recovery
+  on_parse_error: initialize
+result:
+  ledger: pass
+  scorecard: pass
+  validation_log: .mutl3y-gate/ledger-validate.log
+  stall_log: .mutl3y-gate/ledger-validate-stall.log
+summary: "Deterministic writer rewrote the malformed ledger as valid list-shaped YAML and regenerated a passing scorecard."

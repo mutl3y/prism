@@ -1,0 +1,110 @@
+agent: GitHub Copilot
+model: GPT-5.4
+plan_id: mutl3y-review-20260504-g67
+review_type: independent_whole_target_unconstrained
+target: /raid5/source/test/prism/src/prism
+scope: live_source_only
+status: completed
+finding_count: 1
+summary:
+  method:
+    - reviewed live source across public API, runtime registry, cache, repo-intake, path-safety, and config-loading seams
+    - ignored prior cycle findings and current shortlist framing
+    - promoted only findings that held up under local code-path verification and an executable repro
+  representative_files_examined:
+    - src/prism/api.py
+    - src/prism/api_layer/non_collection.py
+    - src/prism/api_layer/plugin_facade.py
+    - src/prism/scanner_core/scan_cache.py
+    - src/prism/scanner_kernel/orchestrator.py
+    - src/prism/repo_services.py
+    - src/prism/scanner_config/patterns.py
+    - src/prism/path_safety.py
+    - src/prism/tests/test_g03_scan_cache_integration.py
+findings:
+  - id: G67-H01
+    severity: high
+    category: cache_semantics
+    title: Public api.run_scan defeats cache reuse by salting keys with a fresh isolated registry identity on every call
+    files:
+      - src/prism/api.py
+      - src/prism/api_layer/plugin_facade.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/tests/test_g03_scan_cache_integration.py
+    summary: >-
+      The optional scan cache works on the lower non-collection seam, but the
+      top-level public API path wraps the default registry in a fresh isolated
+      scan-pipeline registry object on every invocation. The non-collection
+      cache key fingerprints that runtime registry by object identity, so two
+      identical calls through prism.api.run_scan compute different cache keys
+      and always miss.
+    impact: >-
+      Users of the documented public API cannot get cache hits for repeated
+      identical scans in the same process. That turns the cache-backed public
+      entrypoint into a full rescanning path every time, defeating the feature
+      at the surface most callers are expected to use.
+    evidence:
+      code:
+        - path: src/prism/api.py
+          detail: api.run_scan acquires default_plugin_registry via plugin_facade.get_default_scan_pipeline_registry() before delegating to api_layer.non_collection.run_scan.
+        - path: src/prism/api_layer/plugin_facade.py
+          detail: get_default_scan_pipeline_registry() returns isolate_scan_pipeline_registry(get_default_plugin_registry()), creating a new wrapper instance per call.
+        - path: src/prism/api_layer/non_collection.py
+          detail: run_scan adds __runtime_wiring_identity__ to the stable scan options and includes execution_request.runtime_registry in that fingerprint before computing the cache key.
+        - path: src/prism/scanner_core/scan_cache.py
+          detail: build_runtime_wiring_identity() fingerprints runtime_registry with _object_identity(...@id(value)), so wrapper instance churn changes the cache key even when underlying behavior is unchanged.
+        - path: src/prism/tests/test_g03_scan_cache_integration.py
+          detail: existing coverage proves cache hits only on the lower api_layer.non_collection.run_scan seam; there is no equivalent public-api cache-hit test.
+      runtime_probe:
+        command: >-
+          cd /raid5/source/test/prism && .venv/bin/python - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from prism import api
+          from prism.scanner_core.scan_cache import InMemoryLRUScanCache
+          with TemporaryDirectory() as tmp:
+              role = Path(tmp) / 'role'
+              (role / 'defaults').mkdir(parents=True)
+              (role / 'tasks').mkdir(parents=True)
+              (role / 'defaults' / 'main.yml').write_text('---\ncache_test_var: hello\n', encoding='utf-8')
+              (role / 'tasks' / 'main.yml').write_text('---\n- name: Cache test task\n  debug:\n    msg: "{{ cache_test_var }}"\n', encoding='utf-8')
+              (role / 'README.md').write_text('Role for cache probe\n', encoding='utf-8')
+              cache = InMemoryLRUScanCache()
+              api.run_scan(str(role), include_vars_main=True, cache_backend=cache)
+              print('after_first', cache.hits, cache.misses)
+              api.run_scan(str(role), include_vars_main=True, cache_backend=cache)
+              print('after_second', cache.hits, cache.misses)
+          PY
+        observed_output:
+          - after_first 0 1
+          - after_second 0 2
+        interpretation: identical public API scans miss twice instead of hitting on the second call.
+      discriminating_probe:
+        command: >-
+          cd /raid5/source/test/prism && .venv/bin/python - <<'PY'
+          from prism.api_layer import plugin_facade
+          from prism.scanner_core.scan_cache import build_runtime_wiring_identity
+          from prism.api_layer.non_collection import route_scan_payload_orchestration, orchestrate_scan_payload_with_selected_plugin
+          r1 = plugin_facade.get_default_scan_pipeline_registry()
+          r2 = plugin_facade.get_default_scan_pipeline_registry()
+          print('registry_same_object', r1 is r2)
+          print(build_runtime_wiring_identity(route_scan_payload_orchestration_fn=route_scan_payload_orchestration, orchestrate_scan_payload_with_selected_plugin_fn=orchestrate_scan_payload_with_selected_plugin, runtime_registry=r1))
+          print(build_runtime_wiring_identity(route_scan_payload_orchestration_fn=route_scan_payload_orchestration, orchestrate_scan_payload_with_selected_plugin_fn=orchestrate_scan_payload_with_selected_plugin, runtime_registry=r2))
+          PY
+        observed_output:
+          - registry_same_object False
+          - runtime_registry identity differs between otherwise equivalent acquisitions
+        interpretation: the public entrypoint injects per-call wrapper churn into cache-key material.
+    why_high: >-
+      This is not cosmetic performance debt. It breaks a documented optional
+      runtime feature on the package's public entrypoint while lower-level
+      tests still pass, making the defect easy to miss and expensive in real
+      repeated-scan workloads.
+    recommended_fix: >-
+      Stop hashing wrapper object identity for the default isolated registry
+      path. Either reuse a stable isolated-registry instance for the default
+      public entrypoint, or derive runtime wiring identity from stable semantic
+      attributes instead of per-instance ids.
+non_promoted_notes:
+  - Several config-loading and repo-intake seams were rechecked, but none justified High/Critical promotion after live-source verification.

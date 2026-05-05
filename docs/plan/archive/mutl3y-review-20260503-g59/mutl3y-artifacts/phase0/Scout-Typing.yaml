@@ -1,0 +1,203 @@
+- id: typing-g59-01
+  category: typing
+  fingerprint: "typing:api.py:cast_string_type:weak_annotation"
+  file: src/prism/api.py
+  line: 416
+  severity_hint: medium
+  confidence: high
+  detector: cast_with_string_type
+  memory_status: new
+  evidence_snippet: "cast(\"plugin_facade.PluginRegistry\", _isolate_scan_p"
+  evidence_command: "src/prism/api.py#L416"
+  related_symbols: ["cast", "_isolate_scan_pipeline_registry"]
+  fix_group_key: "weak.string_cast_types"
+  proposed_fix_class: use_actual_type_not_string
+  blocking_preconditions: []
+  suggested_narrow_gate: "mypy src/prism/api.py"
+
+- id: typing-g59-02
+  category: typing
+  fingerprint: "typing:api.py:protocol_object_return_types:weak_typing"
+  file: src/prism/api.py
+  line: 64
+  severity_hint: medium
+  confidence: high
+  detector: protocol_weak_return_type
+  memory_status: new
+  evidence_snippet: "-> object: ..."
+  evidence_command: "src/prism/api.py#L64-L67"
+  related_symbols: ["_ProcessScanPipelinePlugin", "_OrchestrateScanPayloadPlugin"]
+  fix_group_key: "weak.protocol_object_returns"
+  proposed_fix_class: narrow_protocol_return_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "mypy src/prism/api.py --strict"
+
+- id: orchestration_seam-g59-01
+  category: orchestration_seam
+  fingerprint: "orchestration_seam:api.py:_isolate_scan_pipeline_registry:new_seam"
+  file: src/prism/api.py
+  line: 304
+  severity_hint: medium
+  confidence: high
+  detector: new_registry_wrapper_function
+  memory_status: new
+  evidence_snippet: "def _isolate_scan_pipeline_registry(registry: object)"
+  evidence_command: "src/prism/api.py#L304-L315"
+  related_symbols: ["_isolate_scan_pipeline_registry", "_wrap_scan_pipeline_plugin_factory"]
+  fix_group_key: "orchestration_seam.registry_isolation"
+  proposed_fix_class: seam_documentation
+  blocking_preconditions: []
+  suggested_narrow_gate: "grep -n '_isolate_scan_pipeline_registry' src/prism/tests/*.py"
+
+- id: typing-g59-03
+  category: typing
+  fingerprint: "typing:api_layer/non_collection.py:typeddict_total_false:incomplete"
+  file: src/prism/api_layer/non_collection.py
+  line: 120
+  severity_hint: low
+  confidence: high
+  detector: typeddict_all_optional
+  memory_status: new
+  evidence_snippet: "class _NormalizedNonCollectionResult(TypedDict, total=False)"
+  evidence_command: "src/prism/api_layer/non_collection.py#L120-L131"
+  related_symbols: ["_NormalizedNonCollectionResult"]
+  fix_group_key: "weak.typeddict_partial_fields"
+  proposed_fix_class: split_typeddict_required_optional
+  blocking_preconditions: []
+  suggested_narrow_gate: "mypy src/prism/api_layer/non_collection.py"
+
+- id: typing-g59-04
+  category: typing
+  fingerprint: "typing:api_layer/non_collection.py:cast_without_validation:unsafe"
+  file: src/prism/api_layer/non_collection.py
+  line: 254
+  severity_hint: medium
+  confidence: high
+  detector: cast_without_isinstance_check
+  memory_status: new
+  evidence_snippet: "return cast(ScanMetadata, copy.copy(value))"
+  evidence_command: "src/prism/api_layer/non_collection.py#L250-L255"
+  related_symbols: ["_coerce_scan_metadata", "cast"]
+  fix_group_key: "unsafe.unvalidated_cast"
+  proposed_fix_class: add_runtime_validation
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -xvs src/prism/tests/test_api_cli_entrypoints.py -k metadata"
+
+- id: test_gap-g59-01
+  category: test_gap
+  fingerprint: "test_gap:api.py:_isolate_scan_pipeline_registry:no_tests"
+  file: src/prism/api.py
+  line: 304
+  severity_hint: high
+  confidence: high
+  detector: grep_no_test_matches
+  memory_status: new
+  evidence_snippet: "no matches for '_isolate_scan_pipeline_registry' in tests"
+  evidence_command: "grep -rn '_isolate_scan_pipeline_registry' src/prism/tests/"
+  related_symbols: ["_isolate_scan_pipeline_registry", "_wrap_scan_pipeline_plugin_factory"]
+  fix_group_key: "test_gap.new_registry_seam"
+  proposed_fix_class: add_seam_boundary_test
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -xvs src/prism/tests/ -k 'registry and isolate'"
+
+- id: test_gap-g59-02
+  category: test_gap
+  fingerprint: "test_gap:api_layer/collection.py:_is_recoverable_role_content_error:no_tests"
+  file: src/prism/api_layer/collection.py
+  line: 108
+  severity_hint: high
+  confidence: high
+  detector: grep_no_test_matches
+  memory_status: new
+  evidence_snippet: "no matches for '_is_recoverable_role_content_error' in tests"
+  evidence_command: "grep -rn '_is_recoverable_role_content_error' src/prism/tests/"
+  related_symbols: ["_is_recoverable_role_content_error", "PrismRuntimeError"]
+  fix_group_key: "test_gap.error_classification"
+  proposed_fix_class: add_error_handling_test
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -xvs src/prism/tests/test_collection_contract.py"
+
+- id: orchestration_seam-g59-02
+  category: orchestration_seam
+  fingerprint: "orchestration_seam:api_layer/collection.py:exception_handling_change:behavioral_change"
+  file: src/prism/api_layer/collection.py
+  line: 221
+  severity_hint: high
+  confidence: high
+  detector: except_exception_broad_catch
+  memory_status: new
+  evidence_snippet: "except Exception as exc: if not _is_recoverable..."
+  evidence_command: "src/prism/api_layer/collection.py#L220-L230"
+  related_symbols: ["_is_recoverable_role_content_error"]
+  fix_group_key: "orchestration_seam.exception_handling"
+  proposed_fix_class: document_error_contract
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -xvs src/prism/tests/test_collection_contract.py::test_scan_collection_error_recovery"
+
+- id: test_gap-g59-03
+  category: test_gap
+  fingerprint: "test_gap:api_layer/non_collection.py:_NormalizedNonCollectionResult:contract_not_tested"
+  file: src/prism/api_layer/non_collection.py
+  line: 120
+  severity_hint: high
+  confidence: high
+  detector: grep_no_test_matches
+  memory_status: new
+  evidence_snippet: "no matches for '_NormalizedNonCollectionResult' in tests"
+  evidence_command: "grep -rn '_NormalizedNonCollectionResult' src/prism/tests/"
+  related_symbols: ["_NormalizedNonCollectionResult", "TypedDict"]
+  fix_group_key: "test_gap.payload_normalization"
+  proposed_fix_class: add_payload_shape_test
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -xvs src/prism/tests/test_api_cli_entrypoints.py"
+
+- id: typing-g59-05
+  category: typing
+  fingerprint: "typing:api_layer/non_collection.py:wrapper_deep_cast:unsafe_deepcopy"
+  file: src/prism/api_layer/non_collection.py
+  line: 164
+  severity_hint: medium
+  confidence: high
+  detector: deepcopy_then_cast
+  memory_status: new
+  evidence_snippet: "copy.deepcopy(scan_context) if isinstance(scan_context"
+  evidence_command: "src/prism/api_layer/non_collection.py#L160-L170"
+  related_symbols: ["_wrap_scan_pipeline_plugin_factory", "copy.deepcopy"]
+  fix_group_key: "unsafe.deepcopy_isolation"
+  proposed_fix_class: isolate_deepcopy_behavior
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -xvs src/prism/tests/test_api_cli_entrypoints.py -k pipeline"
+
+- id: orchestration_seam-g59-03
+  category: orchestration_seam
+  fingerprint: "orchestration_seam:api_layer/non_collection.py:wrapper_classes_inline:hidden_logic"
+  file: src/prism/api_layer/non_collection.py
+  line: 145
+  severity_hint: medium
+  confidence: high
+  detector: inline_wrapper_class_definitions
+  memory_status: new
+  evidence_snippet: "class _OrchestratingScanPipelinePluginIsolationWrapper:"
+  evidence_command: "src/prism/api_layer/non_collection.py#L145-L175"
+  related_symbols: ["_OrchestratingScanPipelinePluginIsolationWrapper"]
+  fix_group_key: "orchestration_seam.inline_wrappers"
+  proposed_fix_class: extract_wrapper_class
+  blocking_preconditions: []
+  suggested_narrow_gate: "grep -n 'class _.*Wrapper' src/prism/api_layer/non_collection.py | wc -l"
+
+- id: test_gap-g59-04
+  category: test_gap
+  fingerprint: "test_gap:api.py:_build_collection_*_typed:wrapper_coverage_gap"
+  file: src/prism/api.py
+  line: 340
+  severity_hint: medium
+  confidence: high
+  detector: grep_no_test_matches
+  memory_status: new
+  evidence_snippet: "no matches for '_build_collection_identity_typed' in tests"
+  evidence_command: "grep -rn '_build_collection.*_typed' src/prism/tests/"
+  related_symbols: ["_build_collection_identity_typed", "_build_collection_role_entry_typed"]
+  fix_group_key: "test_gap.cast_wrapper_functions"
+  proposed_fix_class: add_wrapper_validation_test
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -xvs src/prism/tests/test_collection_contract.py"

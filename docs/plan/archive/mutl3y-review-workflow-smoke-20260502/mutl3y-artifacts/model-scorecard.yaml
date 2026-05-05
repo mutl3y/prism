@@ -1,0 +1,15 @@
+cycle: mutl3y-g1
+phase: P0
+updated_from: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/model-usage-ledger.yaml
+by_model:
+  GPT-5 mini (copilot):
+    attempts: 4
+    successes: 4
+    route_failures: 0
+    quality_failures: 1
+    reedit_count: 1
+    quality_avg: 3.25
+    status: watch
+notes:
+  - Scout-Graph required local artifact repair after returning invalid YAML.
+  - Scout-Ownership returned valid YAML but drifted from the stricter Phase 0 observation schema.

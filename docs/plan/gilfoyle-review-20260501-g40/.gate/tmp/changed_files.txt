@@ -1,3 +1,0 @@
-src/prism/scanner_kernel/orchestrator.py
-src/prism/tests/test_plugin_kernel_extension_parity.py
-src/prism/tests/test_platform_routing_fail_closed.py

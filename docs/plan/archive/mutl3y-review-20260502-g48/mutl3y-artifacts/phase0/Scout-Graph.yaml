@@ -1,0 +1,251 @@
+- id: Scout-Graph-01
+  category: registry_authority
+  fingerprint: "registry_authority:bootstrap:_DEFAULT_REGISTRY:module_singleton"
+  file: src/prism/scanner_plugins/bootstrap.py
+  line: 23
+  severity_hint: medium
+  confidence: high
+  detector: graph_composition
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_DEFAULT_REGISTRY: PluginRegistry | None = None"
+  evidence_command: "src/prism/scanner_plugins/bootstrap.py#L22-L34"
+  related_symbols: ["get_default_plugin_registry", "initialize_default_registry", "is_registry_initialized"]
+  fix_group_key: "registry-composition-root"
+  proposed_fix_class: "explicit_composition_root"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_guardrails.py::test_registry_singleton_access_guard"
+
+- id: Scout-Graph-02
+  category: registry_authority
+  fingerprint: "registry_authority:defaults:_resolve_registry:split_path"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 38
+  severity_hint: medium
+  confidence: high
+  detector: split_authority
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def _resolve_registry(di: object | None = None, registry: \"PluginRegistry | None\" = None)"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L38-L50"
+  related_symbols: ["_resolve_registry", "get_default_plugin_registry", "bootstrap.get_default_plugin_registry"]
+  fix_group_key: "registry-composition-root"
+  proposed_fix_class: "consolidate_registry_resolution"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py"
+
+- id: Scout-Graph-03
+  category: composition_root
+  fingerprint: "composition_root:di:_resolve_registry:call_to_defaults"
+  file: src/prism/scanner_core/di.py
+  line: 315
+  severity_hint: medium
+  confidence: high
+  detector: lazy_import
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "registry = self._get_registry()"
+  evidence_command: "src/prism/scanner_core/di.py#L309-L324"
+  related_symbols: ["_get_registry", "_registry", "resolve_platform_key"]
+  fix_group_key: "di-composition-root"
+  proposed_fix_class: "early_validation"
+  blocking_preconditions: ["DIContainer must require non-None registry at construction time"]
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_di_container_requires_registry"
+
+- id: Scout-Graph-04
+  category: graph
+  fingerprint: "graph:di:factory_blocker_fact_builder:lazy_import_to_defaults"
+  file: src/prism/scanner_core/di.py
+  line: 301
+  severity_hint: low
+  confidence: high
+  detector: import_cycle_risk
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "from prism.scanner_plugins.defaults import resolve_blocker_fact_builder"
+  evidence_command: "src/prism/scanner_core/di.py#L293-L307"
+  related_symbols: ["factory_blocker_fact_builder", "resolve_blocker_fact_builder", "_blocker_fact_builder_fn"]
+  fix_group_key: "di-import-ordering"
+  proposed_fix_class: "split_import_responsibility"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_blocker_fact_builder_caches_callable"
+
+- id: Scout-Graph-05
+  category: typing
+  fingerprint: "typing:output_orchestrator:di_param:untyped_Any"
+  file: src/prism/scanner_io/output_orchestrator.py
+  line: 29
+  severity_hint: low
+  confidence: high
+  detector: typing_gap
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "di: Any,"
+  evidence_command: "src/prism/scanner_io/output_orchestrator.py#L27-L35"
+  related_symbols: ["OutputOrchestrator.__init__", "di", "render_and_emit"]
+  fix_group_key: "typing-di-protocol"
+  proposed_fix_class: "di_protocol_definition"
+  blocking_preconditions: ["Must define DIContainer-like protocol for output_orchestrator"]
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_io_output_orchestrator.py"
+
+- id: Scout-Graph-06
+  category: typing
+  fingerprint: "typing:output_orchestrator:cast:Callable_ScanMetadata"
+  file: src/prism/scanner_io/output_orchestrator.py
+  line: 73
+  severity_hint: low
+  confidence: high
+  detector: cast_unsafe
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "render_runbook=cast(Callable[[str, ScanMetadata], str], render_runbook),"
+  evidence_command: "src/prism/scanner_io/output_orchestrator.py#L71-L76"
+  related_symbols: ["cast", "render_runbook", "Callable"]
+  fix_group_key: "typing-output-renderers"
+  proposed_fix_class: "protocol_refine"
+  blocking_preconditions: ["render_runbook signature must accept dict[str, Any] | None"]
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_io_output_orchestrator.py::test_render_and_emit_accepts_dict"
+
+- id: Scout-Graph-07
+  category: typing
+  fingerprint: "typing:non_collection:_resolved_ensure_fn:untyped_Any"
+  file: src/prism/api_layer/non_collection.py
+  line: 196
+  severity_hint: low
+  confidence: high
+  detector: typing_gap
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_resolved_ensure_fn: Any"
+  evidence_command: "src/prism/api_layer/non_collection.py#L192-L202"
+  related_symbols: ["_resolved_ensure_fn", "ensure_prepared_policy_bundle_fn", "EnsurePreparedPolicyBundleFn"]
+  fix_group_key: "typing-ensure-bundle"
+  proposed_fix_class: "type_annotation"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_non_collection_execution.py"
+
+- id: Scout-Graph-08
+  category: typing
+  fingerprint: "typing:kernel_plugin_runner:cast_lifecycle:Any_result"
+  file: src/prism/scanner_kernel/kernel_plugin_runner.py
+  line: 81
+  severity_hint: low
+  confidence: high
+  detector: cast_unsafe
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "plugin: KernelLifecyclePlugin = cast(KernelLifecyclePlugin, load_plugin_fn(platform))"
+  evidence_command: "src/prism/scanner_kernel/kernel_plugin_runner.py#L79-L83"
+  related_symbols: ["cast", "KernelLifecyclePlugin", "load_plugin_fn", "PluginLoader"]
+  fix_group_key: "typing-plugin-loading"
+  proposed_fix_class: "loader_protocol_refine"
+  blocking_preconditions: ["PluginLoader must return KernelLifecyclePlugin not Any"]
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_kernel_plugin_runner.py::test_plugin_loader_returns_lifecycle_plugin"
+
+- id: Scout-Graph-09
+  category: composition_root
+  fingerprint: "composition_root:non_collection:lazy_load_defaults:import_to_defaults"
+  file: src/prism/api_layer/non_collection.py
+  line: 142
+  severity_hint: low
+  confidence: medium
+  detector: lazy_import_edge
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "from prism.scanner_core.scan_request import build_run_scan_options_canonical"
+  evidence_command: "src/prism/api_layer/non_collection.py#L138-L165"
+  related_symbols: ["build_run_scan_options_canonical_fn", "route_scan_payload_orchestration_fn"]
+  fix_group_key: "composition-lazy-imports"
+  proposed_fix_class: "eager_bootstrap"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_non_collection_execution.py::test_run_scan_lazy_imports"
+
+- id: Scout-Graph-10
+  category: registry_authority
+  fingerprint: "registry_authority:plugin_facade:get_default:passthrough_bootstrap"
+  file: src/prism/api_layer/plugin_facade.py
+  line: 37
+  severity_hint: low
+  confidence: high
+  detector: authority_boundary
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "from prism.scanner_plugins import DEFAULT_PLUGIN_REGISTRY"
+  evidence_command: "src/prism/api_layer/plugin_facade.py#L32-L40"
+  related_symbols: ["get_default_plugin_registry", "DEFAULT_PLUGIN_REGISTRY", "bootstrap"]
+  fix_group_key: "registry-composition-root"
+  proposed_fix_class: "import_consolidation"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_guardrails.py::test_facade_imports_from_bootstrap_not_registry"
+
+- id: Scout-Graph-11
+  category: typing
+  fingerprint: "typing:defaults:resolve_blocker_fact_builder:return_Any"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 508
+  severity_hint: low
+  confidence: high
+  detector: typing_gap
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def resolve_blocker_fact_builder() -> Callable[..., Any]:"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L508-L522"
+  related_symbols: ["resolve_blocker_fact_builder", "BlockerFactBuilder", "Callable"]
+  fix_group_key: "typing-resolver-returns"
+  proposed_fix_class: "protocol_return_type"
+  blocking_preconditions: ["BlockerFactBuilder protocol must be consistently typed"]
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_plugins_defaults.py::test_blocker_fact_builder_protocol"
+
+- id: Scout-Graph-12
+  category: graph
+  fingerprint: "graph:api_layer:collection:multiple_Callable_Any_protocols"
+  file: src/prism/api_layer/collection.py
+  line: 37
+  severity_hint: low
+  confidence: high
+  detector: multi_protocol_edge
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "class ScanRoleFn(Protocol):"
+  evidence_command: "src/prism/api_layer/collection.py#L13-L45"
+  related_symbols: ["ScanRoleFn", "BuildCollectionIdentityFn", "ScanCollectionPluginsFn"]
+  fix_group_key: "collection-protocol-consolidation"
+  proposed_fix_class: "protocol_refinement"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_collection_execution.py::test_collection_protocol_contracts"
+
+- id: Scout-Graph-13
+  category: singleton_pollution
+  fingerprint: "singleton_pollution:defaults:_FALLBACK_SINGLETONS:module_level"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 82
+  severity_hint: medium
+  confidence: high
+  detector: module_singleton
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_TASK_LINE_PARSING_FALLBACK = AnsibleDefaultTaskLineParsingPolicyPlugin()"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L77-L93"
+  related_symbols: ["_TASK_LINE_PARSING_FALLBACK", "_TASK_ANNOTATION_FALLBACK", "_FALLBACK_SINGLETONS", "_singleton_invariants_validated"]
+  fix_group_key: "singleton-fallback-cache"
+  proposed_fix_class: "factory_function"
+  blocking_preconditions: ["All plugin classes must declare PLUGIN_IS_STATELESS = True"]
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_plugins_defaults.py::test_fallback_singletons_stateless_validated"
+
+- id: Scout-Graph-14
+  category: composition_root
+  fingerprint: "composition_root:api_layer:non_collection:di_container_cls_override"
+  file: src/prism/api_layer/non_collection.py
+  line: 155
+  severity_hint: low
+  confidence: medium
+  detector: injectable_factory
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "di_container_cls=None,"
+  evidence_command: "src/prism/api_layer/non_collection.py#L153-L165"
+  related_symbols: ["di_container_cls", "DIContainer", "variable_discovery_cls"]
+  fix_group_key: "composition-test-injectables"
+  proposed_fix_class: "injectable_boundary"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_non_collection_di_overrides.py"

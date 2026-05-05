@@ -1,0 +1,21 @@
+{
+  "agent": "Scout-ControlFlow",
+  "cycle": "g50",
+  "focus_axis": "typing",
+  "review_surface": [
+    "src/prism/api_layer/collection.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/scanner_kernel/kernel_plugin_runner.py",
+    "src/prism/scanner_core/feature_detector.py",
+    "src/prism/scanner_core/variable_discovery.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/tests/test_collection_contract.py",
+    "src/prism/tests/test_plugin_kernel_extension_parity.py",
+    "src/prism/tests/test_t1_02_coverage_lift_batch3.py"
+  ],
+  "questions": [
+    "Do repaired fail-closed paths still leave neighboring broad except or typed-error-channel drift?",
+    "Are there control-flow seams where runtime payload normalization or fallback behavior still weakens the declared contract?"
+  ]
+}

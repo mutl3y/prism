@@ -1,0 +1,31 @@
+cycle: g57
+phase: P6
+models:
+  unknown:
+    attempts: 4
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.25
+    lane_tags:
+    - discovery
+    status: healthy
+  Claude Sonnet 4.6 (copilot):
+    attempts: 1
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 5.0
+    lane_tags:
+    - builder
+    status: healthy
+  GPT-5 mini (copilot):
+    attempts: 1
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 5.0
+    lane_tags:
+    - validation
+    status: healthy
+notes: []

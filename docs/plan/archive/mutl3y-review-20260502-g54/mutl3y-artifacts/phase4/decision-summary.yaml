@@ -1,0 +1,7 @@
+plan_id: mutl3y-review-20260502-g54
+cycle: g54
+phase: P4
+status: completed
+decision_summary:
+  - "Wave 1 will target only execution_request_builder.py and its nearest finalization-order regression test."
+  - "The hypothesis is that extracting request finalization into a dedicated helper makes the remaining composition boundary explicit without changing call order or behavior."

@@ -1,0 +1,47 @@
+plan_id: mutl3y-review-20260503-g58
+cycle: g58
+phase: P5
+wave: 1
+status: ready
+objective: "Close the unbiased Wave 1 Critical queue before resuming the secondary seam backlog."
+decision_basis:
+  - docs/plan/mutl3y-review-20260503-g58/findings.yaml
+  - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase4/decision-summary.yaml
+workers:
+  - agent_name: Builder-Bootstrap
+    finding_ids:
+      - G58-C01
+    category: registry_authority
+    fix_group_key: bootstrap_registry_singleton_lockless_initialization
+    owned_files:
+      - src/prism/scanner_plugins/bootstrap.py
+      - src/prism/scanner_plugins/registry.py
+      - src/prism/tests/test_scanner_guardrails.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+      - src/prism/tests/test_t2_03_entry_point_discovery.py
+    summary_artifact: docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase5/Builder-Bootstrap-summary.md
+    suggested_narrow_gate: pytest -q src/prism/tests -k "registry or bootstrap"
+    importer_layer_tests:
+      - pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py
+    invariant: "Default-registry access must stay single-authority and idempotent while first initialization becomes concurrency-safe and fail-closed."
+  - agent_name: Builder-ScanCache
+    finding_ids:
+      - G58-C02
+    category: correctness
+    fix_group_key: scan_cache_key_unstable_prepared_policy_bundle_object_repr
+    owned_files:
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_core/di.py
+      - src/prism/tests/test_t3_03_scan_cache.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    summary_artifact: docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase5/Builder-ScanCache-summary.md
+    suggested_narrow_gate: pytest -q src/prism/tests/test_t3_03_scan_cache.py::test_compute_scan_cache_key_is_stable_and_options_sensitive
+    importer_layer_tests:
+      - pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_fsrc_api_run_scan_cache_key_preserves_missing_prepared_policy_bundle_state
+      - pytest -q src/prism/tests/test_g03_scan_cache_integration.py
+    invariant: "Logically identical scan inputs must produce stable cache keys without relying on heap-address reprs or mutable object identity."
+barrier_rules:
+  - Workers must stop on scope expansion instead of editing outside owned files.
+  - Workers must run the suggested narrow gate before reporting completion when feasible.
+  - Foreman owns ledger updates, wave barrier validation, and execution-trace checkpointing.

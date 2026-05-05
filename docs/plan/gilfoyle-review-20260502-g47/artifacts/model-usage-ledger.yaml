@@ -1,0 +1,68 @@
+- timestamp: '2026-05-02T13:58:43.670447+00:00'
+  cycle: g47
+  phase: P0
+  worker: Scout-Graph
+  task_id: g47-p0-scout-graph-length-limit
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini (copilot)
+  actual_model: GPT-5.4 mini (copilot)
+  result: route_failure
+  failure_type: response_length_limit
+  artifact_path: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Graph.yaml
+  quality_score: 1
+  needed_reedit: true
+  recovery_action: local_phase0_recovery
+  notes: Retry cleared explicit route error but still did not persist owned artifact; prompt should stay
+    under hard context ceiling and require artifact existence check at barrier.
+  lane_tag: discovery
+- timestamp: '2026-05-02T13:58:43.780091+00:00'
+  cycle: g47
+  phase: P0
+  worker: Scout-Typing
+  task_id: g47-p0-scout-typing-no-artifact
+  requested_tier: low-cost
+  requested_model: unknown
+  actual_model: unknown
+  result: quality_failure
+  failure_type: summary_only_no_artifact
+  artifact_path: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Typing.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: local_phase0_recovery
+  notes: Subagent returned summary without creating owned artifact; future prompt must ask for one-file
+    write plus file-existence barrier.
+  lane_tag: discovery
+- timestamp: '2026-05-02T13:58:43.909603+00:00'
+  cycle: g47
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g47-p0-scout-ownership-no-artifact
+  requested_tier: low-cost
+  requested_model: unknown
+  actual_model: unknown
+  result: quality_failure
+  failure_type: summary_only_no_artifact
+  artifact_path: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: local_phase0_recovery
+  notes: Subagent returned summary without creating owned artifact; keep prompts terse and require barrier
+    check on artifact path.
+  lane_tag: discovery
+- timestamp: '2026-05-02T13:58:44.047593+00:00'
+  cycle: g47
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g47-p0-scout-controlflow-no-artifact
+  requested_tier: low-cost
+  requested_model: unknown
+  actual_model: unknown
+  result: quality_failure
+  failure_type: summary_only_no_artifact
+  artifact_path: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: local_phase0_recovery
+  notes: Subagent returned summary without creating owned artifact; context-length budgeting and explicit
+    file ownership need tighter prompts.
+  lane_tag: discovery

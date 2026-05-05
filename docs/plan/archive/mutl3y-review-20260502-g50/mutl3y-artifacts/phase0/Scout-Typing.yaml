@@ -1,0 +1,143 @@
+- id: Scout-Typing-01
+  category: typing
+  fingerprint: "typing:scanner_plugins/defaults:resolve_blocker_fact_builder:weak_callable"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 546
+  severity_hint: high
+  confidence: high
+  detector: direct_inspection
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def resolve_blocker_fact_builder() -> Callable[..., Any]:"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L546-L560"
+  related_symbols: ["resolve_blocker_fact_builder", "BlockerFactBuilder", "ScanMetadata"]
+  fix_group_key: "resolver-weak-callable-types"
+  proposed_fix_class: protocol_return_type
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_defaults.py::test_validate_shape_strict_mode_raises_for_malformed_task_line_plugin"
+
+- id: Scout-Typing-02
+  category: typing
+  fingerprint: "typing:api_layer/non_collection:_resolved_ensure_fn:any_variable"
+  file: src/prism/api_layer/non_collection.py
+  line: 226
+  severity_hint: high
+  confidence: high
+  detector: direct_inspection
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_resolved_ensure_fn: Any"
+  evidence_command: "src/prism/api_layer/non_collection.py#L220-L235"
+  related_symbols: ["_resolved_ensure_fn", "ensure_prepared_policy_bundle_fn", "_EnsurePreparedPolicyBundleFn"]
+  fix_group_key: "internal-variable-any-type"
+  proposed_fix_class: explicit_type_annotation
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_fsrc_api_run_scan_returns_structured_payload"
+
+- id: Scout-Typing-03
+  category: typing
+  fingerprint: "typing:scanner_io/output_orchestrator:OutputOrchestrator:dict_any_param"
+  file: src/prism/scanner_io/output_orchestrator.py
+  line: 44
+  severity_hint: high
+  confidence: high
+  detector: direct_inspection
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "options: dict[str, Any],"
+  evidence_command: "src/prism/scanner_io/output_orchestrator.py#L40-L50"
+  related_symbols: ["OutputOrchestrator.__init__", "options", "validate_output_orchestrator_inputs"]
+  fix_group_key: "facade-dict-any-params"
+  proposed_fix_class: typeddict_contract
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_output_orchestrator.py -k options"
+
+- id: Scout-Typing-04
+  category: typing
+  fingerprint: "typing:api_layer/non_collection:run_scan:dict_any_returns"
+  file: src/prism/api_layer/non_collection.py
+  line: 316
+  severity_hint: medium
+  confidence: high
+  detector: direct_inspection
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: ") -> dict[str, Any]:"
+  evidence_command: "src/prism/api_layer/non_collection.py#L310-L320"
+  related_symbols: ["_kernel_orchestrator", "dict", "Any"]
+  fix_group_key: "kernel-orchestrator-weak-return"
+  proposed_fix_class: typeddict_contract
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py"
+
+- id: Scout-Typing-05
+  category: typing
+  fingerprint: "typing:scanner_plugins/defaults:resolve_runbook_rows:mapping_any"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 561
+  severity_hint: medium
+  confidence: high
+  detector: direct_inspection
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "Callable[[Mapping[str, Any] | None], list[\"RunbookRow\"]]"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L559-L567"
+  related_symbols: ["resolve_runbook_rows", "build_runbook_rows", "Mapping", "RunbookRow"]
+  fix_group_key: "resolver-mapping-any-types"
+  proposed_fix_class: typeddict_contract
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_defaults.py"
+
+- id: Scout-Typing-06
+  category: typing
+  fingerprint: "typing:scanner_plugins/defaults:plugin_validators:any_params"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 145
+  severity_hint: medium
+  confidence: high
+  detector: direct_inspection
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "plugin: Any,"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L140-L160"
+  related_symbols: ["_raise_malformed_plugin_shape_error", "plugin"]
+  fix_group_key: "plugin-validator-any-params"
+  proposed_fix_class: generic_type_variable
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_defaults.py::test_validate_shape_strict_mode_raises_for_malformed_task_line_plugin"
+
+- id: Scout-Typing-07
+  category: test_gap
+  fingerprint: "test_gap:scanner_plugins/defaults:blocker_fact_builder:protocol_match"
+  file: src/prism/tests/test_defaults.py
+  line: 1
+  severity_hint: medium
+  confidence: high
+  detector: test_search
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "No test verifying resolve_blocker_fact_builder return matches BlockerFactBuilder"
+  evidence_command: "src/prism/tests/test_defaults.py"
+  related_symbols: ["resolve_blocker_fact_builder", "BlockerFactBuilder", "protocols_runtime"]
+  fix_group_key: "resolver-protocol-gaps"
+  proposed_fix_class: protocol_conformance_test
+  blocking_preconditions: ["resolve_blocker_fact_builder() return type must be BlockerFactBuilder"]
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_defaults.py -k blocker"
+
+- id: Scout-Typing-08
+  category: typing
+  fingerprint: "typing:scanner_core/di:scan_options:dict_any_pervasive"
+  file: src/prism/scanner_core/di.py
+  line: 69
+  severity_hint: medium
+  confidence: high
+  detector: direct_inspection
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def clone_scan_options(scan_options: Mapping[str, Any]) -> dict[str, Any]:"
+  evidence_command: "src/prism/scanner_core/di.py#L69-L75"
+  related_symbols: ["clone_scan_options", "scan_options", "ScanOptionsDict"]
+  fix_group_key: "di-scan-options-any-type"
+  proposed_fix_class: typeddict_contract
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py -k scan_options"

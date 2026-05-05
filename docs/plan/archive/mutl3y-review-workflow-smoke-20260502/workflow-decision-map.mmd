@@ -1,0 +1,103 @@
+flowchart LR
+    classDef phase fill:#eaf3ff,stroke:#315c85,stroke-width:1.2px,color:#111;
+    classDef decision fill:#fff4cf,stroke:#8c6b1f,stroke-width:1.2px,color:#111;
+    classDef artifact fill:#eef8ea,stroke:#4d7a38,stroke-width:1.2px,color:#111;
+    classDef stall fill:#fdecec,stroke:#9a3e3e,stroke-width:1.2px,color:#111;
+
+    subgraph C0[Cycle Control]
+        C1[Always-load references<br/>guardrails + topology + context + ledger + learning]:::phase
+        C2[Read memory inputs<br/>digest.yaml + model-usage-rollup.yaml]:::artifact
+        C3{Repo state and plan pointer<br/>match artifact reality?}:::decision
+        C4[STALL<br/>recover artifacts, fix resumption pointer,<br/>or recover cancelled workers]:::stall
+        C5[Resolve entry phase from plan.yaml + findings.yaml]:::phase
+    end
+
+    C1 --> C2 --> C3
+    C3 -- No --> C4 --> C1
+    C3 -- Yes --> C5
+
+    subgraph D0[Discovery And Calibration]
+        D1[Phase 0 start audit<br/>phase-start-audit.yaml]:::artifact
+        D2[Prepare shared context<br/>refresh graph, write slices,<br/>write learning-context.yaml]:::artifact
+        D3[Dispatch scout batch<br/>Typing / Ownership / ControlFlow / Graph]:::phase
+        D4{High, Medium, or clear seam family?}:::decision
+        D5[Run bounded widening pass]:::phase
+        D6[Phase 0 barrier<br/>verify four scout artifacts,<br/>parse-check shape, update ledger + scorecard]:::artifact
+        D7{Deep review required?}:::decision
+        D8[Synthesizer-Architecture pass]:::phase
+        D9[Gilfoyle Code Review God Mode<br/>independent calibration pass]:::phase
+        D10[Verify net-new findings against live source<br/>promote High/Critical, write deep-review deltas<br/>and scout coverage patch when needed]:::artifact
+    end
+
+    C5 -->|new cycle or P0 resume| D1
+    D1 --> D2 --> D3 --> D4
+    D4 -- Yes --> D5 --> D6
+    D4 -- No --> D6
+    D6 --> D7
+
+    subgraph P1P4[Planning And Slicing]
+        P1[Phase 1 grading<br/>merge scout output and run registry/facade micro-checks]:::phase
+        P1Q{Need independent grader?}:::decision
+        P1G[Run independent grader]:::phase
+        P1A[Write compact grading artifact<br/>record suppressed_highs rationale]:::artifact
+        P2[Phase 2 persist plan<br/>update findings.yaml + plan.yaml<br/>sync resumption_pointer]:::artifact
+        P2Q{needs_investigation or unresolved decision?}:::decision
+        P3[Phase 3 micro-swarm<br/>3-6 named probes for one ambiguity cluster]:::phase
+        P4[Phase 4 decide<br/>dedup, normalize, record decisions,<br/>shape disjoint builder waves]:::phase
+        P4Q{Owned file sets disjoint?}:::decision
+        P4R[Re-slice wave ownership before builders]:::stall
+    end
+
+    D7 -- No --> P1
+    D7 -- Yes --> D8 --> D9 --> D10 --> P1
+    C5 -->|resume in P1-P4| P1
+    P1 --> P1Q
+    P1Q -- Yes --> P1G --> P1A
+    P1Q -- No --> P1A
+    P1A --> P2 --> P2Q
+    P2Q -- Yes --> P3 --> P4
+    P2Q -- No --> P4
+    P4 --> P4Q
+    P4Q -- No --> P4R --> P4
+
+    subgraph E5E6[Execution And Validation]
+        E1[Phase 5 wave entry<br/>write wave start-audit + wave plan]:::artifact
+        E2[Dispatch full disjoint builder batch]:::phase
+        E3[Wave barrier<br/>one summary artifact per builder,<br/>recover missing or cancelled workers]:::artifact
+        E4[Pre-validation checks<br/>narrow gate, anti-pattern grep,<br/>sync ledger + scorecard + plan]:::artifact
+        E5[Phase 6 Gatekeeper<br/>full or path-filtered gate]:::phase
+        E6{Need Auditor-Regression?}:::decision
+        E7[Run Auditor-Regression]:::phase
+        E8[Persist gate evidence in .mutl3y-gate<br/>write gate-escape candidate when narrow passed<br/>but full gate failed]:::artifact
+        E9{Gate green?}:::decision
+        E10[Return to repair wave]:::stall
+    end
+
+    C5 -->|resume in P5-P6| E1
+    P4Q -- Yes --> E1
+    E1 --> E2 --> E3 --> E4 --> E5 --> E6
+    E6 -- Yes --> E7 --> E8
+    E6 -- No --> E8
+    E8 --> E9
+    E9 -- No --> E10 --> E1
+
+    subgraph F7[Closure And Sign-off]
+        F1[Phase 7 close findings<br/>collect workflow-learning, coverage,
+and gate-escape artifacts]:::phase
+        F2[Run update_learning_memory.py compile<br/>refresh lessons, history, rollup, digest]:::artifact
+        F3{Required clean thorough passes met?}:::decision
+        F4[Rotate focus axis and start next cycle]:::phase
+        F5[Gilfoyle Code Review God Mode<br/>final unconstrained sign-off pass]:::phase
+        F6{Any High/Critical findings?}:::decision
+        F7P[Promote new findings, set scout_calibration_required
+when God Mode caught missed seams]:::artifact
+        FDone([Done / stop iterating]):::artifact
+    end
+
+    C5 -->|resume in P7| F1
+    E9 -- Yes --> F1
+    F1 --> F2 --> F3
+    F3 -- No --> F4 --> C1
+    F3 -- Yes --> F5 --> F6
+    F6 -- Yes --> F7P --> C1
+    F6 -- No --> FDone

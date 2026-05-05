@@ -1,0 +1,52 @@
+cycle: g69
+phase: P0
+status: ready
+review_type: thorough
+focus_axis: registry_and_public_seams
+target: src/prism
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260504-g69/plan.yaml
+  - docs/plan/mutl3y-review-20260504-g69/findings.yaml
+  - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Graph.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260504-g69/plan.yaml
+  - docs/plan/mutl3y-review-20260504-g69/findings.yaml
+  - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Graph.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+owned_file_sets:
+  - agent_name: Scout-Typing
+    files:
+      - src/prism/**
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - agent_name: Scout-Ownership
+    files:
+      - src/prism/**
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - agent_name: Scout-ControlFlow
+    files:
+      - src/prism/**
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - agent_name: Scout-Graph
+    files:
+      - src/prism/**
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Graph.yaml
+triggering_cycle: g68
+triggering_evidence:
+  - docs/plan/mutl3y-review-20260504-g68/mutl3y-artifacts/phase0/Scout-Ownership-light-review.yaml
+  - docs/plan/mutl3y-review-20260504-g68/mutl3y-artifacts/phase1/grading-summary.yaml
+  - docs/plan/mutl3y-review-20260504-g68/mutl3y-artifacts/phase2/persist-summary.yaml
+blocking_issues: []
+notes:
+  - "This is the cadence-required thorough whole-codebase review after a clean light checkpoint."

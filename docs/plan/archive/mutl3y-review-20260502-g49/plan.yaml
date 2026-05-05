@@ -1,0 +1,38 @@
+plan_id: mutl3y-review-20260502-g49
+cycle: g49
+title: "Mutl3y carry-finding follow-up for defaults and YAML error channels"
+status: completed
+created_at: "2026-05-02"
+review_type: live_narrow_run
+target: src/prism
+focus_axis: error_handling
+origin: "Next cycle after g48 closure; continue from the g46 carry set with the paired H10/H11 fail-open and YAML-loading findings."
+
+resumption_pointer:
+  current_phase: P7
+  next_action: "Cycle closed; continue with the next carried g46 High slice in g50."
+  blocking_issues: []
+  notes: |
+    g48 is now closed, but the highest-value carried High findings in the older
+    g46 ledger still include the prepared-policy fallback integrity defect and
+    the YAML-loading error-channel defect. This cycle intentionally started from
+    those already-persisted carries rather than rerunning a broad Phase 0 scout
+    sweep. Wave 1 was scoped to two disjoint builder slices: defaults/plugin
+    integrity for G49-H10, and YAML-loading plus discovery strictness for
+    G49-H11. Both builder slices are now landed with green focused pytest,
+    Ruff, and Black checks, and the focused mypy slice is clean except for the
+    accepted external baseline in metadata_merger outside the touched files.
+    Gatekeeper confirmed the same verdict in Phase 6, and Phase 7 bookkeeping
+    now retains the closure summary plus focused validation bundle for the pair.
+
+artifacts:
+  findings: docs/plan/mutl3y-review-20260502-g49/findings.yaml
+  execution_trace: docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/execution-trace.yaml
+  phase4_decision_summary: docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase4/decision-summary.yaml
+  phase5_wave1_start_audit: docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase5/wave-1-start-audit.yaml
+  phase5_wave1_plan: docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase5/wave-1-plan.yaml
+  phase5_wave1_barrier_summary: docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+  phase6_gate_summary: docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase6/gate-summary.yaml
+  phase7_closure_summary: docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase7/closure-summary.yaml
+  model_usage_ledger: docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/model-usage-ledger.yaml
+  model_scorecard: docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/model-scorecard.yaml

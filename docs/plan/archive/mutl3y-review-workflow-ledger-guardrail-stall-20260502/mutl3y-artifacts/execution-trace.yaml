@@ -1,0 +1,57 @@
+version: 1
+plan_id: mutl3y-review-workflow-ledger-guardrail-stall-20260502
+cycle: mutl3y-ledger-guardrail-1
+updated_at: "2026-05-02T00:00:00Z"
+authoritative_resume_anchor: docs/plan/mutl3y-review-workflow-ledger-guardrail-stall-20260502/plan.yaml
+latest_checkpoint:
+  phase: P7
+  wave: 1
+  status: OK
+  status_line: "[mutl3y-ledger-guardrail-1 | P7 ledger validation recovery | OK — deterministic writer restored valid artifacts]"
+  next_action: "None. Guardrail drill is complete."
+  blocking_issues: []
+  plan_pointer_synced: true
+  receipt_proof:
+    - "Malformed ledger produced a failing ledger-validate.log"
+    - "Deterministic writer regenerated the ledger and passing scorecard"
+  artifact_proof:
+    - docs/plan/mutl3y-review-workflow-ledger-guardrail-stall-20260502/mutl3y-artifacts/model-usage-ledger.yaml
+    - docs/plan/mutl3y-review-workflow-ledger-guardrail-stall-20260502/mutl3y-artifacts/model-scorecard.yaml
+    - docs/plan/mutl3y-review-workflow-ledger-guardrail-stall-20260502/mutl3y-artifacts/phase7/ledger-validation-stall.yaml
+    - docs/plan/mutl3y-review-workflow-ledger-guardrail-stall-20260502/mutl3y-artifacts/phase7/ledger-validation-recovery.yaml
+  source_summary_artifact: docs/plan/mutl3y-review-workflow-ledger-guardrail-stall-20260502/mutl3y-artifacts/phase7/ledger-validation-recovery.yaml
+timeline:
+  - timestamp: "2026-05-02T00:00:00Z"
+    phase: P7
+    wave: 1
+    status: STALL
+    event: ledger_validation_failure
+    summary: "Malformed ledger YAML triggered STALL at the new guardrail."
+    source_artifacts:
+      - docs/plan/mutl3y-review-workflow-ledger-guardrail-stall-20260502/mutl3y-artifacts/phase7/ledger-validation-stall.yaml
+    plan_pointer_synced: true
+    failure_debug:
+      failure_class: malformed_yaml
+      failing_workers:
+        - Archivist-Ledger
+      expected_workers:
+        - Archivist-Ledger
+      returned_workers:
+        - Archivist-Ledger
+      missing_artifacts: []
+      relevant_logs:
+        - .mutl3y-gate/ledger-validate.log
+      route_failures: []
+      last_successful_status_line: "[mutl3y-ledger-guardrail-1 | P7 bookkeeping start | OK — ledger update started]"
+      suspected_slice: Phase 7 ledger validation
+      recovery_attempted: []
+      debug_hypothesis: "Tab indentation in model-usage-ledger.yaml breaks YAML parsing and must stall closeout immediately."
+  - timestamp: "2026-05-02T13:31:28Z"
+    phase: P7
+    wave: 1
+    status: OK
+    event: ledger_validation_recovery
+    summary: "Deterministic writer rebuilt the ledger and regenerated a passing validation log."
+    source_artifacts:
+      - docs/plan/mutl3y-review-workflow-ledger-guardrail-stall-20260502/mutl3y-artifacts/phase7/ledger-validation-recovery.yaml
+    plan_pointer_synced: true

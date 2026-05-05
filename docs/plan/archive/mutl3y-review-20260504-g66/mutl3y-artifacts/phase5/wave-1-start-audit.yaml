@@ -1,0 +1,35 @@
+status: ok
+phase: P5
+cycle: g66
+wave: 1
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-1-plan.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase4/decision-summary.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-1-plan.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Builder-ControlFlow
+  - Builder-Ownership
+  - Builder-Typing
+owned_file_sets:
+  - agent_name: Builder-ControlFlow
+    files:
+      - src/prism/api_layer/collection.py
+      - src/prism/tests/test_collection_contract.py
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-1-summary.md
+  - agent_name: Builder-Ownership
+    files:
+      - src/prism/api.py
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-Ownership-wave-1-summary.md
+  - agent_name: Builder-Typing
+    files:
+      - src/prism/repo_services.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_api_cli_repo_parity.py
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-Typing-wave-1-summary.md
+notes:
+  - "Wave 1 takes the three disjoint High slices selected in the Phase 4 decision summary."
+  - "G66-H01 and G66-H02 remain deferred only because they overlap the API/core typing seam and would collide in this batch."

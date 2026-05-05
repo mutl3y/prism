@@ -1,0 +1,99 @@
+plan_id: mutl3y-review-20260503-g63
+cycle: g63
+phase: P1
+review_type: light
+focus_axis: ownership
+status: OK
+grade: B+
+source_artifacts:
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Graph.yaml
+summary: >-
+  The light follow-up found no reopen-worthy High/Critical defect after g62.
+  Two medium slices remain actionable: test fixture coupling against the
+  module-global comment-doc plugin registry, and task-line policy proxies that
+  still resolve prepared policy through a global require_prepared_policy(None,
+  ...) path instead of explicit DI/bundle ownership.
+promoted_findings:
+  - id: G63-M01
+    severity: medium
+    category: test_fixture_coupling
+    source_observations:
+      - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Ownership.yaml#Scout-Ownership-02
+    rationale: >-
+      Tests in test_comment_doc_plugin_resolution mutate the module-global
+      plugin_registry and its private _comment_driven_doc_plugins map directly.
+      The try/finally cleanup limits immediate breakage, but the test seam still
+      freezes singleton internals and obscures the intended DI-over-registry
+      contract.
+    fix_group_key: tests.registry_mutation
+    suggested_narrow_gate: pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py
+  - id: G63-M02
+    severity: medium
+    category: policy_coercion
+    source_observations:
+      - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml#G63-CF-03
+    rationale: >-
+      task_line_parsing policy-backed proxies still call
+      require_prepared_policy(None, ...) at module scope. That keeps a global
+      late-resolver path alive in a slice where nearby code has otherwise been
+      moving toward explicit prepared-policy ownership.
+    fix_group_key: prepared_policy_resolution_consistency
+    suggested_narrow_gate: pytest -q src/prism/tests/test_task_parser_precedence_matrix.py src/prism/tests/test_comment_doc_plugin_resolution.py
+suppressed_highs:
+  - observation_id: TYP-01
+    rationale_code: duplicate_of
+    rationale: >-
+      Duplicate of the already-closed g62 prepared-policy-bundle fail-closed
+      seam. The current helper marks malformed bundles as malformed for cache
+      fingerprinting; it does not silently accept arbitrary bundle objects.
+  - observation_id: Scout-Ownership-02
+    rationale_code: false_positive
+    rationale: >-
+      Severity is downgraded and promoted as G63-M01 instead. The test seam is
+      real debt, but the explicit try/finally restoration and test-local scope
+      do not justify a High in this light checkpoint cycle.
+  - observation_id: G63-CF-01
+    rationale_code: false_positive
+    rationale: >-
+      Non-strict best-effort degradation is an intentional, directly-tested
+      ScannerContext behavior. The runtime records scan_degraded and scan_errors
+      instead of silently swallowing the phase failure.
+suppressed_observations:
+  - observation_id: TYP-02
+    rationale: >-
+      Supporting evidence for the same prepared-policy-bundle seam as TYP-01;
+      not promoted separately in this light cycle.
+  - observation_id: Scout-Ownership-01
+    rationale: >-
+      Package export curation remains lower-priority facade debt and is not the
+      highest-leverage slice for this checkpoint cycle.
+  - observation_id: Scout-Ownership-03
+    rationale: >-
+      Module-global registry singleton is known architectural debt already
+      reflected in active lessons; no new failure mode surfaced in this cycle.
+  - observation_id: G63-CF-02
+    rationale: >-
+      Existing tests document graceful degradation for optional seed files. The
+      broad exception set may deserve later tightening, but this light cycle did
+      not produce a concrete regression-triggering path.
+  - observation_id: G63-CF-04
+    rationale: >-
+      Low-severity cache identity nuance already exercised in prior cycles and
+      not a checkpoint blocker.
+  - observation_id: G63-SG-01
+    rationale: >-
+      Matches active lesson on canonical registry bootstrap ownership; no new
+      split-authority failure was observed.
+  - observation_id: G63-SG-02
+    rationale: >-
+      Matches active lesson on registry singleton ownership and does not outrank
+      the promoted test-fixture coupling slice.
+  - observation_id: G63-SG-03
+    rationale: >-
+      Matches known residual prepared-policy/default-registry ownership seam and
+      is lower leverage than the direct module-global proxy usage promoted as
+      G63-M02.
+next_action: Persist the promoted shortlist into findings.yaml and advance to P2.

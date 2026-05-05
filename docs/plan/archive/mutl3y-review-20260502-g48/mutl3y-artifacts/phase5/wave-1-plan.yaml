@@ -1,0 +1,30 @@
+wave: 1
+cycle: g48
+status: completed
+workers:
+  - agent_name: Builder-Typing
+    findings:
+      - G48-H01
+    owned_files:
+      - src/prism/scanner_io/output_orchestrator.py
+      - src/prism/tests/test_output_orchestration.py
+    invariant: "Output orchestration must preserve current runtime behavior while replacing Any-typed and cast-based renderer seams with explicit typed contracts."
+    suggested_narrow_gate: pytest -q src/prism/tests/test_output_orchestration.py
+  - agent_name: Builder-ControlFlow
+    findings:
+      - G48-H02
+    owned_files:
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/tests/test_defaults.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+    invariant: "Prepared-policy plugin validation must fail closed or apply its documented fallback contract explicitly; it must not ignore fallback inputs or silently weaken plugin-integrity guarantees."
+    suggested_narrow_gate: pytest -q src/prism/tests/test_defaults.py -k validate_shape src/prism/tests/test_plugin_kernel_extension_parity.py
+  - agent_name: Builder-Abstraction
+    findings:
+      - G48-H03
+    owned_files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+      - src/prism/tests/test_collection_contract.py
+    invariant: "The non-collection API boundary must not coerce missing prepared-policy bundle state into dict-shaped success input."
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py

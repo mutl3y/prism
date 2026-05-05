@@ -1,0 +1,11 @@
+plan_id: mutl3y-review-20260502-g51
+cycle: g51
+phase: P1
+status: completed
+summary: "Phase 0 sharpened the deferred ownership cluster enough to promote one concrete registry-authority wave while deferring the larger composition-root construction seam."
+promoted_findings:
+  - G51-M01
+suppressed_highs: []
+notes:
+  - "Scout-Typing and Scout-Ownership resolved to empty valid artifacts after recovery; the live signal came from the repaired graph and control-flow lanes."
+  - "The first ownership wave stays small: unify duplicated registry-resolution semantics between defaults.py and loader.py, then revisit broader composition-root construction later."

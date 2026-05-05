@@ -1,0 +1,17 @@
+plan_id: mutl3y-review-20260503-g62
+cycle: g62
+phase: P5
+wave: 7
+status: OK
+finding: G62-H03
+worker: Builder-Ownership
+owned_file_set:
+  - src/prism/api_layer/plugin_facade.py
+  - src/prism/tests/test_api_cli_entrypoints.py
+  - src/prism/tests/test_platform_routing_fail_closed.py
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Ownership-wave-7-summary.md
+preconditions:
+  - G62-H03 promoted in findings.yaml
+  - closure-control-gate.yaml verdict is REOPEN_CURRENT_CYCLE
+  - scout-coverage-patch.yaml recorded for missed God Mode High
+next_action: Dispatch Builder-Ownership for the public API reserved-platform classification fix.

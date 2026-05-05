@@ -1,0 +1,23 @@
+wave_id: wave-7
+phase: P5
+status: OK
+summary: "Builder-Ownership preserved reserved unsupported platform classification through the public API scan-pipeline registry isolation seam and closed G62-H03."
+builders:
+  - worker: Builder-Ownership
+    task_id: g62-wave7-builder-ownership
+    result: success
+    artifact: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Ownership-wave-7-summary.md
+    notes: "The isolated registry forwards is_reserved_unsupported_platform(), and public API terraform selection now raises platform_not_supported."
+validation:
+  - command: ".venv/bin/python -m pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'reserved or scan_pipeline_registry_seam'"
+    result: "2 passed, 32 deselected"
+  - command: ".venv/bin/python -m pytest -q src/prism/tests/test_platform_routing_fail_closed.py"
+    result: "12 passed"
+  - command: ".venv/bin/python -m mypy src/prism/api_layer/plugin_facade.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_platform_routing_fail_closed.py"
+    result: "success"
+  - command: ".venv/bin/python -m ruff check src/prism/api_layer/plugin_facade.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_platform_routing_fail_closed.py"
+    result: "success"
+  - command: ".venv/bin/python -m black --check src/prism/api_layer/plugin_facade.py src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_platform_routing_fail_closed.py"
+    result: "success"
+ready_for_next_slice: true
+next_phase: P6

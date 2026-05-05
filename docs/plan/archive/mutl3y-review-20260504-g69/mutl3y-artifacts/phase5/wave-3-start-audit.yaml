@@ -1,0 +1,13 @@
+cycle: g69
+phase: P5
+wave: 3
+status: ready
+builder: Builder-Typing
+fix_group_key: plugin-interfaces.canonical-contract-typing
+owned_files:
+  - src/prism/scanner_plugins/interfaces.py
+  - src/prism/scanner_plugins/ansible/__init__.py
+  - src/prism/tests/test_platform_execution_bundle.py
+foreman_recovery: false
+blocking_issues: []
+suggested_narrow_gate: .venv/bin/python -m mypy src/prism/scanner_plugins/interfaces.py src/prism/scanner_plugins/ansible/__init__.py

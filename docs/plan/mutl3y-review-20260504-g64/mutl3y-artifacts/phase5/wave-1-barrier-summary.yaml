@@ -1,0 +1,24 @@
+plan_id: mutl3y-review-20260504-g64
+cycle: g64
+phase: P5
+wave: 1
+status: OK
+finding: G64-H01
+worker: Builder-ControlFlow
+result: implemented_and_validated
+summary: >-
+  Builder-ControlFlow collapsed loader YAML policy fallback to one explicit
+  registry-authority decision and preserved the standalone contract. Focused
+  pytest, ruff, and black validation passed at the wave barrier.
+artifacts:
+  builder_summary: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-1-summary.md
+  wave_plan: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/wave-1-plan.yaml
+validation:
+  - command: .venv/bin/python -m pytest -q src/prism/tests/test_di_registry_resolution.py -k 'yaml_policy_resolution'
+    status: PASS
+  - command: .venv/bin/python -m ruff check src/prism/scanner_io/loader.py src/prism/tests/test_di_registry_resolution.py
+    status: PASS
+  - command: .venv/bin/python -m black --check src/prism/scanner_io/loader.py src/prism/tests/test_di_registry_resolution.py
+    status: PASS
+next_phase: P6
+next_action: Run the g64 validation gate after wave 1 closure.

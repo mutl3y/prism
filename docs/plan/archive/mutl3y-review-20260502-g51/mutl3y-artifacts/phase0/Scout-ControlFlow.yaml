@@ -1,0 +1,23 @@
+- id: FIND-G51-CF-01
+  category: ownership
+  fingerprint: ownership:loader_dual_path_missing_prepared_bundle:7adf1b73
+  file: src/prism/scanner_io/loader.py
+  line: 78
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: needs_recheck
+  memory_match: FIND-G2-LOADER-DUAL-PATH
+  evidence_snippet: "Intentional dual-path - soft fallback to registry-resolved default. Unlike other policy getters, this path does NOT raise on a missing bundle."
+  evidence_command: "rg -n 'Intentional dual-path|does NOT raise on a missing bundle|return _resolve_yaml_plugin|test_load_yaml_file_with_no_di_falls_back_to_safe_load|test_yaml_parsing_loader_uses_resolver_traversal_uses_prepared_bundle' src/prism/scanner_io/loader.py src/prism/tests/test_t1_02_coverage_lift_batch3.py src/prism/tests/test_comment_doc_plugin_resolution.py"
+  related_symbols:
+    - _get_yaml_parsing_policy
+    - resolve_yaml_parsing_policy_plugin
+    - load_yaml_file
+    - parse_yaml_candidate
+  fix_group_key: loader-prepared-policy-dual-path
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions:
+    - Bundle with the existing deferred loader contract-reshape lane.
+    - Preserve standalone discovery callers or split an explicit standalone loader API before making this getter fail-closed.
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_t1_02_coverage_lift_batch3.py -k 'load_yaml_file_with_no_di_falls_back_to_safe_load or parse_yaml_candidate_uses_default_policy' && pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py -k yaml_parsing_loader_uses_resolver_traversal_uses_prepared_bundle"

@@ -1,0 +1,41 @@
+plan_id: mutl3y-review-20260504-g67
+cycle: g67
+target: src/prism
+review_type: unconstrained_god_mode
+focus_axis: none
+status: cycle_complete
+decision_summary:
+  - "g67 is the cadence-required fresh unconstrained God Mode review after g64 and g66 completed as consecutive clean thorough checkpoints on different focus surfaces."
+  - "This cycle starts without a seeded shortlist; any High or Critical findings must come from the independent whole-target review artifact and then be verified against live source."
+findings:
+  - id: G67-H01
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: cache_semantics
+    fingerprint: public_run_scan_isolated_registry_cache_miss
+    title: "Public api.run_scan defeats cache reuse by salting keys with a fresh isolated registry identity on every call"
+    files:
+      - src/prism/api.py
+      - src/prism/api_layer/plugin_facade.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/tests/test_g03_scan_cache_integration.py
+    source_observations:
+      - G67-H01
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+      - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase1/grading-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase4/wave-1-decision-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+    summary: "The public api.run_scan path acquires a fresh isolated scan-pipeline registry wrapper on each call, and the non-collection cache key fingerprints that runtime registry by object identity, so identical public API scans miss the cache every time."
+    decision_deadline: g67
+    suggested_narrow_gate: pytest -q src/prism/tests/test_g03_scan_cache_integration.py -k cache
+    closure_evidence:
+      - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase5/Builder-Ownership-summary.md
+      - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase6/Gatekeeper-wave-1-summary.md
+      - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase6/Auditor-Regression-wave-1.md
+      - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase7/closure-summary.yaml
+suppressed_highs: []
+suppressed_observations: []

@@ -1,0 +1,90 @@
+- id: FIND-G56-01
+  category: typing_contract_mismatch
+  fingerprint: strict_mode_parameter_deleted_unused
+  file: src/prism/scanner_plugins/defaults.py
+  line: 192
+  severity_hint: high
+  confidence: high
+  detector: parameter_contract_mismatch
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def _fallback_or_raise_malformed_plugin_shape(
+        *,
+        strict_mode: bool,
+        fallback_plugin: Any,
+    ) -> Any:
+        del strict_mode
+        del fallback_plugin
+        _raise_malformed_plugin_shape_error(...)
+  fix_group_key: g56-strict-mode-fallback-unplugged
+  rationale: |
+    The helper signature still advertises a fallback-versus-raise choice,
+    but both strict_mode and fallback_plugin are deleted immediately and the
+    function always raises. The typing surface lies about the control-flow
+    contract it exposes.
+
+- id: FIND-G56-02
+  category: control_flow_unreachable_path
+  fingerprint: fallback_plugin_never_used
+  file: src/prism/scanner_plugins/defaults.py
+  line: 193
+  severity_hint: high
+  confidence: high
+  detector: fallback_path_erasure
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def _fallback_or_raise_plugin_construction_error(
+        *,
+        strict_mode: bool,
+        fallback_plugin: Any,
+        exc: Exception,
+    ) -> Any:
+        del strict_mode
+        del fallback_plugin
+        raise PrismRuntimeError(...)
+  fix_group_key: g56-strict-mode-fallback-unplugged
+  rationale: |
+    The construction-failure sibling has the same erased fallback contract,
+    which means the whole defaults helper chain advertises a non-strict branch
+    that the code cannot actually take.
+
+- id: FIND-G56-03
+  category: return_type_narrowing_gap
+  fingerprint: protocol_return_type_not_narrowed_from_resolver
+  file: src/prism/scanner_plugins/defaults.py
+  line: 383
+  severity_hint: medium
+  confidence: high
+  detector: any_return_helper
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def _resolve_plugin_with_precedence(..., fallback_plugin: Any, ...) -> Any:
+        ...
+        return fallback_plugin
+  fix_group_key: resolver_return_type_contracts
+  rationale: |
+    The public resolve_* wrappers still promise protocol returns while routing
+    through an Any-return helper, so the typing seam remains weaker than the
+    public contract.
+
+- id: FIND-G56-04
+  category: test_contradicts_implementation
+  fingerprint: test_name_expects_fallback_but_asserts_raise
+  file: src/prism/tests/test_defaults.py
+  line: 29
+  severity_hint: medium
+  confidence: high
+  detector: contradictory_test_contract
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def test_validate_shape_non_strict_mode_uses_fallback_for_malformed_di_plugin() -> None:
+        with pytest.raises(PrismRuntimeError):
+            resolve_task_line_parsing_policy_plugin(_DI(), strict_mode=False)
+  fix_group_key: g56-strict-mode-fallback-unplugged
+  rationale: |
+    The test name still promises fallback behavior while the assertion locks in
+    raising behavior, which masks the contract break instead of guarding it.

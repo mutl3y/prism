@@ -1,0 +1,27 @@
+status: ok
+phase: P5
+cycle: g66
+wave: 3
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-2-barrier-summary.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-3-plan.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-2-barrier-summary.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-2-plan.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-Typing-wave-2-summary.md
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Builder-ControlFlow
+owned_file_sets:
+  - agent_name: Builder-ControlFlow
+    files:
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/scanner_core/scanner_context.py
+      - src/prism/scanner_data/contracts_request.py
+      - src/prism/tests/test_execution_request_builder.py
+      - src/prism/tests/test_scanner_context.py
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-3-summary.md
+notes:
+  - "Wave 3 is the serialized H02 follow-on after the green H01 barrier."
+  - "This slice owns the fail-closed handoff from execution_request_builder into ScannerContext without reopening the H01 contract surface."

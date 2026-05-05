@@ -1,0 +1,171 @@
+plan_id: mutl3y-review-20260504-g66
+cycle: g66
+phase: P1
+review_type: thorough
+focus_axis: typing
+status: OK
+grade: B
+source_artifacts:
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Probe-Ownership-protocol-seam.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Probe-ControlFlow-payload-seam.yaml
+summary: >-
+  The second thorough cycle on the rotated typing axis surfaced five new High
+  families and one new Medium family above the carried-forward g64 Medium queue.
+  The highest-leverage new work centers on typed protocol ownership at the
+  scan-pipeline and repo-scan seams, fail-closed payload shaping at the
+  execution-request boundary, one collection metadata error-channel mask, and a
+  public api.py facade leak into scanner-core assembly seams.
+cross_cutting_micro_checks:
+  registry_authority: >-
+    Scout-Graph-01 through Scout-Graph-03 did not justify a separate promoted
+    registry-authority finding, but they did confirm that the scan-pipeline API
+    path still overstates the registry contract and therefore support G66-H01.
+  facade_leakage: >-
+    Scout-Ownership-01 and Scout-Ownership-02 together confirm one real facade
+    leakage family: api.py imports scanner-core assembly symbols into the public
+    module surface and owned tests now patch api.DIContainer through that seam.
+promoted_findings:
+  - id: G66-H01
+    severity: high
+    category: typing
+    source_observations:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Typing.yaml#Scout-Typing-02
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Typing.yaml#Scout-Typing-03
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Graph.yaml#Scout-Graph-01
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Graph.yaml#Scout-Graph-03
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Probe-Ownership-protocol-seam.yaml
+    rationale: >-
+      The scan-pipeline protocol and facade path is one coherent High family:
+      scanner_plugins.interfaces still defines dict[Any]-typed scan-pipeline
+      contracts, api_layer.plugin_facade re-expands those weak shapes instead of
+      preserving a typed seam, and api.py plus execution_request_builder rely on
+      casts or overstated registry types around the same boundary.
+    fix_group_key: scan-pipeline.protocol-contract-typing
+    suggested_narrow_gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k scan_pipeline
+  - id: G66-H02
+    severity: high
+    category: policy_coercion
+    source_observations:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml#Scout-ControlFlow-01
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml#Scout-ControlFlow-02
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml#Scout-ControlFlow-03
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml#Scout-ControlFlow-04
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Probe-ControlFlow-payload-seam.yaml
+    rationale: >-
+      execution_request_builder and scanner_context share one High boundary seam:
+      malformed payload members are still coerced into acceptable-looking output
+      structures rather than rejected once the canonical execution request has
+      already passed fail-closed prepared-policy ingress.
+    fix_group_key: execution-request.payload-shape.fail-closed
+    suggested_narrow_gate: pytest -q src/prism/tests/test_execution_request_builder.py src/prism/tests/test_scanner_context.py -k "role_notes or display_variables or metadata or external_collections"
+  - id: G66-H03
+    severity: high
+    category: error_channel
+    source_observations:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Typing.yaml#Scout-Typing-04
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Typing.yaml#Scout-Typing-05
+    rationale: >-
+      _payload_metadata() in api_layer.collection still masks malformed per-role
+      payload metadata by returning {}, and the existing runbook-path tests do
+      not pin invalid-shape behavior. That combination weakens the error channel
+      on a user-visible collection reporting path.
+    fix_group_key: collection-scan.metadata-shape-error-channel
+    suggested_narrow_gate: pytest -q src/prism/tests/test_collection_contract.py -k runbook
+  - id: G66-H04
+    severity: high
+    category: facade_leakage
+    source_observations:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Ownership.yaml#Scout-Ownership-01
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Ownership.yaml#Scout-Ownership-02
+    rationale: >-
+      api.py still imports scanner-core assembly symbols into the public facade,
+      and owned tests monkeypatch api.DIContainer through that path. The leak is
+      now part of externally visible behavior, not just internal module hygiene.
+    fix_group_key: api.scanner_core_assembly_symbol_leak
+    suggested_narrow_gate: pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py::test_run_scan_metadata_role_notes_uses_comment_doc_plugin_seam
+  - id: G66-H05
+    severity: high
+    category: orchestration_seam
+    source_observations:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Typing.yaml#Scout-Typing-01
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Probe-Ownership-protocol-seam.yaml
+    rationale: >-
+      The widening pass confirmed repo_services is not part of the scan-pipeline
+      protocol family. It remains a separate High orchestration seam because the
+      canonical repo-scan intake path still bundles core collaborators behind a
+      loose callable signature instead of a named protocol-owned contract.
+    fix_group_key: repo-scan.protocolize-orchestration-seam
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_repo_parity.py -k repo_scan
+  - id: G66-M06
+    severity: medium
+    category: test_fixture_coupling
+    source_observations:
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase0/Scout-Ownership.yaml#Scout-Ownership-03
+    rationale: >-
+      The comment-doc resolution suite still mutates the global plugin registry
+      singleton directly. Cleanup is present, but the suite remains coupled to
+      singleton internals rather than exercising only the intended seam.
+    fix_group_key: tests.global_plugin_registry_coupling
+    suggested_narrow_gate: pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py
+suppressed_highs:
+  - observation_id: Scout-Typing-03
+    rationale_code: duplicate_of
+    rationale: >-
+      The api_layer.plugin_facade protocol surface is part of the promoted
+      G66-H01 scan-pipeline family, not a separate High.
+  - observation_id: Scout-Ownership-02
+    rationale_code: duplicate_of
+    rationale: >-
+      The api.DIContainer monkeypatch is supporting evidence under G66-H04,
+      where the public-facade leak and the test seam are one family.
+  - observation_id: Scout-ControlFlow-01
+    rationale_code: duplicate_of
+    rationale: >-
+      Duplicate of G66-H02; role-notes list coercion shares the same payload
+      handoff owner pair as the other promoted fail-open observations.
+  - observation_id: Scout-ControlFlow-02
+    rationale_code: duplicate_of
+    rationale: >-
+      Duplicate of G66-H02; variable-row truthiness casting is not a separate
+      fix family from the broader execution-request payload seam.
+  - observation_id: Scout-ControlFlow-03
+    rationale_code: duplicate_of
+    rationale: >-
+      Duplicate of G66-H02; external-collections stringification is another
+      manifestation of the same fail-open payload boundary.
+  - observation_id: Scout-ControlFlow-04
+    rationale_code: duplicate_of
+    rationale: >-
+      Duplicate of G66-H02; ScannerContext empty-default coercions are the
+      downstream half of the same boundary-seam finding.
+suppressed_observations:
+  - observation_id: Scout-Ownership-04
+    rationale: >-
+      The defaults.py Ansible fallback singleton seam is marked needs_recheck
+      against an older active lesson and does not outrank the newly promoted
+      High families in this cycle.
+  - observation_id: Scout-Graph-01
+    rationale: >-
+      Supporting evidence for G66-H01; the registry cast is one symptom of the
+      promoted scan-pipeline protocol contract mismatch.
+  - observation_id: Scout-Graph-02
+    rationale: >-
+      Lower-priority fallback-authority nuance beneath G66-H01; keep as support
+      unless a later cycle needs a separate registry-authority slice.
+  - observation_id: Scout-Graph-03
+    rationale: >-
+      Supporting evidence for G66-H01; overstated PluginRegistry typing at the
+      runtime seam is not a separate finding family.
+  - observation_id: Scout-Graph-04
+    rationale: >-
+      TYPE_CHECKING import cleanup is valid but low leverage relative to the
+      new High queue.
+low_signal_trigger:
+  triggered: false
+  raw_observation_count: 17
+  promoted_count: 6
+next_action: Persist the promoted shortlist into findings.yaml and advance to P2.

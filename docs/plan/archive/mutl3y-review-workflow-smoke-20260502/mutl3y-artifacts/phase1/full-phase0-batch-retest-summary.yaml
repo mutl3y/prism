@@ -1,0 +1,39 @@
+cycle: mutl3y-g1
+plan_id: mutl3y-review-workflow-smoke-20260502
+phase: P1
+status: full_phase0_retest_passed
+target_path: src/prism/scanner_core/di.py
+prompt_contract_retest:
+  artifacts:
+    - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Typing-full-retest.yaml
+    - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Ownership-full-retest.yaml
+    - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-ControlFlow-full-retest.yaml
+    - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Graph-full-retest.yaml
+  observation_counts:
+    Scout-Typing: 4
+    Scout-Ownership: 3
+    Scout-ControlFlow: 4
+    Scout-Graph: 3
+    total: 14
+  validation:
+    yaml_parse: pass
+    exact_schema_keys: pass
+    enum_and_scalar_shapes: pass
+    evidence_snippet_single_line: pass
+    log: .mutl3y-gate/workflow-phase0-full-retest-schema.log
+output_contract_spotcheck:
+  status: pass
+  scope:
+    - /raid5/source/test/agent_and_skills/.github/skills/mutl3y-review-workflow/SKILL.md
+    - /raid5/source/test/agent_and_skills/.github/skills/mutl3y-review-workflow/references/
+    - /raid5/source/test/agent_and_skills/.github/skills/mutl3y-review-workflow/agents/
+  checked_for:
+    - mutl3y-artifacts/
+    - .mutl3y-gate/
+    - .gilfoyle-lessons
+    - stale artifacts/ or .gate references
+  log: .mutl3y-gate/workflow-output-contract-rg.log
+notes:
+  - Full fresh four-scout rerun passed the tightened Phase 0 contract; prior retest evidence covered only Ownership and Graph.
+  - Scout outputs remained artifact-backed and disjoint by owned file path.
+  - Smoke-plan execution state is still Phase 1 only; later-phase drills such as wave-barrier and P5/P6 resume remain to be exercised.

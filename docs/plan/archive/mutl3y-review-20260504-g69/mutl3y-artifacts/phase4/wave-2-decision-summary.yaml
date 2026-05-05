@@ -1,0 +1,39 @@
+phase: P4
+cycle: g69
+decision: wave_2_selected
+selected_findings:
+  - G69-H04
+deferred_findings:
+  - G69-H02
+  - G69-H03
+fix_group_key: strict-phase-failures.bool-coercion.public-seams
+rationale: >-
+  G69-H04 is the next highest-leverage slice after the registry-authority repair.
+  The root cause is shared boolean truthiness coercion across public and runtime
+  boundaries, and the canonical request validation seam must be included
+  proactively so malformed values fail closed at ingress.
+owned_file_set:
+  - src/prism/api_layer/non_collection.py
+  - src/prism/scanner_core/execution_request_builder.py
+  - src/prism/scanner_plugins/bundle_resolver.py
+  - src/prism/scanner_core/scanner_context.py
+  - src/prism/scanner_data/contracts_request.py
+  - src/prism/tests/test_api_cli_entrypoints.py
+  - src/prism/tests/test_execution_request_builder.py
+  - src/prism/tests/test_comment_doc_plugin_resolution.py
+  - src/prism/tests/test_scanner_context.py
+deferred_files:
+  - src/prism/scanner_plugins/interfaces.py
+  - src/prism/scanner_plugins/ansible/__init__.py
+  - src/prism/scanner_plugins/ansible/kernel.py
+  - src/prism/tests/test_platform_execution_bundle.py
+  - src/prism/tests/test_kernel.py
+  - src/prism/scanner_core/protocols_runtime.py
+scope_check:
+  overlap_detected: false
+  expansion_required: true
+  expansion_reason: >-
+    scanner_data/contracts_request.py is the canonical runtime validation seam
+    for scan options and is required to fix malformed strict_phase_failures
+    values at ingress rather than only replacing downstream bool(...) calls.
+suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k strict_phase_failures

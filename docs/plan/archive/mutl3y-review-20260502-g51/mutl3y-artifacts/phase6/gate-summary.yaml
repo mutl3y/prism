@@ -1,0 +1,45 @@
+agent_name: Gatekeeper
+artifact_path: docs/plan/mutl3y-review-20260502-g51/mutl3y-artifacts/phase6/gate-summary.yaml
+gate_verdict: PASS
+validation_timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+scope: Phase 6 focused validation
+
+validation_results:
+  pytest:
+    command: pytest -q src/prism/tests/test_di_registry_resolution.py -k 'loader_registry_resolution or live_yaml_policy_resolution'
+    status: PASS
+    detail: "3 passed, 26 deselected in 0.41s"
+    log: .mutl3y-gate/pytest.log
+
+  ruff:
+    command: .venv/bin/python -m ruff check src/prism/scanner_plugins/defaults.py src/prism/scanner_io/loader.py src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_comment_doc_plugin_resolution.py
+    status: PASS
+    detail: "All checks passed"
+    log: .mutl3y-gate/ruff.log
+
+  black:
+    command: .venv/bin/python -m black --check src/prism/scanner_plugins/defaults.py src/prism/scanner_io/loader.py src/prism/tests/test_di_registry_resolution.py src/prism/tests/test_comment_doc_plugin_resolution.py
+    status: PASS
+    detail: "4 files would be left unchanged"
+    log: .mutl3y-gate/black.log
+
+  mypy:
+    command: .venv/bin/python -m mypy --no-error-summary src/prism/scanner_plugins/defaults.py src/prism/scanner_io/loader.py
+    status: PASS
+    detail: "No touched-file errors; accepted external baseline only"
+    baseline_external: src/prism/scanner_core/metadata_merger.py:12
+    baseline_policy: "Treat metadata_merger.py:12 as accepted external baseline if sole issue"
+    log: .mutl3y-gate/mypy.log
+
+gate_closure:
+  all_commands_pass: true
+  touched_files_clean: true
+  external_baselines_acceptable: true
+  verdict: PASS
+  next_phase: Phase 6 verdict barrier cleared; ready for orchestrator resume
+
+audit_trail:
+  gate_started: Phase 6
+  validation_scope: loader_registry_resolution, live_yaml_policy_resolution, defaults.py, loader.py
+  policy_applied: Accept external baseline only if sole issue; no touched-file errors
+  policy_result: ACCEPT

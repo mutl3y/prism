@@ -1,0 +1,48 @@
+plan_id: mutl3y-review-20260502-g52
+cycle: g52
+target: src/prism
+review_type: live_narrow_run
+focus_axis: composition_root
+status: completed
+decision_summary:
+  - "Start from the deferred g51 composition-root cluster instead of reopening the closed registry-resolution wave."
+  - "Use a fresh Phase 0 scout batch to sharpen DI/kernel/defaults runtime-construction evidence before deciding the first fix wave."
+  - "Promote the non_collection lazy composition-root cluster first; defer the constructor-contract typing seam because the first probe expanded into the broader DIFactoryOverride object-return boundary."
+findings:
+  - id: G52-H01
+    status: closed
+    severity: high
+    summary: "run_scan() in api_layer/non_collection resolves four runtime classes lazily, splitting composition-root authority across in-function imports."
+    fix_group_key: composition-root-lazy-di-wiring
+    source_observations:
+      - Scout-Graph-01
+      - Scout-ControlFlow-01
+    owned_files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_run_scan_basic"
+    notes: "Target only the non_collection lazy-resolution cluster in wave 1; do not widen into execution_request_builder circularity in the same wave."
+  - id: G52-H02
+    status: carried_forward
+    severity: high
+    summary: "Execution request construction in api_layer/non_collection owns multiple runtime composition concerns and fragments the effective composition root."
+    fix_group_key: composition-root-execution-request-fragmentation
+    source_observations:
+      - Scout-Graph-03
+    owned_files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/tests/test_scanner_core_execution_request.py
+    suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_execution_request.py -k execution"
+    notes: "Wave 1 proved the API wrapper slice was worth isolating first. Carry this builder-owned seam into g53 rather than widening g52 into a cross-file second wave."
+  - id: G52-M01
+    status: suppressed_medium
+    severity: medium
+    summary: "The constructor-contract typing seam around _construct_runtime_plugin, _construct_registry_plugin, and DIFactoryOverride is real but expands immediately into a broader DI override contract cleanup."
+    fix_group_key: late-bound-constructor-contracts
+    source_observations:
+      - Scout-Typing-01
+      - Scout-Typing-05
+      - Scout-Typing-08
+    notes: "A local probe was reverted after touched-file mypy exposed the broader DI override object-return boundary. Revisit in a dedicated typing-focused cycle."
+suppressed_highs: []

@@ -1,0 +1,32 @@
+cycle: g63
+phase: P6
+models:
+  GPT-5 mini (copilot):
+    attempts: 4
+    route_failures: 0
+    quality_failures: 4
+    reedit_count: 4
+    rolling_quality_avg: 2.0
+    lane_tags:
+    - discovery
+    status: quarantined
+  GPT-5.4 (copilot):
+    attempts: 3
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.0
+    lane_tags:
+    - builder
+    - discovery
+    status: healthy
+  GPT-5.4 mini (copilot):
+    attempts: 1
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.0
+    lane_tags:
+    - validation
+    status: healthy
+notes: []

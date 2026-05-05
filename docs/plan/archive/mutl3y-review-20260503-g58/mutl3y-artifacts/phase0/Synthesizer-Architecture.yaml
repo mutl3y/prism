@@ -1,0 +1,207 @@
+plan_id: mutl3y-review-20260503-g58
+cycle: g58
+phase: P0
+worker: Synthesizer-Architecture
+status: completed
+fallback_note: "Principal software engineer acting as Synthesizer-Architecture (no dedicated Mutl3y synthesis companion agent exists)"
+summary: >
+  Cross-cutting deep review found one net-new High (registry authority behavioral divergence:
+  loader no-bootstrap vs defaults bootstrap — escalates g55-M03 from 'behaviorally unified'
+  to confirmed behavioral split) and two net-new Mediums (scanner_reporting module-init
+  plugin boundary and scan_payload_helpers dict[str,Any] erasure at kernel boundary).
+  Two Low findings cover api.py facade namespace leakage and scanner_extract broad catches.
+  Total net-new findings: 5.
+
+net_new_highs:
+  - id: SYNTH-ARCH-01
+    title: "Registry authority behavioral divergence: loader no-bootstrap vs defaults bootstrap"
+    severity: high
+    cross_cutting: true
+    promote_to_shortlist: true
+    scouts_that_missed:
+      - Scout-Typing
+      - Scout-ControlFlow
+    scouts_that_observed_partial:
+      - Scout-Ownership
+      - Scout-Graph
+    escalation_note: >
+      g55-M03 (DR-G55-SYNTH-M03) assessed registry authority as 'behaviorally unified but
+      enforced only by duck typing'. g58 Scout-Graph-03 and Scout-Ownership-04 produce live
+      evidence that the paths are NOT behaviorally unified: loader._resolve_plugin_registry
+      returns None when no DI registry is present, while defaults._resolve_registry bootstraps
+      via prism.scanner_plugins.bootstrap.get_default_plugin_registry(). These are different
+      behaviors for the same logical request context.
+    anchors:
+      - src/prism/scanner_io/loader.py:51
+      - src/prism/scanner_io/loader.py:115
+      - src/prism/scanner_io/loader.py:131
+      - src/prism/scanner_plugins/defaults.py:57
+      - src/prism/scanner_plugins/defaults.py:65
+      - src/prism/scanner_core/execution_request_builder.py:549
+    verification_evidence: >
+      loader.py:L115-130 comment 'Loader standalone contract: returns None when no DI registry
+      is available. Does NOT fall back to bootstrap singleton, unlike defaults._resolve_registry.'
+      Confirmed at line 131: 'return None'. defaults.py _resolve_registry falls back to
+      bootstrap.get_default_plugin_registry() at line 65 (Scout-Graph-03 evidence_command).
+      Three-way split: DI-held (execution_request_builder passes runtime_registry), loader
+      returns None, defaults bootstraps. No test asserts all three read same registry for
+      an injected-registry request.
+    missing_test: >
+      No test asserts that a custom injected registry propagates coherently through
+      DI-held + loader + defaults for a single request; the behavioral divergence is
+      latent until standalone loader paths execute without DI injection.
+    recommendation: promote_to_shortlist
+
+net_new_mediums:
+  - id: SYNTH-ARCH-02
+    title: "scanner_reporting/__init__ resolves render plugins from scanner_plugins.defaults at module import time"
+    severity: medium
+    cross_cutting: true
+    promote_to_shortlist: false
+    scouts_that_missed:
+      - Scout-Typing
+      - Scout-Ownership
+      - Scout-ControlFlow
+      - Scout-Graph
+    anchors:
+      - src/prism/scanner_reporting/__init__.py:32
+      - src/prism/scanner_reporting/__init__.py:37
+      - src/prism/scanner_reporting/__init__.py:38
+      - src/prism/scanner_reporting/__init__.py:39
+      - src/prism/scanner_plugins/defaults.py:610
+      - src/prism/scanner_plugins/defaults.py:619
+      - src/prism/scanner_plugins/defaults.py:630
+    verification_evidence: >
+      scanner_reporting/__init__.py:32: 'from prism.scanner_plugins.defaults import
+      resolve_render_runbook, resolve_render_runbook_csv, resolve_runbook_rows'. Lines 37-39:
+      'build_runbook_rows = resolve_runbook_rows()' / 'render_runbook = resolve_render_runbook()'
+      / 'render_runbook_csv = resolve_render_runbook_csv()'. These are module-level singletons
+      created by calling defaults resolvers at import time. scanner_reporting/__init__ was not
+      in any scout's primary scan surface.
+    pattern_note: >
+      Parallels the g13 layer-violation finding (runbook_renderer.py importing from
+      scanner_readme). Current case: reporting layer → plugin defaults at module init.
+      Any test overriding rendering must patch scanner_reporting module attributes, not go
+      through DI injection. api.py re-exports these singletons (render_runbook, render_runbook_csv)
+      at lines 28-29 — freezing the module-init singleton as a public API dependency.
+    fix_group_key: "scanner_reporting.module_init_plugin_singleton"
+    proposed_fix_class: lazy_import_or_di_resolution
+    recommendation: keep_exhaustive
+
+  - id: SYNTH-ARCH-03
+    title: "scan_payload_helpers.py uses dict[str,Any] throughout while orchestrator.py public API uses dict[str,object]"
+    severity: medium
+    cross_cutting: true
+    promote_to_shortlist: false
+    scouts_that_missed:
+      - Scout-Typing
+      - Scout-Ownership
+      - Scout-ControlFlow
+      - Scout-Graph
+    anchors:
+      - src/prism/scanner_kernel/scan_payload_helpers.py:19
+      - src/prism/scanner_kernel/scan_payload_helpers.py:20
+      - src/prism/scanner_kernel/scan_payload_helpers.py:69
+      - src/prism/scanner_kernel/scan_payload_helpers.py:110
+      - src/prism/scanner_kernel/orchestrator.py:266
+      - src/prism/scanner_kernel/orchestrator.py:276
+    verification_evidence: >
+      scan_payload_helpers.py:110: 'def apply_scan_policy_blocker_runtime_outcomes(*, payload:
+      dict[str, Any], strict_mode: bool) -> dict[str, Any]'. orchestrator.py:266: public
+      'orchestrate_scan_payload_with_selected_plugin(*, build_payload_fn: Callable[[],
+      dict[str, object]])'. Line 276: 'payload = apply_scan_policy_blocker_runtime_outcomes(
+      payload=payload, strict_mode=strict_mode)' — dict[str,object] is immediately widened to
+      dict[str,Any] on the first internal helper call. api_layer uses RunScanOutputPayload
+      (TypedDict) which is stripped to dict[str,object] by _copy_object_mapping before crossing
+      the api_layer/kernel boundary. scan_payload_helpers.py not in any scout scan surface.
+    cross_cut_note: >
+      Combines Scout-Typing-05 (KernelPayload: TypeAlias = dict[str, object]) with the
+      unscanned scan_payload_helpers.py file. The payload type follows three authorities:
+      RunScanOutputPayload (api_layer) → dict[str,object] (orchestrator boundary) →
+      dict[str,Any] (internal helpers). No single scout observed the helpers file.
+    fix_group_key: "scan_payload_helpers.dict_any"
+    proposed_fix_class: tighten_helpers_to_dict_object
+    recommendation: keep_exhaustive
+
+net_new_lows:
+  - id: SYNTH-ARCH-04
+    title: "api.py imports DIContainer, FeatureDetector, ScannerContext, ScanCacheBackend at module level — accessible from public facade namespace despite __all__ exclusion"
+    severity: low
+    cross_cutting: true
+    promote_to_shortlist: false
+    scouts_that_missed:
+      - Scout-Typing
+      - Scout-Ownership
+      - Scout-ControlFlow
+      - Scout-Graph
+    anchors:
+      - src/prism/api.py:30
+      - src/prism/api.py:31
+      - src/prism/api.py:32
+      - src/prism/api.py:33
+      - src/prism/api.py:34
+    verification_evidence: >
+      api.py:30-34: 'from prism.scanner_core import (DIContainer, FeatureDetector,
+      ScanCacheBackend, ScannerContext,)'. __all__ at line 59 correctly excludes these:
+      only ['scan_collection', 'scan_repo', 'scan_role']. However Python module namespace
+      does not enforce __all__ for explicit imports — 'from prism.api import DIContainer'
+      is valid. No test patching of these symbols via api facade found. Risk is contained
+      but the internal assembly types are frozen as facade-accessible implementation details.
+    fix_group_key: "api.module_level_core_imports"
+    proposed_fix_class: restrict_to_type_checking_block_or_lazy_import
+    recommendation: keep_exhaustive
+
+  - id: SYNTH-ARCH-05
+    title: "scanner_extract/discovery.py has 4 broad except Exception catches not in any scout scan surface"
+    severity: low
+    cross_cutting: true
+    promote_to_shortlist: false
+    scouts_that_missed:
+      - Scout-Typing
+      - Scout-Ownership
+      - Scout-ControlFlow
+      - Scout-Graph
+    anchors:
+      - src/prism/scanner_extract/discovery.py:124
+      - src/prism/scanner_extract/discovery.py:222
+      - src/prism/scanner_extract/discovery.py:284
+      - src/prism/scanner_extract/discovery.py:305
+    verification_evidence: >
+      grep -n 'except Exception' src/prism/scanner_extract/discovery.py returns 4 matches
+      at lines 124, 222, 284, 305. File not in any Phase 0 scout's primary scan surface.
+      These are broad catches that may silently swallow unexpected error types in the
+      extraction path.
+    fix_group_key: "scanner_extract.broad_exception_catches"
+    proposed_fix_class: narrow_to_expected_exception_types
+    recommendation: keep_exhaustive
+
+deep_review_coverage:
+  check_1_composition_root: "No new finding — execution_request_builder._assemble_runtime_participants is the single declared composition root; secondary bundle-prep site already covered by Scout-Ownership-03 and Scout-ControlFlow-03."
+  check_2_registry_authority: "SYNTH-ARCH-01 — behavioral divergence between loader and defaults confirmed."
+  check_3_facade_leakage: "SYNTH-ARCH-04 — api.py module-level imports of internal types are accessible. __all__ exclusion confirmed. No tests patch them."
+  check_4_shell_plugin_boundary: "SYNTH-ARCH-02 — scanner_reporting/__init__ imports from scanner_plugins.defaults at module init. cli_app and cli.py confirmed clean (no scanner_plugins imports)."
+  check_5_error_channel: "SYNTH-ARCH-05 — discovery.py 4 broad catches. loader.py exception handling verified as specific (OSError, UnicodeDecodeError, yaml.YAMLError, ValueError at lines 184/197/207/226/290)."
+  check_6_seam_contracts: "SYNTH-ARCH-03 — scan_payload_helpers dict[str,Any] widens dict[str,object] at first internal call. orchestrator public API uses dict[str,object] correctly."
+  check_7_audit_reporting: "Audit seam confirmed clean: api.py delegates load_audit_rules_from_file and run_audit via plugin_facade (lines 66-68). Reporting boundary partially flagged under SYNTH-ARCH-02."
+
+scouts_coverage_gaps:
+  - file: src/prism/scanner_kernel/scan_payload_helpers.py
+    missed_by: all
+    reason: "Internal kernel helper, no typing/ownership/control-flow/graph probe targeted this file"
+  - file: src/prism/scanner_reporting/__init__.py
+    missed_by: all
+    reason: "Reporting package __init__ not in any scout's primary scan surface"
+  - file: src/prism/scanner_extract/discovery.py
+    missed_by: all
+    reason: "Discovery helper not in any scout's primary scan surface for error-channel patterns"
+
+finding_count: 5
+finding_breakdown:
+  high: 1
+  medium: 2
+  low: 2
+promote_to_shortlist_count: 1
+top_cross_cutting_hits:
+  - "SYNTH-ARCH-01: Three-way registry authority behavioral divergence — loader returns None, defaults bootstraps, DI holds injected registry — escalates g55-M03 from Medium to High"
+  - "SYNTH-ARCH-02: scanner_reporting/__init__ resolves render plugins from scanner_plugins.defaults at module import time, creating DI-bypass module-level singletons"
+  - "SYNTH-ARCH-03: scan_payload_helpers.py uses dict[str,Any] throughout while orchestrator public API uses dict[str,object] — payload type widened on first internal call"

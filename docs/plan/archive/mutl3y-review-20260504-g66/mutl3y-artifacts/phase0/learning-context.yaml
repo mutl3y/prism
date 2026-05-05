@@ -1,0 +1,18 @@
+memory_source: docs/plan/.mutl3y-lessons
+active_lessons: []
+do_not_re_flag_count: 0
+focus_axis_due_next: typing
+model_route_notes:
+  degraded: []
+  watch:
+    - "GPT-4.1 (copilot)"
+    - "GPT-5 mini (copilot)"
+stale_or_missing_memory: []
+readiness_check:
+  ready: true
+  focus_axis_due_next: typing
+  memory_dir: /raid5/source/test/prism/docs/plan/.mutl3y-lessons
+context_health_notes:
+  - "g66 opens from the g64 Phase 7 paused-resume artifact to satisfy explicit continuation-surface rules."
+  - "This is the required second thorough whole-codebase review after the first clean thorough checkpoint."
+  - "The carried-forward Medium queue remains active, but new High or Critical findings from the fresh scout batch still outrank it."

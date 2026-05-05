@@ -1,0 +1,174 @@
+---
+# God-Mode Independent Review — Unconstrained
+# Cycle: g65
+# Reviewer: Gilfoyle Code Review God Mode (independent pass)
+# Date: 2026-05-04
+# Target: src/prism (live source, full package scan)
+# Constraint: no foreman axis, no scout storyline, no preselected seam family
+meta:
+  cycle: g65
+  review_type: independent_unconstrained
+  reviewer_mode: god-mode
+  source_root: src/prism
+  findings_summary:
+    critical: 0
+    high: 2
+    medium: 1
+    net_new_critical: 0
+    net_new_high: 0
+verdict: |
+  The package is not in “critical fire” territory, but it does contain two real
+  High-severity defects in exactly the places competent systems avoid getting cute:
+  cache identity and request scoping. The first lets a shared scan cache replay the
+  wrong payload when callers change runtime wiring without changing scan options.
+  The second leaks telemetry/progress listeners across overlapping requests because
+  the composition root copies process-global listeners into every runtime container.
+
+  The queue is waveable. GI-H1 is largely isolated to the non-collection API/cache
+  seam. GI-H2 spans the execution-request builder plus observability listeners and
+  should stay in a single serialized slice. GI-M1 is a separate public-surface
+  cleanup item. Net-new counters are held conservative because this independent pass
+  intentionally did not diff against prior findings artifacts.
+findings:
+  - id: GI-H1
+    severity: HIGH
+    category: cache-correctness
+    title: run_scan cache key ignores injected runtime wiring and registry identity
+    file: src/prism/api_layer/non_collection.py
+    evidence_anchor: run_scan
+    description: |
+      src/prism/api_layer/non_collection.py:run_scan accepts injectable runtime
+      behavior through route_scan_payload_orchestration_fn,
+      orchestrate_scan_payload_with_selected_plugin_fn, DI classes, and
+      default_plugin_registry. Those inputs can materially change the returned
+      payload. The cache key built at the cache branch fingerprints only role
+      content plus normalized scan options, prepared-policy-bundle shape, and
+      external style file content. None of the injected runtime wiring is part of
+      the key.
+
+      That means two calls against the same role and logical scan options can map
+      to the same cache entry even when they are intentionally using different
+      orchestration or registry behavior.
+    root_cause: |
+      Cache identity is modeled as “data inputs only,” while the API surface also
+      exposes execution-wiring inputs that change semantics. The cache boundary was
+      placed above the composition root without including a wiring fingerprint.
+    proof_of_exploit: |
+      Focused validation against the live code with a shared InMemoryLRUScanCache:
+
+      1. Call prism.api_layer.non_collection.run_scan on the same temporary role
+         with route_scan_payload_orchestration_fn=route_a returning a payload whose
+         description/metadata identify route A.
+      2. Call it again with the same role path and the same scan options, but with
+         route_scan_payload_orchestration_fn=route_b returning route B.
+      3. The second call returns the cached route-A payload, not route B.
+
+      Observed result from the focused check:
+      - first result description: A
+      - second result description: A
+      - cache stats: (1 hit, 1 miss)
+
+      The cache therefore replays prior output across distinct runtime behavior.
+    impact: |
+      Any embedding that reuses a cache backend across custom registries,
+      orchestration overrides, alternative plugin routing, or test harnesses can
+      receive a semantically wrong scan result. This is a correctness defect, not a
+      performance quirk: the caller can ask for one execution path and silently get
+      another path’s cached payload.
+    fix_direction: |
+      Either disable caching whenever runtime-wiring overrides are supplied, or add
+      a deterministic wiring fingerprint to the cache key. At minimum that
+      fingerprint needs to cover the selected registry/runtime registry identity and
+      any injected orchestration callables/classes that can change payload shape.
+
+  - id: GI-H2
+    severity: HIGH
+    category: concurrency
+    title: API scan containers inherit process-global listeners and leak events across overlapping requests
+    file: src/prism/scanner_core/execution_request_builder.py
+    evidence_anchor: _assemble_runtime_participants
+    description: |
+      src/prism/scanner_core/execution_request_builder.py:_assemble_runtime_participants
+      hard-codes inherit_default_event_listeners=True when it builds the DIContainer
+      for non-collection scans. The “default listeners” are stored in the
+      module-global scanner_core.events._DEFAULT_LISTENERS list and are populated by
+      request-scoped helpers such as scanner_core.telemetry.telemetry_session() and
+      prism.progress.progress_reporter_enabled().
+
+      Because runtime assembly snapshots that global list into each new container,
+      overlapping scan requests inherit one another’s telemetry/progress listeners.
+      A request started while another telemetry/progress context is active does not
+      get an isolated listener set; it gets the whole process-global pile.
+    root_cause: |
+      Request-local observability was implemented with process-global mutable state,
+      then the composition root unconditionally opted every scan into inheriting
+      that state. The ownership boundary is wrong: listener lifetime is global while
+      scan execution is per-request.
+    proof_of_exploit: |
+      Focused validation against the live code:
+
+      1. Open two overlapping telemetry_session() contexts.
+      2. Construct one DIContainer with inherit_default_event_listeners=True.
+      3. Emit one bus.phase("feature_detection") event pair.
+
+      Observed result from the check:
+      - bus.listener_count == 2
+      - first collector recorded feature_detection
+      - second collector recorded feature_detection
+
+      One scan therefore emitted into both collectors simply because their contexts
+      overlapped in the same process.
+    impact: |
+      Concurrent scans corrupt telemetry and progress reporting. Phase timings can be
+      attributed to the wrong request, progress streams can observe unrelated scan
+      phases, and any listener with side effects will execute for the wrong scan.
+      This undermines diagnostics and makes request-level observability unreliable
+      under overlap, which is precisely when you need it to work.
+    fix_direction: |
+      Remove unconditional inheritance of default listeners from the execution
+      request builder. Thread listeners explicitly through API/CLI entrypoints, or
+      replace the process-global listener registry with a ContextVar-scoped listener
+      stack so overlapping requests do not see each other’s observers.
+
+  - id: GI-M1
+    severity: MEDIUM
+    category: public-facade-leakage
+    title: scanner_extract exports DI-bound regex and collection proxies as public package API
+    file: src/prism/scanner_extract/__init__.py
+    evidence_anchor: __all__
+    description: |
+      src/prism/scanner_extract.__all__ publicly exports symbols such as
+      TASK_INCLUDE_KEYS, ROLE_NOTES_RE, TASK_NOTES_LONG_RE, and
+      COMMENT_CONTINUATION_RE. Those objects are not stable constants. They are
+      proxies backed by prepared-policy resolution in
+      src/prism/scanner_extract/task_line_parsing.py.
+
+      The proxy implementations resolve policy through require_prepared_policy with
+      no explicit caller-supplied DI context on use. As a result, the exported
+      objects import cleanly and look like normal regex/collection API, but they are
+      unusable outside hidden canonical execution state.
+    root_cause: |
+      Internal prepared-policy proxies were promoted onto the package facade instead
+      of being wrapped behind explicit, context-taking helper functions or replaced
+      with immutable public defaults.
+    proof_of_exploit: |
+      The task_line_parsing proxies call require_prepared_policy(...) before every
+      regex operation or collection lookup. For example, the annotation-regex proxy
+      resolves task_annotation_parsing policy on .match() and raises ValueError when
+      the prepared_policy_bundle is absent. The marker-regex and collection proxies
+      do the same for task-line policy.
+
+      There is no public API on the exported objects to provide the missing DI or
+      prepared policy bundle, so importing prism.scanner_extract.COMMENT_CONTINUATION_RE
+      or prism.scanner_extract.TASK_INCLUDE_KEYS produces a facade that fails on use
+      outside canonical scanner execution.
+    impact: |
+      External consumers and compatibility layers can import a supposedly public API
+      successfully and then fail at runtime with hidden canonical-state errors.
+      That is a public-surface correctness problem and makes the package boundary
+      misleading for downstream callers.
+    fix_direction: |
+      Remove these proxies from the public facade, or replace them with explicit
+      helper functions that take DI/policy context. If compatibility must be
+      preserved, expose safe immutable defaults and keep the policy-backed proxies
+      private to canonical execution paths.

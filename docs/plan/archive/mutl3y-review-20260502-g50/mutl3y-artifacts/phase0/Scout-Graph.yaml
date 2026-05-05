@@ -1,0 +1,153 @@
+- id: Scout-Graph-01
+  category: registry_authority
+  fingerprint: "registry_authority:di:_get_registry:fail_closed_split"
+  file: src/prism/scanner_core/di.py
+  line: 305
+  severity_hint: high
+  confidence: high
+  detector: graph_neighbor_authority
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if self._registry is None: raise ValueError(\"No plugin registry provided to DIContainer\")"
+  evidence_command: "src/prism/scanner_core/di.py#L304-L307"
+  related_symbols: ["DIContainer._get_registry", "_registry", "resolve_platform_key"]
+  origin_location: "src/prism/scanner_core/di.py#L305"
+  consumer_locations:
+    - "src/prism/scanner_core/di.py#L355:factory_variable_discovery_plugin"
+    - "src/prism/scanner_core/di.py#L375:factory_feature_detection_plugin"
+  fix_group_key: "registry-authority-fail-closed-injection"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_variable_discovery_plugin_requires_registry"
+  context: |
+    Registry authority is split: DIContainer requires registry injected at construction (line 156), but factory methods call _get_registry() only at runtime, with fail-closed error if registry is None. This creates a delayed validation boundary instead of fail-fast at composition.
+
+- id: Scout-Graph-02
+  category: composition_root
+  fingerprint: "composition_root:api_layer/non_collection:lazy_di_resolution"
+  file: src/prism/api_layer/non_collection.py
+  line: 210
+  severity_hint: high
+  confidence: high
+  detector: graph_composition_pattern
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if di_container_cls is None: from prism.scanner_core.di import DIContainer; di_container_cls = DIContainer"
+  evidence_command: "src/prism/api_layer/non_collection.py#L209-L212"
+  related_symbols: ["run_scan", "di_container_cls", "DIContainer"]
+  origin_location: "src/prism/api_layer/non_collection.py#L210"
+  consumer_locations:
+    - "src/prism/scanner_core/scanner_context.py:build_non_collection_run_scan_execution_request"
+  fix_group_key: "composition-root-lazy-wiring"
+  proposed_fix_class: explicit_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_run_scan_basic"
+  context: |
+    Composition root splits authority: api_layer/non_collection.run_scan() has 7 lazy-import factory injection points (lines 210-235) instead of explicit composition. Each default resolver (di_container_cls, feature_detector_cls, scanner_context_cls, etc.) is resolved at function call time with late binding, creating multiple entry points instead of a single canonical registry.
+
+- id: Scout-Graph-03
+  category: typing
+  fingerprint: "typing:api_layer/non_collection:_resolved_ensure_fn_Any_typed"
+  file: src/prism/api_layer/non_collection.py
+  line: 226
+  severity_hint: medium
+  confidence: high
+  detector: local_helper_untyped
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_resolved_ensure_fn: Any"
+  evidence_command: "src/prism/api_layer/non_collection.py#L226"
+  related_symbols: ["_resolved_ensure_fn", "_EnsurePreparedPolicyBundleFn"]
+  fix_group_key: "typing-ensure-policy-bundle-fn"
+  proposed_fix_class: protocol_narrowing
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py -k prepared_policy"
+  context: |
+    Local helper typed as Any instead of _EnsurePreparedPolicyBundleFn protocol. The _resolved_ensure_fn variable at line 226 is assigned either plugin_facade.ensure_prepared_policy_bundle or the ensure_prepared_policy_bundle_fn parameter, both of which match the _EnsurePreparedPolicyBundleFn protocol defined at line 29-32, but is typed as Any.
+
+- id: Scout-Graph-04
+  category: typing
+  fingerprint: "typing:api_layer/non_collection:dict_Any_vs_object"
+  file: src/prism/api_layer/non_collection.py
+  line: 314
+  severity_hint: low
+  confidence: medium
+  detector: local_helper_consistent_typing
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "scan_options: dict[str, Any],"
+  evidence_command: "src/prism/api_layer/non_collection.py#L314-L316"
+  related_symbols: ["_kernel_orchestrator", "scan_options"]
+  fix_group_key: "typing-scan-options-consistency"
+  proposed_fix_class: type_consistency
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_run_scan_basic"
+  context: |
+    Inconsistent dict typing: _kernel_orchestrator uses dict[str, Any] (lines 314, 316) but enclosing run_scan() uses dict[str, object] for public API (line 178). Unify to dict[str, object] for consistency across composition boundary.
+
+- id: Scout-Graph-05
+  category: registry_authority
+  fingerprint: "registry_authority:api_layer/non_collection:default_plugin_registry_late_binding"
+  file: src/prism/api_layer/non_collection.py
+  line: 224
+  severity_hint: high
+  confidence: high
+  detector: graph_registry_split_authority
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if default_plugin_registry is None: default_plugin_registry = plugin_facade.get_default_plugin_registry()"
+  evidence_command: "src/prism/api_layer/non_collection.py#L223-L225"
+  related_symbols: ["default_plugin_registry", "get_default_plugin_registry"]
+  origin_location: "src/prism/api_layer/non_collection.py#L224"
+  consumer_locations:
+    - "src/prism/scanner_core/di.py:DIContainer.__init__"
+    - "src/prism/scanner_kernel/orchestrator.py:route_scan_payload_orchestration"
+  fix_group_key: "registry-late-binding-consolidation"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_registry_override"
+  context: |
+    Registry resolution is split across composition boundary: api_layer/non_collection.run_scan() resolves default_plugin_registry at line 224, but DIContainer also accepts optional registry parameter at construction (scanner_core/di.py:156), creating two authority paths. Scanner kernel also receives registry parameter (orchestrator.py), triplicating registry authority.
+
+- id: Scout-Graph-06
+  category: abstraction
+  fingerprint: "abstraction:protocols_runtime:KernelPayload_dict_object"
+  file: src/prism/scanner_core/protocols_runtime.py
+  line: 19
+  severity_hint: low
+  confidence: medium
+  detector: type_alias_broadness
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "KernelPayload: TypeAlias = dict[str, object]"
+  evidence_command: "src/prism/scanner_core/protocols_runtime.py#L19"
+  related_symbols: ["KernelPayload", "KernelPhaseOutput", "KernelResponse"]
+  fix_group_key: "typing-kernel-payload-abstraction"
+  proposed_fix_class: protocol_narrowing
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/scanner_kernel/tests/test_orchestrator.py -k payload"
+  context: |
+    Type alias too broad: KernelPayload = dict[str, object] is used in KernelPhaseOutput.payload and KernelResponse.payload, but both sites should inherit typed structure (e.g., RunScanOutputPayload or a specialized KernelPayload TypedDict) to enable static type narrowing at consumption points.
+
+- id: Scout-Graph-07
+  category: graph
+  fingerprint: "graph:scanner_io/loader:registry_dual_path"
+  file: src/prism/scanner_io/loader.py
+  line: 78
+  severity_hint: medium
+  confidence: high
+  detector: graph_dual_authority
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "# NOTE: Intentional dual-path — soft fallback to registry-resolved default."
+  evidence_command: "src/prism/scanner_io/loader.py#L64-L95"
+  related_symbols: ["resolve_yaml_parsing_policy", "_resolve_plugin_registry", "_resolve_yaml_plugin"]
+  origin_location: "src/prism/scanner_io/loader.py#L78"
+  consumer_locations:
+    - "src/prism/scanner_io/output_orchestrator.py:validation layer"
+  fix_group_key: "graph-dual-path-yaml-policy-unification"
+  proposed_fix_class: single_authority_path
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/scanner_io/tests/test_loader.py::test_yaml_parsing_policy_resolution"
+  context: |
+    Graph split authority for YAML policy: resolve_yaml_parsing_policy has an intentional dual-path (line 78 comment) with soft fallback to registry when prepared_policy_bundle is absent. This mirrors the SCB1-closure gap documented in repository memory for scanner_core policy bundles. Candidates for unification with the same prepared_policy_bundle ingress patterns.

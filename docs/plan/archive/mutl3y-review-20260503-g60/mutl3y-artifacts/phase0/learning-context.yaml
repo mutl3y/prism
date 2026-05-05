@@ -1,0 +1,16 @@
+memory_source: docs/plan/.mutl3y-lessons
+active_lessons: []
+do_not_re_flag_count: 0
+focus_axis_due_next: architecture
+model_route_notes:
+  degraded:
+    - name: "GPT-5.4 mini (copilot)"
+      status: unknown
+  watch:
+    - "GPT-5 mini (copilot)"
+    - "GPT-5.4 (copilot)"
+stale_or_missing_memory: []
+readiness_check:
+  ready: true
+  focus_axis_due_next: architecture
+  memory_dir: /raid5/source/test/prism/docs/plan/.mutl3y-lessons

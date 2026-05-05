@@ -1,0 +1,33 @@
+status: ok
+phase: P5
+cycle: g48
+wave: 1
+expected_workers:
+  - Builder-Typing
+  - Builder-ControlFlow
+  - Builder-Abstraction
+returned_workers:
+  - Builder-Typing
+  - Builder-ControlFlow
+  - Builder-Abstraction
+route_failures: []
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/Builder-Abstraction-summary.md
+present_artifacts:
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+  - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/Builder-Abstraction-summary.md
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+gate_results:
+  - pytest -q src/prism/tests/test_output_orchestration.py -> 4 passed
+  - pytest -q src/prism/tests/test_defaults.py -k validate_shape src/prism/tests/test_plugin_kernel_extension_parity.py -> 3 passed, 29 deselected
+  - pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py -> 50 passed
+anti_pattern_logs:
+  - docs/plan/mutl3y-review-20260502-g48/.mutl3y-gate/tmp/wave-1-antipattern-cast-any.txt
+  - docs/plan/mutl3y-review-20260502-g48/.mutl3y-gate/tmp/wave-1-antipattern-typeddict-lossy-cast.txt
+  - docs/plan/mutl3y-review-20260502-g48/.mutl3y-gate/tmp/wave-1-antipattern-except-pass.txt
+next_phase: P6
+next_action: Run the focused post-wave validation bundle, then decide whether to close the cycle or start a second wave for G48-M01 and G48-M02.

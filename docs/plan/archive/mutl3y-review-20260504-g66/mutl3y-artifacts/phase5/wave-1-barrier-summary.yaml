@@ -1,0 +1,49 @@
+status: OK
+phase: P5
+cycle: g66
+wave: 1
+result: implemented_and_validated
+selected_findings:
+  - G66-H03
+  - G66-H04
+  - G66-H05
+present_artifacts:
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-1-plan.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-1-summary.md
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-Ownership-wave-1-summary.md
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-Typing-wave-1-summary.md
+  - docs/plan/mutl3y-review-20260504-g66/.mutl3y-gate/wave-1-pytest.log
+  - docs/plan/mutl3y-review-20260504-g66/.mutl3y-gate/wave-1-ruff.log
+  - docs/plan/mutl3y-review-20260504-g66/.mutl3y-gate/wave-1-black.log
+  - docs/plan/mutl3y-review-20260504-g66/.mutl3y-gate/wave-1-mypy.log
+  - docs/plan/mutl3y-review-20260504-g66/.mutl3y-gate/tmp/wave-antipattern-cast-any.txt
+  - docs/plan/mutl3y-review-20260504-g66/.mutl3y-gate/tmp/wave-antipattern-typeddict-lossy-cast.txt
+  - docs/plan/mutl3y-review-20260504-g66/.mutl3y-gate/tmp/wave-antipattern-except-pass.txt
+missing_artifacts: []
+summary: >-
+  Wave 1 closed the three disjoint High slices selected in Phase 4: collection
+  metadata shape masking now fails through the structured error channel,
+  api.py now owns its runtime seam wrappers instead of leaking raw
+  scanner-core assembly symbols, and repo-scan intake now uses named
+  protocol-owned contracts rather than loose callable bundles.
+validation:
+  - command: .venv/bin/python -m pytest -q src/prism/tests/test_collection_contract.py -k runbook src/prism/tests/test_comment_doc_plugin_resolution.py::test_run_scan_metadata_role_notes_uses_comment_doc_plugin_seam src/prism/tests/test_comment_doc_plugin_resolution.py -k 'api_public_facade_owns_scanner_core_runtime_seams' src/prism/tests/test_api_cli_entrypoints.py -k 'run_scan' src/prism/tests/test_api_cli_repo_parity.py -k 'repo_scan or forwards_role_name_override_to_scan_role_fn'
+    status: PASS
+    detail: 3 passed, 143 deselected
+  - command: .venv/bin/python -m ruff check src/prism/api_layer/collection.py src/prism/api.py src/prism/repo_services.py src/prism/api_layer/non_collection.py src/prism/tests/test_collection_contract.py src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_api_cli_repo_parity.py
+    status: PASS
+  - command: .venv/bin/python -m black --check src/prism/api_layer/collection.py src/prism/api.py src/prism/repo_services.py src/prism/api_layer/non_collection.py src/prism/tests/test_collection_contract.py src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_api_cli_repo_parity.py
+    status: PASS
+  - command: .venv/bin/python -m mypy src/prism/api_layer/collection.py src/prism/api.py src/prism/repo_services.py src/prism/api_layer/non_collection.py
+    status: PASS
+  - command: rg -n 'cast\(Any,|typing\.cast\(Any,' src/prism
+    status: PASS
+    detail: 0 hits
+  - command: rg -n 'cast\([^\)]*TypedDict[^\)]*,\s*dict\(|cast\([^\)]*,\s*dict\(' src/prism
+    status: PASS
+    detail: 0 hits
+  - command: rg -n 'except\s+Exception\s*:\s*pass' src/prism
+    status: PASS
+    detail: 0 hits
+next_phase: P6
+next_action: Run the g66 validation gate and decide whether the deferred overlap cluster becomes wave 2 or stays queued behind any new gate findings.

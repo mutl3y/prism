@@ -1,0 +1,449 @@
+- id: CF-001-defaults-validate-shape-unused-params
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_plugins/defaults:_validate_plugin_shape:unused_fallback_params"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 193
+  severity_hint: high
+  confidence: high
+  detector: read_file
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "del strict_mode, fallback_plugin"
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L168-L195"
+  related_symbols: ["_validate_plugin_shape", "_construct_registry_plugin"]
+  fix_group_key: "fallback-plugin-never-used-in-validation"
+  proposed_fix_class: "strict_enforcement_or_proper_fallback"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py::test_plugin_shape_validation_with_fallback"
+
+- id: CF-002-defaults-validate-shape-never-uses-fallback
+  category: policy_coercion
+  fingerprint: "policy_coercion:scanner_plugins/defaults:_validate_plugin_shape:fallback_never_applied"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 214
+  severity_hint: high
+  confidence: high
+  detector: read_file
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "raise PrismRuntimeError( code=\"malformed_plugin_shape\""
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L168-L220"
+  related_symbols: ["_validate_plugin_shape", "_raise_malformed_plugin_shape_error", "_resolve_plugin_with_precedence"]
+  fix_group_key: "fallback-plugin-never-used-in-validation"
+  proposed_fix_class: "integrate_fallback_into_validation"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_defaults.py -k validate_shape"
+
+- id: CF-003-non-collection-prepared-bundle-silent-coercion
+  category: policy_coercion
+  fingerprint: "policy_coercion:api_layer/non_collection:run_scan:prepared_bundle_typed_to_dict"
+  file: src/prism/api_layer/non_collection.py
+  line: 245
+  severity_hint: high
+  confidence: high
+  detector: read_file
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "execution_request.scan_options.get(\"prepared_policy_bundle\") or {}"
+  evidence_command: "src/prism/api_layer/non_collection.py#L240-L250"
+  related_symbols: ["run_scan", "_bundle", "PreparedPolicyBundle"]
+  fix_group_key: "typed-bundle-coerced-to-empty-dict"
+  proposed_fix_class: "explicit_none_guard"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_collection_contract.py::test_prepared_policy_cache_key"
+
+- id: CF-004-events-listener-exception-swallowed
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_core/events:EventBus.emit:listener_exception_swallowed"
+  file: src/prism/scanner_core/events.py
+  line: 94
+  severity_hint: medium
+  confidence: high
+  detector: read_file
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except Exception as exc:  # pragma: no cover - defensive"
+  evidence_command: "src/prism/scanner_core/events.py#L85-L105"
+  related_symbols: ["EventBus.emit", "_strict"]
+  fix_group_key: "event-listener-failures-sometimes-masked"
+  proposed_fix_class: "diagnostic_logging_guard"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_events.py::test_event_bus_listener_exception_strict"
+
+- id: CF-005-events-context-silent-none-to-empty
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_core/events:EventBus.phase_context:context_none_to_dict"
+  file: src/prism/scanner_core/events.py
+  line: 115
+  severity_hint: low
+  confidence: high
+  detector: read_file
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "ctx = dict(context or {})"
+  evidence_command: "src/prism/scanner_core/events.py#L110-L125"
+  related_symbols: ["EventBus.phase_context", "ScanPhaseEvent"]
+  fix_group_key: "silent-none-to-empty-dict-conversions"
+  proposed_fix_class: "document_intent"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-006-discovery-metadata-load-silent-fallback
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_extract/discovery:load_metadata:yaml_parse_error_returns_empty"
+  file: src/prism/scanner_extract/discovery.py
+  line: 90
+  severity_hint: medium
+  confidence: high
+  detector: read_file
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return {}"
+  evidence_command: "src/prism/scanner_extract/discovery.py#L85-L95"
+  related_symbols: ["load_metadata", "strict"]
+  fix_group_key: "metadata-discovery-silent-fallbacks"
+  proposed_fix_class: "strict_enforcement_with_warnings"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_dataload.py::test_load_metadata_nonstrict"
+
+- id: CF-007-discovery-metadata-yaml-invalid-silent
+  category: policy_coercion
+  fingerprint: "policy_coercion:scanner_extract/discovery:load_metadata:yaml_shape_invalid_returns_empty"
+  file: src/prism/scanner_extract/discovery.py
+  line: 107
+  severity_hint: medium
+  confidence: high
+  detector: read_file
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return {}"
+  evidence_command: "src/prism/scanner_extract/discovery.py#L100-L110"
+  related_symbols: ["load_metadata", "ROLE_METADATA_YAML_INVALID"]
+  fix_group_key: "metadata-discovery-silent-fallbacks"
+  proposed_fix_class: "type_validation_with_fail_closed"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-008-discovery-metadata-load-fallback-chain
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_extract/discovery:load_metadata:_raw_or_empty_dict"
+  file: src/prism/scanner_extract/discovery.py
+  line: 113
+  severity_hint: low
+  confidence: high
+  detector: read_file
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "loaded = _raw or {}"
+  evidence_command: "src/prism/scanner_extract/discovery.py#L109-L120"
+  related_symbols: ["load_metadata", "_raw", "load_yaml_file"]
+  fix_group_key: "metadata-discovery-silent-fallbacks"
+  proposed_fix_class: "explicit_none_guard"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-009-discovery-metadata-default-return
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_extract/discovery:load_metadata:final_return_empty_dict"
+  file: src/prism/scanner_extract/discovery.py
+  line: 141
+  severity_hint: low
+  confidence: high
+  detector: read_file
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return {}"
+  evidence_command: "src/prism/scanner_extract/discovery.py#L138-L145"
+  related_symbols: ["load_metadata"]
+  fix_group_key: "metadata-discovery-silent-fallbacks"
+  proposed_fix_class: "consolidate_returns"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-010-discovery-requirements-exception-silent-list
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_extract/discovery:load_requirements:exception_returns_empty_list"
+  file: src/prism/scanner_extract/discovery.py
+  line: 158
+  severity_hint: medium
+  confidence: high
+  detector: grep_search
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return []"
+  evidence_command: "src/prism/scanner_extract/discovery.py#L150-L165"
+  related_symbols: ["load_requirements", "REQUIREMENTS_IO_ERROR"]
+  fix_group_key: "discovery-silent-failures-demote-to-empty"
+  proposed_fix_class: "fail_closed_with_warning"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_dataload.py::test_load_requirements_io_error"
+
+- id: CF-011-discovery-requirements-shape-invalid-silent
+  category: policy_coercion
+  fingerprint: "policy_coercion:scanner_extract/discovery:load_requirements:shape_invalid_returns_empty_list"
+  file: src/prism/scanner_extract/discovery.py
+  line: 172
+  severity_hint: medium
+  confidence: high
+  detector: grep_search
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return []"
+  evidence_command: "src/prism/scanner_extract/discovery.py#L167-L178"
+  related_symbols: ["load_requirements", "REQUIREMENTS_YAML_INVALID"]
+  fix_group_key: "discovery-silent-failures-demote-to-empty"
+  proposed_fix_class: "type_validation_with_warning"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-012-discovery-variables-load-silent-fallback
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_extract/discovery:load_variables:exception_skips_file"
+  file: src/prism/scanner_extract/discovery.py
+  line: 206
+  severity_hint: low
+  confidence: high
+  detector: grep_search
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "data = load_yaml_file(path, di=di) or {}"
+  evidence_command: "src/prism/scanner_extract/discovery.py#L200-L210"
+  related_symbols: ["load_variables", "vars_out.update"]
+  fix_group_key: "discovery-file-load-silent-or-operators"
+  proposed_fix_class: "explicit_none_handling"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-013-discovery-extra-vars-silent-fallback
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_extract/discovery:load_variables:extra_path_or_empty"
+  file: src/prism/scanner_extract/discovery.py
+  line: 225
+  severity_hint: low
+  confidence: high
+  detector: grep_search
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "data = load_yaml_file(extra_path, di=di) or {}"
+  evidence_command: "src/prism/scanner_extract/discovery.py#L220-L230"
+  related_symbols: ["load_variables", "collect_include_vars_files"]
+  fix_group_key: "discovery-file-load-silent-or-operators"
+  proposed_fix_class: "explicit_none_handling"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-014-di-scanner-context-wiring-silent-default
+  category: policy_coercion
+  fingerprint: "policy_coercion:scanner_core/di:DIContainer.__init__:scanner_context_wiring_default_empty"
+  file: src/prism/scanner_core/di.py
+  line: 185
+  severity_hint: low
+  confidence: high
+  detector: read_file
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "self._scanner_context_wiring = scanner_context_wiring or {}"
+  evidence_command: "src/prism/scanner_core/di.py#L180-L190"
+  related_symbols: ["DIContainer.__init__", "_scanner_context_wiring"]
+  fix_group_key: "silent-none-to-empty-dict-conversions"
+  proposed_fix_class: "document_intent"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-015-di-factory-overrides-silent-default
+  category: policy_coercion
+  fingerprint: "policy_coercion:scanner_core/di:DIContainer.__init__:factory_overrides_default_empty"
+  file: src/prism/scanner_core/di.py
+  line: 186
+  severity_hint: low
+  confidence: high
+  detector: read_file
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "self._factory_overrides = factory_overrides or {}"
+  evidence_command: "src/prism/scanner_core/di.py#L180-L190"
+  related_symbols: ["DIContainer.__init__", "_factory_overrides"]
+  fix_group_key: "silent-none-to-empty-dict-conversions"
+  proposed_fix_class: "document_intent"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-016-collection-metadata-silent-fallback
+  category: silent_fallback
+  fingerprint: "silent_fallback:api_layer/collection:scan_collection:metadata_or_empty"
+  file: src/prism/api_layer/collection.py
+  line: 230
+  severity_hint: low
+  confidence: high
+  detector: grep_search
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "metadata=(role_payload.get(\"metadata\") or {})"
+  evidence_command: "src/prism/api_layer/collection.py#L225-L235"
+  related_symbols: ["scan_collection", "write_collection_runbook_artifacts_fn"]
+  fix_group_key: "silent-none-to-empty-dict-conversions"
+  proposed_fix_class: "document_intent"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-017-collection-exception-recoverable-check
+  category: error_channel
+  fingerprint: "error_channel:api_layer/collection:scan_collection:_is_recoverable_role_content_error"
+  file: src/prism/api_layer/collection.py
+  line: 205
+  severity_hint: medium
+  confidence: high
+  detector: read_file
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except Exception as exc:"
+  evidence_command: "src/prism/api_layer/collection.py#L200-L215"
+  related_symbols: ["scan_collection", "_is_recoverable_role_content_error"]
+  fix_group_key: "collection-error-handling-broad-exception-category"
+  proposed_fix_class: "document_recoverable_errors_contract"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_collection_contract.py::test_recoverable_errors"
+
+- id: CF-018-orchestrator-exception-pipeline-broad
+  category: error_channel
+  fingerprint: "error_channel:scanner_kernel/orchestrator:_construct_scan_pipeline_plugin:broad_exception"
+  file: src/prism/scanner_kernel/orchestrator.py
+  line: 221
+  severity_hint: low
+  confidence: high
+  detector: grep_search
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except Exception as exc:"
+  evidence_command: "src/prism/scanner_kernel/orchestrator.py#L215-L230"
+  related_symbols: ["_construct_scan_pipeline_plugin", "_instantiate_scan_pipeline_plugin"]
+  fix_group_key: "orchestrator-broad-exception-categories"
+  proposed_fix_class: "narrow_exception_types"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-019-orchestrator-exception-payload-broad
+  category: error_channel
+  fingerprint: "error_channel:scanner_kernel/orchestrator:_orchestrate_scan_payload_with_plugin_instance:broad_exception"
+  file: src/prism/scanner_kernel/orchestrator.py
+  line: 309
+  severity_hint: low
+  confidence: high
+  detector: grep_search
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except Exception as exc:"
+  evidence_command: "src/prism/scanner_kernel/orchestrator.py#L304-L318"
+  related_symbols: ["_orchestrate_scan_payload_with_plugin_instance", "plugin"]
+  fix_group_key: "orchestrator-broad-exception-categories"
+  proposed_fix_class: "narrow_exception_types"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-020-bundle-resolver-strict-mode-extraction
+  category: policy_coercion
+  fingerprint: "policy_coercion:scanner_plugins/bundle_resolver:ensure_prepared_policy_bundle:strict_mode_as_control"
+  file: src/prism/scanner_plugins/bundle_resolver.py
+  line: 102
+  severity_hint: medium
+  confidence: high
+  detector: read_file
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "strict_mode = bool(scan_options.get(\"strict_phase_failures\", True))"
+  evidence_command: "src/prism/scanner_plugins/bundle_resolver.py#L95-L110"
+  related_symbols: ["ensure_prepared_policy_bundle", "strict_mode", "scan_options"]
+  fix_group_key: "strict-mode-control-flow-unclear"
+  proposed_fix_class: "trace_strict_mode_to_resolver_fallback_behavior"
+  blocking_preconditions: ["Verify if resolvers actually use strict_mode parameter to fall back vs raise"]
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_bundle_resolver.py -k strict_mode"
+
+- id: CF-021-yaml-parsing-policy-resolution-dual-path
+  category: guard
+  fingerprint: "guard:scanner_io/loader:_get_yaml_parsing_policy:dual_fallback_path"
+  file: src/prism/scanner_io/loader.py
+  line: 40
+  severity_hint: medium
+  confidence: medium
+  detector: read_file
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "# NOTE: Intentional dual-path — soft fallback to registry-resolved default"
+  evidence_command: "src/prism/scanner_io/loader.py#L35-L60"
+  related_symbols: ["_get_yaml_parsing_policy", "get_prepared_policy_or_none"]
+  fix_group_key: "dual-path-policy-resolution-needs-audit"
+  proposed_fix_class: "document_dual_path_contract"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_yaml_parsing.py::test_get_yaml_parsing_policy_dual_path"
+
+- id: CF-022-execution-builder-exception-quiet
+  category: error_channel
+  fingerprint: "error_channel:scanner_core/execution_request_builder:_build_execution_request_metadata:exception_handled_silently"
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 163
+  severity_hint: low
+  confidence: high
+  detector: grep_search
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except Exception as exc:"
+  evidence_command: "src/prism/scanner_core/execution_request_builder.py#L158-L170"
+  related_symbols: ["_build_execution_request_metadata"]
+  fix_group_key: "execution-builder-broad-exception-handling"
+  proposed_fix_class: "document_exception_recovery"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-023-collection-plugins-none-to-empty
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_io/collection_plugins:get_plugin_summary:result_or_empty"
+  file: src/prism/scanner_io/collection_plugins.py
+  line: 311
+  severity_hint: low
+  confidence: high
+  detector: grep_search
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return {}"
+  evidence_command: "src/prism/scanner_io/collection_plugins.py#L308-L318"
+  related_symbols: ["get_plugin_summary"]
+  fix_group_key: "silent-none-to-empty-dict-conversions"
+  proposed_fix_class: "trace_caller_expectations"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-024-scanner-context-exception-handling
+  category: error_channel
+  fingerprint: "error_channel:scanner_core/scanner_context:build_task_catalog_for_role:exception_logged"
+  file: src/prism/scanner_core/scanner_context.py
+  line: 202
+  severity_hint: low
+  confidence: high
+  detector: grep_search
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except Exception as error:"
+  evidence_command: "src/prism/scanner_core/scanner_context.py#L197-L210"
+  related_symbols: ["build_task_catalog_for_role"]
+  fix_group_key: "scanner-context-broad-exception-handling"
+  proposed_fix_class: "narrow_exception_scope"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: CF-025-discovery-load-extra-vars-silent-exception
+  category: silent_fallback
+  fingerprint: "silent_fallback:scanner_extract/discovery:load_variables:extra_vars_exception_skips_silently"
+  file: src/prism/scanner_extract/discovery.py
+  line: 228
+  severity_hint: low
+  confidence: high
+  detector: grep_search
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except Exception as exc:"
+  evidence_command: "src/prism/scanner_extract/discovery.py#L223-L235"
+  related_symbols: ["load_variables", "collect_include_vars_files"]
+  fix_group_key: "discovery-file-load-silent-or-operators"
+  proposed_fix_class: "document_exception_recovery"
+  blocking_preconditions: []
+  suggested_narrow_gate: ""

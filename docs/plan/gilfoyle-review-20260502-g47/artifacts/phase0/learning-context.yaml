@@ -1,0 +1,22 @@
+cycle: g47
+plan_id: gilfoyle-review-20260502-g47
+review_type: light
+focus_axis: error_handling
+source_plan: docs/plan/gilfoyle-review-20260501-g46/plan.yaml
+review_surface:
+  - src/prism/api.py
+  - src/prism/api_layer/collection.py
+  - src/prism/api_layer/non_collection.py
+  - src/prism/scanner_kernel/orchestrator.py
+  - src/prism/scanner_plugins/defaults.py
+  - src/prism/scanner_plugins/parsers/yaml/parsing_policy.py
+  - src/prism/scanner_core/scan_cache.py
+discovery_mode: foreman_local_recovery
+worker_protocol_status:
+  Scout-Typing: summary_only_no_artifact
+  Scout-Ownership: summary_only_no_artifact
+  Scout-ControlFlow: summary_only_no_artifact
+  Scout-Graph: length_limit_then_summary_only_no_artifact
+notes:
+  - "Subagent discovery returned summaries but did not write owned artifacts, so Phase 0 was recovered locally from targeted reads over the same routed slice."
+  - "The highest-signal live confirmations still align with open g46 Highs: unconstrained sibling file inputs, collection fail-open runtime demotion, non-strict plugin fallback substitution, YAML None normalization, and the defaults.py secondary composition path."

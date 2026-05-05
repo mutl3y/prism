@@ -1,0 +1,45 @@
+---
+plan_id: mutl3y-review-20260504-g71
+cycle: g71
+phase: P0
+role: Scout-Graph
+focus: runtime_contracts_and_boundary_surfaces
+agent: Scout-Graph
+artifact: mutl3y-artifacts/phase0/Scout-Graph.yaml
+summary: "Graph sweep of src/prism for layer violations, cyclic authority, bridge seams, and cross-package drift."
+high_critical_count: 2
+observations:
+  - id: H1
+    severity: HIGH
+    title: "DI container resolving plugin-layer defaults (cross-layer dependency)"
+    file: src/prism/scanner_core/di.py
+    line: 260
+    note: "factory_blocker_fact_builder defers to prism.scanner_plugins.defaults.resolve_blocker_fact_builder via runtime import — core -> plugin boundary; risk: bootstrap ordering and import-time cycles."
+  - id: H2
+    severity: HIGH
+    title: "scanner_plugins.bootstrap: direct module imports for default registrations"
+    file: src/prism/scanner_plugins/__init__.py
+    line: 1
+    note: "bootstrap_default_plugins performs direct imports of ansible/default_policies and other plugin modules causing large eager import graph; risk: import-time side-effects and ordering coupling between plugins and core."
+  - id: M1
+    severity: MEDIUM
+    title: "task_extract_adapters reopens policy/marker-prefix ownership"
+    file: src/prism/scanner_core/task_extract_adapters.py
+    line: 11
+    note: "Task extraction still normalizes marker-prefixes locally; ownership leak previously noted in plans — low-to-medium risk for drift and duplicate logic."
+  - id: L1
+    severity: LOW
+    title: "Many lazy/deferred imports present (mitigations)"
+    file: src/prism/scanner_core/di.py
+    line: 1
+    note: "Deferred imports and TYPE_CHECKING usage intentionally reduce circular import risk; verify at runtime when changing bootstrap flows."
+citations:
+  - file: src/prism/scanner_core/di.py
+    lines: "1-900"
+  - file: src/prism/scanner_plugins/__init__.py
+    lines: "1-200"
+  - file: src/prism/scanner_core/task_extract_adapters.py
+    lines: "1-220"
+next_actions:
+  - "Recommend reviewing DIFactory→plugin-default seam and consider moving plugin-default resolution to api_layer/plugin_facade or scanner_plugins.bootstrap to avoid core->plugin runtime coupling."
+  - "Add unit tests to bootstrap ordering and import-time stability (importlib reload scenarios)."

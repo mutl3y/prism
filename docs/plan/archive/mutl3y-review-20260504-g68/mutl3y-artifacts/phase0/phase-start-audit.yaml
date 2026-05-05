@@ -1,0 +1,40 @@
+cycle: g68
+phase: P0
+status: ready
+review_type: light_changed_slice
+focus_axis: public_cache_neighbors
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260504-g68/plan.yaml
+  - docs/plan/mutl3y-review-20260504-g68/findings.yaml
+  - docs/plan/mutl3y-review-20260504-g68/mutl3y-artifacts/phase0/Scout-Ownership-light-review.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260504-g68/plan.yaml
+  - docs/plan/mutl3y-review-20260504-g68/findings.yaml
+  - docs/plan/mutl3y-review-20260504-g68/mutl3y-artifacts/phase0/Scout-Ownership-light-review.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Scout-Ownership
+owned_file_sets:
+  - agent_name: Scout-Ownership
+    files:
+      - src/prism/api_layer/plugin_facade.py
+      - src/prism/tests/test_g03_scan_cache_integration.py
+      - src/prism/api.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_core/scan_cache.py
+      - docs/plan/mutl3y-review-20260504-g68/mutl3y-artifacts/phase0/Scout-Ownership-light-review.yaml
+target_files:
+  - src/prism/api_layer/plugin_facade.py
+  - src/prism/tests/test_g03_scan_cache_integration.py
+neighbor_files:
+  - src/prism/api.py
+  - src/prism/api_layer/non_collection.py
+  - src/prism/scanner_core/scan_cache.py
+triggering_cycle: g67
+triggering_evidence:
+  - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase6/Gatekeeper-wave-1-summary.md
+  - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase6/Auditor-Regression-wave-1.md
+blocking_issues: []
+notes:
+  - "This is a light changed-slice review of the g67 repair surface and its immediate neighbors."

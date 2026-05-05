@@ -1,0 +1,32 @@
+plan_id: mutl3y-review-20260503-g60
+cycle: g60
+review_type: thorough
+focus_axis: architecture
+status: complete
+target: src/prism
+origin: "Required thorough follow-up after mutl3y-review-20260503-g59 closure"
+resumption_pointer:
+  current_phase: COMPLETE
+  next_action: "Open the next required light follow-up cycle after g60 closure"
+  blocking_issues: []
+artifacts:
+  findings: docs/plan/mutl3y-review-20260503-g60/findings.yaml
+  phase0_start_audit: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase0/phase-start-audit.yaml
+  learning_context: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase0/learning-context.yaml
+  execution_trace: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/execution-trace.yaml
+  phase0_barrier_summary: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase0/barrier-summary.yaml
+  phase1_grading_summary: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase1/grading-summary.yaml
+  phase5_wave1_plan: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/wave-1-plan.yaml
+  phase5_wave1_barrier_summary: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+  phase6_gate_summary: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/phase6/gate-summary.yaml
+  model_usage_ledger: docs/plan/mutl3y-review-20260503-g60/mutl3y-artifacts/model-usage-ledger.yaml
+readiness_state:
+  ready: true
+  focus_axis_due_next: architecture
+  memory_dir: /raid5/source/test/prism/docs/plan/.mutl3y-lessons
+  degraded_models:
+    - name: "GPT-5.4 mini (copilot)"
+      status: unknown
+  watch_models:
+    - "GPT-5 mini (copilot)"
+    - "GPT-5.4 (copilot)"

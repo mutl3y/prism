@@ -1,0 +1,20 @@
+phase: P4
+cycle: g69
+decision: wave_3_selected
+selected_findings:
+  - G69-H02
+deferred_findings:
+  - G69-H03
+fix_group_key: plugin-interfaces.canonical-contract-typing
+rationale: >-
+  G69-H02 is the smaller remaining typing slice. It stays on the public plugin
+  interface layer and the ansible scan-pipeline implementation, while G69-H03
+  remains a separate kernel lifecycle protocolization task.
+owned_file_set:
+  - src/prism/scanner_plugins/interfaces.py
+  - src/prism/scanner_plugins/ansible/__init__.py
+  - src/prism/tests/test_platform_execution_bundle.py
+scope_check:
+  overlap_detected: false
+  expansion_required: false
+suggested_narrow_gate: .venv/bin/python -m mypy src/prism/scanner_plugins/interfaces.py src/prism/scanner_plugins/ansible/__init__.py

@@ -1,0 +1,41 @@
+summary: >-
+  Resumed recovery wave: orphaned-workflow recovery slice is complete; repo-wide
+  ruff and black now pass. g58 remains blocked only on repo-wide mypy baseline
+  debt.
+mypy_snapshot:
+  total_errors: 193
+  files_with_errors: 47
+largest_concentrations:
+  - file: src/prism/tests/test_gilfoyle_blockers_runtime.py
+    errors: 17
+  - file: src/prism/tests/test_plugin_name_resolver.py
+    errors: 16
+  - file: src/prism/tests/test_api_cli_entrypoints.py
+    errors: 16
+  - file: src/prism/tests/test_t2_03_entry_point_discovery.py
+    errors: 14
+  - file: src/prism/api.py
+    errors: 12
+  - file: src/prism/tests/test_g03_scan_cache_integration.py
+    errors: 10
+  - file: src/prism/tests/test_api_cli_repo_parity.py
+    errors: 10
+  - file: src/prism/tests/test_t3_03_scan_cache.py
+    errors: 6
+  - file: src/prism/tests/test_comment_doc_plugin_resolution.py
+    errors: 6
+  - file: src/prism/tests/test_collection_contract.py
+    errors: 6
+  - file: src/prism/scanner_extract/task_line_parsing.py
+    errors: 6
+  - file: src/prism/cli.py
+    errors: 6
+observed_patterns:
+  - contextmanager return annotation errors across many tests
+  - `ScanOptionsDict` fixture shape mismatches across tests
+  - registry protocol mismatches in plugin-name/entry-point tests
+  - object/indexability contract issues in API/CLI tests
+notes: >-
+  This audit snapshot resumes immediately after the orphaned-workflow slice
+  completed (ruff/black green). The goal for wave-1 is surgical, test-and-API
+  focused mypy debt reduction so g58 can advance.

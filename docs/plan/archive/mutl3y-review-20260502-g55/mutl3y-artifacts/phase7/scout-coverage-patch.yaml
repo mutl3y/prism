@@ -1,0 +1,10 @@
+- kind: missed_finding
+  missed_by:
+    - Scout-ControlFlow
+  found_by: Gilfoyle Code Review God Mode
+  severity: high
+  pattern: "strict_mode is threaded through bundle/defaults resolution, but malformed-plugin helpers always raise and never honor a non-strict fallback path"
+  why_missed: "The scouts inspected weak typing and fallback helper signatures locally, but they did not trace strict_phase_failures from ingress through bundle_resolver into the fallback helpers and matching tests."
+  new_probe: 'rg -n "strict_phase_failures|strict_mode|_fallback_or_raise|malformed_plugin_shape" src/prism/api_layer/non_collection.py src/prism/scanner_plugins/bundle_resolver.py src/prism/scanner_plugins/defaults.py src/prism/tests/test_defaults.py'
+  prompt_target: references/scout-scan-patterns.md
+  proposed_memory_update: "Teach Scout-ControlFlow to follow boolean control flags from ingress into helper branches and compare promised fallback semantics against the tests that lock runtime behavior in place."

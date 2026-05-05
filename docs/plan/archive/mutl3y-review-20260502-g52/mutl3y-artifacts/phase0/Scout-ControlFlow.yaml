@@ -1,0 +1,218 @@
+- id: Scout-ControlFlow-01
+  category: composition_root
+  fingerprint: "composition_root:api_layer/non_collection:lazy_import_four_class_factories"
+  file: src/prism/api_layer/non_collection.py
+  line: 490
+  severity_hint: high
+  confidence: high
+  detector: runtime_construction_control_flow
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: |
+    if di_container_cls is None:
+        from prism.scanner_core.di import DIContainer
+        di_container_cls = DIContainer
+    if feature_detector_cls is None:
+        from prism.scanner_core.feature_detector import FeatureDetector
+        feature_detector_cls = FeatureDetector
+    if scanner_context_cls is None:
+        from prism.scanner_core.scanner_context import ScannerContext
+        scanner_context_cls = ScannerContext
+    if variable_discovery_cls is None:
+        from prism.scanner_core.variable_discovery import VariableDiscovery
+        variable_discovery_cls = VariableDiscovery
+  evidence_command: "src/prism/api_layer/non_collection.py#L490-L513"
+  related_symbols: ["run_scan", "di_container_cls", "feature_detector_cls", "scanner_context_cls", "variable_discovery_cls", "DIContainer", "FeatureDetector", "ScannerContext", "VariableDiscovery"]
+  origin_location: "src/prism/api_layer/non_collection.py#L490"
+  consumer_locations:
+    - "src/prism/api_layer/non_collection.py#L537:build_non_collection_run_scan_execution_request"
+    - "src/prism/api_layer/non_collection.py#L618:_kernel_orchestrator"
+  fix_group_key: "composition-root-lazy-di-wiring"
+  proposed_fix_class: explicit_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_run_scan_basic"
+  context: |
+    Four runtime construction paths split at function-call time: run_scan() conditionally imports DIContainer, FeatureDetector, ScannerContext, and VariableDiscovery only when the caller does not provide injected versions (lines 490-513). Each in-function import creates a separate composition-entry point with different wiring authority: (1) DIContainer import at line 490, (2) FeatureDetector import at line 499, (3) ScannerContext import at line 504, (4) VariableDiscovery import at line 509. This splits composition responsibility across function-parameter defaults and lazy-import resolution. Callers cannot observe which path was taken without execution tracing.
+
+- id: Scout-ControlFlow-02
+  category: composition_root
+  fingerprint: "composition_root:scanner_core/execution_request:bridge_slot_forward_reference"
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 484
+  severity_hint: high
+  confidence: high
+  detector: runtime_construction_circular_dependency_workaround
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: |
+    _bridge_slot: list[_ScanStateBridge] = []
+    container = di_container_cls(
+        role_path=str(canonical_options["role_path"]),
+        scan_options=canonical_options,
+        registry=runtime_registry,
+        platform_key=resolved_platform_key,
+        scanner_context_wiring={
+            "scanner_context_cls": scanner_context_cls,
+            "prepare_scan_context_fn": lambda opts: _bridge_slot[0].prepare_scan_context(opts, canonical_options),
+        },
+        factory_overrides={
+            "variable_discovery_factory": lambda di, rp, opts: _bridge_slot[0].variable_discovery_factory(di, rp, opts),
+            "feature_detector_factory": lambda di, rp, opts: _bridge_slot[0].feature_detector_factory(di, rp, opts),
+        },
+    )
+    bridge = _ScanStateBridge(container=container, ...)
+    _bridge_slot.append(bridge)
+  evidence_command: "src/prism/scanner_core/execution_request_builder.py#L484-L514"
+  related_symbols: ["_bridge_slot", "_ScanStateBridge", "scanner_context_wiring", "prepare_scan_context_fn", "factory_overrides", "variable_discovery_factory", "feature_detector_factory"]
+  origin_location: "src/prism/scanner_core/execution_request_builder.py#L484"
+  consumer_locations:
+    - "src/prism/scanner_core/execution_request_builder.py#L515:_ScanStateBridge instantiation"
+    - "src/prism/scanner_core/di.py#L210:factory_scanner_context"
+    - "src/prism/scanner_core/di.py#L227:factory_variable_discovery"
+  fix_group_key: "composition-root-bridge-slot-circularity"
+  proposed_fix_class: explicit_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_container_wiring_completeness"
+  context: |
+    Forward reference resolution via list-slot closure pattern: DIContainer construction requires factory_overrides and scanner_context_wiring that delegate to _ScanStateBridge methods, but the bridge cannot be instantiated until the container exists. This is solved by pre-allocating _bridge_slot as an empty list, passing lambda closures that reference _bridge_slot[0] into the container, then immediately populating the slot after container construction. This pattern hides composition responsibility under lambda closures and makes the circular dependency implicit rather than explicit. The bridge slot technique works, but the control flow is non-obvious: callers cannot see that lambda closures capture the forward reference without reading the entire function.
+
+- id: Scout-ControlFlow-03
+  category: registry_authority
+  fingerprint: "registry_authority:scanner_plugins/defaults:_resolve_registry_tri_path_precedence"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 57
+  severity_hint: high
+  confidence: high
+  detector: registry_resolution_tri_path_fallback_routing
+  memory_status: existing
+  memory_match: "g51:Scout-Graph-04"
+  evidence_snippet: |
+    def _resolve_registry(
+        di: object | None = None, registry: "PluginRegistry | None" = None
+    ) -> "PluginRegistry":
+        """Resolve plugin registry: explicit registry > DI registry > bootstrap singleton."""
+        if registry is not None:
+            return registry
+        di_registry = _get_registry_from_di(di)
+        if di_registry is not None:
+            return di_registry
+        from prism.scanner_plugins.bootstrap import get_default_plugin_registry
+        return get_default_plugin_registry()
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L57-L73"
+  related_symbols: ["_resolve_registry", "_get_registry_from_di", "get_default_plugin_registry"]
+  origin_location: "src/prism/scanner_plugins/defaults.py#L57"
+  consumer_locations:
+    - "src/prism/scanner_plugins/defaults.py#L288:resolve_task_line_parsing_policy"
+    - "src/prism/scanner_plugins/defaults.py#L339:resolve_task_annotation_policy"
+    - "src/prism/scanner_plugins/defaults.py#L623:resolve_comment_driven_documentation_plugin"
+  fix_group_key: "registry-resolution-tri-path-consolidation"
+  proposed_fix_class: single_authority_path
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/scanner_plugins/tests/test_defaults.py::test_registry_resolution_precedence"
+  context: |
+    Registry resolution has three fallback paths with intentional precedence cascade: explicit registry parameter > DI-extracted registry > bootstrap singleton. The _resolve_registry(di, registry) function is called by three policy-resolution functions (task_line_parsing, task_annotation, comment_doc) to handle both injected DI and late-binding cases. Each call site must pass both di and registry parameters to enable the cascade. This tri-path is correct for plugin authority but creates dependency-precedence coupling: changes to precedence order or new fallback conditions affect all three consumer sites. No single canonical precedence policy is stored.
+
+- id: Scout-ControlFlow-04
+  category: composition_root
+  fingerprint: "composition_root:scanner_core/di:factory_overrides_split_authority"
+  file: src/prism/scanner_core/di.py
+  line: 225
+  severity_hint: medium
+  confidence: high
+  detector: runtime_construction_split_wiring_paths
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: |
+    override = self._factory_overrides.get("variable_discovery_factory")
+    if override is not None:
+        return override(self, self._role_path, self._snapshot_scan_options())
+    key = "variable_discovery"
+    with self._cache_lock:
+        if key not in self._cache:
+            self._cache[key] = _create_variable_discovery(
+                self,
+                self._role_path,
+                self._snapshot_scan_options(),
+            )
+    return self._cache[key]
+  evidence_command: "src/prism/scanner_core/di.py#L227-L243"
+  related_symbols: ["factory_variable_discovery", "factory_overrides", "override", "_create_variable_discovery", "scanner_context_wiring"]
+  origin_location: "src/prism/scanner_core/di.py#L227"
+  consumer_locations:
+    - "src/prism/scanner_core/execution_request_builder.py#L502:factory_overrides assignment"
+  fix_group_key: "di-factory-override-split-authority"
+  proposed_fix_class: single_wiring_path
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_override_precedence"
+  context: |
+    DIContainer accepts factory_overrides dictionary containing callable factories that override default construction. When variable_discovery_factory or feature_detector_factory overrides are present (set by execution_request_builder via lambda closures), factory_variable_discovery() takes a different code path than the default _create_variable_discovery() path with caching. This creates two wiring authorities: (1) default path with thread-locked caching via _create_variable_discovery, (2) override path that bypasses caching and delegates to _bridge_slot closure. Behavior changes depending on whether wiring was injected at construction time, creating implicit split routing.
+
+- id: Scout-ControlFlow-05
+  category: registry_authority
+  fingerprint: "registry_authority:scanner_plugins/defaults:ansible_first_hardcoded_fallback_singletons"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 74
+  severity_hint: medium
+  confidence: high
+  detector: hardcoded_fallback_routing_platform_constraint
+  memory_status: existing
+  memory_match: "g50:Scout-Graph-07"
+  evidence_snippet: |
+    _TASK_LINE_PARSING_FALLBACK = AnsibleDefaultTaskLineParsingPolicyPlugin()
+    _TASK_ANNOTATION_FALLBACK = AnsibleDefaultTaskAnnotationPolicyPlugin()
+    _TASK_TRAVERSAL_FALLBACK = AnsibleDefaultTaskTraversalPolicyPlugin()
+    _VARIABLE_EXTRACTOR_FALLBACK = AnsibleDefaultVariableExtractorPolicyPlugin()
+    _YAML_PARSING_FALLBACK = DefaultYAMLParsingPolicyPlugin()
+    _JINJA_ANALYSIS_FALLBACK = DefaultJinjaAnalysisPolicyPlugin()
+  evidence_command: "src/prism/scanner_plugins/defaults.py#L74-L80"
+  related_symbols: ["_TASK_LINE_PARSING_FALLBACK", "_TASK_ANNOTATION_FALLBACK", "_TASK_TRAVERSAL_FALLBACK", "_VARIABLE_EXTRACTOR_FALLBACK", "_YAML_PARSING_FALLBACK", "_JINJA_ANALYSIS_FALLBACK", "_FALLBACK_SINGLETONS"]
+  origin_location: "src/prism/scanner_plugins/defaults.py#L74"
+  consumer_locations:
+    - "src/prism/scanner_plugins/defaults.py#L395:resolve_task_line_parsing_policy fallback"
+    - "src/prism/scanner_plugins/defaults.py#L446:resolve_task_annotation_policy fallback"
+    - "src/prism/scanner_plugins/defaults.py#L639:resolve_variable_extractor_policy fallback"
+  fix_group_key: "hardcoded-platform-fallback-singletones"
+  proposed_fix_class: registry_platform_default_provider
+  blocking_preconditions: ["FIND-G6-06 (ReadmeRendererPlugin protocol design not landed)"]
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_plugins_defaults.py -k fallback"
+  context: |
+    Module-level singleton fallback plugins are Ansible-backed by design. The six module-level singletons (_TASK_LINE_PARSING_FALLBACK, _TASK_ANNOTATION_FALLBACK, _TASK_TRAVERSAL_FALLBACK, _VARIABLE_EXTRACTOR_FALLBACK, _YAML_PARSING_FALLBACK, _JINJA_ANALYSIS_FALLBACK) are instantiated at module load time and shared across all calls. Four are Ansible plugins; two are generic (YAML, Jinja). This hardcodes Ansible as the only supported default platform. A platform-declared default-provider seam in the registry would allow correct fallback resolution for Kubernetes or Terraform without changes to this file. The blocking precondition is the ReadmeRendererPlugin protocol design (FIND-G6-06), which has not landed yet.
+
+- id: Scout-ControlFlow-06
+  category: abstraction
+  fingerprint: "abstraction:scanner_core/di:scanner_context_wiring_lambda_closures"
+  file: src/prism/scanner_core/di.py
+  line: 210
+  severity_hint: low
+  confidence: high
+  detector: implicit_composition_lambda_closure
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: |
+    self._scanner_context_wiring = scanner_context_wiring or {}
+    # In factory_scanner_context:
+    prepare_scan_context_fn = self._scanner_context_wiring.get("prepare_scan_context_fn")
+    if scanner_context_cls is None or prepare_scan_context_fn is None:
+        raise RuntimeError(
+            "factory_scanner_context is disabled: scanner_context_wiring is "
+            "not configured. ScannerContext requires prepare_scan_context_fn "
+            "runtime seam injection."
+        )
+    scanner_context_kwargs: dict[str, Any] = {
+        "di": self,
+        "role_path": self._role_path,
+        "scan_options": self._snapshot_scan_options(),
+        "prepare_scan_context_fn": prepare_scan_context_fn,
+    }
+    return scanner_context_cls(**scanner_context_kwargs)
+  evidence_command: "src/prism/scanner_core/di.py#L210-L240"
+  related_symbols: ["scanner_context_wiring", "prepare_scan_context_fn", "factory_scanner_context", "scanner_context_cls"]
+  origin_location: "src/prism/scanner_core/di.py#L210"
+  consumer_locations:
+    - "src/prism/scanner_core/execution_request_builder.py#L488:lambda opts closure"
+  fix_group_key: "di-composition-wiring-protocol-narrowing"
+  proposed_fix_class: protocol_narrowing
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_scanner_context_factory"
+  context: |
+    ScannerContext construction requires prepare_scan_context_fn injected as runtime seam via scanner_context_wiring dictionary. The factory method validates that both scanner_context_cls and prepare_scan_context_fn are present, but accepts any callable for prepare_scan_context_fn without type narrowing. In execution_request_builder, the injected prepare_scan_context_fn is a lambda closure that captures the _bridge_slot[0] forward reference. The lambda creates an implicit dependency that is not statically visible: callers cannot see that prepare_scan_context_fn has captured the bridge slot without tracing the lambda source.

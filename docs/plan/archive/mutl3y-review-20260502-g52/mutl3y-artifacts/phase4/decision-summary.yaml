@@ -1,0 +1,8 @@
+plan_id: mutl3y-review-20260502-g52
+cycle: g52
+phase: P4
+status: completed
+decision_summary:
+  - "Wave 1 will target G52-H01 only: the four-class lazy composition-root cluster in src/prism/api_layer/non_collection.py."
+  - "Keep the wave file ownership disjoint and narrow: src/prism/api_layer/non_collection.py plus src/prism/tests/test_api_cli_entrypoints.py only."
+  - "Defer G52-H02 execution-request fragmentation and G52-M01 constructor-contract typing until after the first non_collection wave is validated."

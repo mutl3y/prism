@@ -1,0 +1,72 @@
+- id: Scout-ControlFlow-01
+  category: orchestration_seam
+  fingerprint: di.py|self._event_bus|process_default_listeners
+  file: src/prism/scanner_core/di.py
+  line: 191
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "self._event_bus = EventBus(listeners=effective_listeners)"
+  evidence_command: sed -n '186,198p' src/prism/scanner_core/di.py
+  related_symbols: [DIContainer.__init__, EventBus, get_default_listeners]
+  fix_group_key: di.eventbus.default-listeners
+  proposed_fix_class: seam_facade
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: Scout-ControlFlow-02
+  category: error_channel
+  fingerprint: events.py|EventBus.emit|swallow_listener_exceptions
+  file: src/prism/scanner_core/events.py
+  line: 86
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except Exception as exc: ... if self._strict: raise"
+  evidence_command: sed -n '86,98p' src/prism/scanner_core/events.py
+  related_symbols: [EventBus.emit, EventBus._strict]
+  fix_group_key: events.listener-error-channel
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: Scout-ControlFlow-03
+  category: silent_fallback
+  fingerprint: di.py|factory_blocker_fact_builder|plugin_default_resolver
+  file: src/prism/scanner_core/di.py
+  line: 286
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_do_not_re_flag
+  memory_match: FIND-G3-03
+  evidence_snippet: "fn = resolve_blocker_fact_builder()"
+  evidence_command: sed -n '286,296p' src/prism/scanner_core/di.py
+  related_symbols: [DIContainer.factory_blocker_fact_builder, resolve_blocker_fact_builder]
+  fix_group_key: di.blocker-fact-builder
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions: ["synthesizer-architecture review"]
+  suggested_narrow_gate: ""
+
+- id: Scout-ControlFlow-04
+  category: policy_coercion
+  fingerprint: di.py|factory_*_policy_plugin|optional_none_return
+  file: src/prism/scanner_core/di.py
+  line: 362
+  severity_hint: medium
+  confidence: medium
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "override is not None: return override(...)
+  return None"
+  evidence_command: sed -n '352,372p' src/prism/scanner_core/di.py
+  related_symbols: [factory_comment_driven_doc_plugin, factory_task_annotation_policy_plugin]
+  fix_group_key: di.optional-policy-plugins
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: ""

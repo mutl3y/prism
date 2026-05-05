@@ -1,0 +1,21 @@
+plan_id: mutl3y-review-20260504-g64
+cycle: g64
+phase: P2
+status: OK
+summary: >-
+  Persisted the g64 thorough-cycle shortlist with one High and four Medium
+  findings. The first implementation wave targets G64-H01 as the highest-risk,
+  smallest testable registry-authority seam.
+wave_plan:
+  wave_1:
+    finding: G64-H01
+    rationale: >-
+      The loader/defaults YAML policy seam has one concrete controlling path
+      and existing direct tests, which makes it the smallest high-severity
+      slice to validate first.
+    owned_files:
+      - src/prism/scanner_io/loader.py
+      - src/prism/tests/test_di_registry_resolution.py
+      - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-1-summary.md
+next_phase: P5
+next_action: Open wave 1 for G64-H01 and dispatch Builder-ControlFlow.

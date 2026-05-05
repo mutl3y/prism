@@ -1,0 +1,16 @@
+{
+  "agent": "Scout-Typing",
+  "cycle": "g55",
+  "focus_axis": "typing_contracts",
+  "review_surface": [
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_core/protocols_runtime.py",
+    "src/prism/tests/test_scanner_core_di.py",
+    "src/prism/tests/test_defaults.py"
+  ],
+  "questions": [
+    "Which constructor or DI override contracts remain typed too weakly for the post-g54 live code?",
+    "Where can protocol boundaries be narrowed without widening touched-file mypy fallout beyond one local seam?"
+  ]
+}

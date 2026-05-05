@@ -1,0 +1,68 @@
+wave: 1
+title: mypy-baseline wave 1 - split workstreams
+workstreams:
+  - id: Builder-MypyTestHarness
+    objective: >-
+      Reduce test-only typing debt by aligning test annotations and fixtures to
+      existing runtime protocols (do not widen runtime signatures to `Any`).
+    owned_files:
+      - src/prism/tests/test_gilfoyle_blockers_runtime.py
+      - src/prism/tests/test_plugin_name_resolver.py
+      - src/prism/tests/test_t2_03_entry_point_discovery.py
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+      - src/prism/tests/test_platform_routing_fail_closed.py
+      - src/prism/tests/test_package_import_smoke.py
+      - src/prism/tests/test_collection_contract.py
+    invariant: >-
+      Reduce test-only typing debt by aligning doubles and fixture annotations
+      to existing runtime protocols rather than weakening runtime code.
+    suggested_gates:
+      - name: mypy-owned-tests
+        cmd: >-
+          python -m mypy --config-file=pyproject.toml \
+          src/prism/tests/test_gilfoyle_blockers_runtime.py \
+          src/prism/tests/test_plugin_name_resolver.py \
+          src/prism/tests/test_t2_03_entry_point_discovery.py \
+          src/prism/tests/test_comment_doc_plugin_resolution.py \
+          src/prism/tests/test_platform_routing_fail_closed.py \
+          src/prism/tests/test_package_import_smoke.py \
+          src/prism/tests/test_collection_contract.py
+      - name: pytest-smoke
+        cmd: >-
+          pytest -q src/prism/tests/test_plugin_name_resolver.py \
+          src/prism/tests/test_gilfoyle_blockers_runtime.py
+
+  - id: Builder-MypyApiCliContracts
+    objective: >-
+      Restore API/CLI and scan-option contract alignment under mypy without
+      widening to `Any` on public runtime surfaces.
+    owned_files:
+      - src/prism/api.py
+      - src/prism/cli.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+      - src/prism/tests/test_api_cli_repo_parity.py
+      - src/prism/tests/test_g03_scan_cache_integration.py
+      - src/prism/tests/test_t3_03_scan_cache.py
+      - src/prism/scanner_extract/task_line_parsing.py
+    invariant: >-
+      Restore API/CLI and scan-option contract alignment under mypy without
+      widening to Any.
+    suggested_gates:
+      - name: mypy-api-cli
+        cmd: >-
+          python -m mypy --config-file=pyproject.toml \
+          src/prism/api.py src/prism/cli.py src/prism/scanner_extract/task_line_parsing.py \
+          src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_api_cli_repo_parity.py \
+          src/prism/tests/test_g03_scan_cache_integration.py src/prism/tests/test_t3_03_scan_cache.py
+      - name: pytest-api-cli
+        cmd: >-
+          pytest -q src/prism/tests/test_api_cli_entrypoints.py \
+          src/prism/tests/test_api_cli_repo_parity.py
+
+risks:
+  - risk: Over-eager widening to `Any` in runtime modules
+    mitigation: Prefer test-side annotation fixes and protocol-aligned adapters.
+
+next_steps:
+  - author_work_items: create focused PRs per workstream covering 5-10 files
+  - run_gates: execute suggested mypy gates + pytest smoke bundles per PR

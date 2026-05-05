@@ -1,0 +1,52 @@
+plan_id: mutl3y-review-workflow-live-multiwave-warning-cleanup-20260502
+cycle: mutl3y-live-multi-1
+target: src/prism/tests
+review_type: live_narrow_run
+focus_axis: control_flow
+status: completed
+decision_summary:
+  - "Use one disjoint builder batch because both files share the same warning seam but do not overlap in ownership."
+  - "Preserve test behavior and only add the required stateless marker to fake scan-pipeline plugin classes."
+carried_open_findings: []
+suppressed_highs: []
+findings:
+  - id: FIND-LIVE-MULTI-01
+    status: closed
+    decision: fixed_in_wave_1
+    severity: medium
+    category: control_flow
+    fingerprint: discovery_entry_point_test_fake_scan_pipeline_missing_stateless_marker
+    title: "Entry-point discovery test emits stateless-marker warning for a fake scan-pipeline plugin"
+    files:
+      - src/prism/tests/test_t2_03_entry_point_discovery.py
+    source_artifacts:
+      - .mutl3y-gate/live-multiwave-candidate.log
+    summary: "test_discover_registers_plugin_via_entry_point registers a fake scan-pipeline plugin without PLUGIN_IS_STATELESS = True, producing a warning during the focused candidate gate."
+    decision_deadline: mutl3y-live-multi-1
+    suggested_narrow_gate: pytest -q src/prism/tests/test_t2_03_entry_point_discovery.py src/prism/tests/test_platform_routing_fail_closed.py
+    closed_at: "2026-05-02"
+    closed_evidence:
+      - "Code: src/prism/tests/test_t2_03_entry_point_discovery.py adds PLUGIN_IS_STATELESS = True to the fake scan-pipeline plugin used by test_discover_registers_plugin_via_entry_point."
+      - "Builder: docs/plan/mutl3y-review-workflow-live-multiwave-warning-cleanup-20260502/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md records the preserved invariant and focused validation."
+      - "Gate: .mutl3y-gate/live-multiwave-narrow.log => 22 passed in 0.64s."
+      - "Barrier: .mutl3y-gate/live-multiwave-antipattern.log => cast_any_hits=0, typeddict_lossy_cast_hits=0, except_pass_hits=0."
+  - id: FIND-LIVE-MULTI-02
+    status: closed
+    decision: fixed_in_wave_1
+    severity: medium
+    category: control_flow
+    fingerprint: platform_routing_test_fake_ansible_scan_pipeline_missing_stateless_marker
+    title: "Platform-routing test emits stateless-marker warning for a fake ansible scan-pipeline plugin"
+    files:
+      - src/prism/tests/test_platform_routing_fail_closed.py
+    source_artifacts:
+      - .mutl3y-gate/live-multiwave-candidate.log
+    summary: "test_ansible_platform_routing_outcome_absent_on_normal_path registers a fake ansible scan-pipeline plugin without PLUGIN_IS_STATELESS = True, producing a warning during the focused candidate gate."
+    decision_deadline: mutl3y-live-multi-1
+    suggested_narrow_gate: pytest -q src/prism/tests/test_t2_03_entry_point_discovery.py src/prism/tests/test_platform_routing_fail_closed.py
+    closed_at: "2026-05-02"
+    closed_evidence:
+      - "Code: src/prism/tests/test_platform_routing_fail_closed.py adds PLUGIN_IS_STATELESS = True to the fake ansible scan-pipeline plugin used by test_ansible_platform_routing_outcome_absent_on_normal_path."
+      - "Builder: docs/plan/mutl3y-review-workflow-live-multiwave-warning-cleanup-20260502/mutl3y-artifacts/phase5/Builder-Ownership-summary.md records the preserved invariant and focused validation."
+      - "Gate: .mutl3y-gate/live-multiwave-narrow.log => 22 passed in 0.64s."
+      - "Barrier: .mutl3y-gate/live-multiwave-antipattern.log => cast_any_hits=0, typeddict_lossy_cast_hits=0, except_pass_hits=0."

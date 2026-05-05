@@ -1,0 +1,157 @@
+plan_id: gilfoyle-review-20260502-g47
+cycle: g47
+target: src/prism
+review_type: light
+focus_axis: error_handling
+status: in_progress
+decision_summary:
+  - "Run a light checkpoint over the remaining g46 High findings before any new fix wave."
+  - "Treat the g46 open-high file set as the minimum review surface; widen only to immediate neighbors and tests when the scouts find live drift."
+  - "Phase 1 grading confirms five live g46 High clusters from persisted scout artifacts and leaves the kernel/cache pair as unreconfirmed carry-forwards."
+  - "Phase 3 probes keep H09 below the live cluster and re-confirm H12 as still live, while the immediate user-directed wave targets H07/H08, H10/H13, and H11."
+  - "Wave 1 is now closed for the H07/H08/H10/H11/H13 slice: the builder changes landed, adjacent runtime regressions were repaired locally, and the recovered focused barrier gate passed."
+  - "Direct follow-up repairs then closed the residual H09 and H12 carry-forwards with fresh focused validation logs, so the remaining work is Phase 7 findings reconciliation, learning rollup, and artifact cleanup assessment."
+suppressed_highs: []
+findings:
+  - id: G47-CHECK-01
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: trust_boundary
+    maps_to_existing_finding: G46-H07
+    fingerprint: trust-boundary:api:unconfined-sibling-file-inputs
+    title: "Sibling file-bearing API inputs remain outside the primary path-safety boundary"
+    files:
+      - src/prism/api.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Ownership.yaml
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase1/grading-summary.yaml
+    summary: "The wave added sibling file-bearing path guards on the public API surface so readme/style/policy inputs now follow the same containment boundary as the primary role path."
+    decision_deadline: g47
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py
+    closed_evidence:
+      artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase5/wave-1-barrier-summary.yaml
+      gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_dataload.py -> 116 passed, 12 warnings
+
+  - id: G47-CHECK-02
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: fail_open
+    maps_to_existing_finding: G46-H08
+    fingerprint: fail-open:collection:runtime-errors-demoted
+    title: "Collection orchestration still demotes runtime/control-plane failures into recoverable per-role fallout"
+    files:
+      - src/prism/api_layer/collection.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-ControlFlow.yaml
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase1/grading-summary.yaml
+    summary: "Collection orchestration no longer demotes runtime/control-plane failures in the repaired slice, so the live fail-open batch boundary is closed for this checkpoint."
+    decision_deadline: g47
+    suggested_narrow_gate: pytest -q src/prism/tests/test_collection_contract.py
+    closed_evidence:
+      artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase5/wave-1-barrier-summary.yaml
+      gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_dataload.py -> 116 passed, 12 warnings
+
+  - id: G47-CHECK-03
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: fail_open
+    maps_to_existing_finding: G46-H10
+    fingerprint: fail-open:prepared-policy:non-strict-fallback-substitution
+    title: "Non-strict policy resolution still substitutes fallback plugins after plugin faults"
+    files:
+      - src/prism/scanner_plugins/defaults.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-ControlFlow.yaml
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase1/grading-summary.yaml
+    summary: "The repaired defaults path now fails closed on malformed plugin shape and standalone helper misuse instead of silently substituting weakened fallback behavior in the targeted runtime seams."
+    decision_deadline: g47
+    suggested_narrow_gate: pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_platform_routing_fail_closed.py
+    closed_evidence:
+      artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase5/wave-1-barrier-summary.yaml
+      gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_dataload.py -> 116 passed, 12 warnings
+
+  - id: G47-CHECK-04
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: error_channel
+    maps_to_existing_finding: G46-H11
+    fingerprint: error-channel:yaml-loading:none-normalized-to-success
+    title: "YAML load failures still collapse into None and then into empty success-shaped data"
+    files:
+      - src/prism/scanner_plugins/parsers/yaml/parsing_policy.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-ControlFlow.yaml
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase1/grading-summary.yaml
+    summary: "The YAML loading path now raises contextual RuntimeError values on invalid or missing input instead of normalizing loader defects into None-shaped success."
+    decision_deadline: g47
+    suggested_narrow_gate: pytest -q src/prism/tests/test_dataload.py
+    closed_evidence:
+      artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase5/wave-1-barrier-summary.yaml
+      gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_dataload.py -> 116 passed, 12 warnings
+
+  - id: G47-CHECK-05
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: composition_root
+    maps_to_existing_finding: G46-H13
+    fingerprint: composition-root:defaults:standalone-di-helper-path
+    title: "scanner_plugins.defaults still owns a secondary composition path outside the canonical runtime"
+    files:
+      - src/prism/scanner_plugins/defaults.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Ownership.yaml
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase0/Scout-Graph.yaml
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase1/grading-summary.yaml
+    summary: "The targeted defaults helper paths now fail closed when invoked outside the canonical runtime and the runtime fallback behavior used by this checkpoint no longer manufactures a secondary composition path."
+    decision_deadline: g47
+    suggested_narrow_gate: pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py
+    closed_evidence:
+      artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase5/wave-1-barrier-summary.yaml
+      gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_dataload.py -> 116 passed, 12 warnings
+
+  - id: G47-PROBE-H09
+    status: closed
+    decision: fixed_direct_followup
+    severity: high
+    category: trust_boundary
+    maps_to_existing_finding: G46-H09
+    fingerprint: trust-boundary:kernel-runtime:plugin-preflight-and-construction
+    title: "Kernel/runtime probe narrows H09 but does not re-prioritize it above the confirmed live cluster"
+    files:
+      - src/prism/scanner_kernel/orchestrator.py
+      - src/prism/scanner_core/di.py
+      - src/prism/api_layer/non_collection.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase3/Probe-Kernel.yaml
+    summary: "Direct follow-up closed the narrowed residual seam: DI runtime plugin construction now normalizes constructor exceptions fail-closed, and the non-collection run_scan seam now normalizes payload shape before returning or caching results."
+    decision_deadline: g47
+    suggested_narrow_gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py
+    closed_evidence:
+      artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase7/closure-summary.yaml
+      gate: pytest -q src/prism/tests/test_scanner_core_di.py -k 'bad_constructor or constructor_exception' -> 4 passed, 53 deselected; pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'normalizes_payload_shape_from_non_collection_seam' -> 1 passed, 26 deselected
+
+  - id: G47-PROBE-H12
+    status: closed
+    decision: fixed_direct_followup
+    severity: high
+    category: cache_integrity
+    maps_to_existing_finding: G46-H12
+    fingerprint: cache-integrity:style-guide:path-only-keying
+    title: "Cache probe re-confirms the external style-guide invalidation gap as live"
+    files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/scanner_config/style_parser.py
+    source_artifacts:
+      - docs/plan/gilfoyle-review-20260502-g47/artifacts/phase3/Probe-Cache.yaml
+    summary: "Direct follow-up confirmed and closed the cache-integrity gap by fingerprinting external style-guide content in the non-collection cache key and locking the behavior with focused regression coverage."
+    decision_deadline: g47
+    suggested_narrow_gate: pytest -q src/prism/tests/test_t3_03_scan_cache.py src/prism/tests/test_g03_scan_cache_integration.py
+    closed_evidence:
+      artifact: docs/plan/gilfoyle-review-20260502-g47/artifacts/phase7/closure-summary.yaml
+      gate: pytest -q src/prism/tests/test_g03_scan_cache_integration.py src/prism/tests/test_t3_03_scan_cache.py -> 20 passed

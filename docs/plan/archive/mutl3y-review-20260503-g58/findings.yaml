@@ -1,0 +1,200 @@
+plan_id: mutl3y-review-20260503-g58
+cycle: g58
+target: src/prism
+review_type: thorough
+focus_axis: seam_contracts
+status: in_progress
+decision_summary:
+  - "g58 exists because a green narrow cycle is not terminal stop evidence for the overall Mutl3y loop."
+  - "Carry forward the unresolved g55 High queue into a fresh thorough cycle instead of pretending g56-g57 closed that backlog."
+  - "Do not sign off unless the documented cadence floor is met: clean thorough passes on rotated axes plus a clean unconstrained God Mode pass."
+  - "The seam-tilted God Mode pass is retained as calibration evidence only; the unconstrained whole-target pass is the authoritative independent verdict for prioritization."
+  - "Wave 1 closed the unbiased Critical queue in bootstrap and scan_cache with focused builder coverage and a foreman-owned pytest bundle."
+  - "Wave 2 closed the shared DI scan-option mutation and default-listener pollution High queue through one owned DI/events slice rather than conflicting parallel builders."
+  - "Wave 3 closed the remaining High queue through one owned registry/defaults/execution-request slice because H04 overlapped with H03 on defaults.py and with H05 on execution_request_builder.py."
+findings:
+  - id: G58-C01
+    status: closed
+    decision: fixed_in_g58_w1
+    severity: critical
+    category: registry_authority
+    fingerprint: "bootstrap_registry_singleton_lockless_initialization"
+    title: "Canonical plugin registry bootstrap is a lockless mutable singleton with double-initialization and test-pollution risk"
+    files:
+      - src/prism/scanner_plugins/bootstrap.py
+      - src/prism/scanner_plugins/registry.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/God-Mode-independent-review.yaml
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "The unbiased independent review found that bootstrap.initialize_default_registry() performs lockless check-then-act initialization over the canonical registry singleton, while the earlier seam-tilted pass separately exposed the process-global mutable registry surface in scanner_plugins.registry. Together they define one fix family: bootstrap and registry authority are globally shared and insufficiently hardened."
+    decision_deadline: g58
+    suggested_narrow_gate: pytest -q src/prism/tests -k "registry or bootstrap"
+    closed_at: "2026-05-03"
+    closed_evidence:
+      - "Code: src/prism/scanner_plugins/bootstrap.py:25 and src/prism/scanner_plugins/bootstrap.py:61 guard first initialization with _DEFAULT_REGISTRY_INIT_LOCK, while src/prism/scanner_plugins/bootstrap.py:91 stages bootstrap state before atomic publish into the canonical singleton."
+      - "Code: src/prism/scanner_plugins/registry.py:481 and src/prism/scanner_plugins/registry.py:505 add snapshot_state()/replace_state() so bootstrap can publish validated state without rebinding the canonical registry object."
+      - "Tests: src/prism/tests/test_t2_03_entry_point_discovery.py:143 proves fail-closed unpublished state on discovery defects, and src/prism/tests/test_t2_03_entry_point_discovery.py:177 exercises concurrent first initialization."
+      - "Gate: pytest -q src/prism/tests -k 'registry or bootstrap' => 101 passed / 1 skipped / 1001 deselected; pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py => 30 passed; focused Wave 1 bundle => 104 passed."
+  - id: G58-C02
+    status: closed
+    decision: fixed_in_g58_w1
+    severity: critical
+    category: correctness
+    fingerprint: "scan_cache_key_unstable_prepared_policy_bundle_object_repr"
+    title: "compute_scan_cache_key hashes heap-address string representations, making cache keys structurally unstable"
+    files:
+      - src/prism/scanner_core/scan_cache.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "The unbiased independent review found that json.dumps(..., default=str) serializes prepared-policy plugin instances via object repr, so cache keys vary with heap identity instead of stable logical scan input."
+    decision_deadline: g58
+    suggested_narrow_gate: pytest -q src/prism/tests -k "scan_cache"
+    closed_at: "2026-05-03"
+    closed_evidence:
+      - "Code: src/prism/scanner_core/scan_cache.py:130 replaces default=str serialization with explicit canonicalization, and src/prism/scanner_core/scan_cache.py:162 fingerprints opaque values by fully qualified type name instead of heap-address repr."
+      - "Tests: src/prism/tests/test_t3_03_scan_cache.py:173 proves logically equivalent prepared-policy bundle contents now produce the same key while changed logical options still miss."
+      - "Tests: src/prism/tests/test_api_cli_entrypoints.py:1238 preserves the missing prepared_policy_bundle cache-marker contract on the API path."
+      - "Gate: pytest -q src/prism/tests/test_t3_03_scan_cache.py::test_compute_scan_cache_key_is_stable_and_options_sensitive => passed; pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_fsrc_api_run_scan_cache_key_preserves_missing_prepared_policy_bundle_state => passed; pytest -q src/prism/tests/test_g03_scan_cache_integration.py => passed; focused Wave 1 bundle => 104 passed."
+  - id: G58-H01
+    status: closed
+    decision: fixed_in_g58_w2
+    severity: high
+    category: concurrency
+    fingerprint: "di_replace_scan_options_unsynchronized_stale_cache"
+    title: "DIContainer.replace_scan_options mutates scan options without cache-lock coordination or cache invalidation"
+    files:
+      - src/prism/scanner_core/di.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "replace_scan_options writes the internal scan-options snapshot outside the cache lock and leaves cached factories intact, creating stale-cache risk after post-ingress option mutation."
+    decision_deadline: g58
+    suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_core_di.py -k "scan_options or replace_scan_options"
+    closed_at: "2026-05-03"
+    closed_evidence:
+      - "Code: src/prism/scanner_core/di.py:192 upgrades the container state lock to RLock, and src/prism/scanner_core/di.py:211 rewrites replace_scan_options() to update the snapshot under lock and invalidate only scan-option-dependent cached participants."
+      - "Tests: src/prism/tests/test_di_container.py:115 proves replace_scan_options() now refreshes cached factory products instead of leaving stale pre-bundle instances alive."
+      - "Gate: Wave 2 narrow pytest bundle => 5 passed; Wave 2 importer-layer bundle => 4 passed / 12 deselected."
+  - id: G58-H02
+    status: closed
+    decision: fixed_in_g58_w2
+    severity: high
+    category: singleton_pollution
+    fingerprint: "events_default_listeners_process_global_pollution"
+    title: "Process-global default event listeners contaminate later DIContainer lifetimes"
+    files:
+      - src/prism/scanner_core/events.py
+      - src/prism/scanner_core/di.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "register_default_listener mutates a process-global listener list that every later DIContainer inherits, creating persistent cross-session and cross-test event-bus contamination."
+    decision_deadline: g58
+    suggested_narrow_gate: pytest -q src/prism/tests -k "event_bus or default_listener"
+    closed_at: "2026-05-03"
+    closed_evidence:
+      - "Code: src/prism/scanner_core/di.py:177 makes inherit_default_event_listeners opt-in and src/prism/scanner_core/di.py:198 stops ambient default-listener inheritance for ordinary DIContainer construction."
+      - "Code: src/prism/scanner_core/execution_request_builder.py:556 preserves intended runtime listener behavior by opting the canonical execution-request container back in explicitly at src/prism/scanner_core/execution_request_builder.py:575."
+      - "Tests: src/prism/tests/test_t4_03_cli_progress.py:46 covers explicit default-listener inheritance, and src/prism/tests/test_t4_03_cli_progress.py:69 proves containers no longer inherit global listeners without opt-in."
+      - "Gate: Wave 2 narrow pytest bundle => 5 passed; Wave 2 importer-layer bundle => 4 passed / 12 deselected."
+  - id: G58-H03
+    status: closed
+    decision: fixed_in_g58_w3
+    severity: high
+    category: defaults-prepared-policy-ownership
+    fingerprint: "defaults_non_strict_wrong_platform_ansible_fallback"
+    title: "Non-strict malformed-plugin fallback silently substitutes Ansible defaults for non-Ansible platforms"
+    files:
+      - src/prism/scanner_plugins/defaults.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/God-Mode-independent-review.yaml
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "The unbiased independent review found a live wrong-platform fallback hazard, and the earlier seam-tilted pass independently reinforced the same Ansible-backed singleton debt from the prepared-policy side."
+    decision_deadline: g58
+    suggested_narrow_gate: pytest -q src/prism/tests/test_defaults.py -k "strict or malformed or fallback"
+    closed_at: "2026-05-03"
+    closed_evidence:
+      - "Code: src/prism/scanner_plugins/defaults.py:95 and src/prism/scanner_plugins/defaults.py:113 resolve the selected platform through the DI ingress chain and block non-strict wrong-platform fallback before Ansible defaults can be substituted for another platform."
+      - "Code: src/prism/scanner_plugins/defaults.py:513 and src/prism/scanner_plugins/defaults.py:540 route task-line and task-annotation malformed-plugin fallback through the new platform guard instead of silently accepting the Ansible singleton fallback."
+      - "Tests: src/prism/tests/test_comment_doc_plugin_resolution.py:1430 and src/prism/tests/test_comment_doc_plugin_resolution.py:1458 prove wrong-platform fallback now raises for annotation and task-line resolution in non-strict mode."
+      - "Gate: Wave 3 foreman-owned barrier bundle => 17 passed; builder narrow gate => 7 passed; defaults fallback bundle => 3 passed / 1 deselected."
+  - id: G58-H04
+    status: closed
+    decision: fixed_in_g58_w3
+    severity: high
+    category: registry_authority
+    fingerprint: "loader_defaults_di_three_way_registry_authority_divergence"
+    title: "Loader, defaults, and DI each apply different registry-authority behavior for the same logical request family"
+    files:
+      - src/prism/scanner_io/loader.py
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/scanner_core/di.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase0/Synthesizer-Architecture.yaml
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase0/Scout-Graph.yaml
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "The cross-cutting synthesizer confirmed a three-way behavioral split: DI consumes an injected runtime registry, loader returns None when no DI registry exists, and defaults bootstraps a singleton fallback."
+    decision_deadline: g58
+    suggested_narrow_gate: pytest -q src/prism/tests/test_di_registry_resolution.py -k "registry or loader or default_platform"
+    closed_at: "2026-05-03"
+    closed_evidence:
+      - "Code: src/prism/scanner_plugins/defaults.py:95 reuses prism.scanner_core.di.resolve_platform_key() so defaults fallback selection now follows the same platform-authority chain as DI ingress instead of freelancing its own fallback semantics."
+      - "Code: src/prism/scanner_plugins/defaults.py:113 rejects malformed-plugin fallback when the selected platform and fallback platform diverge, eliminating the prior loader/defaults/DI split for non-strict fallback behavior."
+      - "Tests: src/prism/tests/test_di_registry_resolution.py:416 proves defaults non-strict fallback now obeys the selected platform authority rather than silently borrowing Ansible defaults."
+      - "Gate: Wave 3 foreman-owned barrier bundle => 17 passed, including test_get_registry_from_di_shared_seam_returns_none_on_no_di and test_defaults_non_strict_fallback_uses_selected_platform_authority."
+  - id: G58-H05
+    status: closed
+    decision: fixed_in_g58_w3
+    severity: high
+    category: execution-request-ingress
+    fingerprint: "execution_request_builder_late_ensure_prepared_guard"
+    title: "Execution-request builder validates ensure_prepared_policy_bundle_fn only after full runtime assembly"
+    files:
+      - src/prism/scanner_core/execution_request_builder.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/God-Mode-independent-review.yaml
+      - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "The seam-tilted pass found a real fail-fast inversion: the required ensure_prepared_policy_bundle_fn guard sits in _finalize_execution_request after runtime participant assembly instead of at request-construction entry."
+    decision_deadline: g58
+    suggested_narrow_gate: pytest -q src/prism/tests/test_execution_request_builder.py -k "ensure_prepared or finalization"
+    closed_at: "2026-05-03"
+    closed_evidence:
+      - "Code: src/prism/scanner_core/execution_request_builder.py:473 now validates ensure_prepared_policy_bundle_fn before runtime assembly, and src/prism/scanner_core/execution_request_builder.py:507 centralizes the fail-fast enforcer check used by request construction."
+      - "Tests: src/prism/tests/test_execution_request_builder.py:134 proves non-collection execution-request construction now fails before runtime assembly starts when the prepared-policy enforcer is missing."
+      - "Gate: Wave 3 foreman-owned barrier bundle => 17 passed; builder narrow gate => 7 passed."
+suppressed_highs:
+  - observation_summary: "execution-request prepared-policy DI callback still accepts di: object"
+    file: src/prism/scanner_core/execution_request_builder.py
+    line: 62
+    rationale_code: deferred
+    rationale_detail: "Typing-seam debt remains real but is queued behind the unbiased Critical queue and the promoted execution-request late-validation High."
+  - observation_summary: "defaults precedence helper still accepts DI and plugin shapes as object or Any"
+    file: src/prism/scanner_plugins/defaults.py
+    line: 347
+    rationale_code: deferred
+    rationale_detail: "This typing debt remains actionable but is secondary to the unbiased Critical queue and the promoted wrong-platform fallback High."
+  - observation_summary: "public API payload normalization still weakens payload shape through Mapping[str, object]"
+    file: src/prism/api_layer/non_collection.py
+    line: 312
+    rationale_code: deferred
+    rationale_detail: "Payload typing debt is real but not as urgent as the unbiased concurrency, cache, and wrong-platform fallback findings."
+  - observation_summary: "bundle_resolver mutates prepared_policy_bundle into scan_options and syncs it back into DI"
+    file: src/prism/scanner_plugins/bundle_resolver.py
+    line: 161
+    rationale_code: deferred
+    rationale_detail: "Prepared-policy ownership drift remains in the backlog, but the unbiased review surfaced more urgent correctness and global-state defects first."
+  - observation_summary: "loader dual-path registry resolution diverges from defaults bootstrap behavior"
+    file: src/prism/scanner_io/loader.py
+    line: 82
+    rationale_code: duplicate_of
+    rationale_detail: "Promoted as G58-H04 because the synthesizer confirmed the three-way registry-authority split across loader, defaults, and DI ingress."
+  - observation_summary: "DIContainer._get_registry fail-closed behavior diverges from defaults registry bootstrap fallback"
+    file: src/prism/scanner_core/di.py
+    line: 309
+    rationale_code: duplicate_of
+    rationale_detail: "Promoted as G58-H04 because the cross-cutting finding is the behavioral divergence across three registry-authority paths, not the DI branch in isolation."

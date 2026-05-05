@@ -1,0 +1,17 @@
+{
+  "agent": "Scout-Graph",
+  "cycle": "g51",
+  "focus_axis": "ownership",
+  "review_surface": [
+    "src/prism/scanner_core/di.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/scanner_kernel/plugin_name_resolver.py"
+  ],
+  "questions": [
+    "What are the exact origin and consumer locations for the deferred registry-authority split?",
+    "Where does composition-root responsibility fracture across API, DI, loader, and defaults seams?"
+  ]
+}

@@ -1,0 +1,38 @@
+- id: Scout-Graph-01
+  category: registry_authority
+  fingerprint: registry-authority:defaults:global-registry-fallback
+  file: src/prism/scanner_plugins/defaults.py
+  line: 59
+  severity_hint: high
+  confidence: medium
+  detector: graph_slice
+  memory_status: matches_active_lesson
+  memory_match: G46-H13
+  evidence_snippet: "return get_default_plugin_registry()"
+  evidence_command: "read_file src/prism/scanner_plugins/defaults.py 50 70"
+  related_symbols:
+    - _resolve_registry
+    - get_default_plugin_registry
+  fix_group_key: secondary-composition-root
+  proposed_fix_class: registry_property
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py"
+- id: Scout-Graph-02
+  category: composition_root
+  fingerprint: composition-root:defaults:prepared-policy-bundle-without-di
+  file: src/prism/scanner_plugins/defaults.py
+  line: 478
+  severity_hint: high
+  confidence: high
+  detector: graph_slice
+  memory_status: matches_active_lesson
+  memory_match: G46-H13
+  evidence_snippet: "ensure_prepared_policy_bundle(scan_options=options, di=None)"
+  evidence_command: "read_file src/prism/scanner_plugins/defaults.py 469 486"
+  related_symbols:
+    - _make_standalone_di
+    - ensure_prepared_policy_bundle
+  fix_group_key: secondary-composition-root
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py"

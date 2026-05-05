@@ -1,0 +1,64 @@
+- kind: workflow_contract_failure
+  cycle: mutl3y-g1
+  phase: P1
+  worker: Scout-Graph
+  workflow_lesson_type: artifact_schema_failure
+  lesson_kind: prompt_rule
+  category: phase0_output_contract
+  severity: high
+  fingerprint: "workflow:artifact_schema_failure:phase0:scout-graph:invalid-yaml"
+  evidence: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase1/grading-summary.yaml
+  artifact_path: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  pattern: "Scout returned invalid YAML artifact because evidence_snippet contained an unterminated multiline quote."
+  prompt_target: references/phase-0-sweep-prompt.md
+  proposed_memory_update: "Require exemplar comparison and single-line double-quoted evidence_snippet values in Phase 0 scout artifacts."
+  workflow_contract_failure: true
+
+- kind: workflow_contract_failure
+  cycle: mutl3y-g1
+  phase: P1
+  worker: Scout-Ownership
+  workflow_lesson_type: prompt_contract_drift
+  lesson_kind: prompt_rule
+  category: phase0_output_contract
+  severity: high
+  fingerprint: "workflow:prompt_contract_drift:phase0:scout-ownership:alternate-schema"
+  evidence: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase1/grading-summary.yaml
+  artifact_path: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  pattern: "Scout returned alternate keys instead of the required Phase 0 observation schema."
+  prompt_target: references/phase-0-sweep-prompt.md
+  proposed_memory_update: "Reject alternate ownership-summary shapes; require exact Phase 0 observation schema only."
+  workflow_contract_failure: true
+
+- kind: workflow_contract_failure
+  cycle: mutl3y-g1
+  phase: P1
+  worker: Foreman
+  workflow_lesson_type: barrier_recovery_rule
+  lesson_kind: gate_rule
+  category: phase0_barrier
+  severity: high
+  fingerprint: "workflow:barrier_recovery_rule:phase0:yaml-parse-before-clear"
+  evidence: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase1/grading-summary.yaml
+  artifact_path: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/model-scorecard.yaml
+  pattern: "Phase 0 barrier required local artifact recovery because parse validation happened after scout completion."
+  prompt_target: references/foreman-execution-guardrails.md
+  proposed_memory_update: "Parse-check all Scout-*.yaml artifacts before clearing the Phase 0 barrier; if parse fails, emit STALL and recover locally."
+  workflow_contract_failure: true
+
+- kind: workflow_contract_failure
+  cycle: mutl3y-g1
+  phase: P1
+  worker: Scout-Graph
+  workflow_lesson_type: worker_model_pairing
+  lesson_kind: routing_rule
+  category: model_routing
+  severity: low
+  repeated: false
+  fingerprint: "workflow:worker_model_pairing:scout-graph:gpt-5-mini"
+  evidence: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/model-scorecard.yaml
+  artifact_path: docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/model-usage-ledger.yaml
+  pattern: "Scout-Graph on GPT-5 mini required local artifact repair in the first smoke run."
+  prompt_target: references/model-routing-policy.md
+  proposed_memory_update: "Prefer a stronger or already-proven model for Scout-Graph write-heavy artifact tasks until the low-cost route shows three clean runs."
+  workflow_contract_failure: true

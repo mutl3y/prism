@@ -1,0 +1,177 @@
+- id: GRAPH-G51-01
+  category: registry_authority
+  fingerprint: defaults._resolve_registry_DI_bootstrap_fallback
+  file: src/prism/scanner_plugins/defaults.py
+  line: 48
+  severity_hint: medium
+  confidence: high
+  detector: graph_slice
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_resolve_registry() uses three-way precedence: explicit registry > DI.plugin_registry > bootstrap singleton get_default_plugin_registry(). Other modules replicate this logic but with different fallback semantics."
+  evidence_command: "grep -n '_resolve_registry\\|_resolve_plugin_registry\\|get_default_plugin_registry' src/prism/scanner_plugins/defaults.py src/prism/scanner_io/loader.py"
+  related_symbols:
+    - _resolve_registry
+    - _resolve_plugin_registry
+    - get_default_plugin_registry
+  fix_group_key: registry_authority_centralization
+  proposed_fix_class: extract_canonical_registry_resolver
+  blocking_preconditions:
+    - Audit all callsites to ensure consistent fallback semantics before centralizing
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_*plugin* src/prism/tests/test_*registry*"
+
+- id: GRAPH-G51-02
+  category: registry_authority
+  fingerprint: loader._resolve_plugin_registry_local_variant
+  file: src/prism/scanner_io/loader.py
+  line: 37
+  severity_hint: medium
+  confidence: high
+  detector: graph_slice
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "scanner_io/loader.py._resolve_plugin_registry() duplicates registry resolution: checks DI.plugin_registry, logs, but returns None instead of falling back to bootstrap. Then _resolve_policy_with_registry() wraps the resolver with optional registry injection."
+  evidence_command: "sed -n '37,70p' src/prism/scanner_io/loader.py"
+  related_symbols:
+    - _resolve_plugin_registry
+    - _resolve_policy_with_registry
+    - _get_yaml_parsing_policy
+  fix_group_key: registry_authority_centralization
+  proposed_fix_class: unify_registry_resolution_seam
+  blocking_preconditions:
+    - Confirm whether loader soft-fallback to None is intentional for discovery paths
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_*loader* src/prism/tests/test_*yaml*"
+
+- id: GRAPH-G51-03
+  category: composition_root
+  fingerprint: di.factory_blocker_fact_builder_deferred_import
+  file: src/prism/scanner_core/di.py
+  line: 310
+  severity_hint: low
+  confidence: high
+  detector: graph_slice
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "DIContainer.factory_blocker_fact_builder() conditionally imports from scanner_plugins.defaults inside the factory body if _blocker_fact_builder_fn is None. This defers composition to runtime instead of constructor."
+  evidence_command: "sed -n '304,323p' src/prism/scanner_core/di.py"
+  related_symbols:
+    - factory_blocker_fact_builder
+    - resolve_blocker_fact_builder
+  fix_group_key: composition_root_di_deferred_imports
+  proposed_fix_class: require_blocker_fact_builder_at_construction
+  blocking_preconditions:
+    - Audit all DIContainer construction sites to verify blocker_fact_builder_fn is supplied
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_*di* src/prism/tests/test_*blocker*"
+
+- id: GRAPH-G51-04
+  category: composition_root
+  fingerprint: di.factory_variable_discovery_plugin_construct_runtime
+  file: src/prism/scanner_core/di.py
+  line: 330
+  severity_hint: medium
+  confidence: high
+  detector: graph_slice
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "DIContainer.factory_variable_discovery_plugin() resolves platform_key, gets registry, retrieves plugin_cls, then constructs via _construct_runtime_plugin(). This is runtime plugin construction inside DI, not composition-root injection."
+  evidence_command: "sed -n '330,355p' src/prism/scanner_core/di.py"
+  related_symbols:
+    - factory_variable_discovery_plugin
+    - factory_feature_detection_plugin
+    - _construct_runtime_plugin
+    - _resolve_platform_key
+  fix_group_key: composition_root_di_runtime_construction
+  proposed_fix_class: move_plugin_construction_to_composition_root
+  blocking_preconditions:
+    - Design plugin-instance injection protocol for DIContainer constructor
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_*di* src/prism/tests/test_*plugin*"
+
+- id: GRAPH-G51-05
+  category: composition_root
+  fingerprint: non_collection.default_build_run_scan_options_canonical_late_binding
+  file: src/prism/api_layer/non_collection.py
+  line: 158
+  severity_hint: low
+  confidence: medium
+  detector: graph_slice
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "_default_build_run_scan_options_canonical() imports from scanner_core.scan_request inside the function body rather than at module top. This defers composition but is consistent with DI deferred-import pattern for circular dependency avoidance."
+  evidence_command: "sed -n '158,189p' src/prism/api_layer/non_collection.py"
+  related_symbols:
+    - _default_build_run_scan_options_canonical
+    - build_run_scan_options_canonical
+  fix_group_key: composition_root_api_layer_deferred_imports
+  proposed_fix_class: evaluate_if_top_level_import_is_safe
+  blocking_preconditions:
+    - Verify circular import does not exist between api_layer and scanner_core.scan_request
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_*api* src/prism/tests/test_*scan_request*"
+
+- id: GRAPH-G51-06
+  category: composition_root
+  fingerprint: defaults.resolve_*_plugin_DI_registry_fallback_precedence
+  file: src/prism/scanner_plugins/defaults.py
+  line: 330
+  severity_hint: medium
+  confidence: high
+  detector: graph_slice
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "All resolve_*_plugin functions (comment_driven_documentation, task_line_parsing, task_annotation, task_traversal, variable_extractor, yaml_parsing, jinja_analysis, readme_renderer) follow a three-tier precedence: DI factory override > registry lookup > module singleton fallback. This makes defaults.py a composition seam, not just a fallback layer."
+  evidence_command: "grep -n 'def resolve_' src/prism/scanner_plugins/defaults.py | head -20"
+  related_symbols:
+    - resolve_comment_driven_documentation_plugin
+    - resolve_task_line_parsing_policy_plugin
+    - resolve_task_annotation_policy_plugin
+    - resolve_task_traversal_policy_plugin
+    - resolve_variable_extractor_policy_plugin
+    - resolve_yaml_parsing_policy_plugin
+    - resolve_jinja_analysis_policy_plugin
+    - resolve_readme_renderer_plugin
+  fix_group_key: composition_root_defaults_dual_responsibility
+  proposed_fix_class: split_defaults_into_fallback_and_composition_resolver
+  blocking_preconditions:
+    - Clarify intended composition-root ownership between DI, defaults, and bootstrap
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_*defaults* src/prism/tests/test_*plugin*"
+
+- id: GRAPH-G51-07
+  category: composition_root
+  fingerprint: kernel.orchestrator._instantiate_scan_pipeline_plugin_runtime
+  file: src/prism/scanner_kernel/orchestrator.py
+  line: 75
+  severity_hint: medium
+  confidence: high
+  detector: graph_slice
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "scanner_kernel/orchestrator.py has _instantiate_scan_pipeline_plugin() which calls plugin_factory() to construct plugins at runtime during kernel routing. This is another runtime construction seam, separate from DI factory methods."
+  evidence_command: "sed -n '73,80p' src/prism/scanner_kernel/orchestrator.py"
+  related_symbols:
+    - _instantiate_scan_pipeline_plugin
+    - _is_scan_pipeline_plugin_factory
+  fix_group_key: composition_root_kernel_runtime_construction
+  proposed_fix_class: consolidate_plugin_construction_authority
+  blocking_preconditions:
+    - Audit kernel routing vs DI factory plugin construction overlaps
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_*kernel* src/prism/tests/test_*orchestrator*"
+
+- id: GRAPH-G51-08
+  category: composition_root
+  fingerprint: di.resolve_platform_key_module_level_vs_instance_method
+  file: src/prism/scanner_core/di.py
+  line: 108
+  severity_hint: low
+  confidence: medium
+  detector: graph_slice
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "resolve_platform_key() is a module-level function that takes scan_options and optional registry. DIContainer._resolve_platform_key() is an instance method that prefers self._platform_key or delegates to the module function. Two platform-key resolution seams exist."
+  evidence_command: "sed -n '108,125p' src/prism/scanner_core/di.py && sed -n '318,326p' src/prism/scanner_core/di.py"
+  related_symbols:
+    - resolve_platform_key
+    - DIContainer._resolve_platform_key
+  fix_group_key: composition_root_platform_key_dual_seam
+  proposed_fix_class: consolidate_platform_key_resolution
+  blocking_preconditions:
+    - Determine whether module-level resolve_platform_key() is used outside DIContainer
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_*di* src/prism/tests/test_*platform*"

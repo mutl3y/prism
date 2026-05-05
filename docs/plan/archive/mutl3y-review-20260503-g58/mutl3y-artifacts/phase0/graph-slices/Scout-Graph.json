@@ -1,0 +1,23 @@
+{
+  "agent": "Scout-Graph",
+  "cycle": "g58",
+  "focus_axis": "seam_contracts",
+  "review_surface": [
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_core/protocols_runtime.py",
+    "src/prism/scanner_core/execution_request_builder.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_plugins/bundle_resolver.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/tests/test_di_container.py",
+    "src/prism/tests/test_scanner_core_di.py",
+    "src/prism/tests/test_defaults.py",
+    "src/prism/tests/test_execution_request_builder.py",
+    "src/prism/tests/test_api_cli_entrypoints.py"
+  ],
+  "questions": [
+    "What is the smallest connected graph slice that covers the g55 carry-forward seams plus the recent g56-g57 checkpoint repairs?",
+    "Which origin and consumer locations best anchor the next discriminating validation for any split seam-contract or registry-adjacent authority defect?"
+  ]
+}

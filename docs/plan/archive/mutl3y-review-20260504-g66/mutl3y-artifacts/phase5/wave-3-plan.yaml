@@ -1,0 +1,32 @@
+plan_id: mutl3y-review-20260504-g66
+cycle: g66
+phase: P5
+wave: 3
+status: ready
+objective: "Close G66-H02 by making the execution_request_builder to ScannerContext payload handoff fail closed on malformed members."
+decision_basis:
+  - docs/plan/mutl3y-review-20260504-g66/findings.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase3/Probe-Ownership-wave2-overlap.md
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-2-barrier-summary.yaml
+workers:
+  - agent_name: Builder-ControlFlow
+    task_id: g66-wave3-builder-controlflow
+    finding_ids:
+      - G66-H02
+    category: policy_coercion
+    fix_group_key: execution-request.payload-fail-closed-handoff
+    owned_files:
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/scanner_core/scanner_context.py
+      - src/prism/scanner_data/contracts_request.py
+      - src/prism/tests/test_execution_request_builder.py
+      - src/prism/tests/test_scanner_context.py
+    summary_artifact: docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-3-summary.md
+    suggested_narrow_gate: pytest -q src/prism/tests/test_execution_request_builder.py src/prism/tests/test_scanner_context.py -k "role_notes or display_variables or metadata or external_collections"
+    importer_layer_tests: []
+    invariant: "The builder-to-ScannerContext handoff must reject malformed role notes, display variables, metadata, feature collections, and related payload members instead of coercing them into acceptable-looking defaults."
+barrier_rules:
+  - Serialized follow-on: keep scope inside the builder-to-ScannerContext handoff seam and do not reopen H01 contract work.
+  - Stop on scope expansion instead of widening into plugin_facade, api.py, or the carried-forward Medium backlog.
+  - Run the builder's suggested narrow gate before reporting completion when feasible.
+  - Foreman owns ledger updates, anti-pattern grep, wave barrier validation, and execution-trace checkpointing.

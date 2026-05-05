@@ -1,0 +1,17 @@
+{
+  "agent": "Scout-ControlFlow",
+  "cycle": "g51",
+  "focus_axis": "ownership",
+  "review_surface": [
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_kernel/plugin_name_resolver.py",
+    "src/prism/tests/test_api_cli_entrypoints.py",
+    "src/prism/tests/test_dataload.py"
+  ],
+  "questions": [
+    "Which lazy registry or fallback control paths still hide composition-root ownership under runtime control flow?",
+    "Do deferred ownership seams still depend on soft fallback behavior that should be promoted as fail-closed ownership defects?"
+  ]
+}

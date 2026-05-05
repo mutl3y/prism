@@ -1,0 +1,24 @@
+{
+  "agent": "Scout-Ownership",
+  "cycle": "g63",
+  "review_type": "light",
+  "focus_axis": "ownership",
+  "review_surface": [
+    "src/prism/api.py",
+    "src/prism/cli.py",
+    "src/prism/api_layer/plugin_facade.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_plugins/__init__.py",
+    "src/prism/scanner_plugins/bootstrap.py",
+    "src/prism/scanner_plugins/registry.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/tests/test_api_cli_entrypoints.py",
+    "src/prism/tests/test_plugin_kernel_extension_parity.py",
+    "src/prism/tests/test_package_export_parity.py"
+  ],
+  "changed_files_source": ".mutl3y-gate/resume-dirty-tree.yaml",
+  "questions": [
+    "Did g62 leave any public facade, package export, or plugin facade ownership leak that should be promoted after the reserved-platform routing fix?",
+    "Do tests still patch or depend on internal registry or assembly helpers through public facades, freezing a leakage seam?"
+  ]
+}

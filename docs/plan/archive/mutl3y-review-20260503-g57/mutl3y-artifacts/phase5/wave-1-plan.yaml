@@ -1,0 +1,13 @@
+cycle: g57
+phase: P5
+wave: 1
+finding: G57-H01
+objective: "Retire the public prepared-policy bundle override seam from api_layer.non_collection.run_scan while preserving lower-level ingress testability."
+owned_files:
+  - src/prism/api_layer/non_collection.py
+  - src/prism/tests/test_api_cli_entrypoints.py
+focused_validation:
+  - pytest -q src/prism/tests/test_api_cli_entrypoints.py -k "ensure_policy_bundle or run_scan_basic or per_call_default_registry_resolver"
+expected_outcome:
+  - Public callers can no longer swap the prepared-policy bundle resolver at the API layer.
+  - The nearest API entrypoint test asserts canonical plugin_facade ownership.

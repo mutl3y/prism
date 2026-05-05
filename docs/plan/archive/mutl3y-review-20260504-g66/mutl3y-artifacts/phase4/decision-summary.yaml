@@ -1,0 +1,44 @@
+phase4_decision_summary:
+  status: ok
+  selected_findings:
+    - G66-H03
+    - G66-H04
+    - G66-H05
+  deferred_overlap_cluster:
+    - G66-H01
+    - G66-H02
+  selected_wave: wave-1
+  decision: >-
+    Start g66 with the three disjoint High slices: collection metadata shape masking,
+    api.py public facade leakage, and repo-scan callable-bundle orchestration.
+    Hold the scan-pipeline protocol family and the execution-request payload family
+    for a later wave because both overlap the API/core typing seam and would create
+    conflicting ownership in the first batch.
+  rejected_alternatives:
+    - finding: G66-H01-and-H02-in-wave1
+      reason: >-
+        Both findings overlap src/prism/api.py, src/prism/scanner_core/execution_request_builder.py,
+        or adjacent core typing seams. Running them together would force non-disjoint builder ownership.
+    - finding: G66-H03-only
+      reason: >-
+        Too conservative for the current shortlist. G66-H04 and G66-H05 are independent and can run in the same batch.
+    - finding: carry_forward_mediums_first
+      reason: >-
+        Invalid under the grading rules. New High findings outrank the carried-forward Medium queue.
+  wave_shape:
+    workers:
+      - builder: Builder-ControlFlow
+        finding: G66-H03
+        fix_group_key: collection-scan.metadata-shape-error-channel
+      - builder: Builder-Ownership
+        finding: G66-H04
+        fix_group_key: api.scanner_core_assembly_symbol_leak
+      - builder: Builder-Typing
+        finding: G66-H05
+        fix_group_key: repo-scan.protocolize-orchestration-seam
+    rationale: >-
+      The three selected findings have disjoint owned file sets and each has a direct,
+      narrow test surface. That makes them suitable for one parallel wave with low scope-collision risk.
+  suggested_narrow_gate: >-
+    Run each worker's focused pytest gate, then join at the wave barrier for anti-pattern grep,
+    ruff, black --check, and any importer-layer tests surfaced by the builders.

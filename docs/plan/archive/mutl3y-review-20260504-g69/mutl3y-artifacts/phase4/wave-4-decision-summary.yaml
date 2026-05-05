@@ -1,0 +1,18 @@
+phase: P4
+cycle: g69
+decision: wave_4_selected
+selected_findings:
+  - G69-H03
+deferred_findings: []
+fix_group_key: ansible-kernel.protocolize-lifecycle
+rationale: >-
+  G69-H03 is now the only remaining High in the g69 shortlist, so it becomes the
+  final implementation wave after the public protocol typing slice closed-ready.
+owned_file_set:
+  - src/prism/scanner_plugins/ansible/kernel.py
+  - src/prism/scanner_core/protocols_runtime.py
+  - src/prism/tests/test_kernel.py
+scope_check:
+  overlap_detected: false
+  expansion_required: false
+suggested_narrow_gate: .venv/bin/python -m mypy src/prism/scanner_plugins/ansible/kernel.py src/prism/scanner_core/protocols_runtime.py

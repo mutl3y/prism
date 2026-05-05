@@ -1,0 +1,25 @@
+wave: 2
+cycle: g48
+status: completed
+workers:
+  - agent_name: Builder-ControlFlow
+    findings:
+      - G48-M01
+    owned_files:
+      - src/prism/scanner_extract/discovery.py
+      - src/prism/tests/test_dataload.py
+    invariant: "Discovery metadata and requirements loaders must not silently demote invalid YAML and shape failures into empty success-shaped values where strict intent should remain observable."
+    suggested_narrow_gate: pytest -q src/prism/tests/test_dataload.py
+  - agent_name: Builder-Typing
+    findings:
+      - G48-M02
+    owned_files:
+      - src/prism/scanner_core/protocols_runtime.py
+      - src/prism/scanner_kernel/kernel_plugin_runner.py
+      - src/prism/scanner_kernel/plugin_name_resolver.py
+      - src/prism/api_layer/collection.py
+      - src/prism/scanner_data/__init__.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    invariant: "Public runtime and kernel boundary protocols must become more explicit without weakening the current runtime contract or widening back to Any."
+    suggested_narrow_gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_api_cli_entrypoints.py

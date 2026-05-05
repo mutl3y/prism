@@ -1,0 +1,8 @@
+plan_id: mutl3y-review-20260503-g56
+cycle: g56
+phase: P4
+status: completed
+decision_summary:
+  - "Wave 1 will target G56-H01 only: reconcile the strict_mode fake-switch seam in defaults.py and the nearest fallback-contract tests."
+  - "Keep Wave 1 file ownership narrow: src/prism/scanner_plugins/defaults.py, src/prism/tests/test_defaults.py, and src/prism/tests/test_comment_doc_plugin_resolution.py."
+  - "The g56 calibration objective is already satisfied because God Mode added no new High or Critical; the remaining medium delta can wait behind the main seam repair."

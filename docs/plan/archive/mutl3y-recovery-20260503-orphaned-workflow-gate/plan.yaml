@@ -1,0 +1,35 @@
+plan_id: mutl3y-recovery-20260503-orphaned-workflow-gate
+status: complete
+created_at: 2026-05-03
+owner: mutl3y-archivist
+purpose: >-
+  Recover orphaned workflow-owned blocker files surfaced by g58 Phase 6 and
+  harden the workflow so resumed cycles with dirty tracked Python files must
+  run repo-wide `ruff` and `black --check` before new wave work starts.
+provenance:
+  - g58: exposed the orphaned blockers during Phase 6 review.
+  - g46: previously stalled before closure; wave-3 artifacts were not produced.
+notes: |
+  The plan records two disjoint workstreams (Builder-RecoveryLintFix and
+  Builder-ResumeGate). Recovery Wave 2 completed: orphaned blocker files were
+  repaired and the workflow resume dirty-tree gate was added. The recovery
+  slice achieved its objectives; remaining repo-wide blocker is broader mypy
+  baseline debt outside this narrow recovery objective.
+validation_results:
+  focused_validation:
+    ruff_on_owned_slice: PASS
+    black_on_owned_slice: PASS
+    pytest_owned_slice: "85 passed (focused tests)"
+  repo_refresh:
+    ruff_repo_wide: PASS
+    black_repo_wide: PASS
+  repo_mypy:
+    status: FAIL
+    summary: "Repo-wide mypy remains red: 193 errors in 47 files; remaining debt is broader than the recovery-owned slice."
+  mypy_focused:
+    status: PASS
+    note: "Focused typing checks in the owned recovery slice no longer block the recovery objective. Remaining typing debt is repo-wide."
+builder_recovery_actions:
+  - "Wave-2 success: repaired orphaned blocker files and added the workflow resume dirty-tree gate."
+  - "Builder-RecoveryLintFix corrected prior ruff blockers (annotation names and an unused import). Owned slice is black-clean and ruff-green. Remaining repo-wide blocker is mypy baseline debt (193 errors in 47 files)."
+active: true

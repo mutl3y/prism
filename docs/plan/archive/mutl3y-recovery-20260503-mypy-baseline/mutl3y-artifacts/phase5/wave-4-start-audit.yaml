@@ -1,0 +1,24 @@
+plan_id: mutl3y-recovery-20260503-mypy-baseline
+wave: 4
+date: 2026-05-03
+summary: |
+  Post-wave-3 repo health: mypy down to 6 errors across 3 files. Ruff is green.
+  Black shows formatting drift on 3 test files. Narrow pytest pointed to a DI/ScanOptions
+  constructor seam (DI/scan-options contract) rather than stale builder output.
+queue: "6 errors / 3 files (mypy)"
+mypy_files:
+  - src/prism/scanner_core/di.py: 2
+  - src/prism/tests/test_t3_03_scan_cache.py: 2
+  - src/prism/tests/test_t3_01_scan_phase_events.py: 2
+black_drift_count: 3
+black_drift_files:
+  - src/prism/tests/test_audit_plugin.py
+  - src/prism/tests/test_feature_detector.py
+  - src/prism/tests/test_underscore_policy_filter.py
+remaining_blocker: |
+  Canonical remaining blocker is a DI/ScanOptions constructor contract seam (DI vs tests/consumers)
+  plus format-only drift in three test files. Required work: align DI constructor call-sites to the
+  canonical ScanOptionsDict contract and apply `black` formatting to the three drifted files.
+notes:
+  - ruff: green
+  - narrow-pytest: failure implicates DI/ScanOptions seam (scan-options constructor)

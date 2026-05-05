@@ -1,0 +1,62 @@
+generated_at: '2026-05-04T01:29:27.811712+00:00'
+memory_source: docs/plan/.mutl3y-lessons
+model_usage_history_path: docs/plan/.mutl3y-lessons/model-usage-history.yaml
+model_usage_rollup_path: docs/plan/.mutl3y-lessons/model-usage-rollup.yaml
+closed_findings_count: 44
+deferred_findings_count: 8
+active_lessons:
+- LESSON-01
+- LESSON-02
+- LESSON-03
+- LESSON-04
+- LESSON-05
+- LESSON-06
+- LESSON-07
+- LESSON-08
+- LESSON-09
+- LESSON-10
+- LESSON-11
+- LESSON-12
+- LESSON-13
+- LESSON-14
+- LESSON-15
+- LESSON-16
+- LESSON-17
+do_not_re_flag:
+- find_id: FIND-G4-01
+  fingerprint: null
+  reason: Routing already passes through the registry via _resolve_plugin_with_precedence; the lazy import
+    is to a generic resolver, not a platform plugin. Marked do_not_re_flag in digest.yaml; only re-flag
+    bundled with FIND-G2-LOADER-DUAL-PATH for a contract reshape.
+- find_id: FIND-G5-02
+  fingerprint: null
+  reason: 'Both blockers confirmed permanent (g13 research): registry-replay tests require alternate-registry
+    injection into bootstrap_default_plugins(registry=...); deferred-string FQCN resolution has load-order
+    coupling. Not axis-bounded. Closed as deferred_final.'
+- find_id: FIND-G3-02
+  fingerprint: null
+  reason: "Type-only TYPE_CHECKING import \u2014 zero runtime cost / zero runtime layer dependency. Required\
+    \ for static analysis of injected plugin classes."
+- find_id: FIND-G3-03
+  fingerprint: null
+  reason: "di.py:204 (factory_blocker_fact_builder) and standalone_di.py:20 (bundle_resolver) are intentional\
+    \ DI seams \u2014 late binding inside factory bodies is what the container exists to provide. Re-flag\
+    \ only with a registry-routed alternative."
+focus_axis_due_next: error_handling
+fresh_review_guardrail:
+  lesson_id: LESSON-17
+  trigger: clean_checkpoint_or_signoff_temptation
+  required_pattern:
+  - forbid_prior_artifacts_memories_and_previous_findings_as_evidence
+  - dispatch_axis_split_independent_reviewers
+  - require_live_source_and_tests
+  - run_foreman_behavior_checks_before_promotion
+  latest_evidence: docs/plan/mutl3y-review-20260504-g73/mutl3y-artifacts/phase2/fresh-independent-review-fix-table.md
+routing_recommendations:
+  degraded_models: []
+  watch_models:
+  - GPT-4.1 (copilot)
+  - GPT-5 mini (copilot)
+  notes:
+  - Prefer healthy models in the same tier before escalating.
+  - If a watched model is used for file-writing work, require artifact_exists confirmation.

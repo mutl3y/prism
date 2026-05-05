@@ -1,0 +1,300 @@
+- timestamp: '2026-05-03T22:33:21+01:00'
+  cycle: g62
+  phase: P0
+  worker: Scout-Typing
+  task_id: g62-p0-scout-typing
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: First-pass scout artifact was schema-usable and surfaced the prepared-policy-bundle typing seam.
+  lane_tag: discovery
+- timestamp: '2026-05-03T22:33:21+01:00'
+  cycle: g62
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g62-p0-scout-ownership
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: First-pass scout artifact was schema-usable and surfaced public facade leakage and registry pass-through
+    evidence.
+  lane_tag: discovery
+- timestamp: '2026-05-03T22:33:21+01:00'
+  cycle: g62
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g62-p0-scout-controlflow
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: First-pass scout artifact was schema-usable and surfaced cache error-channel masking plus unchecked
+    cached-value reuse.
+  lane_tag: discovery
+- timestamp: '2026-05-03T22:33:21+01:00'
+  cycle: g62
+  phase: P0
+  worker: Scout-Graph
+  task_id: g62-p0-scout-graph
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: First-pass scout artifact was schema-usable and surfaced the registry singleton and split-authority
+    composition seam.
+  lane_tag: discovery
+- timestamp: '2026-05-03T22:50:25+01:00'
+  cycle: g62
+  phase: P5
+  worker: Builder-Ownership
+  task_id: g62-wave1-builder-ownership
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Ownership-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Retired the package-root DEFAULT_PLUGIN_REGISTRY export and moved the owned tests to get_default_plugin_registry().
+  lane_tag: builder
+- timestamp: '2026-05-03T22:50:25+01:00'
+  cycle: g62
+  phase: P5
+  worker: Builder-Ownership
+  task_id: g62-wave2-builder-ownership
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Ownership-wave-2-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Cleared the residual registry-dynamic-attr references in plugin_facade and scanner_guardrails
+    and confirmed bootstrap getter access stays lazy.
+  lane_tag: builder
+- timestamp: '2026-05-03T22:50:25+01:00'
+  cycle: g62
+  phase: P5
+  worker: Builder-Typing
+  task_id: g62-wave3-builder-typing
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Tightened scanner_context prepared_policy_bundle validation to reject malformed task_line and
+    jinja placeholders and updated the direct fail-closed tests.
+  lane_tag: builder
+- timestamp: '2026-05-03T22:50:25+01:00'
+  cycle: g62
+  phase: P5
+  worker: Builder-Typing
+  task_id: g62-wave4-builder-typing
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Typing-wave-4-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Aligned the non_collection cache marker with the stricter prepared policy bundle contract and
+    added malformed-state coverage.
+  lane_tag: builder
+- timestamp: '2026-05-03T22:10:15.253063+00:00'
+  cycle: g62
+  phase: P5
+  worker: Builder-ControlFlow
+  task_id: g62-wave5-builder-controlflow
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Made unreadable single-file path hashes path-sensitive and added direct cache tests for the collision
+    seam.
+  lane_tag: builder
+- timestamp: '2026-05-03T22:14:22.329182+00:00'
+  cycle: g62
+  phase: P5
+  worker: Builder-Ownership
+  task_id: g62-wave6-builder-ownership
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Ownership-wave-6-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Retired the api.py private normalized-result alias re-export and kept the public API on RunScanOutputPayload.
+  lane_tag: builder
+- timestamp: '2026-05-03T22:38:04.020798+00:00'
+  cycle: g62
+  phase: P7
+  worker: Independent-Review-A
+  task_id: g62-independent-review-a
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase7/Independent-Review-A.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Independent task-scope review found no reopen-worthy defects; flagged one seam-clarity concern
+    and one missing focused cache-marker test.
+  lane_tag: bookkeeping
+- timestamp: '2026-05-03T22:38:04.682745+00:00'
+  cycle: g62
+  phase: P7
+  worker: Independent-Review-B
+  task_id: g62-independent-review-b
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase7/Independent-Review-B.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Independent adversarial review found no reopen-worthy defects and kept g62 closure standing.
+  lane_tag: bookkeeping
+- timestamp: '2026-05-04T00:28:44+01:00'
+  cycle: g62
+  phase: P5
+  worker: Builder-Ownership
+  task_id: g62-wave7-builder-ownership
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Ownership-wave-7-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Forwarded reserved unsupported platform classification through the isolated public API scan-pipeline
+    registry seam and added public API coverage.
+  lane_tag: builder
+- timestamp: '2026-05-03T23:36:53.716854+00:00'
+  cycle: g62
+  phase: P6
+  worker: Gatekeeper
+  task_id: g62-wave7-phase6-gatekeeper-initial
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: route_failure
+  failure_type: empty_response
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase6/Gatekeeper-wave7-full-gate-summary.md
+  quality_score: 1
+  needed_reedit: true
+  recovery_action: reroute_same_tier
+  notes: Initial Phase 6 Gatekeeper dispatch returned no response and wrote no artifacts.
+  lane_tag: validation
+- timestamp: '2026-05-03T23:36:53.854967+00:00'
+  cycle: g62
+  phase: P6
+  worker: Auditor-Regression
+  task_id: g62-wave7-regression-audit
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase6/Auditor-Regression-wave7.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Fallback QA auditor produced PASS regression audit for API/plugin-boundary touched files.
+  lane_tag: validation
+- timestamp: '2026-05-03T23:36:54.003798+00:00'
+  cycle: g62
+  phase: P6
+  worker: Gatekeeper
+  task_id: g62-wave7-phase6-gatekeeper-reroute
+  requested_tier: low-cost
+  requested_model: GPT-4.1 (copilot)
+  actual_model: GPT-4.1 (copilot)
+  result: success_with_recovery
+  failure_type: missing_summary_artifact
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase6/Gatekeeper-wave7-full-gate-summary.md
+  quality_score: 3
+  needed_reedit: true
+  recovery_action: foreman_recovered_summary_from_logs
+  notes: Rerouted Gatekeeper surfaced formatting-only failure and wrote logs but not the claimed summary
+    artifact.
+  lane_tag: validation
+- timestamp: '2026-05-03T23:36:54.150591+00:00'
+  cycle: g62
+  phase: P5
+  worker: Builder-Formatting
+  task_id: g62-wave8-builder-formatting
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Formatting-wave-8-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Formatting-only repair applied to the two black-blocking test files and focused black/ruff checks
+    passed.
+  lane_tag: builder
+- timestamp: '2026-05-03T23:39:36.040855+00:00'
+  cycle: g62
+  phase: P6
+  worker: Gatekeeper
+  task_id: g62-wave8-phase6-full-gate
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini (copilot)
+  actual_model: GPT-5.4 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase6/foreman-full-gate-summary.md
+  quality_score: 5
+  needed_reedit: false
+  recovery_action: none
+  notes: Refreshed full Phase 6 gate after wave 8 formatting repair passed pytest, ruff, black, and tox
+    typecheck.
+  lane_tag: validation

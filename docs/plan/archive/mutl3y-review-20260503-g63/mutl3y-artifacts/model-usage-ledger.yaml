@@ -1,0 +1,131 @@
+- timestamp: '2026-05-03T23:51:24.899413+00:00'
+  cycle: g63
+  phase: P0
+  worker: Scout-Typing
+  task_id: g63-phase0-scout-typing
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: quality_failure_recovered
+  failure_type: schema_drift
+  artifact_path: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: artifact_schema_repair
+  notes: Scout produced useful observations but artifact used invalid schema constructs before repair.
+  lane_tag: discovery
+- timestamp: '2026-05-03T23:51:24.995444+00:00'
+  cycle: g63
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g63-phase0-scout-ownership
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: quality_failure_recovered
+  failure_type: schema_drift
+  artifact_path: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: artifact_schema_repair
+  notes: Scout produced useful observations but artifact used invalid enum/snippet shapes before repair.
+  lane_tag: discovery
+- timestamp: '2026-05-03T23:51:25.088161+00:00'
+  cycle: g63
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g63-phase0-scout-controlflow
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: quality_failure_recovered
+  failure_type: schema_drift
+  artifact_path: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: artifact_schema_repair
+  notes: Scout produced useful observations but artifact used invalid detector/memory/snippet shapes before
+    repair.
+  lane_tag: discovery
+- timestamp: '2026-05-03T23:51:25.184645+00:00'
+  cycle: g63
+  phase: P0
+  worker: Scout-Graph
+  task_id: g63-phase0-scout-graph
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: quality_failure_recovered
+  failure_type: schema_drift
+  artifact_path: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: artifact_schema_repair
+  notes: Scout produced useful observations but artifact used invalid memory/blocker/fix-class shapes
+    before repair.
+  lane_tag: discovery
+- timestamp: '2026-05-03T23:51:25.285231+00:00'
+  cycle: g63
+  phase: P0
+  worker: Scout-Schema-Repair
+  task_id: g63-phase0-scout-schema-repair-readonly-attempt
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: blocked_by_role
+  failure_type: read_only_agent_refused_write
+  artifact_path: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: reroute_to_builder
+  notes: Read-only scout correctly refused artifact edits; rerouted schema repair to a builder.
+  lane_tag: discovery
+- timestamp: '2026-05-03T23:51:25.390506+00:00'
+  cycle: g63
+  phase: P0
+  worker: Builder-ArtifactRepair
+  task_id: g63-phase0-scout-schema-repair
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Builder repaired all four scout artifacts to valid schema; YAML and custom schema checks passed.
+  lane_tag: discovery
+- timestamp: '2026-05-04T01:20:18.157603+00:00'
+  cycle: g63
+  phase: P5
+  worker: Builder-Ownership
+  task_id: g63-wave1-builder-ownership
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase5/Builder-Ownership-wave-1-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Replaced direct private registry map mutation in comment-doc resolution tests with snapshot_state/replace_state
+    preservation; focused pytest passed.
+  lane_tag: builder
+- timestamp: '2026-05-04T01:29:25.843764+00:00'
+  cycle: g63
+  phase: P6
+  worker: Gatekeeper
+  task_id: g63-phase6-full-gate
+  requested_tier: low-cost
+  requested_model: GPT-5.4 mini (copilot)
+  actual_model: GPT-5.4 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase6/gate-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Full gate returned PASS across pytest, ruff, black, and typecheck.
+  lane_tag: validation

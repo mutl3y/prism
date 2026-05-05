@@ -1,0 +1,55 @@
+plan_id: mutl3y-review-20260503-g56
+cycle: g56
+target: src/prism
+review_type: live_narrow_run
+focus_axis: control_flow_contracts
+status: completed
+decision_summary:
+  - "Open a fresh scout-led calibration cycle instead of carrying the g55 shortlist forward unchanged."
+  - "Keep the seam narrow on strict-mode fallback semantics across api_layer/non_collection, bundle_resolver, defaults, and the nearest tests."
+  - "The fresh scout batch surfaced the strict_mode fake-switch seam directly, and a follow-up God Mode pass added no new High or Critical beyond that seam."
+  - "The last red aggregate failures were traced to test-only prism module contamination in test_scanner_guardrails.py rather than a remaining production defect."
+  - "The contamination slice was repaired in the owning test file, the mixed repro bundle passed, and a refreshed full pytest gate closed g56 with zero live failures."
+findings:
+  - id: G56-H01
+    status: closed
+    severity: high
+    category: control_flow_contracts
+    fingerprint: controlflow_strict_mode_fake_switch
+    title: "Defaults plugin fallback helpers still erase strict_mode and fallback_plugin, so non-strict mode cannot degrade gracefully"
+    files:
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/tests/test_defaults.py
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260503-g56/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+      - docs/plan/mutl3y-review-20260503-g56/mutl3y-artifacts/phase0/Scout-Graph.yaml
+      - docs/plan/mutl3y-review-20260503-g56/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "The updated Scout-ControlFlow prompt surfaced the same strict_mode fake-switch seam that God Mode had to discover in g55. Wave 1 repaired the erased non-strict fallback path in defaults.py and updated the contradictory nearest tests."
+    decision_deadline: g56
+    suggested_narrow_gate: pytest -q src/prism/tests/test_defaults.py src/prism/tests/test_comment_doc_plugin_resolution.py -k "strict or fallback"
+    closed_evidence:
+      - docs/plan/mutl3y-review-20260503-g56/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+      - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase5-wave1-focused.log
+      - docs/plan/mutl3y-review-20260503-g56/.mutl3y-gate/phase6-focused-status-final.log
+suppressed_highs:
+  - observation_summary: "Typing view of the strict_mode fake-switch seam in defaults helper signatures."
+    file: src/prism/scanner_plugins/defaults.py
+    line: 192
+    rationale_code: duplicate_of
+    rationale_detail: "Captured by G56-H01 because the promoted finding already covers the helper signature lie and the erased fallback branch."
+  - observation_summary: "Construction-error sibling of the strict_mode fake-switch seam."
+    file: src/prism/scanner_plugins/defaults.py
+    line: 202
+    rationale_code: duplicate_of
+    rationale_detail: "Captured by G56-H01 because both helper endpoints belong to the same fix group and should be repaired together."
+  - observation_summary: "Ownership view of the same strict_mode signal being threaded and discarded."
+    file: src/prism/scanner_plugins/defaults.py
+    line: 189
+    rationale_code: duplicate_of
+    rationale_detail: "Captured by G56-H01 because the control-flow defect already includes the caller-callee contract mismatch."
+  - observation_summary: "Graph-visible dead fallback edge for comment-driven and task-annotation plugin validation tests."
+    file: src/prism/tests/test_comment_doc_plugin_resolution.py
+    line: 1240
+    rationale_code: duplicate_of
+    rationale_detail: "Captured by G56-H01 because the promoted finding explicitly includes the nearest contradictory tests as part of the seam."

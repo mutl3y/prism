@@ -1,0 +1,20 @@
+cycle: g69
+phase: P5
+wave: 3
+builder: Builder-Typing
+fix_group_key: plugin-interfaces.canonical-contract-typing
+findings_in_scope:
+  - G69-H02
+owned_files:
+  - src/prism/scanner_plugins/interfaces.py
+  - src/prism/scanner_plugins/ansible/__init__.py
+  - src/prism/tests/test_platform_execution_bundle.py
+goal: >-
+  Replace dict[Any]-shaped public plugin protocol surfaces with the canonical
+  typed request and metadata contracts already used elsewhere in the scanner.
+invariants:
+  - Public plugin protocols must reflect runtime reality without widening to Any.
+  - The ansible scan-pipeline implementation must conform to the tightened public protocol.
+  - Do not widen this wave into the ansible kernel lifecycle seam.
+suggested_narrow_gate: .venv/bin/python -m mypy src/prism/scanner_plugins/interfaces.py src/prism/scanner_plugins/ansible/__init__.py
+allowed_scope_expansion: false

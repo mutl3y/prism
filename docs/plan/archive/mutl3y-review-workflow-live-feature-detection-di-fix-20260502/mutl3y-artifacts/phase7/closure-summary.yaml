@@ -1,0 +1,18 @@
+cycle: mutl3y-live-fd-1
+plan_id: mutl3y-review-workflow-live-feature-detection-di-fix-20260502
+phase: P7
+status: completed
+closed_findings:
+- FIND-LIVE-FD-01
+validation_bundle:
+- .mutl3y-gate/live-feature-detection-narrow.log
+- .mutl3y-gate/live-feature-detection-antipattern.log
+learning_notes:
+- When a test intentionally exercises a backward-compat warning path, assert the warning explicitly with
+  pytest.warns so focused workflow gates do not carry expected warning noise.
+- Feature-detection and variable-discovery fake plugin fixtures must satisfy the registry's di=... constructor
+  contract or tests will fail before reaching their intended seam assertion.
+artifact_cleanup_assessment:
+  cleanup_actions:
+  - 'Removed stale wave_start_audit scaffolding artifact: docs/plan/mutl3y-review-workflow-live-feature-detection-di-fix-20260502/mutl3y-artifacts/phase5/wave-1-start-audit.yaml'
+  - 'Removed stale wave_plan scaffolding artifact: docs/plan/mutl3y-review-workflow-live-feature-detection-di-fix-20260502/mutl3y-artifacts/phase5/wave-1-plan.yaml'

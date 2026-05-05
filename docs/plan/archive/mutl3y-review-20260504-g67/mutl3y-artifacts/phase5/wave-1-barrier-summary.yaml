@@ -1,0 +1,24 @@
+cycle: g67
+phase: P5
+wave: 1
+status: pass
+builder_summaries:
+  - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase5/Builder-Ownership-summary.md
+findings_closed_ready:
+  - G67-H01
+validation:
+  narrow_gate:
+    command: cd /raid5/source/test/prism && .venv/bin/python -m pytest -q src/prism/tests/test_g03_scan_cache_integration.py -k cache
+    result: pass
+    detail: 7 passed in 0.33s
+  touched_file_mypy:
+    command: cd /raid5/source/test/prism && .venv/bin/python -m mypy --no-error-summary src/prism/api_layer/plugin_facade.py src/prism/tests/test_g03_scan_cache_integration.py | head -3
+    result: pass
+  anti_pattern_grep:
+    cast_any: docs/plan/mutl3y-review-20260504-g67/.mutl3y-gate/tmp/g67-wave1-antipattern-cast-any.txt
+    typeddict_lossy_cast: docs/plan/mutl3y-review-20260504-g67/.mutl3y-gate/tmp/g67-wave1-antipattern-typeddict-lossy-cast.txt
+    except_pass: docs/plan/mutl3y-review-20260504-g67/.mutl3y-gate/tmp/g67-wave1-antipattern-except-pass.txt
+    result: pass
+foreman_recovery: false
+blocking_issues: []
+next_action: Run the Phase 6 validation bundle for the closed-ready g67 wave-1 slice.

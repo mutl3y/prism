@@ -1,0 +1,141 @@
+- id: G56-F01-strict-mode-fake-switch-core
+  category: control_flow_contracts
+  fingerprint: fallback_or_raise_deletes_parameters_always_raises
+  file: src/prism/scanner_plugins/defaults.py
+  line: 183
+  severity_hint: high
+  confidence: high
+  detector: graph_visible_dead_branch
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def _fallback_or_raise_malformed_plugin_shape(..., strict_mode: bool, fallback_plugin: Any) -> Any:
+        del strict_mode
+        del fallback_plugin
+        _raise_malformed_plugin_shape_error(...)
+  fix_group_key: G56-strict-mode-fallback-unplugged
+  rationale: |
+    The graph-visible branch endpoint still deletes the control signal instead
+    of branching, which makes the advertised fallback edge dead.
+
+- id: G56-F02-strict-mode-fake-switch-construction
+  category: control_flow_contracts
+  fingerprint: construction_error_deletes_parameters_always_raises
+  file: src/prism/scanner_plugins/defaults.py
+  line: 202
+  severity_hint: high
+  confidence: high
+  detector: graph_visible_dead_branch
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def _fallback_or_raise_plugin_construction_error(..., strict_mode: bool, fallback_plugin: Any, exc: Exception) -> Any:
+        del strict_mode
+        del fallback_plugin
+        raise PrismRuntimeError(...)
+  fix_group_key: G56-strict-mode-fallback-unplugged
+  rationale: |
+    The second terminal branch has the same dead-edge shape, confirming that the
+    fake-switch seam survives regardless of which fallback path is taken.
+
+- id: G56-F03-test-expectation-mismatch-doc-plugin
+  category: control_flow_contracts
+  fingerprint: test_named_fallback_expects_error_strict_false
+  file: src/prism/tests/test_comment_doc_plugin_resolution.py
+  line: 1240
+  severity_hint: medium
+  confidence: high
+  detector: graph_adjacent_test_contradiction
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def test_comment_doc_plugin_validation_falls_back_in_non_strict_mode() -> None:
+        with pytest.raises(errors_module.PrismRuntimeError):
+            defaults_module.resolve_comment_driven_documentation_plugin(
+                _DI(),
+                strict_mode=False,
+            )
+  fix_group_key: G56-strict-mode-fallback-unplugged
+  rationale: |
+    The graph-adjacent test surface still names the non-strict fallback behavior
+    while asserting a raise, which reinforces the dead fallback edge.
+
+- id: G56-F04-test-expectation-mismatch-task-annotation
+  category: control_flow_contracts
+  fingerprint: test_named_fallback_expects_error_strict_false
+  file: src/prism/tests/test_comment_doc_plugin_resolution.py
+  line: 1284
+  severity_hint: medium
+  confidence: high
+  detector: graph_adjacent_test_contradiction
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def test_task_annotation_plugin_validation_falls_back_in_non_strict_mode() -> None:
+        with pytest.raises(errors_module.PrismRuntimeError):
+            defaults_module.resolve_task_annotation_policy_plugin(
+                _DI(),
+                strict_mode=False,
+            )
+  fix_group_key: G56-strict-mode-fallback-unplugged
+  rationale: |
+    The same contradiction exists on an adjacent plugin path, so the seam is
+    not task-line-specific.
+
+- id: G56-F05-strict-mode-parameter-unused-task-line
+  category: control_flow_contracts
+  fingerprint: strict_mode_passed_but_never_used
+  file: src/prism/scanner_plugins/defaults.py
+  line: 378
+  severity_hint: medium
+  confidence: medium
+  detector: threaded_signal_without_effect
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def resolve_task_line_parsing_policy_plugin(..., strict_mode: bool = True, ...) -> PreparedTaskLineParsingPolicy:
+        return _resolve_plugin_with_precedence(..., strict_mode=strict_mode, ...)
+  fix_group_key: G56-strict-mode-fallback-unplugged
+  rationale: |
+    The public resolver still accepts and threads strict_mode, but the terminal
+    branch deletes it before behavior can diverge.
+
+- id: G56-F06-ingress-strict-phase-failures-unused
+  category: control_flow_contracts
+  fingerprint: strict_phase_failures_flows_through_but_unused
+  file: src/prism/api_layer/non_collection.py
+  line: 711
+  severity_hint: medium
+  confidence: medium
+  detector: ingress_flag_without_effect
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    strict_phase_failures = True
+    if failure_policy is not None:
+        strict_phase_failures = bool(failure_policy.strict)
+  fix_group_key: G56-strict-mode-fallback-unplugged
+  rationale: |
+    The ingress path still derives strict_phase_failures and forwards it, but
+    the flag has no real effect because the fallback endpoint always raises.
+
+- id: G56-F07-bundle-resolver-strict-mode-extracted-unused
+  category: control_flow_contracts
+  fingerprint: strict_mode_extracted_from_scan_options_but_unused
+  file: src/prism/scanner_plugins/bundle_resolver.py
+  line: 102
+  severity_hint: medium
+  confidence: medium
+  detector: midstream_signal_without_effect
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    strict_mode = bool(scan_options.get("strict_phase_failures", True))
+    bundle["task_line_parsing"] = resolve_task_line_parsing_policy_plugin(
+        di,
+        strict_mode=strict_mode,
+    )
+  fix_group_key: G56-strict-mode-fallback-unplugged
+  rationale: |
+    The midstream resolver still extracts strict_mode correctly, which confirms
+    the signal reaches the seam and is then neutralized downstream.

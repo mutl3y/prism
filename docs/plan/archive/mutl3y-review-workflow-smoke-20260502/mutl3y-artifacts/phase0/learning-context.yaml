@@ -1,0 +1,18 @@
+memory_source: docs/plan/.gilfoyle-lessons
+active_lessons: []
+do_not_re_flag_count: 0
+focus_axis_due_next: ownership
+model_route_notes:
+  - degraded: GPT-5.4 mini
+stale_or_missing_memory: []
+readiness_check:
+  ready: true
+  missing: []
+  watch_models: []
+  degraded_models:
+    - GPT-5.4 mini
+smoke_scope:
+  repo_root: /raid5/source/test/prism
+  target_path: src/prism/scanner_core/di.py
+  cycle: mutl3y-g1
+  plan_id: mutl3y-review-workflow-smoke-20260502

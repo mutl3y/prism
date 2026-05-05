@@ -1,0 +1,11 @@
+phase: P6
+purpose: full_repo_closure_gate
+results:
+  pytest: "1104 passed, 0 failed"
+  ruff: "ruff check src/prism -> pass"
+  black: "black --check src/prism -> pass"
+  mypy: "tox -e typecheck -> success; mypy src/prism --exclude src/prism/tests -> success (139 source files)"
+  notes: "All three promoted findings are closed and the repo-wide closure gate passed after the CLI ownership repair restored the public scanner_io seam."
+
+decision: closed
+next_recommendation: "Open the next required light follow-up cycle after g60 closure."

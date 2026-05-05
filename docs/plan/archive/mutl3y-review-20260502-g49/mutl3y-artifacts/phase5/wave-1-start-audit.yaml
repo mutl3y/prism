@@ -1,0 +1,14 @@
+cycle: g49
+plan_id: mutl3y-review-20260502-g49
+phase: P5
+wave: 1
+status: started
+expected_workers:
+  - Builder-ControlFlow
+  - Builder-Typing
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+  - docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+present_artifacts:
+  - docs/plan/mutl3y-review-20260502-g49/mutl3y-artifacts/phase5/wave-1-start-audit.yaml
+missing_artifacts: []

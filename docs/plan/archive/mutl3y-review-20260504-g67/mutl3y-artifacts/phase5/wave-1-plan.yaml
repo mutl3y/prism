@@ -1,0 +1,19 @@
+cycle: g67
+phase: P5
+wave: 1
+builder: Builder-Ownership
+fix_group_key: public_cache_semantics.stable_default_registry
+findings_in_scope:
+  - G67-H01
+owned_files:
+  - src/prism/api_layer/plugin_facade.py
+  - src/prism/tests/test_g03_scan_cache_integration.py
+goal: >-
+  Preserve scan-context isolation while making the default public run_scan
+  registry wrapper stable across identical calls so cache keys can hit.
+invariants:
+  - Caller-supplied runtime registries must keep their existing cache-key distinction.
+  - Plugin invocation still needs per-call scan_context isolation.
+  - The fix must be covered at the public API seam, not only the lower non_collection seam.
+suggested_narrow_gate: pytest -q src/prism/tests/test_g03_scan_cache_integration.py -k cache
+allowed_scope_expansion: false

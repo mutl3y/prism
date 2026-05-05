@@ -1,0 +1,11 @@
+cycle: g49
+plan_id: mutl3y-review-20260502-g49
+phase: P4
+status: completed
+selected_wave: 1
+decision:
+  - G49-H10
+  - G49-H11
+notes:
+  - "Wave 1 pairs the defaults/plugin-integrity fail-open defect with the earlier YAML-loading error-channel defect."
+  - "The two slices are implementation-disjoint and can be built in parallel."

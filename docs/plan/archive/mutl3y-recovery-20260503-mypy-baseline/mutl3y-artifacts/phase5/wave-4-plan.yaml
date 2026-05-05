@@ -1,0 +1,37 @@
+plan_id: mutl3y-recovery-20260503-mypy-baseline
+wave: 4
+date: 2026-05-03
+summary: |
+  Wave 4 splits work into two disjoint builder workers: one to remediate the remaining
+  mypy errors by aligning DI/ScanOptions usage, and one to perform format-only black cleanup
+  on three test files. Workers are disjoint by owned_files to minimize churn.
+workers:
+  - name: Builder-MypyDiScanOptions
+    owned_files:
+      - src/prism/scanner_core/di.py
+      - src/prism/tests/test_t3_03_scan_cache.py
+      - src/prism/tests/test_t3_01_scan_phase_events.py
+      - src/prism/tests/test_scanner_context.py
+    invariant: |
+      Align DI constructor call sites and tests to the canonical ScanOptionsDict contract
+      without weakening runtime types. Preserve behavior; fix static typing mismatches.
+    validations:
+      - run: mypy --strict --shadow-file src/prism/scanner_core/di.py:src/prism/scanner_core/di.py src/prism
+        focus: mypy on the DI slice (the three errors + any regressions)
+      - run: pytest -q src/prism/tests/test_scanner_context.py::test_* -q
+        focus: narrow pytest reproducer to ensure DI/scan-options constructor seam resolved
+
+  - name: Builder-BlackWave4Cleanup
+    owned_files:
+      - src/prism/tests/test_audit_plugin.py
+      - src/prism/tests/test_feature_detector.py
+      - src/prism/tests/test_underscore_policy_filter.py
+    invariant: |
+      Format-only cleanup using `black` with no behavior changes. Do not alter test logic.
+    validations:
+      - run: black --check src/prism/tests/test_audit_plugin.py src/prism/tests/test_feature_detector.py src/prism/tests/test_underscore_policy_filter.py
+        focus: ensure formatting corrected; CI-compatible
+
+notes: |
+  - Workers are disjoint by design to avoid accidental overlapping edits.
+  - Keep changes minimal and focused: Builder-MypyDiScanOptions must fix typing at root cause.

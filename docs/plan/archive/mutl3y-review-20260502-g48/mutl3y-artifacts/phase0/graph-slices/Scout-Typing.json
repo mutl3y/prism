@@ -1,0 +1,22 @@
+{
+  "agent": "Scout-Typing",
+  "cycle": "g48",
+  "focus_axis": "typing",
+  "review_surface": [
+    "src/prism/api.py",
+    "src/prism/api_layer/collection.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_data/__init__.py",
+    "src/prism/scanner_data/contracts.py",
+    "src/prism/scanner_core/protocols_runtime.py",
+    "src/prism/scanner_kernel/kernel_plugin_runner.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/scanner_io/output_orchestrator.py",
+    "src/prism/tests/test_api_cli_entrypoints.py",
+    "src/prism/tests/test_plugin_kernel_extension_parity.py"
+  ],
+  "questions": [
+    "Do public runtime and kernel/plugin boundaries still rely on dict-shaped or Any-heavy contracts?",
+    "Do runtime payload normalization sites still leave typed seams implicit instead of contract-backed?"
+  ]
+}

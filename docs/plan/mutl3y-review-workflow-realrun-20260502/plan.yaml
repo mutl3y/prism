@@ -1,0 +1,25 @@
+plan_id: mutl3y-review-workflow-realrun-20260502
+cycle: mutl3y-g1
+title: "Narrow real-run Mutl3y workflow slice for scanner_core DI registry typing"
+status: in_progress
+created_at: "2026-05-02"
+review_type: narrow_real_run
+target: src/prism/scanner_core/di.py
+focus_axis: typing
+origin: "Promote one real Phase 0 finding through a supervised P5→P6 cycle"
+
+resumption_pointer:
+  current_phase: P5
+  next_action: "Dispatch Builder-Typing for wave 1 and wait at the Phase 5 barrier."
+  blocking_issues: []
+  notes: |
+    This narrow real-run slice promotes one typing finding from scanner_core/di.py.
+    Wave 1 has one owned file and one builder. Execution trace should stay aligned
+    with this plan through the P5 barrier and Phase 6 gate.
+
+artifacts:
+  findings: docs/plan/mutl3y-review-workflow-realrun-20260502/findings.yaml
+  execution_trace: docs/plan/mutl3y-review-workflow-realrun-20260502/mutl3y-artifacts/execution-trace.yaml
+  phase4_summary: docs/plan/mutl3y-review-workflow-realrun-20260502/mutl3y-artifacts/phase4/decision-summary.yaml
+  wave_start_audit: docs/plan/mutl3y-review-workflow-realrun-20260502/mutl3y-artifacts/phase5/wave-1-start-audit.yaml
+  wave_plan: docs/plan/mutl3y-review-workflow-realrun-20260502/mutl3y-artifacts/phase5/wave-1-plan.yaml

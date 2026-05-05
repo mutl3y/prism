@@ -1,0 +1,14 @@
+{
+  "agent_name": "Scout-Graph",
+  "plan_id": "mutl3y-review-workflow-smoke-20260502",
+  "focus_axis": "ownership",
+  "target_path": "src/prism/scanner_core/di.py",
+  "seed_files": [
+    "src/prism/scanner_core/di.py"
+  ],
+  "neighbor_files": [
+    "src/prism/scanner_plugins/registry.py",
+    "src/prism/scanner_core/scanner_context.py"
+  ],
+  "notes": "Smoke slice for graph pressure, registry authority, and composition-root checks."
+}

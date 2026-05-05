@@ -1,0 +1,50 @@
+status: ok
+phase: P0
+cycle: mutl3y-g1
+plan_id: mutl3y-review-workflow-smoke-20260502
+focus_axis: ownership
+target_path: src/prism/scanner_core/di.py
+expected_artifacts:
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/learning-context.yaml
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/model-usage-ledger.yaml
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/model-scorecard.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/phase-start-audit.yaml
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/learning-context.yaml
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/graph-slices/Scout-Typing.json
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/graph-slices/Scout-Ownership.json
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/graph-slices/Scout-ControlFlow.json
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/graph-slices/Scout-Graph.json
+missing_artifacts:
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/model-usage-ledger.yaml
+  - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/model-scorecard.yaml
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+owned_file_sets:
+  - worker: Scout-Typing
+    files:
+      - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - worker: Scout-Ownership
+    files:
+      - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - worker: Scout-ControlFlow
+    files:
+      - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - worker: Scout-Graph
+    files:
+      - docs/plan/mutl3y-review-workflow-smoke-20260502/mutl3y-artifacts/phase0/Scout-Graph.yaml
+notes: >-
+  Smoke run limited to src/prism/scanner_core/di.py. Prism memory readiness is green;
+  dispatch will use the next focus axis ownership and keep the run scoped to Phase 0 discovery.

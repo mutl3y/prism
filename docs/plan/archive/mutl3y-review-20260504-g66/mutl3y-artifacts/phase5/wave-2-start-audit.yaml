@@ -1,0 +1,30 @@
+status: ok
+phase: P5
+cycle: g66
+wave: 2
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase4/wave-2-decision-summary.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-2-plan.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase3/Probe-Ownership-wave2-overlap.md
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase4/wave-2-decision-summary.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase6/Gatekeeper-wave-1-summary.md
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Builder-Typing
+owned_file_sets:
+  - agent_name: Builder-Typing
+    files:
+      - src/prism/scanner_plugins/interfaces.py
+      - src/prism/api_layer/plugin_facade.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/api.py
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+      - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-Typing-wave-2-summary.md
+notes:
+  - "Wave 2 is serialized because G66-H01 and G66-H02 share execution_request_builder ownership."
+  - "This first serialized slice tightens the scan-pipeline protocol/facade/API contract before the payload fail-closed follow-on."
+  - "The focused barrier exposed one adjacent API/runtime handoff annotation in api_layer/non_collection.py, so wave-2 ownership expands by that single file only."

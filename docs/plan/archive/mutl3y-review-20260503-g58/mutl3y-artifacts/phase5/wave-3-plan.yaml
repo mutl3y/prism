@@ -1,0 +1,48 @@
+plan_id: mutl3y-review-20260503-g58
+cycle: g58
+phase: P5
+wave: 3
+status: ready
+objective: "Close the remaining High queue through one shared registry/defaults/execution-request slice because H03, H04, and H05 overlap on defaults.py and execution_request_builder.py."
+decision_basis:
+  - docs/plan/mutl3y-review-20260503-g58/findings.yaml
+  - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/execution-trace.yaml
+  - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase5/probe-H03-defaults-note.md
+  - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/probe-Imports-G58-H04.md
+workers:
+  - agent_name: Builder-RegistryIngress
+    finding_ids:
+      - G58-H03
+      - G58-H04
+      - G58-H05
+    category: correctness
+    fix_group_key: defaults_registry_authority_and_execution_request_ingress
+    owned_files:
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/scanner_plugins/ansible/default_policies.py
+      - src/prism/scanner_plugins/parsers/comment_doc/default_policies.py
+      - src/prism/scanner_plugins/parsers/task_annotations/default_policies.py
+      - src/prism/scanner_plugins/parsers/task_lines/default_policies.py
+      - src/prism/scanner_io/loader.py
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/scanner_core/di.py
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+      - src/prism/tests/test_defaults.py
+      - src/prism/tests/test_di_registry_resolution.py
+      - src/prism/tests/test_execution_request_builder.py
+      - src/prism/tests/test_scanner_context.py
+      - src/prism/tests/test_t1_02_coverage_lift_batch3.py
+      - src/prism/tests/test_platform_execution_bundle.py
+    summary_artifact: docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase5/Builder-RegistryIngress-summary.md
+    suggested_narrow_gate: pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py::test_task_line_plugin_validation_falls_back_in_non_strict_mode src/prism/tests/test_comment_doc_plugin_resolution.py::test_task_annotation_plugin_validation_falls_back_in_non_strict_mode src/prism/tests/test_di_registry_resolution.py::test_get_registry_from_di_shared_seam_returns_none_on_no_di src/prism/tests/test_execution_request_builder.py::TestRuntimeAssemblySeam::test_execution_request_finalization_seam_requires_prepared_policy_enforcement
+    importer_layer_tests:
+      - pytest -q src/prism/tests/test_scanner_context.py::test_build_non_collection_run_scan_execution_request
+      - pytest -q src/prism/tests/test_t1_02_coverage_lift_batch3.py::test_parse_yaml_candidate_uses_default_policy
+      - pytest -q src/prism/tests/test_platform_execution_bundle.py
+      - pytest -q src/prism/tests/test_defaults.py -k "strict or malformed or fallback"
+    invariant: "Registry selection, non-strict plugin fallback, and prepared-policy guard timing must converge on one ingress policy so non-Ansible requests cannot silently borrow Ansible defaults and runtime assembly fails before expensive participant construction when required prepared-policy enforcement is missing."
+barrier_rules:
+  - This wave is intentionally single-owner because H04 is the overlap hub and shares defaults.py with H03 and execution_request_builder.py with H05.
+  - Stop on scope expansion instead of widening beyond the declared defaults/registry/execution-request seam.
+  - Run the suggested narrow gate before reporting completion when feasible.
+  - Foreman owns ledger updates, wave barrier validation, and execution-trace checkpointing.

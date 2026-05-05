@@ -1,0 +1,29 @@
+phase: P4
+cycle: g69
+decision: wave_1_selected
+selected_findings:
+  - G69-H01
+deferred_findings:
+  - G69-H02
+  - G69-H03
+  - G69-H04
+fix_group_key: api_layer.non_collection.default_registry_authority
+rationale: >-
+  G69-H01 is the smallest owner slice: it can be fixed inside the non-collection
+  default-registry seam plus entrypoint tests. G69-H04 overlaps at
+  api_layer/non_collection.py but expands into execution_request_builder,
+  bundle_resolver, and scanner_context, so it remains a serialized follow-on.
+owned_file_set:
+  - src/prism/api_layer/non_collection.py
+  - src/prism/tests/test_api_cli_entrypoints.py
+deferred_files:
+  - src/prism/scanner_core/execution_request_builder.py
+  - src/prism/scanner_plugins/bundle_resolver.py
+  - src/prism/scanner_core/scanner_context.py
+  - src/prism/scanner_plugins/interfaces.py
+  - src/prism/scanner_plugins/ansible/__init__.py
+  - src/prism/scanner_plugins/ansible/kernel.py
+scope_check:
+  overlap_detected: false
+  expansion_required: false
+suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k non_collection_run_scan

@@ -1,0 +1,19 @@
+{
+  "agent": "Scout-Ownership",
+  "cycle": "g51",
+  "focus_axis": "ownership",
+  "review_surface": [
+    "src/prism/scanner_io/loader.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_kernel/plugin_name_resolver.py",
+    "src/prism/tests/test_dataload.py",
+    "src/prism/tests/test_comment_doc_plugin_resolution.py",
+    "src/prism/tests/test_scanner_core_di.py"
+  ],
+  "questions": [
+    "Where is registry authority split across loader/defaults/api/di seams instead of staying at one composition root?",
+    "Which public or helper surfaces still hide ownership through lazy registry fallback or singleton fallback behavior?"
+  ]
+}

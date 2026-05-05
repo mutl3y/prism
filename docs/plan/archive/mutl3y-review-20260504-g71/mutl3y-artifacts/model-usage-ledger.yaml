@@ -1,0 +1,256 @@
+- timestamp: '2026-05-04T18:16:00+00:00'
+  cycle: g71
+  phase: P0
+  worker: Scout-Typing
+  task_id: g71-phase0-scout-typing
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Scout-Typing returned two High typing-boundary findings plus one retained medium note.
+  lane_tag: discovery
+- timestamp: '2026-05-04T18:16:00+00:00'
+  cycle: g71
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g71-phase0-scout-ownership-attempt-1
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: route_failure
+  failure_type: missing_artifact
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: rerouted_in_tier_plus_prompt_tighten
+  notes: Initial ownership scout returned a summary but failed to write the required artifact.
+  lane_tag: discovery
+- timestamp: '2026-05-04T18:18:00+00:00'
+  cycle: g71
+  phase: P0
+  worker: Scout-Ownership
+  task_id: g71-phase0-scout-ownership-attempt-2
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Retry wrote the ownership artifact and returned one active High ownership split.
+  lane_tag: discovery
+- timestamp: '2026-05-04T18:16:00+00:00'
+  cycle: g71
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: g71-phase0-scout-controlflow
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Scout-ControlFlow returned one active High fail-open preflight bug plus retained medium and low observations.
+  lane_tag: discovery
+- timestamp: '2026-05-04T18:16:00+00:00'
+  cycle: g71
+  phase: P0
+  worker: Scout-Graph
+  task_id: g71-phase0-scout-graph
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 3
+  needed_reedit: false
+  recovery_action: none
+  notes: Scout-Graph returned two graph-seam highs, later retained as non-promoted follow-up concerns after local grading.
+  lane_tag: discovery
+- timestamp: '2026-05-04T18:26:00+00:00'
+  cycle: g71
+  phase: P6
+  worker: Gatekeeper
+  task_id: g71-phase6-gatekeeper-wave1
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Gatekeeper-wave-1-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_rewrote_low_signal_artifact
+  notes: Focused pytest and narrow mypy for the wave-1 preflight slice are the authoritative Phase 6 evidence.
+  lane_tag: validation
+- timestamp: '2026-05-04T18:26:00+00:00'
+  cycle: g71
+  phase: P6
+  worker: Auditor-Regression
+  task_id: g71-phase6-auditor-wave1
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Auditor-Regression-wave-1.md
+  quality_score: 3
+  needed_reedit: false
+  recovery_action: foreman_rewrote_stale_artifact
+  notes: Final auditor artifact records no material regression risk for the repaired wave-1 slice.
+  lane_tag: validation
+- timestamp: '2026-05-04T18:34:00+00:00'
+  cycle: g71
+  phase: P5
+  worker: Foreman-Recovery
+  task_id: g71-wave2-foreman-recovery
+  requested_tier: balanced
+  requested_model: local-edit
+  actual_model: local-edit
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase5/Foreman-Typing-wave-2.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Foreman landed the wave-2 API payload contract fix and validated it with focused pytest plus narrow mypy.
+  lane_tag: implementation
+- timestamp: '2026-05-04T18:37:00+00:00'
+  cycle: g71
+  phase: P6
+  worker: Gatekeeper
+  task_id: g71-phase6-gatekeeper-wave2
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Gatekeeper-wave-2-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_relocated_artifact_path
+  notes: Focused pytest and narrow mypy for the wave-2 API helper slice are the authoritative Phase 6 evidence.
+  lane_tag: validation
+- timestamp: '2026-05-04T18:37:00+00:00'
+  cycle: g71
+  phase: P6
+  worker: Auditor-Regression
+  task_id: g71-phase6-auditor-wave2
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Auditor-Regression-wave-2.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Auditor reported no material regression risk for the repaired public API payload contract slice.
+  lane_tag: validation
+- timestamp: '2026-05-04T18:44:00+00:00'
+  cycle: g71
+  phase: P5
+  worker: Builder-Typing
+  task_id: g71-wave3-builder-typing
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase5/Builder-Typing-wave-3.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Builder-Typing tightened the task-catalog seam across interfaces, core consumer, and Ansible implementation without scope expansion.
+  lane_tag: implementation
+- timestamp: '2026-05-04T18:46:00+00:00'
+  cycle: g71
+  phase: P6
+  worker: Gatekeeper
+  task_id: g71-phase6-gatekeeper-wave3
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Gatekeeper-wave-3-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: foreman_wrote_repo_path_artifact
+  notes: Focused feature-detector pytest and narrow mypy are the authoritative Phase 6 evidence for the wave-3 task-catalog seam.
+  lane_tag: validation
+- timestamp: '2026-05-04T18:46:00+00:00'
+  cycle: g71
+  phase: P6
+  worker: Auditor-Regression
+  task_id: g71-phase6-auditor-wave3
+  requested_tier: low-cost
+  requested_model: GPT-5 mini (copilot)
+  actual_model: GPT-5 mini (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Auditor-Regression-wave-3.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Auditor recorded no material regression risk for the repaired task-catalog contract slice.
+  lane_tag: validation
+- timestamp: '2026-05-04T18:52:00+00:00'
+  cycle: g71
+  phase: P5
+  worker: Builder-Ownership
+  task_id: g71-wave4-builder-ownership
+  requested_tier: balanced
+  requested_model: GPT-5.4 (copilot)
+  actual_model: GPT-5.4 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase5/Builder-Ownership-wave-4.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Builder-Ownership removed the active variable-discovery runtime reopening and recommended demotion of the remaining standalone seam.
+  lane_tag: implementation
+- timestamp: '2026-05-04T18:54:00+00:00'
+  cycle: g71
+  phase: P6
+  worker: Gatekeeper
+  task_id: g71-phase6-gatekeeper-wave4
+  requested_tier: low-cost
+  requested_model: local-run
+  actual_model: local-run
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Gatekeeper-wave-4-summary.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Focused ownership validation bundle passed and the standalone loader contract remained green.
+  lane_tag: validation
+- timestamp: '2026-05-04T18:54:00+00:00'
+  cycle: g71
+  phase: P6
+  worker: Auditor-Regression
+  task_id: g71-phase6-auditor-wave4
+  requested_tier: low-cost
+  requested_model: local-run
+  actual_model: local-run
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Auditor-Regression-wave-4.md
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: Auditor recorded the remaining standalone loader seam as demoted medium follow-up rather than an active High.
+  lane_tag: validation

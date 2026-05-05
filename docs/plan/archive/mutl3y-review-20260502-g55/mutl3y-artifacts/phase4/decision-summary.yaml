@@ -1,0 +1,8 @@
+plan_id: mutl3y-review-20260502-g55
+cycle: g55
+phase: P4
+status: completed
+decision_summary:
+  - "Wave 1 will target G55-H01 only: narrow the DIFactoryOverride return contract and the direct DIContainer override-return path."
+  - "Keep Wave 1 file ownership narrow: src/prism/scanner_core/protocols_runtime.py, src/prism/scanner_core/di.py, src/prism/tests/test_di_container.py, and src/prism/tests/test_scanner_core_di.py."
+  - "Defer G55-H02 defaults helper generics, G55-H03 execution-request ingress typing, and G55-H04 strict_mode semantics until after the first DI override wave is validated."

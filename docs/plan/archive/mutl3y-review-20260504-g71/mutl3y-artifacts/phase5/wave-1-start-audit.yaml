@@ -1,0 +1,12 @@
+cycle: g71
+phase: P5
+wave: 1
+status: ready
+builder: Foreman-Recovery
+fix_group_key: scanner_kernel.preflight_plugin_enabled_fail_closed
+owned_files:
+  - src/prism/scanner_kernel/orchestrator.py
+  - src/prism/tests/test_plugin_kernel_extension_parity.py
+foreman_recovery: true
+blocking_issues: []
+suggested_narrow_gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k plugin_enabled

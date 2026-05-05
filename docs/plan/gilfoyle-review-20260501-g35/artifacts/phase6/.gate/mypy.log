@@ -1,7 +1,0 @@
-src/prism/scanner_core/metadata_merger.py:12: error: List comprehension has incompatible type List[dict[Any, Any]]; expected List[ScanPolicyWarning]  [misc]
-src/prism/scanner_extract/task_line_parsing.py:174: error: Incompatible default for argument "endpos" (default has type "EllipsisType", argument has type "int")  [assignment]
-src/prism/scanner_extract/task_line_parsing.py:179: error: Incompatible default for argument "endpos" (default has type "EllipsisType", argument has type "int")  [assignment]
-src/prism/scanner_extract/task_line_parsing.py:184: error: Incompatible default for argument "endpos" (default has type "EllipsisType", argument has type "int")  [assignment]
-src/prism/scanner_extract/task_line_parsing.py:216: error: Incompatible default for argument "endpos" (default has type "EllipsisType", argument has type "int")  [assignment]
-src/prism/scanner_extract/task_line_parsing.py:221: error: Incompatible default for argument "endpos" (default has type "EllipsisType", argument has type "int")  [assignment]
-src/prism/scanner_extract/task_line_parsing.py:226: error: Incompatible default for argument "endpos" (default has type "EllipsisType", argument has type "int")  [assignment]

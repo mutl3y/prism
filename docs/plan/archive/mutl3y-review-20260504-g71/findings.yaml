@@ -1,0 +1,161 @@
+plan_id: mutl3y-review-20260504-g71
+cycle: g71
+target: src/prism
+review_type: thorough
+focus_axis: runtime_contracts_and_boundary_surfaces
+status: completed_checkpoint
+decision_summary:
+  - "g71 is the cadence-required thorough whole-codebase review after g70 closed as a clean light checkpoint."
+  - "The primary focus axis is runtime contracts and boundary surfaces, but the whole target remains in scope."
+findings:
+  - id: G71-H01
+    status: closed
+    decision: reduced_and_demoted_after_wave_4
+    severity: high
+    category: ownership
+    fingerprint: yaml_loader_policy_resolution_secondary_authority_path
+    title: "YAML discovery loader reopens policy ownership outside ingress-prepared bundles"
+    files:
+      - src/prism/scanner_io/loader.py
+    source_observations:
+      - O001
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "When prepared YAML policy is absent, loader discovery helpers resolve parser behavior through defaults/registry fallback instead of failing closed, reopening policy authority outside ingress canonicalization."
+    decision_deadline: g71
+    suggested_narrow_gate: .venv/bin/python -m pytest -q src/prism/tests/test_yaml_policy_resolution.py
+    closure_evidence:
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase5/Builder-Ownership-wave-4.md
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase5/wave-4-barrier-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Gatekeeper-wave-4-summary.md
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Auditor-Regression-wave-4.md
+  - id: G71-H02
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: control_flow
+    fingerprint: scan_pipeline_preflight_plugin_enabled_none_fail_open
+    title: "Scan-pipeline preflight treats missing plugin_enabled as enabled"
+    files:
+      - src/prism/scanner_kernel/orchestrator.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+    source_observations:
+      - F001
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase1/grading-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase4/wave-1-decision-summary.yaml
+    summary: "A plugin preflight payload with plugin_enabled omitted is coerced to enabled, allowing execution to proceed without an affirmative boolean contract."
+    decision_deadline: g71
+    suggested_narrow_gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k plugin_enabled
+    closure_evidence:
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase5/Foreman-ControlFlow-wave-1.md
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Gatekeeper-wave-1-summary.md
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Auditor-Regression-wave-1.md
+  - id: G71-H03
+    status: closed
+    decision: fixed_in_wave_2
+    severity: high
+    category: typing
+    fingerprint: public_api_scan_role_payload_raw_dict_contract
+    title: "Public API scan_role payload parsing still returns raw dict[Any] at the boundary"
+    files:
+      - src/prism/api_layer/common.py
+    source_observations:
+      - TYP-001
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Typing.yaml
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase1/grading-summary.yaml
+    summary: "parse_scan_role_payload accepts and returns dict[str, Any] at a public API boundary even though callers rely on a stable object shape."
+    decision_deadline: g71
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_layer_common.py -k parse_scan_role_payload
+    closure_evidence:
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase5/Foreman-Typing-wave-2.md
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase5/wave-2-barrier-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Gatekeeper-wave-2-summary.md
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Auditor-Regression-wave-2.md
+  - id: G71-H04
+    status: closed
+    decision: fixed_in_wave_3
+    severity: high
+    category: typing
+    fingerprint: feature_detection_task_catalog_contract_residue
+    title: "Feature-detection task-catalog seam still widened back to generic dict runtime boundaries"
+    files:
+      - src/prism/scanner_plugins/interfaces.py
+      - src/prism/scanner_core/feature_detector.py
+      - src/prism/scanner_plugins/ansible/feature_detection.py
+    source_observations:
+      - TYP-002
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Typing.yaml
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase1/grading-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase4/wave-3-decision-summary.yaml
+    summary: "The feature-detection task-catalog path widened a concrete per-file catalog shape back to generic dict runtime boundaries across the public Protocol, core consumer, and Ansible implementation."
+    decision_deadline: g71
+    suggested_narrow_gate: pytest -q src/prism/tests/test_feature_detector.py
+    closure_evidence:
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase5/Builder-Typing-wave-3.md
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase5/wave-3-barrier-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Gatekeeper-wave-3-summary.md
+      - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase6/Auditor-Regression-wave-3.md
+suppressed_highs: []
+suppressed_observations:
+  - id: TYP-003
+    severity_hint: medium
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - id: O002
+    severity_hint: medium
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - id: O003
+    severity_hint: medium
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - id: O004
+    severity_hint: medium
+    rationale: duplicate_or_supporting_evidence_for_graph_and_ownership_seams
+    source_artifact: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - id: O005
+    severity_hint: low
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - id: F002
+    severity_hint: medium
+    rationale: intentional_strictness_boundary_not_promoted
+    source_artifact: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - id: F003
+    severity_hint: medium
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - id: F004
+    severity_hint: low
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - id: F005
+    severity_hint: medium
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - id: H1
+    severity_hint: medium
+    rationale: overlaps_with_existing_ownership_debt_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  - id: H2
+    severity_hint: medium
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  - id: G71-H01-Residual
+    severity_hint: medium
+    rationale: remaining_standalone_loader_fallback_demoted_after_wave_4_runtime_reduction
+    source_artifact: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase5/Builder-Ownership-wave-4.md
+  - id: M1
+    severity_hint: medium
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  - id: L1
+    severity_hint: low
+    rationale: mitigation_note_only
+    source_artifact: docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Graph.yaml

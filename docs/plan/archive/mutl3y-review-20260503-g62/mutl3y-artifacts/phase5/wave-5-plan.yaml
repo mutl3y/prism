@@ -1,0 +1,19 @@
+wave_id: wave-5
+cycle: g62
+phase: P5
+finding: G62-M01
+fix_group_key: scan_cache.io_error_masking
+builder: Builder-ControlFlow
+task_id: g62-wave5-builder-controlflow
+owned_file_set:
+  - src/prism/scanner_core/scan_cache.py
+  - src/prism/tests/test_t3_03_scan_cache.py
+invariant_to_preserve: >-
+  Cache keys must remain stable for valid inputs, but unreadable single-file
+  paths must not collapse to one sentinel-only hash value shared across
+  distinct paths.
+suggested_narrow_gate: >-
+  pytest -q src/prism/tests/test_t3_03_scan_cache.py -k 'unreadable or content_hash'
+optional_importer_gate: >-
+  .venv/bin/python -m mypy src/prism/scanner_core/scan_cache.py src/prism/tests/test_t3_03_scan_cache.py
+summary_artifact: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md

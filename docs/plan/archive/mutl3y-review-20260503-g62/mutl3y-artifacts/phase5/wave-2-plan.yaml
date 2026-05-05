@@ -1,0 +1,19 @@
+wave_id: wave-2
+cycle: g62
+phase: P5
+finding: G62-H01
+fix_group_key: registry-dynamic-attr
+builder: Builder-Ownership
+task_id: g62-wave2-builder-ownership
+owned_file_set:
+  - src/prism/api_layer/plugin_facade.py
+  - src/prism/tests/test_scanner_guardrails.py
+invariant_to_preserve: >-
+  Runtime registry authority must remain exposed through
+  scanner_plugins.bootstrap.get_default_plugin_registry(), and package import
+  must stay lazy until that getter is invoked.
+suggested_narrow_gate: >-
+  pytest -q src/prism/tests/test_scanner_guardrails.py -k 'plugin_registry_bootstrap_initialization_smoke or scanner_plugins_package_import_does_not_initialize_registry'
+optional_importer_gate: >-
+  pytest -q src/prism/tests/test_t2_01_plugin_api_version.py -k default_bootstrap_plugins_register_without_error
+summary_artifact: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Ownership-wave-2-summary.md

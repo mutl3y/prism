@@ -1,0 +1,19 @@
+wave_id: wave-6
+cycle: g62
+phase: P5
+finding: G62-M02
+fix_group_key: api.normalized_result.type_alias_reexport
+builder: Builder-Ownership
+task_id: g62-wave6-builder-ownership
+owned_file_set:
+  - src/prism/api.py
+  - src/prism/tests/test_api_cli_entrypoints.py
+invariant_to_preserve: >-
+  The public API surface must keep returning the canonical non-collection
+  output contract without re-exporting a private helper alias from
+  api_layer.non_collection.
+suggested_narrow_gate: >-
+  pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'delegates_to_non_collection_api_layer or normalizes_payload_shape_from_non_collection_seam'
+optional_importer_gate: >-
+  .venv/bin/python -m mypy src/prism/api.py src/prism/tests/test_api_cli_entrypoints.py
+summary_artifact: docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/Builder-Ownership-wave-6-summary.md

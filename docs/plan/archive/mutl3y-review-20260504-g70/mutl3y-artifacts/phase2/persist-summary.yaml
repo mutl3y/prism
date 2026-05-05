@@ -1,0 +1,13 @@
+phase2_persist_summary:
+  status: ok
+  shortlist_size: 0
+  summary: >-
+    g70 is a clean light checkpoint. No High or Critical findings were promoted
+    from the changed-slice review.
+  retained_observations:
+    - ST-M01
+    - ST-M02
+    - ST-L01
+  source_artifacts:
+    - docs/plan/mutl3y-review-20260504-g70/mutl3y-artifacts/phase0/Scout-Typing-light-review.yaml
+    - docs/plan/mutl3y-review-20260504-g70/mutl3y-artifacts/phase1/grading-summary.yaml

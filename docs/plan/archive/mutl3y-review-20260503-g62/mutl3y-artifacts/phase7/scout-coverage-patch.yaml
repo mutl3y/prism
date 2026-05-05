@@ -1,0 +1,28 @@
+kind: missed_finding
+plan_id: mutl3y-review-20260503-g62
+cycle: g62
+missed_by:
+  - Scout-Graph
+  - Scout-Ownership
+  - Independent-Review-A
+  - Independent-Review-B
+found_by: Gilfoyle Code Review God Mode
+severity: high
+finding_id: G62-H03
+pattern: >-
+  Facade or isolation wrappers that preserve only list/get plugin methods can
+  drop auxiliary registry semantics consumed by downstream routing code.
+why_missed: >-
+  The original scout and independent-review prompts focused on registry export,
+  alias leakage, and closure evidence, but did not compare public API behavior
+  against the lower-level reserved-platform routing contract.
+new_probe: >-
+  For any registry facade or isolation wrapper passed into runtime routing,
+  compare public API behavior against canonical registry behavior for reserved
+  unsupported platforms such as terraform and kubernetes.
+prompt_target: >-
+  Add a public-entrypoint routing probe to ownership/graph scouts when registry
+  facades or isolated wrappers are in scope.
+proposed_memory_update: >-
+  Preserve behavior-bearing registry methods, not just list/get plugin methods,
+  when isolating registry access for public API or facade seams.

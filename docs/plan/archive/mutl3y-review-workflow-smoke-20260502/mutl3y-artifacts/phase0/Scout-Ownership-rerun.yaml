@@ -1,0 +1,53 @@
+- id: Scout-Ownership-01
+  category: ownership
+  fingerprint: "ownership:di.factory_blocker_fact_builder:runtime_import:scanner_plugins.defaults"
+  file: src/prism/scanner_core/di.py
+  line: 298
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_do_not_re_flag
+  memory_match: FIND-G3-03
+  evidence_snippet: "fn = resolve_blocker_fact_builder()"
+  evidence_command: "src/prism/scanner_core/di.py#L288-L302"
+  related_symbols: [factory_blocker_fact_builder, resolve_blocker_fact_builder]
+  fix_group_key: di.factory_blocker_fact_builder.runtime_import
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_blocker_fact_builder_caches_callable"
+
+- id: Scout-Ownership-02
+  category: composition_root
+  fingerprint: "composition_root:execution_request_builder:DIContainer_construction:registry_injection"
+  file: src/prism/scanner_core/di.py
+  line: 325
+  severity_hint: high
+  confidence: high
+  detector: graph_slice
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "plugin_cls = registry.get_variable_discovery_plugin(platform_key)"
+  evidence_command: "src/prism/scanner_core/execution_request_builder.py#L486 and src/prism/scanner_core/di.py#L325"
+  related_symbols: [DIContainer, registry, get_variable_discovery_plugin, di_container_cls]
+  fix_group_key: composition_root.parallel_di_surfaces
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_di_variable_discovery_plugin_resolves_through_registry"
+
+- id: Scout-Ownership-03
+  category: facade_leakage
+  fingerprint: "facade_leakage:di.plugin_registry:exposed_property"
+  file: src/prism/scanner_core/di.py
+  line: 201
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def plugin_registry(self) -> PluginRegistry | None:"
+  evidence_command: "src/prism/scanner_core/di.py#L201 and src/prism/scanner_io/loader.py#L41"
+  related_symbols: [plugin_registry, "scanner_io.loader._resolve_plugin_registry", "getattr(di, \"plugin_registry\", None)"]
+  fix_group_key: di.exposed_registry_property
+  proposed_fix_class: seam_facade
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_context.py::test_fsrc_di_plugin_registry_property_returns_injected_registry"

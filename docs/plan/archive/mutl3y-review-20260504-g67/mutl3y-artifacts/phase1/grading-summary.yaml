@@ -1,0 +1,9 @@
+phase1_grading_summary:
+  status: ok
+  promoted_findings:
+    - G67-H01
+  rationale: >-
+    The unconstrained God Mode review returned one verified High finding on the
+    public cache semantics path. It is directly evidenced by live-source anchors
+    and executable probes, so it enters the shortlist without suppression.
+  source_artifact: docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml

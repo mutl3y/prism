@@ -1,0 +1,162 @@
+plan_id: mutl3y-review-20260504-g69
+cycle: g69
+target: src/prism
+review_type: thorough
+focus_axis: registry_and_public_seams
+status: completed_checkpoint
+decision_summary:
+  - "g69 is the cadence-required thorough whole-codebase review after g68 closed as a clean light checkpoint."
+  - "The primary focus axis is registry and public seams, but the whole target remains in scope."
+findings:
+  - id: G69-H01
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: registry_authority
+    fingerprint: registry_authority_non_collection_raw_default_registry_bypass
+    title: "api_layer.non_collection.run_scan bypasses the isolated default scan-pipeline registry seam"
+    files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/api.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+    source_observations:
+      - Scout-Typing-01
+      - Scout-Ownership-03
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Typing.yaml
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase1/grading-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase4/wave-1-decision-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+    summary: "Direct non-collection callers still fall back to plugin_facade.get_default_plugin_registry() instead of the isolated scan-pipeline registry seam used by the public API path, leaving a split runtime-registry authority path."
+    decision_deadline: g69
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k non_collection_run_scan
+    closure_evidence:
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase5/Builder-Ownership-summary.md
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+      - src/prism/api_layer/non_collection.py#L629
+      - src/prism/tests/test_api_cli_entrypoints.py#L1861
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase6/Gatekeeper-wave-1-summary.md
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase6/Auditor-Regression-wave-1.md
+  - id: G69-H02
+    status: closed
+    decision: fixed_in_wave_3
+    severity: high
+    category: typing
+    fingerprint: plugin_interfaces_public_protocols_dict_any_surface
+    title: "Public scanner plugin protocols still expose dict[Any]-shaped contracts instead of canonical typed surfaces"
+    files:
+      - src/prism/scanner_plugins/interfaces.py
+      - src/prism/scanner_plugins/ansible/__init__.py
+      - src/prism/tests/test_platform_execution_bundle.py
+    source_observations:
+      - Scout-Typing-04
+      - Scout-Typing-05
+      - Scout-Typing-06
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Typing.yaml
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase1/grading-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase4/wave-3-decision-summary.yaml
+    summary: "The public plugin protocol layer still uses dict[str, Any]-style surfaces even though canonical request and metadata contracts exist nearby, and its current tests do not enforce the typed contract boundary directly."
+    decision_deadline: g69
+    suggested_narrow_gate: .venv/bin/python -m mypy src/prism/scanner_plugins/interfaces.py src/prism/scanner_plugins/ansible/__init__.py
+    closure_evidence:
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase5/wave-3-barrier-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase6/Gatekeeper-wave-4-summary.md
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase6/Auditor-Regression-wave-4.md
+  - id: G69-H03
+    status: closed
+    decision: fixed_in_wave_4
+    severity: high
+    category: orchestration_seam
+    fingerprint: ansible_kernel_variadic_callable_dict_io_protocol_gap
+    title: "Ansible baseline kernel still exposes a variadic callable seam and raw dict request/response contracts"
+    files:
+      - src/prism/scanner_plugins/ansible/kernel.py
+      - src/prism/tests/test_kernel.py
+      - src/prism/scanner_core/protocols_runtime.py
+    source_observations:
+      - Scout-Typing-07
+      - Scout-Typing-08
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Typing.yaml
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase1/grading-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase4/wave-4-decision-summary.yaml
+    summary: "The Ansible baseline kernel still routes through Callable[..., dict[str, Any]] seams rather than the canonical kernel lifecycle protocols, and existing tests do not directly guard the typed seam."
+    decision_deadline: g69
+    suggested_narrow_gate: .venv/bin/python -m mypy src/prism/scanner_plugins/ansible/kernel.py src/prism/scanner_core/protocols_runtime.py
+    closure_evidence:
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase5/Builder-Abstraction-summary.md
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase5/wave-4-barrier-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase6/Gatekeeper-wave-4-summary.md
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase6/Auditor-Regression-wave-4.md
+  - id: G69-H04
+    status: closed
+    decision: fixed_in_wave_2
+    severity: high
+    category: policy_coercion
+    fingerprint: strict_phase_failures_truthiness_coercion_cluster
+    title: "strict_phase_failures is still coerced with bool(...) across the public and execution seams"
+    files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/scanner_plugins/bundle_resolver.py
+      - src/prism/scanner_core/scanner_context.py
+    source_observations:
+      - Scout-ControlFlow-01
+      - Scout-ControlFlow-02
+      - Scout-ControlFlow-03
+      - Scout-ControlFlow-04
+      - Scout-ControlFlow-05
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase1/grading-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase4/wave-2-decision-summary.yaml
+    summary: "Malformed strict_phase_failures values are still normalized via truthiness across the public API, execution request builder, bundle resolver, and scanner context paths, which can silently invert strict vs non-strict runtime behavior."
+    decision_deadline: g69
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k strict_phase_failures
+    closure_evidence:
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase5/wave-2-barrier-summary.yaml
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase6/Gatekeeper-wave-2-summary.md
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase6/Auditor-Regression-wave-2.md
+      - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase6/Foreman-Gate-Recovery-wave-2.md
+suppressed_highs: []
+suppressed_observations:
+  - id: Scout-Typing-02
+    severity_hint: medium
+    rationale: covered_by_G69-H01_as_supporting_test_gap
+    source_artifact: docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - id: Scout-Typing-03
+    severity_hint: medium
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - id: Scout-Ownership-01
+    severity_hint: medium
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - id: Scout-Ownership-02
+    severity_hint: medium
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - id: Scout-Ownership-04
+    severity_hint: medium
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - id: Scout-Graph-01
+    severity_hint: medium
+    rationale: duplicate_of_G69-H01
+    source_artifact: docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  - id: Scout-Graph-02
+    severity_hint: medium
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  - id: Scout-Graph-03
+    severity_hint: medium
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  - id: Scout-Graph-04
+    severity_hint: low
+    rationale: retained_not_promoted_current_wave
+    source_artifact: docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase0/Scout-Graph.yaml

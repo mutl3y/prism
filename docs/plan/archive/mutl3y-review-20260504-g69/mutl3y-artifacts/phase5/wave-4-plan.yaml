@@ -1,0 +1,19 @@
+cycle: g69
+phase: P5
+wave: 4
+builder: Builder-Abstraction
+fix_group_key: ansible-kernel.protocolize-lifecycle
+findings_in_scope:
+  - G69-H03
+owned_files:
+  - src/prism/scanner_plugins/ansible/kernel.py
+  - src/prism/scanner_core/protocols_runtime.py
+  - src/prism/tests/test_kernel.py
+goal: >-
+  Replace the variadic callable and raw dict request/response seam in the
+  ansible baseline kernel with the canonical lifecycle protocols.
+invariants:
+  - The ansible kernel must implement the same lifecycle contract the runtime advertises.
+  - Do not reopen the public plugin protocol surface fixed in wave 3.
+suggested_narrow_gate: .venv/bin/python -m mypy src/prism/scanner_plugins/ansible/kernel.py src/prism/scanner_core/protocols_runtime.py
+allowed_scope_expansion: false

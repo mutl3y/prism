@@ -1,0 +1,8 @@
+plan_id: mutl3y-review-20260503-g57
+cycle: g57
+phase: P4
+status: completed
+decision_summary:
+  - "Wave 1 will target G57-H01 only: retire the public prepared-policy bundle override seam from api_layer.non_collection.run_scan."
+  - "Keep Wave 1 file ownership narrow: src/prism/api_layer/non_collection.py and src/prism/tests/test_api_cli_entrypoints.py."
+  - "Do not widen this wave into execution_request_builder or plugin_facade internals; the goal is to restore canonical ownership at the public API seam first."

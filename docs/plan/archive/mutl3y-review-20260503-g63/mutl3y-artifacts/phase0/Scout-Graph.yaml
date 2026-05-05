@@ -1,0 +1,60 @@
+- id: G63-SG-01
+  category: registry_authority
+  fingerprint: prism:scanner_plugins:bootstrap:_DEFAULT_REGISTRY:24
+  file: src/prism/scanner_plugins/bootstrap.py
+  line: 24
+  severity_hint: medium
+  confidence: high
+  detector: graph_slice
+  memory_status: matches_active_lesson
+  memory_match: ansible-plugin-remediation-wave-20260418 plan closed
+  evidence_snippet: "_DEFAULT_REGISTRY is a module-level singleton returned by get_default_plugin_registry()."
+  evidence_command: rg -n "_DEFAULT_REGISTRY|get_default_plugin_registry" src/prism || true
+  related_symbols:
+    - _DEFAULT_REGISTRY
+    - get_default_plugin_registry
+    - initialize_default_registry
+  fix_group_key: registry-singleton-ownership
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: unit-tests
+
+- id: G63-SG-02
+  category: registry_authority
+  fingerprint: prism:scanner_plugins:registry:plugin_registry:532
+  file: src/prism/scanner_plugins/registry.py
+  line: 532
+  severity_hint: medium
+  confidence: high
+  detector: graph_slice
+  memory_status: matches_active_lesson
+  memory_match: ansible-plugin-remediation-wave-20260418 plan closed
+  evidence_snippet: "plugin_registry = PluginRegistry() defines a module-global registry instance."
+  evidence_command: sed -n '520,540p' src/prism/scanner_plugins/registry.py || true
+  related_symbols:
+    - plugin_registry
+    - PluginRegistry
+  fix_group_key: registry-singleton-ownership
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+
+- id: G63-SG-03
+  category: composition_root
+  fingerprint: prism:api_layer:non_collection:execution_request:586
+  file: src/prism/api_layer/non_collection.py
+  line: 595
+  severity_hint: medium
+  confidence: high
+  detector: graph_slice
+  memory_status: matches_active_lesson
+  memory_match: post-NCK1 prepared policy ownership
+  evidence_snippet: "non_collection.py backfills default_plugin_registry via plugin_facade.get_default_plugin_registry()."
+  evidence_command: rg -n "get_default_plugin_registry|default_plugin_registry" src/prism || true
+  related_symbols:
+    - default_plugin_registry
+    - build_non_collection_run_scan_execution_request
+  fix_group_key: runtime_registry_flow
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: ""

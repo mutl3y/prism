@@ -1,0 +1,89 @@
+- id: Scout-ControlFlow-01
+  category: silent_fallback
+  fingerprint: 'silent_fallback:scanner_core/scan_request:_normalize_policy_context:drop_non_dict'
+  file: src/prism/scanner_core/scan_request.py
+  line: 30
+  severity_hint: medium
+  confidence: high
+  detector: source_read+contract_read
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'return None, []'
+  evidence_command: 'rg -n "return None, \[]" src/prism/scanner_core/scan_request.py'
+  related_symbols: ['_normalize_policy_context', 'build_run_scan_options_canonical', 'scan_policy_warnings']
+  fix_group_key: 'policy-context.fail-closed'
+  proposed_fix_class: fail_closed_guard
+  blocking_preconditions: []
+  suggested_narrow_gate: 'pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py -k scan_policy_warnings'
+
+- id: Scout-ControlFlow-02
+  category: silent_fallback
+  fingerprint: 'silent_fallback:scanner_kernel/plugin_name_resolver:_resolve_default_scan_pipeline_plugin_name:sorted_first'
+  file: src/prism/scanner_kernel/plugin_name_resolver.py
+  line: 101
+  severity_hint: medium
+  confidence: high
+  detector: source_read+test_read
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'return sorted(registered)[0]'
+  evidence_command: 'rg -n "sorted\(registered\)\[0\]" src/prism/scanner_kernel/plugin_name_resolver.py'
+  related_symbols: ['_resolve_default_scan_pipeline_plugin_name', 'resolve_scan_pipeline_plugin_name']
+  fix_group_key: 'scan-pipeline-default-selection'
+  proposed_fix_class: explicit_default_selection
+  blocking_preconditions: []
+  suggested_narrow_gate: 'pytest -q src/prism/tests/test_plugin_name_resolver.py::test_resolve_plugin_name_uses_lexical_fallback_when_multiple_plugins'
+
+- id: Scout-ControlFlow-03
+  category: policy_coercion
+  fingerprint: 'policy_coercion:scanner_kernel/orchestrator:plugin_enabled:truthy_bool_cast'
+  file: src/prism/scanner_kernel/orchestrator.py
+  line: 538
+  severity_hint: high
+  confidence: high
+  detector: source_read+contract_read+test_read
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'if not bool(plugin_enabled):'
+  evidence_command: 'rg -n "bool\(plugin_enabled\)" src/prism/scanner_kernel/orchestrator.py'
+  related_symbols: ['route_scan_payload_orchestration', 'plugin_enabled', 'ScanPipelinePreflightContext']
+  fix_group_key: 'scan-pipeline-preflight-contract'
+  proposed_fix_class: strict_contract_validation
+  blocking_preconditions: []
+  suggested_narrow_gate: 'pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py::test_fsrc_kernel_route_orchestration_uses_registry_plugin_context'
+
+- id: Scout-ControlFlow-04
+  category: policy_coercion
+  fingerprint: 'policy_coercion:api_layer/non_collection:scan_role:failure_policy_strict_bool_cast'
+  file: src/prism/api_layer/non_collection.py
+  line: 705
+  severity_hint: medium
+  confidence: high
+  detector: source_read+contract_read
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'strict_phase_failures = bool(failure_policy.strict)'
+  evidence_command: 'rg -n "bool\(failure_policy\.strict\)" src/prism/api_layer/non_collection.py'
+  related_symbols: ['scan_role', 'FailurePolicy', 'strict_phase_failures']
+  fix_group_key: 'ingress-bool-coercion'
+  proposed_fix_class: strict_contract_validation
+  blocking_preconditions: []
+  suggested_narrow_gate: 'pytest -q src/prism/tests/test_api_cli_entrypoints.py -k strict_phase_failures'
+
+- id: Scout-ControlFlow-05
+  category: silent_fallback
+  fingerprint: 'silent_fallback:api_layer/non_collection:_normalize_non_collection_result_shape:drop_malformed_fields'
+  file: src/prism/api_layer/non_collection.py
+  line: 329
+  severity_hint: medium
+  confidence: medium
+  detector: source_read+test_gap_check
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'display_variables = _coerce_display_variables(payload.get("display_variables"))'
+  evidence_command: 'rg -n "_coerce_display_variables|_coerce_object_list" src/prism/api_layer/non_collection.py'
+  related_symbols: ['_normalize_non_collection_result_shape', '_coerce_display_variables', '_coerce_object_list']
+  fix_group_key: 'runtime-result-contract-validation'
+  proposed_fix_class: contract_guard
+  blocking_preconditions: []
+  suggested_narrow_gate: 'pytest -q src/prism/tests/test_api_layer_common.py'

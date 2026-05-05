@@ -1,0 +1,22 @@
+status: ok
+phase: P0
+cycle: g67
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260504-g67/plan.yaml
+  - docs/plan/mutl3y-review-20260504-g67/findings.yaml
+  - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260504-g67/plan.yaml
+  - docs/plan/mutl3y-review-20260504-g67/findings.yaml
+missing_artifacts:
+  - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Gilfoyle Code Review God Mode
+owned_file_sets:
+  - agent_name: Gilfoyle Code Review God Mode
+    files:
+      - src/prism/**
+      - docs/plan/mutl3y-review-20260504-g67/mutl3y-artifacts/phase1/God-Mode-independent-review-unconstrained.yaml
+notes:
+  - "This is a whole-target independent review; no current findings, focus-axis hints, or suspected seam families are passed into the prompt."

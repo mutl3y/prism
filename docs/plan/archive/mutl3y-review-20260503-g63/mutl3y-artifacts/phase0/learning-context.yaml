@@ -1,0 +1,42 @@
+memory_source: docs/plan/.mutl3y-lessons
+active_lessons:
+  - LESSON-01
+  - LESSON-02
+  - LESSON-03
+  - LESSON-04
+  - LESSON-05
+  - LESSON-06
+  - LESSON-07
+  - LESSON-08
+  - LESSON-09
+  - LESSON-10
+  - LESSON-11
+  - LESSON-12
+  - LESSON-13
+  - LESSON-14
+  - LESSON-15
+  - LESSON-16
+do_not_re_flag_count: 4
+focus_axis_due_next: ownership
+model_route_notes:
+  degraded:
+    - name: "GPT-5.4 mini (copilot)"
+      status: degraded_from_rollup
+    - name: unknown
+      status: degraded_from_rollup
+  watch:
+    - "GPT-4.1 (copilot)"
+stale_or_missing_memory: []
+readiness_check:
+  ready: true
+  focus_axis_due_next: ownership
+  memory_dir: /raid5/source/test/prism/docs/plan/.mutl3y-lessons
+context_health_notes:
+  - "g63 opened from g62 Phase 7 after a green refreshed full gate and nonterminal cadence state."
+  - "resume-dirty-tree gate ran before Phase 0 dispatch and passed ruff plus black over src/prism."
+resume_dirty_tree:
+  status: OK
+  ruff_exit: 0
+  black_exit: 0
+  artifact: .mutl3y-gate/resume-dirty-tree.yaml
+  log: .mutl3y-gate/resume-dirty-tree.log

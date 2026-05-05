@@ -1,0 +1,45 @@
+plan_id: mutl3y-review-20260503-g58
+cycle: g58
+phase: P5
+wave: 2
+status: ready
+objective: "Close the shared DI mutation and default-listener pollution High queue without splitting the overlapping di.py seam across workers."
+decision_basis:
+  - docs/plan/mutl3y-review-20260503-g58/findings.yaml
+  - docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/execution-trace.yaml
+workers:
+  - agent_name: Builder-DIEvents
+    finding_ids:
+      - G58-H01
+      - G58-H02
+    category: concurrency
+    fix_group_key: di_scan_options_and_default_listener_isolation
+    owned_files:
+      - src/prism/scanner_core/di.py
+      - src/prism/scanner_core/events.py
+      - src/prism/progress.py
+      - src/prism/scanner_core/telemetry.py
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/scanner_plugins/bundle_resolver.py
+      - src/prism/tests/test_di_container.py
+      - src/prism/tests/test_scanner_core_di.py
+      - src/prism/tests/test_execution_request_builder.py
+      - src/prism/tests/test_g02_thread_safety.py
+      - src/prism/tests/test_t3_03_scan_cache.py
+      - src/prism/tests/test_t4_03_cli_progress.py
+      - src/prism/tests/test_t3_05_scan_telemetry.py
+      - src/prism/tests/test_t3_01_scan_phase_events.py
+      - src/prism/tests/test_di_helpers.py
+    summary_artifact: docs/plan/mutl3y-review-20260503-g58/mutl3y-artifacts/phase5/Builder-DIEvents-summary.md
+    suggested_narrow_gate: pytest -q src/prism/tests/test_t4_03_cli_progress.py::test_di_container_picks_up_default_listeners src/prism/tests/test_t4_03_cli_progress.py::test_explicit_empty_listeners_overrides_defaults src/prism/tests/test_t3_05_scan_telemetry.py::test_telemetry_session_registers_and_clears src/prism/tests/test_di_container.py::test_fsrc_di_container_replace_scan_options_refreshes_factory_snapshots src/prism/tests/test_g02_thread_safety.py::test_di_container_concurrent_factory_calls_no_duplicates
+    importer_layer_tests:
+      - pytest -q src/prism/tests/test_execution_request_builder.py::TestRuntimeAssemblySeam::test_execution_request_finalization_seam_requires_prepared_policy_enforcement
+      - pytest -q src/prism/tests/test_t3_03_scan_cache.py::test_di_container_exposes_scan_options_as_snapshots
+      - pytest -q src/prism/tests/test_t3_01_scan_phase_events.py::test_bus_via_di
+      - pytest -q src/prism/tests/test_di_helpers.py -k event_bus
+    invariant: "Post-ingress scan-option replacement must not leave stale DI-owned runtime objects behind, and process-global default listeners must not bleed into unrelated later DIContainer lifetimes unless explicitly opted in."
+barrier_rules:
+  - This wave is intentionally single-owner because G58-H01 and G58-H02 overlap on src/prism/scanner_core/di.py.
+  - Stop on scope expansion instead of widening beyond the declared DI/event-bus seam.
+  - Run the suggested narrow gate before reporting completion when feasible.
+  - Foreman owns ledger updates, wave barrier validation, and execution-trace checkpointing.

@@ -1,0 +1,35 @@
+plan_id: mutl3y-review-20260502-g53
+cycle: g53
+title: "Execution-request composition-root carry-forward after g52"
+status: completed
+created_at: "2026-05-02"
+review_type: live_narrow_run
+target: src/prism
+focus_axis: composition_root
+origin: "Carry forward G52-H02 into a builder-owned execution-request cycle."
+
+resumption_pointer:
+  current_phase: P7
+  next_action: "Cycle closed; continue on g54 for the execution-request finalization seam."
+  blocking_issues: []
+  notes: |
+    g52 closed the non_collection wrapper slice and carried forward the broader
+    execution-request composition seam. g53 starts directly at the first builder
+    wave because the evidence is already sufficient: _assemble_execution_request()
+    both creates the runtime bridge/container wiring and finalizes the request by
+    preparing policy state and instantiating ScannerContext. The first g53 wave
+    split that seam without widening into the deferred DI typing cleanup. The
+    wave landed and gated green, so g53 closes with the remaining finalization
+    step carried into g54 rather than widening the cycle further.
+
+artifacts:
+  findings: docs/plan/mutl3y-review-20260502-g53/findings.yaml
+  execution_trace: docs/plan/mutl3y-review-20260502-g53/mutl3y-artifacts/execution-trace.yaml
+  phase1_grading_summary: docs/plan/mutl3y-review-20260502-g53/mutl3y-artifacts/phase1/grading-summary.yaml
+  phase4_decision_summary: docs/plan/mutl3y-review-20260502-g53/mutl3y-artifacts/phase4/decision-summary.yaml
+  phase5_wave1_plan: docs/plan/mutl3y-review-20260502-g53/mutl3y-artifacts/phase5/wave-1-plan.yaml
+  phase5_wave1_barrier_summary: docs/plan/mutl3y-review-20260502-g53/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+  phase6_gate_summary: docs/plan/mutl3y-review-20260502-g53/mutl3y-artifacts/phase6/gate-summary.yaml
+  phase7_closure_summary: docs/plan/mutl3y-review-20260502-g53/mutl3y-artifacts/phase7/closure-summary.yaml
+  model_usage_ledger: docs/plan/mutl3y-review-20260502-g53/mutl3y-artifacts/model-usage-ledger.yaml
+  model_scorecard: docs/plan/mutl3y-review-20260502-g53/mutl3y-artifacts/model-scorecard.yaml

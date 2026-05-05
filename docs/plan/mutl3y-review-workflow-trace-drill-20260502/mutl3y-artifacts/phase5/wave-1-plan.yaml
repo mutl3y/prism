@@ -1,0 +1,17 @@
+wave: 1
+groups:
+  - fix_group_key: di.typing.any_containers
+    findings: [FIND-TRACE-01]
+    fingerprints: [typing:src/prism/scanner_core/di:synthetic-trace-drill]
+    owned_files: [src/prism/scanner_core/di.py]
+    dependencies: []
+    narrow_gate: ".venv/bin/python -m pytest src/prism/tests/test_scanner_core_di.py -q"
+    learned_gate_rules: []
+  - fix_group_key: plugin-bootstrap-default-registry
+    findings: [FIND-TRACE-01]
+    fingerprints: [ownership:src/prism/scanner_plugins/bootstrap.py:synthetic-trace-drill]
+    owned_files: [src/prism/scanner_plugins/bootstrap.py]
+    dependencies: []
+    narrow_gate: ".venv/bin/python -m pytest src/prism/tests/test_di_registry_resolution.py -q"
+    learned_gate_rules: []
+parallel_safe: true

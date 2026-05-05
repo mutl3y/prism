@@ -1,0 +1,21 @@
+{
+  "agent": "Scout-Ownership",
+  "cycle": "g60",
+  "focus_axis": "architecture",
+  "review_surface": [
+    "src/prism/api.py",
+    "src/prism/cli.py",
+    "src/prism/repo_services.py",
+    "src/prism/api_layer/plugin_facade.py",
+    "src/prism/scanner_plugins/bootstrap.py",
+    "src/prism/scanner_plugins/registry.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/tests/test_di_registry_resolution.py",
+    "src/prism/tests/test_plugin_kernel_extension_parity.py",
+    "src/prism/tests/test_scanner_guardrails.py"
+  ],
+  "questions": [
+    "Which modules own public exports and runtime facades (api/cli/repo/plugin bootstrap) and are ownership boundaries enforced?",
+    "Do the registry and bootstrap seams properly prevent accidental cross-layer imports or hidden ownership leaks?"
+  ]
+}

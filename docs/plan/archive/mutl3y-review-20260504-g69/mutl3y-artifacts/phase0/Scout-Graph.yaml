@@ -1,0 +1,68 @@
+- id: Scout-Graph-01
+  category: registry_authority
+  fingerprint: "registry_authority:api_layer/non_collection:default_registry_bypasses_scan_pipeline_wrapper"
+  file: src/prism/api_layer/non_collection.py
+  line: 629
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "default_plugin_registry = plugin_facade.get_default_plugin_registry()"
+  evidence_command: "src/prism/api.py#L315-L315; src/prism/api_layer/non_collection.py#L628-L629; src/prism/api_layer/plugin_facade.py#L227-L255; src/prism/scanner_core/execution_request_builder.py#L793-L808"
+  related_symbols: ["run_scan", "default_plugin_registry", "get_default_plugin_registry", "get_default_scan_pipeline_registry", "runtime_registry"]
+  fix_group_key: "runtime_registry.public_seam_authority"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_g03_scan_cache_integration.py -k public_run_scan"
+- id: Scout-Graph-02
+  category: graph
+  fingerprint: "graph:scanner_plugins:bootstrap_default_plugins:custom_registry_composition_root_split"
+  file: src/prism/scanner_plugins/__init__.py
+  line: 29
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def bootstrap_default_plugins(registry=None):"
+  evidence_command: "src/prism/scanner_plugins/__init__.py#L29-L174; src/prism/scanner_plugins/bootstrap.py#L44-L227"
+  related_symbols: ["bootstrap_default_plugins", "initialize_default_registry", "discover_entry_point_plugins", "_DIRECT_REGISTRATIONS"]
+  fix_group_key: "plugin_bootstrap.composition_root_split"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_guardrails.py -k bootstrap"
+- id: Scout-Graph-03
+  category: graph
+  fingerprint: "graph:api:scanner_reporting_defaults_ansible_import_pressure"
+  file: src/prism/api.py
+  line: 32
+  severity_hint: medium
+  confidence: high
+  detector: import_graph_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "from prism.scanner_reporting import render_runbook, render_runbook_csv"
+  evidence_command: "src/prism/api.py#L28-L32; src/prism/scanner_reporting/__init__.py#L32-L40; src/prism/scanner_plugins/defaults.py#L10-L19; src/prism/scanner_plugins/ansible/__init__.py#L1-L37"
+  related_symbols: ["render_runbook", "render_runbook_csv", "resolve_render_runbook", "resolve_render_runbook_csv"]
+  fix_group_key: "public_api.import_graph_pressure"
+  proposed_fix_class: lazy_import
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_t4_02_public_seam_guardrail.py"
+- id: Scout-Graph-04
+  category: graph
+  fingerprint: "graph:scanner_core/scanner_context:runtime_import_for_annotation_only"
+  file: src/prism/scanner_core/scanner_context.py
+  line: 11
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "from prism.scanner_core.di import DIContainer"
+  evidence_command: "src/prism/scanner_core/scanner_context.py#L11-L11; src/prism/scanner_core/scanner_context.py#L279-L287"
+  related_symbols: ["DIContainer", "ScannerContext"]
+  fix_group_key: "scanner_context.di_type_only_import"
+  proposed_fix_class: type_only_import
+  blocking_preconditions: []
+  suggested_narrow_gate: ""

@@ -1,0 +1,50 @@
+agent: Scout-ControlFlow
+plan_id: mutl3y-review-20260504-g71
+cycle: g71
+phase: P0
+focus_axis: runtime_contracts_and_boundary_surfaces
+summary: "Control-flow scout: fail-open/coercion and broad-except patterns across runtime boundaries"
+findings:
+  - id: F001
+    severity: HIGH
+    title: "Preflight coercion: plugin 'plugin_enabled' defaults to True when None"
+    file: src/prism/scanner_kernel/orchestrator.py
+    line: 535
+    snippet: "if plugin_enabled is None:\n    plugin_enabled = True"
+    evidence: "A plugin preflight that returns None (instead of explicit False) will be treated as enabled. This is a fail-open coercion that can execute a plugin even when its preflight did not affirmatively enable it."
+    recommendation: "Treat missing/None as an explicit contract violation (raise) or require explicit boolean; avoid default-enabled semantics for preflight gating."
+  - id: F002
+    severity: MEDIUM
+    title: "EventBus listener exceptions swallowed by default"
+    file: src/prism/scanner_core/events.py
+    line: 94
+    snippet: "except Exception as exc:  # pragma: no cover - defensive\n    logger.error(... )\n    if self._strict:\n        raise"
+    evidence: "Listener exceptions are logged and ignored unless EventBus constructed with strict=True. Design doc states telemetry must not change semantics; this is intentional but hides listener failures from default runs."
+    recommendation: "Document strict semantics clearly and audit consumers that rely on event listeners for control-flow-sensitive work; consider making critical listeners opt-in strict."
+  - id: F003
+    severity: MEDIUM
+    title: "Plugin construction fallback in non-strict mode"
+    file: src/prism/scanner_plugins/defaults.py
+    line: 382
+    snippet: "except Exception as exc:\n    return _fallback_or_raise_plugin_construction_error(...)"
+    evidence: "In non-strict mode a plugin constructor exception silently falls back to a default plugin (warning only). This can mask plugin integrity defects and change runtime behavior."
+    recommendation: "Prefer fail-fast for security-sensitive platforms; ensure audit logging includes stack traces and plugin identity when falling back."
+  - id: F004
+    severity: LOW
+    title: "Entry-point plugin discovery logs and continues on import errors"
+    file: src/prism/scanner_plugins/discovery.py
+    line: 69
+    snippet: "except Exception as exc:  # pragma: no cover - exercised via injection\n    if raise_on_error:\n        raise EntryPointPluginLoadError(...)\n    logger.warning(... )\n    continue"
+    evidence: "By default entry-point import/registration failures are warned and discovery continues. Configurable via raise_on_error."
+    recommendation: "No immediate change required; ensure CI/lint gating sets raise_on_error where desired."
+  - id: F005
+    severity: MEDIUM
+    title: "YAML and requirements loaders return empty data in non-strict mode"
+    file: src/prism/scanner_extract/discovery.py
+    line: 120
+    snippet: "if strict:\n    raise RuntimeError(...)\nlogger.warning(... non-strict mode: returning empty dict)\nreturn {}"
+    evidence: "Multiple loader helpers fallback to empty payloads in non-strict mode, enabling best-effort scans but masking IO/parse errors."
+    recommendation: "Audit code paths relying on returned empty structures; prefer surfacing failures for critical scans."
+notes:
+  - "All catches found were intentional design choices with a consistent strict/non-strict gating pattern."
+  - "High count: 1 (F001). Medium observations focus on deliberate fail-open policies around telemetry, plugins, and YAML loaders."

@@ -1,0 +1,24 @@
+plan_id: mutl3y-review-20260502-g52
+cycle: g52
+phase: P5
+wave: 1
+status: completed
+builder: Builder-ControlFlow
+closed_findings:
+  - G52-H01
+remaining_findings:
+  - G52-H02
+validation:
+  pytest:
+    command: pytest -q src/prism/tests/test_api_cli_entrypoints.py -k 'centralizes_default_class_resolution or test_run_scan_basic'
+    status: PASS
+    detail: 2 passed, 28 deselected
+  ruff:
+    command: .venv/bin/python -m ruff check src/prism/api_layer/non_collection.py src/prism/tests/test_api_cli_entrypoints.py
+    status: PASS
+  black:
+    command: .venv/bin/python -m black --check src/prism/api_layer/non_collection.py src/prism/tests/test_api_cli_entrypoints.py
+    status: PASS
+notes:
+  - Wave 1 centralized default class resolution into one explicit lazy resolver seam and removed the four in-function class-resolution decision points from run_scan().
+  - The broader execution-request composition-root finding remains active and should be decided as either a second g52 wave or a g53 carry-forward.

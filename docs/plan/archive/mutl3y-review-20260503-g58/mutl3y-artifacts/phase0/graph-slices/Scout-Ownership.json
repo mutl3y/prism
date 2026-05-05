@@ -1,0 +1,20 @@
+{
+  "agent": "Scout-Ownership",
+  "cycle": "g58",
+  "focus_axis": "seam_contracts",
+  "review_surface": [
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_core/protocols_runtime.py",
+    "src/prism/scanner_core/execution_request_builder.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_plugins/bundle_resolver.py",
+    "src/prism/tests/test_scanner_core_di.py",
+    "src/prism/tests/test_defaults.py",
+    "src/prism/tests/test_execution_request_builder.py"
+  ],
+  "questions": [
+    "Which module should own the carried-forward DI override, defaults precedence, and execution-request seam contracts after g55-g57?",
+    "Are any remaining seam-contract defects really ownership leaks across api_layer, scanner_core, and scanner_plugins?"
+  ]
+}

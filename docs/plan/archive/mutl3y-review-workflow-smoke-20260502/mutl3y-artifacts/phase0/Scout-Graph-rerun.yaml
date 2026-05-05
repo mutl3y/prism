@@ -1,0 +1,71 @@
+- id: Scout-Graph-01
+  category: singleton_pollution
+  fingerprint: "singleton_pollution:scanner_plugins.registry:plugin_registry:module_singleton"
+  file: src/prism/scanner_plugins/registry.py
+  line: 463
+  severity_hint: critical
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "plugin_registry = PluginRegistry()"
+  evidence_command: "sed -n '450,470p' src/prism/scanner_plugins/registry.py"
+  related_symbols: ["plugin_registry", "PluginRegistry"]
+  fix_group_key: registry-singleton
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py::test_fsrc_default_plugin_registry_bootstrap_registers_required_plugins"
+
+- id: Scout-Graph-02
+  category: registry_authority
+  fingerprint: "registry_authority:di:_get_registry:split_authority"
+  file: src/prism/scanner_core/di.py
+  line: 302
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if self._registry is None: raise ValueError(\"No plugin registry provided to DIContainer\")"
+  evidence_command: "sed -n '296,306p' src/prism/scanner_core/di.py"
+  related_symbols: ["DIContainer._get_registry", "_registry"]
+  fix_group_key: registry-split-authority
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_*"
+
+- id: Scout-Graph-03
+  category: composition_root
+  fingerprint: "composition_root:di:ctor:optional_registry_injection"
+  file: src/prism/scanner_core/di.py
+  line: 177
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "self._registry = registry"
+  evidence_command: "sed -n '168,180p' src/prism/scanner_core/di.py"
+  related_symbols: ["DIContainer.__init__", "registry"]
+  fix_group_key: di-composition-root
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_container.py::test_*"
+
+- id: Scout-Graph-04
+  category: registry_authority
+  fingerprint: "registry_authority:defaults:_resolve_registry:split_authority"
+  file: src/prism/scanner_plugins/defaults.py
+  line: 41
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "di_registry = getattr(di, \"plugin_registry\", None)"
+  evidence_command: "sed -n '36,46p' src/prism/scanner_plugins/defaults.py"
+  related_symbols: ["_resolve_registry", "get_default_plugin_registry", "di.plugin_registry"]
+  fix_group_key: registry-split-authority
+  proposed_fix_class: seam_facade
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_plugins_defaults.py::test_plugin_registry_remains_utility_module"

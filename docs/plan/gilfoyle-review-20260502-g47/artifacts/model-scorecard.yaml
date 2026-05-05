@@ -1,0 +1,22 @@
+cycle: g47
+phase: P0
+models:
+  GPT-5.4 mini (copilot):
+    attempts: 1
+    route_failures: 1
+    quality_failures: 1
+    reedit_count: 1
+    rolling_quality_avg: 1.0
+    lane_tags:
+    - discovery
+    status: quarantined
+  unknown:
+    attempts: 3
+    route_failures: 0
+    quality_failures: 3
+    reedit_count: 3
+    rolling_quality_avg: 2.0
+    lane_tags:
+    - discovery
+    status: quarantined
+notes: []

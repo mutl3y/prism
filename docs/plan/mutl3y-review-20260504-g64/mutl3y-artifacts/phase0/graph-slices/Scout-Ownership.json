@@ -1,0 +1,21 @@
+{
+  "agent": "Scout-Ownership",
+  "cycle": "g64",
+  "focus_axis": "error_handling",
+  "review_surface": [
+    "src/prism/api.py",
+    "src/prism/cli.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/scanner_io/scan_facade_helpers.py",
+    "src/prism/scanner_readme/guide.py",
+    "src/prism/scanner_reporting/__init__.py",
+    "src/prism/scanner_extract/__init__.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/tests/test_package_export_parity.py",
+    "src/prism/tests/test_api_cli_entrypoints.py"
+  ],
+  "questions": [
+    "Which public facades or ownership seams turn internal fallback helpers into public error-handling contracts?",
+    "Where do shell or facade layers re-export internal helpers whose degraded-mode behavior is now part of the API surface?"
+  ]
+}

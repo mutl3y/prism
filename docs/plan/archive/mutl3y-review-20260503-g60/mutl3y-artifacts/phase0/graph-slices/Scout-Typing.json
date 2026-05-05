@@ -1,0 +1,21 @@
+{
+  "agent": "Scout-Typing",
+  "cycle": "g60",
+  "focus_axis": "architecture",
+  "review_surface": [
+    "src/prism/api.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/api_layer/collection.py",
+    "src/prism/scanner_core/scan_request.py",
+    "src/prism/scanner_core/scanner_context.py",
+    "src/prism/scanner_data/contracts_request.py",
+    "src/prism/scanner_extract/task_line_parsing.py",
+    "src/prism/tests/test_api_cli_entrypoints.py",
+    "src/prism/tests/test_scanner_context.py",
+    "src/prism/tests/test_scanner_guardrails.py"
+  ],
+  "questions": [
+    "Are contract types and Protocol boundaries between `api`/`api_layer` and `scanner_core` adequately specified for safe evolution?",
+    "Which callsites assume loose `Any` shapes that should be tightened to TypedDict or Protocol for correctness?"
+  ]
+}

@@ -1,0 +1,34 @@
+plan_id: mutl3y-review-20260503-g63
+cycle: g63
+phase: P4
+status: OK
+finding: G63-M02
+options:
+  - id: option_a
+    label: Scope-expand and fix in g63
+    description: >-
+      Widen wave 2 into scanner_extract.task_line_parsing, scanner_extract.__init__,
+      package export parity, and the task-line proxy/resolver tests while preserving
+      the public facade contract.
+    drawbacks:
+      - Too large for a light checkpoint cycle.
+      - Crosses runtime authority, public exports, and multiple seam-lock tests.
+  - id: option_b
+    label: Defer to a broader follow-up cycle
+    description: >-
+      Record G63-M02 as deferred architectural cleanup and close g63 as the
+      intended light checkpoint after G63-M01.
+    drawbacks:
+      - Leaves known medium debt in place.
+      - Requires explicit carry-forward into the next planning surface.
+decision: option_b
+decision_rationale: >-
+  The probes agree that G63-M02 is a compatibility-facade refactor rather than
+  a narrow defect fix. It is medium severity, crosses tested public exports, and
+  would oversize a light checkpoint wave.
+carry_forward_artifacts:
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase3/Probe-Imports-G63-M02.md
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase3/Probe-Tests-G63-M02.md
+  - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase3/Probe-Ownership-G63-M02.md
+next_phase: P6
+next_action: Run the Phase 6 full gate for g63 with G63-M02 explicitly deferred.

@@ -1,0 +1,24 @@
+cycle: g69
+phase: P5
+wave: 2
+status: pass
+builder_summaries:
+  - docs/plan/mutl3y-review-20260504-g69/mutl3y-artifacts/phase5/Builder-ControlFlow-summary.md
+findings_closed_ready:
+  - G69-H04
+validation:
+  narrow_gate:
+    command: cd /raid5/source/test/prism && .venv/bin/python -m pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_execution_request_builder.py src/prism/tests/test_scanner_context.py src/prism/tests/test_comment_doc_plugin_resolution.py -k 'strict_phase_failures or strict_mode or non_strict_mode'
+    result: pass
+    detail: 12 passed, 134 deselected in 1.07s
+  touched_file_mypy:
+    command: cd /raid5/source/test/prism && .venv/bin/python -m mypy --no-error-summary src/prism/api_layer/non_collection.py src/prism/scanner_core/execution_request_builder.py src/prism/scanner_plugins/bundle_resolver.py src/prism/scanner_core/scanner_context.py src/prism/scanner_data/contracts_request.py src/prism/tests/test_api_cli_entrypoints.py | head -20
+    result: pass
+  anti_pattern_grep:
+    cast_any: .mutl3y-gate/tmp/g69-wave2-antipattern-cast-any.txt
+    typeddict_lossy_cast: .mutl3y-gate/tmp/g69-wave2-antipattern-typeddict-lossy-cast.txt
+    except_pass: .mutl3y-gate/tmp/g69-wave2-antipattern-except-pass.txt
+    result: pass
+foreman_recovery: false
+blocking_issues: []
+next_action: Run the Phase 6 validation bundle for the closed-ready g69 wave-2 slice.

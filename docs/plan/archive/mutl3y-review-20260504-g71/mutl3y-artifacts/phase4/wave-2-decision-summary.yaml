@@ -1,0 +1,24 @@
+phase: P4
+cycle: g71
+decision: wave_2_selected
+selected_findings:
+  - G71-H03
+deferred_findings:
+  - G71-H01
+  - G71-H04
+fix_group_key: api_layer.common.scan_role_payload_contract
+rationale: >-
+  G71-H03 is the smallest next owner slice: the weak payload contract is
+  isolated to the public API helper and its direct tests. G71-H01 and G71-H04
+  both expand into broader policy and plugin-boundary surfaces, so they remain
+  serialized follow-ons.
+owned_file_set:
+  - src/prism/api_layer/common.py
+  - src/prism/tests/test_api_layer_common.py
+deferred_files:
+  - src/prism/scanner_io/loader.py
+  - src/prism/scanner_plugins/interfaces.py
+scope_check:
+  overlap_detected: false
+  expansion_required: false
+suggested_narrow_gate: pytest -q src/prism/tests/test_api_layer_common.py -k parse_scan_role_payload

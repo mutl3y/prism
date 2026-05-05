@@ -1,0 +1,89 @@
+- id: Scout-ControlFlow-01
+  category: orchestration_seam
+  fingerprint: "orchestration:loader:get_yaml_parsing_policy:dual_path_fallback"
+  file: src/prism/scanner_io/loader.py
+  line: 82
+  severity_hint: high
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def _get_yaml_parsing_policy(di: object | None = None):  # NOTE: Intentional dual-path — soft fallback to registry-resolved default."
+  evidence_command: src/prism/scanner_io/loader.py#L82-L106
+  related_symbols: ["_get_yaml_parsing_policy", "_resolve_plugin_registry", "resolve_yaml_parsing_policy_plugin"]
+  fix_group_key: loader.yaml_parsing.dual_path_fallback
+  proposed_fix_class: fail_closed_coercion
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_yaml_parsing_policy.py::test_yaml_policy_resolution_dual_path"
+
+- id: Scout-ControlFlow-02
+  category: error_channel
+  fingerprint: "error_channel:scanner_core/scanner_context:broad_except_in_discovery"
+  file: src/prism/scanner_core/scanner_context.py
+  line: 240
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except Exception as error: logger = logging.getLogger(__name__); if self._strict_phase_failures or not isinstance(error, _RECOVERABLE_PHASE_ERRORS): logger.error(\"Variable discovery failed\"); raise"
+  evidence_command: src/prism/scanner_core/scanner_context.py#L236-L252
+  related_symbols: ["ScannerContext._discover_variables", "_RECOVERABLE_PHASE_ERRORS", "_record_phase_error"]
+  fix_group_key: scanner_context.broad_except.discovery
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_context.py::test_fsrc_scanner_context_orchestrates_payload_shape_parity"
+
+- id: Scout-ControlFlow-03
+  category: silent_fallback
+  fingerprint: "silent_fallback:variable_extractor:load_seed_variables:skip_on_parse_errors"
+  file: src/prism/scanner_extract/variable_extractor.py
+  line: 86
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "except (OSError, yaml.YAMLError, UnicodeDecodeError, ValueError, RuntimeError): continue"
+  evidence_command: src/prism/scanner_extract/variable_extractor.py#L86-L106
+  related_symbols: ["load_seed_variables", "load_yaml_file"]
+  fix_group_key: variable_extractor.seed_file_silent_skip
+  proposed_fix_class: typed_error_channel
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_variable_extractor.py::test_load_seed_variables_handles_malformed"
+
+- id: Scout-ControlFlow-04
+  category: policy_coercion
+  fingerprint: "policy_coercion:task_line_parsing:require_prepared_policy_none_calls"
+  file: src/prism/scanner_extract/task_line_parsing.py
+  line: 19
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return getattr(require_prepared_policy(None, \"task_line_parsing\", \"task_line_parsing\"), self._policy_attr_name)"
+  evidence_command: src/prism/scanner_extract/task_line_parsing.py#L15-L24
+  related_symbols: ["_PolicyBackedCollectionProxy", "require_prepared_policy"]
+  fix_group_key: task_line_parsing.require_prepared_policy_none
+  proposed_fix_class: guard_input
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_task_parser_precedence_matrix.py::test_policy_backed_proxies_resolve"
+
+- id: Scout-ControlFlow-05
+  category: silent_fallback
+  fingerprint: "silent_fallback:scan_facade_helpers:load_meta_swallow_runtimeerror"
+  file: src/prism/scanner_core/scan_facade_helpers.py
+  line: 34
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "try: result[\"meta\"] = load_meta(role_path, warning_collector=meta_warnings); except RuntimeError as exc: result[\"meta\"] = {}; meta_warnings.append(f\"ROLE_METADATA_LOAD_FAILED: {exc}\")"
+  evidence_command: src/prism/scanner_core/scan_facade_helpers.py#L30-L42
+  related_symbols: ["collect_role_contents", "load_meta"]
+  fix_group_key: scan_facade_helpers.meta_load_swallow
+  proposed_fix_class: typed_error_channel
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scan_facade_helpers.py::TestCollectRoleContents::test_load_meta_exception_adds_meta_load_warnings"

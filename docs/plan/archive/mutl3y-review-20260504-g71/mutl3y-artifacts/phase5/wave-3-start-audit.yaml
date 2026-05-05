@@ -1,0 +1,14 @@
+cycle: g71
+phase: P5
+wave: 3
+status: ready
+builder: Builder-Typing
+fix_group_key: feature-detection.task-catalog-contract
+owned_files:
+  - src/prism/scanner_plugins/interfaces.py
+  - src/prism/scanner_core/feature_detector.py
+  - src/prism/scanner_plugins/ansible/feature_detection.py
+  - src/prism/tests/test_feature_detector.py
+foreman_recovery: false
+blocking_issues: []
+suggested_narrow_gate: pytest -q src/prism/tests/test_feature_detector.py

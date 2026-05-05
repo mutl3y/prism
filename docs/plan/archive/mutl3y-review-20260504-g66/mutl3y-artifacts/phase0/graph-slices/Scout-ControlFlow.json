@@ -1,0 +1,19 @@
+{
+  "agent": "Scout-ControlFlow",
+  "cycle": "g66",
+  "focus_axis": "typing",
+  "review_surface": [
+    "src/prism/scanner_extract/variable_extractor.py",
+    "src/prism/scanner_extract/task_line_parsing.py",
+    "src/prism/scanner_core/scan_facade_helpers.py",
+    "src/prism/scanner_core/scanner_context.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/tests/test_variable_extractor.py",
+    "src/prism/tests/test_scan_facade_helpers.py",
+    "src/prism/tests/test_scanner_context.py"
+  ],
+  "questions": [
+    "Which current fallback or normalization paths still silently coerce malformed state instead of preserving an explicit error channel?",
+    "Do any typing-driven contract weaknesses still hide fail-open or swallow-and-warn control-flow behavior in the carried-forward seams?"
+  ]
+}

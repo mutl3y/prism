@@ -1,0 +1,74 @@
+- id: CF-001-strict-param-erasure
+  category: control_flow_contracts
+  fingerprint: controlflow_strict_mode_parameter_ignored_in_fallback_malformed
+  file: src/prism/scanner_plugins/defaults.py
+  line: 183
+  severity_hint: high
+  confidence: high
+  detector: strictness_parameter_erased
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def _fallback_or_raise_malformed_plugin_shape(
+        *,
+        plugin_kind: str,
+        plugin: Any,
+        required_callables: tuple[str, ...],
+        required_attributes: tuple[str, ...],
+        strict_mode: bool,
+        fallback_plugin: Any,
+    ) -> Any:
+        del strict_mode
+        del fallback_plugin
+        _raise_malformed_plugin_shape_error(...)
+  fix_group_key: g56-strict-mode-fallback-seam
+  rationale: |
+    The updated control-flow probe caught the seam directly: strict_mode is
+    threaded into the fallback helper but deleted before any branch can happen,
+    so non-strict mode cannot change behavior.
+
+- id: CF-002-construction-error-always-raises
+  category: control_flow_contracts
+  fingerprint: controlflow_strict_mode_parameter_ignored_in_fallback_construction_error
+  file: src/prism/scanner_plugins/defaults.py
+  line: 202
+  severity_hint: high
+  confidence: high
+  detector: construction_fallback_erased
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def _fallback_or_raise_plugin_construction_error(
+        *,
+        plugin_kind: str,
+        plugin_class: type[Any],
+        strict_mode: bool,
+        fallback_plugin: Any,
+        exc: Exception,
+    ) -> Any:
+        del strict_mode
+        del fallback_plugin
+        raise PrismRuntimeError(...)
+  fix_group_key: g56-strict-mode-fallback-seam
+  rationale: |
+    The construction-error sibling proves the same contract break on the second
+    terminal branch, so the fake-switch seam is not isolated to one helper.
+
+- id: CF-003-test-inconsistency-masks-contract
+  category: control_flow_contracts
+  fingerprint: test_defaults_test_name_contract_mismatch
+  file: src/prism/tests/test_defaults.py
+  line: 29
+  severity_hint: medium
+  confidence: high
+  detector: misleading_test_contract
+  memory_status: new
+  memory_match: null
+  evidence_snippet: |
+    def test_validate_shape_non_strict_mode_uses_fallback_for_malformed_di_plugin() -> None:
+        with pytest.raises(PrismRuntimeError):
+            resolve_task_line_parsing_policy_plugin(_DI(), strict_mode=False)
+  fix_group_key: g56-strict-mode-fallback-seam
+  rationale: |
+    The nearest tests still call the path "uses_fallback" while asserting the
+    opposite, which hides the seam instead of checking the promised behavior.

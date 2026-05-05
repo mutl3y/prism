@@ -1,0 +1,36 @@
+memory_source: docs/plan/.mutl3y-lessons
+active_lessons:
+  - LESSON-01
+  - LESSON-02
+  - LESSON-03
+  - LESSON-04
+  - LESSON-05
+  - LESSON-06
+  - LESSON-07
+  - LESSON-08
+  - LESSON-09
+  - LESSON-10
+  - LESSON-11
+  - LESSON-12
+  - LESSON-13
+  - LESSON-14
+  - LESSON-15
+  - LESSON-16
+do_not_re_flag_count: 4
+focus_axis_due_next: control_flow_contracts
+model_route_notes:
+  - Prefer artifact-reliable low-cost routes over free routes when scout output must be persisted and graded.
+  - This cycle is a calibration run: verify whether Scout-ControlFlow surfaces the strict_mode seam before deep review or God Mode.
+stale_or_missing_memory: []
+readiness_check:
+  ready: true
+  degraded_models:
+    - GPT-5.4 mini
+    - GPT-5.4 mini (copilot)
+    - unknown
+  watch_models:
+    - GPT-5 mini (copilot)
+  warnings: []
+notes:
+  - g55 produced a scout-coverage patch for the strict_mode fallback seam.
+  - g56 re-runs a fresh scout cycle after updating scout-scan-patterns.md with the new control-flow probe.

@@ -1,0 +1,10 @@
+plan_id: mutl3y-review-20260503-g58
+cycle: g58
+phase: P4
+status: completed
+decision_summary:
+  - "Wave 1 will target the unbiased Critical queue first: G58-C01 and G58-C02."
+  - "Treat bootstrap/registry hardening as one owned fix family spanning scanner_plugins/bootstrap.py and scanner_plugins/registry.py."
+  - "Treat scan-cache key stabilization as a second owned fix family in scanner_core/scan_cache.py."
+  - "Keep G58-H01 through G58-H05 in the live backlog, but do not let the earlier seam-tilted God Mode pass override the unbiased Wave 1 priority."
+  - "Use the constrained God Mode artifact only as corroboration for secondary seam issues such as G58-H03 and G58-H05 until the workflow prompt is hardened."

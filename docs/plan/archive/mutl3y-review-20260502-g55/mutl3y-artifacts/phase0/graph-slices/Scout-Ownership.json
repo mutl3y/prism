@@ -1,0 +1,14 @@
+{
+  "agent": "Scout-Ownership",
+  "cycle": "g55",
+  "focus_axis": "typing_contracts",
+  "review_surface": [
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_core/protocols_runtime.py"
+  ],
+  "questions": [
+    "Which module should own DI override contracts and plugin constructor contracts after the g53-g54 execution-request cleanup?",
+    "Are any typing defects really ownership defects disguised as annotations?"
+  ]
+}

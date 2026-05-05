@@ -1,0 +1,50 @@
+agent: Scout-Ownership
+plan_id: mutl3y-review-20260504-g71
+cycle: g71
+phase: P0
+focus_axis: runtime_contracts_and_boundary_surfaces
+summary: "Ownership scout: policy and plugin authority is mostly explicit, but one active high-severity ownership leak remains in YAML loader policy resolution and several medium-severity fallback seams still duplicate composition authority."
+findings:
+  - id: O001
+    severity: HIGH
+    title: "YAML discovery loader reopens policy ownership outside ingress-prepared bundles"
+    file: src/prism/scanner_io/loader.py
+    line: 82
+    snippet: "def _get_yaml_parsing_policy(di: object | None = None) -> PreparedYAMLParsingPolicy:"
+    evidence: "When prepared_policy_bundle.yaml_parsing is absent, the loader resolves policy through scanner_plugins.defaults instead of failing closed. That lets standalone discovery helpers choose YAML parsing policy from DI/registry fallback after ingress canonicalization, creating a second authority path for parser behavior."
+    recommendation: "Require prepared YAML policy for runtime discovery paths, or isolate the standalone path behind an explicit pre-bootstrap adapter so loader helpers do not own policy selection."
+  - id: O002
+    severity: MEDIUM
+    title: "api_layer non-collection execution remains a secondary composition root"
+    file: src/prism/api_layer/non_collection.py
+    line: 167
+    snippet: "def _resolve_run_scan_default_classes("
+    evidence: "api_layer/non_collection lazily selects DIContainer, FeatureDetector, ScannerContext, VariableDiscovery, and also injects the default scan-pipeline registry when callers omit wiring. The top-level API facade also resolves the default registry before delegating. This duplicates composition decisions across both the public package seam and an internal API-layer helper."
+    recommendation: "Keep default runtime wiring in one package-owned ingress seam only, and require api_layer/non_collection callers to pass fully resolved runtime classes and registry."
+  - id: O003
+    severity: MEDIUM
+    title: "defaults.py combines bootstrap registry fallback with shared module-level fallback plugins"
+    file: src/prism/scanner_plugins/defaults.py
+    line: 66
+    snippet: "def _resolve_registry("
+    evidence: "Default resolvers fall back from explicit registry to DI registry to the bootstrap singleton, and the same module also owns shared fallback plugin instances such as _TASK_LINE_PARSING_FALLBACK. This keeps hidden global ownership in a non-bootstrap resolver module and lets many policy call sites resolve defaults without an explicit composition-root handoff."
+    recommendation: "Move shared fallback-provider ownership behind explicit bootstrap or provider seams, and make resolver entrypoints accept registry/provider authority explicitly for runtime paths."
+  - id: O004
+    severity: MEDIUM
+    title: "scanner_core DI still defaults a plugin-owned blocker-fact builder internally"
+    file: src/prism/scanner_core/di.py
+    line: 355
+    snippet: "def factory_blocker_fact_builder(self) -> \"BlockerFactBuilder\":"
+    evidence: "If no blocker_fact_builder_fn is injected, DI imports scanner_plugins.defaults.resolve_blocker_fact_builder and caches the returned callable. ScannerContext then consumes that callable as if it were ingress-owned wiring. This keeps scanner_core in control of a plugin-layer policy/evaluator seam rather than requiring the composition root to bind it explicitly."
+    recommendation: "Promote blocker-fact builder binding to the package/bootstrap composition root and make scanner_core fail closed when that wiring is absent."
+  - id: O005
+    severity: LOW
+    title: "plugin_facade owns a second process-wide cached registry wrapper"
+    file: src/prism/api_layer/plugin_facade.py
+    line: 227
+    snippet: "def get_default_scan_pipeline_registry() -> ScanPipelineRuntimeRegistry:"
+    evidence: "The API-layer facade memoizes an isolated wrapper around the bootstrap singleton using module globals. This is an intentional isolation seam, but it introduces another long-lived registry holder and another place where default runtime registry identity is managed outside the primary bootstrap module."
+    recommendation: "Keep this seam if the isolation contract is required, but treat it as a documented adapter cache and avoid adding more default-registry owners above it."
+notes:
+  - "Bootstrap singleton registry access is intentional and guarded by tests; the primary issue is duplicated authority, not accidental import-time bootstrap in current code."
+  - "High/Critical candidates: 1 high, 0 critical. The remaining observations are ownership-clarity and composition-root hygiene issues rather than immediate correctness regressions."

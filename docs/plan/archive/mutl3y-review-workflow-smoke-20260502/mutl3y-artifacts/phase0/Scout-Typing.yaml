@@ -1,0 +1,71 @@
+- id: Scout-Typing-01
+  category: typing
+  fingerprint: typing|di.py|_construct_runtime_plugin|L124
+  file: src/prism/scanner_core/di.py
+  line: 124
+  severity_hint: medium
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return plugin_class(di=di)  # runtime plugin construction uses untyped class/Any"
+  evidence_command: "src/prism/scanner_core/di.py#L124-L132"
+  related_symbols: ["_construct_runtime_plugin","factory_variable_discovery_plugin","factory_feature_detection_plugin"]
+  fix_group_key: di-typing-plugins
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_variable_discovery_plugin_resolves_via_registry
+
+- id: Scout-Typing-02
+  category: registry_authority
+  fingerprint: ownership|di.py|platform_key_resolution|L99_L308
+  file: src/prism/scanner_core/di.py
+  line: 99
+  severity_hint: medium
+  confidence: high
+  detector: graph_slice
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "return default_key  # registry default used when scan_options lacks platform"
+  evidence_command: "src/prism/scanner_core/di.py#L99-L110, src/prism/scanner_core/di.py#L308"
+  related_symbols: ["resolve_platform_key","DIContainer._resolve_platform_key","DIContainer.__init__"]
+  fix_group_key: di-platform-key-resolution
+  proposed_fix_class: registry_property
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_scanner_core_di.py::test_resolve_platform_key_registry_default
+
+- id: Scout-Typing-03
+  category: typing
+  fingerprint: typing|di_helpers.py|get_prepared_policy_or_none|L77
+  file: src/prism/scanner_core/di_helpers.py
+  line: 77
+  severity_hint: medium
+  confidence: medium
+  detector: neighbor_read
+  memory_status: matches_active_lesson
+  memory_match: post-NCK1 prepared-policy ownership
+  evidence_snippet: "prepared_policy_bundle = scan_options.get(\"prepared_policy_bundle\")  # untyped dict"
+  evidence_command: "src/prism/scanner_core/di_helpers.py#L77-L86"
+  related_symbols: ["get_prepared_policy_or_none","require_prepared_policy","ScanOptionsDict"]
+  fix_group_key: di-prepared-policy-typing
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -q src/prism/tests/test_fsrc_scanner_parity.py::test_w2_t05_scanner_context_payload_shape_parity
+
+- id: Scout-Typing-04
+  category: ownership
+  fingerprint: ownership|di.py|deferred_imports|L77
+  file: src/prism/scanner_core/di.py
+  line: 77
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_do_not_re_flag
+  memory_match: FIND-G3-02
+  evidence_snippet: "from prism.scanner_core.variable_discovery import VariableDiscovery  # deferred import"
+  evidence_command: "src/prism/scanner_core/di.py#L77-L84"
+  related_symbols: ["_create_variable_discovery","_create_feature_detector"]
+  fix_group_key: di-deferred-imports
+  proposed_fix_class: type_only_import
+  blocking_preconditions: []
+  suggested_narrow_gate: ''

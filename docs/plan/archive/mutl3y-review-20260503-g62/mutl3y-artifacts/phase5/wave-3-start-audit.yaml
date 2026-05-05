@@ -1,0 +1,19 @@
+status: ok
+phase: P5
+cycle: g62
+wave: 3
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/wave-3-plan.yaml
+present_artifacts:
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase4/decision-summary.yaml
+  - docs/plan/mutl3y-review-20260503-g62/mutl3y-artifacts/phase5/wave-3-plan.yaml
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Builder-Typing
+owned_file_sets:
+  - agent_name: Builder-Typing
+    files:
+      - src/prism/scanner_core/scanner_context.py
+      - src/prism/tests/test_scanner_context.py
+notes: "Wave 3 isolates the controlling prepared-policy-bundle acceptance seam in scanner_context before widening G62-H02 into other runtime or typing surfaces."

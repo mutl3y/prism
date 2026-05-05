@@ -1,0 +1,14 @@
+{
+  "agent_name": "Scout-Ownership",
+  "plan_id": "mutl3y-review-workflow-smoke-20260502",
+  "focus_axis": "ownership",
+  "target_path": "src/prism/scanner_core/di.py",
+  "seed_files": [
+    "src/prism/scanner_core/di.py"
+  ],
+  "neighbor_files": [
+    "src/prism/scanner_core/feature_detector.py",
+    "src/prism/scanner_core/variable_discovery.py"
+  ],
+  "notes": "Smoke slice for ownership and facade checks around DI construction."
+}

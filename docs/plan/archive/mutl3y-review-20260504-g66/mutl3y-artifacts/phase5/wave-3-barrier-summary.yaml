@@ -1,0 +1,50 @@
+status: OK
+phase: P5
+cycle: g66
+wave: 3
+result: implemented_and_validated
+selected_findings:
+  - G66-H02
+present_artifacts:
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/wave-3-plan.yaml
+  - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase5/Builder-ControlFlow-wave-3-summary.md
+  - docs/plan/mutl3y-review-20260504-g66/.mutl3y-gate/wave-3-pytest.log
+  - docs/plan/mutl3y-review-20260504-g66/.mutl3y-gate/wave-3-ruff.log
+  - docs/plan/mutl3y-review-20260504-g66/.mutl3y-gate/wave-3-black.log
+  - docs/plan/mutl3y-review-20260504-g66/.mutl3y-gate/wave-3-mypy.log
+  - docs/plan/mutl3y-review-20260504-g66/.mutl3y-gate/tmp/wave-3-antipattern-cast-any.txt
+  - docs/plan/mutl3y-review-20260504-g66/.mutl3y-gate/tmp/wave-3-antipattern-typeddict-lossy-cast.txt
+  - docs/plan/mutl3y-review-20260504-g66/.mutl3y-gate/tmp/wave-3-antipattern-except-pass.txt
+missing_artifacts: []
+summary: >-
+  Wave 3 closed the execution_request_builder to ScannerContext fail-closed handoff.
+  Malformed role notes, display variables, metadata, external collection displays,
+  and yaml-parse-failure payload members are now rejected before or at the
+  ScannerContext boundary instead of being normalized into silent defaults.
+foreman_recovery:
+  status: applied
+  scope: formatting_only
+  files:
+    - src/prism/scanner_core/scanner_context.py
+  reason: black --check failed on the first wave-3 barrier refresh, so the foreman applied the formatter and reran the identical barrier.
+validation:
+  - command: .venv/bin/python -m pytest -q src/prism/tests/test_execution_request_builder.py src/prism/tests/test_scanner_context.py -k "role_notes or display_variables or metadata or external_collections"
+    status: PASS
+    detail: 11 passed, 34 deselected
+  - command: .venv/bin/python -m ruff check src/prism/scanner_core/execution_request_builder.py src/prism/scanner_core/scanner_context.py src/prism/scanner_data/contracts_request.py src/prism/tests/test_execution_request_builder.py src/prism/tests/test_scanner_context.py
+    status: PASS
+  - command: .venv/bin/python -m black --check src/prism/scanner_core/execution_request_builder.py src/prism/scanner_core/scanner_context.py src/prism/scanner_data/contracts_request.py src/prism/tests/test_execution_request_builder.py src/prism/tests/test_scanner_context.py
+    status: PASS
+  - command: .venv/bin/python -m mypy src/prism/scanner_core/execution_request_builder.py src/prism/scanner_core/scanner_context.py src/prism/scanner_data/contracts_request.py
+    status: PASS
+  - command: rg -n 'cast\(Any,|typing\.cast\(Any,' src/prism
+    status: PASS
+    detail: 0 hits
+  - command: rg -n 'cast\([^\)]*TypedDict[^\)]*,\s*dict\(|cast\([^\)]*,\s*dict\(' src/prism
+    status: PASS
+    detail: 0 hits
+  - command: rg -n 'except\s+Exception\s*:\s*pass' src/prism
+    status: PASS
+    detail: 0 hits
+next_phase: P6
+next_action: Refresh the full g66 Phase 6 gate now that the remaining High queue is closed.

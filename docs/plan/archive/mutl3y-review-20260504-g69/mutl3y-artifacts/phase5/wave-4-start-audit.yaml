@@ -1,0 +1,13 @@
+cycle: g69
+phase: P5
+wave: 4
+status: ready
+builder: Builder-Abstraction
+fix_group_key: ansible-kernel.protocolize-lifecycle
+owned_files:
+  - src/prism/scanner_plugins/ansible/kernel.py
+  - src/prism/scanner_core/protocols_runtime.py
+  - src/prism/tests/test_kernel.py
+foreman_recovery: false
+blocking_issues: []
+suggested_narrow_gate: .venv/bin/python -m mypy src/prism/scanner_plugins/ansible/kernel.py src/prism/scanner_core/protocols_runtime.py

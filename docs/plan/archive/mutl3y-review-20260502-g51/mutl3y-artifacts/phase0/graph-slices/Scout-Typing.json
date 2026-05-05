@@ -1,0 +1,18 @@
+{
+  "agent": "Scout-Typing",
+  "cycle": "g51",
+  "focus_axis": "ownership",
+  "review_surface": [
+    "src/prism/scanner_core/di.py",
+    "src/prism/api_layer/non_collection.py",
+    "src/prism/scanner_io/loader.py",
+    "src/prism/scanner_plugins/defaults.py",
+    "src/prism/scanner_core/protocols_runtime.py",
+    "src/prism/tests/test_scanner_core_di.py",
+    "src/prism/tests/test_api_cli_entrypoints.py"
+  ],
+  "questions": [
+    "Where do ownership-cluster modules still rely on Any or weak mapping contracts that blur registry authority?",
+    "Which typing defects are inseparable from the deferred ownership and composition-root seams?"
+  ]
+}

@@ -1,0 +1,12 @@
+cycle: g71
+phase: P5
+wave: 2
+status: ready
+builder: Foreman-Recovery
+fix_group_key: api_layer.common.scan_role_payload_contract
+owned_files:
+  - src/prism/api_layer/common.py
+  - src/prism/tests/test_api_layer_common.py
+foreman_recovery: true
+blocking_issues: []
+suggested_narrow_gate: pytest -q src/prism/tests/test_api_layer_common.py -k parse_scan_role_payload

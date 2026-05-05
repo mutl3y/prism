@@ -1,0 +1,62 @@
+cycle: g63
+review_type: light
+status: active_shortlist
+promoted: []
+closed:
+  - id: G63-M01
+    severity: medium
+    category: test_fixture_coupling
+    title: "Comment-doc resolution tests mutate module-global plugin registry state"
+    files:
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+      - src/prism/scanner_plugins/registry.py
+      - src/prism/scanner_plugins/defaults.py
+    summary: >-
+      The comment-doc resolution tests now preserve and restore registry state
+      through snapshot_state()/replace_state() and no longer mutate
+      _comment_driven_doc_plugins directly. The DI-over-registry precedence and
+      canonical-DI enforcement assertions remain intact.
+    closed_evidence:
+      - "Wave 1 focused validation: .venv/bin/python -m pytest -q src/prism/tests/test_comment_doc_plugin_resolution.py -> 62 passed, 12 warnings"
+      - "Wave 1 focused typecheck: .venv/bin/python -m mypy src/prism/tests/test_comment_doc_plugin_resolution.py --no-error-summary | head -3 -> annotation-unchecked note only, no type errors"
+      - "Wave 1 anti-pattern gate: cast(Any)=0, TypedDict-lossy-cast=0, except-pass=0"
+      - "Builder artifact: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase5/Builder-Ownership-wave-1-summary.md"
+      - "Wave barrier artifact: docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml"
+    closure_note: "The tests still exercise the same registry precedence semantics, but they now do so through the registry snapshot/restore seam instead of private singleton storage mutation."
+suppressed_or_deferred:
+  suppressed:
+    - reason: "duplicate of prior g62 prepared-policy closure"
+      note: "Suppress TYP-01 and TYP-02 as non-new evidence for the already-closed prepared-policy-bundle fail-closed seam; the current cache marker path labels malformed bundles rather than accepting them."
+    - reason: "intentional best-effort degraded mode"
+      note: "Suppress G63-CF-01 as a finding; ScannerContext non-strict phase fallback is directly tested and records scan_errors plus scan_degraded rather than silently swallowing failure."
+    - reason: "known singleton/export debt below current shortlist"
+      note: "Suppress Scout-Ownership-01, Scout-Ownership-03, G63-SG-01, and G63-SG-02 as known package/export or registry-singleton debt already represented in active lessons without a new failure mode in this light cycle."
+    - reason: "lower-leverage residual fallback debt"
+      note: "Suppress G63-CF-02, G63-CF-04, and G63-SG-03 for now; they remain residual follow-up candidates but do not outrank the promoted test-fixture and policy-resolution slices."
+  deferred:
+    - id: G63-M02
+      severity: medium
+      category: policy_coercion
+      title: "Task-line policy proxies still resolve prepared policy through a global fallback path"
+      files:
+        - src/prism/scanner_extract/task_line_parsing.py
+        - src/prism/scanner_extract/__init__.py
+        - src/prism/scanner_core/di_helpers.py
+        - src/prism/tests/test_task_line_parsing.py
+        - src/prism/tests/test_comment_doc_plugin_resolution.py
+        - src/prism/tests/test_package_export_parity.py
+      summary: >-
+        Probes confirmed that this seam is a broader compatibility-facade
+        refactor: runtime authority already belongs to prepared-policy objects,
+        but scanner_extract still exports fail-closed proxy symbols with active
+        public export and direct seam-lock tests.
+      decision: defer
+      decision_rationale: >-
+        Too broad for the g63 light checkpoint cycle. Fixing it correctly would
+        require a wider owned file set across scanner_extract facade exports,
+        task-line proxy tests, and possibly adjacent annotation-policy seams.
+      carry_forward_artifacts:
+        - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase3/Probe-Imports-G63-M02.md
+        - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase3/Probe-Tests-G63-M02.md
+        - docs/plan/mutl3y-review-20260503-g63/mutl3y-artifacts/phase3/Probe-Ownership-G63-M02.md
+      suggested_narrow_gate: pytest -q src/prism/tests/test_task_line_parsing.py src/prism/tests/test_comment_doc_plugin_resolution.py src/prism/tests/test_package_export_parity.py

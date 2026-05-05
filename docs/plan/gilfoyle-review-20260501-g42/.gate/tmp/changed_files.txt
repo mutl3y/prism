@@ -1,2 +1,0 @@
-src/prism/cli.py
-src/prism/tests/test_scanner_guardrails.py

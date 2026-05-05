@@ -1,0 +1,13 @@
+cycle: g68
+phase: P7
+models:
+  GPT-5.4 (copilot):
+    attempts: 1
+    route_failures: 0
+    quality_failures: 0
+    reedit_count: 0
+    rolling_quality_avg: 4.0
+    lane_tags:
+    - discovery
+    status: healthy
+notes: []

@@ -1,0 +1,17 @@
+plan_id: mutl3y-review-20260502-g54
+cycle: g54
+phase: P5
+wave: 1
+status: planned
+targets:
+  - finding: G54-H01
+    builder: Builder-ControlFlow
+    owned_files:
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/tests/test_execution_request_builder.py
+validation_scope:
+  - pytest -q src/prism/tests/test_execution_request_builder.py -k finalization
+  - .venv/bin/python -m ruff check src/prism/scanner_core/execution_request_builder.py src/prism/tests/test_execution_request_builder.py
+  - .venv/bin/python -m black --check src/prism/scanner_core/execution_request_builder.py src/prism/tests/test_execution_request_builder.py
+notes:
+  - Keep the wave inside the finalization helper seam only.

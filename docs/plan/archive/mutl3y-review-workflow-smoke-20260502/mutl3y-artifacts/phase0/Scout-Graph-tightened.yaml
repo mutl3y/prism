@@ -1,0 +1,51 @@
+- id: Scout-Graph-01
+  category: registry_authority
+  fingerprint: "registry_authority:scanner_plugins.registry:plugin_registry->DIContainer._get_registry"
+  file: src/prism/scanner_core/di.py
+  line: 302
+  severity_hint: high
+  confidence: high
+  detector: graph_slice
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if self._registry is None: raise ValueError(\"No plugin registry provided to DIContainer\")"
+  evidence_command: "src/prism/scanner_plugins/registry.py#L463 and src/prism/scanner_core/execution_request_builder.py#L486 and src/prism/scanner_core/di.py#L302-L324"
+  related_symbols: ["plugin_registry","PluginRegistry","DIContainer._get_registry","DIContainer.__init__"]
+  fix_group_key: "registry_authority.split.plugin_registry"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_default_platform_key"
+- id: Scout-Graph-02
+  category: composition_root
+  fingerprint: "composition_root:scanner_core/di:DIContainer:constructed_outside_single_ingress"
+  file: src/prism/scanner_core/di.py
+  line: 153
+  severity_hint: medium
+  confidence: medium
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "class DIContainer:"
+  evidence_command: "src/prism/scanner_core/di.py#L153 and src/prism/scanner_core/execution_request_builder.py#L486"
+  related_symbols: ["DIContainer","di_container_cls","execution_request_builder"]
+  fix_group_key: "composition_root.di.container_construction_sites"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_context.py::test_fsrc_di_plugin_registry_property_returns_injected_registry"
+- id: Scout-Graph-03
+  category: singleton_pollution
+  fingerprint: "singleton_pollution:scanner_plugins/registry:plugin_registry:module_singleton"
+  file: src/prism/scanner_plugins/registry.py
+  line: 463
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "plugin_registry = PluginRegistry()"
+  evidence_command: "src/prism/scanner_plugins/registry.py#L463"
+  related_symbols: ["plugin_registry","PluginRegistry"]
+  fix_group_key: "registry.singleton.plugin_registry"
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_readme_renderer_registry_wiring.py::test_default_registry"

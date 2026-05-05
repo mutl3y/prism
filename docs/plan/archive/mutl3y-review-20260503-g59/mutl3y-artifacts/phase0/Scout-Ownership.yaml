@@ -1,0 +1,169 @@
+- id: Scout-Ownership-01
+  category: facade_leakage
+  fingerprint: "facade_leakage:api.py:_NormalizedNonCollectionResult:private_type_reexport"
+  file: src/prism/api.py
+  line: 54
+  severity_hint: medium
+  confidence: high
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "NormalizedNonCollectionResult = api_non_collection._NormalizedNonCollectionResult"
+  evidence_command: "src/prism/api.py#L54"
+  related_symbols: ["NormalizedNonCollectionResult", "_NormalizedNonCollectionResult"]
+  fix_group_key: "private_type_reexport_cleanup"
+  proposed_fix_class: "public_type_alias_promotion"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_api_public_exports"
+
+- id: Scout-Ownership-02
+  category: abstraction
+  fingerprint: "abstraction:api.py:scanner_core_di:runtime_module_mutation"
+  file: src/prism/api.py
+  line: 415
+  severity_hint: high
+  confidence: high
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "setattr(scanner_core_di, 'ScannerContext', ScannerContext)"
+  evidence_command: "src/prism/api.py#L414-L415"
+  related_symbols: ["scanner_core_di", "setattr", "ScannerContext"]
+  fix_group_key: "module_mutation_abstraction_violation"
+  proposed_fix_class: "bootstrap_initialization_pattern"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_run_scan_initializes_di"
+
+- id: Scout-Ownership-03
+  category: ownership
+  fingerprint: "ownership:api.py:scanner_core_di:import_internal_di_module"
+  file: src/prism/api.py
+  line: 41
+  severity_hint: high
+  confidence: high
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "from prism.scanner_core import di as scanner_core_di"
+  evidence_command: "src/prism/api.py#L41"
+  related_symbols: ["scanner_core_di", "DIContainer"]
+  fix_group_key: "module_mutation_abstraction_violation"
+  proposed_fix_class: "shell_boundary_seam"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_package_import_smoke.py"
+
+- id: Scout-Ownership-04
+  category: weak_typing
+  fingerprint: "weak_typing:non_collection.py:callback_weak_annotation:Callable_ellipsis"
+  file: src/prism/api_layer/non_collection.py
+  line: 700
+  severity_hint: medium
+  confidence: high
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "run_scan_fn: Callable[..., _NormalizedNonCollectionResult] = run_scan,"
+  evidence_command: "src/prism/api_layer/non_collection.py#L700"
+  related_symbols: ["run_scan_fn", "Callable"]
+  fix_group_key: "orchestration_seam_weak_typing"
+  proposed_fix_class: "protocol_callback_annotation"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py::test_scan_role_with_custom_run_scan_fn"
+
+- id: Scout-Ownership-05
+  category: abstraction
+  fingerprint: "abstraction:api.py:proxy_classes:generic_getattr"
+  file: src/prism/api.py
+  line: 275
+  severity_hint: low
+  confidence: medium
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "def __getattr__(self, name: str) -> object: return getattr(self._inner, name)"
+  evidence_command: "src/prism/api.py#L275-L276"
+  related_symbols: ["__getattr__", "_RegistryProxy", "_ScanPipelinePluginIsolationWrapper"]
+  fix_group_key: "proxy_class_untyped_forwarding"
+  proposed_fix_class: "typed_proxy_method_delegation"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py"
+
+- id: Scout-Ownership-06
+  category: facade_leakage
+  fingerprint: "facade_leakage:api.py:protocols:internal_interface_definitions"
+  file: src/prism/api.py
+  line: 57
+  severity_hint: low
+  confidence: medium
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "class _ProcessScanPipelinePlugin(Protocol): def process_scan_pipeline..."
+  evidence_command: "src/prism/api.py#L57-L63"
+  related_symbols: ["_ProcessScanPipelinePlugin", "_OrchestrateScanPayloadPlugin", "_PluginRegistryProtocol"]
+  fix_group_key: "internal_protocol_definitions"
+  proposed_fix_class: "protocol_consolidation"
+  blocking_preconditions: []
+  suggested_narrow_gate: "mypy src/prism/api.py"
+
+- id: Scout-Ownership-07
+  category: weak_typing
+  fingerprint: "weak_typing:api.py:cast_object_types:runtime_type_narrowing"
+  file: src/prism/api.py
+  line: 424
+  severity_hint: low
+  confidence: medium
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "cast('plugin_facade.PluginRegistry', _isolate_scan_pipeline_registry(...))"
+  evidence_command: "src/prism/api.py#L422-L426"
+  related_symbols: ["cast", "plugin_facade.PluginRegistry"]
+  fix_group_key: "forward_ref_cast_simplification"
+  proposed_fix_class: "import_type_annotation"
+  blocking_preconditions: []
+  suggested_narrow_gate: "mypy src/prism/api.py --show-column-numbers"
+
+- id: Scout-Ownership-08
+  category: ownership
+  fingerprint: "ownership:api.py:wrapper_isolation:plugin_factory_wrapping"
+  file: src/prism/api.py
+  line: 227
+  severity_hint: low
+  confidence: medium
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "class _ScanPipelinePluginIsolationWrapper: def __init__(self)"
+  evidence_command: "src/prism/api.py#L227-L243"
+  related_symbols: ["_ScanPipelinePluginIsolationWrapper", "_wrap_scan_pipeline_plugin_factory"]
+  fix_group_key: "wrapper_class_consolidation"
+  proposed_fix_class: "single_unified_wrapper"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py"
+
+- id: Scout-Ownership-09
+  category: abstraction
+  fingerprint: "abstraction:api.py:deepcopy_on_dict:runtime_behavior_side_effect"
+  file: src/prism/api.py
+  line: 268
+  severity_hint: low
+  confidence: medium
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "copy.deepcopy(scan_context) if isinstance(scan_context, dict) else scan_context"
+  evidence_command: "src/prism/api.py#L265-L271"
+  related_symbols: ["copy.deepcopy", "scan_context"]
+  fix_group_key: "plugin_isolation_side_effect"
+  proposed_fix_class: "documented_isolation_pattern"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_api_cli_entrypoints.py"
+
+- id: Scout-Ownership-10
+  category: facade_leakage
+  fingerprint: "facade_leakage:api.py:audit_functions:plugin_facade_passthrough"
+  file: src/prism/api.py
+  line: 108
+  severity_hint: low
+  confidence: medium
+  detector: direct_read
+  memory_status: new
+  evidence_snippet: "def load_audit_rules_from_file(rules_path: str) -> list[AuditRule]"
+  evidence_command: "src/prism/api.py#L108-L110"
+  related_symbols: ["load_audit_rules_from_file", "run_audit"]
+  fix_group_key: "audit_api_consolidation"
+  proposed_fix_class: "documented_facade_passthrough"
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_audit_modules.py"

@@ -1,0 +1,36 @@
+agent: Scout-ControlFlow
+artifact: docs/plan/mutl3y-review-20260503-g57/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+observation_count: 4
+observations:
+  - id: G57-O01
+    title: Prepared-policy resolution seam
+    files:
+      - src/prism/scanner_plugins/bundle_resolver.py:#L95
+      - src/prism/scanner_core/execution_request_builder.py:#L513-L522
+      - src/prism/api_layer/non_collection.py:#L550-L555
+    note: "PreparedPolicyBundle is assembled by plugin bundle_resolver and invoked/overridden by api_layer/execution_request_builder; multiple callsites accept an ensure_prepared_policy_bundle_fn allowing alternate resolution paths."
+
+  - id: G57-O02
+    title: ScannerContext → VariableDiscovery instantiation seam
+    files:
+      - src/prism/scanner_core/scanner_context.py:#L200
+      - src/prism/scanner_core/di.py:#L237-L246
+    note: "ScannerContext constructs VariableDiscovery via DI (.factory_variable_discovery); control-flow ownership of variable discovery lifecycle lives in scanner_context but wiring lives in di.py."
+
+  - id: G57-O03
+    title: EventBus retrieval via DI factory
+    files:
+      - src/prism/scanner_core/di_helpers.py:#L116-L123
+      - src/prism/scanner_core/variable_discovery.py:#L94-L97
+      - src/prism/scanner_core/feature_detector.py:#L88
+    note: "Event bus is fetched with get_event_bus_or_none which calls di.factory_event_bus(); multiple core modules depend on this factory, creating a cross-cutting runtime seam."
+
+  - id: G57-O04
+    title: Task-extract adapters / marker-prefix ownership
+    files:
+      - src/prism/scanner_core/task_extract_adapters.py:#L43,#L222-L228
+      - src/prism/scanner_extract/task_catalog_assembly.py:#L307-L314
+      - src/prism/scanner_core/feature_detector.py:#L31
+    note: "Feature detection hot-path calls task_extract_adapters.collect_task_handler_catalog which delegates into scanner_extract; marker-prefix normalization and fail-closed behavior are centralized in task_extract_adapters causing control-flow ownership across core and extract layers."
+
+verdict: "Concrete seams identified: prepared-policy resolution, scanner_context→variable_discovery lifecycle, DI-provided event-bus access, and task-extract marker-prefix ownership; these are live control-flow crossings requiring narrow ownership clarification."

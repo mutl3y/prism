@@ -1,0 +1,26 @@
+plan_id: mutl3y-review-workflow-trace-drill-20260502
+cycle: mutl3y-g1
+title: "Synthetic execution-trace failure-debug drill for the Mutl3y workflow"
+status: paused
+created_at: "2026-05-02"
+review_type: synthetic_drill
+target: src/prism/scanner_core/di.py
+focus_axis: ownership
+origin: "Synthetic Phase 5 barrier stall to validate execution-trace failure debugging"
+
+resumption_pointer:
+  current_phase: P5
+  next_action: "Recover the missing Builder-Ownership summary artifact at the wave-1 barrier before Phase 6."
+  blocking_issues:
+    - "docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/Builder-Ownership-summary.md missing"
+  notes: |
+    Synthetic drill state. Wave 1 start audit and wave plan exist, Builder-Typing
+    produced its summary, and Builder-Ownership is the sole unresolved worker at
+    the barrier. This plan should align with execution-trace.yaml.
+
+artifacts:
+  findings: docs/plan/mutl3y-review-workflow-trace-drill-20260502/findings.yaml
+  execution_trace: docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/execution-trace.yaml
+  wave_start_audit: docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/wave-1-start-audit.yaml
+  wave_plan: docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/wave-1-plan.yaml
+  barrier_summary: docs/plan/mutl3y-review-workflow-trace-drill-20260502/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml

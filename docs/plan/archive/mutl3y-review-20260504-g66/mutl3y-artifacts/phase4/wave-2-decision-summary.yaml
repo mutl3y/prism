@@ -1,0 +1,46 @@
+phase4_decision_summary:
+  status: ok
+  selected_findings:
+    - G66-H01
+  queued_follow_on:
+    - G66-H02
+  selected_wave: wave-2
+  decision: >-
+    The remaining overlap cluster cannot run as a disjoint batch because
+    G66-H01 and G66-H02 both converge on the execution_request_builder
+    boundary. Wave 2 therefore starts with the outer scan-pipeline contract
+    tightening slice (G66-H01), and keeps the payload fail-closed handoff
+    slice (G66-H02) queued behind it as the next serialized follow-on.
+  decision_basis:
+    - docs/plan/mutl3y-review-20260504-g66/findings.yaml
+    - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase3/Probe-Ownership-wave2-overlap.md
+    - docs/plan/mutl3y-review-20260504-g66/mutl3y-artifacts/phase6/Gatekeeper-wave-1-summary.md
+  rejected_alternatives:
+    - finding: G66-H01-and-H02-parallel-wave2
+      reason: >-
+        Both findings require writes at the same execution_request_builder seam,
+        so parallel builders would collide on ownership and invalidate the wave barrier.
+    - finding: G66-H02-first
+      reason: >-
+        The fail-closed handoff slice depends on the contract surface that G66-H01
+        still leaves weak across interfaces, plugin_facade, and API/runtime seams.
+    - finding: medium-backlog-before-overlap-cluster
+      reason: >-
+        Invalid under the grading rules; the two remaining High findings still outrank
+        G66-M01 through G66-M06.
+  wave_shape:
+    workers:
+      - builder: Builder-Typing
+        finding: G66-H01
+        fix_group_key: scan-pipeline.protocol-facade-contract-alignment
+    follow_on_shape:
+      - builder: Builder-ControlFlow
+        finding: G66-H02
+        fix_group_key: execution-request.payload-fail-closed-handoff
+    rationale: >-
+      The clean split is temporal rather than disjoint. H01 tightens the outer protocol
+      and facade/API contracts first; H02 then hardens the builder-to-ScannerContext
+      payload handoff against malformed members.
+  suggested_narrow_gate: >-
+    Run the H01-focused typing gate first: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py -k scan_pipeline
+    plus any importer-layer API tests surfaced by the builder.

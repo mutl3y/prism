@@ -1,0 +1,18 @@
+phase1_grading_summary:
+  status: ok
+  promoted_findings:
+    - G71-H01
+    - G71-H02
+    - G71-H03
+    - G71-H04
+  rationale: >-
+    The thorough scout batch returned four concrete High-severity findings that
+    hold up on live source: one ownership split in YAML policy resolution, one
+    fail-open preflight coercion bug, and two weak runtime contract surfaces at
+    public API and plugin boundaries. Graph-only bootstrap concerns remain
+    retained but are not promoted ahead of these smaller owner slices.
+  source_artifacts:
+    - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Typing.yaml
+    - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+    - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+    - docs/plan/mutl3y-review-20260504-g71/mutl3y-artifacts/phase0/Scout-Graph.yaml

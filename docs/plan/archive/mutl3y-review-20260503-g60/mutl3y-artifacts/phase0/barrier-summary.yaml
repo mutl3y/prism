@@ -1,0 +1,14 @@
+phase0_barrier_summary:
+  notice: "First scout batch rerouted for schema-invalid artifacts; second batch produced authoritative usable artifacts."
+  initial_reroute: true
+  reroute_reason: "schema-invalid wrapper artifacts in the first scout batch"
+  usable_artifacts:
+    - name: Scout-Typing.yaml
+      observations: 4
+    - name: Scout-Ownership.yaml
+      observations: 4
+    - name: Scout-ControlFlow.yaml
+      observations: 5
+    - name: Scout-Graph.yaml
+      observations: 4
+  summary: "Authoritative usable batch produced a shortlist centered on one fail-closed runtime defect (promoted High) plus architecture/typing debt (two Mediums)."

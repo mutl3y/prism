@@ -1,0 +1,153 @@
+plan_id: mutl3y-review-20260502-g48
+cycle: g48
+target: src/prism
+review_type: thorough
+focus_axis: typing
+status: completed
+decision_summary:
+  - "New cycle initialized under the Mutl3y naming scheme."
+  - "Use the refreshed lesson digest and routing rollup before any Phase 0 dispatch."
+  - "Phase 1 grading produced a three-high shortlist and a two-medium carry set."
+  - "Phase 2 persisted the shortlist without needing a Phase 3 investigation hop."
+  - "Wave 1 closed the three high-priority findings with green focused gates."
+  - "Wave 2 closed the two remaining medium findings with green focused gates."
+carried_open_findings:
+  - G46-H10
+  - G46-H11
+  - G46-ARCH-CONTRACT-01
+suppressed_highs: []
+findings:
+  - id: G48-H01
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: orchestration_seam
+    fingerprint: orchestration-seam:output-orchestrator:di-and-renderer-contracts
+    title: "Output orchestration still relies on Any-typed DI and cast-based renderer signature drift"
+    files:
+      - src/prism/scanner_io/output_orchestrator.py
+      - src/prism/tests/test_output_orchestration.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase1/grading-summary.yaml
+      - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-Typing.yaml
+      - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-Graph.yaml
+    summary: "OutputOrchestrator still accepts an Any-typed DI boundary and uses cast-based renderer contracts that hide callable signature drift instead of proving the seam with stable protocols."
+    decision_deadline: g48
+    suggested_narrow_gate: pytest -q src/prism/tests/test_output_orchestration.py
+    closed_evidence:
+      line_citation: "src/prism/scanner_io/output_orchestrator.py:25, src/prism/scanner_io/output_orchestrator.py:31, src/prism/scanner_io/output_orchestrator.py:90"
+      regression_test: "src/prism/tests/test_output_orchestration.py:165"
+      gate: "Wave-1 focused gate: pytest -q src/prism/tests/test_output_orchestration.py -> 4 passed"
+      closure_summary: "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase7/closure-summary.yaml"
+      validation_bundle:
+        - "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml"
+        - "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase6/gate-summary.yaml"
+
+  - id: G48-H02
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: fail_open
+    fingerprint: fail-open:defaults:plugin-shape-fallback-validation
+    title: "Plugin-shape validation still ignores fallback inputs and leaves the fallback contract unproven"
+    files:
+      - src/prism/scanner_plugins/defaults.py
+      - src/prism/tests/test_defaults.py
+      - src/prism/tests/test_plugin_kernel_extension_parity.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase1/grading-summary.yaml
+      - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+    summary: "The validation path deletes fallback-related inputs and then raises malformed-plugin errors directly, so non-strict prepared-policy resolution still does not prove whether fallback behavior is actually honored when plugin shape is wrong."
+    decision_deadline: g48
+    suggested_narrow_gate: pytest -q src/prism/tests/test_defaults.py -k validate_shape src/prism/tests/test_plugin_kernel_extension_parity.py
+    closed_evidence:
+      line_citation: "src/prism/scanner_plugins/defaults.py:168, src/prism/scanner_plugins/defaults.py:193, src/prism/scanner_plugins/defaults.py:222"
+      regression_test: "src/prism/tests/test_defaults.py:29, src/prism/tests/test_defaults.py:50, src/prism/tests/test_plugin_kernel_extension_parity.py:107"
+      gate: "Wave-1 focused gate: pytest -q src/prism/tests/test_defaults.py -k validate_shape src/prism/tests/test_plugin_kernel_extension_parity.py -> 3 passed, 29 deselected"
+      closure_summary: "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase7/closure-summary.yaml"
+      validation_bundle:
+        - "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml"
+        - "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase6/gate-summary.yaml"
+
+  - id: G48-H03
+    status: closed
+    decision: fixed_in_wave_1
+    severity: high
+    category: trust_boundary
+    fingerprint: trust-boundary:non-collection:prepared-policy-bundle-coercion
+    title: "Non-collection run_scan still coerces missing prepared-policy bundles into dict-shaped success state"
+    files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/tests/test_api_cli_entrypoints.py
+      - src/prism/tests/test_collection_contract.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase1/grading-summary.yaml
+      - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+      - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-Typing.yaml
+    summary: "The non-collection execution path still collapses missing prepared_policy_bundle data to `{}`, which weakens the type boundary and can masquerade missing ingress-prepared state as valid runtime input."
+    decision_deadline: g48
+    suggested_narrow_gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py
+    closed_evidence:
+      line_citation: "src/prism/api_layer/non_collection.py:22, src/prism/api_layer/non_collection.py:51, src/prism/api_layer/non_collection.py:58, src/prism/api_layer/non_collection.py:286"
+      regression_test: "src/prism/tests/test_api_cli_entrypoints.py:1139"
+      gate: "Wave-1 focused gate: pytest -q src/prism/tests/test_api_cli_entrypoints.py src/prism/tests/test_collection_contract.py -> 50 passed"
+      closure_summary: "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase7/closure-summary.yaml"
+      validation_bundle:
+        - "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml"
+        - "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase6/gate-summary.yaml"
+
+  - id: G48-M01
+    status: closed
+    decision: fixed_in_wave_2
+    severity: medium
+    category: error_channel
+    fingerprint: error-channel:discovery:metadata-and-requirements-empty-fallbacks
+    title: "Discovery metadata and requirements loading still demote invalid YAML and shape failures into empty values"
+    files:
+      - src/prism/scanner_extract/discovery.py
+      - src/prism/tests/test_dataload.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase1/grading-summary.yaml
+      - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+      - docs/plan/gilfoyle-review-20260501-g46/findings.yaml
+    summary: "The discovery helpers still convert YAML parse, IO, and shape failures into empty dict/list success-shaped outputs, reinforcing the older G46-H11 failure channel rather than isolating strict intent."
+    decision_deadline: g49
+    suggested_narrow_gate: pytest -q src/prism/tests/test_dataload.py
+    closed_evidence:
+      line_citation: "src/prism/scanner_extract/discovery.py:70, src/prism/scanner_extract/discovery.py:170"
+      regression_test: "src/prism/tests/test_dataload.py:126, src/prism/tests/test_dataload.py:143, src/prism/tests/test_dataload.py:153"
+      gate: "Wave-2 focused gate: pytest -q src/prism/tests/test_dataload.py -> 12 passed"
+      closure_summary: "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase7/closure-summary.yaml"
+      validation_bundle:
+        - "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/wave-2-barrier-summary.yaml"
+        - "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase6/gate-summary-wave-2.yaml"
+
+  - id: G48-M02
+    status: closed
+    decision: fixed_in_wave_2
+    severity: medium
+    category: typing
+    fingerprint: typing:public-runtime:dict-any-boundary-cluster
+    title: "Kernel, collection, and runtime boundary protocols remain dict-heavy and Any-heavy"
+    files:
+      - src/prism/scanner_core/protocols_runtime.py
+      - src/prism/scanner_kernel/kernel_plugin_runner.py
+      - src/prism/scanner_kernel/plugin_name_resolver.py
+      - src/prism/api_layer/collection.py
+      - src/prism/scanner_data/__init__.py
+    source_artifacts:
+      - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase1/grading-summary.yaml
+      - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-Typing.yaml
+      - docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+      - docs/plan/gilfoyle-review-20260501-g46/findings.yaml
+    summary: "The public runtime surface is still cleaner than earlier cycles, but core protocol edges continue to rely on Mapping[str, Any], dict[str, Any], Any, and cast-based handler lists instead of stable boundary contracts."
+    decision_deadline: g49
+    suggested_narrow_gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_api_cli_entrypoints.py
+    closed_evidence:
+      line_citation: "src/prism/api_layer/collection.py:21, src/prism/api_layer/collection.py:52, src/prism/scanner_core/protocols_runtime.py:79, src/prism/scanner_kernel/plugin_name_resolver.py:45"
+      regression_test: "src/prism/tests/test_api_cli_entrypoints.py:582, src/prism/tests/test_kernel_plugin_runner.py:174"
+      gate: "Wave-2 focused gate: pytest -q src/prism/tests/test_plugin_kernel_extension_parity.py src/prism/tests/test_api_cli_entrypoints.py -> 58 passed; pytest -q src/prism/tests/test_kernel_plugin_runner.py src/prism/tests/test_plugin_name_resolver.py -> 15 passed"
+      closure_summary: "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase7/closure-summary.yaml"
+      validation_bundle:
+        - "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase5/wave-2-barrier-summary.yaml"
+        - "docs/plan/mutl3y-review-20260502-g48/mutl3y-artifacts/phase6/gate-summary-wave-2.yaml"

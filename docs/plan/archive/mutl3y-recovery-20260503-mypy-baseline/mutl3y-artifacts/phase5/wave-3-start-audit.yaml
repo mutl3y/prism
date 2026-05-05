@@ -1,0 +1,42 @@
+plan_id: mutl3y-recovery-20260503-mypy-baseline
+wave: 3
+artifact: wave-3-start-audit
+summary: |
+  Wave 2 reduced the live mypy queue to 48 errors across 26 files. Repo-wide
+  lint/format are green (ruff: green, black: green). Remaining queue is
+  primarily split between a small core-seam cluster and test-harness typing debt.
+
+queue:
+  errors: 48
+  files: 26
+
+lint_status:
+  ruff: green
+  black: green
+
+split:
+  - name: core_seam
+    description: "Runtime core seams and nearby tests that require protocol alignment without widening runtime types."
+  - name: test_harness_debt
+    description: "Test-only typing debt: fixtures and expected contract types that should be adjusted to match existing runtime shapes."
+
+highest_concentration:
+  - src/prism/tests/test_errors.py: 5
+  - src/prism/tests/test_scanner_core_small_surfaces.py: 4
+  - src/prism/tests/test_blocker_fact_evaluator.py: 4
+  - src/prism/tests/test_underscore_policy_filter.py: 3
+  - src/prism/tests/test_execution_request_builder.py: 3
+  - src/prism/scanner_core/variable_discovery.py: 3
+  - src/prism/scanner_core/feature_detector.py: 2
+  - src/prism/tests/test_t2_01_plugin_api_version.py: 2
+  - src/prism/tests/test_scanner_context.py: 2
+  - src/prism/tests/test_output_orchestration.py: 2
+  - src/prism/tests/test_collection_payload.py: 2
+  - src/prism/tests/test_audit_modules.py: 2
+  - src/prism/scanner_core/task_extract_adapters.py: 1
+  - src/prism/api_layer/plugin_facade.py: 1
+
+notes: |
+  Use Wave-3 to split work into two disjoint builders: one focused on core
+  seam protocol alignment (no runtime widening) and one focused on clearing
+  test-harness typing debt by aligning fixtures/expectations to runtime shapes.

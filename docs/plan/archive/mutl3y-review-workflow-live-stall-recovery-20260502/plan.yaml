@@ -1,0 +1,32 @@
+plan_id: mutl3y-review-workflow-live-stall-recovery-20260502
+cycle: mutl3y-live-stall-1
+title: Live barrier stall-and-recovery drill for the Mutl3y workflow
+status: completed
+created_at: '2026-05-02'
+review_type: live_narrow_run
+target: src/prism/tests/test_t2_01_plugin_api_version.py
+focus_axis: control_flow
+origin: Follow-on Prism code-quality fix for the remaining stateless-marker warning source in the focused
+  workflow cluster
+resumption_pointer:
+  current_phase: P7
+  next_action: No immediate continuation required for this narrow slice; the plugin API version warning
+    source is repaired and validated cleanly.
+  blocking_issues: []
+  notes: 'The target test passed but emitted one stateless-marker warning from a fake
+
+    scan-pipeline plugin. This slice landed the minimal test-fixture fix
+
+    through a named builder and validated it cleanly with repo-local logs.
+
+    '
+artifacts:
+  findings: docs/plan/mutl3y-review-workflow-live-stall-recovery-20260502/findings.yaml
+  execution_trace: docs/plan/mutl3y-review-workflow-live-stall-recovery-20260502/mutl3y-artifacts/execution-trace.yaml
+  barrier_summary: docs/plan/mutl3y-review-workflow-live-stall-recovery-20260502/mutl3y-artifacts/phase5/wave-1-barrier-summary.yaml
+  builder_summary: docs/plan/mutl3y-review-workflow-live-stall-recovery-20260502/mutl3y-artifacts/phase5/Builder-Typing-summary.md
+  gatekeeper_summary: docs/plan/mutl3y-review-workflow-live-stall-recovery-20260502/mutl3y-artifacts/phase6/Gatekeeper-summary.yaml
+  auditor_summary: docs/plan/mutl3y-review-workflow-live-stall-recovery-20260502/mutl3y-artifacts/phase6/Auditor-Regression-summary.yaml
+  closure_summary: docs/plan/mutl3y-review-workflow-live-stall-recovery-20260502/mutl3y-artifacts/phase7/closure-summary.yaml
+  model_usage_ledger: docs/plan/mutl3y-review-workflow-live-stall-recovery-20260502/mutl3y-artifacts/model-usage-ledger.yaml
+  model_scorecard: docs/plan/mutl3y-review-workflow-live-stall-recovery-20260502/mutl3y-artifacts/model-scorecard.yaml

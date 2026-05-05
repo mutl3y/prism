@@ -1,0 +1,22 @@
+cycle: mutl3y-g1
+plan_id: mutl3y-review-workflow-realrun-20260502
+phase: P4
+status: decision_recorded
+selected_findings:
+  - FIND-RUN-01
+selected_fix_groups:
+  - di.registry.weak_type
+decision:
+  option: narrow_single_wave
+  rationale: >-
+    The finding is local to scanner_core/di.py, has no file ownership overlap,
+    and has an existing cheap test pair that can falsify the hypothesis.
+wave_shape:
+  parallel_safe: true
+  builders:
+    - Builder-Typing
+  owned_file_sets:
+    - agent_name: Builder-Typing
+      files:
+        - src/prism/scanner_core/di.py
+next_phase: P5

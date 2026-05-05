@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Archive completed review-plan directories out of docs/plan root.
+"""Archive closed review-plan directories out of docs/plan root.
 
 This helper is conservative: it only moves directories directly under
-``docs/plan`` whose ``plan.yaml`` status is ``completed``. Callers can keep the
-latest completed plan per prefix family visible at the top level so the root
-still exposes the most recent working history.
+``docs/plan`` whose ``plan.yaml`` status is one of the repo's closed states.
+Callers can keep the latest closed plan per prefix family visible at the top
+level so the root still exposes the most recent working history.
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PLAN_ROOT = REPO_ROOT / "docs" / "plan"
 ARCHIVE_ROOT = PLAN_ROOT / "archive"
+CLOSED_STATUSES = {"complete", "completed", "completed_checkpoint"}
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -38,6 +39,13 @@ def _plan_dir(raw: str) -> Path:
     return path
 
 
+def _display_path(path: Path) -> str:
+    try:
+        return path.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
 def _completed(plan_dir: Path) -> bool:
     if plan_dir.parent != PLAN_ROOT:
         return False
@@ -45,7 +53,7 @@ def _completed(plan_dir: Path) -> bool:
     if not plan_path.exists():
         return False
     payload = _load_yaml(plan_path)
-    return str(payload.get("status") or "").strip().lower() == "completed"
+    return str(payload.get("status") or "").strip().lower() in CLOSED_STATUSES
 
 
 def _latest_by_prefix(plans: list[Path], prefixes: list[str]) -> set[Path]:
@@ -75,7 +83,7 @@ def main() -> int:
     ARCHIVE_ROOT.mkdir(parents=True, exist_ok=True)
 
     for plan_dir in plan_dirs:
-        rel = plan_dir.relative_to(REPO_ROOT).as_posix()
+        rel = _display_path(plan_dir)
         if not _completed(plan_dir):
             print(f"SKIP {rel}")
             continue
@@ -84,12 +92,10 @@ def main() -> int:
             continue
         destination = ARCHIVE_ROOT / plan_dir.name
         if destination.exists():
-            print(
-                f"SKIP {rel} -> {destination.relative_to(REPO_ROOT).as_posix()} (already exists)"
-            )
+            print(f"SKIP {rel} -> {_display_path(destination)} (already exists)")
             continue
         shutil.move(str(plan_dir), str(destination))
-        print(f"ARCHIVED {rel} -> {destination.relative_to(REPO_ROOT).as_posix()}")
+        print(f"ARCHIVED {rel} -> {_display_path(destination)}")
     return 0
 
 

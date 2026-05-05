@@ -1,0 +1,12 @@
+cycle: mutl3y-live-stall-1
+plan_id: mutl3y-review-workflow-live-stall-recovery-20260502
+phase: P6
+worker: Auditor-Regression
+status: pass
+scope:
+  - src/prism/tests/test_t2_01_plugin_api_version.py
+checks:
+  - "Focused cluster rerun across all exercised workflow slices"
+result_summary: "The full exercised workflow test cluster reran clean with 73 passed and no warnings."
+logs:
+  - .mutl3y-gate/live-workflow-cluster-regression.log

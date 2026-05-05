@@ -1,0 +1,43 @@
+plan_id: mutl3y-review-20260504-g64
+cycle: g64
+phase: P0
+status: OK
+review_type: thorough
+focus_axis: error_handling
+expected_workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+returned_workers:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+expected_artifacts:
+  - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  - docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/Scout-Graph.yaml
+artifact_validation:
+  yaml: PASS
+  schema: PASS
+  yaml_log: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/scout-yaml-validate.log
+  schema_log: docs/plan/mutl3y-review-20260504-g64/mutl3y-artifacts/phase0/scout-schema-validate.log
+recovery:
+  required: true
+  reason: Scout-Ownership failed to write its receipt and the initial scout set required schema normalization.
+  unresolved_workers:
+    - Scout-Ownership
+  repair_worker: Builder-ArtifactRepair
+  result: PASS
+observation_counts:
+  Scout-Typing: 4
+  Scout-Ownership: 0
+  Scout-ControlFlow: 5
+  Scout-Graph: 5
+high_or_critical_counts:
+  critical: 0
+  high: 5
+blockers: []
+next_action: Run Phase 1 grading and promote only verified High/Critical or necessary Medium findings.

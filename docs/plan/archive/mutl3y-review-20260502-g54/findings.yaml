@@ -1,0 +1,27 @@
+plan_id: mutl3y-review-20260502-g54
+cycle: g54
+target: src/prism
+review_type: live_narrow_run
+focus_axis: composition_root
+status: completed
+decision_summary:
+  - "Carry forward the residual finalization seam from g53 instead of reopening broader discovery."
+  - "Treat request finalization as a separate local responsibility from runtime participant assembly."
+findings:
+  - id: G54-H01
+    status: closed
+    severity: high
+    summary: "_assemble_execution_request() still owns request finalization after the g53 split: policy-bundle preparation, container scan-option replacement, ScannerContext creation, and request return assembly remain fused."
+    fix_group_key: execution-request-finalization-split
+    source_observations:
+      - G53-H01
+    owned_files:
+      - src/prism/scanner_core/execution_request_builder.py
+      - src/prism/tests/test_execution_request_builder.py
+    suggested_narrow_gate: "pytest -q src/prism/tests/test_execution_request_builder.py -k finalization"
+    notes: "Wave 1 extracted the finalization step into an explicit helper while preserving call order and behavior."
+suppressed_highs: []
+suppressed_mediums:
+  - id: G54-M01
+    source: G53-M01
+    notes: "Constructor-contract typing remains deferred until a dedicated DI contract cycle."

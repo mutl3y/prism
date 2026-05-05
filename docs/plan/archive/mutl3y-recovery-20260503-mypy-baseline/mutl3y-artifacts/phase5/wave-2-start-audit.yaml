@@ -1,0 +1,19 @@
+plan_id: mutl3y-recovery-20260503-mypy-baseline
+wave: 2
+title: Wave 2 Start Audit
+date: 2026-05-03
+summary: |
+  This document records the bounded start state for Wave 2. Wave 1 reduced the
+  repo-wide mypy queue to 65 errors in 33 files. Repo-wide lint and formatting
+  (ruff, black) remain green and are considered passing pre-conditions for
+  Wave 2 work.
+facts:
+  - wave_1_result: "reduced repo-wide mypy from 193 errors in 47 files to 65 errors in 33 files"
+  - lint_and_format: "ruff and black are green"
+remaining_queue:
+  count: 65
+  files: 33
+note: |
+  Wave 2 is the next bounded remediation wave after Wave 1. Owners should open
+  focused, narrow PRs per the Wave 2 plan to avoid widening Any-typed public
+  seams.
