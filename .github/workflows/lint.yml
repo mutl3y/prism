@@ -5,9 +5,13 @@ on:  # yamllint disable-line rule:truthy
   push: null
   pull_request: null
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   DEFAULT_BRANCH: main
-  VALIDATE_ALL_CODEBASE: true
+  VALIDATE_ALL_CODEBASE: false
   FILTER_REGEX_EXCLUDE: >-
     (^|/)(docs/plan/|old_docs/|plugins/|\.github/skills/|\.local/|\.codex$|test_output\.log$)
   VALIDATE_BIOME_FORMAT: false
@@ -38,9 +42,44 @@ env:
   VALIDATE_YAML_PRETTIER: false
 
 jobs:
+  changes:
+    name: Detect relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      repo_lint: ${{ steps.filter.outputs.repo_lint }}
+      plugin_comment_highlighter: ${{ steps.filter.outputs.plugin_comment_highlighter }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            repo_lint:
+              - '**'
+              - '!docs/plan/**'
+              - '!old_docs/**'
+              - '!plugins/**'
+              - '!.github/skills/**'
+              - '!.local/**'
+              - '!.codex'
+              - '!test_output.log'
+              - '!.github/badges/**'
+            plugin_comment_highlighter:
+              - 'plugins/prism-comment-highlighter/**'
+              - '.github/workflows/lint.yml'
+
   build:
     name: Lint
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.repo_lint == 'true' }}
 
     permissions:
       # contents permission to clone the repository
@@ -73,6 +112,8 @@ jobs:
   plugin-comment-highlighter:
     name: Plugin Comment Highlighter
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.plugin_comment_highlighter == 'true' }}
 
     permissions:
       contents: read
@@ -82,6 +123,13 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: plugins/prism-comment-highlighter/package-lock.json
 
       - name: Install plugin dependencies
         working-directory: plugins/prism-comment-highlighter
