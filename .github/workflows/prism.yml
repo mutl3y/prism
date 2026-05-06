@@ -200,7 +200,8 @@ jobs:
         env:
           WORKFLOW_FILES: ${{ needs.changes.outputs.workflow_files }}
         run: |
-          mapfile -t workflow_files <<<"$WORKFLOW_FILES"
+          workflow_files_input=${WORKFLOW_FILES:-}
+          mapfile -t workflow_files <<<"$workflow_files_input"
           existing_workflow_files=()
 
           for workflow_file in "${workflow_files[@]}"; do
