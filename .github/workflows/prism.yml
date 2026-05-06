@@ -20,6 +20,12 @@ on:
       - ".local/**"
       - "test_output.log"
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+      - unlabeled
     paths-ignore:
       - ".github/badges/**"
       - "docs/plan/**"
@@ -27,6 +33,9 @@ on:
       - ".github/skills/**"
       - ".local/**"
       - "test_output.log"
+  release:
+    types:
+      - published
   workflow_dispatch:
 
 concurrency:
@@ -37,7 +46,7 @@ jobs:
   format:
     name: Auto-format and enforce pre-commit
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'pull_request' }}
+    if: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:format') }}
     permissions:
       contents: write
       pull-requests: write
@@ -90,6 +99,11 @@ jobs:
       repo_lint_files: ${{ steps.detect.outputs.repo_lint_files }}
       workflow_files: ${{ steps.detect.outputs.workflow_files }}
       plugin_comment_highlighter: ${{ steps.detect.outputs.plugin_comment_highlighter }}
+      docs_relevant: ${{ steps.detect.outputs.docs_relevant }}
+      runtime_relevant: ${{ steps.detect.outputs.runtime_relevant }}
+      test_matrix: ${{ steps.detect.outputs.test_matrix }}
+      test_mode: ${{ steps.detect.outputs.test_mode }}
+      run_tests: ${{ steps.detect.outputs.run_tests }}
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -106,6 +120,8 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: |
           set -eu
+          RUNTIME_PATH_RE='^(src/|tests/|pyproject.toml$|requirements-dev.txt$|tox.ini$|\.pre-commit-config.yaml$)'
+          COMPAT_PATH_RE='^(src/prism/scanner_plugins/ansible/|src/prism/scanner_extract/|src/prism/scanner_core/|src/prism/scanner_kernel/|src/prism/data/ansible_builtin_variables\.yml$|pyproject.toml$|requirements-dev.txt$|tox.ini$)'
 
           if [ "$EVENT_NAME" = "pull_request" ]; then
             git fetch --no-tags --depth=1 origin "$BASE_REF"
@@ -122,6 +138,53 @@ jobs:
             echo "plugin_comment_highlighter=true" >> "$GITHUB_OUTPUT"
           else
             echo "plugin_comment_highlighter=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if printf '%s\n' "$CHANGED_FILES" | grep -Eq "$RUNTIME_PATH_RE"; then
+            echo "runtime_relevant=true" >> "$GITHUB_OUTPUT"
+            echo "docs_relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "runtime_relevant=false" >> "$GITHUB_OUTPUT"
+            echo "docs_relevant=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$EVENT_NAME" = "release" ]; then
+            echo "run_tests=true" >> "$GITHUB_OUTPUT"
+            echo "test_mode=full" >> "$GITHUB_OUTPUT"
+            {
+              echo 'test_matrix<<EOF'
+              printf '%s%s%s%s\n' \
+                '{"include":[' \
+                '{"python-version":"3.14","ansible-core-version":"2.17.*","coverage":"false"},' \
+                '{"python-version":"3.14","ansible-core-version":"2.18.*","coverage":"false"},' \
+                '{"python-version":"3.14","ansible-core-version":"2.19.*","coverage":"true"}]}'
+              echo 'EOF'
+            } >> "$GITHUB_OUTPUT"
+          elif printf '%s\n' "$CHANGED_FILES" | grep -Eq "$COMPAT_PATH_RE"; then
+            echo "run_tests=true" >> "$GITHUB_OUTPUT"
+            echo "test_mode=compat" >> "$GITHUB_OUTPUT"
+            {
+              echo 'test_matrix<<EOF'
+              printf '%s%s%s\n' \
+                '{"include":[' \
+                '{"python-version":"3.14","ansible-core-version":"2.17.*","coverage":"false"},' \
+                '{"python-version":"3.14","ansible-core-version":"2.19.*","coverage":"true"}]}'
+              echo 'EOF'
+            } >> "$GITHUB_OUTPUT"
+          elif printf '%s\n' "$CHANGED_FILES" | grep -Eq "$RUNTIME_PATH_RE"; then
+            echo "run_tests=true" >> "$GITHUB_OUTPUT"
+            echo "test_mode=default" >> "$GITHUB_OUTPUT"
+            {
+              echo 'test_matrix<<EOF'
+              printf '%s%s\n' \
+                '{"include":[' \
+                '{"python-version":"3.14","ansible-core-version":"2.19.*","coverage":"true"}]}'
+              echo 'EOF'
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "run_tests=false" >> "$GITHUB_OUTPUT"
+            echo "test_mode=none" >> "$GITHUB_OUTPUT"
+            echo 'test_matrix={"include":[]}' >> "$GITHUB_OUTPUT"
           fi
 
           REPO_LINT_FILES=$(
@@ -310,6 +373,8 @@ jobs:
 
   quality-gates:
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.run_tests == 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -347,22 +412,15 @@ jobs:
 
   tests:
     runs-on: ubuntu-latest
-    needs: quality-gates
+    needs:
+      - changes
+      - quality-gates
+    if: ${{ needs.changes.outputs.run_tests == 'true' }}
     permissions:
       contents: write
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - python-version: "3.14"
-            ansible-core-version: "2.17.*"
-            coverage: "false"
-          - python-version: "3.14"
-            ansible-core-version: "2.18.*"
-            coverage: "false"
-          - python-version: "3.14"
-            ansible-core-version: "2.19.*"
-            coverage: "true"
+      matrix: ${{ fromJson(needs.changes.outputs.test_matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -488,6 +546,8 @@ jobs:
 
   docs:
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_relevant == 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
