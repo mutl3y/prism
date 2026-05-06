@@ -11,35 +11,7 @@ concurrency:
 
 env:
   DEFAULT_BRANCH: main
-  VALIDATE_ALL_CODEBASE: false
-  FILTER_REGEX_EXCLUDE: >-
-    (^|/)(docs/plan/|old_docs/|plugins/|\.github/skills/|\.local/|\.codex$|test_output\.log$)
-  VALIDATE_BIOME_FORMAT: false
-  VALIDATE_BIOME_LINT: false
-  VALIDATE_CHECKOV: false
-  VALIDATE_CSS: false
-  VALIDATE_CSS_PRETTIER: false
-  VALIDATE_ENV: false
-  VALIDATE_GITLEAKS: false
-  VALIDATE_GITHUB_ACTIONS_ZIZMOR: false
-  VALIDATE_HTML: false
-  VALIDATE_HTML_PRETTIER: false
-  VALIDATE_JAVASCRIPT_PRETTIER: false
-  VALIDATE_JSCPD: false
-  VALIDATE_JSON_PRETTIER: false
-  VALIDATE_MARKDOWN: false
-  VALIDATE_MARKDOWN_PRETTIER: false
-  VALIDATE_NATURAL_LANGUAGE: false
-  VALIDATE_PYTHON_BLACK: false
-  VALIDATE_PYTHON_FLAKE8: false
-  VALIDATE_PYTHON_ISORT: false
-  VALIDATE_PYTHON_MYPY: false
-  VALIDATE_PYTHON_PYLINT: false
-  VALIDATE_PYTHON_RUFF_FORMAT: false
-  VALIDATE_SPELL_CODESPELL: false
-  VALIDATE_TYPESCRIPT_ES: false
-  VALIDATE_TYPESCRIPT_PRETTIER: false
-  VALIDATE_YAML_PRETTIER: false
+  PYTHON_VERSION: "3.14"
 
 jobs:
   changes:
@@ -111,17 +83,63 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
-          # super-linter needs the full git history to get the
-          # list of files that changed across commits
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Super-linter
-        # v8.6.0
-        uses: super-linter/super-linter@9e863354e3ff62e0727d37183162c4a88873df41
-        env:
-          # To report GitHub Actions status checks
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-dev.txt
+            .pre-commit-config.yaml
+
+      - name: Cache pre-commit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: ${{ runner.os }}-pre-commit-${{ env.PYTHON_VERSION }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Install lint dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pre-commit yamllint
+
+      - name: Install actionlint
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          GOBIN="$HOME/.local/bin" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.8
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b "$HOME/.local/bin" v0.63.0
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: GITHUB_ACTIONS
+        run: actionlint
+
+      - name: GIT_MERGE_CONFLICT_MARKERS
+        run: |
+          if git grep -nE '^(<<<<<<<|=======|>>>>>>>)' -- . ':(exclude).github/workflows/lint.yml'; then
+            echo "Merge conflict markers detected."
+            exit 1
+          fi
+
+      - name: YAML
+        run: |
+          find . -type f \( -name '*.yml' -o -name '*.yaml' \) \
+            ! -path './src/prism/tests/roles/*' \
+            ! -path './debug_readmes/*' \
+            -print0 | xargs -0 yamllint -f github
+
+      - name: PRE_COMMIT
+        run: pre-commit run --all-files --show-diff-on-failure
+
+      - name: TRIVY
+        run: trivy fs --exit-code 1 --no-progress --scanners config,secret .
 
   plugin-comment-highlighter:
     name: Plugin Comment Highlighter
