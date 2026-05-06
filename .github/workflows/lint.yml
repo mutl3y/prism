@@ -46,8 +46,8 @@ jobs:
     name: Detect relevant changes
     runs-on: ubuntu-latest
     outputs:
-      repo_lint: ${{ steps.filter.outputs.repo_lint }}
-      plugin_comment_highlighter: ${{ steps.filter.outputs.plugin_comment_highlighter }}
+      repo_lint: ${{ steps.detect.outputs.repo_lint }}
+      plugin_comment_highlighter: ${{ steps.detect.outputs.plugin_comment_highlighter }}
 
     steps:
       - name: Checkout code
@@ -57,23 +57,37 @@ jobs:
           persist-credentials: false
 
       - name: Detect changed paths
-        id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            repo_lint:
-              - '**'
-              - '!docs/plan/**'
-              - '!old_docs/**'
-              - '!plugins/**'
-              - '!.github/skills/**'
-              - '!.local/**'
-              - '!.codex'
-              - '!test_output.log'
-              - '!.github/badges/**'
-            plugin_comment_highlighter:
-              - 'plugins/prism-comment-highlighter/**'
-              - '.github/workflows/lint.yml'
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -eu
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "$BASE_REF"
+            CHANGED_FILES=$(git diff --name-only "origin/$BASE_REF"...HEAD)
+          elif [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            CHANGED_FILES=$(git diff --name-only "$BEFORE_SHA" "$HEAD_SHA")
+          else
+            CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r "$HEAD_SHA")
+          fi
+
+          printf 'Changed files:\n%s\n' "$CHANGED_FILES"
+
+          if printf '%s\n' "$CHANGED_FILES" | grep -Eq '^(plugins/prism-comment-highlighter/|\.github/workflows/lint\.yml$)'; then
+            echo "plugin_comment_highlighter=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "plugin_comment_highlighter=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if printf '%s\n' "$CHANGED_FILES" | grep -Ev '^(docs/plan/|old_docs/|plugins/|\.github/skills/|\.local/|\.codex$|test_output\.log$|\.github/badges/)' | grep -q .; then
+            echo "repo_lint=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "repo_lint=false" >> "$GITHUB_OUTPUT"
+          fi
 
   build:
     name: Lint
