@@ -20,6 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       repo_lint: ${{ steps.detect.outputs.repo_lint }}
+      repo_lint_files: ${{ steps.detect.outputs.repo_lint_files }}
+      workflow_files: ${{ steps.detect.outputs.workflow_files }}
       plugin_comment_highlighter: ${{ steps.detect.outputs.plugin_comment_highlighter }}
 
     steps:
@@ -56,11 +58,23 @@ jobs:
             echo "plugin_comment_highlighter=false" >> "$GITHUB_OUTPUT"
           fi
 
-          if printf '%s\n' "$CHANGED_FILES" | grep -Ev '^(docs/plan/|old_docs/|plugins/|\.github/skills/|\.local/|\.codex$|test_output\.log$|\.github/badges/)' | grep -q .; then
+          REPO_LINT_FILES=$(printf '%s\n' "$CHANGED_FILES" | grep -Ev '^(docs/plan/|old_docs/|plugins/|\.github/skills/|\.local/|\.codex$|test_output\.log$|\.github/badges/)' || true)
+          WORKFLOW_FILES=$(printf '%s\n' "$REPO_LINT_FILES" | grep -E '^\.github/workflows/.*\.ya?ml$' || true)
+
+          if [ -n "$REPO_LINT_FILES" ]; then
             echo "repo_lint=true" >> "$GITHUB_OUTPUT"
           else
             echo "repo_lint=false" >> "$GITHUB_OUTPUT"
           fi
+
+          {
+            echo "repo_lint_files<<EOF"
+            printf '%s\n' "$REPO_LINT_FILES"
+            echo "EOF"
+            echo "workflow_files<<EOF"
+            printf '%s\n' "$WORKFLOW_FILES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
   build:
     name: Lint
@@ -123,24 +137,58 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: GITHUB_ACTIONS
-        run: actionlint
+        env:
+          WORKFLOW_FILES: ${{ needs.changes.outputs.workflow_files }}
+        run: |
+          mapfile -t workflow_files <<<"$WORKFLOW_FILES"
+
+          if [ "${#workflow_files[@]}" -eq 0 ] || [ -z "${workflow_files[0]}" ]; then
+            echo "No changed workflow files to lint."
+            exit 0
+          fi
+
+          actionlint "${workflow_files[@]}"
 
       - name: GIT_MERGE_CONFLICT_MARKERS
+        env:
+          REPO_LINT_FILES: ${{ needs.changes.outputs.repo_lint_files }}
         run: |
-          if git grep -nE '^(<<<<<<<|=======|>>>>>>>)' -- . ':(exclude).github/workflows/lint.yml'; then
+          mapfile -t repo_files <<<"$REPO_LINT_FILES"
+
+          if grep -nE '^(<<<<<<< |=======$|>>>>>>> )' -- "${repo_files[@]}"; then
             echo "Merge conflict markers detected."
             exit 1
           fi
 
       - name: YAML
+        env:
+          REPO_LINT_FILES: ${{ needs.changes.outputs.repo_lint_files }}
         run: |
-          find . -type f \( -name '*.yml' -o -name '*.yaml' \) \
-            ! -path './src/prism/tests/roles/*' \
-            ! -path './debug_readmes/*' \
-            -print0 | xargs -0 yamllint -f github
+          mapfile -t yaml_files < <(
+            printf '%s\n' "$REPO_LINT_FILES" |
+              grep -E '\.ya?ml$' |
+              grep -Ev '^(src/prism/tests/roles/|debug_readmes/)' || true
+          )
+
+          if [ "${#yaml_files[@]}" -eq 0 ] || [ -z "${yaml_files[0]}" ]; then
+            echo "No changed YAML files to lint."
+            exit 0
+          fi
+
+          yamllint -f github "${yaml_files[@]}"
 
       - name: PRE_COMMIT
-        run: pre-commit run --all-files --show-diff-on-failure
+        env:
+          REPO_LINT_FILES: ${{ needs.changes.outputs.repo_lint_files }}
+        run: |
+          mapfile -t repo_files <<<"$REPO_LINT_FILES"
+
+          if [ "${#repo_files[@]}" -eq 0 ] || [ -z "${repo_files[0]}" ]; then
+            echo "No changed files to lint with pre-commit."
+            exit 0
+          fi
+
+          pre-commit run --files "${repo_files[@]}" --show-diff-on-failure
 
       - name: TRIVY
         run: trivy fs --exit-code 1 --no-progress --scanners vuln,misconfig,secret .
