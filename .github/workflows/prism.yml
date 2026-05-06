@@ -201,13 +201,20 @@ jobs:
           WORKFLOW_FILES: ${{ needs.changes.outputs.workflow_files }}
         run: |
           mapfile -t workflow_files <<<"$WORKFLOW_FILES"
+          existing_workflow_files=()
 
-          if [ "${#workflow_files[@]}" -eq 0 ] || [ -z "${workflow_files[0]}" ]; then
-            echo "No changed workflow files to lint."
+          for workflow_file in "${workflow_files[@]}"; do
+            if [ -f "$workflow_file" ]; then
+              existing_workflow_files+=("$workflow_file")
+            fi
+          done
+
+          if [ "${#existing_workflow_files[@]}" -eq 0 ]; then
+            echo "No existing changed workflow files to lint."
             exit 0
           fi
 
-          actionlint "${workflow_files[@]}"
+          actionlint "${existing_workflow_files[@]}"
 
       - name: GIT_MERGE_CONFLICT_MARKERS
         env:
