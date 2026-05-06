@@ -135,23 +135,31 @@ jobs:
           printf 'Changed files:\n%s\n' "$CHANGED_FILES"
 
           if printf '%s\n' "$CHANGED_FILES" | grep -Eq '^plugins/prism-comment-highlighter/'; then
-            echo "plugin_comment_highlighter=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "plugin_comment_highlighter=true"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "plugin_comment_highlighter=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "plugin_comment_highlighter=false"
+            } >> "$GITHUB_OUTPUT"
           fi
 
           if printf '%s\n' "$CHANGED_FILES" | grep -Eq "$RUNTIME_PATH_RE"; then
-            echo "runtime_relevant=true" >> "$GITHUB_OUTPUT"
-            echo "docs_relevant=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "runtime_relevant=true"
+              echo "docs_relevant=true"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "runtime_relevant=false" >> "$GITHUB_OUTPUT"
-            echo "docs_relevant=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "runtime_relevant=false"
+              echo "docs_relevant=false"
+            } >> "$GITHUB_OUTPUT"
           fi
 
           if [ "$EVENT_NAME" = "release" ]; then
-            echo "run_tests=true" >> "$GITHUB_OUTPUT"
-            echo "test_mode=full" >> "$GITHUB_OUTPUT"
             {
+              echo "run_tests=true"
+              echo "test_mode=full"
               echo 'test_matrix<<EOF'
               printf '%s%s%s%s\n' \
                 '{"include":[' \
@@ -161,9 +169,9 @@ jobs:
               echo 'EOF'
             } >> "$GITHUB_OUTPUT"
           elif printf '%s\n' "$CHANGED_FILES" | grep -Eq "$COMPAT_PATH_RE"; then
-            echo "run_tests=true" >> "$GITHUB_OUTPUT"
-            echo "test_mode=compat" >> "$GITHUB_OUTPUT"
             {
+              echo "run_tests=true"
+              echo "test_mode=compat"
               echo 'test_matrix<<EOF'
               printf '%s%s%s\n' \
                 '{"include":[' \
@@ -172,9 +180,9 @@ jobs:
               echo 'EOF'
             } >> "$GITHUB_OUTPUT"
           elif printf '%s\n' "$CHANGED_FILES" | grep -Eq "$RUNTIME_PATH_RE"; then
-            echo "run_tests=true" >> "$GITHUB_OUTPUT"
-            echo "test_mode=default" >> "$GITHUB_OUTPUT"
             {
+              echo "run_tests=true"
+              echo "test_mode=default"
               echo 'test_matrix<<EOF'
               printf '%s%s\n' \
                 '{"include":[' \
@@ -182,9 +190,11 @@ jobs:
               echo 'EOF'
             } >> "$GITHUB_OUTPUT"
           else
-            echo "run_tests=false" >> "$GITHUB_OUTPUT"
-            echo "test_mode=none" >> "$GITHUB_OUTPUT"
-            echo 'test_matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+            {
+              echo "run_tests=false"
+              echo "test_mode=none"
+              echo 'test_matrix={"include":[]}'
+            } >> "$GITHUB_OUTPUT"
           fi
 
           REPO_LINT_FILES=$(
@@ -195,9 +205,13 @@ jobs:
           WORKFLOW_FILES=$(printf '%s\n' "$REPO_LINT_FILES" | grep -E '^\.github/workflows/.*\.ya?ml$' || true)
 
           if [ -n "$REPO_LINT_FILES" ]; then
-            echo "repo_lint=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "repo_lint=true"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "repo_lint=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "repo_lint=false"
+            } >> "$GITHUB_OUTPUT"
           fi
 
           {
