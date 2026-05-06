@@ -1,6 +1,8 @@
 ---
 extends: default
 rules:
+  brackets:
+    level: warning
   line-length:
     max: 160
     level: warning
