@@ -35,10 +35,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: "3.14"
           cache: pip
@@ -71,6 +71,8 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     needs: quality-gates
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -86,10 +88,10 @@ jobs:
             coverage: "true"
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -112,14 +114,109 @@ jobs:
             python -m pytest -q
           fi
 
+      - name: Generate coverage badge
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.coverage == 'true' }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          coverage_xml = Path("debug_readmes/coverage.xml")
+          root = ET.parse(coverage_xml).getroot()
+          pct = round(float(root.attrib.get("line-rate", "0")) * 100, 1)
+
+          if pct >= 90:
+              color = "#4c1"
+          elif pct >= 80:
+              color = "#97CA00"
+          elif pct >= 70:
+              color = "#a4a61d"
+          elif pct >= 60:
+              color = "#dfb317"
+          elif pct >= 50:
+              color = "#fe7d37"
+          else:
+              color = "#e05d44"
+
+          label = "coverage"
+          message = f"{pct:.1f}%"
+          label_width = 74
+          message_width = max(40, 10 * len(message) + 10)
+          total_width = label_width + message_width
+
+          svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{total_width}" height="20" role="img" aria-label="{label}: {message}">
+            <linearGradient id="s" x2="0" y2="100%">
+              <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+              <stop offset="1" stop-opacity=".1"/>
+            </linearGradient>
+            <clipPath id="r">
+              <rect width="{total_width}" height="20" rx="3" fill="#fff"/>
+            </clipPath>
+            <g clip-path="url(#r)">
+              <rect width="{label_width}" height="20" fill="#555"/>
+              <rect x="{label_width}" width="{message_width}" height="20" fill="{color}"/>
+              <rect width="{total_width}" height="20" fill="url(#s)"/>
+            </g>
+            <g fill="#fff" text-anchor="middle" font-family="Verdana,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="11">
+              <text aria-hidden="true" x="{label_width / 2}" y="15" fill="#010101" fill-opacity=".3">{label}</text>
+              <text x="{label_width / 2}" y="14">{label}</text>
+              <text aria-hidden="true" x="{label_width + message_width / 2}" y="15" fill="#010101" fill-opacity=".3">{message}</text>
+              <text x="{label_width + message_width / 2}" y="14">{message}</text>
+            </g>
+          </svg>
+          '''
+
+          badge_path = Path(".github/badges/coverage.svg")
+          badge_path.parent.mkdir(parents=True, exist_ok=True)
+          badge_path.write_text(svg, encoding="utf-8")
+          PY
+
+      - name: Publish coverage badge
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.coverage == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "$(git status --porcelain .github/badges/coverage.svg)" ]; then
+            REPO="${{ github.repository }}"
+            BRANCH="badges"
+            FILE=".github/badges/coverage.svg"
+
+            if ! gh api "repos/$REPO/git/refs/heads/$BRANCH" > /dev/null 2>&1; then
+              MAIN_SHA=$(gh api "repos/$REPO/git/refs/heads/${{ github.ref_name }}" --jq '.object.sha')
+              gh api --method POST "repos/$REPO/git/refs" \
+                -f "ref=refs/heads/$BRANCH" \
+                -f "sha=$MAIN_SHA"
+              echo "Created '$BRANCH' branch."
+            fi
+
+            FILE_SHA=$(gh api "repos/$REPO/contents/$FILE?ref=$BRANCH" --jq '.sha' 2>/dev/null || echo "")
+            CONTENT=$(base64 -w0 "$FILE")
+
+            if [ -n "$FILE_SHA" ]; then
+              gh api --method PUT "repos/$REPO/contents/$FILE" \
+                -f "message=docs: update coverage badge [skip ci]" \
+                -f "content=$CONTENT" \
+                -f "sha=$FILE_SHA" \
+                -f "branch=$BRANCH"
+            else
+              gh api --method PUT "repos/$REPO/contents/$FILE" \
+                -f "message=docs: update coverage badge [skip ci]" \
+                -f "content=$CONTENT" \
+                -f "branch=$BRANCH"
+            fi
+            echo "Coverage badge updated on '$BRANCH' branch."
+          else
+            echo "Coverage badge already up to date."
+          fi
+
   docs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: "3.14"
           cache: pip
@@ -133,9 +230,3 @@ jobs:
       - name: Generate role docs
         run: |
           prism role src/prism/tests/roles/enhanced_mock_role --fail-on-yaml-like-task-annotations -o README.generated.md
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: generated-readme
-          path: README.generated.md
