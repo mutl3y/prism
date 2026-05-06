@@ -2,8 +2,24 @@
 name: Lint
 
 on:  # yamllint disable-line rule:truthy
-  push: null
-  pull_request: null
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - ".github/badges/**"
+      - "docs/plan/**"
+      - "old_docs/**"
+      - ".github/skills/**"
+      - ".local/**"
+      - "test_output.log"
+  pull_request:
+    paths-ignore:
+      - ".github/badges/**"
+      - "docs/plan/**"
+      - "old_docs/**"
+      - ".github/skills/**"
+      - ".local/**"
+      - "test_output.log"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
