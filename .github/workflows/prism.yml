@@ -2,6 +2,8 @@ name: prism
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHON_VERSION: "3.14"
+  TRIVY_VERSION: "0.69.3"
 
 permissions:
   contents: read
@@ -25,12 +27,272 @@ on:
       - ".github/skills/**"
       - ".local/**"
       - "test_output.log"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  format:
+    name: Auto-format and enforce pre-commit
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-dev.txt
+            tox.ini
+
+      - name: Install dev deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install pre-commit
+
+      - name: Run pre-commit (auto-fix)
+        run: |
+          pre-commit run --all-files || true
+
+      - name: Commit & push formatting changes
+        env:
+          PR_HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore: apply automatic formatting via pre-commit" || echo "No changes to commit"
+            git push origin "HEAD:${PR_HEAD_REF}"
+            echo "Auto-formatted and pushed changes."
+          else
+            echo "No formatting changes needed."
+          fi
+
+  changes:
+    name: Detect relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      repo_lint: ${{ steps.detect.outputs.repo_lint }}
+      repo_lint_files: ${{ steps.detect.outputs.repo_lint_files }}
+      workflow_files: ${{ steps.detect.outputs.workflow_files }}
+      plugin_comment_highlighter: ${{ steps.detect.outputs.plugin_comment_highlighter }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect changed paths
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -eu
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "$BASE_REF"
+            CHANGED_FILES=$(git diff --name-only "origin/$BASE_REF"...HEAD)
+          elif [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            CHANGED_FILES=$(git diff --name-only "$BEFORE_SHA" "$HEAD_SHA")
+          else
+            CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r "$HEAD_SHA")
+          fi
+
+          printf 'Changed files:\n%s\n' "$CHANGED_FILES"
+
+          if printf '%s\n' "$CHANGED_FILES" | grep -Eq '^plugins/prism-comment-highlighter/'; then
+            echo "plugin_comment_highlighter=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "plugin_comment_highlighter=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          REPO_LINT_FILES=$(
+            printf '%s\n' "$CHANGED_FILES" |
+              grep -Ev '^(docs/plan/|old_docs/|plugins/|\.github/skills/|\.local/|\.codex$|test_output\.log$|\.github/badges/)' ||
+              true
+          )
+          WORKFLOW_FILES=$(printf '%s\n' "$REPO_LINT_FILES" | grep -E '^\.github/workflows/.*\.ya?ml$' || true)
+
+          if [ -n "$REPO_LINT_FILES" ]; then
+            echo "repo_lint=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "repo_lint=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          {
+            echo "repo_lint_files<<EOF"
+            printf '%s\n' "$REPO_LINT_FILES"
+            echo "EOF"
+            echo "workflow_files<<EOF"
+            printf '%s\n' "$WORKFLOW_FILES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.repo_lint == 'true' }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-dev.txt
+            .pre-commit-config.yaml
+
+      - name: Cache pre-commit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: ${{ runner.os }}-pre-commit-${{ env.PYTHON_VERSION }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Install lint dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt pre-commit yamllint
+
+      - name: Install actionlint
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          GOBIN="$HOME/.local/bin" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.8
+
+      - name: Install Trivy
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o /tmp/trivy.tar.gz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          tar -xzf /tmp/trivy.tar.gz -C /tmp trivy
+          install -m 0755 /tmp/trivy "$HOME/.local/bin/trivy"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: GITHUB_ACTIONS
+        env:
+          WORKFLOW_FILES: ${{ needs.changes.outputs.workflow_files }}
+        run: |
+          mapfile -t workflow_files <<<"$WORKFLOW_FILES"
+
+          if [ "${#workflow_files[@]}" -eq 0 ] || [ -z "${workflow_files[0]}" ]; then
+            echo "No changed workflow files to lint."
+            exit 0
+          fi
+
+          actionlint "${workflow_files[@]}"
+
+      - name: GIT_MERGE_CONFLICT_MARKERS
+        env:
+          REPO_LINT_FILES: ${{ needs.changes.outputs.repo_lint_files }}
+        run: |
+          mapfile -t repo_files <<<"$REPO_LINT_FILES"
+
+          if grep -nE '^(<<<<<<< |=======$|>>>>>>> )' -- "${repo_files[@]}"; then
+            echo "Merge conflict markers detected."
+            exit 1
+          fi
+
+      - name: YAML
+        env:
+          REPO_LINT_FILES: ${{ needs.changes.outputs.repo_lint_files }}
+        run: |
+          mapfile -t yaml_files < <(
+            printf '%s\n' "$REPO_LINT_FILES" |
+              grep -E '\.ya?ml$' |
+              grep -Ev '^(src/prism/tests/roles/|debug_readmes/)' || true
+          )
+
+          if [ "${#yaml_files[@]}" -eq 0 ] || [ -z "${yaml_files[0]}" ]; then
+            echo "No changed YAML files to lint."
+            exit 0
+          fi
+
+          yamllint -f github "${yaml_files[@]}"
+
+      - name: PRE_COMMIT
+        env:
+          REPO_LINT_FILES: ${{ needs.changes.outputs.repo_lint_files }}
+        run: |
+          mapfile -t repo_files <<<"$REPO_LINT_FILES"
+
+          if [ "${#repo_files[@]}" -eq 0 ] || [ -z "${repo_files[0]}" ]; then
+            echo "No changed files to lint with pre-commit."
+            exit 0
+          fi
+
+          pre-commit run --files "${repo_files[@]}" --show-diff-on-failure
+
+      - name: TRIVY
+        run: trivy fs --exit-code 1 --no-progress --scanners vuln,misconfig,secret .
+
+  plugin-comment-highlighter:
+    name: Plugin Comment Highlighter
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.plugin_comment_highlighter == 'true' }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: plugins/prism-comment-highlighter/package-lock.json
+
+      - name: Install plugin dependencies
+        working-directory: plugins/prism-comment-highlighter
+        run: npm ci
+
+      - name: Check plugin formatting
+        working-directory: plugins/prism-comment-highlighter
+        run: npm run format:check
+
+      - name: Lint plugin sources
+        working-directory: plugins/prism-comment-highlighter
+        run: npm run lint
+
+      - name: Typecheck plugin sources
+        working-directory: plugins/prism-comment-highlighter
+        run: npm run check
+
+      - name: Test plugin
+        working-directory: plugins/prism-comment-highlighter
+        run: npm test
+
   quality-gates:
     runs-on: ubuntu-latest
     steps:
