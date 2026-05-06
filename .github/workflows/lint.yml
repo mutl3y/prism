@@ -140,6 +140,7 @@ jobs:
         env:
           WORKFLOW_FILES: ${{ needs.changes.outputs.workflow_files }}
         run: |
+          # shellcheck disable=SC2153
           mapfile -t workflow_files <<<"$WORKFLOW_FILES"
 
           if [ "${#workflow_files[@]}" -eq 0 ] || [ -z "${workflow_files[0]}" ]; then
@@ -153,6 +154,7 @@ jobs:
         env:
           REPO_LINT_FILES: ${{ needs.changes.outputs.repo_lint_files }}
         run: |
+          # shellcheck disable=SC2153
           mapfile -t repo_files <<<"$REPO_LINT_FILES"
 
           if grep -nE '^(<<<<<<< |=======$|>>>>>>> )' -- "${repo_files[@]}"; then
@@ -164,6 +166,7 @@ jobs:
         env:
           REPO_LINT_FILES: ${{ needs.changes.outputs.repo_lint_files }}
         run: |
+          # shellcheck disable=SC2153
           mapfile -t yaml_files < <(
             printf '%s\n' "$REPO_LINT_FILES" |
               grep -E '\.ya?ml$' |
@@ -181,6 +184,7 @@ jobs:
         env:
           REPO_LINT_FILES: ${{ needs.changes.outputs.repo_lint_files }}
         run: |
+          # shellcheck disable=SC2153
           mapfile -t repo_files <<<"$REPO_LINT_FILES"
 
           if [ "${#repo_files[@]}" -eq 0 ] || [ -z "${repo_files[0]}" ]; then
