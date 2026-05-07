@@ -1,0 +1,57 @@
+- id: Scout-Typing-01
+  category: typing
+  fingerprint: "typing:scanner_plugins.registry:loaded_plugins_any"
+  file: src/prism/scanner_plugins/registry.py
+  line: 49
+  severity_hint: high
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "loaded_plugins: dict[tuple[str, str], Any]"
+  evidence_command: "read_file src/prism/scanner_plugins/registry.py 44-52"
+  related_symbols:
+    - loaded_plugins
+    - load_plugin_from_module
+  fix_group_key: registry_any_plugin_surfaces
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+- id: Scout-Typing-02
+  category: typing
+  fingerprint: "typing:scanner_plugins.interfaces:options_any_contracts"
+  file: src/prism/scanner_plugins/interfaces.py
+  line: 26
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "options: dict[str, Any]"
+  evidence_command: "read_file src/prism/scanner_plugins/interfaces.py 22-33"
+  related_symbols:
+    - discover_static_variables
+    - discover_referenced_variables
+  fix_group_key: public_contract_any_options
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+- id: Scout-Typing-03
+  category: typing
+  fingerprint: "typing:scanner_plugins.bundle_resolver:prepared_bundle_any_contracts"
+  file: src/prism/scanner_plugins/bundle_resolver.py
+  line: 63
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "def _validate_prepared_policy_bundle(bundle: dict[str, Any]) -> None:"
+  evidence_command: "read_file src/prism/scanner_plugins/bundle_resolver.py 60-78"
+  related_symbols:
+    - _validate_prepared_policy_bundle
+    - _resolve_underscore_reference_preference
+  fix_group_key: prepared_bundle_any_contracts
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: ""

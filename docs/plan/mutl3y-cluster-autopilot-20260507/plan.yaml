@@ -1,0 +1,66 @@
+plan_id: mutl3y-cluster-autopilot-20260507
+target: src/prism
+date_created: '2026-05-07'
+cycle: 1
+current_phase: 2
+status: plan_persisted
+autopilot_enabled: true
+three_node_cluster: true
+resumption_pointer:
+  phase: 2
+  checkpoint: plan-persisted
+  artifact: docs/plan/mutl3y-cluster-autopilot-20260507/findings.yaml
+  next_action: Proceed to Phase 3 (Investigation) or Phase 4 (Decide)
+discovery_summary:
+  phase_0_status: complete
+  scouts_dispatched: 4
+  total_findings: 30
+  findings_by_category:
+    typing_loose_annotations: 10
+    ownership_layer_violations: 8
+    error_handling_broad_except: 8
+    graph_dependency_review: 4
+grading_summary:
+  phase_1_status: complete
+  findings_promoted: 30
+  findings_suppressed: 0
+  shortlist_fix_groups: 4
+  all_cadence_rules_passed: true
+fix_groups:
+- rank: 1
+  id: typing_loose_annotations
+  title: Typing fixes
+  count: 10
+  severity: medium
+  reason: Type safety foundation
+- rank: 2
+  id: error_handling_broad_except
+  title: Error handling
+  count: 8
+  severity: medium
+  reason: Error contract enforcement
+- rank: 3
+  id: ownership_layer_violations
+  title: Layer boundaries
+  count: 8
+  severity: medium
+  reason: Ownership enforcement
+- rank: 4
+  id: graph_dependency_review
+  title: Dependency review
+  count: 4
+  severity: low
+  reason: Dependency hygiene
+next_phases:
+  phase_3:
+    name: Investigation
+    purpose: Optional micro-swarm investigation for ambiguous findings
+    status: optional
+  phase_4:
+    name: Decide
+    purpose: Make implementation decisions on each fix group
+    status: required
+  phase_5:
+    name: Implementation
+    purpose: Deploy fix groups via builder waves
+    status: required

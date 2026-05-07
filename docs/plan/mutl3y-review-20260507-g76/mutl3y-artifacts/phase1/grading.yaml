@@ -1,0 +1,102 @@
+plan_id: mutl3y-review-20260507-g76
+phase: 1
+status: complete
+source: Grade
+summary: >-
+  Phase 1 grading prioritized the Phase 0 hotspots into a focused first review
+  slice. Recommendations include a focused review of DI/registry/scanner-context
+  wiring, with targeted test gating and an explicit reviewer roster.
+
+prioritized_slice:
+  - rank: 1
+    path: src/prism/scanner_core/di.py
+    score: 9
+    rationale: >-
+      Central factory wiring hub with cache invalidation and scanner-context
+      ownership seams; regression here risks runtime miswiring and flaky
+      tests. Nearby unit tests exist to validate wiring.
+    confidence: high
+    nearby_tests:
+      - src/prism/tests/test_scanner_context.py
+    reviewers:
+      - Builder-Abstraction
+      - Builder-Ownership
+    gate_criteria:
+      - all existing DI unit tests pass
+      - no hidden global mutable state introduced
+      - cache invalidation behavior covered by tests
+    estimated_effort: medium
+
+  - rank: 2
+    path: src/prism/scanner_plugins/registry.py
+    score: 8
+    rationale: >-
+      Plugin lifecycle, stateless enforcement, and API-version validation
+      are core to correct plugin behavior; registry identity issues cause
+      cross-plugin contamination and thread-safety risks.
+    confidence: high
+    nearby_tests:
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+      - src/prism/tests/test_g02_thread_safety.py
+    reviewers:
+      - Builder-Ownership
+      - Builder-Abstraction
+    gate_criteria:
+      - plugin registration/deregistration deterministic under concurrent load
+      - API version validation produces clear, testable errors
+    estimated_effort: medium
+
+  - rank: 3
+    path: src/prism/scanner_core/scanner_context.py
+    score: 8
+    rationale: >-
+      Execution-time policy enforcement and blocker-fact emission are high
+      impact; ensure payload finalization and parity expectations remain
+      explicit and well-tested.
+    confidence: medium
+    nearby_tests:
+      - src/prism/tests/test_scanner_context.py
+    reviewers:
+      - Builder-Abstraction
+      - Gatekeeper
+    gate_criteria:
+      - scanner_context payload keys stable and documented
+      - blocker-fact translation verified in kernel integration tests
+    estimated_effort: medium
+
+tertiary_hotspots:
+  - path: src/prism/scanner_core/execution_request_builder.py
+    why: Prepared-policy bundle assembly and runtime participant composition.
+    nearby_tests:
+      - src/prism/tests/test_scanner_context.py
+    priority: low
+
+  - path: src/prism/scanner_kernel/orchestrator.py
+    why: Kernel routing, metadata merge, and blocker-outcome translation.
+    priority: low
+
+  - path: src/prism/api_layer/non_collection.py
+    why: Prepared-policy cache fingerprints and API-boundary normalization.
+    priority: low
+
+  - path: src/prism/scanner_io/output_orchestrator.py
+    why: Output boundary validation and renderer routing.
+    priority: low
+
+  - path: src/prism/scanner_plugins/defaults.py
+    why: Plugin bootstrap and default platform wiring.
+    priority: low
+
+notes:
+  - focus: >-
+      Perform an initial deep review on the top-3 ranked files; keep other
+      hotspots as follow-ups unless Phase 1 discoveries escalate risk.
+  - tests: >-
+      Start with the nearby unit tests listed for each file, then run small
+      kernel-integration smoke tests that exercise blocker-fact translation.
+  - artifacts_to_write:
+      - path: docs/plan/mutl3y-review-20260507-g76/mutl3y-artifacts/phase1/grading.yaml
+      - path: docs/plan/mutl3y-review-20260507-g76/mutl3y-artifacts/phase1/wave-summary.md
+
+overall_recommendation: advance
+confidence_overall: high

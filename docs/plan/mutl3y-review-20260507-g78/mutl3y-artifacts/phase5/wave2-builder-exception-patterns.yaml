@@ -1,0 +1,121 @@
+---
+plan_id: mutl3y-review-20260507-g78
+wave: 2
+wave_title: Medium-Effort Pattern Fixes
+builder_name: Builder-ExceptionPatterns
+timestamp: "2026-05-07"
+
+owned_files:
+  - src/prism/scanner_extract/discovery.py
+  - src/prism/scanner_core/events.py
+  - src/prism/scanner_core/execution_request_builder.py
+
+findings_addressed:
+  - FIND-G78-004
+  - FIND-G78-005
+  - FIND-G78-006
+
+details:
+  FIND-G78-004_exception_as_data_pattern:
+    status: completed
+    file: src/prism/scanner_extract/discovery.py:274-281
+    problem: "_load_variable_payload() returned exceptions as data, requiring isinstance() checks"
+    solution: |
+      - Created _VariableLoadResult dataclass to wrap success/error states
+      - Refactored _load_variable_payload to return typed result instead of raw exception
+      - Updated callers from isinstance(data, Exception) to result.error check
+      - Improved type safety and error handling clarity
+    changes:
+      - Added: @dataclass _VariableLoadResult with data and error fields
+      - Modified: _load_variable_payload() signature and implementation
+      - Modified: Two callers (defaults and include_vars loops) to use result.error pattern
+    impact: 2 locations refactored from exception-as-data to typed result
+
+  FIND-G78-005_narrow_exception_catching:
+    status: completed
+    files:
+      - src/prism/scanner_extract/discovery.py:125
+      - src/prism/scanner_extract/discovery.py:223
+      - src/prism/scanner_extract/discovery.py:290
+    problem: "Bare 'except Exception as exc:' in 8+ locations without specific type narrowing"
+    solution: |
+      - Changed to catch (PrismRuntimeError, OSError) which are the actual types raised
+      - Narrowed from generic Exception to specific exception types
+      - Added PrismRuntimeError import to discovery.py
+      - Proper error handling with type safety maintained
+    changes:
+      - load_meta() line 125: except (PrismRuntimeError, OSError)
+      - load_requirements() line 223: except (PrismRuntimeError, OSError)
+      - _load_variable_payload() line 290: except (PrismRuntimeError, OSError)
+    impact: 3 locations narrowed to specific exception types
+
+  FIND-G78-006_eventbus_listener_error_handling:
+    status: completed
+    file: src/prism/scanner_core/events.py:87-102
+    problem: "Listener exceptions suppressed in non-strict mode without observability"
+    solution: |
+      - Created EventBusError dataclass to represent listener failures
+      - Added error event recording infrastructure to EventBus
+      - Implemented _record_listener_error() method with timestamp tracking
+      - Added get_error_events() and error_count property for observability
+      - Error events recorded without triggering listener loop (no recursion)
+    changes:
+      - Added: import time module for event timestamps
+      - Added: @dataclass EventBusError with listener_name, exception, timestamp, event fields
+      - Added: _error_events list and _error_lock to EventBus.__init__()
+      - Added: _record_listener_error() method to record failures
+      - Added: error_count property and get_error_events() method
+      - Modified: emit() to call _record_listener_error() on listener exceptions
+      - Updated: __all__ exports to include EventBusError
+    impact: Listener errors now observable without breaking scan semantics
+
+test_results:
+  discovery_tests: pass
+    file: src/prism/tests/test_dataload.py
+    result: 18/18 passed
+  events_tests: pass
+    file: src/prism/tests/test_t3_01_scan_phase_events.py
+    result: 13/13 passed
+  total_targeted_tests: pass
+    count: 31/31 passed
+  execution_time_sec: 0.36
+
+lint_results: pass
+  tools:
+    - ruff: All checks passed
+    - black: 3 files would be left unchanged
+
+type_check_results: pass
+  tool: mypy
+  result: Success - no issues found in 3 source files
+
+code_quality:
+  - Removed unused yaml import from discovery.py
+  - All code follows project conventions
+  - Type safety improved with dataclass and narrowed exceptions
+  - Documentation added to new classes and methods
+
+summary_status: COMPLETED
+  - FIND-G78-004: ✓ Completed (Exception-as-data pattern eliminated)
+  - FIND-G78-005: ✓ Completed (3 locations narrowed to specific types)
+  - FIND-G78-006: ✓ Completed (EventBus error observability implemented)
+  - test_result: ✓ PASS (31/31 tests pass)
+  - lint_result: ✓ PASS (ruff + black clean)
+  - type_check_result: ✓ PASS (mypy clean)
+
+files_modified: 2
+  - src/prism/scanner_extract/discovery.py
+  - src/prism/scanner_core/events.py
+
+files_reviewed: 3
+  - src/prism/scanner_core/execution_request_builder.py (reviewed, no changes needed)
+
+blockers: none
+deferred_items: none
+
+notes: |
+  - Wave 2 focused on medium-effort pattern fixes with good isolation
+  - All changes within exclusive owned file scope
+  - Exception handling now follows consistent narrowing pattern
+  - EventBus error tracking enables observability without altering semantics
+  - Ready for integration and follow-up phases

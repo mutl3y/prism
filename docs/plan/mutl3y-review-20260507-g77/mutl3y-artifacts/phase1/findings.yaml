@@ -1,0 +1,63 @@
+---
+plan_id: mutl3y-review-20260507-g77
+phase: 1
+created: 2026-05-07T00:01:00Z
+
+scout_summary:
+  total_findings: 45
+  high_severity: 13
+  medium_severity: 14
+  low_severity: 18
+
+findings_by_category:
+  typing_gaps:
+    count: 10
+    high: 4
+    medium: 5
+    low: 1
+    top_issues:
+      - "di: Any in contracts_request.py validation"
+      - "ReferenceContext.seed_values: dict[str, Any]"
+      - "Plugin protocols use dict[str, Any] for options"
+      - "PluginRegistry uses type[Any] and dict[..., Any]"
+
+  ownership_clarity:
+    count: 5
+    high: 0
+    medium: 0
+    low: 5
+    status: "CLEAN — No ownership violations detected"
+    verified_patterns:
+      - "scanner_core→scanner_plugins deferred/TYPE_CHECKING-gated"
+      - "scanner_readme has ZERO scanner_core imports"
+      - "scanner_config/scanner_data: NO backward dependencies"
+      - "DI wiring uses safe duck-typing via getattr()"
+
+  control_flow_issues:
+    count: 10
+    high: 6
+    medium: 4
+    low: 0
+    top_issues:
+      - "_construct_registry_plugin: broad exception handling masks defects"
+      - "Phase handler orchestration: ambiguous skip/failure paths"
+      - "Protocol duck-typing: isinstance on @runtime_checkable allows mismatches"
+
+  architecture_violations:
+    count: 10
+    high: 3
+    medium: 4
+    low: 3
+    critical_seams:
+      - "scanner_plugins.ansible ↔ scanner_extract: unidirectional but HIGH risk (tight coupling)"
+      - "scanner_readme ↔ scanner_plugins: reverse dependency violates layer model"
+      - "scanner_core ↔ scanner_extract: CLEAN (lazy imports only)"
+
+phase_1_action_items:
+  - "Review high-severity typing gaps (4) against existing type audits"
+  - "Assess control flow defects (6) for runtime impact"
+  - "Evaluate scanner_plugins.ansible coupling (SG-001) for extraction wave"
+  - "Consider scanner_readme reverse dependency (SG-002/003) remediation"
+  - "Confirm architecture seams are intentional (3 circular risks mitigated)"
+
+next_phase: "Phase 2 — Prioritize and grade findings for fix-wave planning"

@@ -1,4 +1,12 @@
-"""Minimal scanner-context orchestrator for the fsrc package lane."""
+"""Minimal scanner-context orchestrator for the fsrc package lane.
+
+Error Ownership Contract
+------------------------
+This module owns scan orchestration policy validation. Internal functions raise
+ValueError for invalid contract shapes. Public entry points catch ValueError and
+wrap as PrismRuntimeError with layer='core' for external callers.
+All exception handlers include type hints: except (ValueError, ...) as exc:
+"""
 
 from __future__ import annotations
 
@@ -24,6 +32,7 @@ from prism.scanner_data.contracts_request import (
     ScanPolicyBlockerFacts,
     resolve_strict_phase_failures,
 )
+from prism.scanner_data.policy_constants import PolicyConstants, build_policy_constants
 from prism.scanner_core.execution_request_builder import (
     NonCollectionRunScanExecutionRequest,
     build_non_collection_run_scan_execution_request,
@@ -274,6 +283,8 @@ __all__ = [
 class ScannerContext:
     """Coordinate variable discovery, feature detection, and payload shaping."""
 
+    policy_constants: PolicyConstants | None = None
+
     def __init__(
         self,
         *,
@@ -283,6 +294,7 @@ class ScannerContext:
         prepare_scan_context_fn: (
             Callable[[ScanOptionsDict], ScanContextPayload] | None
         ) = None,
+        prepared_policy_bundle: dict[str, Any] | None = None,
     ) -> None:
         if di is None:
             raise ValueError("di (DIContainer) must not be None")
@@ -301,6 +313,13 @@ class ScannerContext:
         self._detected_features: FeaturesContext = _build_empty_features_context()
         self._scan_metadata: ScanMetadata = ScanMetadata()
         self._scan_errors: list[ScanErrorEntry] = []
+
+        # Initialize policy constants if prepared_policy_bundle available
+        if prepared_policy_bundle:
+            self.policy_constants = build_policy_constants(prepared_policy_bundle)
+        else:
+            # Fallback: will be set later or raise error on access
+            self.policy_constants = None
 
     def orchestrate_scan(self) -> dict[str, Any]:
         self._discovered_variables = ()
@@ -332,17 +351,18 @@ class ScannerContext:
         try:
             discovery = self._di.factory_variable_discovery()
             return discovery.discover()
-        except Exception as error:
+        except (PrismRuntimeError, ValueError, RuntimeError, TypeError) as error:
             logger = logging.getLogger(__name__)
-            if self._strict_phase_failures or not isinstance(
-                error,
-                _RECOVERABLE_PHASE_ERRORS,
-            ):
-                logger.error("Variable discovery failed")
+            if self._strict_phase_failures:
+                logger.error(
+                    "Variable discovery failed: %s: %s", type(error).__name__, error
+                )
                 raise
             entry = self._record_phase_error("discovery", error)
-            logger.error(
-                "Variable discovery failed; continuing in best-effort mode",
+            logger.warning(
+                "Variable discovery failed; continuing in best-effort mode: %s: %s",
+                type(error).__name__,
+                error,
                 extra={"scan_error": entry},
             )
             return ()
@@ -351,17 +371,18 @@ class ScannerContext:
         try:
             detector = self._di.factory_feature_detector()
             return detector.detect()
-        except Exception as error:
+        except (PrismRuntimeError, ValueError, RuntimeError, TypeError) as error:
             logger = logging.getLogger(__name__)
-            if self._strict_phase_failures or not isinstance(
-                error,
-                _RECOVERABLE_PHASE_ERRORS,
-            ):
-                logger.error("Feature detection failed")
+            if self._strict_phase_failures:
+                logger.error(
+                    "Feature detection failed: %s: %s", type(error).__name__, error
+                )
                 raise
             entry = self._record_phase_error("feature_detection", error)
-            logger.error(
-                "Feature detection failed; continuing in best-effort mode",
+            logger.warning(
+                "Feature detection failed; continuing in best-effort mode: %s: %s",
+                type(error).__name__,
+                error,
                 extra={"scan_error": entry},
             )
             return _build_empty_features_context()

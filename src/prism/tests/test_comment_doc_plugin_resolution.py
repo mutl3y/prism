@@ -11,6 +11,8 @@ from typing import Any, Literal, cast
 
 import pytest
 
+from prism.scanner_data.policy_constants import PolicyConstants
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
 
@@ -1481,8 +1483,9 @@ def test_task_extract_adapters_marker_prefix_bundle_only_and_fail_closed(
             marker_prefix: str = "prism",
             include_task_index: bool = False,
             di=None,
+            policy_constants: PolicyConstants | None = None,
         ):
-            del include_task_index, di
+            del include_task_index, di, policy_constants
             captured_prefixes.append(marker_prefix)
             return [], {}
 
@@ -1496,8 +1499,9 @@ def test_task_extract_adapters_marker_prefix_bundle_only_and_fail_closed(
             marker_prefix: str = "prism",
             *,
             di=None,
+            policy_constants: PolicyConstants | None = None,
         ):
-            del exclude_paths, di
+            del exclude_paths, di, policy_constants
             captured_catalog_prefixes.append(marker_prefix)
             return [], []
 

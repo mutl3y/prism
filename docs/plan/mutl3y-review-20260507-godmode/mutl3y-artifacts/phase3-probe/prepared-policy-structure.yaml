@@ -1,0 +1,221 @@
+---
+probe_name: Probe-PolicyStructure
+investigation_date: 2026-05-07
+finding_id: prepared-policy-bundle-schema-audit
+severity: CRITICAL
+
+problem_statement: |
+  Wave 2 attempted direct attribute access: prepared_policy_bundle.TASK_INCLUDE_KEYS,
+  but received 'dict' object has no attribute error. This is because prepared_policy_bundle
+  is a TypedDict with nested policy objects, not flat attributes.
+
+prepared_policy_bundle_schema:
+  description: Runtime-scoped prepared policy instances carried with scan_options
+  base_type: TypedDict
+  total_false: true
+  keys:
+    - name: task_line_parsing
+      type: PreparedTaskLineParsingPolicy (Required)
+      description: Policy for parsing task lines and detecting task modules
+    - name: jinja_analysis
+      type: PreparedJinjaAnalysisPolicy (Required)
+      description: Policy for collecting undeclared Jinja variables
+    - name: task_traversal
+      type: PreparedTaskTraversalPolicy (NotRequired)
+      description: Policy for traversing and iterating task structures
+    - name: yaml_parsing
+      type: PreparedYAMLParsingPolicy (NotRequired)
+      description: Policy for loading and parsing YAML files
+    - name: variable_extractor
+      type: PreparedVariableExtractorPolicy (NotRequired)
+      description: Policy for collecting include_vars files
+    - name: task_annotation_parsing
+      type: PreparedTaskAnnotationPolicy (NotRequired)
+      description: Policy for parsing task annotations and markers
+    - name: comment_doc_marker_prefix
+      type: str (Required in practice, NotRequired in schema)
+      description: Marker prefix for comment documentation (default "@NOTE")
+    - name: ignore_unresolved_internal_underscore_references
+      type: bool (Required in practice, NotRequired in schema)
+      description: Whether to ignore unresolved underscore-prefixed references
+
+nested_policy_types:
+  - name: PreparedTaskLineParsingPolicy
+    location: src/prism/scanner_data/contracts_request.py:202
+    attributes:
+      - TASK_INCLUDE_KEYS: Collection[str]
+      - ROLE_INCLUDE_KEYS: Collection[str]
+      - INCLUDE_VARS_KEYS: Collection[str]
+      - SET_FACT_KEYS: Collection[str]
+      - TASK_BLOCK_KEYS: Collection[str]
+      - TASK_META_KEYS: Collection[str]
+      - detect_task_module(task: TaskMapping) -> str | None: method
+    validation_required: true
+    required_attributes_for_validation:
+      - TASK_INCLUDE_KEYS (non-None)
+      - ROLE_INCLUDE_KEYS (non-None)
+      - INCLUDE_VARS_KEYS (non-None)
+      - SET_FACT_KEYS (non-None)
+      - TASK_BLOCK_KEYS (non-None)
+      - TASK_META_KEYS (non-None)
+      - detect_task_module (callable)
+
+  - name: PreparedJinjaAnalysisPolicy
+    location: src/prism/scanner_data/contracts_request.py:215
+    attributes:
+      - collect_undeclared_jinja_variables(text: str) -> set[str]: method
+    validation_required: true
+
+  - name: PreparedTaskTraversalPolicy
+    location: src/prism/scanner_data/contracts_request.py:228
+    attributes:
+      - iter_task_mappings(data: object) -> Iterable[TaskMapping]
+      - iter_task_include_targets(data: object) -> list[str]
+      - iter_task_include_edges(data: object) -> list[dict[str, str]]
+      - expand_include_target_candidates(task: TaskMapping, include_target: str) -> list[str]
+      - iter_role_include_targets(task: TaskMapping) -> list[str]
+      - iter_dynamic_role_include_targets(task: TaskMapping) -> list[str]
+      - collect_unconstrained_dynamic_task_includes(role_root, task_files, load_yaml_file) -> list[dict[str, str]]
+      - collect_unconstrained_dynamic_role_includes(role_root, task_files, load_yaml_file) -> list[dict[str, str]]
+    optional: true
+
+  - name: PreparedYAMLParsingPolicy
+    location: src/prism/scanner_data/contracts_request.py:274
+    attributes:
+      - load_yaml_file(path: str | Path) -> object
+      - parse_yaml_candidate(candidate: str | Path, role_root: str | Path) -> YamlParseFailure | None
+    optional: true
+
+  - name: PreparedTaskAnnotationPolicy
+    location: src/prism/scanner_data/contracts_request.py:257
+    attributes:
+      - split_task_annotation_label(text: str) -> tuple[str, str]
+      - split_task_target_payload(text: str) -> tuple[str, str]
+      - annotation_payload_looks_yaml(payload: str) -> bool
+      - normalize_marker_prefix(marker_prefix: str | None) -> str
+      - get_marker_line_re(marker_prefix: str = ...) -> object
+      - extract_task_annotations_for_file(lines, marker_prefix=..., include_task_index=...) -> tuple[list[TaskAnnotation], dict[str, list[TaskAnnotation]]]
+      - task_anchor(file_path: str, task_name: str, index: int) -> str
+    optional: true
+
+  - name: PreparedVariableExtractorPolicy
+    location: src/prism/scanner_data/contracts_request.py:283
+    attributes:
+      - collect_include_vars_files(role_path, exclude_paths, collect_task_files, load_yaml_file) -> list[object]
+    optional: true
+
+attribute_locations:
+  TASK_INCLUDE_KEYS:
+    path: prepared_policy_bundle['task_line_parsing'].TASK_INCLUDE_KEYS
+    type: Collection[str]
+    required: yes
+  ROLE_INCLUDE_KEYS:
+    path: prepared_policy_bundle['task_line_parsing'].ROLE_INCLUDE_KEYS
+    type: Collection[str]
+    required: yes
+  INCLUDE_VARS_KEYS:
+    path: prepared_policy_bundle['task_line_parsing'].INCLUDE_VARS_KEYS
+    type: Collection[str]
+    required: yes
+  SET_FACT_KEYS:
+    path: prepared_policy_bundle['task_line_parsing'].SET_FACT_KEYS
+    type: Collection[str]
+    required: yes
+  TASK_BLOCK_KEYS:
+    path: prepared_policy_bundle['task_line_parsing'].TASK_BLOCK_KEYS
+    type: Collection[str]
+    required: yes
+  TASK_META_KEYS:
+    path: prepared_policy_bundle['task_line_parsing'].TASK_META_KEYS
+    type: Collection[str]
+    required: yes
+  detect_task_module:
+    path: prepared_policy_bundle['task_line_parsing'].detect_task_module
+    type: Callable[[TaskMapping], str | None]
+    required: yes
+
+how_current_code_accesses:
+  - pattern: Direct DI lookup via require_prepared_policy
+    location: src/prism/scanner_core/di_helpers.py:101
+    example: |
+      def require_prepared_policy(di, policy_name, context_label):
+          policy = get_prepared_policy_or_none(di, policy_name)
+          # This digs: di.scan_options['prepared_policy_bundle'][policy_name]
+          if policy is not None:
+              return policy
+          raise ValueError(...)
+
+  - pattern: Nested attribute access via _PolicyBackedCollectionProxy
+    location: src/prism/scanner_extract/task_line_parsing.py:74-75
+    example: |
+      TASK_INCLUDE_KEYS = _PolicyBackedCollectionProxy("TASK_INCLUDE_KEYS")
+      # Proxy._current_value() -> require_prepared_policy(None, "task_line_parsing")
+      # -> prepared_policy_bundle['task_line_parsing']
+      # -> then getattr(..., "TASK_INCLUDE_KEYS")
+
+  - pattern: Helper functions with context label
+    location: src/prism/scanner_extract/task_line_parsing.py:88-93
+    example: |
+      def get_task_include_keys(di=None):
+          return _task_line_policy_attr(di, "TASK_INCLUDE_KEYS")
+      # Which calls:
+      def _task_line_policy_attr(di, attr):
+          return getattr(
+              require_prepared_policy(di, "task_line_parsing", "task_line_parsing"),
+              attr
+          )
+
+  - pattern: Scanner context access
+    location: src/prism/scanner_core/scanner_context.py:203-204
+    example: |
+      # Listed as deprecated re-exports:
+      "TASK_INCLUDE_KEYS",
+      "ROLE_INCLUDE_KEYS",
+      # These trigger the proxy pattern above
+
+recommendation_for_factory:
+  issue: Wave 2 attempted prepare_policy_bundle.TASK_INCLUDE_KEYS but this is not valid dict access
+  root_cause: TASK_INCLUDE_KEYS is not a top-level key; it is an attribute of the nested task_line_parsing policy object
+  correct_access_patterns:
+    - direct_access: prepared_policy_bundle['task_line_parsing'].TASK_INCLUDE_KEYS
+    - via_helper: get_task_include_keys(di)
+    - via_proxy: task_line_parsing.TASK_INCLUDE_KEYS (module-level proxy)
+  refactoring_approach:
+    option_1:
+      name: Extract constants from nested policy at factory
+      description: |
+        Create flat constants at module level by resolving the nested policy early.
+        This moves the dig-through into the factory, not the runtime code.
+      location: src/prism/scanner_plugins/defaults.py (factory layer)
+      complexity: low
+      impact: Cleaner factory interface; flat constants in namespace
+      example: |
+        def factory_task_line_constants(di):
+            policy = resolve_task_line_parsing_policy_plugin(di)
+            return {
+                'TASK_INCLUDE_KEYS': policy.TASK_INCLUDE_KEYS,
+                'ROLE_INCLUDE_KEYS': policy.ROLE_INCLUDE_KEYS,
+                # ... etc
+            }
+    option_2:
+      name: Use prepared_policy_bundle['task_line_parsing'] accessors directly
+      description: |
+        Keep nested structure; use consistent accessors throughout.
+        Existing _PolicyBackedCollectionProxy already does this.
+      complexity: low
+      impact: Maintains canonical structure; existing patterns work
+      example: |
+        prepared_policy_bundle['task_line_parsing'].TASK_INCLUDE_KEYS
+
+refactoring_complexity: low
+
+evidence:
+  - artifact: src/prism/scanner_data/contracts_request.py:296-308 (PreparedPolicyBundle definition)
+  - artifact: src/prism/scanner_plugins/bundle_resolver.py:97-166 (Bundle assembly logic)
+  - artifact: src/prism/scanner_extract/task_line_parsing.py:60-95 (Proxy pattern implementation)
+  - artifact: src/prism/scanner_core/di_helpers.py:80-124 (DI helpers for nested access)
+  - test: src/prism/tests/test_scanner_context.py:69-92 (_PreparedTaskLinePolicy mock showing attribute structure)
+
+open_edges:
+  - edge_1: PreparedPolicyBundle TypedDict allows NotRequired for several keys; code must handle missing policies gracefully
+  - edge_2: _PolicyBackedCollectionProxy uses require_prepared_policy with context_label="task_line_parsing" twice; this special-case naming could be refactored to a constant

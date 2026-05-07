@@ -1,0 +1,241 @@
+fix_group: typing_loose_annotations
+findings_count: 10
+investigation_date: "2026-05-07"
+investigation_lens: "Hot-path prioritization (scanner_core > scanner_extract > scanner_data > utility)"
+
+findings_decisions:
+  - finding_id: Scout-Typing-02
+    file: src/prism/scanner_core/di.py
+    line: 549
+    symbol: "DIContainer.inject_mock(name: str, mock: Any) -> None"
+    category: HOT_PATH
+    current_annotation: "mock: Any"
+    decision: ACCEPT_ANY
+    reason: |
+      Test-only infrastructure method for mock injection. Mock can be any type
+      (VariableDiscovery, FeatureDetector, Plugin, EventBus, etc.). Generic T
+      would require complex overload or bounded TypeVar. Storage dict already
+      typed as dict[str, Any]; callers cast to expected type after retrieval.
+      Benefits of strict typing do not justify complexity burden.
+    priority: HOT_PATH
+    implementation_effort: LOW
+    risk: MINIMAL
+    blocker: false
+
+  - finding_id: Scout-Typing-04
+    file: src/prism/scanner_core/scan_cache.py
+    line: 41
+    symbol: "ScanCacheBackend.set(key: str, value: Any) -> None"
+    category: HOT_PATH
+    current_annotation: "value: Any"
+    decision: ACCEPT_ANY
+    reason: |
+      Protocol definition for cache backend accepting arbitrary scan results.
+      Different calls cache different payload types (dict, RunScanOutputPayload,
+      mixed dicts). _clone_container_structure recursively clones nested container
+      structures. object type is less meaningful than Any here (cache explicitly
+      accepts heterogeneous values). Union of all cached types is unmaintainable.
+    priority: HOT_PATH
+    implementation_effort: LOW
+    risk: MINIMAL
+    blocker: false
+
+  - finding_id: Scout-Typing-05
+    file: src/prism/scanner_core/scan_cache.py
+    line: 90
+    symbol: "InMemoryLRUScanCache.set(key: str, value: Any) -> None"
+    category: HOT_PATH
+    current_annotation: "value: Any"
+    decision: ACCEPT_ANY
+    reason: |
+      Implementation class matching ScanCacheBackend protocol.
+      See Scout-Typing-04 rationale. Mirrors protocol constraint.
+    priority: HOT_PATH
+    implementation_effort: LOW
+    risk: MINIMAL
+    blocker: false
+
+  - finding_id: Scout-Typing-03
+    file: src/prism/scanner_core/protocols_runtime.py
+    line: 3
+    symbol: "KernelPayload: TypeAlias = dict[str, object]"
+    category: HOT_PATH
+    current_annotation: "dict[str, object] (not Any)"
+    decision: REFINE_CONTRACT
+    reason: |
+      This file's PURPOSE is to replace weak Callable[..., Any] aliases.
+      KernelPayload is already properly typed. However, investigate whether
+      dict[str, object] is precise enough vs. dict[str, Any] for runtime kernel
+      payloads. Consider audit: (1) what types are actually stored in KernelPayload,
+      (2) whether object is too strict (losing type info for common payloads),
+      (3) whether TypedDict or Protocol would better document kernel contract.
+      Not an immediate fix but aligns with file's stated purpose.
+    priority: HOT_PATH
+    implementation_effort: MEDIUM
+    risk: MEDIUM
+    blocker: false
+    follow_up: "Audit kernel_payload values in scanner_kernel/orchestrator.py"
+
+  - finding_id: Scout-Typing-08
+    file: src/prism/scanner_extract/task_line_parsing.py
+    line: 61
+    symbol: "_PolicyBackedRegexProxy.match(*args: Any, **kwargs: Any)"
+    category: HOT_PATH
+    current_annotation: "*args: Any, **kwargs: Any"
+    decision: REPLACE_PROTOCOL
+    reason: |
+      Proxy delegates to re.Pattern[str] methods. re.Pattern.match signature is:
+      match(string: str, pos: int = 0, endpos: int = sys.maxsize) -> Match[str] | None.
+      Current *args/**kwargs masks the actual contract. Replace with explicit
+      signature matching re.Pattern[str].match. Return type should be
+      re.Match[str] | None, not implicit Any.
+    priority: HOT_PATH
+    implementation_effort: LOW
+    risk: LOW
+    blocker: false
+    replacement_hint: |
+      def match(self, string: str, pos: int = 0, 
+                endpos: int = sys.maxsize) -> re.Match[str] | None:
+          return self._current_regex().match(string, pos, endpos)
+
+  - finding_id: Scout-Typing-09
+    file: src/prism/scanner_extract/task_line_parsing.py
+    line: 64
+    symbol: "_PolicyBackedRegexProxy.search(*args: Any, **kwargs: Any)"
+    category: HOT_PATH
+    current_annotation: "*args: Any, **kwargs: Any"
+    decision: REPLACE_PROTOCOL
+    reason: |
+      Same as Scout-Typing-08. re.Pattern.search has same signature:
+      search(string: str, pos: int = 0, endpos: int = ...) -> Match[str] | None.
+    priority: HOT_PATH
+    implementation_effort: LOW
+    risk: LOW
+    blocker: false
+    replacement_hint: |
+      def search(self, string: str, pos: int = 0,
+                 endpos: int = sys.maxsize) -> re.Match[str] | None:
+          return self._current_regex().search(string, pos, endpos)
+
+  - finding_id: Scout-Typing-10
+    file: src/prism/scanner_extract/task_line_parsing.py
+    line: 67
+    symbol: "_PolicyBackedRegexProxy.fullmatch(*args: Any, **kwargs: Any)"
+    category: HOT_PATH
+    current_annotation: "*args: Any, **kwargs: Any"
+    decision: REPLACE_PROTOCOL
+    reason: |
+      Same as Scout-Typing-08 & 09. re.Pattern.fullmatch signature:
+      fullmatch(string: str, pos: int = 0, endpos: int = ...) -> Match[str] | None.
+    priority: HOT_PATH
+    implementation_effort: LOW
+    risk: LOW
+    blocker: false
+    replacement_hint: |
+      def fullmatch(self, string: str, pos: int = 0,
+                    endpos: int = sys.maxsize) -> re.Match[str] | None:
+          return self._current_regex().fullmatch(string, pos, endpos)
+
+  - finding_id: Scout-Typing-06
+    file: src/prism/scanner_data/scan_options_schema.py
+    line: 23
+    symbol: "ScanOptionSchemaEntry.default: Any"
+    category: DATA_CONTRACT
+    current_annotation: "default: Any"
+    decision: REFINE_CONTRACT
+    reason: |
+      Schema entry field holding default values for different scan options.
+      Different options have different types (str, list[str], bool, None, etc.).
+      Current Any is imprecise. Recommend: (1) audit all SCAN_OPTIONS_SCHEMA
+      entries to catalog default types, (2) if defaults are polymorphic but
+      constrained (e.g., str | list[str] | None), use Union instead of Any,
+      (3) if pattern is truly heterogeneous, document why and ACCEPT_ANY with
+      comment. This field is part of data contract boundary; improving it aids
+      static analysis of validation layer.
+    priority: DATA_CONTRACT
+    implementation_effort: MEDIUM
+    risk: LOW
+    blocker: false
+    follow_up: |
+      Catalog default values in SCAN_OPTIONS_SCHEMA entries.
+      Determine if Union type can replace Any.
+
+  - finding_id: Scout-Typing-07
+    file: src/prism/scanner_data/scan_options_schema.py
+    line: 33
+    symbol: "_entry(..., default: Any = None, ...)"
+    category: DATA_CONTRACT
+    current_annotation: "default: Any = None"
+    decision: REFINE_CONTRACT
+    reason: |
+      Helper function default parameter. See Scout-Typing-06 rationale.
+      The default parameter should match the refactored default field type.
+    priority: DATA_CONTRACT
+    implementation_effort: MEDIUM
+    risk: LOW
+    blocker: false
+    follow_up: "Same as Scout-Typing-06; refactor as single decision"
+
+  - finding_id: Scout-Typing-01
+    file: src/prism/scanner_config/patterns.py
+    line: 103
+    symbol: "_normalise_token_collection(raw: Any) -> set[str]"
+    category: UTILITY
+    current_annotation: "raw: Any"
+    decision: REPLACE_UNION
+    reason: |
+      Normalizes input that can be string or collection of strings.
+      Accepts: str | list | tuple | set | any iterable of strings.
+      Replace with: raw: str | Collection[str]. Function docstring should
+      clarify that collection items must be str (not validated at type level
+      but clear from implementation). Low impact (utility function), but
+      improves local type clarity.
+    priority: UTILITY
+    implementation_effort: LOW
+    risk: MINIMAL
+    blocker: false
+    replacement_hint: "raw: str | Collection[str]"
+
+overall_assessment:
+  hot_path_findings: 6
+  data_contract_findings: 2
+  utility_findings: 1
+  
+  breakdown:
+    accept_any: 3
+    replace_protocol: 3
+    replace_union: 1
+    refine_contract: 2
+
+implementation_readiness: "ready"
+implementation_sequencing: |
+  1. PHASE 1 (Low-risk, immediate): Scout-Typing-08, 09, 10 (regex proxy signatures)
+     - Straightforward: match re.Pattern[str] signatures
+     - No dependencies; isolated file
+     
+  2. PHASE 2 (Medium-risk, audit-dependent): Scout-Typing-06, 07 (scan_options defaults)
+     - Requires audit of SCAN_OPTIONS_SCHEMA entries
+     - Single coherent decision (must fix both together)
+     - May expose other type issues in schema validation
+     
+  3. PHASE 3 (Optional, low-impact): Scout-Typing-01 (patterns.py utility)
+     - Isolated improvement
+     - Run after core phases
+     
+  4. PHASE 4 (Accept-as-is): Scout-Typing-02, 04, 05 (inject_mock, cache set)
+     - Documented rationale for Any; no action needed unless architecture changes
+
+validation_gate:
+  - mypy src/prism (target: same or fewer errors)
+  - pytest src/prism/tests (full suite)
+  - ruff check src/prism
+  - black --check src/prism
+  
+notes: |
+  - Regex proxy fixes (08, 09, 10) are independent and can be batched.
+  - Data contract fixes (06, 07) require joint audit and decision.
+  - Hot-path Any annotations (02, 04, 05) are acceptable and documented.
+  - Scout-Typing-03 (protocols_runtime) aligns with file's stated purpose;
+    refinement is follow-up, not critical path.
+  - All decisions prioritize hot-path clarity; utility-layer improvements are
+    deferrable.

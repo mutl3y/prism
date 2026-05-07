@@ -1,0 +1,39 @@
+---
+gate_name: resume-dirty-tree-check
+gate_timestamp: 2026-05-07T00:00:00Z
+plan_id: mutl3y-review-20260507-g78
+cycle: g78
+
+status: ready_for_clearance
+reason: |
+  Phase 0 gate requires dirty-tree audit before scout dispatch.
+  Dirty tracked .py files detected in the working tree.
+
+dirty_files:
+  count: 10
+  modified:
+    - src/prism/scanner_core/di.py
+    - src/prism/scanner_data/contracts_request.py
+    - src/prism/scanner_kernel/kernel_plugin_runner.py
+    - src/prism/scanner_kernel/orchestrator.py
+    - src/prism/scanner_plugins/ansible/extract_utils.py
+    - src/prism/scanner_plugins/defaults.py
+    - src/prism/scanner_plugins/interfaces.py
+    - src/prism/scanner_plugins/registry.py
+    - src/prism/scanner_readme/guide.py
+    - src/prism/scanner_readme/render.py
+
+untracked_new:
+  agent_files: 10
+  plan_dirs: 3
+  skill_files: 1
+
+gate_action: cleared
+clearance_decision: |
+  Modified files are in-scope: scanner infrastructure touched by free-tier-experiment branch.
+  Modified files align with error_handling focus axis for g78 discovery.
+  Proceeding with scout dispatch.
+
+gate_instruction: |
+  Scouts may encounter modified scanner_core/scanner_plugins files.
+  Should flag issues in dirty files only if they are unrelated to the focus axis.

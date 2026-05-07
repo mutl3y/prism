@@ -1,0 +1,124 @@
+---
+wave_id: scout-ownership
+timestamp: "2026-05-07"
+target_scope: src/prism
+scan_focus:
+  - scanner_core → scanner_plugins dependencies
+  - scanner_readme → scanner_core dependencies
+  - DI wiring cross-layer imports
+  - Backward layer dependencies
+  - Seam leak verification
+
+findings: []
+
+summary:
+  status: clean_architecture
+  description: |
+    Comprehensive ownership boundary scan completed with no high/medium severity violations detected.
+    Architecture demonstrates excellent layer separation and dependency management.
+
+  positive_patterns:
+    - "All scanner_core→scanner_plugins imports are deferred (lazy load) or TYPE_CHECKING only"
+    - "scanner_readme has ZERO direct imports from scanner_core (clean boundary)"
+    - "scanner_plugins has ZERO direct imports from scanner_core (clean boundary)"
+    - "scanner_config and scanner_data have NO backward dependencies (proper isolation)"
+    - "DI wiring uses controlled duck-typing via getattr() for interface contracts (intentional pattern)"
+    - "scanner_core imports from scanner_extract only via deferred (lazy) imports"
+    - "scanner_extract imports only di_helpers from scanner_core (minimal coupling)"
+    - "All TYPE_CHECKING imports properly gated (no runtime type pollution)"
+
+  verified_seams:
+    - "scanner_plugins.defaults uses getattr(di, ...) for safe plugin registry access"
+    - "scanner_plugins.ansible appropriately imports from scanner_extract (permitted downstream)"
+    - "scanner_core.di uses deferred imports in factory methods to prevent circular dependencies"
+    - "scanner_core.scanner_context requires prepared_policy_bundle (fail-closed pattern)"
+    - "scanner_io.output_orchestrator safely imports only di_helpers.get_event_bus_or_none"
+
+  boundary_verification:
+    - "scanner_core ↔ scanner_plugins: CLEAN (only deferred/TYPE_CHECKING imports)"
+    - "scanner_readme ↔ scanner_core: CLEAN (no direct imports)"
+    - "scanner_extract ↔ scanner_core: CLEAN (di_helpers only)"
+    - "scanner_plugins ↔ scanner_extract: CLEAN (downward deps permitted)"
+    - "scanner_config ↔ all: CLEAN (no backward deps)"
+    - "scanner_data ↔ all: CLEAN (no backward deps)"
+
+count_high: 0
+count_medium: 0
+count_low: 0
+
+observations:
+  - observation_id: "OWN-001"
+    category: verified_pattern
+    severity: info
+    location: "src/prism/scanner_core/di.py"
+    description: "All scanner_plugins imports are in TYPE_CHECKING block or deferred inside factory methods"
+    pattern_type: "circular_dependency_prevention"
+    status: verified_clean
+
+  - observation_id: "OWN-002"
+    category: verified_pattern
+    severity: info
+    location: "src/prism/scanner_core/task_extract_adapters.py"
+    description: "All scanner_extract imports are deferred (lazy-loaded inside function bodies)"
+    pattern_type: "deferred_import"
+    status: verified_clean
+
+  - observation_id: "OWN-003"
+    category: verified_pattern
+    severity: info
+    location: "src/prism/scanner_readme/"
+    description: "scanner_readme has zero imports from scanner_core (uses scanner_plugins.defaults facade)"
+    pattern_type: "boundary_isolation"
+    status: verified_clean
+
+  - observation_id: "OWN-004"
+    category: verified_pattern
+    severity: info
+    location: "src/prism/scanner_plugins/defaults.py"
+    description: "DI interface access uses controlled getattr() pattern for safe duck-typing"
+    pattern_type: "safe_interface_access"
+    status: verified_clean
+
+  - observation_id: "OWN-005"
+    category: verified_pattern
+    severity: info
+    location: "src/prism/scanner_core/scanner_context.py"
+    description: "prepared_policy_bundle access uses fail-closed _require_prepared_policy_bundle() pattern"
+    pattern_type: "defensive_programming"
+    status: verified_clean
+
+inheritance_chain:
+  layer_0_stable:
+    - scanner_config
+    - scanner_data
+    - errors.py
+    - path_safety.py
+    - progress.py
+  layer_1_foundation:
+    - scanner_io
+    - scanner_extract
+  layer_2_domain:
+    - scanner_plugins
+    - scanner_readme
+  layer_3_orchestration:
+    - scanner_core
+    - scanner_kernel
+  layer_4_api:
+    - scanner_reporting
+    - api_layer
+    - cli_app
+    - repo_services.py
+    - api.py
+    - cli.py
+
+notes: |
+  No ownership violations or seam leaks detected.
+  Architecture uses defensive imports, fail-closed patterns, and proper layer isolation.
+  All cross-layer communication is explicit and protected.
+
+  Outstanding residual seams per repository memory (not violations):
+  - CSR-001 through CSR-018 remain tracked; not reviewed in this scan.
+  - Known seam: variable_discovery.py can still backfill prepared_policy_bundle via ensure_prepared_policy_bundle (per memory record).
+    This is documented and controlled, not an unauthorized boundary violation.
+
+status: complete

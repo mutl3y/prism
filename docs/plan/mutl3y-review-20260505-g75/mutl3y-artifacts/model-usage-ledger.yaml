@@ -1,0 +1,64 @@
+- timestamp: '2026-05-06T10:57:06.101837+00:00'
+  cycle: g75
+  phase: P0
+  worker: Scout-Typing
+  task_id: phase0_scout_typing
+  requested_tier: low-cost
+  requested_model: GPT-4.1 (copilot)
+  actual_model: GPT-4.1 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260505-g75/mutl3y-artifacts/phase0/Scout-Typing.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: summary-only output was backfilled into the owned artifact on disk
+  lane_tag: discovery
+- timestamp: '2026-05-06T10:57:06.199345+00:00'
+  cycle: g75
+  phase: P0
+  worker: Scout-Ownership
+  task_id: phase0_scout_ownership
+  requested_tier: low-cost
+  requested_model: GPT-4.1 (copilot)
+  actual_model: GPT-4.1 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260505-g75/mutl3y-artifacts/phase0/Scout-Ownership.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: summary-only output was backfilled into the owned artifact on disk
+  lane_tag: discovery
+- timestamp: '2026-05-06T10:57:06.304575+00:00'
+  cycle: g75
+  phase: P0
+  worker: Scout-ControlFlow
+  task_id: phase0_scout_controlflow
+  requested_tier: low-cost
+  requested_model: GPT-4.1 (copilot)
+  actual_model: GPT-4.1 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260505-g75/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml
+  quality_score: 2
+  needed_reedit: true
+  recovery_action: foreman_recovery
+  notes: no observations returned; artifact was backfilled from the batch summary
+  lane_tag: discovery
+- timestamp: '2026-05-06T10:57:06.408389+00:00'
+  cycle: g75
+  phase: P0
+  worker: Scout-Graph
+  task_id: phase0_scout_graph
+  requested_tier: low-cost
+  requested_model: GPT-4.1 (copilot)
+  actual_model: GPT-4.1 (copilot)
+  result: success
+  failure_type: none
+  artifact_path: docs/plan/mutl3y-review-20260505-g75/mutl3y-artifacts/phase0/Scout-Graph.yaml
+  quality_score: 4
+  needed_reedit: false
+  recovery_action: none
+  notes: summary-only output was backfilled into the owned artifact on disk
+  lane_tag: discovery

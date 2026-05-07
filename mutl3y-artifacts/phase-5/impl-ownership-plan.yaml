@@ -1,0 +1,554 @@
+---
+fix_group: ownership_layer_violations
+phase: 5
+date_generated: "2026-05-07"
+decision_artifact: phase-4/decision-ownership.yaml
+
+files_owned:
+  - src/prism/api.py
+  - src/prism/cli.py
+  - src/prism/api_layer/collection.py (target for moved imports)
+  - src/prism/api_layer/cli_io.py (new facade seam for CLI)
+
+investigation_summary: |
+  8 ownership findings from phase-4 decision artifact:
+  - Findings 01-04: KEEP_AS_IS (already correct imports, shared constants)
+  - Finding 05: MOVE_TO_SEAM (optional, path_safety utility)
+  - Finding 06: KEEP_AS_IS_OR_MOVE_OPTIONAL (contract types, already accessible)
+  - Findings 07-08: CRITICAL_SEAM (scanner_io direct imports violate API/implementation boundary)
+  - Parallel CLI violations: Similar pattern to 07-08 in cli.py
+
+changes:
+  - finding_id: Scout-Ownership-01-02-03-04
+    group: "FACADE_IMPORTS + SHARED_CONSTANTS"
+    files_affected: [src/prism/api.py]
+    violation_type: KEEP_AS_IS
+    layer_boundary: API_LAYER
+    decision: |
+      No action required. api.py correctly imports:
+      - prism.api_layer.collection (canonical facade)
+      - prism.api_layer.non_collection (canonical facade)
+      - prism.api_layer.plugin_facade (canonical facade)
+      - prism.errors.ERROR_CATEGORY_VALIDATION (shared constant)
+      
+      These imports are at the correct abstraction level and are the intended
+      design pattern for the public API.
+    effort_hours: 0
+    blocker_dependencies: []
+    implementation_priority: NONE
+
+  - finding_id: Scout-Ownership-05
+    group: "OPTIONAL_CONSISTENCY_IMPROVEMENTS"
+    file: src/prism/api.py
+    violation_type: MOVE_TO_SEAM
+    layer_boundary: API_LAYER
+    severity: OPTIONAL
+    current_state: |
+      api.py line 18:
+        from prism.path_safety import assert_safe_role_path
+      
+      api.py uses this utility internally in _assert_safe_optional_path()
+    proposed_state: |
+      Move import to api_layer/common.py as re-export:
+      
+      # api_layer/common.py
+      from prism.path_safety import assert_safe_role_path
+      __all__ = ["assert_safe_role_path"]
+      
+      # api.py
+      from prism.api_layer import common
+      # Usage: common.assert_safe_role_path()
+    pseudocode: |
+      1. Create or update api_layer/common.py:
+         - Add re-export: from prism.path_safety import assert_safe_role_path
+         - Update __all__ to include assert_safe_role_path
+      
+      2. Update api.py imports:
+         - Remove: from prism.path_safety import assert_safe_role_path
+         - Add: from prism.api_layer import common
+      
+      3. Update usage in _assert_safe_optional_path():
+         - Change: assert_safe_role_path(path_value, ...)
+         - To: common.assert_safe_role_path(path_value, ...)
+      
+      4. Verify no other imports of assert_safe_role_path exist in api.py
+    effort_hours: 1
+    rationale: |
+      Low-effort consistency improvement. Centralizes all api.py utility imports
+      through api_layer facades instead of direct imports from implementation layers.
+      Alternative: Keep as-is (acceptable, not blocking).
+    blocker_dependencies: []
+    implementation_priority: LOW
+    testing_strategy: |
+      - Run unit tests for api module: pytest -q src/prism/tests/test_api_*.py
+      - Verify path validation logic still works (test files with invalid/missing paths)
+
+  - finding_id: Scout-Ownership-06
+    group: "CONTRACT_TYPES_OPTIONAL"
+    file: src/prism/api.py
+    violation_type: KEEP_AS_IS_OR_MOVE_OPTIONAL
+    layer_boundary: API_LAYER
+    severity: OPTIONAL
+    current_state: |
+      api.py line 19:
+        from prism.scanner_config.audit_rules import AuditReport, AuditRule
+      
+      These types appear in public function signatures:
+      - load_audit_rules_from_file() -> list[AuditRule]
+      - run_audit() -> AuditReport
+    analysis: |
+      AuditReport and AuditRule are type contracts (data structures), not
+      implementation functions. They live in scanner_data layer (contracts),
+      not scanner_io or other implementation layers. Direct import is acceptable.
+      
+      However, api_layer/plugin_facade.py already uses TYPE_CHECKING import for
+      these same types, suggesting they could be re-exported for consistency.
+    proposed_state: |
+      Option A (Recommended: KEEP_AS_IS)
+        - Keep direct import from scanner_config.audit_rules
+        - No change required; design is acceptable
+      
+      Option B (Optional: MOVE_TO_REEXPORT)
+        - Add to api_layer/plugin_facade.py:
+          __all__ = [..., "AuditReport", "AuditRule"]
+        - Update api.py import:
+          from prism.api_layer.plugin_facade import AuditReport, AuditRule
+    pseudocode: |
+      # If Option B is pursued:
+      1. Update api_layer/plugin_facade.py:
+         - Remove TYPE_CHECKING guard for AuditReport, AuditRule
+         - Add public re-export at module level
+         - Update __all__ list
+      
+      2. Update api.py imports:
+         - Remove: from prism.scanner_config.audit_rules import AuditReport, AuditRule
+         - Change: from prism.api_layer import plugin_facade
+         - Use: plugin_facade.AuditReport, plugin_facade.AuditRule
+      
+      3. Verify no other imports of these types exist
+    effort_hours: 1
+    rationale: |
+      Types are legitimate imports from contract layer. Option B adds only
+      marginal consistency; Option A is already correct. Decision: defer to
+      facade standardization policy. If enforced, implement Option B as
+      low-effort re-export.
+    blocker_dependencies: []
+    implementation_priority: LOW
+    testing_strategy: |
+      - Type checking: mypy src/prism/api.py
+      - Run audit tests: pytest -q src/prism/tests/test_api_audit.py
+
+  - finding_id: Scout-Ownership-07
+    group: "CRITICAL_SEAM_VIOLATIONS"
+    file: src/prism/api.py
+    violation_type: MOVE_TO_SEAM
+    layer_boundary: API_LAYER
+    severity: CRITICAL_SEAM
+    current_state: |
+      api.py line 20:
+        from prism.scanner_io.collection_plugins import scan_collection_plugins
+      
+      api.py line ~191:
+        def _scan_collection_plugins_typed(collection_root: Path) -> CollectionPluginCatalog:
+            return cast(CollectionPluginCatalog, scan_collection_plugins(collection_root))
+      
+      api.py line ~300+:
+        Calls _scan_collection_plugins_typed() in scan_collection() function
+    problem: |
+      CRITICAL LAYER VIOLATION: scan_collection_plugins is an implementation
+      function from scanner_io layer (two levels below api.py). Direct import
+      from API layer exposes internal implementation detail.
+      
+      Risk: If scanner_io refactors, api.py breaks. API facade cannot shield
+      against scanner_io changes.
+    proposed_state: |
+      Move import and wrapper to api_layer/collection.py:
+      
+      # api_layer/collection.py
+      from prism.scanner_io.collection_plugins import scan_collection_plugins
+      
+      def _scan_collection_plugins_facade(collection_root: Path) -> CollectionPluginCatalog:
+          return cast(CollectionPluginCatalog, scan_collection_plugins(collection_root))
+      
+      # api.py
+      from prism.api_layer import collection as api_collection
+      # Usage: api_collection._scan_collection_plugins_facade(collection_root)
+    pseudocode: |
+      1. Update api_layer/collection.py:
+         - Add import: from prism.scanner_io.collection_plugins import scan_collection_plugins
+         - Move typed wrapper from api.py: _scan_collection_plugins_facade()
+         - Export in __all__ (or keep private with _prefix)
+      
+      2. Update api.py:
+         - Remove import: from prism.scanner_io.collection_plugins import scan_collection_plugins
+         - Remove function: _scan_collection_plugins_typed()
+      
+      3. Update all call sites in api.py:
+         - In scan_collection():
+           Old: plugins_catalog = _scan_collection_plugins_typed(collection_root)
+           New: plugins_catalog = api_collection._scan_collection_plugins_facade(collection_root)
+         - Verify type safety via mypy
+      
+      4. Verify no other api.py code references scan_collection_plugins
+    effort_hours: 2
+    rationale: |
+      Core architectural fix. Isolates scanner_io implementation from public API.
+      Scanner_io can evolve without breaking api.py contract. Facade becomes
+      single point of change for scanner_io integration.
+    blocker_dependencies: [api_layer_seam_definition_complete]
+    implementation_priority: CRITICAL
+    testing_strategy: |
+      - Type check: mypy src/prism/api.py
+      - Collection scan tests: pytest -q src/prism/tests/test_api_collection*.py -k "collection"
+      - Integration test: pytest -q src/prism/tests/test_api_integration_collection.py
+
+  - finding_id: Scout-Ownership-08
+    group: "CRITICAL_SEAM_VIOLATIONS"
+    file: src/prism/api.py
+    violation_type: MOVE_TO_SEAM
+    layer_boundary: API_LAYER
+    severity: CRITICAL_SEAM
+    current_state: |
+      api.py lines 21-26:
+        from prism.scanner_io.collection_payload import (
+            build_collection_identity,
+            build_collection_failure_record,
+            build_collection_role_entry,
+            build_collection_scan_result,
+            render_collection_role_readme,
+        )
+      
+      api.py line 27:
+        from prism.scanner_io.collection_renderer import write_collection_runbook_artifacts
+      
+      api.py line 29-30:
+        from prism.scanner_reporting.collection_dependencies import aggregate_collection_dependencies
+      
+      api.py contains typed wrappers for all these functions:
+      - _build_collection_identity_typed()
+      - _aggregate_collection_dependencies_typed()
+      - _build_collection_role_entry_typed()
+      - _build_collection_failure_record_typed()
+      
+      (render_collection_role_readme and write_collection_runbook_artifacts
+       appear to be used elsewhere; need verification)
+    problem: |
+      CRITICAL LAYER VIOLATIONS: 5 implementation functions directly imported
+      from scanner_io and scanner_reporting layers (two levels down). Each import
+      exposes internal implementation detail and couples API layer to internal
+      architecture.
+      
+      Risk: Parallel to 07. If any of these modules refactor (function rename,
+      signature change, relocation), api.py breaks. API facade cannot protect
+      against internal layer changes.
+    proposed_state: |
+      Move all imports and wrappers to api_layer/collection.py:
+      
+      # api_layer/collection.py
+      from prism.scanner_io.collection_payload import (
+          build_collection_identity,
+          build_collection_failure_record,
+          build_collection_role_entry,
+          build_collection_scan_result,
+          render_collection_role_readme,
+      )
+      from prism.scanner_io.collection_renderer import write_collection_runbook_artifacts
+      from prism.scanner_reporting.collection_dependencies import aggregate_collection_dependencies
+      
+      def _build_collection_identity_facade(collection_root: Path) -> CollectionIdentity:
+          return cast(CollectionIdentity, build_collection_identity(collection_root))
+      
+      def _aggregate_collection_dependencies_facade(collection_root: Path) -> CollectionDependencies:
+          return cast(CollectionDependencies, aggregate_collection_dependencies(collection_root))
+      
+      def _build_collection_role_entry_facade(...) -> CollectionRoleEntry:
+          return cast(CollectionRoleEntry, build_collection_role_entry(...))
+      
+      def _build_collection_failure_record_facade(...) -> CollectionFailureRecord:
+          return cast(CollectionFailureRecord, build_collection_failure_record(...))
+      
+      def render_collection_role_readme_facade(...) -> str:
+          return render_collection_role_readme(...)
+      
+      def write_collection_runbook_artifacts_facade(...) -> None:
+          return write_collection_runbook_artifacts(...)
+      
+      # api.py
+      from prism.api_layer import collection as api_collection
+      # Usage: api_collection._build_collection_identity_facade()
+    pseudocode: |
+      Phase 1: Prepare api_layer/collection.py facades
+      ───────────────────────────────────────────────
+      1. Update api_layer/collection.py:
+         - Add imports from scanner_io and scanner_reporting
+         - Move all typed wrapper functions from api.py:
+           * _build_collection_identity_typed() → _build_collection_identity_facade()
+           * _aggregate_collection_dependencies_typed() → _aggregate_collection_dependencies_facade()
+           * _build_collection_role_entry_typed() → _build_collection_role_entry_facade()
+           * _build_collection_failure_record_typed() → _build_collection_failure_record_facade()
+         - Add or move wrappers for render_collection_role_readme and write_collection_runbook_artifacts
+      
+      Phase 2: Update api.py
+      ──────────────────────
+      2. Remove imports from api.py:
+         - from prism.scanner_io.collection_payload import (...)
+         - from prism.scanner_io.collection_renderer import write_collection_runbook_artifacts
+         - from prism.scanner_reporting.collection_dependencies import aggregate_collection_dependencies
+      
+      3. Remove typed wrapper functions from api.py:
+         - _build_collection_identity_typed()
+         - _aggregate_collection_dependencies_typed()
+         - _build_collection_role_entry_typed()
+         - _build_collection_failure_record_typed()
+      
+      Phase 3: Update call sites in api.py
+      ────────────────────────────────────
+      4. Identify all call sites (search for _build_collection_*, _aggregate_collection_*, etc.)
+         in scan_collection() and other functions
+      
+      5. Update each call site:
+         Old: result = _build_collection_identity_typed(collection_root)
+         New: result = api_collection._build_collection_identity_facade(collection_root)
+      
+      6. Verify comprehensive coverage:
+         - _build_collection_identity_typed → api_collection._build_collection_identity_facade
+         - _aggregate_collection_dependencies_typed → api_collection._aggregate_collection_dependencies_facade
+         - _build_collection_role_entry_typed → api_collection._build_collection_role_entry_facade
+         - _build_collection_failure_record_typed → api_collection._build_collection_failure_record_facade
+         - render_collection_role_readme → api_collection.render_collection_role_readme_facade
+         - write_collection_runbook_artifacts → api_collection.write_collection_runbook_artifacts_facade
+      
+      Phase 4: Verify and test
+      ────────────────────────
+      7. Type check: mypy src/prism/api.py src/prism/api_layer/collection.py
+      8. Lint: ruff check src/prism/api.py src/prism/api_layer/collection.py
+      9. Run collection tests: pytest -q src/prism/tests/test_api_collection*.py
+      10. Run integration: pytest -q src/prism/tests/test_api_integration_collection.py
+    effort_hours: 3
+    rationale: |
+      Core architectural fix. All 6 functions abstract scanner_io/scanner_reporting
+      implementation from public API. Isolates internal layer changes from API stability.
+      Facade becomes single point of integration for internal layers.
+    blocker_dependencies: [api_layer_seam_definition_complete, api_layer_collection_ready]
+    implementation_priority: CRITICAL
+    related_findings: [Scout-Ownership-07]
+    testing_strategy: |
+      - Type check: mypy src/prism/api.py src/prism/api_layer/collection.py
+      - Lint full api layer: ruff check src/prism/api.py src/prism/api_layer/
+      - Collection tests: pytest -q src/prism/tests/test_api_collection*.py
+      - Integration: pytest -q src/prism/tests/test_api_integration_collection.py
+      - Smoke test: pytest -q src/prism/tests/test_prism_*.py (top-level smoke)
+
+  - finding_id: CLI-PARALLEL-VIOLATIONS
+    group: "PARALLEL_CLI_AUDIT"
+    file: src/prism/cli.py
+    violation_type: MOVE_TO_SEAM
+    layer_boundary: CLI_LAYER
+    severity: CRITICAL_SEAM
+    current_state: |
+      cli.py line 13:
+        from prism.scanner_config.audit_rules import AuditReport
+      
+      cli.py line 15:
+        import prism.scanner_io as scanner_io
+      
+      cli.py line 16-18:
+        from prism.scanner_io.output import write_role_scan_output
+      
+      Uses in cli.py:
+      - scanner_io module accessed directly for internal operations
+      - write_role_scan_output() called for CLI output rendering
+      - AuditReport type used in audit result handling
+    problem: |
+      Similar pattern to api.py violations 07-08. cli.py imports directly from
+      scanner_io (implementation layer) instead of through a CLI facade.
+      
+      Risk: Couples CLI to scanner_io internal structure. Blocks evolution of
+      scanner_io or output layer without CLI changes.
+    proposed_state: |
+      Create api_layer/cli_io.py as CLI-specific facade:
+      
+      # api_layer/cli_io.py (new module)
+      from prism.scanner_io.output import write_role_scan_output
+      import prism.scanner_io as scanner_io
+      
+      def write_role_scan_output_facade(role_name: str, payload: dict) -> None:
+          return write_role_scan_output(role_name, payload)
+      
+      def get_scanner_io_module():
+          return scanner_io
+      
+      # cli.py
+      from prism.api_layer import cli_io as api_cli_io
+      # Usage: api_cli_io.write_role_scan_output_facade(role_name, payload)
+    pseudocode: |
+      Phase 1: Create CLI facade in api_layer/
+      ─────────────────────────────────────────
+      1. Create new file: api_layer/cli_io.py
+         - Import: from prism.scanner_io.output import write_role_scan_output
+         - Import: import prism.scanner_io as scanner_io
+         - Add wrapper: write_role_scan_output_facade()
+         - Optional: add get_scanner_io_module() if scanner_io access needed
+      
+      Phase 2: Update cli.py imports
+      ──────────────────────────────
+      2. In cli.py:
+         - Remove: import prism.scanner_io as scanner_io
+         - Remove: from prism.scanner_io.output import write_role_scan_output
+         - Add: from prism.api_layer import cli_io as api_cli_io
+      
+      Phase 3: Update cli.py call sites
+      ─────────────────────────────────
+      3. Search for all uses of scanner_io and write_role_scan_output
+         - Replace scanner_io calls with api_cli_io.get_scanner_io_module() or explicit
+         - Replace write_role_scan_output calls with api_cli_io.write_role_scan_output_facade()
+      
+      Phase 4: Verify
+      ───────────────
+      4. Type check: mypy src/prism/cli.py src/prism/api_layer/cli_io.py
+      5. Lint: ruff check src/prism/cli.py src/prism/api_layer/cli_io.py
+      6. Run CLI tests: pytest -q src/prism/tests/test_cli_*.py
+      7. Integration: test CLI commands work end-to-end
+    effort_hours: 2
+    rationale: |
+      Parallel fix to violations 07-08. Establishes consistent facade pattern
+      across both public entry points (api.py and cli.py). CLI layer becomes
+      independent of scanner_io internal structure.
+    blocker_dependencies: [api_layer_seam_definition_complete]
+    implementation_priority: CRITICAL
+    related_findings: [Scout-Ownership-07, Scout-Ownership-08]
+    testing_strategy: |
+      - Type check: mypy src/prism/cli.py src/prism/api_layer/cli_io.py
+      - Lint: ruff check src/prism/cli.py src/prism/api_layer/
+      - CLI tests: pytest -q src/prism/tests/test_cli_*.py
+      - Integration: test-cli-audit-runner, test-cli-repo-scan, etc.
+
+implementation_waves:
+  wave_1_critical:
+    name: "CRITICAL_SEAM_VIOLATIONS_RESOLUTION"
+    priority: BLOCKING
+    effort_estimate_hours: 5
+    findings: [Scout-Ownership-07, Scout-Ownership-08]
+    dependencies: []
+    sequence:
+      - step_1: "Move scanner_io imports to api_layer/collection.py (Finding 07)"
+        effort_hours: 2
+      - step_2: "Move scanner_io/scanner_reporting imports to api_layer/collection.py (Finding 08)"
+        effort_hours: 2
+      - step_3: "Update all call sites in api.py to use facades"
+        effort_hours: 1
+    validation_gates:
+      - mypy src/prism/api.py src/prism/api_layer/collection.py → 0 new errors
+      - ruff check src/prism/api.py src/prism/api_layer/collection.py → PASS
+      - pytest -q src/prism/tests/test_api_collection*.py → ALL PASS
+    rollback_plan: |
+      If validation fails:
+      1. Restore imports to api.py
+      2. Delete or revert api_layer facades
+      3. Investigate failures; tag as deferred technical debt
+
+  wave_2_parallel_cli:
+    name: "CLI_FACADE_ESTABLISHMENT"
+    priority: BLOCKING
+    effort_estimate_hours: 2
+    findings: [CLI-PARALLEL-VIOLATIONS]
+    dependencies: [wave_1_critical]
+    sequence:
+      - step_1: "Create api_layer/cli_io.py facade module"
+        effort_hours: 0.5
+      - step_2: "Move scanner_io imports to cli_io.py"
+        effort_hours: 0.5
+      - step_3: "Update cli.py to use cli_io facade"
+        effort_hours: 1
+    validation_gates:
+      - mypy src/prism/cli.py src/prism/api_layer/cli_io.py → 0 new errors
+      - ruff check src/prism/cli.py src/prism/api_layer/cli_io.py → PASS
+      - pytest -q src/prism/tests/test_cli_*.py → ALL PASS
+
+  wave_3_optional:
+    name: "OPTIONAL_CONSISTENCY_IMPROVEMENTS"
+    priority: OPTIONAL
+    effort_estimate_hours: 2
+    findings: [Scout-Ownership-05, Scout-Ownership-06]
+    dependencies: [wave_1_critical, wave_2_parallel_cli]
+    sequence:
+      - step_1: "Move path_safety import to api_layer/common.py (Finding 05)"
+        effort_hours: 1
+      - step_2: "Standardize contract type imports (Finding 06)"
+        effort_hours: 1
+    validation_gates:
+      - mypy src/prism/api.py → 0 new errors
+      - ruff check src/prism/api.py → PASS
+      - pytest -q src/prism/tests/test_api_*.py → ALL PASS
+
+summary_by_finding:
+  kept_as_is:
+    - finding_01: api_layer.collection import (correct)
+    - finding_02: api_layer.non_collection import (correct)
+    - finding_03: api_layer.plugin_facade import (correct)
+    - finding_04: errors.ERROR_CATEGORY_VALIDATION shared constant (correct)
+  total_kept: 4
+  
+  optional_improvements:
+    - finding_05: path_safety utility (move optional, 1 hour)
+    - finding_06: contract types (move optional, 1 hour)
+  total_optional: 2
+  
+  critical_violations:
+    - finding_07: scanner_io.collection_plugins (MOVE, 2 hours)
+    - finding_08: scanner_io/scanner_reporting functions (MOVE, 3 hours)
+    - cli_parallel: cli.py scanner_io imports (MOVE, 2 hours)
+  total_critical: 3
+
+total_effort_hours:
+  wave_1_critical: 5
+  wave_2_parallel_cli: 2
+  wave_3_optional: 2
+  total_all_waves: 9
+  total_critical_only: 7
+
+risk_assessment:
+  CRITICAL_RISKS:
+    - scanner_io refactoring: If scanner_io.collection_payload or collection_plugins
+      changes signature, api.py breaks. Moving imports to facade isolates this risk.
+    - Dual-layer coupling: Direct imports couple API to scanner_io/scanner_reporting.
+      Facade pattern breaks this coupling.
+  
+  MEDIUM_RISKS:
+    - Call-site updates: Moving typed wrappers requires updating 10+ call sites in
+      api.py. Risk: missed updates cause undefined-name errors. Mitigation: careful
+      search/replace + mypy validation.
+    - CLI facade creation: New module introduces new public-facing layer. Risk:
+      incorrect export signatures. Mitigation: parallel testing with existing cli tests.
+  
+  LOW_RISKS:
+    - Optional improvements (05, 06): Low-effort refactoring with clear rollback.
+      Can be deferred safely.
+
+blockers_and_gates:
+  blocker_api_layer_seam_definition_complete:
+    description: "api_layer/collection.py must accept scanner_io imports cleanly"
+    gate: "api_layer/collection.py imports scanner_io modules without circular deps"
+    verification: |
+      python -c "from prism.api_layer import collection; print('OK')" → OK
+  
+  blocker_cli_audit_completion:
+    description: "cli.py violations must be audited in parallel with api.py"
+    gate: "CLI parallel violations documented and sequenced"
+    verification: |
+      All imports from scanner_io in cli.py identified and planned.
+
+implementation_readiness: READY
+recommendation: |
+  1. Proceed with Wave 1 (Findings 07-08): Critical violations, blocking architectural
+     integrity. High confidence. Medium effort (5 hours). Start immediately.
+  
+  2. Proceed with Wave 2 (CLI parallel): Parallel to Wave 1; low risk. Completes
+     facade pattern consistently. Start after Wave 1 foundation. Effort: 2 hours.
+  
+  3. Optional Wave 3 (Findings 05-06): Low-effort consistency improvements. Can
+     defer to follow-up sprint if time-constrained. Recommended for completeness.
+     Effort: 2 hours.
+  
+  Total recommended effort: 7-9 hours (critical: 7, all: 9).
+  Critical path: Wave 1 → Wave 2 → Wave 3 (sequential, no parallelism within wave).

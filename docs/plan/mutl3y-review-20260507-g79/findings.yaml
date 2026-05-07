@@ -1,0 +1,84 @@
+---
+plan_id: mutl3y-review-20260507-g79
+phase: "Phase 2 - Plan Persistence"
+persistence_date: "2026-05-07"
+focus_axis: layer_boundaries
+
+findings:
+  - id: FIND-G79-001
+    severity: CRITICAL
+    status: open
+    title: "DI Container Type Erasure at Layer Boundaries"
+    description: "DI container passed as bare object | None; IDE/mypy type safety lost"
+    impact: "Type safety eliminated at critical layer boundaries; refactoring unsafe"
+    remediation: "Add DIContainer Protocol type; use instead of object | None"
+    effort: MEDIUM
+    tags: [typing, layer_boundaries]
+
+  - id: FIND-G79-002
+    severity: CRITICAL
+    title: "API Layer Facade Bypassed by Top-Level Modules"
+    description: "api.py, cli.py directly import from 8+ internal layers instead of using facade"
+    impact: "Layer abstraction broken; internal architecture exposed to public"
+    remediation: "Consolidate all internal imports through api_layer facade"
+    effort: MEDIUM
+    tags: [architecture, layer_boundaries, facade]
+
+  - id: FIND-G79-003
+    severity: CRITICAL
+    title: "Plugin Registry Contract Undefined; Cascading Fallback Logic"
+    description: "Plugin resolver uses 6+ getattr() checks with silent fallthrough"
+    impact: "New plugins can silently violate contract; unsafe expansion path"
+    remediation: "Define explicit Protocol for plugin interface; validate at registration"
+    effort: MEDIUM
+    tags: [plugin_architecture, layer_boundaries]
+
+  - id: FIND-G79-004
+    severity: HIGH
+    title: "Reporting Layer Imports Plugin Layer Directly"
+    description: "scanner_reporting imports from scanner_plugins.defaults directly"
+    impact: "Reporting cannot function without plugins; violates layer hierarchy"
+    remediation: "Extract to shared facade or dependency inject plugin resolution"
+    effort: MEDIUM
+    tags: [layer_boundaries, architecture]
+
+  - id: FIND-G79-005
+    severity: HIGH
+    title: "Output Layer Imports Back Into Core Layer (Upward Dependency)"
+    description: "output_orchestrator.py imports from scanner_core; upward dependency"
+    impact: "Lower layer depends on higher; violates hierarchy; refactoring blocked"
+    remediation: "Inject event bus; move event types to shared contracts"
+    effort: LOW
+    tags: [layer_boundaries, dependency_injection]
+
+  - id: FIND-G79-006
+    severity: HIGH
+    title: "Plugin Boundary Uses Untyped dict[str, Any] Metadata"
+    description: "Plugin protocols accept dict[str, Any] without structure"
+    impact: "No compile-time validation; runtime errors possible"
+    remediation: "Define typed MetadataDict TypedDict"
+    effort: MEDIUM
+    tags: [typing, plugin_architecture]
+
+  - id: FIND-G79-007
+    severity: HIGH
+    title: "Policy Resolvers Return Untyped object | None"
+    description: "Policy getter functions return untyped object | None"
+    impact: "No type safety on policy access; runtime errors possible"
+    remediation: "Add proper return type annotations"
+    effort: LOW
+    tags: [typing, layer_boundaries]
+
+  - id: FIND-G79-008
+    severity: MEDIUM
+    title: "Plugin Layer Re-exports Extraction Layer Functions Without Adapter"
+    description: "ansible/extract_utils.py re-exports 17+ scanner_extract functions"
+    impact: "Ansible assumed as reference; K8s/Terraform cannot implement independently"
+    remediation: "Extract to plugin interface protocol"
+    effort: MEDIUM
+    tags: [plugin_architecture, extensibility]
+
+critical_count: 3
+high_count: 4
+medium_count: 1
+total: 8

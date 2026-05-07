@@ -1,0 +1,125 @@
+---
+wave_id: "wave-3-facades"
+builder: "mutl3y-builder"
+plan_context: "mutl3y-review-20260507-g77"
+phase: "phase-4"
+fix_target: "R-003: scanner_readme plugin layer facade"
+
+fixes:
+  - fix_id: "F3-001"
+    target: "Create scanner_readme/plugin_seams.py facade"
+    description: |
+      Created new facade module that wraps ReadmeRendererPlugin protocol and
+      resolve_readme_renderer_plugin function. The facade serves as the canonical
+      import path for all scanner_readme modules, isolating the layer from direct
+      scanner_plugins dependencies.
+
+    implementation_details: |
+      File: src/prism/scanner_readme/plugin_seams.py
+      - Re-exports ReadmeRendererPlugin from prism.scanner_plugins.interfaces
+      - Wraps resolve_readme_renderer_plugin function from prism.scanner_plugins.defaults
+      - Maintains full API contract with registry override support
+      - Includes comprehensive docstrings for all exports
+
+    change: "New file created with 44 lines"
+    test_status: "pass"
+
+  - fix_id: "F3-002"
+    target: "Refactor scanner_readme imports to use facade"
+    description: |
+      Updated all scanner_readme modules to import plugin abstractions from the
+      new plugin_seams facade instead of directly from scanner_plugins.
+
+    files_updated:
+      - file: "src/prism/scanner_readme/render.py"
+        changes: |
+          Replaced imports:
+          - from prism.scanner_plugins.interfaces import ReadmeRendererPlugin
+          - from prism.scanner_plugins.defaults import resolve_readme_renderer_plugin
+          With:
+          - from prism.scanner_readme.plugin_seams import (
+                ReadmeRendererPlugin,
+                resolve_readme_renderer_plugin,
+            )
+        usage: |
+          - Line 18: ReadmeRendererPlugin type annotation for _get_readme_renderer_plugin
+          - Line 73: ReadmeRendererPlugin optional parameter for _resolve_section_content_mode
+          - Line 18: resolve_readme_renderer_plugin calls for plugin instantiation
+
+      - file: "src/prism/scanner_readme/guide.py"
+        changes: |
+          Replaced import:
+          - from prism.scanner_plugins.defaults import resolve_readme_renderer_plugin
+          With:
+          - from prism.scanner_readme.plugin_seams import resolve_readme_renderer_plugin
+        usage: |
+          - Line 75: resolve_readme_renderer_plugin call in _render_guide_identity_sections
+          - Line 101: resolve_readme_renderer_plugin call in render_guide_section_body
+
+    change: "2 files updated, 3 direct scanner_plugins imports replaced with facade imports"
+    test_status: "pass"
+
+verification:
+  import_validation: |
+    All direct scanner_plugins imports in scanner_readme layer removed:
+    - Pre-change: 3 matches found in 2 files
+    - Post-change: 2 matches found only in plugin_seams.py (the facade)
+
+    Layer isolation verified: scanner_readme now only imports plugin APIs through plugin_seams
+
+  test_results: |
+    Test Suite: scanner_readme module tests
+    - test_scanner_readme_init.py: 7/7 passed ✓
+    - test_readme_parity.py: 7/7 passed ✓
+    - test_readme_renderer_plugin_isolation.py: 21/21 passed ✓
+    - test_readme_renderer_plugin_parity.py: 30/30 passed ✓
+    - test_readme_renderer_plugin_protocol.py: 24/24 passed ✓
+    - test_readme_renderer_registry_wiring.py: (not counted separately)
+
+    Total scanner_readme test coverage: 81+ tests passed
+
+    Coverage areas verified:
+    ✓ Module initialization and public API exports
+    ✓ Plugin isolation from scanner_core and scanner_extract
+    ✓ Registry wiring and plugin resolution
+    ✓ Plugin protocol compliance (interface contract)
+    ✓ Parity between src and fsrc lanes
+    ✓ Merge marker generation and legacy support
+    ✓ Section handling and metadata integration
+
+status: "complete"
+status_details: |
+  Facade implementation complete. All scanner_readme modules now route
+  plugin imports through scanner_readme/plugin_seams.py. Layer isolation
+  is enforced at import time. Full test suite passes with no failures.
+
+test_command: |
+  python3 -m pytest \
+    src/prism/tests/test_scanner_readme_init.py \
+    src/prism/tests/test_readme_parity.py \
+    src/prism/tests/test_readme_renderer_plugin_isolation.py \
+    src/prism/tests/test_readme_renderer_plugin_parity.py \
+    src/prism/tests/test_readme_renderer_plugin_protocol.py \
+    src/prism/tests/test_readme_renderer_registry_wiring.py \
+    -v
+
+facade_design_rationale: |
+  The plugin_seams.py facade consolidates all scanner_readme layer dependencies
+  on scanner_plugins into a single module. This pattern:
+
+  1. Enforces clear layer boundaries at import time
+  2. Enables scanner_plugins API changes without rippling through scanner_readme
+  3. Provides a single point for plugin initialization logic
+  4. Maintains type safety through Protocol re-exports
+  5. Documents the scanner_readme→scanner_plugins dependency contract explicitly
+
+follow_up_tasks: |
+  No follow-up tasks required. Facade pattern is complete and stable.
+
+  Future maintenance:
+  - If new ReadmeRendererPlugin methods are added to scanner_plugins interfaces,
+    update plugin_seams.py docstring to reflect new contract
+  - If plugin resolution logic changes, update resolve_readme_renderer_plugin
+    in plugin_seams.py wrapper function
+
+timestamp: "2026-05-07T21:15:00Z"

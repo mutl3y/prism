@@ -1,0 +1,562 @@
+version: 1
+cycle: 1
+phase: 0
+timestamp: '2026-05-07T14:00:20Z'
+source: phase-0-scouts
+total_findings: 30
+summary:
+  critical: 0
+  high: 0
+  medium: 26
+  low: 4
+categories:
+- typing_loose_annotations
+- ownership_layer_violations
+- error_handling_broad_except
+- graph_dependency_review
+findings_by_category:
+  typing_loose_annotations:
+  - Scout-Typing-01
+  - Scout-Typing-02
+  - Scout-Typing-03
+  - Scout-Typing-04
+  - Scout-Typing-05
+  - Scout-Typing-06
+  - Scout-Typing-07
+  - Scout-Typing-08
+  - Scout-Typing-09
+  - Scout-Typing-10
+  ownership_layer_violations:
+  - Scout-Ownership-01
+  - Scout-Ownership-02
+  - Scout-Ownership-03
+  - Scout-Ownership-04
+  - Scout-Ownership-05
+  - Scout-Ownership-06
+  - Scout-Ownership-07
+  - Scout-Ownership-08
+  error_handling_broad_except:
+  - Scout-ControlFlow-01
+  - Scout-ControlFlow-02
+  - Scout-ControlFlow-03
+  - Scout-ControlFlow-04
+  - Scout-ControlFlow-05
+  - Scout-ControlFlow-06
+  - Scout-ControlFlow-07
+  - Scout-ControlFlow-08
+  graph_dependency_review:
+  - Scout-Graph-01
+  - Scout-Graph-02
+  - Scout-Graph-03
+  - Scout-Graph-04
+raw_findings:
+- id: Scout-Typing-01
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_config/patterns.py_103
+  file: src/prism/scanner_config/patterns.py
+  line: 103
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def _normalise_token_collection(raw: Any) -> set[str]:'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_config/patterns.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-02
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_core/di.py_549
+  file: src/prism/scanner_core/di.py
+  line: 549
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def inject_mock(self, name: str, mock: Any) -> None:'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_core/di.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-03
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_core/protocols_runtime.py_3
+  file: src/prism/scanner_core/protocols_runtime.py
+  line: 3
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: "Replaces weak `Callable[..., Any]` aliases at the scanner_core \u2194 scanner_kernel"
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_core/protocols_runtime.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-04
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_core/scan_cache.py_41
+  file: src/prism/scanner_core/scan_cache.py
+  line: 41
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def set(self, key: str, value: Any) -> None: ...'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_core/scan_cache.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-05
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_core/scan_cache.py_90
+  file: src/prism/scanner_core/scan_cache.py
+  line: 90
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def set(self, key: str, value: Any) -> None:'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_core/scan_cache.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-06
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_data/scan_options_schema.py_23
+  file: src/prism/scanner_data/scan_options_schema.py
+  line: 23
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'default: Any'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_data/scan_options_schema.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-07
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_data/scan_options_schema.py_33
+  file: src/prism/scanner_data/scan_options_schema.py
+  line: 33
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'default: Any = None,'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_data/scan_options_schema.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-08
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_extract/task_line_parsing.py_61
+  file: src/prism/scanner_extract/task_line_parsing.py
+  line: 61
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def match(self, *args: Any, **kwargs: Any):'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_extract/task_line_parsing.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-09
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_extract/task_line_parsing.py_64
+  file: src/prism/scanner_extract/task_line_parsing.py
+  line: 64
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def search(self, *args: Any, **kwargs: Any):'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_extract/task_line_parsing.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-10
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_extract/task_line_parsing.py_67
+  file: src/prism/scanner_extract/task_line_parsing.py
+  line: 67
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def fullmatch(self, *args: Any, **kwargs: Any):'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_extract/task_line_parsing.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Ownership-01
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_12
+  file: src/prism/api.py
+  line: 12
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.api_layer import collection as api_collection
+  evidence_command: sed -n 12p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-Ownership-02
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_13
+  file: src/prism/api.py
+  line: 13
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.api_layer import non_collection as api_non_collection
+  evidence_command: sed -n 13p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-Ownership-03
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_14
+  file: src/prism/api.py
+  line: 14
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.api_layer import plugin_facade
+  evidence_command: sed -n 14p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-Ownership-04
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_15
+  file: src/prism/api.py
+  line: 15
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.errors import ERROR_CATEGORY_VALIDATION
+  evidence_command: sed -n 15p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-Ownership-05
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_18
+  file: src/prism/api.py
+  line: 18
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.path_safety import assert_safe_role_path
+  evidence_command: sed -n 18p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-Ownership-06
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_19
+  file: src/prism/api.py
+  line: 19
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.scanner_config.audit_rules import AuditReport, AuditRule
+  evidence_command: sed -n 19p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-Ownership-07
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_20
+  file: src/prism/api.py
+  line: 20
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.scanner_io.collection_plugins import scan_collection_plugins
+  evidence_command: sed -n 20p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-Ownership-08
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_21
+  file: src/prism/api.py
+  line: 21
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.scanner_io.collection_payload import (
+  evidence_command: sed -n 21p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-ControlFlow-01
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/cli.py_569
+  file: src/prism/cli.py
+  line: 569
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as exc:'
+  evidence_command: sed -n 569p src/prism/cli.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-ControlFlow-02
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/scanner_core/events.py_140
+  file: src/prism/scanner_core/events.py
+  line: 140
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as exc:  # pragma: no cover - defensive'
+  evidence_command: sed -n 140p src/prism/scanner_core/events.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-ControlFlow-03
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/scanner_core/execution_request_builder.py_186
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 186
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as exc:'
+  evidence_command: sed -n 186p src/prism/scanner_core/execution_request_builder.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-ControlFlow-04
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/scanner_core/execution_request_builder.py_201
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 201
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as exc:'
+  evidence_command: sed -n 201p src/prism/scanner_core/execution_request_builder.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-ControlFlow-05
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/scanner_core/scanner_context.py_354
+  file: src/prism/scanner_core/scanner_context.py
+  line: 354
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as error:'
+  evidence_command: sed -n 354p src/prism/scanner_core/scanner_context.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-ControlFlow-06
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/scanner_core/scanner_context.py_373
+  file: src/prism/scanner_core/scanner_context.py
+  line: 373
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as error:'
+  evidence_command: sed -n 373p src/prism/scanner_core/scanner_context.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-ControlFlow-07
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/scanner_core/telemetry.py_94
+  file: src/prism/scanner_core/telemetry.py
+  line: 94
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as exc:  # pragma: no cover - caller-provided IO boundary'
+  evidence_command: sed -n 94p src/prism/scanner_core/telemetry.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-ControlFlow-08
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/scanner_kernel/kernel_plugin_runner.py_150
+  file: src/prism/scanner_kernel/kernel_plugin_runner.py
+  line: 150
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as exc:'
+  evidence_command: sed -n 150p src/prism/scanner_kernel/kernel_plugin_runner.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-Graph-01
+  category: graph
+  fingerprint: graph_high_import_count_src/prism/api.py
+  file: src/prism/api.py
+  line: 1
+  severity_hint: low
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: File has 25 imports
+  evidence_command: grep -n '^from\|^import' src/prism/api.py | wc -l
+  related_symbols: []
+  fix_group_key: graph_dependency_review
+  proposed_fix_class: type_only_import
+  blocking_preconditions: []
+  suggested_narrow_gate: ''
+- id: Scout-Graph-02
+  category: graph
+  fingerprint: graph_high_import_count_src/prism/scanner_plugins/ansible/__init__.py
+  file: src/prism/scanner_plugins/ansible/__init__.py
+  line: 1
+  severity_hint: low
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: File has 20 imports
+  evidence_command: grep -n '^from\|^import' src/prism/scanner_plugins/ansible/__init__.py | wc -l
+  related_symbols: []
+  fix_group_key: graph_dependency_review
+  proposed_fix_class: type_only_import
+  blocking_preconditions: []
+  suggested_narrow_gate: ''
+- id: Scout-Graph-03
+  category: graph
+  fingerprint: graph_high_import_count_src/prism/scanner_plugins/ansible/extract_utils.py
+  file: src/prism/scanner_plugins/ansible/extract_utils.py
+  line: 1
+  severity_hint: low
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: File has 21 imports
+  evidence_command: grep -n '^from\|^import' src/prism/scanner_plugins/ansible/extract_utils.py | wc -l
+  related_symbols: []
+  fix_group_key: graph_dependency_review
+  proposed_fix_class: type_only_import
+  blocking_preconditions: []
+  suggested_narrow_gate: ''
+- id: Scout-Graph-04
+  category: graph
+  fingerprint: graph_high_import_count_src/prism/scanner_plugins/ansible/variable_discovery.py
+  file: src/prism/scanner_plugins/ansible/variable_discovery.py
+  line: 1
+  severity_hint: low
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: File has 20 imports
+  evidence_command: grep -n '^from\|^import' src/prism/scanner_plugins/ansible/variable_discovery.py | wc -l
+  related_symbols: []
+  fix_group_key: graph_dependency_review
+  proposed_fix_class: type_only_import
+  blocking_preconditions: []
+  suggested_narrow_gate: ''

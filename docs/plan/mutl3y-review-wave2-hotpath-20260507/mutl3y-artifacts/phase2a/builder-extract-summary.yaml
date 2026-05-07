@@ -1,0 +1,7 @@
+builder_name: Builder-Hotpath-Extract
+owned_files:
+  - src/prism/scanner_core/task_extract_adapters.py
+artifact_path: docs/plan/mutl3y-review-wave2-hotpath-20260507/mutl3y-artifacts/phase2a/builder-extract-summary.yaml
+changed_functions_count: 4
+status: PASS
+short_error_excerpt: ''

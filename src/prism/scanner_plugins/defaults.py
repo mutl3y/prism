@@ -319,10 +319,12 @@ def _fallback_or_raise_plugin_construction_error(
             registry=registry,
         )
         logger.warning(
-            "Failed to construct %s plugin in non-strict mode; falling back to %s. %s",
+            "Failed to construct %s plugin in non-strict mode; falling back to %s. "
+            "Exception: %s (from %s)",
             plugin_kind,
             type(fallback_plugin).__name__,
-            exc,
+            type(exc).__name__,
+            type(exc).__module__,
         )
         return fallback_plugin
 

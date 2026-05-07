@@ -3,20 +3,42 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import logging
 from pathlib import Path
 from typing import cast
 
 import prism.scanner_extract.task_annotation_parsing as tap
 import prism.scanner_extract.task_file_traversal as tft
 from prism.scanner_core.di_helpers import require_prepared_policy
-from prism.scanner_data.contracts_request import TaskAnnotation
+from prism.scanner_data.contracts_request import DIContainer, TaskAnnotation
+from prism.scanner_data.policy_constants import PolicyConstants
 from prism.scanner_extract.variable_helpers import format_inline_yaml
 
+logger = logging.getLogger(__name__)
 
-def _detect_task_module(task: dict, *, di: object | None = None) -> str | None:
+
+def _detect_task_module(
+    task: dict,
+    *,
+    di: object | None = None,
+    policy_constants: PolicyConstants | None = None,
+) -> str | None:
+    prepared_di = cast(DIContainer | None, di)
     return require_prepared_policy(
-        di, "task_line_parsing", "task_catalog_assembly"
+        prepared_di, "task_line_parsing", "task_catalog_assembly"
     ).detect_task_module(task)
+
+
+def _task_include_keys(
+    di: object | None = None,
+    policy_constants: PolicyConstants | None = None,
+) -> frozenset[str]:
+    if policy_constants is not None:
+        return frozenset(policy_constants.task_include_keys)
+    prepared_di = cast(DIContainer | None, di)
+    return require_prepared_policy(
+        prepared_di, "task_line_parsing", "task_catalog_assembly"
+    ).TASK_INCLUDE_KEYS
 
 
 def _extract_collection_from_module_name(
@@ -59,8 +81,10 @@ def _collect_task_handler_catalog(
     marker_prefix: str = "",
     *,
     di: object | None = None,
+    policy_constants: PolicyConstants | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     role_root = Path(role_path).resolve()
+    prepared_di = cast(DIContainer | None, di)
 
     def _collect_tasks_recursive(
         task_file: Path,
@@ -73,17 +97,20 @@ def _collect_task_handler_catalog(
             return
 
         seen_files.add(task_file)
-        data = tft.load_yaml_file(task_file, di=di)
+        data = tft.load_yaml_file(task_file, di=prepared_di)
         try:
             raw_lines = task_file.read_text(encoding="utf-8").splitlines()
-        except OSError:
+        except OSError as exc:
+            logger.debug(
+                "Unable to read file %s: %s (using empty lines)", task_file, exc
+            )
             raw_lines = []
         implicit_annotations, explicit_annotations = (
             tap.extract_task_annotations_for_file(
                 raw_lines,
                 marker_prefix=marker_prefix,
                 include_task_index=True,
-                di=di,
+                di=prepared_di,
             )
         )
         implicit_by_task_index: dict[int, list[TaskAnnotation]] = defaultdict(list)
@@ -100,8 +127,15 @@ def _collect_task_handler_catalog(
         if relpath.startswith("tasks/"):
             relpath = relpath[6:]
 
-        for task in tft.iter_task_mappings(data, di=di):
-            module_name = _detect_task_module(task, di=di) or "unknown"
+        for task in tft.iter_task_mappings(data, di=prepared_di):
+            module_name = (
+                _detect_task_module(
+                    task,
+                    di=prepared_di,
+                    policy_constants=policy_constants,
+                )
+                or "unknown"
+            )
             task_name = str(task.get("name") or "(unnamed task)")
             annotations: list[TaskAnnotation] = []
             if task_index in implicit_by_task_index:
@@ -131,7 +165,7 @@ def _collect_task_handler_catalog(
                 relpath,
                 task_name,
                 len(task_entries) + 1,
-                di=di,
+                di=prepared_di,
             )
             task_entries.append(
                 {
@@ -145,9 +179,10 @@ def _collect_task_handler_catalog(
                 }
             )
 
-            for include_key in require_prepared_policy(
-                di, "task_line_parsing", "task_catalog_assembly"
-            ).TASK_INCLUDE_KEYS:
+            for include_key in _task_include_keys(
+                di=prepared_di,
+                policy_constants=policy_constants,
+            ):
                 if include_key not in task:
                     continue
                 include_target = task[include_key]
@@ -157,7 +192,7 @@ def _collect_task_handler_catalog(
                         tft.expand_include_target_candidates(
                             task,
                             include_target,
-                            di=di,
+                            di=prepared_di,
                         )
                     )
                 elif isinstance(include_target, dict):
@@ -169,7 +204,7 @@ def _collect_task_handler_catalog(
                             tft.expand_include_target_candidates(
                                 task,
                                 candidate,
-                                di=di,
+                                di=prepared_di,
                             )
                         )
 
@@ -212,12 +247,19 @@ def _collect_task_handler_catalog(
         ):
             if tft.is_path_excluded(handler_file, role_root, exclude_paths):
                 continue
-            data = tft.load_yaml_file(handler_file, di=di)
+            data = tft.load_yaml_file(handler_file, di=prepared_di)
             relpath = str(handler_file.relative_to(role_root))
             if relpath.startswith("handlers/"):
                 relpath = relpath[9:]
-            for task in tft.iter_task_mappings(data, di=di):
-                module_name = _detect_task_module(task, di=di) or "unknown"
+            for task in tft.iter_task_mappings(data, di=prepared_di):
+                module_name = (
+                    _detect_task_module(
+                        task,
+                        di=prepared_di,
+                        policy_constants=policy_constants,
+                    )
+                    or "unknown"
+                )
                 task_name = str(task.get("name") or "(unnamed handler)")
                 handler_entries.append(
                     {
@@ -229,7 +271,7 @@ def _collect_task_handler_catalog(
                             relpath,
                             task_name,
                             len(handler_entries) + 1,
-                            di=di,
+                            di=prepared_di,
                         ),
                     }
                 )
@@ -291,8 +333,13 @@ def collect_molecule_scenarios(
     return scenarios
 
 
-def detect_task_module(task: dict, *, di: object | None = None) -> str | None:
-    return _detect_task_module(task, di=di)
+def detect_task_module(
+    task: dict,
+    *,
+    di: object | None = None,
+    policy_constants: PolicyConstants | None = None,
+) -> str | None:
+    return _detect_task_module(task, di=di, policy_constants=policy_constants)
 
 
 def extract_collection_from_module_name(
@@ -310,10 +357,12 @@ def collect_task_handler_catalog(
     marker_prefix: str = "",
     *,
     di: object | None = None,
+    policy_constants: PolicyConstants | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     return _collect_task_handler_catalog(
         role_path,
         exclude_paths=exclude_paths,
         marker_prefix=marker_prefix,
         di=di,
+        policy_constants=policy_constants,
     )

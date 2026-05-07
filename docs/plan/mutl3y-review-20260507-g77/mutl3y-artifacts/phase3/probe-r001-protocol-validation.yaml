@@ -1,0 +1,77 @@
+probe_id: R-001
+finding: isinstance on @runtime_checkable allows method signature mismatches
+location: src/prism/scanner_kernel/orchestrator.py lines 54-61, 302, 409, 523
+investigation_results:
+  - file: src/prism/scanner_kernel/orchestrator.py
+    details: |
+      - Lines 31-48: @runtime_checkable Protocols _ProcessScanPipelinePlugin and _OrchestrateScanPayloadPlugin
+      - Lines 54-61: TypeGuard functions use isinstance() checks
+      - Lines 302, 409, 523: Callsites invoke plugin methods after isinstance validation
+
+  - pattern: "Current validation pattern"
+    code: |
+      @runtime_checkable
+      class _ProcessScanPipelinePlugin(Protocol):
+          def process_scan_pipeline(
+              self,
+              scan_options: ScanOptionsDict,
+              scan_context: ScanMetadata,
+          ) -> ScanMetadata: ...
+
+      def _is_process_scan_pipeline_plugin(value: object) -> TypeGuard[...]:
+          return isinstance(value, _ProcessScanPipelinePlugin)
+
+  - test_result: "isinstance check PASSES despite signature incompatibility"
+    details: |
+      DefaultScanPipelinePlugin uses dict[str, Any] instead of typed contract
+      - isinstance(default_plugin, _ProcessScanPipelinePlugin) returns True
+      - Method exists and is callable but signature mismatches ignored
+      - isinstance() only checks attribute presence, not signature compatibility
+
+  - runtime_risk: "HIGH - Delayed TypeError at orchestration time"
+    evidence: |
+      1. Plugin may have method name but incompatible parameter signature
+      2. isinstance check passes (attribute existence only)
+      3. Runtime call at line 305 or 417 fails with TypeError
+      4. Critical scanner_kernel orchestration flow affected
+      5. No early validation prevents incompatible plugins from reaching runtime
+
+  - test_coverage: "PARTIAL - Structure checks only, no signature validation"
+    findings: |
+      - test_kernel.py: isinstance(plugin, KernelLifecyclePlugin) validates presence, not signature
+      - test_api_cli_repo_parity.py: Uses inspect.signature() for API parity, not plugin protocols
+      - NO tests validate _ProcessScanPipelinePlugin method signature match
+      - NO tests for orchestrate_scan_payload signature mismatch detection
+      - DefaultScanPipelinePlugin uses Any types; no guard prevents misuse
+
+  - failure_example: |
+      A plugin with incompatible method signature:
+        def process_scan_pipeline(self):  # Missing required parameters!
+            return None
+
+      Result: isinstance passes, runtime call at line 305 fails with TypeError
+      The validation gap allows incompatible implementations to reach orchestration
+
+recommendations:
+  - fix_approach: "Add runtime signature validation to TypeGuard functions"
+    priority: MEDIUM
+    details: |
+      Use inspect.signature() in _is_*_plugin functions to validate:
+      - Parameter count and names match Protocol contract
+      - Type annotations are compatible (warn on Any)
+      - Return type is compatible
+
+      Alternative: Enforce via concrete base class instead of @runtime_checkable
+
+  - test_guard: "Create test_plugin_protocol_signature_validation.py"
+    validates: |
+      - Signature mismatch is caught before orchestration
+      - DefaultScanPipelinePlugin explicitly accepts Any or adds type hints
+      - Callsites have documented signature match guarantee
+
+status: complete
+investigation_depth: architecture-seam
+model_tier: low-cost
+risks:
+  - "Third-party plugins with incompatible signatures could reach production"
+  - "TypeError occurs at runtime during critical scanner orchestration phase"

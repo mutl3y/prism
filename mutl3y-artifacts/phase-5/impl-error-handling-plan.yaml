@@ -1,0 +1,379 @@
+fix_group: error_handling_broad_except
+input_artifact: mutl3y-artifacts/phase-4/decision-error-handling.yaml
+files_owned:
+  - src/prism/scanner_core/scanner_context.py
+  - src/prism/scanner_core/events.py
+  - src/prism/scanner_core/execution_request_builder.py
+  - src/prism/cli.py  # Note: decision artifact referenced cli.py (absolute), plan scope adjusted from cli_app/cli.py
+
+findings_in_scope: 6
+findings_out_of_scope: 2  # Scout-ControlFlow-07 (telemetry.py), Scout-ControlFlow-08 (kernel_plugin_runner.py)
+
+changes:
+  - finding_id: Scout-ControlFlow-05
+    file: src/prism/scanner_core/scanner_context.py
+    line_range: "350-365"
+    priority: "1-BLOCKING"
+    category: NARROW_SPECIFIC
+    current_pattern: |
+      except Exception as error:
+          if self._strict_phase_failures or not isinstance(
+              error, _RECOVERABLE_PHASE_ERRORS
+          ):
+              logger.error("Variable discovery failed")
+              raise
+    pseudocode: |
+      # Replace broad Exception catch with specific exception types from plugin.discover()
+      # Expected exceptions: PrismRuntimeError (plugin failure), ValueError (validation),
+      # RuntimeError (execution error), TypeError (config issue)
+      
+      try:
+          discovery = self._di.factory_variable_discovery()
+          return discovery.discover()
+      except (PrismRuntimeError, ValueError, RuntimeError, TypeError) as error:
+          logger = logging.getLogger(__name__)
+          if self._strict_phase_failures:
+              logger.error("Variable discovery failed")
+              raise
+          # Recoverable for these types if not strict
+          entry = self._record_phase_error("discovery", error)
+          logger.warning(
+              "Variable discovery failed; continuing in best-effort mode: %s: %s",
+              type(error).__name__, error,
+              extra={"scan_error": entry},
+          )
+          return ()
+    effort_hours: 2.5
+    blockers: []
+    rationale: |
+      HOT_PATH critical. Narrows to expected exceptions from plugin.discover().
+      Removes inefficient isinstance() check that catches all Exceptions.
+      Separates strict vs. best-effort recovery semantics at declaration time.
+    validation_points:
+      - discovery.discover() should only raise (PrismRuntimeError, ValueError, RuntimeError, TypeError)
+      - _RECOVERABLE_PHASE_ERRORS constant can be removed if only used here
+      - Test: run with --strict-failures to verify fatal exceptions propagate
+      - Test: run without --strict to verify recoverable exceptions log warning and continue
+
+  - finding_id: Scout-ControlFlow-06
+    file: src/prism/scanner_core/scanner_context.py
+    line_range: "370-385"
+    priority: "1-BLOCKING"
+    category: NARROW_SPECIFIC
+    current_pattern: |
+      except Exception as error:
+          if self._strict_phase_failures or not isinstance(
+              error, _RECOVERABLE_PHASE_ERRORS
+          ):
+              logger.error("Feature detection failed")
+              raise
+    pseudocode: |
+      # Parallel narrowing to Scout-ControlFlow-05.
+      # Replace broad Exception catch with specific exception types from plugin.detect()
+      
+      try:
+          detector = self._di.factory_feature_detector()
+          return detector.detect()
+      except (PrismRuntimeError, ValueError, RuntimeError, TypeError) as error:
+          logger = logging.getLogger(__name__)
+          if self._strict_phase_failures:
+              logger.error("Feature detection failed")
+              raise
+          # Recoverable for these types if not strict
+          entry = self._record_phase_error("detection", error)
+          logger.warning(
+              "Feature detection failed; continuing in best-effort mode: %s: %s",
+              type(error).__name__, error,
+              extra={"scan_error": entry},
+          )
+          return FeaturesContext()  # Return empty context on recovery
+    effort_hours: 2.5
+    blockers: []
+    sequencing_note: "Implement after Scout-ControlFlow-05; parallel methods should have identical exception handling pattern"
+    rationale: |
+      HOT_PATH critical. Paired narrowing with Scout-ControlFlow-05.
+      Mirrors the pattern: catch specific exceptions, check strict mode, log+recover or raise.
+      Improves clarity that only these 4 exception types are expected from detect().
+    validation_points:
+      - detector.detect() should only raise (PrismRuntimeError, ValueError, RuntimeError, TypeError)
+      - Ensure FeaturesContext() empty default is appropriate for recovery
+      - Test: verify both hot paths have identical exception semantics
+      - Test: strict vs. best-effort modes
+
+  - finding_id: Scout-ControlFlow-01
+    file: src/prism/cli.py
+    line_range: "569-575"
+    priority: "2-QUICK_WIN"
+    category: NARROW_SPECIFIC
+    current_pattern: |
+      except Exception as exc:
+          _logger.exception("CLI command %r failed with %s", getattr(args, "command", None), type(exc).__name__)
+          print(_format_top_level_exception(exc), file=sys.stderr)
+          return _map_top_level_exception_to_exit_code(exc)
+    pseudocode: |
+      # Narrow to expected exception types from _dispatch_scan_command() and CLI parsing.
+      # _map_top_level_exception_to_exit_code() is designed to handle:
+      # - PrismRuntimeError (scanner failures)
+      # - FileNotFoundError / PermissionError (file system)
+      # - json.JSONDecodeError (config parsing)
+      # - HTTPError, URLError (network issues)
+      # - OSError (generic IO)
+      
+      import json
+      from urllib.error import HTTPError, URLError
+      
+      except (
+          PrismRuntimeError,
+          FileNotFoundError,
+          PermissionError,
+          json.JSONDecodeError,
+          HTTPError,
+          URLError,
+          OSError,
+      ) as exc:
+          _logger.exception("CLI command %r failed with %s", getattr(args, "command", None), type(exc).__name__)
+          print(_format_top_level_exception(exc), file=sys.stderr)
+          return _map_top_level_exception_to_exit_code(exc)
+      except Exception as exc:  # Unforeseen exceptions
+          _logger.exception(
+              "CLI command %r failed with unexpected exception type %s",
+              getattr(args, "command", None),
+              type(exc).__name__,
+          )
+          print("An unexpected error occurred. Please file a bug report.", file=sys.stderr)
+          return _EXIT_CODE_GENERAL_ERROR
+    effort_hours: 1.5
+    blockers: []
+    rationale: |
+      UTILITY_PATH. Documents expected CLI exception types.
+      Adds fallback for unforeseen exceptions (explicit message rather than mapping).
+      Makes CLI boundary responsibilities explicit at the entry point.
+    validation_points:
+      - Verify _map_top_level_exception_to_exit_code handles all narrowed exception types
+      - Test: FileNotFoundError during role file loading
+      - Test: JSONDecodeError during config parsing
+      - Test: HTTPError / URLError during network calls
+      - Test: Unforeseen exception type gets appropriate fallback message
+
+  - finding_id: Scout-ControlFlow-02
+    file: src/prism/scanner_core/events.py
+    line_range: "135-155"
+    priority: "2-QUICK_WIN"
+    category: ACCEPT_BROAD
+    current_pattern: |
+      except Exception as exc:  # pragma: no cover - defensive
+          self._record_listener_error(listener, exc, event)
+          logger.error("EventBus listener exception: phase=%s kind=%s listener=%r exc_type=%s exc=%r", ...)
+    pseudocode: |
+      # Leave broad catch in place; this is a defensive boundary.
+      # Listeners are externally-provided code with unknown exception contracts.
+      # Add clarifying docstring and update comment to explain the design.
+      
+      # NO CODE CHANGE — only add or expand comment:
+      except Exception as exc:  # pragma: no cover
+          # Defensive: catch all exceptions from external listeners to prevent
+          # one failing listener from breaking the entire event bus.
+          # Listener authors should document their exception contracts,
+          # but we don't enforce narrow types here to maximize robustness.
+          self._record_listener_error(listener, exc, event)
+          logger.error(
+              "EventBus listener exception: phase=%s kind=%s listener=%r exc_type=%s exc=%r",
+              event.phase_name, event.kind, listener, type(exc).__name__, exc,
+          )
+          if self._strict:
+              raise
+    effort_hours: 0.5
+    blockers: []
+    rationale: |
+      OPTIONAL. Defensive boundary intentionally accepts broad exceptions.
+      External listeners have unknown exception contracts; narrowing here would be fragile.
+      Logging already provides diagnostics (listener identity, exception type, event metadata).
+      Decision: document intent via comment; no code change required.
+    validation_points:
+      - Verify docstring or comment is clear on why broad catch is appropriate
+      - Test: listener that raises unexpected exception type (non-standard, custom exception)
+      - Ensure _record_listener_error and logger.error calls provide sufficient diagnostics
+
+  - finding_id: Scout-ControlFlow-03
+    file: src/prism/scanner_core/execution_request_builder.py
+    line_range: "180-192"
+    priority: "3-CONTRACT_NEEDED"
+    category: ADD_CONTRACT
+    current_pattern: |
+      try:
+          inner = self._variable_discovery_cls(di, resolved_role_path, options)
+      except Exception as exc:
+          raise ValueError(
+              f"Variable discovery factory failed for role_path={resolved_role_path}: "
+              f"{type(exc).__name__}: {exc}"
+          ) from exc
+    pseudocode: |
+      # Step 1: Add docstring to _variable_discovery_cls contract
+      # (in scanner_plugins/defaults.py or where VariableDiscovery protocol is defined)
+      #
+      # """
+      # VariableDiscovery.__init__ may raise:
+      #   - TypeError: if required arguments are missing or incorrect type
+      #   - ValueError: if configuration is invalid (e.g., invalid role path format)
+      #   - PrismRuntimeError: if plugin initialization fails at runtime
+      # """
+      #
+      # Step 2: Update the factory to narrow the catch and add logging
+      
+      from scanner_plugins.defaults import get_expected_variable_discovery_exceptions
+      
+      try:
+          inner = self._variable_discovery_cls(di, resolved_role_path, options)
+      except (TypeError, ValueError, PrismRuntimeError) as exc:
+          raise ValueError(
+              f"Variable discovery factory failed for role_path={resolved_role_path}: "
+              f"{type(exc).__name__}: {exc}"
+          ) from exc
+      except Exception as exc:
+          # Unforeseen exception from plugin — log for future debugging
+          logger.warning(
+              "Variable discovery factory caught unexpected exception type %s: %s",
+              type(exc).__name__, exc,
+          )
+          raise ValueError(
+              f"Variable discovery factory failed (unexpected error) for role_path={resolved_role_path}: "
+              f"{type(exc).__name__}: {exc}"
+          ) from exc
+    effort_hours: 3.0
+    blockers:
+      - "Plugin contract definition: VariableDiscovery.__init__ exception types must be documented"
+      - "Verify VariableDiscovery protocol / base class exists and exception types are realistic"
+    depends_on: "Scout-ControlFlow-04 (parallel narrowing should use same exception types)"
+    rationale: |
+      OPTIONAL (factory path, not hot path). Narrows after documenting plugin contract.
+      Captures unforeseen exceptions separately for diagnostic purposes.
+      Makes it explicit what exceptions the factory expects vs. unexpected types.
+    validation_points:
+      - Verify VariableDiscovery implementations (Ansible, etc.) only raise (TypeError, ValueError, PrismRuntimeError)
+      - Test: invalid role_path raises ValueError from plugin
+      - Test: DI container missing required args raises TypeError
+      - Test: unforeseen exception is logged with warning level
+      - Parity check: Scout-ControlFlow-04 should have identical structure
+
+  - finding_id: Scout-ControlFlow-04
+    file: src/prism/scanner_core/execution_request_builder.py
+    line_range: "195-207"
+    priority: "3-CONTRACT_NEEDED"
+    category: ADD_CONTRACT
+    current_pattern: |
+      try:
+          inner = self._feature_detector_cls(di, resolved_role_path, options)
+      except Exception as exc:
+          raise ValueError(
+              f"Feature detector factory failed for role_path={resolved_role_path}: "
+              f"{type(exc).__name__}: {exc}"
+          ) from exc
+    pseudocode: |
+      # Step 1: Add docstring to _feature_detector_cls contract
+      # (in scanner_plugins/defaults.py or where FeatureDetector protocol is defined)
+      #
+      # """
+      # FeatureDetector.__init__ may raise:
+      #   - TypeError: if required arguments are missing or incorrect type
+      #   - ValueError: if configuration is invalid
+      #   - PrismRuntimeError: if plugin initialization fails at runtime
+      # """
+      #
+      # Step 2: Update the factory to narrow the catch and add logging (mirrors Scout-ControlFlow-03)
+      
+      try:
+          inner = self._feature_detector_cls(di, resolved_role_path, options)
+      except (TypeError, ValueError, PrismRuntimeError) as exc:
+          raise ValueError(
+              f"Feature detector factory failed for role_path={resolved_role_path}: "
+              f"{type(exc).__name__}: {exc}"
+          ) from exc
+      except Exception as exc:
+          # Unforeseen exception from plugin — log for future debugging
+          logger.warning(
+              "Feature detector factory caught unexpected exception type %s: %s",
+              type(exc).__name__, exc,
+          )
+          raise ValueError(
+              f"Feature detector factory failed (unexpected error) for role_path={resolved_role_path}: "
+              f"{type(exc).__name__}: {exc}"
+          ) from exc
+    effort_hours: 3.0
+    blockers:
+      - "Plugin contract definition: FeatureDetector.__init__ exception types must be documented"
+      - "Verify FeatureDetector protocol / base class exists and exception types are realistic"
+    depends_on: "Scout-ControlFlow-03 (parallel narrowing should use same exception types)"
+    rationale: |
+      OPTIONAL (factory path). Parallel to Scout-ControlFlow-03.
+      Same narrowing pattern: specific exceptions + unforeseen fallback.
+    validation_points:
+      - Verify FeatureDetector implementations only raise (TypeError, ValueError, PrismRuntimeError)
+      - Test: invalid configuration raises ValueError from plugin
+      - Test: DI container missing required args raises TypeError
+      - Test: unforeseen exception is logged with warning level
+      - Parity check: Scout-ControlFlow-03 should have identical structure
+
+sequencing:
+  phase_1_blocking_hot_paths:
+    - Scout-ControlFlow-05
+    - Scout-ControlFlow-06
+    duration_hours: 5
+    rationale: "Hot paths on scanner_core orchestration. These improve error semantics on critical execution paths. No dependencies; can be done in parallel if desired."
+    
+  phase_2_quick_wins:
+    - Scout-ControlFlow-01
+    - Scout-ControlFlow-02
+    duration_hours: 2
+    rationale: "UTILITY_PATH and defensive boundary. Scout-ControlFlow-02 requires minimal change (comment only). Scout-ControlFlow-01 is straightforward CLI narrowing. Both independent of phase 1."
+    
+  phase_3_contract_dependent:
+    - Scout-ControlFlow-03
+    - Scout-ControlFlow-04
+    duration_hours: 6
+    rationale: "Factory methods that depend on plugin contract definitions. Not blocking; can be deferred if plugin contracts are not yet formalized. Should be done after phase 1-2 to establish narrowing patterns."
+
+out_of_scope_findings:
+  - finding_id: Scout-ControlFlow-07
+    file: src/prism/scanner_core/telemetry.py
+    reason: "Not in owned files (exclusive wave scope)"
+    
+  - finding_id: Scout-ControlFlow-08
+    file: src/prism/scanner_kernel/kernel_plugin_runner.py
+    reason: "Not in owned files (exclusive wave scope)"
+
+total_effort_hours: 13
+effort_breakdown:
+  phase_1_blocking: 5
+  phase_2_quick_wins: 2
+  phase_3_contract_dependent: 6
+
+validation_gates:
+  precheck:
+    - "Verify _RECOVERABLE_PHASE_ERRORS tuple and its usage; consider removal if no longer needed after Scout-ControlFlow-05 and 06"
+    - "Verify VariableDiscovery/FeatureDetector plugins (Ansible, Kubernetes, Terraform) only raise expected exception types"
+    
+  post_implementation:
+    - "pytest -k error -x (run error-related tests; should pass with no regressions)"
+    - "pytest src/prism/tests/test_fsrc_scanner_parity.py (verify parity not broken)"
+    - "tox -e typecheck (mypy should pass; exception types should be properly typed)"
+    - "ruff check src/prism (lint should find no bare except patterns)"
+    - "pytest -x (full suite; all tests green)"
+
+risk_assessment:
+  low:
+    - "Scout-ControlFlow-01: CLI narrowing is isolated, CLI tests should catch regressions"
+    - "Scout-ControlFlow-02: No code change; only comment update"
+    
+  medium:
+    - "Scout-ControlFlow-05, 06: Hot paths; need thorough testing to verify exception types are correct"
+    - "Verify that non-recoverable exceptions (not in the tuple) propagate correctly in both strict and best-effort modes"
+    
+  medium_deferred:
+    - "Scout-ControlFlow-03, 04: Depend on plugin contract formalization; if not available, keep broad catch with comment"
+
+notes:
+  - "Memory from decision artifact: _RECOVERABLE_PHASE_ERRORS is currently (PrismRuntimeError,) — after this wave, it should be removed or redefined if still needed"
+  - "Pattern: broad Exception catch + isinstance check → narrow Exception tuple + separate logic for strict vs. best-effort is cleaner and more efficient"
+  - "CLI fallback for unforeseen exceptions adds explicit message to distinguish expected vs. unexpected error types"
+  - "Plugin contracts (03, 04) are low priority but necessary for full narrowing; can be documented separately or deferred to plugin architecture stabilization"
+  - "Event bus (02) intentionally keeps broad catch — defensive boundary; no change to logic, only clarifying comment"

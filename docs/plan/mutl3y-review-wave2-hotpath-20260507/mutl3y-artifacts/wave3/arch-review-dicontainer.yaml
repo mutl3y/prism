@@ -1,0 +1,73 @@
+artifact_path: /raid5/source/test/prism/docs/plan/mutl3y-review-wave2-hotpath-20260507/mutl3y-artifacts/wave3/arch-review-dicontainer.yaml
+artifact_type: architecture_recommendation
+title: DIContainer Protocol refinement
+status: PASS
+completion_date: 2026-05-07
+recommendation: B
+implementation_effort_estimate: low
+summary: >
+  Keep DIContainer read-only and align the Protocol with the implementation.
+  The concrete container already snapshots scan_options and exposes
+  plugin_registry through @property accessors; there is no evidence that
+  writable public attributes are required for runtime behavior.
+root_cause: >
+  Wave 2 type friction comes from a contract-shape mismatch, not from a need
+  for mutable state. Mutation is already isolated behind replace_scan_options,
+  so the container should remain read-only at the public interface.
+options:
+  A:
+    label: Make DIContainer properties settable
+    pros:
+      - Preserves direct attribute assignment for callers that expect mutable state.
+      - Can be a narrow change if legacy code depends on write access.
+    cons:
+      - Breaks the current snapshot model for scan_options.
+      - Expands the public mutation surface without a demonstrated runtime need.
+      - Increases the chance of cache invalidation bugs and hidden coupling.
+      - Moves the implementation away from the existing contract direction.
+  B:
+    label: Update Protocol to use @property accessors
+    pros:
+      - Matches the existing DIContainer implementation.
+      - Preserves read-only semantics and snapshot integrity.
+      - Keeps type checking aligned with runtime behavior.
+      - Avoids introducing setters solely to satisfy typing.
+    cons:
+      - Requires any stale test doubles or docs to reflect read-only access.
+      - May surface a few local test fakes that still model writable attributes.
+  C:
+    label: Create an intermediate adapter
+    pros:
+      - Useful only when a legacy consumer cannot be updated immediately.
+      - Keeps the canonical container immutable while offering a compatibility seam.
+    cons:
+      - Adds an extra abstraction layer and maintenance burden.
+      - Can hide the real public contract and delay cleanup.
+      - Is heavier than necessary for the in-repo codebase.
+implementation_guide:
+  chosen_option: B
+  steps:
+    - Keep scan_options and plugin_registry as read-only @property members on DIContainer.
+    - Preserve replace_scan_options as the only sanctioned mutation path for scan options.
+    - Update any custom test doubles to expose properties if they need to satisfy the Protocol.
+    - Use a narrow adapter only at external compatibility boundaries where writable semantics are unavoidable.
+    - Treat the Protocol as the authoritative type-checking contract because it describes the stable public read surface.
+type_safety_impact:
+  impact: positive
+  details:
+    - Eliminates Protocol/implementation mismatches for structural typing.
+    - Preserves read-only covariance on scan_options access.
+    - Keeps mypy diagnostics focused on real contract violations instead of container shape noise.
+    - Reduces the risk of accidental writes that bypass cache invalidation.
+    - Makes the intended immutability visible to callers and test doubles.
+research_findings:
+  verified_runtime_shape:
+    - src/prism/scanner_core/di.py exposes scan_options as a snapshotting property.
+    - src/prism/scanner_core/di.py exposes plugin_registry as a property backed by internal state.
+    - src/prism/scanner_core/di.py uses replace_scan_options for explicit mutation instead of direct assignment.
+  verified_protocol_shape:
+    - src/prism/scanner_data/contracts_request.py already models DIContainer with @property accessors.
+  mutability_need_assessment:
+    - No in-repo production call site was found that requires public attribute writes to DIContainer.
+    - Mutable behavior is only needed inside controlled tests or compatibility shims, not in the core container design.
+recommendation_status: recommend

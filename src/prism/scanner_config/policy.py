@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import yaml
 
+from prism.errors import ERROR_CATEGORY_CONFIG, PrismRuntimeError
 from prism.scanner_config.section import (
     SECTION_CONFIG_FILENAME,
     SECTION_CONFIG_FILENAMES,
@@ -22,7 +23,8 @@ def _load_policy_config_dict(
 ) -> dict | None:
     """Load parsed policy config dict or return None when no config exists.
 
-    Raises RuntimeError with a stable public code when YAML parsing fails.
+    Raises PrismRuntimeError with layer='config' when YAML parsing fails.
+    Internal functions raise ValueError for validation; layer boundary wraps as PrismRuntimeError.
     """
     cfg_file = resolve_role_config_file(
         role_path,
@@ -36,8 +38,12 @@ def _load_policy_config_dict(
     try:
         raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
     except yaml.YAMLError as exc:
-        raise RuntimeError(
-            f"{POLICY_CONFIG_YAML_INVALID}: {_POLICY_CONFIG_YAML_INVALID_MESSAGE}: {cfg_file}"
+        raise PrismRuntimeError(
+            code=POLICY_CONFIG_YAML_INVALID,
+            category=ERROR_CATEGORY_CONFIG,
+            message=f"{_POLICY_CONFIG_YAML_INVALID_MESSAGE}: {cfg_file}",
+            layer="config",
+            recoverable=False,
         ) from exc
 
     if not isinstance(raw, dict):

@@ -566,7 +566,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _dispatch_scan_command(args)
     except KeyboardInterrupt:
         return _EXIT_CODE_INTERRUPTED
-    except Exception as exc:
+    except (
+        PrismRuntimeError,
+        FileNotFoundError,
+        PermissionError,
+        json.JSONDecodeError,
+        HTTPError,
+        URLError,
+        OSError,
+    ) as exc:
         _logger.exception(
             "CLI command %r failed with %s",
             getattr(args, "command", None),
@@ -574,6 +582,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         print(_format_top_level_exception(exc), file=sys.stderr)
         return _map_top_level_exception_to_exit_code(exc)
+    except Exception as exc:
+        _logger.exception(
+            "CLI command %r failed with unexpected exception type %s",
+            getattr(args, "command", None),
+            type(exc).__name__,
+        )
+        print(
+            "An unexpected error occurred. Please file a bug report.", file=sys.stderr
+        )
+        return _EXIT_CODE_GENERIC_ERROR
 
     return 0
 

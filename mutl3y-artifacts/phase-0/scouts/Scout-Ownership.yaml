@@ -1,0 +1,136 @@
+- id: Scout-Ownership-01
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_12
+  file: src/prism/api.py
+  line: 12
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.api_layer import collection as api_collection
+  evidence_command: sed -n 12p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-Ownership-02
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_13
+  file: src/prism/api.py
+  line: 13
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.api_layer import non_collection as api_non_collection
+  evidence_command: sed -n 13p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-Ownership-03
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_14
+  file: src/prism/api.py
+  line: 14
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.api_layer import plugin_facade
+  evidence_command: sed -n 14p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-Ownership-04
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_15
+  file: src/prism/api.py
+  line: 15
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.errors import ERROR_CATEGORY_VALIDATION
+  evidence_command: sed -n 15p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-Ownership-05
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_18
+  file: src/prism/api.py
+  line: 18
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.path_safety import assert_safe_role_path
+  evidence_command: sed -n 18p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-Ownership-06
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_19
+  file: src/prism/api.py
+  line: 19
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.scanner_config.audit_rules import AuditReport, AuditRule
+  evidence_command: sed -n 19p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-Ownership-07
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_20
+  file: src/prism/api.py
+  line: 20
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.scanner_io.collection_plugins import scan_collection_plugins
+  evidence_command: sed -n 20p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism
+- id: Scout-Ownership-08
+  category: ownership
+  fingerprint: ownership_private_import_src/prism/api.py_21
+  file: src/prism/api.py
+  line: 21
+  severity_hint: medium
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: from prism.scanner_io.collection_payload import (
+  evidence_command: sed -n 21p src/prism/api.py
+  related_symbols: []
+  fix_group_key: ownership_layer_violations
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ruff check src/prism

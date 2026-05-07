@@ -389,7 +389,7 @@ def test_fsrc_api_scan_collection_demotes_role_content_runtime_failure(
             "error_code": "role_content_yaml_invalid",
             "error_category": "parser",
             "error_type": "PrismRuntimeError",
-            "error": "role_content_yaml_invalid: invalid role yaml",
+            "error": "[core] role_content_yaml_invalid: invalid role yaml",
             "error_detail_code": "role_content_yaml_invalid",
             "detail_code": "role_content_yaml_invalid",
         }

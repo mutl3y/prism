@@ -1,0 +1,7 @@
+builder_name: Builder-Hotpath-Catalog
+owned_files:
+  - src/prism/scanner_extract/task_catalog_assembly.py
+artifact_path: docs/plan/mutl3y-review-wave2-hotpath-20260507/mutl3y-artifacts/phase2b/builder-catalog-summary.yaml
+changed_functions_count: 5
+status: FAIL
+short_error_excerpt: "Exact tree-level pytest filter hit an unrelated ImportError circular import in prism.scanner_plugins.ansible.extract_utils while importing prism.scanner_extract.task_catalog_assembly; focused catalog tests passed."

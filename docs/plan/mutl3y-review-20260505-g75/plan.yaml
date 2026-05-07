@@ -1,0 +1,29 @@
+plan_id: mutl3y-review-20260505-g75
+cycle: g75
+review_type: independent
+focus_axis: issue_discovery
+status: complete
+target: src/prism
+origin: Fresh restart requested after clearing the experimental branch artifacts.
+resumption_pointer:
+  current_phase: P7
+  next_action: Review cycle complete. All phases finished.
+  blocking_issues: []
+artifacts:
+  findings: docs/plan/mutl3y-review-20260505-g75/findings.yaml
+  phase0_start_audit: docs/plan/mutl3y-review-20260505-g75/mutl3y-artifacts/phase0/phase-start-audit.yaml
+  execution_trace: docs/plan/mutl3y-review-20260505-g75/mutl3y-artifacts/execution-trace.yaml
+  model_usage_ledger: docs/plan/mutl3y-review-20260505-g75/mutl3y-artifacts/model-usage-ledger.yaml
+  model_scorecard: docs/plan/mutl3y-review-20260505-g75/mutl3y-artifacts/model-scorecard.yaml
+readiness_state:
+  ready: true
+  focus_axis_due_next: issue_discovery
+  memory_dir: /raid5/source/test/prism/docs/plan/.mutl3y-lessons
+  degraded_models: []
+  watch_models:
+  - GPT-4.1 (copilot)
+  - GPT-5 mini (copilot)
+pause_state:
+  paused: false
+  reason: ''
+  resume_artifact: ''

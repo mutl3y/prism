@@ -1,0 +1,634 @@
+investigation_date: "2026-05-07"
+builder: "Builder-Phase2Detailed"
+synthesizes_from:
+  - hotpath-call-graph.yaml (Scout-PhaseStructure)
+  - phase2-signature-audit.yaml (Builder-Phase2Outline)
+repository: "/raid5/source/test/prism"
+
+executive_summary:
+  status: "READY FOR PHASE 2 IMPLEMENTATION"
+  recommended_path: "OPTION A: Dual Signatures (Conservative + Low-Risk)"
+  estimated_effort: "9-10 hours (4-5 hrs implementation + 5.5 hrs testing)"
+  risk_profile: "LOW (no breaking changes; backward compat maintained)"
+  blocking_issues: ZERO (all prerequisites satisfied by Phase 1)
+  go_no_go_decision: "GO - Recommend immediate Phase 2a start"
+
+strategic_context:
+  wave_1_status: "✅ COMPLETE (Factory Scaffolding)"
+    - PolicyConstants dataclass created + tested
+    - 1171 tests passing clean baseline
+    - No test failures from Phase 1 work
+  
+  wave_2_phase_1_status: "✅ COMPLETE"
+    - PolicyConstants dataclass ready
+    - build_policy_constants() function working
+    - Can extract policy constants from prepared_policy_bundle
+  
+  wave_2_phase_2_status: "READY TO START"
+    - Call graph mapped (Scout-PhaseStructure)
+    - Signature options analyzed (Builder-Phase2Outline)
+    - Risk-mitigated path identified (this document)
+  
+  wave_2_phase_3_status: "READY TO PLAN"
+    - Test strategy outlined below
+    - Expected test coverage: isolation + parity + concurrency
+
+recommended_execution_strategy:
+
+  phase_2a_foundation_layer:
+    objective: "Establish dual signature pattern in adapter layer"
+    duration: "~30-45 mins"
+    risk: "LOW"
+    files_affected:
+      - src/prism/scanner_core/task_extract_adapters.py
+    
+    changes_required:
+      1. Update _extract_task_annotations_for_file
+         current: "(raw_lines, *, marker_prefix, include_task_index, di=None)"
+         new: "(raw_lines, *, marker_prefix, include_task_index, di=None, scanner_context=None)"
+         body_change: Pass both params to extract_task_annotations_for_file
+         
+      2. Update _collect_task_handler_catalog
+         current: "(role_path, exclude_paths, *, marker_prefix, di=None)"
+         new: "(role_path, exclude_paths, *, marker_prefix, di=None, scanner_context=None)"
+         body_change: Pass both params to collect_task_handler_catalog
+         
+      3. Update detect_task_module
+         current: "(task, *, di=None)"
+         new: "(task, *, di=None, scanner_context=None)"
+         body_change: Pass both params to detect_task_module
+         
+      4. Update collect_task_files
+         current: "(role_root, *, exclude_paths=None, di=None)"
+         new: "(role_root, *, exclude_paths=None, di=None, scanner_context=None)"
+         body_change: Pass both params to collect_task_files
+         
+      5. Update collect_unconstrained_dynamic_role_includes
+         current: "(role_path, exclude_paths=None, *, di=None)"
+         new: "(role_path, exclude_paths=None, *, di=None, scanner_context=None)"
+         body_change: Pass both params
+      
+      (+ 4 more minor re-exports; same pattern)
+    
+    testing_strategy:
+      - Verify adapters still forward di= correctly (backward compat)
+      - Verify adapters forward scanner_context= correctly (new path)
+      - No behavioral change; purely API expansion
+    
+    acceptance_criteria:
+      - All 9 adapter functions have dual params
+      - Existing tests still pass (di= path untouched)
+      - New tests can opt-in to scanner_context= path
+
+  phase_2b_hotpath_assembly:
+    objective: "Introduce dual signatures in task_catalog_assembly.py"
+    duration: "~1 hour"
+    risk: "MEDIUM (hotpath changes; careful implementation required)"
+    files_affected:
+      - src/prism/scanner_extract/task_catalog_assembly.py
+    
+    critical_changes:
+      1. Update _detect_task_module signature
+         current: "(task, *, di=None)"
+         new: "(task, *, di=None, scanner_context=None)"
+         implementation:
+           ```python
+           def _detect_task_module(task, *, di=None, scanner_context=None):
+               policy_obj = None
+               if scanner_context is not None:
+                   policy_obj = scanner_context.policy_constants
+               if policy_obj is None:
+                   policy_obj = require_prepared_policy(
+                       di, "task_line_parsing", "task_catalog_assembly"
+                   )
+               return policy_obj.detect_task_module(task)
+           ```
+      
+      2. Update _collect_task_handler_catalog signature
+         current: "(role_path, exclude_paths, marker_prefix, *, di=None)"
+         new: "(role_path, exclude_paths, marker_prefix, *, di=None, scanner_context=None)"
+         implementation:
+           - Extract policy_constants from scanner_context OR di
+           - Thread both params through all internal calls
+           - Nested _collect_tasks_recursive receives both via closure
+           - Call propagations:
+             * tft.load_yaml_file(..., di=di, scanner_context=scanner_context)
+             * tap.extract_task_annotations_for_file(..., di=di, scanner_context=scanner_context)
+             * tft.iter_task_mappings(..., di=di, scanner_context=scanner_context)
+      
+      3. Update collect_task_handler_catalog public wrapper
+         current: "(role_path, exclude_paths, marker_prefix, *, di=None)"
+         new: "(role_path, exclude_paths, marker_prefix, *, di=None, scanner_context=None)"
+         implementation: Forward both params to _collect_task_handler_catalog
+    
+    implementation_notes:
+      - Mutual exclusivity check: optional (defer to di=None default if both absent)
+      - Policy extraction from scanner_context: Use scanner_context.policy_constants
+      - Both paths must thread through nested _collect_tasks_recursive function
+      - Line 154: require_prepared_policy(di, "task_line_parsing", ...).TASK_INCLUDE_KEYS
+        Must become: Extract from policy_obj (either from scanner_context or di)
+    
+    testing_strategy:
+      - Parity test: Same inputs via di= vs scanner_context= produce identical outputs
+      - Edge case: Both di= and scanner_context= provided (document behavior)
+      - Edge case: Both di= and scanner_context= absent (should fail with clear error)
+    
+    acceptance_criteria:
+      - _collect_task_handler_catalog accepts both params
+      - Internal require_prepared_policy calls replaced with policy extraction
+      - Nested recursion threads both params correctly
+      - No behavioral change to di= path (backward compat)
+      - New scanner_context= path produces identical output
+
+  phase_2c_traversal_layer:
+    objective: "Dual signatures in task_file_traversal.py"
+    duration: "~1.5 hours"
+    risk: "LOW-MEDIUM (mostly delegation; complex _iter_task_include_edges fallback logic)"
+    files_affected:
+      - src/prism/scanner_extract/task_file_traversal.py
+    
+    functions_to_update: 11+
+      - _load_yaml_file
+      - _load_yaml_file_with_metadata
+      - _iter_task_mappings
+      - _iter_task_include_targets
+      - _iter_task_include_edges
+      - _expand_include_target_candidates
+      - _iter_role_include_targets
+      - _iter_dynamic_role_include_targets
+      - _collect_task_files
+      - _collect_task_files_with_unresolved_includes
+      - _collect_unconstrained_dynamic_task_includes
+    
+    special_handling:
+      - _load_yaml_file_with_metadata: Complex error handling with 3 parse_yaml_candidate calls
+        All 3 must forward both di= and scanner_context=
+      - _iter_task_include_edges: Fallback to iter_task_include_targets if iter_task_include_edges missing
+        Both paths must handle dual params
+      - _collect_task_files_with_unresolved_includes: Nested _visit() function
+        Receives both params via closure from outer function
+    
+    testing_strategy:
+      - Parity tests for each function (di= vs scanner_context=)
+      - Error path tests (e.g., parse_yaml_candidate with scanner_context)
+      - Fallback path tests (_iter_task_include_edges with missing method)
+    
+    acceptance_criteria:
+      - All 11+ functions have dual params
+      - Both di= and scanner_context= paths thread correctly through nested functions
+      - Error handling paths test successfully
+      - Policy extraction from scanner_context works in all contexts
+
+  phase_2d_annotation_layer:
+    objective: "Dual signatures in task_annotation_parsing.py"
+    duration: "~45 mins"
+    risk: "LOW"
+    files_affected:
+      - src/prism/scanner_extract/task_annotation_parsing.py
+    
+    functions_to_update: 5
+      - _split_task_annotation_label
+      - _split_task_target_payload
+      - _annotation_payload_looks_yaml
+      - _extract_task_annotations_for_file
+      - _task_anchor
+    
+    implementation: Straightforward delegation pattern
+      Each function: Add scanner_context= param, forward to require_prepared_policy or extract from context
+    
+    testing_strategy:
+      - Parity tests for each function
+      - Verify plugin resolution works for both di= and scanner_context= paths
+    
+    acceptance_criteria:
+      - All 5 functions have dual params
+      - Both paths work identically
+
+  phase_2e_caller_integration:
+    objective: "Update entry points to support new scanner_context= path"
+    duration: "~45 mins"
+    risk: "LOW"
+    files_affected:
+      - src/prism/scanner_core/feature_detector.py
+      - Any other external callers (to be identified)
+    
+    required_changes:
+      1. feature_detector.FeatureDetector.collect_task_handler_catalog
+         current: "return _collect_task_handler_catalog(role_path, ..., di=self._di)"
+         new: Must determine if scanner_context available in feature_detector
+         option_a: Extract from self._di: policy_const = self._di.policy_constants
+         option_b: Pass self._di as before; allow collect_task_handler_catalog to extract
+      
+      2. Scan for all other callers to public APIs
+         grep results: Likely only feature_detector + test suite
+         
+    testing_strategy:
+      - Verify feature_detector works with scanner_context path
+      - Test with mock scanner_context + policy_constants
+    
+    acceptance_criteria:
+      - feature_detector can use new path
+      - All test suite tests still pass
+      - New tests verify new path in feature_detector
+
+phase_3_comprehensive_test_strategy:
+
+  test_tier_1_parity_validation: "~2 hours"
+    objective: Verify both di= and scanner_context= paths produce identical results
+    
+    test_cases:
+      T3_1_1_detect_task_module_parity:
+        - Run with: task dict, di=prepared_di, scanner_context=None → result_A
+        - Run with: task dict, di=None, scanner_context=mock_context → result_B
+        - Assert: result_A == result_B
+        - Coverage: 3 task types (module dict, collection dict, builtin)
+      
+      T3_1_2_collect_task_handler_catalog_parity:
+        - Run with: role_path, exclude_paths, marker_prefix, di=prepared_di → result_A
+        - Run with: role_path, exclude_paths, marker_prefix, scanner_context=mock_context → result_B
+        - Assert: result_A == result_B (same catalog structure, same order)
+        - Coverage: 3 role structures (simple, nested includes, molecule)
+      
+      T3_1_3_extract_task_annotations_parity:
+        - Run with: lines, marker_prefix, di=prepared_di → result_A
+        - Run with: lines, marker_prefix, scanner_context=mock_context → result_B
+        - Assert: result_A == result_B (same annotations, same format)
+        - Coverage: 3 annotation patterns (implicit, explicit, mixed)
+      
+      T3_1_4_load_yaml_file_parity:
+        - Run with: file_path, di=prepared_di → result_A
+        - Run with: file_path, scanner_context=mock_context → result_B
+        - Assert: result_A == result_B (same parsed data)
+        - Coverage: 3 file types (tasks, handlers, molecule)
+      
+      T3_1_5_iter_task_mappings_parity:
+        - Run with: yaml_data, di=prepared_di → result_A
+        - Run with: yaml_data, scanner_context=mock_context → result_B
+        - Assert: result_A == result_B (same task mappings)
+        - Coverage: 2 data types (list of tasks, dict of tasks)
+    
+    test_infrastructure:
+      - Pytest fixture: prepared_di (fully initialized DI container)
+      - Pytest fixture: mock_context (mock scanner_context with policy_constants)
+      - Pytest fixture: mock_policy_constants (from PolicyConstants dataclass)
+      - Parametrize: Each test runs both with real di and mock scanner_context
+    
+    passing_criteria: 100% of parity tests pass; both paths identical
+
+  test_tier_2_per_scan_isolation: "~2 hours"
+    objective: Verify each scan gets independent policy_constants (no cross-contamination)
+    
+    test_cases:
+      T3_2_1_separate_scans_separate_contexts:
+        - Scan 1: scanner_context_1 with policy_constants_1
+        - Scan 2: scanner_context_2 with policy_constants_2 (different task_include_keys)
+        - Assert: Scan 1 uses keys from policy_constants_1
+        - Assert: Scan 2 uses keys from policy_constants_2
+        - Assert: No cross-contamination of keys
+      
+      T3_2_2_policy_constants_immutability:
+        - Extract policy_constants from scanner_context
+        - Attempt modification (should fail; dataclass frozen=True)
+        - Assert: PolicyConstants is immutable; no state mutation risk
+      
+      T3_2_3_concurrent_scan_contexts:
+        - Spawn 3 threads; each with own scanner_context + policy_constants
+        - Call collect_task_handler_catalog in each thread with different policy
+        - Collect results in thread-safe queue
+        - Assert: Each result matches its own policy_constants
+        - Assert: No data race or cross-thread contamination
+      
+      T3_2_4_policy_constants_extraction_consistency:
+        - Extract policy_constants multiple times from same scanner_context
+        - Assert: Same object instance returned (identity check)
+        - Assert: Immutable guarantees preserved across extractions
+    
+    test_infrastructure:
+      - Pytest fixture: multiple scanner_contexts with varying policies
+      - Pytest fixture: thread pool + concurrent test harness
+      - Mock PolicyConstants with different task_include_keys per context
+      
+    passing_criteria: All isolation tests pass; no cross-scan contamination observed
+
+  test_tier_3_multi_scan_concurrency: "~1.5 hours"
+    objective: Verify hotpath functions work correctly under concurrent multi-scan load
+    
+    test_cases:
+      T3_3_1_concurrent_catalog_collection:
+        - 5 threads, each collecting task catalog for different role_path
+        - Each with unique scanner_context + policy_constants
+        - Assert: All 5 catalogs collected without exception
+        - Assert: Each catalog matches expected role (no cross-role contamination)
+        - Performance check: Total time < 2x sequential time (reasonable parallelism)
+      
+      T3_3_2_concurrent_yaml_loading:
+        - 10 threads, each loading different YAML file
+        - Each with unique scanner_context
+        - Assert: All 10 files loaded correctly
+        - Assert: No file I/O race conditions
+        - Assert: YAML parse errors handled per-thread independently
+      
+      T3_3_3_concurrent_annotation_extraction:
+        - 5 threads, each extracting annotations from different file content
+        - Each with unique marker_prefix + scanner_context
+        - Assert: All annotations extracted correctly
+        - Assert: No regex pattern cross-contamination
+        - Assert: Marker prefix honored per-thread (no shared state pollution)
+      
+      T3_3_4_stress_test_deep_recursion:
+        - Create deeply nested include structure (30 levels)
+        - 3 concurrent threads scanning same role_path simultaneously
+        - Each with own scanner_context
+        - Assert: No stack overflow or recursion limit hit
+        - Assert: Include resolution consistent across threads
+        - Assert: Max recursion depth enforced per-scan (not global)
+    
+    test_infrastructure:
+      - ThreadPoolExecutor with 10 workers
+      - Concurrent result collection + assertion harness
+      - Performance profiler to check thread contention
+      - Mock role directories with deep include structures
+      
+    passing_criteria: All concurrent tests pass; no race conditions; reasonable performance
+
+  test_tier_4_backward_compatibility: "~1 hour"
+    objective: Verify di= path continues to work for existing callers
+    
+    test_cases:
+      T3_4_1_di_param_unchanged:
+        - All existing tests using di= parameter (current test suite)
+        - Assert: All 1171 tests still pass
+        - Assert: No behavioral changes to di= path
+      
+      T3_4_2_di_exclusive_usage:
+        - Call functions with only di= (no scanner_context)
+        - Assert: Functions work as before
+        - Assert: No new exceptions for missing scanner_context
+      
+      T3_4_3_both_params_mutual_exclusivity:
+        - Call with both di= and scanner_context= provided
+        - Document expected behavior (scanner_context wins OR error raised)
+        - Assert: Consistent behavior across all functions
+      
+      T3_4_4_both_params_absent:
+        - Call with di=None, scanner_context=None
+        - Assert: Clear error message (e.g., "require_prepared_policy needs di or scanner_context")
+        - Assert: Error traceable to call site
+    
+    passing_criteria: All 1171 existing tests pass; no regressions
+
+  test_tier_5_error_handling: "~1 hour"
+    objective: Verify error paths work correctly with dual signatures
+    
+    test_cases:
+      T3_5_1_yaml_parse_failure_di_path:
+        - Load invalid YAML with di= path
+        - Assert: Error handled correctly
+        - Assert: failure collected in yaml_failure_collector
+      
+      T3_5_2_yaml_parse_failure_scanner_context_path:
+        - Load invalid YAML with scanner_context= path
+        - Assert: Same error handling as di= path
+        - Assert: failure collected correctly
+      
+      T3_5_3_missing_policy_extraction:
+        - Call with scanner_context that lacks policy_constants attribute
+        - Assert: Graceful error (not AttributeError)
+        - Assert: Error message guides user to fix
+      
+      T3_5_4_include_resolution_failure:
+        - Create include target that cannot be resolved
+        - Assert: Failure recorded in unresolved_edges
+        - Assert: Both di= and scanner_context= paths record same failure
+      
+      T3_5_5_recursion_depth_exceeded:
+        - Trigger include depth > 64
+        - Assert: Recursion halt message clear
+        - Assert: Both di= and scanner_context= paths handle equally
+    
+    passing_criteria: All error paths tested; consistent behavior in both paths
+
+  test_execution_schedule:
+    - Phase 3a: Set up test infrastructure (fixtures, mocks) → 1 hour
+    - Phase 3b: Implement Tiers 1-2 parity + isolation tests → 3 hours (overlaps with 3c)
+    - Phase 3c: Implement Tiers 3-5 concurrency + error + backward compat → 2.5 hours
+    - Phase 3d: Run full test suite; validate all passing → 30 mins
+    - Phase 3e: Performance profiling + documentation → 1 hour
+    
+    TOTAL: ~5.5 hours (plus buffer for debugging)
+
+  test_pass_criteria:
+    - All 1171 existing tests pass (zero regressions)
+    - All new parity tests pass (both paths produce identical results)
+    - All isolation tests pass (no cross-scan contamination)
+    - All concurrency tests pass (no race conditions)
+    - All error handling tests pass (consistent behavior)
+    - No new mypy, ruff, or black violations
+
+risk_assessment:
+
+  risk_1_broken_hotpath_signatures:
+    likelihood: MEDIUM
+    impact: CRITICAL (breaks all task extraction)
+    mitigation: |
+      - Phase 2a validates adapters completely before Phase 2b starts
+      - Phase 2 commits are atomic per-module to enable rollback
+      - Continuous CI validation after each phase
+      - Parity tests in Phase 3 catch differences immediately
+    status: MITIGATED
+
+  risk_2_incompletely_threaded_params:
+    likelihood: MEDIUM
+    impact: MEDIUM (some paths use old di=, others use scanner_context=)
+    mitigation: |
+      - Code review checklist: Verify all propagation points (internal calls)
+      - Grep for require_prepared_policy after Phase 2b; ensure count unchanged
+      - Parity tests fail if any path skips param threading
+    status: MITIGATED
+
+  risk_3_policy_extraction_from_scanner_context_fails:
+    likelihood: LOW
+    impact: MEDIUM (new scanner_context= path unusable)
+    mitigation: |
+      - Design policy extraction as explicit fallible operation (try/except)
+      - Phase 3 tests verify extraction works reliably
+      - Mock scanner_context fixture with correct structure
+    status: MITIGATED
+
+  risk_4_test_suite_increases_maintenance_burden:
+    likelihood: MEDIUM
+    impact: LOW (duplicated test code)
+    mitigation: |
+      - Use parametrized tests to avoid duplication
+      - Shared fixtures for di= and scanner_context= setup
+      - Document test structure clearly for future maintainers
+    status: MITIGATED
+
+  risk_5_no_external_callers_found_breaking:
+    likelihood: LOW
+    impact: LOW (Phase 2a/2e are not breaking; public APIs still accept di=)
+    mitigation: |
+      - Grep search before Phase 2e for all external callers
+      - All callers remain compatible (can still use di=)
+      - No breaking changes in Phase 2 (only additions)
+    status: MITIGATED
+
+  risk_6_performance_regression_from_dual_paths:
+    likelihood: LOW
+    impact: LOW (both paths should have equivalent performance)
+    mitigation: |
+      - Phase 3e includes performance profiling
+      - Benchmark di= path vs scanner_context= path for equivalence
+      - Document any performance differences
+    status: MITIGATED
+
+  risk_7_policy_constants_not_immutable_enough:
+    likelihood: VERY_LOW
+    impact: MEDIUM (state corruption if mutable)
+    mitigation: |
+      - PolicyConstants dataclass already frozen=True (verified in Phase 1)
+      - Phase 3 tests verify immutability guarantees
+      - No mutation patterns observed in codebase
+    status: MITIGATED
+
+overall_risk: "LOW"
+risk_closure_gate: "Phase 3 testing + code review on Phase 2 commits"
+
+effort_breakdown:
+
+  implementation_effort:
+    phase_2a_adapters: "30-45 mins"
+    phase_2b_assembly: "1 hour"
+    phase_2c_traversal: "1.5 hours"
+    phase_2d_annotation: "45 mins"
+    phase_2e_integration: "45 mins"
+    subtotal: "~4-4.5 hours"
+    
+  testing_effort:
+    phase_3_setup: "1 hour"
+    phase_3_tiers_1_2: "3 hours"
+    phase_3_tiers_3_5: "2.5 hours"
+    phase_3_validation: "30 mins"
+    phase_3_perf_docs: "1 hour"
+    subtotal: "~5.5 hours"
+    
+  review_and_refinement:
+    code_review: "1 hour"
+    buffer_for_debugging: "1-2 hours"
+    subtotal: "~2-3 hours"
+    
+  TOTAL: "~9-10 hours"
+  
+  calendar_estimate:
+    - Phase 2 (implementation): 1 day (4-5 hrs × 1 dev)
+    - Phase 3 (testing): 1-2 days (5.5 hrs × 1 dev; depends on test infrastructure setup)
+    - Review + refinement: 0.5 day
+    - TOTAL: ~2.5-3 calendar days for committed dev
+
+critical_success_factors:
+
+  CSF_1_atomic_commits_per_phase:
+    - Each of 2a, 2b, 2c, 2d, 2e must be independently committable + reversible
+    - Allows bisect if issues arise
+    
+  CSF_2_comprehensive_parity_tests:
+    - Phase 3 tier 1 MUST pass 100%; confirms both paths equivalent
+    - If parity fails, rollback Phase 2 and investigate
+    
+  CSF_3_zero_test_regressions:
+    - No new test failures from Phase 1 baseline (1171 tests)
+    - Must maintain strict test pass gate
+    
+  CSF_4_code_review_checklist:
+    - Verify all di= propagations threaded as scanner_context= propagations
+    - Verify policy extraction from scanner_context implemented safely
+    - Verify no mutating operations on PolicyConstants
+    
+  CSF_5_clear_documentation:
+    - Document dual signature pattern for future developers
+    - Explain when to use di= vs scanner_context=
+    - Provide migration guide when di= deprecated (Wave 3+)
+
+recommended_next_steps:
+
+  IMMEDIATE (Day 1):
+    1. Review and approve this phase2-3-detailed-plan.yaml
+    2. Prepare Phase 2a implementation (adapters)
+    3. Set up code review process
+    4. Reserve dev time for Phases 2a-2e
+    
+  PHASE_2_IMPLEMENTATION (Days 2-3):
+    1. Execute Phase 2a (adapters) → ~30-45 mins
+    2. Run existing tests after 2a; confirm pass
+    3. Execute Phase 2b (assembly) → ~1 hour
+    4. Run existing tests after 2b; confirm pass (parity)
+    5. Execute Phase 2c (traversal) + 2d (annotation) in parallel → ~2.5 hours
+    6. Run existing tests after 2c/2d; confirm pass
+    7. Execute Phase 2e (integration) → ~45 mins
+    8. Final test run: 1171 tests must pass
+    
+  PHASE_3_TESTING (Days 4-5):
+    1. Set up test infrastructure (fixtures, mocks)
+    2. Implement and run Tiers 1-2 (parity + isolation)
+    3. Implement and run Tiers 3-5 (concurrency + error + backward compat)
+    4. Run full suite: all 1171 existing + all new tests
+    5. Performance profiling + documentation
+    6. Final validation gate: All tests pass; no regressions
+    
+  POST_WAVE_2 (Wave 3 Planning):
+    1. Collect feedback on scanner_context= path usability
+    2. Plan Phase 4 consolidation wave (Option B or C cleanup)
+    3. Schedule di= deprecation timeline
+    4. Plan concurrent multi-scan expansion based on Phase 2-3 learnings
+
+decision_log:
+
+  DECISION_D1: Choose Option A (Dual Signatures)
+    timestamp: "2026-05-07"
+    rationale: |
+      Phase 1 complete and working. Option A provides lowest risk.
+      No breaking changes; backward compat preserved.
+      Can implement immediately; no other prerequisites.
+      Phase 2a+2b can start tomorrow without blocking.
+      
+  DECISION_D2: Phase 2a (adapters) first, Phase 2b (assembly) second
+    timestamp: "2026-05-07"
+    rationale: |
+      Adapters are thin facade; low risk foundation layer.
+      Passing Phase 2a validates pattern before applying to hotpath.
+      Allows incremental validation and rollback capability.
+    
+  DECISION_D3: Comprehensive Phase 3 testing with all 5 tiers
+    timestamp: "2026-05-07"
+    rationale: |
+      Parity tests (Tier 1) are mandatory to prove both paths work.
+      Isolation + concurrency tests (Tiers 2-3) future-proof for multi-scan scenarios.
+      Error + backward compat tests (Tiers 4-5) ensure production safety.
+      Total ~5.5 hrs; high ROI for risk elimination.
+
+go_no_go_recommendation:
+
+  STATUS: ✅ GO
+  
+  GATES_SATISFIED:
+    ✅ Wave 1 (Phase 1) complete and tested
+    ✅ PolicyConstants factory working
+    ✅ Hotpath call graph mapped
+    ✅ Signature audit completed
+    ✅ Execution strategy validated
+    ✅ Risk assessment passed
+    ✅ Test strategy comprehensive
+    ✅ Effort estimates realistic
+    ✅ No blocking issues identified
+  
+  RECOMMENDATION: |
+    Recommend immediate start of Phase 2a implementation.
+    All prerequisites satisfied.
+    Risk profile acceptable (LOW).
+    Estimated completion: 2-3 calendar days for full Wave 2 (Phase 2+3).
+    
+  NEXT_MILESTONE: |
+    Phase 2a start: Schedule for next available dev day.
+    Phase 2 completion gate: All 1171 tests pass; zero regressions.
+    Phase 3 completion gate: All parity/isolation/concurrency tests pass.
+    Wave 2 closure: All three YAML artifacts produced; Gate validation complete.

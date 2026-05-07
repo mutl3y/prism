@@ -58,14 +58,20 @@ class _PolicyBackedRegexProxy:
             f"must be a compiled re.Pattern, got {type(current).__name__}"
         )
 
-    def match(self, *args: Any, **kwargs: Any):
-        return self._current_regex().match(*args, **kwargs)
+    def match(
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
+    ) -> re.Match[str] | None:
+        return self._current_regex().match(string, pos, endpos)
 
-    def search(self, *args: Any, **kwargs: Any):
-        return self._current_regex().search(*args, **kwargs)
+    def search(
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
+    ) -> re.Match[str] | None:
+        return self._current_regex().search(string, pos, endpos)
 
-    def fullmatch(self, *args: Any, **kwargs: Any):
-        return self._current_regex().fullmatch(*args, **kwargs)
+    def fullmatch(
+        self, string: str, pos: int = 0, endpos: int = sys.maxsize
+    ) -> re.Match[str] | None:
+        return self._current_regex().fullmatch(string, pos, endpos)
 
     def __getattr__(self, name: str) -> object:
         return getattr(self._current_regex(), name)

@@ -1,0 +1,29 @@
+artifact_path: /raid5/source/test/prism/docs/plan/mutl3y-review-wave2-hotpath-20260507/mutl3y-artifacts/wave3/performance-benchmark.md
+benchmark_scope:
+  - src/prism/tests/test_scanner_context.py
+  - src/prism/tests/test_feature_detector.py
+workload:
+  catalog_items: 50
+  policy_lookups_old_path: 300
+  policy_lookups_new_path: 0
+  lookup_reduction_rate_percent: 100.0
+results:
+  old_path:
+    mean_seconds: 0.00028501
+    median_seconds: 0.00028326
+    min_seconds: 0.00027661
+    max_seconds: 0.00030240
+    stdev_seconds: 0.00000838
+    matches: 30
+  new_path:
+    mean_seconds: 0.00000784
+    median_seconds: 0.00000783
+    min_seconds: 0.00000779
+    max_seconds: 0.00000790
+    stdev_seconds: 0.00000003
+    matches: 30
+  comparison:
+    performance_gain_percent: 97.25
+    call_reduction_percent: 100.0
+    eliminated_calls_per_run: 300
+recommendation_status: recommend

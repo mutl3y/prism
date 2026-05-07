@@ -1,0 +1,57 @@
+version: 1
+cycle: 1
+phase: 1
+timestamp: '2026-05-07T14:00:30Z'
+grader: cluster-foreman-p1
+grading_type: light-local
+input_findings: 30
+grading_summary:
+  total_promoted: 30
+  total_suppressed: 0
+  promoted_critical: 0
+  promoted_high: 0
+  promoted_medium: 26
+  promoted_low: 4
+  cadence_rule_1_violations: 0
+  cadence_rule_2_promoted: 0
+  registry_authority_findings: 0
+  facade_leakage_findings: 0
+shortlist:
+  critical: []
+  high: []
+  medium:
+  - typing_loose_annotations (10)
+  - ownership_layer_violations (8)
+  - error_handling_broad_except (8)
+  low:
+  - graph_dependency_review (4)
+implementation_priority:
+- rank: 1
+  fix_group: typing_loose_annotations
+  count: 10
+  severity: medium
+  reason: Type safety foundation for all downstream work
+- rank: 2
+  fix_group: error_handling_broad_except
+  count: 8
+  severity: medium
+  reason: Error contract enforcement on hot paths
+- rank: 3
+  fix_group: ownership_layer_violations
+  count: 8
+  severity: medium
+  reason: Layer boundary enforcement
+- rank: 4
+  fix_group: graph_dependency_review
+  count: 4
+  severity: low
+  reason: Dependency graph hygiene
+gating_checks:
+  cadence_rule_1_clean: true
+  cadence_rule_2_clean: true
+  cadence_rule_3_registry_check: no_split_authority_detected
+  cadence_rule_3_facade_check: no_leakage_detected
+  cadence_rule_4_signal_level: sufficient (100% promotion rate)
+  all_checks_passed: true
+next_phase: 'Phase 2: Persist plan'
+decision: Proceed to Phase 2 with 4 fix groups

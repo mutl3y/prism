@@ -8,7 +8,9 @@ default, and human-readable description.
 
 from __future__ import annotations
 
-from typing import Any, Mapping, NamedTuple
+from typing import Any, Mapping, NamedTuple, TypeAlias
+
+DefaultValue: TypeAlias = bool | list[Any] | None
 
 
 class ScanOptionsValidationError(ValueError):
@@ -20,7 +22,7 @@ class ScanOptionSchemaEntry(NamedTuple):
     types: tuple[type, ...]
     allow_none: bool
     required: bool
-    default: Any
+    default: DefaultValue
     description: str
 
 
@@ -30,7 +32,7 @@ def _entry(
     *,
     allow_none: bool = False,
     required: bool = True,
-    default: Any = None,
+    default: DefaultValue = None,
     description: str = "",
 ) -> ScanOptionSchemaEntry:
     return ScanOptionSchemaEntry(

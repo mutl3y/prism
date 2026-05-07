@@ -1,0 +1,149 @@
+phase: 5
+gate_name: implementation_plan_validation
+timestamp: "2026-05-07T20:25:00Z"
+
+plans_validated: 1
+plans_required: 4
+plans_found:
+  - impl-typing-plan.yaml
+plans_missing:
+  - impl-error-handling-plan.yaml
+  - impl-ownership-plan.yaml
+  - impl-graph-plan.yaml
+
+gate_verdict: FAIL
+next_phase_ready: false
+
+barrier_checklist:
+  all_4_plans_exist:
+    status: FAIL
+    detail: "Only 1 of 4 plans exists (impl-typing-plan.yaml)"
+    finding: "Missing: error-handling, ownership, graph implementation plans"
+    
+  files_owned_disjoint:
+    status: SKIP
+    detail: "Only 1 plan available; cannot validate cross-plan disjoint scope"
+    note: "Will require audit when all 4 plans exist"
+    
+  structure_validation:
+    impl_typing_plan:
+      exists: true
+      status: PASS
+      has_files_owned: true
+      files_owned_count: 3
+      files_owned:
+        - src/prism/scanner_extract/task_line_parsing.py
+        - src/prism/scanner_data/scan_options_schema.py
+        - src/prism/scanner_core/patterns.py
+      has_implementation_phases: true
+      implementation_phases_count: 4
+      has_changes_array: true
+      total_findings_covered: 10
+      has_total_effort_hours: true
+      total_effort_hours: 7
+      has_validation_gate: true
+      has_sequencing_notes: true
+      has_risk_mitigation: true
+      structure_verdict: PASS
+
+effort_hours_validation:
+  impl_typing_plan:
+    total_effort_hours: 7
+    phase_1_effort: 2
+    phase_2_effort: 3
+    phase_3_effort: 1
+    phase_4_effort: 1
+  impl_error_handling_plan:
+    total_effort_hours: null
+    status: MISSING
+  impl_ownership_plan:
+    total_effort_hours: null
+    status: MISSING
+  impl_graph_plan:
+    total_effort_hours: null
+    status: MISSING
+  
+  partial_total_effort_hours: 7
+  projected_full_total_effort_hours: "UNKNOWN (3 plans missing)"
+  reasonableness_check: "Cannot assess; need all 4 plans to sum and validate against 80-hour threshold"
+
+blockers_validation:
+  impl_typing_plan:
+    status: DOCUMENTED
+    blockers_found:
+      - "Phase 2: Must complete Phase 1 (regex fixes pass mypy)"
+      - "Phase 2: Requires audit of SCAN_OPTIONS_SCHEMA entries"
+      - "Scout-Typing-06: Blocker - Must complete audit before finalizing"
+      - "Scout-Typing-07: Blocker - Must be refactored jointly with Scout-Typing-06"
+    critical_path_items:
+      - "Phase 1 (regex proxy fixes): Unblocks Phase 2, independent execution"
+      - "Phase 2 (schema audit): Depends on Phase 1 passing mypy; joint audit required"
+      - "Phase 3 (patterns utility): Optional, can run in parallel or after Phase 2"
+      - "Phase 4 (documentation): Zero dependencies, can run anytime"
+    verdict: PASS
+  
+  impl_error_handling_plan: null
+  impl_ownership_plan: null
+  impl_graph_plan: null
+
+scope_validation:
+  files_under_src_prism:
+    impl_typing_plan:
+      all_files_in_scope: true
+      files_outside_scope: []
+  
+  disjoint_scope_audit: INCOMPLETE
+    status: "Cannot validate disjoint scope with only 1 of 4 plans present"
+    next_action: "Collect all 4 plans before running cross-plan overlap audit"
+
+phase_5_readiness:
+  discovery_complete: true
+  all_decision_plans_available: true
+  decision_to_impl_mapping:
+    typing: "impl-typing-plan.yaml ✓"
+    error_handling: "MISSING (decision-error-handling.yaml exists in phase-4)"
+    ownership: "MISSING (decision-ownership.yaml exists in phase-4)"
+    graph: "MISSING (decision-graph.yaml exists in phase-4)"
+
+critical_path_blockers: []
+  
+gate_summary: |
+  **GATE VERDICT: FAIL**
+  
+  **Blocker**: 3 out of 4 implementation plans are missing.
+  
+  Only impl-typing-plan.yaml exists and has been validated as well-formed.
+  
+  Missing plans:
+  - impl-error-handling-plan.yaml (from decision-error-handling.yaml)
+  - impl-ownership-plan.yaml (from decision-ownership.yaml)
+  - impl-graph-plan.yaml (from decision-graph.yaml)
+  
+  **Action Required Before Phase 5 Proceeds:**
+  1. Generate impl-error-handling-plan.yaml from decision-error-handling.yaml
+  2. Generate impl-ownership-plan.yaml from decision-ownership.yaml
+  3. Generate impl-graph-plan.yaml from decision-graph.yaml
+  4. Once all 4 plans exist, re-run gatekeeper validation to check:
+     - Disjoint file ownership across all 4 plans
+     - Total effort_hours sum is reasonable (< 80 hours for 30 findings)
+     - All blockers are documented and critical-path-ordered
+  
+  **Validated Artifacts:**
+  - impl-typing-plan.yaml: PASS (well-formed, 10 findings, 7 effort hours)
+  
+  **Next Action:**
+  Generate the 3 missing implementation plans using Phase 4 decision artifacts
+  as input, then re-trigger gatekeeper validation.
+
+recommendations:
+  immediate:
+    - "Generate impl-error-handling-plan.yaml from phase-4/decision-error-handling.yaml"
+    - "Generate impl-ownership-plan.yaml from phase-4/decision-ownership.yaml"
+    - "Generate impl-graph-plan.yaml from phase-4/decision-graph.yaml"
+    - "Re-run gatekeeper validation: /raid5/source/test/prism/mutl3y-artifacts/phase-5/gate-implementation-ready.yaml"
+  
+  post_generation:
+    - "Audit cross-plan file ownership for disjoint scope"
+    - "Sum all effort_hours and verify < 80 hours"
+    - "Verify all blockers are documented in dependency order"
+    - "Confirm all files are under src/prism/ (not outside scope)"

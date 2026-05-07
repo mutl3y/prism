@@ -1,0 +1,406 @@
+---
+# Scout-Typing Phase 0 Discovery Report
+# Plan ID: mutl3y-review-20260507-g78
+# Axis: error_handling
+# Target: src/prism
+# Lane: Typing
+# Date: 2026-05-07
+
+findings_summary:
+  total: 12
+  critical: 3
+  high: 4
+  medium: 5
+  low: 0
+
+findings:
+  - id: "TYP-ERR-001"
+    severity: "CRITICAL"
+    category: "exception_type_annotation"
+    title: "Python 2 Style Exception Handler Syntax (Non-Standard)"
+    description: |
+      Multiple files use outdated comma-separated exception handler syntax instead of
+      parenthesized tuples. While Python accepts this, it violates modern style guides
+      and creates confusion. The comma syntax is ambiguous about intent (tuple vs. binding).
+    files:
+      - path: "src/prism/scanner_plugins/registry.py"
+        line: 158
+        code: "except TypeError, ValueError:"
+        context: "Signature validation in plugin constructor check"
+      - path: "src/prism/scanner_extract/filter_scanner.py"
+        line: 186
+        code: "except UnicodeDecodeError, PermissionError, OSError:"
+        context: "File scanning for default filters"
+      - path: "src/prism/scanner_extract/filter_scanner.py"
+        line: 243
+        code: "except UnicodeDecodeError, PermissionError, OSError:"
+        context: "Scan file for all filters"
+      - path: "src/prism/scanner_extract/variable_extractor.py"
+        line: 92
+        code: "except OSError, yaml.YAMLError, UnicodeDecodeError, ValueError, RuntimeError:"
+        context: "Load seed YAML files"
+      - path: "src/prism/scanner_io/output.py"
+        line: 57
+        code: "except ImportError, AttributeError, TypeError, ValueError:"
+        context: "Markdown rendering fallback"
+    impact: |
+      Style inconsistency, potential for type checker confusion. Modern linters and
+      type checkers may issue warnings. Code maintainability reduced.
+    recommendation: |
+      Migrate all comma-separated exception handlers to parenthesized tuple syntax:
+      `except (TypeError, ValueError):` instead of `except TypeError, ValueError:`
+    status: "OPEN"
+
+  - id: "TYP-ERR-002"
+    severity: "CRITICAL"
+    category: "broad_exception_catching"
+    title: "Bare Exception Catching Without Structured Error Type"
+    description: |
+      Multiple locations catch generic `Exception` without narrowing the type.
+      This creates weak error-boundary contracts where exception types are not
+      propagated to callers, making error handling unpredictable.
+    files:
+      - path: "src/prism/scanner_core/events.py"
+        line: 95
+        code: "except Exception as exc:"
+        context: "EventBus.emit() listener failure, logged but type lost"
+      - path: "src/prism/scanner_core/execution_request_builder.py"
+        lines: [186, 201]
+        code: "except Exception as exc:"
+        context: "Request assembly phases, exception type not propagated"
+      - path: "src/prism/scanner_kernel/kernel_plugin_runner.py"
+        line: 150
+        code: "except Exception as exc:"
+        context: "Kernel phase execution, error envelope created without type info"
+      - path: "src/prism/scanner_extract/discovery.py"
+        lines: [125, 223, 280]
+        code: "except Exception as exc:"
+        context: "Variable and task discovery, broad catches throughout"
+    impact: |
+      Error types are erased when caught as bare `Exception`. Caller cannot
+      distinguish between recoverable errors, data validation errors, and
+      system failures. Weak error contracts make error boundaries fuzzy.
+    recommendation: |
+      1. Narrow exception types to specific cases (ValueError, OSError, etc.)
+      2. Create typed error envelopes that preserve exception type info
+      3. Add @overload annotations for functions that can raise different errors
+      4. Use Union[ErrorTypeA, ErrorTypeB] in error-envelope TypedDicts
+    status: "OPEN"
+
+  - id: "TYP-ERR-003"
+    severity: "CRITICAL"
+    category: "missing_error_type_annotation"
+    title: "EventBus Error Handling Loses Type Information"
+    description: |
+      The EventBus.emit() method catches exceptions from listeners and logs them
+      without preserving type information. The exception is logged as a string
+      representation, losing the structured error type that could be used for
+      error recovery or categorization.
+    files:
+      - path: "src/prism/scanner_core/events.py"
+        lines: [90, 95]
+        code: |
+          except Exception as exc:  # pragma: no cover - defensive
+              logger.error(
+                  "EventBus listener exception: phase=%s kind=%s listener=%r exc_type=%s exc=%r",
+                  ...
+                  type(exc).__name__,
+                  ...
+              )
+        context: "EventBus listener failure handling"
+    impact: |
+      Errors in event listeners are caught silently (logged only). The exception
+      type is converted to string (`type(exc).__name__`) instead of preserving
+      it as a typed object. Callers cannot determine if listener failure is
+      recoverable or fatal.
+    recommendation: |
+      1. Define a TypedDict for listener failure events with exception type as a field
+      2. Add strict/non-strict mode handling based on exception type
+      3. Create specific exception types for listener failures (e.g., EventListenerError)
+      4. Propagate exception chain so caller can handle appropriately
+    status: "OPEN"
+
+  - id: "TYP-ERR-004"
+    severity: "HIGH"
+    category: "inconsistent_error_variable_naming"
+    title: "Inconsistent Exception Variable Naming Conventions"
+    description: |
+      Throughout the codebase, exception handlers use different variable names:
+      `e`, `exc`, `error`. This inconsistency makes error handling patterns hard
+      to recognize and creates confusion about which naming convention to follow.
+    files:
+      - path: "src/prism/scanner_kernel/orchestrator.py"
+        lines: [100, 142, 159, 172]
+        variable: "e"
+        code: "except (ValueError, TypeError) as e:"
+      - path: "src/prism/scanner_core/scanner_context.py"
+        line: 335
+        variable: "error"
+        code: "except Exception as error:"
+      - path: "src/prism/scanner_core/events.py"
+        line: 95
+        variable: "exc"
+        code: "except Exception as exc:"
+    impact: |
+      Code review friction, inconsistent patterns make code harder to scan.
+      Type checkers cannot establish consistent rules for exception handling.
+      Makes error handling patterns less discoverable by linters.
+    recommendation: |
+      Establish standard naming convention for exception variables:
+      - Standard: `exc` for all exception handlers
+      - Rationale: Shorter than `error`, matches Python typing module conventions
+      - Apply via linter rule (e.g., pylint, flake8 custom rule)
+    status: "OPEN"
+
+  - id: "TYP-ERR-005"
+    severity: "HIGH"
+    category: "weak_error_boundary_protocol"
+    title: "Missing Protocol Definitions for Error Objects"
+    description: |
+      Functions that catch and re-raise exceptions (or transform them) do not
+      have Protocol definitions that document the expected error types. This
+      creates implicit error contracts that are not type-checkable.
+    files:
+      - path: "src/prism/scanner_kernel/orchestrator.py"
+        line: 100
+        code: "except (ValueError, TypeError) as e:"
+        context: "Signature validation, but ValueError type not documented in Protocol"
+      - path: "src/prism/scanner_extract/discovery.py"
+        lines: [125, 223, 280]
+        context: "Discovery functions catch multiple exception types but no Protocol exists"
+      - path: "src/prism/api_layer/collection.py"
+        lines: [213, 224]
+        code: "except (PrismRuntimeError, collection_role_content_recoverable_errors)"
+        context: "collection_role_content_recoverable_errors is a runtime tuple, not a Protocol"
+    impact: |
+      Callers cannot use type narrowing to understand which errors might be raised.
+      Type checkers cannot validate error handling completeness. Error recovery
+      logic is implicit rather than explicit.
+    recommendation: |
+      1. Create Protocols for error sources:
+         ```python
+         class ErrorSource(Protocol):
+             def discover(self) -> tuple[Row, ...]:
+                 raise ValueError | OSError
+         ```
+      2. Document error types in docstrings with @raise annotations
+      3. Use Union types in function signatures to expose error possibilities
+      4. Create TypedDict error envelopes with typed error_code fields
+    status: "OPEN"
+
+  - id: "TYP-ERR-006"
+    severity: "HIGH"
+    category: "uncaught_exception_types"
+    title: "Functions with Implicit Error Boundaries Missing Type Annotations"
+    description: |
+      Functions that can raise exceptions but have no type annotation indicating
+      possible exceptions. For example, YAML loading functions that can raise
+      yaml.YAMLError but the function signature doesn't document this.
+    files:
+      - path: "src/prism/scanner_config/readme.py"
+        line: 141
+        code: "def load_readme_config(path: Path) -> dict | None:"
+        note: "Can raise yaml.YAMLError but signature doesn't indicate this"
+      - path: "src/prism/scanner_config/policy.py"
+        line: 22
+        code: "def load_policy_config(path: Path | None) -> dict | None:"
+        note: "Can raise yaml.YAMLError but not documented"
+      - path: "src/prism/scanner_config/patterns.py"
+        line: 155
+        code: "def _resolve_search_root(search_root: str | Path | None) -> Path | None:"
+        note: "Returns union with None but can raise ValueError"
+    impact: |
+      Callers cannot statically determine which exceptions might be raised.
+      Error handling completeness cannot be verified by type checkers.
+      Surprises at runtime when unexpected exceptions are raised.
+    recommendation: |
+      1. Add @overload annotations for functions that conditionally raise
+      2. Use Union return types with error cases explicit
+      3. Consider Result[T, E] pattern for functions that can fail
+      4. Document exceptions in docstrings with raises: section
+    status: "OPEN"
+
+  - id: "TYP-ERR-007"
+    severity: "MEDIUM"
+    category: "error_envelope_any_typing"
+    title: "Error Envelope TypedDicts Use Any for Error Types"
+    description: |
+      Error-related TypedDicts use `Any` for error details or codes, preventing
+      type-safe error handling. For example, KernelPhaseFailure uses string literals
+      for codes but these aren't validated.
+    files:
+      - path: "src/prism/scanner_kernel/kernel_plugin_runner.py"
+        lines: [138, 160]
+        code: |
+          error_envelope: KernelPhaseFailure = {
+              "code": "KERNEL_PLUGIN_PHASE_FAILED",
+              ...
+          }
+        note: "Code is string but should be Literal or Enum"
+    impact: |
+      Error codes cannot be type-checked or validated at construction.
+      Typos in error codes go undetected. Error categorization is implicit.
+    recommendation: |
+      1. Use Literal types for error codes:
+         `ErrorCode: Literal["ERR_001", "ERR_002"]`
+      2. Create typed error envelope factories
+      3. Use Enum for error categories
+      4. Validate error codes at construction time with validators
+    status: "OPEN"
+
+  - id: "TYP-ERR-008"
+    severity: "MEDIUM"
+    category: "incomplete_exception_chain"
+    title: "Some Exception Re-raises Missing 'from' Clause"
+    description: |
+      While many exception re-raises use `from exc` to preserve the chain,
+      some locations re-raise without preserving context. This loses the
+      original exception traceback and makes debugging harder.
+    files:
+      - path: "src/prism/scanner_core/events.py"
+        line: 95
+        code: "except Exception as exc:"
+        note: "Logged but not re-raised; context is lost"
+      - path: "src/prism/scanner_extract/discovery.py"
+        lines: [125, 223, 280]
+        note: "Exceptions caught and logged but chain not preserved in all cases"
+    impact: |
+      Reduced debugging capability. Root cause information lost in exception
+      chain. Error recovery paths cannot inspect original failure.
+    recommendation: |
+      1. Always use `raise NewError(...) from exc` when wrapping
+      2. Use `raise` without arguments when re-raising same exception
+      3. Avoid logging then silent exception continuation
+      4. Consider whether silent catching is intentional or accidental
+    status: "OPEN"
+
+  - id: "TYP-ERR-009"
+    severity: "MEDIUM"
+    category: "error_type_narrowing_gap"
+    title: "Broad Exception Catching Without Type Narrowing"
+    description: |
+      Functions catch multiple unrelated exception types together without
+      type narrowing logic, making error handling paths unclear.
+    files:
+      - path: "src/prism/scanner_extract/filter_scanner.py"
+        line: 186
+        code: "except (UnicodeDecodeError, PermissionError, OSError):"
+        note: "All treated same way; no type-specific handling"
+      - path: "src/prism/scanner_config/patterns.py"
+        line: 324
+        code: "except (TypeError, ValueError, UnicodeDecodeError) as exc:"
+        note: "Three different error causes; no differentiation"
+    impact: |
+      Error handling logic obscured by catching unrelated types together.
+      Specific error recovery strategies cannot be applied per type.
+      Type checkers cannot narrow types in except block.
+    recommendation: |
+      1. Separate exception handlers by type where recovery differs
+      2. Use type guards/narrowing to handle per-type in single block
+      3. Create specific error types that group related failures
+      4. Add comments explaining why unrelated types handled together
+    status: "OPEN"
+
+  - id: "TYP-ERR-010"
+    severity: "MEDIUM"
+    category: "missing_callable_protocol_for_error_handlers"
+    title: "Error Handlers Use Callable[..., Any] Instead of Specific Protocols"
+    description: |
+      Functions that accept error handlers as callbacks use `Callable[..., Any]`
+      instead of Protocol types, making error handler contract implicit.
+    files:
+      - path: "src/prism/env_config.py"
+        line: 21
+        code: "coercer: Callable[[str], Any]"
+        note: "Error handler return type is Any, could be specific error type"
+    impact: |
+      Error handler contracts are not statically verifiable.
+      Type checkers cannot ensure error handlers match expected signatures.
+      Caller cannot predict what errors might be raised by handlers.
+    recommendation: |
+      1. Create specific Protocols for error handlers
+      2. Document expected exceptions in Protocol methods
+      3. Use TypeVar to make error types generic but traceable
+      4. Example:
+         ```python
+         class ErrorCoercer(Protocol):
+             def __call__(self, raw: str) -> bool: ...
+         ```
+    status: "OPEN"
+
+  - id: "TYP-ERR-011"
+    severity: "MEDIUM"
+    category: "silent_exception_swallowing"
+    title: "Silent Exception Swallowing in Loops"
+    description: |
+      Discovery and initialization loops silently continue on exception,
+      without logging or propagating error type information.
+    files:
+      - path: "src/prism/scanner_extract/variable_extractor.py"
+        line: 95
+        code: |
+          except (OSError, yaml.YAMLError, ...):
+              # Seed files are optional user-supplied inputs; silently skip
+              continue
+        note: "Silently continues without recording what was skipped or why"
+    impact: |
+      Users cannot determine why seed files were skipped.
+      Type information about failures is completely lost.
+      Debugging failed initialization becomes difficult.
+    recommendation: |
+      1. Log skipped items with exception type and path
+      2. Create error accumulator to report summary
+      3. Use typed error records:
+         ```python
+         skipped: list[SkippedFile] = []  # TypedDict with error_type, path, reason
+         ```
+      4. Return summary of skipped/failed items to caller
+    status: "OPEN"
+
+  - id: "TYP-ERR-012"
+    severity: "MEDIUM"
+    category: "weakly_typed_recovery_logic"
+    title: "Error Recovery Conditions Check String Representations"
+    description: |
+      Some error recovery logic checks `isinstance()` along with string matching
+      on exception messages, rather than using structured error types or codes.
+    files:
+      - path: "src/prism/scanner_kernel/orchestrator.py"
+        lines: [100, 142]
+        code: |
+          except (ValueError, TypeError) as e:
+              if isinstance(e, TypeError) and "missing required" in str(e):
+                  raise
+              logger.warning("Failed to inspect ... signature: %s", e)
+        note: "String matching on error message is fragile"
+    impact: |
+      Error handling is fragile and depends on exception message stability.
+      Cannot use type narrowing effectively. Easy to break with message changes.
+    recommendation: |
+      1. Create custom exception types with structured codes/details
+      2. Use exception attributes instead of string parsing
+      3. Example:
+         ```python
+         class SignatureMismatchError(TypeError):
+             def __init__(self, missing_params: set[str]):
+                 self.missing_params = missing_params
+         ```
+      4. Catch custom types and access typed attributes
+    status: "OPEN"
+
+discovery_scope: "src/prism"
+lanes_scanned: ["main"]
+files_analyzed: 233
+exception_handlers_found: 100
+broad_catches_found: 15
+type_annotation_gaps_found: 12
+
+next_phase_recommendations:
+  - "Scout-Implementation: Schedule refactoring of Python 2 style handlers"
+  - "Scout-Implementation: Design Protocol-based error boundaries"
+  - "Scout-Validation: Create type-checking gate for new error handlers"
+  - "Scout-Documentation: Document error types for all public APIs"
+
+report_generated_at: "2026-05-07T00:00:00Z"
+scout_agent: "mutl3y-scout"
+mode: "typing"

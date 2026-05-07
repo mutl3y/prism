@@ -45,7 +45,18 @@ class _PluginRegistryState:
     yaml_parsing_policy_plugins: dict[str, type[YAMLParsingPolicyPlugin]]
     jinja_analysis_policy_plugins: dict[str, type[JinjaAnalysisPolicyPlugin]]
     readme_renderer_plugins: dict[str, type[ReadmeRendererPlugin]]
-    loaded_plugins: dict[tuple[str, str], Any]
+    loaded_plugins: dict[
+        tuple[str, str],
+        type[VariableDiscoveryPlugin]
+        | type[FeatureDetectionPlugin]
+        | type[OutputOrchestrationPlugin]
+        | type[ScanPipelinePlugin]
+        | type[CommentDrivenDocumentationPlugin]
+        | type[ExtractPolicyPlugin]
+        | type[YAMLParsingPolicyPlugin]
+        | type[JinjaAnalysisPolicyPlugin]
+        | type[ReadmeRendererPlugin],
+    ]
     deferred_variable_discovery: dict[str, tuple[str, str]]
     deferred_feature_detection: dict[str, tuple[str, str]]
     default_platform_key: str | None

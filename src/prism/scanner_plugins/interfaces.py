@@ -23,13 +23,13 @@ class VariableDiscoveryPlugin(Protocol):
     def discover_static_variables(
         self,
         role_path: str,
-        options: dict[str, Any],
+        options: ScanOptionsDict,
     ) -> tuple[VariableRow, ...]: ...
 
     def discover_referenced_variables(
         self,
         role_path: str,
-        options: dict[str, Any],
+        options: ScanOptionsDict,
         readme_content: str | None = None,
     ) -> frozenset[str]: ...
 
@@ -37,7 +37,7 @@ class VariableDiscoveryPlugin(Protocol):
         self,
         static_names: frozenset[str],
         referenced: frozenset[str],
-        options: dict[str, Any],
+        options: ScanOptionsDict,
     ) -> dict[str, str]: ...
 
 
@@ -61,13 +61,13 @@ class FeatureDetectionPlugin(Protocol):
     """Protocol for feature-detection plugin implementations."""
 
     def detect_features(
-        self, role_path: str, options: dict[str, Any]
+        self, role_path: str, options: ScanOptionsDict
     ) -> FeaturesContext: ...
 
     def analyze_task_catalog(
         self,
         role_path: str,
-        options: dict[str, Any],
+        options: ScanOptionsDict,
     ) -> TaskCatalog: ...
 
 

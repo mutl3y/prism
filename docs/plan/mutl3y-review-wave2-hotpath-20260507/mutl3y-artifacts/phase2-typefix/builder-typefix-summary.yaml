@@ -1,0 +1,10 @@
+builder_name: Builder-Hotpath-TypeFix
+owned_files:
+  - src/prism/scanner_extract/task_annotation_parsing.py
+  - src/prism/scanner_core/task_extract_adapters.py
+  - src/prism/scanner_core/feature_detector.py
+artifact_path: docs/plan/mutl3y-review-wave2-hotpath-20260507/mutl3y-artifacts/phase2-typefix/builder-typefix-summary.yaml
+errors_fixed_count: 24
+status: PASS
+validation: "python3 -m mypy src/prism/scanner_data/policy_constants.py src/prism/scanner_extract/task_annotation_parsing.py src/prism/scanner_core/task_extract_adapters.py src/prism/scanner_extract/task_file_traversal.py src/prism/scanner_core/feature_detector.py"
+short_error_excerpt: ''

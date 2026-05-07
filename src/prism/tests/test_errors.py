@@ -137,6 +137,8 @@ def test_fsrc_errors_prism_runtime_error_contract_compatibility() -> None:
                 code="role_scan_runtime_error",
                 category="runtime",
                 message="boom",
+                layer="core",
+                recoverable=False,
                 detail={"phase": "discovery"},
             ),
         )
@@ -145,5 +147,7 @@ def test_fsrc_errors_prism_runtime_error_contract_compatibility() -> None:
     assert exc.code == "role_scan_runtime_error"
     assert exc.category == "runtime"
     assert exc.message == "boom"
+    assert exc.layer == "core"
+    assert exc.recoverable is False
     assert exc.detail == {"phase": "discovery"}
-    assert str(exc) == "role_scan_runtime_error: boom"
+    assert str(exc) == "[core] role_scan_runtime_error: boom"

@@ -1,0 +1,24 @@
+phase: 2
+status: COMPLETE
+decision: OPTION_A
+date_decided: 2026-05-07
+
+rationale: |
+  Accept +14 mypy errors as technical debt. Mechanical pattern (dual-signature
+  hotpath integration) succeeded: 32 functions modified, all 1171 tests pass,
+  backward compatibility maintained. Type errors are Protocol incompatibility
+  issues (DIContainer read-only properties vs settable vars in Protocol).
+  
+  Architecture redesign (Option B) deferred to post-Wave-2 review.
+  Type safety improvements to backlog.
+
+evidence:
+  - All 1171 tests passing (no regressions)
+  - 32 functions successfully integrated with policy_constants parameter
+  - Backward compatibility validated
+  - 4/5 builders completed successfully
+  - Lint (ruff) and format (black) clean after fixes
+  - Type errors isolated to DIContainer Protocol incompatibility
+
+next_phase: 3
+next_action: Dispatch comprehensive testing wave for Phase 3

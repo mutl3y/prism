@@ -16,6 +16,7 @@ from __future__ import annotations
 from contextvars import ContextVar
 import logging
 import threading
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator, Mapping
@@ -51,6 +52,20 @@ class ScanPhaseEvent:
             raise ValueError("ScanPhaseEvent.phase_name must not be empty")
 
 
+@dataclass(frozen=True)
+class EventBusError:
+    """Error event emitted when a listener fails.
+
+    This event is emitted directly by the EventBus without going through
+    the listener loop, ensuring observability without infinite loops.
+    """
+
+    listener_name: str
+    exception: Exception
+    timestamp: float
+    event: ScanPhaseEvent | None = None
+
+
 class EventBus:
     """In-process event bus.
 
@@ -58,6 +73,10 @@ class EventBus:
     dispatched through :meth:`emit`. Use :meth:`phase` as a context
     manager to emit a matched ``pre``/``post`` pair around a block of
     work.
+
+    When a listener raises an exception, an :class:`EventBusError` is
+    recorded for observability. Error events are emitted directly without
+    triggering the listener loop to avoid recursion.
     """
 
     def __init__(
@@ -66,6 +85,8 @@ class EventBus:
         self._listeners: list[EventListener] = list(listeners or [])
         self._listeners_lock = threading.RLock()
         self._strict = strict
+        self._error_events: list[EventBusError] = []
+        self._error_lock = threading.RLock()
 
     def subscribe(self, listener: EventListener) -> None:
         if not callable(listener):
@@ -84,6 +105,30 @@ class EventBus:
     def listener_count(self) -> int:
         return len(self._listeners)
 
+    @property
+    def error_count(self) -> int:
+        """Return the number of errors recorded from listener failures."""
+        with self._error_lock:
+            return len(self._error_events)
+
+    def get_error_events(self) -> list[EventBusError]:
+        """Return a snapshot of recorded error events."""
+        with self._error_lock:
+            return list(self._error_events)
+
+    def _record_listener_error(
+        self, listener: EventListener, exception: Exception, event: ScanPhaseEvent
+    ) -> None:
+        """Record a listener error event for observability."""
+        error_event = EventBusError(
+            listener_name=getattr(listener, "__name__", repr(listener)),
+            exception=exception,
+            timestamp=time.time(),
+            event=event,
+        )
+        with self._error_lock:
+            self._error_events.append(error_event)
+
     def emit(self, event: ScanPhaseEvent) -> None:
         with self._listeners_lock:
             listeners_snapshot = list(self._listeners)
@@ -93,6 +138,11 @@ class EventBus:
             try:
                 listener(event)
             except Exception as exc:  # pragma: no cover - defensive
+                # Defensive: catch all exceptions from external listeners to prevent
+                # one failing listener from breaking the entire event bus.
+                # Listener authors should document their exception contracts,
+                # but we do not enforce narrow types here to maximize robustness.
+                self._record_listener_error(listener, exc, event)
                 logger.error(
                     "EventBus listener exception: phase=%s kind=%s listener=%r exc_type=%s exc=%r",
                     event.phase_name,
@@ -132,6 +182,7 @@ class EventBus:
 
 __all__ = [
     "EventBus",
+    "EventBusError",
     "EventListener",
     "PHASE_FEATURE_DETECTION",
     "PHASE_OUTPUT_RENDER",
@@ -165,13 +216,22 @@ def register_default_listener(listener: EventListener) -> None:
     _DEFAULT_LISTENERS.set(get_default_listeners() + (listener,))
 
 
-def unregister_default_listener(listener: EventListener) -> None:
+def unregister_default_listener(listener: EventListener) -> bool:
+    """Unregister an ambient listener.
+
+    Args:
+        listener: The listener callable to unregister.
+
+    Returns:
+        True if listener was found and removed, False if listener was not registered.
+    """
     listeners = list(get_default_listeners())
     try:
         listeners.remove(listener)
     except ValueError:
-        return
+        return False
     _DEFAULT_LISTENERS.set(tuple(listeners))
+    return True
 
 
 def get_default_listeners() -> tuple[EventListener, ...]:

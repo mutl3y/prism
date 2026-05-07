@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, NamedTuple
 
+from prism.errors import PrismRuntimeError
 from prism.scanner_io.loader import _ordered_parallel_map
 from prism.scanner_io.loader import load_yaml_file
 from prism.scanner_io.loader import parse_yaml_candidate
@@ -18,6 +20,14 @@ class ScanIdentity(NamedTuple):
     meta: dict[str, Any]
     role_name: str
     description: str
+
+
+@dataclass(frozen=True)
+class _VariableLoadResult:
+    """Result of attempting to load a YAML variable file."""
+
+    data: dict | None = None
+    error: Exception | None = None
 
 
 ROLE_METADATA_YAML_INVALID = "ROLE_METADATA_YAML_INVALID"
@@ -122,7 +132,7 @@ def load_meta(
         try:
             _raw = load_yaml_file(meta_file, di=di)
             loaded = {} if _raw is None else _raw
-        except Exception as exc:
+        except (PrismRuntimeError, OSError) as exc:
             if strict:
                 raise RuntimeError(
                     f"{ROLE_METADATA_IO_ERROR}: {meta_file}: {exc}"
@@ -220,7 +230,7 @@ def load_requirements(
         return []
     try:
         payload = load_yaml_file(path, di=di)
-    except Exception as exc:
+    except (PrismRuntimeError, OSError) as exc:
         if strict:
             raise RuntimeError(f"{REQUIREMENTS_IO_ERROR}: {path}: {exc}") from exc
         logger.warning(
@@ -274,21 +284,22 @@ def load_variables(
     if include_vars_main:
         subdirs.append("vars")
 
-    def _load_variable_payload(path: Path) -> object:
+    def _load_variable_payload(path: Path) -> _VariableLoadResult:
         try:
-            return load_yaml_file(path, di=di)
-        except Exception as exc:
-            return exc
+            data = load_yaml_file(path, di=di)
+            return _VariableLoadResult(data=data if isinstance(data, dict) else {})
+        except (PrismRuntimeError, OSError) as exc:
+            return _VariableLoadResult(error=exc)
 
     for sub in subdirs:
         candidates = iter_role_variable_map_candidates(role_root, sub)
-        for path, data in zip(
+        for path, result in zip(
             candidates,
             _ordered_parallel_map(candidates, _load_variable_payload),
             strict=True,
         ):
-            if isinstance(data, Exception):
-                exc = data
+            if result.error is not None:
+                exc = result.error
                 if strict:
                     raise RuntimeError(
                         f"{VARIABLE_FILE_IO_ERROR}: {path}: {exc}"
@@ -303,19 +314,17 @@ def load_variables(
                     warning_collector.append(f"{VARIABLE_FILE_IO_ERROR}: {path}: {exc}")
                 continue
 
-            if data is None:
-                data = {}
-            if isinstance(data, dict):
-                vars_out.update(data)
+            if result.data is not None:
+                vars_out.update(result.data)
 
     extra_paths = collect_include_vars_files(role_path, exclude_paths)
-    for extra_path, data in zip(
+    for extra_path, result in zip(
         extra_paths,
         _ordered_parallel_map(extra_paths, _load_variable_payload),
         strict=True,
     ):
-        if isinstance(data, Exception):
-            exc = data
+        if result.error is not None:
+            exc = result.error
             if strict:
                 raise RuntimeError(
                     f"{VARIABLE_FILE_IO_ERROR}: {extra_path}: {exc}"
@@ -332,10 +341,8 @@ def load_variables(
                 )
             continue
 
-        if data is None:
-            data = {}
-        if isinstance(data, dict):
-            vars_out.update(data)
+        if result.data is not None:
+            vars_out.update(result.data)
 
     return vars_out
 

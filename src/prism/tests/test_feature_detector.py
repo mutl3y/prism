@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from prism.scanner_data.contracts_request import ScanOptionsDict
+from prism.scanner_data.policy_constants import PolicyConstants
 from prism.scanner_plugins.interfaces import TaskCatalog
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -373,8 +374,9 @@ def test_fsrc_feature_detector_annotation_hot_path_uses_canonical_comment_doc_ma
             include_task_index: bool = False,
             *,
             di=None,
+            policy_constants: PolicyConstants | None = None,
         ):
-            del include_task_index, di
+            del include_task_index, di, policy_constants
             captured_prefixes.append(marker_prefix)
             return [], {}
 
@@ -439,8 +441,9 @@ def test_fsrc_feature_detector_collect_task_handler_catalog_hot_path_uses_canoni
             marker_prefix: str = "prism",
             *,
             di=None,
+            policy_constants: PolicyConstants | None = None,
         ):
-            del exclude_paths, di
+            del exclude_paths, di, policy_constants
             captured_prefixes.append(marker_prefix)
             return [], []
 

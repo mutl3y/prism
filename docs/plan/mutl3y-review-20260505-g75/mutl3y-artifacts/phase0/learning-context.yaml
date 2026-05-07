@@ -1,0 +1,6 @@
+degradation_notes:
+	- "Phase 0 scouts returned summary-only chat output and did not write their owned YAML artifacts."
+	- "Backfill scout artifacts immediately when a worker summary is returned without an on-disk file."
+active_lessons:
+	- "Record model usage after every dispatch attempt before leaving Phase 0."
+	- "Use absolute workspace paths in scout prompts so the workers can load their reference bundle."

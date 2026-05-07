@@ -1,0 +1,27 @@
+---
+plan_id: mutl3y-review-20260507-g79
+wave: 1
+status: complete
+completion_date: "2026-05-07"
+
+builders:
+  - name: Builder-TypeAnnotations
+    status: complete
+    findings: [FIND-G79-005, FIND-G79-007]
+    files_modified: 3
+    changes:
+      - Moved PHASE_OUTPUT_RENDER to contracts layer (fixes upward dependency)
+      - Fixed 8 return type annotations in task_line_parsing
+    test_result: PASS (17/17)
+    type_check_result: PASS (0 errors)
+    artifact: wave1-builder-typeannotations.yaml
+
+gate_checks:
+  mypy: PASS
+  pytest: PASS
+
+wave_summary:
+  findings_addressed: 2
+  total_changes: 9
+  files_touched: 3
+  status: ready_for_validation

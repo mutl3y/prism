@@ -1,0 +1,99 @@
+probe_id: R-002
+finding: "scanner_plugins.ansible ↔ scanner_extract tight coupling"
+investigation_date: 2026-05-07
+investigation_results:
+  overview:
+    total_imports_from_scanner_extract: 20
+    imports_in_extract_utils: "20 functions re-exported"
+    actively_used_in_ansible_plugin: 19
+    unused_imports: 1
+  imports_from_extract:
+    high_usage_essential:
+      - "iter_task_mappings: [17 usages] — core task iteration loop, used in feature_detection, variable_discovery, task_traversal_bare"
+      - "collect_task_files: [14 usages] — core role traversal, used in feature_detection, variable_discovery, variable_extractor"
+      - "detect_task_module: [12 usages] — core module detection, used in feature_detection, task_line_parsing, task_traversal_bare"
+      - "iter_dynamic_role_include_targets: [9 usages] — core include resolution, used in feature_detection, default_policies, extract_policies"
+      - "iter_role_include_targets: [9 usages] — core include resolution, used in feature_detection, default_policies, extract_policies"
+      - "iter_task_include_targets: [9 usages] — core include resolution, used in feature_detection, default_policies, extract_policies"
+      - "extract_task_annotations_for_file: [9 usages] — core annotation parsing, used in feature_detection, default_policies, extract_policies"
+    medium_usage_essential:
+      - "load_task_yaml_file: [6 usages] — core YAML loading for task files, used in feature_detection, variable_discovery"
+      - "collect_unconstrained_dynamic_role_includes: [7 usages] — edge-case role resolution, used in default_policies, extract_policies, task_traversal_bare"
+      - "collect_unconstrained_dynamic_task_includes: [7 usages] — edge-case task resolution, used in default_policies, extract_policies, task_traversal_bare"
+    low_usage_refactorable:
+      - "format_inline_yaml: [4 usages] — variable formatting helper, variable_discovery only"
+      - "infer_variable_type: [4 usages] — variable type inference, variable_discovery only"
+      - "is_sensitive_variable: [4 usages] — variable sensitivity detection, variable_discovery only"
+      - "find_variable_line_in_yaml: [3 usages] — variable line discovery, variable_discovery only"
+      - "extract_collection_from_module_name: [3 usages] — collection parsing, feature_detection only"
+      - "normalize_requirements: [2 usages] — README generation, readme_renderer only"
+      - "is_path_excluded: [2 usages] — path filtering, variable_discovery only"
+      - "JINJA_IDENTIFIER_RE: [2 usages] — regex constant, variable_discovery only"
+      - "iter_role_variable_map_candidates: [1 usage] — variable discovery, variable_discovery only"
+    unused:
+      - "collect_molecule_scenarios: [0 usages] — never called, orphaned import"
+  dependency_analysis:
+    core_paths_count: 13
+    core_paths_description: "Functions critical to role/task traversal, module detection, and annotation extraction on the scanner_core hot path"
+    edge_case_count: 2
+    edge_case_description: "Unconstrained dynamic include collection for fallback scenarios"
+    variable_extraction_count: 6
+    variable_extraction_description: "Variable discovery and type inference; these could potentially be abstracted into variable_extractor plugin"
+    optional_count: 1
+    optional_description: "README generation utility (normalize_requirements)"
+    unused_count: 1
+  refactorable_vs_essential:
+    essential: "15 functions (75%)"
+    essential_breakdown:
+      - "Core traversal/resolution: 8 functions (iter/collect task/role/include patterns)"
+      - "Core extraction: 2 functions (detect_task_module, extract_task_annotations_for_file)"
+      - "Core I/O: 2 functions (collect_task_files, load_task_yaml_file)"
+      - "Edge-case handling: 2 functions (unconstrained dynamic includes)"
+      - "Module parsing: 1 function (extract_collection_from_module_name)"
+    refactorable: "4 functions (20%)"
+    refactorable_breakdown:
+      - "Variable extraction: 6 functions (format_inline_yaml, infer_variable_type, is_sensitive_variable, find_variable_line_in_yaml, iter_role_variable_map_candidates) — concentrated in variable_discovery.py only"
+      - "Optional utilities: 1 function (normalize_requirements for README rendering)"
+    unused: "1 function (collect_molecule_scenarios) — safe to remove"
+  fix_approach:
+    strategy: "Phased extraction strategy to reduce scanner_extract coupling"
+    phase_1_orphan_removal:
+      step: "Remove unused collect_molecule_scenarios import"
+      impact: "Reduces import clutter, no functional impact"
+      risk_level: "minimal"
+    phase_2_variable_extraction_abstraction:
+      step: "Create AnsibleVariableExtractionPlugin with format_inline_yaml, infer_variable_type, is_sensitive_variable, find_variable_line_in_yaml, iter_role_variable_map_candidates"
+      impact: "Encapsulates 5 variable-specific functions into plugin layer; breaks direct scanner_extract imports for variable helpers"
+      reasoning: "These 6 functions are only used in variable_discovery.py and are Ansible-specific variable semantics (type inference, sensitivity detection)"
+      risk_level: "moderate"
+      coupling_reduction: "5 fewer scanner_extract imports"
+    phase_3_normalize_requirements_relocation:
+      step: "Move normalize_requirements into a ReadmeRendererPolicy or keep as direct scanner_extract call with documentation"
+      impact: "Optional utility for README generation; limited coupling"
+      risk_level: "low"
+      notes: "Used only in readme_renderer.py (2 times); low-priority refactoring"
+    phase_4_core_path_stabilization:
+      step: "Stabilize the remaining 13 essential imports as the permanent scanner_plugins.ansible ↔ scanner_extract boundary"
+      reasoning: "These core functions are deep in the task/role traversal, module detection, and annotation extraction paths; abstracting them would require significant scanner_extract refactoring or new plugin protocols"
+      options_explored:
+        - "Option A: Create scanner_plugins.ansible.traversal submodule to wrap iter/collect patterns — requires plugin protocol redesign for traversal contracts"
+        - "Option B: Keep core imports but document the implicit boundary as a maintenance contract"
+      recommendation: "Option B (maintain + document) for now; Option A deferred to future architecture review"
+      risk_level: "low (maintenance debt, not functional risk)"
+  discovered_patterns:
+    direct_caller_concentration:
+      - "variable_discovery.py: 29/115 total usages (25%) — highest concentration"
+      - "feature_detection.py: 23/115 total usages (20%)"
+      - "default_policies.py + extract_policies.py: 45/115 usages (39%) — policy plugin adapters"
+      - "task_traversal_bare.py: 19/115 usages (16%) — internal ansible module"
+    caller_pattern: "Policy plugins (default_policies, extract_policies) re-import to expose via Protocol methods; this is intentional design not tight coupling"
+    scanner_extract_modules_involved:
+      - "task_annotation_parsing: extract_task_annotations_for_file"
+      - "task_catalog_assembly: detect_task_module, extract_collection_from_module_name, collect_molecule_scenarios"
+      - "task_file_traversal: 9 functions (core inclusion/traversal)"
+      - "variable_helpers: 5 functions (variable semantics)"
+      - "requirements: normalize_requirements"
+      - "discovery: iter_role_variable_map_candidates"
+  conclusion: "Coupling is heavy but intentional: extract_utils.py serves as Ansible plugin facade to scanner_extract. 15 core imports are task/role traversal essentials; 4 imports are refactorable into variable plugin; 1 import is unused. No blocking architectural flaw, but variable extraction could be isolated as a first optimization."
+status: complete
+probe_name: Probe-R002-Ansible-Coupling

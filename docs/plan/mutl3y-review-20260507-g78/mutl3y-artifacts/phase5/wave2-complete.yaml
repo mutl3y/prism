@@ -1,0 +1,42 @@
+---
+plan_id: mutl3y-review-20260507-g78
+wave: 2
+status: complete
+completion_date: "2026-05-07"
+
+builders:
+  - name: Builder-ErrorOwnershipContract
+    status: complete
+    findings: [FIND-G78-002]
+    files_modified: 8
+    changes:
+      - ErrorContract TypedDict added
+      - PrismRuntimeError enhanced with layer/recoverable fields
+      - Scanner config layer (4 modules) converted to PrismRuntimeError
+      - Scanner core layer error contracts documented
+    test_result: PASS (40 config tests)
+    artifact: wave2-builder-error-contract.yaml
+
+  - name: Builder-ExceptionPatterns
+    status: complete
+    findings: [FIND-G78-004, FIND-G78-005, FIND-G78-006]
+    files_modified: 3
+    changes:
+      - FIND-G78-004: Eliminated exception-as-data pattern (1 refactored function)
+      - FIND-G78-005: Narrowed exception catching (3 locations)
+      - FIND-G78-006: Added EventBusError tracking + error_count property
+    test_result: PASS (31 tests)
+    artifact: wave2-builder-exception-patterns.yaml
+
+all_tests_passed:
+  pytest: PASS (1171+ total passed)
+  mypy: PASS
+  ruff: PASS
+  black: PASS
+
+wave_summary:
+  findings_addressed: 4
+  total_files_modified: 11
+  status: ready_for_validation
+
+next_phase: Phase 6 Validation

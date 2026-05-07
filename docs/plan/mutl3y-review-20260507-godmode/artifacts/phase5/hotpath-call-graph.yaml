@@ -1,0 +1,344 @@
+investigation_date: "2026-05-07"
+scout: "Scout-PhaseStructure"
+repository: "/raid5/source/test/prism"
+scope:
+  primary: src/prism/scanner_extract/task_catalog_assembly.py
+  secondary:
+    - src/prism/scanner_extract/task_file_traversal.py
+    - src/prism/scanner_extract/task_annotation_parsing.py
+  tertiary: src/prism/scanner_core/task_extract_adapters.py
+
+hotpath_functions_catalog_assembly:
+  - name: _detect_task_module
+    signature: "(task: dict, *, di: object | None = None) -> str | None"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_line_parsing"
+    line_number: 19
+    callsites_within_file: 3
+    callers:
+      - _collect_task_handler_catalog (line 145, 229)
+      - detect_task_module (line 302)
+    notes: "Direct wrapper; propagates di= to require_prepared_policy for task module detection"
+
+  - name: _collect_task_handler_catalog
+    signature: "(role_path: str, exclude_paths: list[str] | None = None, marker_prefix: str = '', *, di: object | None = None) -> tuple[list[dict], list[dict]]"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_line_parsing"
+    line_number: 54
+    callsites_within_file: 2
+    propagates_di_to:
+      - tft.load_yaml_file (line 70, 225)
+      - tap.extract_task_annotations_for_file (line 76)
+      - tft.iter_task_mappings (line 143, 228)
+      - _detect_task_module (line 145, 229)
+      - tft.expand_include_target_candidates (line 160)
+      - tap.task_anchor (line 135, 235)
+      - require_prepared_policy direct call (line 154)
+    hotpath_depth: 5
+    notes: |
+      Primary bottleneck for phase 2 migration.
+      Calls require_prepared_policy at line 154 for TASK_INCLUDE_KEYS.
+      Nested recursive function _collect_tasks_recursive also propagates di=.
+
+  - name: detect_task_module
+    signature: "(task: dict, *, di: object | None = None) -> str | None"
+    di_usage: param
+    calls_require_prepared_policy: false
+    wrapper_type: public
+    line_number: 300
+    callers: external
+    delegates_to: _detect_task_module
+    notes: "Public facade; forwards di= to private implementation"
+
+  - name: collect_task_and_handler_catalog
+    signature: "(role_path: str, exclude_paths: list[str] | None = None, marker_prefix: str = '', *, di: object | None = None) -> tuple[list[dict], list[dict]]"
+    di_usage: param
+    calls_require_prepared_policy: false
+    wrapper_type: public
+    line_number: 302
+    callers: external (e.g., task_extract_adapters)
+    delegates_to: _collect_task_handler_catalog
+    notes: "Public API entry point; all di= parameter propagation flows through _collect_task_handler_catalog"
+
+  - name: collect_molecule_scenarios
+    signature: "(role_path: str, exclude_paths: list[str] | None = None, *, di: object | None = None) -> list[dict]"
+    di_usage: param
+    calls_require_prepared_policy: false
+    propagates_di_to:
+      - tft.load_yaml_file (line 244)
+    line_number: 238
+    callers: external
+    notes: "Secondary hotpath; simpler than task catalog but still propagates di="
+
+hotpath_functions_file_traversal:
+  - name: _load_yaml_file
+    signature: "(file_path: Path, *, yaml_failure_collector: list[YamlParseFailure] | None = None, role_root: Path | None = None, di: object | None = None) -> object | None"
+    di_usage: param
+    calls_require_prepared_policy: false
+    delegates_to: _load_yaml_file_with_metadata
+    line_number: 74
+    propagates_di: true
+    notes: "Wrapper function that threads di= to metadata handler"
+
+  - name: _load_yaml_file_with_metadata
+    signature: "(file_path: Path, *, yaml_failure_collector: list[YamlParseFailure] | None = None, role_root: Path | None = None, di: object | None = None) -> object | None"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "yaml_parsing"
+    line_number: 100
+    hotpath_depth: 1
+    also_calls:
+      - parse_yaml_candidate (twice, with di=di)
+    notes: |
+      Critical hotpath function.
+      Calls require_prepared_policy(di, 'yaml_parsing', 'yaml_parsing').load_yaml_file() at line 132.
+      Error paths also invoke parse_yaml_candidate(file_path, collector_root, di=di).
+
+  - name: _iter_task_mappings
+    signature: "(data: object, *, di: object | None = None)"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_traversal"
+    line_number: 141
+    notes: "Simple delegation to plugin.iter_task_mappings(data)"
+
+  - name: _iter_task_include_targets
+    signature: "(data: object, *, di: object | None = None) -> list[str]"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_traversal"
+    line_number: 147
+    notes: "Direct delegation to plugin.iter_task_include_targets(data)"
+
+  - name: _iter_task_include_edges
+    signature: "(data: object, *, di: object | None = None) -> list[dict[str, str]]"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_traversal"
+    line_number: 153
+    complexity: high
+    notes: |
+      Attempts getattr for iter_task_include_edges before falling back to iter_task_include_targets.
+      Complex control flow; fallback path does not use plugin directly for targets.
+
+  - name: _expand_include_target_candidates
+    signature: "(task: TaskMapping, include_target: str, *, di: object | None = None) -> list[str]"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_traversal"
+    line_number: 167
+    notes: "Direct delegation to plugin.expand_include_target_candidates(task, include_target)"
+
+  - name: _iter_role_include_targets
+    signature: "(task: TaskMapping, *, di: object | None = None) -> list[str]"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_traversal"
+    line_number: 175
+    notes: "Direct delegation"
+
+  - name: _iter_dynamic_role_include_targets
+    signature: "(task: TaskMapping, *, di: object | None = None) -> list[str]"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_traversal"
+    line_number: 182
+    notes: "Direct delegation"
+
+  - name: _collect_task_files
+    signature: "(role_root: Path, exclude_paths: list[str] | None = None, *, di: object | None = None) -> list[Path]"
+    di_usage: param
+    calls_require_prepared_policy: false
+    delegates_to: _collect_task_files_with_unresolved_includes
+    line_number: 262
+    propagates_di: true
+    notes: "Wrapper that propagates di= to recursive collector"
+
+  - name: _collect_task_files_with_unresolved_includes
+    signature: "(role_root: Path, exclude_paths: list[str] | None = None, *, di: object | None = None) -> tuple[list[Path], list[dict]]"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_traversal"
+    line_number: 275
+    propagates_di_to:
+      - _load_yaml_file (line 306, with di=di)
+      - _iter_task_include_edges (line 308, with di=di)
+    hotpath_depth: 2
+    notes: |
+      Recursive file collector.
+      Contains nested _visit() function that also uses di= parameters.
+      Calls require_prepared_policy at line 374 for collect_unconstrained_dynamic_task_includes.
+
+  - name: _collect_unconstrained_dynamic_task_includes
+    signature: "(role_path: str, exclude_paths: list[str] | None = None, *, di: object | None = None) -> list[dict]"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_traversal"
+    line_number: 373
+    propagates_di_to:
+      - _collect_task_files (line 376)
+    notes: "Secondary hotpath; calls plugin.collect_unconstrained_dynamic_task_includes()"
+
+hotpath_functions_annotation_parsing:
+  - name: _split_task_annotation_label
+    signature: "(text: str, *, di: object | None = None) -> tuple[str, str]"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_annotation_parsing"
+    line_number: 9
+    notes: "Direct delegation to plugin.split_task_annotation_label(text)"
+
+  - name: _split_task_target_payload
+    signature: "(text: str, *, di: object | None = None) -> tuple[str, str]"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_annotation_parsing"
+    line_number: 18
+    notes: "Direct delegation"
+
+  - name: _annotation_payload_looks_yaml
+    signature: "(payload: str, *, di: object | None = None) -> bool"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_annotation_parsing"
+    line_number: 27
+    notes: "Direct delegation"
+
+  - name: _extract_task_annotations_for_file
+    signature: "(lines: list[str], marker_prefix: str, include_task_index: bool = False, *, di: object | None = None) -> tuple[list[TaskAnnotation], dict[str, list[TaskAnnotation]]]"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_annotation_parsing"
+    line_number: 39
+    notes: "Direct delegation to plugin.extract_task_annotations_for_file(...)"
+
+  - name: _task_anchor
+    signature: "(file_path: str, task_name: str, index: int, *, di: object | None = None) -> str"
+    di_usage: param
+    calls_require_prepared_policy: true
+    require_prepared_policy_target: "task_annotation_parsing"
+    line_number: 51
+    notes: "Direct delegation to plugin.task_anchor(...)"
+
+  - name: extract_task_annotations_for_file
+    signature: "(lines: list[str], marker_prefix: str, include_task_index: bool = False, *, di: object | None = None) -> tuple[list[TaskAnnotation], dict[str, list[TaskAnnotation]]]"
+    di_usage: param
+    calls_require_prepared_policy: false
+    wrapper_type: public
+    line_number: 62
+    delegates_to: _extract_task_annotations_for_file
+    notes: "Public facade; forwards di= to private implementation"
+
+  - name: task_anchor
+    signature: "(file_path: str, task_name: str, index: int, *, di: object | None = None) -> str"
+    di_usage: param
+    calls_require_prepared_policy: false
+    wrapper_type: public
+    line_number: 71
+    delegates_to: _task_anchor
+    notes: "Public facade; forwards di= to private implementation"
+
+di_parameter_pattern:
+  - pattern: "def \\w+\\(.*di: object \\| None = None\\)"
+    files:
+      - src/prism/scanner_extract/task_catalog_assembly.py
+      - src/prism/scanner_extract/task_file_traversal.py
+      - src/prism/scanner_extract/task_annotation_parsing.py
+    occurrences: 19
+
+  - pattern: "require_prepared_policy\\(di, \"[^\"]+\", \"[^\"]+\"\\)"
+    files:
+      - src/prism/scanner_extract/task_catalog_assembly.py
+      - src/prism/scanner_extract/task_file_traversal.py
+      - src/prism/scanner_extract/task_annotation_parsing.py
+    occurrences: 13
+
+call_signature_mismatches:
+  - location: task_catalog_assembly.py:collect_task_and_handler_catalog
+    issue: Public API signature does not expose PolicyConstants parameter
+    current_signature: "(role_path, exclude_paths=None, marker_prefix='', *, di=None)"
+    proposed_migration: "Add scanner_context or policy_constants param"
+    severity: BLOCKER_FOR_PHASE2
+    impact: All external callers need update OR dual-signature wrapper needed
+
+  - location: task_file_traversal.py:iter_task_mappings vs _iter_task_mappings
+    issue: Public/private pair both accept di=; no dual signature yet
+    current_public_sig: "(data, *, di=None)"
+    current_private_sig: "(data, *, di=None)"
+    proposed: "Dual signature for public; private delegates to plugin directly"
+    severity: MEDIUM
+    impact: Public API can be updated safely if private caller adapts
+
+  - location: task_annotation_parsing.py:extract_task_annotations_for_file
+    issue: Public/private pair both accept di=; no dual signature yet
+    current_public_sig: "(lines, marker_prefix, include_task_index=False, *, di=None)"
+    current_private_sig: "(lines, marker_prefix, include_task_index=False, *, di=None)"
+    proposed: "Dual signature for public; private delegates"
+    severity: MEDIUM
+    impact: Low risk; mostly internal usage in task_catalog_assembly
+
+recursive_calls_di_threaded:
+  - function: _collect_task_handler_catalog
+    nested_function: _collect_tasks_recursive (line 63-180)
+    di_threaded: true
+    hotpath_relevance: CRITICAL
+    notes: |
+      Recursion through task include edges.
+      di= threaded in all recursive calls.
+      Nested function not a separate def; inlined recursion.
+
+overall_summary:
+  total_hotpath_functions: 19
+  functions_with_di_param: 19
+  functions_calling_require_prepared_policy: 13
+  functions_propagating_di_only: 6
+  signature_mismatches_found: 3
+
+  critical_blockers:
+    - Public API functions (collect_task_and_handler_catalog, extract_task_annotations_for_file, detect_task_module) do NOT support scanner_context parameter yet.
+    - All external callers to these APIs must either keep using di= OR migration requires dual signatures.
+    - Internal recursive structure (_collect_tasks_recursive) inlined; cannot be independently refactored.
+
+  risk_assessment_for_phase2:
+    option_a_dual_signatures:
+      effort: MEDIUM
+      risk: LOW
+      time_estimate: "2-3 hours"
+      notes: |
+        Add scanner_context= param alongside di=.
+        Requires new policy_constants extraction from scanner_context.
+        Callers can opt-in incrementally.
+        Backward compat maintained until di= deprecated.
+
+    option_b_single_signature_rewrite:
+      effort: HIGH
+      risk: MEDIUM
+      time_estimate: "4-6 hours"
+      notes: |
+        Remove di=; require scanner_context= only.
+        All callers must update atomically.
+        task_extract_adapters.py must be first to migrate (primary caller).
+        Recursive _collect_tasks_recursive inlining becomes simpler (remove di forwarding).
+        Test suite must verify no di= usages remain in hotpath.
+
+investigation_notes: |
+  Phase 2 migration point of highest leverage:
+  task_catalog_assembly._collect_task_handler_catalog is the primary hotpath bottleneck.
+  It has 13+ internal propagations of di= to file_traversal and annotation_parsing modules.
+
+  Signature options:
+  - Option A (Dual): (role_path, exclude_paths, marker_prefix, *, di=None, scanner_context=None)
+    Requires mutual-exclusivity enforcement or one-to-one conversion inside function.
+  - Option B (Single): (role_path, exclude_paths, marker_prefix, *, scanner_context=None)
+    Requires all callers in task_extract_adapters.py and related modules to pass scanner_context.
+
+  Call chain entry points (must migrate together):
+  1. task_extract_adapters.py calls collect_task_and_handler_catalog (external)
+  2. Internal recursive _collect_tasks_recursive threads di= deeply
+  3. Both task_file_traversal and task_annotation_parsing delegate to plugins via require_prepared_policy
+
+  Recommended next step for Builder-Phase2Outline:
+  Analyze task_extract_adapters.py to identify all callsites and their current parameter sources.
+  This determines whether Option A or Option B is feasible without massive refactor.

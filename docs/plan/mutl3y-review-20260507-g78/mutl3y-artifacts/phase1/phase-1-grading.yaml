@@ -1,0 +1,155 @@
+---
+plan_id: mutl3y-review-20260507-g78
+phase: "Phase 1 Grading"
+grading_date: "2026-05-07"
+grader: "foreman-local"
+
+summary:
+  scout_lanes: 4
+  total_findings: 46
+  critical: 11
+  high: 13
+  medium: 12
+  low: 4
+  merged_into_shortlist: 9
+  duplicates_merged: 12
+
+source_artifacts:
+  - docs/plan/mutl3y-review-20260507-g78/mutl3y-artifacts/phase0/scout-typing-findings.yaml
+  - docs/plan/mutl3y-review-20260507-g78/mutl3y-artifacts/phase0/scout-ownership-findings.yaml
+  - docs/plan/mutl3y-review-20260507-g78/mutl3y-artifacts/phase0/scout-controlflow-findings.yaml
+  - docs/plan/mutl3y-review-20260507-g78/mutl3y-artifacts/phase0/scout-graph-findings.yaml
+
+# Grading: merged findings with deduplication
+shortlist:
+  - find_id: "FIND-G78-001"
+    severity: CRITICAL
+    title: "Python 2 Exception Syntax in 5 files"
+    description: |
+      Uses comma-separated exception syntax (Python 2 style) instead of tuple syntax.
+      Appears in: registry.py, filter_scanner.py (2x), variable_extractor.py, output.py
+    merged_from: ["TYP-ERR-001", "OWN-001", "CF-002"]
+    files:
+      - src/prism/scanner_plugins/registry.py:158
+      - src/prism/scanner_extract/filter_scanner.py:186
+      - src/prism/scanner_extract/filter_scanner.py:243
+      - src/prism/scanner_extract/variable_extractor.py:92
+      - src/prism/scanner_io/output.py:57
+    remediation: "Change all to: except (ExceptionType1, ExceptionType2):"
+    effort_estimate: "LOW (regex-based fix)"
+
+  - find_id: "FIND-G78-002"
+    severity: CRITICAL
+    title: "Inconsistent Error Type Usage Across Layers (Missing Error Ownership Contract)"
+    description: |
+      No clear ownership contract for error types. scanner_config/data/core use bare
+      ValueError/RuntimeError; api_layer uses PrismRuntimeError. This creates confusion
+      about which layer owns which error types and breaks error-boundary contracts.
+    merged_from: ["OWN-002"]
+    layers_affected: ["scanner_config", "scanner_data", "scanner_core", "scanner_extract", "api_layer"]
+    finding_count: 18
+    remediation: "Define error ownership contract and consistently use PrismRuntimeError for public API"
+    effort_estimate: "MEDIUM (design + implementation)"
+
+  - find_id: "FIND-G78-003"
+    severity: CRITICAL
+    title: "Silent Error Context Loss in File Operations"
+    description: |
+      Multiple functions silently swallow exceptions (return None/False) instead of
+      propagating error context. Affects: task_file_traversal.py, task_catalog_assembly.py,
+      variable_extractor.py seed file loading.
+    merged_from: ["OWN-003", "CF-001"]
+    files:
+      - src/prism/scanner_extract/task_file_traversal.py:56 (_is_path_excluded)
+      - src/prism/scanner_extract/task_file_traversal.py:64 (_stat_yaml_file)
+      - src/prism/scanner_extract/task_catalog_assembly.py:79 (raw_lines = [])
+    impact: "File I/O errors are completely unobservable"
+    remediation: "Add logging before returning None/False, or return error metadata tuples"
+    effort_estimate: "LOW (add logging)"
+
+  - find_id: "FIND-G78-004"
+    severity: CRITICAL
+    title: "Exception Returned as Data Object Instead of Raised"
+    description: |
+      _load_variable_payload() catches exceptions and returns them as objects
+      instead of raising. Later checked with isinstance(data, Exception).
+      This breaks exception type propagation and loses stack traces.
+    merged_from: ["CF-003", "EH-G78-001"]
+    files:
+      - src/prism/scanner_extract/discovery.py:274-281
+    impact: "Exception information is lost when passed through parallel map operations"
+    remediation: "Raise exceptions directly; use Result type pattern if needed"
+    effort_estimate: "MEDIUM (refactor error handling pattern)"
+
+  - find_id: "FIND-G78-005"
+    severity: CRITICAL
+    title: "Bare Exception Catching Without Type Narrowing"
+    description: |
+      Catch `except Exception as exc:` in 8+ locations without narrowing to specific types.
+      Affects: events.py, execution_request_builder.py, kernel_plugin_runner.py, discovery.py.
+      Error types are erased at catch point, making error boundaries weak.
+    merged_from: ["TYP-ERR-002"]
+    files:
+      - src/prism/scanner_core/events.py:95
+      - src/prism/scanner_core/execution_request_builder.py:186,201
+      - src/prism/scanner_kernel/kernel_plugin_runner.py:150
+      - src/prism/scanner_extract/discovery.py:125,223,280
+    impact: "Caller cannot distinguish error types; weak error contracts"
+    remediation: "Narrow exception types to specific cases; add typed error envelopes"
+    effort_estimate: "MEDIUM (add type safety)"
+
+  - find_id: "FIND-G78-006"
+    severity: CRITICAL
+    title: "EventBus Listener Exceptions Silently Suppressed"
+    description: |
+      EventBus.emit() catches listener exceptions and only logs them.
+      In non-strict mode (default), exceptions are never propagated.
+      This breaks the observable telemetry contract.
+    merged_from: ["TYP-ERR-003", "EH-G78-002"]
+    files:
+      - src/prism/scanner_core/events.py:87-102
+    impact: "Listener failures are unobservable to callers"
+    remediation: "Add callback pattern or document behavior; emit warnings"
+    effort_estimate: "MEDIUM (design change)"
+
+  - find_id: "FIND-G78-007"
+    severity: HIGH
+    title: "Missing Exception Chaining in Error Transformations"
+    description: |
+      repo_services.py and other modules raise exceptions without `from exc` chaining.
+      Loses root cause information for debugging.
+    merged_from: ["OWN-004"]
+    files:
+      - src/prism/repo_services.py:308,317,328,337
+    impact: "Root cause analysis is difficult; stack traces are incomplete"
+    remediation: "Add `from exc` to all exception re-raises"
+    effort_estimate: "LOW (mechanical fix)"
+
+  - find_id: "FIND-G78-008"
+    severity: HIGH
+    title: "Silent Error in Listener Unregistration"
+    description: |
+      unregister_default_listener() catches ValueError and returns silently.
+      No diagnostic when attempting to unregister non-existent listener.
+    merged_from: ["EH-G78-003"]
+    files:
+      - src/prism/scanner_core/events.py:172-175
+    impact: "Caller cannot detect if unregister succeeded"
+    remediation: "Return bool or raise error on not-found"
+    effort_estimate: "LOW (add return value or error)"
+
+  - find_id: "FIND-G78-009"
+    severity: HIGH
+    title: "EventBus Listener Exception Type Not Preserved"
+    description: |
+      EventBus.emit() logs exceptions as strings, losing structured type information
+      needed for error recovery and categorization.
+    merged_from: ["TYP-ERR-003"]
+    files:
+      - src/prism/scanner_core/events.py
+    impact: "Error recovery logic cannot distinguish exception types"
+    remediation: "Preserve exception type in event or error object"
+    effort_estimate: "LOW (preserve exception object)"
+
+phase_status: "COMPLETE"
+next_phase: "Phase 2 - Review & Prioritize"

@@ -1,0 +1,17 @@
+cycle: g75
+phase: P1
+grade_summary:
+  - axis: Typing
+    score: pending
+    notes: ''
+  - axis: Ownership
+    score: pending
+    notes: ''
+  - axis: ControlFlow
+    score: pending
+    notes: ''
+  - axis: Graph
+    score: pending
+    notes: ''
+status: phase1_pending
+next_action: Launch deep-review synthesis pass and promote any net-new High/Critical findings.

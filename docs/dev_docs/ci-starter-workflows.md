@@ -5,6 +5,8 @@ title: CI Starter Workflows
 
 Starter usage patterns for running Prism in CI.
 
+Current Prism workflow-efficiency changes were reviewed and updated using the [`.github/skills/github-actions-codespaces-efficiency`](../../.github/skills/github-actions-codespaces-efficiency/SKILL.md) skill.
+
 ## GitHub Actions Pattern
 
 - install package

@@ -1,0 +1,9 @@
+plan_id: mutl3y-review-20260505-g75
+phase: P0
+status: complete
+started_at: 2026-05-07T00:00:00Z
+description: Phase 0 scouting complete. Scouts analyzed src/prism for typing, ownership, control flow, and graph structure. Subagent metrics captured and ready for grading.
+live_context: stable_rules + current_phase + active_findings + short_excerpts
+resume_dirty_tree:
+  status: OK
+  note: no tracked python files were dirty before Phase 0 scout dispatch

@@ -1,0 +1,39 @@
+plan_id: mutl3y-review-20260507-g76
+phase: 0
+target: src/prism
+status: complete
+source: Explore
+summary: >-
+  Phase 0 discovery identified the DI/registry/scanner-context spine as the
+  highest-signal review slice for an autopilot review cycle.
+recommended_first_slice:
+  - src/prism/scanner_core/di.py
+  - src/prism/scanner_plugins/registry.py
+  - src/prism/scanner_core/scanner_context.py
+hotspots:
+  - path: src/prism/scanner_core/di.py
+    why: Central factory wiring hub with cache invalidation and scanner-context ownership seams.
+    nearby_tests:
+      - src/prism/tests/test_scanner_context.py
+  - path: src/prism/scanner_plugins/registry.py
+    why: Plugin lifecycle, stateless enforcement, API version validation, and registry identity behavior.
+    nearby_tests:
+      - src/prism/tests/test_comment_doc_plugin_resolution.py
+      - src/prism/tests/test_g02_thread_safety.py
+  - path: src/prism/scanner_core/execution_request_builder.py
+    why: Prepared-policy bundle assembly and runtime participant composition.
+    nearby_tests:
+      - src/prism/tests/test_scanner_context.py
+  - path: src/prism/scanner_core/scanner_context.py
+    why: Execution-time policy enforcement, blocker facts, and payload finalization.
+    nearby_tests:
+      - src/prism/tests/test_scanner_context.py
+  - path: src/prism/scanner_kernel/orchestrator.py
+    why: Kernel routing, metadata merge, and blocker-outcome translation.
+  - path: src/prism/api_layer/non_collection.py
+    why: Prepared-policy cache fingerprints and API-boundary normalization.
+  - path: src/prism/scanner_io/output_orchestrator.py
+    why: Output boundary validation and renderer routing.
+  - path: src/prism/scanner_plugins/defaults.py
+    why: Plugin bootstrap, entry-point discovery, and default platform wiring.
+recommendation: advance_to_phase_1

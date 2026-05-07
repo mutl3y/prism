@@ -578,7 +578,7 @@ def test_fsrc_scanner_context_best_effort_records_error_envelope() -> None:
         {
             "phase": "discovery",
             "error_type": "PrismRuntimeError",
-            "message": "role_scan_runtime_error: boom",
+            "message": "[core] role_scan_runtime_error: boom",
         }
     ]
 

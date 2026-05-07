@@ -1,0 +1,140 @@
+---
+wave_id: scout-graph
+timestamp: "2026-05-07T01:35:00Z"
+findings:
+  - finding_id: "SG-001"
+    severity: high
+    category: cross_layer_import_chain
+    location: src/prism/scanner_plugins/ansible/extract_utils.py:24-57
+    description: "Heavy cross-layer dependency chain: scanner_plugins→scanner_extract (15+ functions). Ansible plugin imports directly from extract layer, creating tight coupling that blocks independent extract refactoring."
+    import_chain: "[scanner_plugins.ansible.extract_utils → scanner_extract.task_annotation_parsing, task_catalog_assembly, task_file_traversal, variable_helpers, requirements, discovery]"
+    impact: "scanner_extract internal refactoring requires audit of all ansible extract_utils call sites"
+
+  - finding_id: "SG-002"
+    severity: high
+    category: layer_violation
+    location: src/prism/scanner_readme/render.py:8,10
+    description: "scanner_readme layer directly imports from scanner_plugins (ReadmeRendererPlugin interface, resolve_readme_renderer_plugin). Layer protocol violation: readme layer should not depend on plugin internals."
+    import_chain: "[scanner_readme.render → scanner_plugins.interfaces, scanner_plugins.defaults]"
+    impact: "Creates reverse dependency from readme to plugin layer; blocks plugin layer reorganization"
+
+  - finding_id: "SG-003"
+    severity: high
+    category: layer_violation
+    location: src/prism/scanner_readme/guide.py:8
+    description: "scanner_readme.guide imports resolve_readme_renderer_plugin from scanner_plugins.defaults, creating same layer protocol violation as SG-002."
+    import_chain: "[scanner_readme.guide → scanner_plugins.defaults]"
+    impact: "Two entry points from readme to plugin/defaults; should consolidate through single facade"
+
+  - finding_id: "SG-004"
+    severity: medium
+    category: bootstrap_coupling
+    location: src/prism/scanner_core/di.py:37,50,375
+    description: "scanner_core DI container imports from scanner_plugins at TYPE_CHECKING + runtime (deferred in factory). Runtime import of scanner_plugins.defaults (line 375) during factory_prepared_policy_bundle calls. Bootstrap ordering risk if registry not initialized first."
+    import_chain: "[scanner_core.di → scanner_plugins.interfaces, scanner_plugins.registry, scanner_plugins.defaults]"
+    impact: "DI initialization depends on plugin bootstrap order; no explicit ordering guarantee at module load time"
+
+  - finding_id: "SG-005"
+    severity: medium
+    category: adapter_layer_pattern
+    location: src/prism/scanner_core/task_extract_adapters.py:1-200
+    description: "Excellent lazy import pattern used to break bootstrap coupling: all scanner_extract imports deferred to function scope (lines 23-179). This is a positive pattern but results in scattered imports across many functions (good isolation, visibility challenge)."
+    import_chain: "[scanner_core.task_extract_adapters → (lazy) scanner_extract.task_annotation_parsing, task_catalog_assembly, task_file_traversal]"
+    impact: "Pattern works well but increases code complexity. Consider consolidating lazy imports into few helper functions"
+
+  - finding_id: "SG-006"
+    severity: medium
+    category: bidirectional_risk
+    location: src/prism/scanner_plugins/ansible/extract_utils.py:24-57
+    description: "scanner_plugins.ansible.extract_utils imports heavily from scanner_extract AND scanner_extract.task_file_traversal/task_annotation_parsing import from scanner_core. Risk of indirect circular via: extract→core(policy)→plugins→extract."
+    import_chain: "[scanner_extract.task_annotation_parsing → scanner_core → scanner_plugins (via DI)]"
+    impact: "Potential runtime circular import if core policy resolution accesses plugin registry during extract initialization"
+
+  - finding_id: "SG-007"
+    severity: medium
+    category: interface_coupling
+    location: src/prism/scanner_core/di_helpers.py:10-12
+    description: "scanner_core.di_helpers imports from scanner_plugins.interfaces at TYPE_CHECKING level. This is clean (type-only) but creates source-level coupling for IDE/static tools understanding."
+    import_chain: "[scanner_core.di_helpers → (TYPE_CHECKING) scanner_plugins.interfaces]"
+    impact: "Acceptable but creates hidden coupling visible only to type checkers; might surprise developers"
+
+  - finding_id: "SG-008"
+    severity: medium
+    category: plugin_bootstrap_seam
+    location: src/prism/scanner_plugins/bootstrap.py:65-86
+    description: "Plugin bootstrap defers ALL imports to function scope (registry, pipeline, ansible, parsers). While preventing circular imports, this spreads bootstrap logic across many conditional imports, making bootstrap order implicit rather than explicit."
+    import_chain: "[scanner_plugins.bootstrap.initialize_default_registry() → (lazy) scanner_plugins.registry, default_scan_pipeline, ansible, parsers]"
+    impact: "Bootstrap order implicit; no dependency declaration; difficult to audit what must initialize before registry is usable"
+
+  - finding_id: "SG-009"
+    severity: low
+    category: import_organization
+    location: src/prism/scanner_readme/render.py:8-12
+    description: "scanner_readme layer imports from 3 different scanner layers (scanner_plugins, scanner_readme internal modules). Could benefit from facade consolidation."
+    import_chain: "[scanner_readme.render → scanner_plugins.interfaces, scanner_plugins.defaults, scanner_readme.guide, scanner_readme.rendering_seams, scanner_readme.style]"
+    impact: "Internal visibility; easier to maintain if consolidated through single render facade"
+
+  - finding_id: "SG-010"
+    severity: low
+    category: optional_import_guard
+    location: src/prism/scanner_core/di.py:50 (deferred in factory_prepared_policy_bundle)
+    description: "Dynamic import of scanner_plugins.registry inside factory method (line 50 comment + line 375 pattern). Safe but indicates registry access isn't always available at di.__init__ time."
+    import_chain: "[scanner_core.di.factory_prepared_policy_bundle() → (lazy) scanner_plugins.registry]"
+    impact: "Low risk but signals policy bundle preparation is optional/late-bound; document contract clearly"
+
+seam_integrity:
+  - seam: "scanner_core ↔ scanner_plugins"
+    direction: "bidirectional (core→plugins imports at TYPE_CHECKING; plugins→core imports scanner_data only)"
+    risk_level: "medium"
+    description: "Core imports plugin interfaces only for type hints. Plugins import from core data contracts only. Clean separation but TYPE_CHECKING imports create IDE coupling."
+
+  - seam: "scanner_plugins ↔ scanner_extract"
+    direction: "unidirectional (plugins→extract only)"
+    risk_level: "high"
+    description: "scanner_plugins.ansible.extract_utils imports 15+ items from extract layer. No reverse imports (good), but high coupling on extract internals. Blocks extract refactoring."
+
+  - seam: "scanner_readme ↔ scanner_plugins"
+    direction: "unidirectional (readme→plugins, violates intended layer model)"
+    risk_level: "high"
+    description: "readme layer should NOT depend on plugins. Currently imports ReadmeRendererPlugin + resolver from plugins. Creates reverse dependency that violates layer isolation."
+
+  - seam: "scanner_core ↔ scanner_extract"
+    direction: "unidirectional (core→extract via lazy imports in task_extract_adapters)"
+    risk_level: "low"
+    description: "Core adapters use lazy imports to defer scanner_extract dependency. Clean pattern with good isolation."
+
+circular_import_risks:
+  - risk_id: "CIR-001"
+    severity: medium
+    path: "[scanner_extract.task_annotation_parsing → scanner_core → scanner_plugins (via DI factory) → scanner_plugins.ansible.extract_utils → scanner_extract]"
+    trigger: "If scanner_extract module-level code calls di.factory_prepared_policy_bundle during import"
+    mitigation: "Task annotation parsing uses lazy DI resolution; deferred imports prevent this at module load time. Risk low in practice."
+
+  - risk_id: "CIR-002"
+    severity: low
+    path: "[scanner_core.di → scanner_plugins.bootstrap (TYPE_CHECKING) → scanner_plugins.registry → (cyclic if registry accesses core DI)]"
+    trigger: "If plugin registry tries to access DIContainer during initialization"
+    mitigation: "Registry uses TYPE_CHECKING imports to bootstrap; DI singleton pattern ensures initialization order. Risk managed."
+
+count_high: 3
+count_medium: 4
+count_low: 3
+critical_blockers: 0
+status: complete
+
+summary: |
+  Cross-layer architecture scan identified 3 HIGH severity issues:
+  1. scanner_plugins.ansible heavily coupled to scanner_extract internals (15+ direct imports)
+  2. scanner_readme layer violates isolation by importing from scanner_plugins (reverse dependency)
+  3. Bootstrap coupling in DI container with deferred plugin imports creates implicit ordering
+
+  Positive findings:
+  - scanner_extract does NOT import from scanner_plugins (good unidirectional flow)
+  - scanner_core uses TYPE_CHECKING + lazy imports to minimize bootstrap coupling
+  - task_extract_adapters follows excellent lazy import pattern for extract layer integration
+
+  Key recommendations:
+  - (HIGH) Extract plugin wrapper facade in scanner_plugins/facades.py to isolate readme from internal plugin structure
+  - (HIGH) Create scanner_plugins/ansible/extract_facade.py to consolidate 15+ scanner_extract imports
+  - (MEDIUM) Document and enforce plugin bootstrap order explicitly in bootstrap.py
+  - (MEDIUM) Consolidate scanner_readme layer imports through single renderer facade

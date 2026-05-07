@@ -15,6 +15,34 @@ from typing import (
 )
 
 
+class ErrorContract(TypedDict, total=False):
+    """Typed error ownership contract for layer-aware exception handling.
+
+    Defines error classification across scanner layers:
+    - error_type: "validation" (data check), "system" (resource/state),
+                  "config" (configuration), "plugin" (plugin load/exec)
+    - layer: "config" (config parsing), "core" (scan orchestration),
+             "plugins" (plugin execution), "io" (file/network)
+    - recoverable: True if scan can continue despite this error
+    """
+
+    error_type: str
+    message: str
+    layer: str
+    recoverable: bool
+
+
+@runtime_checkable
+class DIContainer(Protocol):
+    """Minimal DI container interface for validation and runtime access."""
+
+    @property
+    def scan_options(self) -> "ScanOptionsDict": ...
+
+    @property
+    def plugin_registry(self) -> object | None: ...
+
+
 class ScanErrorEntry(TypedDict):
     """Structured scan-phase error emitted during best-effort execution."""
 
@@ -473,7 +501,7 @@ def validate_variable_discovery_inputs(
 
 def validate_feature_detector_inputs(
     *,
-    di: Any,
+    di: DIContainer | None,
     role_path: str,
     options: dict[str, Any],
 ) -> None:

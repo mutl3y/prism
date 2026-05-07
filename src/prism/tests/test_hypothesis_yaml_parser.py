@@ -72,7 +72,7 @@ def test_load_yaml_file_never_raises_on_arbitrary_content(text: str) -> None:
         try:
             DefaultYAMLParsingPolicyPlugin.load_yaml_file(path)
         except RuntimeError as exc:
-            assert str(exc).startswith("yaml_load_error")
+            assert "yaml_load_error" in str(exc)
     finally:
         try:
             os.unlink(path)

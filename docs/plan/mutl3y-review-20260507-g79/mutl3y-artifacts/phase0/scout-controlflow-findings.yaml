@@ -1,0 +1,213 @@
+---
+metadata:
+  plan_id: mutl3y-review-20260507-g79
+  scout_name: Scout-ControlFlow
+  scan_date: 2026-05-07
+  focus_axis: layer_boundaries
+  target: src/prism
+
+findings:
+  - id: CF-G79-001
+    severity: critical
+    layer_pair: scanner_plugins <-> scanner_extract
+    issue_type: missing_layer_protocol
+    title: Plugin layer directly imports from extraction layer without adapter
+    description: |
+      scanner_plugins/ansible/extract_utils.py re-exports 17+ functions from scanner_extract
+      with no abstraction layer or adapter pattern. Direct imports bypass scanner_core.
+      
+      Functions imported directly:
+      - extract_task_annotations_for_file
+      - detect_task_module, extract_collection_from_module_name
+      - collect_task_files, iter_*_include_targets, iter_task_mappings
+      - is_path_excluded, load_yaml_file
+      - collect_unconstrained_dynamic_*_includes, collect_molecule_scenarios
+      - format_inline_yaml, find_variable_line_in_yaml, infer_variable_type
+      - is_sensitive_variable, JINJA_IDENTIFIER_RE, normalize_requirements
+      - iter_role_variable_map_candidates
+      
+      The module's own comment admits: "These are NOT generic utilities that other platform
+      plugins (Kubernetes, Terraform) can reuse - each platform should implement its own
+      extraction logic appropriate to its file structure and concepts."
+      
+      This creates an Ansible-specific tight coupling that will block multi-platform expansion.
+    location: src/prism/scanner_plugins/ansible/extract_utils.py:1-70
+    impact: |
+      - Kubernetes and Terraform plugins cannot reuse Ansible's extraction utilities
+      - If scanner_extract changes, all plugins importing these functions break
+      - No contract defines what extraction layer boundary should be
+      - Platform-agnostic plugin system is undermined
+    recommendation: |
+      1. Define explicit plugin extraction protocol (ExtractorPlugin)
+      2. Move scanner_plugins/ansible/extract_utils.py re-exports to adapter pattern
+      3. Create scanner_plugins/interfaces.py contract for extraction operations
+      4. Add layer boundary guard: scanner_plugins/* should not import from scanner_extract
+
+  - id: CF-G79-002
+    severity: critical
+    layer_pair: scanner_kernel <-> scanner_plugins
+    issue_type: missing_layer_protocol
+    title: Plugin registry contract undefined; cascading getattr() fallback logic
+    description: |
+      plugin_name_resolver.py uses getattr() to dynamically resolve registry methods
+      without an explicit protocol contract. _resolve_default_scan_pipeline_plugin_name()
+      performs 6+ getattr() checks with silent fallthrough:
+      
+      1. list_plugins = getattr(registry, "list_scan_pipeline_plugins", None)
+      2. get_plugin = getattr(registry, "get_scan_pipeline_plugin", None)
+      3. get_default_platform_key = getattr(registry, "get_default_platform_key", None)
+      4. Checks if "default" in registered list
+      5. Checks if default_platform_key callable and returns valid plugin_name
+      6. Falls back to single registered plugin or sorted first plugin
+      
+      If registry is missing methods, execution silently continues to next fallback.
+      No explicit interface contract defines "registry must have X and Y methods".
+    location: src/prism/scanner_kernel/plugin_name_resolver.py:78-120
+    impact: |
+      - Registry implementations have no clear contract enforcement
+      - New plugin systems (Kubernetes, Terraform) may omit required methods silently
+      - Execution flow is implicit rather than explicit
+      - Debugging why wrong plugin was selected is difficult
+    recommendation: |
+      1. Define explicit @runtime_checkable ScanPipelineRegistry protocol
+      2. Add upfront validation: check registry has all required methods before use
+      3. Raise TypeError (not silent fallback) if registry violates protocol
+      4. Document expected registry method signatures in a Registry interface
+
+  - id: CF-G79-003
+    severity: high
+    layer_pair: scanner_io -> scanner_core
+    issue_type: upward_back_reference
+    title: Output layer imports back into core layer breaking one-way dependency
+    description: |
+      output_orchestrator.py imports from scanner_core (di_helpers, events):
+      
+      - from prism.scanner_core.di_helpers import get_event_bus_or_none
+      - from prism.scanner_core.events import PHASE_OUTPUT_RENDER
+      
+      While this is a valid pattern (injection), it creates an implicit upward
+      dependency: scanner_io layer depends on scanner_core internals. The intended
+      design appears to be one-way: scanner_core calls scanner_io, but scanner_io
+      calls back into scanner_core for event bus access.
+      
+      This is not a circular dependency, but it violates the implicit layer assumption:
+      lower layers (scanner_io) should not import from higher layers (scanner_core).
+      The event bus contract should be injected rather than imported.
+    location: src/prism/scanner_io/output_orchestrator.py:1-20
+    impact: |
+      - Violates clean layer boundary assumption
+      - scanner_io layer is not truly independent
+      - Event bus access is implicit rather than explicit handoff
+      - Makes testing scanner_io in isolation difficult (requires di_helpers, events)
+    recommendation: |
+      1. Add explicit event_bus parameter to OutputOrchestrator.__init__()
+      2. Inject event bus as dependency, not import it
+      3. Caller (scanner_core) provides event bus reference
+      4. scanner_io no longer imports from scanner_core
+
+  - id: CF-G79-004
+    severity: high
+    layer_pair: scanner_extract <-> scanner_core
+    issue_type: missing_explicit_handoff
+    title: No explicit layer-boundary validation for prepared policy bundle
+    description: |
+      scanner_extract layer assumes prepared_policy_bundle is ready when it calls
+      require_prepared_policy(di, policy_name, context_label) repeatedly.
+      
+      However:
+      1. No explicit contract defines which layer is responsible for bundle preparation
+      2. bundle_resolver.py in scanner_plugins has fallback policy resolution that
+         cascades through multiple resolver functions
+      3. If bundle is missing a policy, require_prepared_policy() raises ValueError,
+         but by that time we're deep in extraction execution (not at boundary)
+      4. Caller (scanner_core) doesn't validate bundle structure before handing to extractor
+      
+      Silent fallback patterns in bundle_resolver.ensure_prepared_policy_bundle():
+      - Checks if policy exists in bundle.get(policy_name)
+      - If missing, calls resolver functions (e.g., resolve_task_line_parsing_policy_plugin)
+      - Each resolver has implicit fallback to defaults
+    location: |
+      src/prism/scanner_core/di_helpers.py:101-116
+      src/prism/scanner_extract/task_file_traversal.py:165+ (require_prepared_policy calls)
+      src/prism/scanner_plugins/bundle_resolver.py:95-160
+    impact: |
+      - Errors about missing policies appear deep in extraction, not at validation boundary
+      - No clear ownership: who validates that bundle is complete?
+      - Fallback resolution happens at multiple layers (bundle_resolver, task extraction)
+      - Debugging policy resolution is difficult (cascading fallbacks)
+    recommendation: |
+      1. Add explicit validation function: validate_prepared_policy_bundle_is_complete()
+      2. Call validation at scanner_core -> scanner_extract boundary
+      3. Raise explicit error at boundary if bundle is incomplete
+      4. Remove fallback policy resolution from deep in extraction layer
+      5. Document clear ownership: "Bundle must be fully prepared before extraction begins"
+
+  - id: CF-G79-005
+    severity: medium
+    layer_pair: scanner_kernel <-> scanner_plugins
+    issue_type: missing_validation
+    title: Plugin method signature validation continues despite warnings
+    description: |
+      orchestrator.py validates plugin method signatures but doesn't enforce contract
+      strictly. _validate_process_scan_pipeline_plugin_signature() and
+      _validate_orchestrate_scan_payload_plugin_signature() log warnings but
+      continue execution in some code paths.
+      
+      When signature validation fails:
+      - Raises TypeError if "missing required" in error message
+      - Logs warning but continues for other ValueError/TypeError cases
+      - Plugin execution proceeds even if signature is questionable
+      
+      This creates implicit permissive behavior at a critical handoff point.
+    location: src/prism/scanner_kernel/orchestrator.py:67-160
+    impact: |
+      - Plugins with incorrect signatures may pass validation
+      - Errors manifest later during plugin execution, not at registration
+      - Inconsistent validation strictness
+    recommendation: |
+      1. Decide: strict validation (raise on any signature issue) or lenient (log only)
+      2. If strict: raise TypeError consistently for all signature mismatches
+      3. If lenient: document that signature validation is advisory only
+      4. Add explicit validation gate before plugin instantiation
+
+  - id: CF-G79-006
+    severity: medium
+    layer_pair: scanner_io -> scanner_plugins
+    issue_type: missing_layer_protocol
+    title: Loader layer imports from plugin layer without explicit contract
+    description: |
+      loader.py imports from scanner_plugins/defaults.py:
+      - _get_registry_from_di() 
+      - resolve_*_policy_plugin() functions
+      
+      There's no explicit protocol contract defining what scanner_io/loader expects
+      from scanner_plugins/defaults. When _resolve_plugin_registry(di) returns None,
+      the fallback pattern in _resolve_policy_with_registry() is implicit.
+      
+      The loader assumes defaults.py provides certain resolution functions, but
+      this dependency is not formalized as a protocol or interface.
+    location: src/prism/scanner_io/loader.py:65-130
+    impact: |
+      - scanner_io tightly coupled to scanner_plugins/defaults implementation
+      - No clear contract about what resolver functions must exist
+      - Changes to defaults.py may silently break loader
+      - Debugging resolution failures is difficult
+    recommendation: |
+      1. Define explicit LoaderPolicyResolver protocol in scanner_data/contracts
+      2. Document expected resolver function signatures
+      3. Make scanner_io/loader depend on protocol, not implementation
+      4. Add explicit validation: scanner_io validates resolver implements protocol
+
+summary:
+  total_findings: 6
+  critical: 2
+  high: 2
+  medium: 2
+  low: 0
+  
+top_three_by_impact:
+  - CF-G79-001 (critical)
+  - CF-G79-002 (critical)
+  - CF-G79-003 (high)
+
+controlflow_findings_written: 6

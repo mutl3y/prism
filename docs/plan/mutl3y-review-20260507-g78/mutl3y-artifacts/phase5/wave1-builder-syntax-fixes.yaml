@@ -1,0 +1,62 @@
+---
+plan_id: mutl3y-review-20260507-g78
+wave: 1
+finding: FIND-G78-001
+task_name: Builder-Syntax-Fixes Wave 1
+execution_date: "2026-05-07"
+agent: Builder-Syntax-Fixes
+
+summary:
+  title: Fix Python 2 Exception Syntax (FIND-G78-001)
+  description: Replaced comma-separated exception handler syntax with Python 3 tuple syntax across 5 locations
+  status: COMPLETED
+
+files_modified:
+  - src/prism/scanner_plugins/registry.py
+  - src/prism/scanner_extract/filter_scanner.py
+  - src/prism/scanner_extract/variable_extractor.py
+  - src/prism/scanner_io/output.py
+
+changes:
+  - file: src/prism/scanner_plugins/registry.py
+    line: 158
+    old_syntax: "except TypeError, ValueError:"
+    new_syntax: "except (TypeError, ValueError):"
+
+  - file: src/prism/scanner_extract/filter_scanner.py
+    line: 186
+    old_syntax: "except UnicodeDecodeError, PermissionError, OSError:"
+    new_syntax: "except (UnicodeDecodeError, PermissionError, OSError):"
+
+  - file: src/prism/scanner_extract/filter_scanner.py
+    line: 243
+    old_syntax: "except UnicodeDecodeError, PermissionError, OSError:"
+    new_syntax: "except (UnicodeDecodeError, PermissionError, OSError):"
+
+  - file: src/prism/scanner_extract/variable_extractor.py
+    line: 92
+    old_syntax: "except OSError, yaml.YAMLError, UnicodeDecodeError, ValueError, RuntimeError:"
+    new_syntax: "except (OSError, yaml.YAMLError, UnicodeDecodeError, ValueError, RuntimeError):"
+
+  - file: src/prism/scanner_io/output.py
+    line: 57
+    old_syntax: "except ImportError, AttributeError, TypeError, ValueError:"
+    new_syntax: "except (ImportError, AttributeError, TypeError, ValueError):"
+
+changes_made: 5
+
+validation:
+  syntax_check_result: PASS
+  syntax_check_method: "python3 -m py_compile"
+  files_checked: 4
+  test_execution: PASS
+  test_count: 160 passed, 1 skipped
+  test_scope: "pytest -k registry or filter_scanner or variable_extractor or output"
+
+notes:
+  - All files compiled successfully with Python 3.14.2
+  - No breaking changes to API or behavior
+  - Purely syntax modernization (Python 2 → Python 3)
+  - All affected modules have passing test coverage
+
+commitment_message: "fix: Replace Python 2 exception syntax with Python 3 tuple syntax (FIND-G78-001)"

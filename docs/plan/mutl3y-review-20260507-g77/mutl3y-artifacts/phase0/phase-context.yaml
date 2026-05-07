@@ -1,0 +1,36 @@
+---
+plan_id: mutl3y-review-20260507-g77
+phase: 0
+phase_name: "Discovery & Planning"
+context: "Fresh autopilot cycle targeting src/prism with deep review enabled"
+cycle_type: "fresh"
+autopilot_active: true
+
+discovery_scope:
+  target: src/prism
+  depth: medium
+  categories:
+    - typing_gaps
+    - control_flow_issues
+    - duplication
+    - ownership_clarity
+    - architecture_violations
+
+phase_0_plan:
+  step_1: "Load configuration and previous lessons"
+  step_2: "Scope discovery waves (scouts by category)"
+  step_3: "Dispatch scout waves in parallel"
+  step_4: "Collect findings into phase1 artifacts"
+  step_5: "Await barrier: all scout reports present"
+  step_6: "Transition to Phase 1"
+
+mandatory_references:
+  - reference: "phase-context-manager.md"
+    path: ".github/skills/mutl3y-foreman/references/"
+  - reference: "self-improvement-protocol.md"
+    path: ".github/skills/mutl3y-foreman/references/"
+  - reference: "context-efficiency.md"
+    path: ".github/skills/mutl3y-foreman/references/"
+
+continuation_mode: "autopilot"
+next_phase_on_barrier_pass: true

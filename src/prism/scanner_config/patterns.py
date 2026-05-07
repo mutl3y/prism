@@ -10,11 +10,13 @@ import logging
 import os
 import urllib.error
 import urllib.request
+from collections.abc import Collection
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from prism.errors import ERROR_CATEGORY_CONFIG, PrismRuntimeError
 from prism.scanner_data.contracts_request import PolicyContext
 
 logger = logging.getLogger(__name__)
@@ -99,7 +101,19 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
 
 
 def _normalise(policy: dict[str, Any]) -> dict[str, Any]:
-    def _normalise_token_collection(raw: Any) -> set[str]:
+    def _normalise_token_collection(raw: str | Collection[str]) -> set[str]:
+        """
+        Normalize input that can be a single string or collection of strings.
+
+        Args:
+            raw: A single string or collection of strings (list, tuple, set, etc.)
+
+        Returns:
+            Normalized set of strings.
+
+        Note: Collection items are assumed to be str; type checking does not
+        validate item types at static analysis time.
+        """
         if isinstance(raw, str):
             value = raw.strip()
             return {value} if value else set()
@@ -240,24 +254,40 @@ def fetch_remote_policy(
     timeout: int = 10,
     expected_integrity: str | None = None,
 ) -> dict[str, Any]:
-    """Fetch a ``pattern_policy.yml`` from *url* and return the parsed policy."""
+    """Fetch a ``pattern_policy.yml`` from *url* and return the parsed policy.
+
+    Raises PrismRuntimeError with layer='config' when policy loading/validation fails.
+    Internal functions raise ValueError for validation; layer boundary wraps as PrismRuntimeError.
+    """
 
     def _parse_expected_sha256(integrity: str | None) -> str | None:
         if integrity is None:
             return None
         if not isinstance(integrity, str):
-            raise RuntimeError(
-                "REMOTE_POLICY_INTEGRITY_CONTRACT_INVALID: expected_integrity must be a string"
+            raise PrismRuntimeError(
+                code="REMOTE_POLICY_INTEGRITY_CONTRACT_INVALID",
+                category=ERROR_CATEGORY_CONFIG,
+                message="expected_integrity must be a string",
+                layer="config",
+                recoverable=False,
             )
         value = integrity.strip().lower()
         if not value.startswith("sha256:"):
-            raise RuntimeError(
-                "REMOTE_POLICY_INTEGRITY_CONTRACT_INVALID: expected format is sha256:<64 hex>"
+            raise PrismRuntimeError(
+                code="REMOTE_POLICY_INTEGRITY_CONTRACT_INVALID",
+                category=ERROR_CATEGORY_CONFIG,
+                message="expected format is sha256:<64 hex>",
+                layer="config",
+                recoverable=False,
             )
         digest = value.split(":", 1)[1]
         if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
-            raise RuntimeError(
-                "REMOTE_POLICY_INTEGRITY_CONTRACT_INVALID: expected format is sha256:<64 hex>"
+            raise PrismRuntimeError(
+                code="REMOTE_POLICY_INTEGRITY_CONTRACT_INVALID",
+                category=ERROR_CATEGORY_CONFIG,
+                message="expected format is sha256:<64 hex>",
+                layer="config",
+                recoverable=False,
             )
         return digest
 
@@ -268,31 +298,49 @@ def fetch_remote_policy(
             return
         actual_sha256 = hashlib.sha256(raw).hexdigest()
         if actual_sha256 != expected_sha256:
-            raise RuntimeError(
-                "REMOTE_POLICY_INTEGRITY_MISMATCH: remote policy checksum mismatch"
+            raise PrismRuntimeError(
+                code="REMOTE_POLICY_INTEGRITY_MISMATCH",
+                category=ERROR_CATEGORY_CONFIG,
+                message="remote policy checksum mismatch",
+                layer="config",
+                recoverable=False,
             )
 
     raw_bytes: bytes | None = None
     try:
         if not url.lower().startswith("https://"):
-            raise RuntimeError(
-                "REMOTE_POLICY_URL_CONTRACT_INVALID: remote policy URL must use HTTPS"
+            raise PrismRuntimeError(
+                code="REMOTE_POLICY_URL_CONTRACT_INVALID",
+                category=ERROR_CATEGORY_CONFIG,
+                message="remote policy URL must use HTTPS",
+                layer="config",
+                recoverable=False,
             )
         with urllib.request.urlopen(url, timeout=timeout) as resp:  # noqa: S310
             raw_bytes = resp.read()
+    except PrismRuntimeError:
+        raise
     except urllib.error.HTTPError as exc:
         logger.warning(
             "Remote policy HTTP error from %s: %s (code=%s)", url, exc, exc.code
         )
         if cache_path is None:
-            raise RuntimeError(
-                f"Failed to fetch remote patterns from {url}: HTTP {exc.code}"
+            raise PrismRuntimeError(
+                code="REMOTE_POLICY_FETCH_FAILED",
+                category=ERROR_CATEGORY_CONFIG,
+                message=f"Failed to fetch remote patterns from {url}: HTTP {exc.code}",
+                layer="config",
+                recoverable=True,
             ) from exc
     except urllib.error.URLError as exc:
         logger.warning("Remote policy URL error from %s: %s", url, exc.reason)
         if cache_path is None:
-            raise RuntimeError(
-                f"Failed to fetch remote patterns from {url}: {exc.reason}"
+            raise PrismRuntimeError(
+                code="REMOTE_POLICY_FETCH_FAILED",
+                category=ERROR_CATEGORY_CONFIG,
+                message=f"Failed to fetch remote patterns from {url}: {exc.reason}",
+                layer="config",
+                recoverable=True,
             ) from exc
 
     if raw_bytes is not None:
@@ -310,26 +358,44 @@ def fetch_remote_policy(
                 raw_bytes = cache_file.read_bytes()
                 _verify_integrity(raw_bytes)
             else:
-                raise RuntimeError(
-                    f"Failed to fetch remote patterns from {url} and no cache found at {cache_path}"
+                raise PrismRuntimeError(
+                    code="REMOTE_POLICY_FETCH_FAILED",
+                    category=ERROR_CATEGORY_CONFIG,
+                    message=f"Failed to fetch remote patterns from {url} and no cache found at {cache_path}",
+                    layer="config",
+                    recoverable=True,
                 )
 
     try:
         data = yaml.safe_load(raw_bytes)
     except yaml.YAMLError as exc:
         logger.error("Remote policy YAML parse error: %s", exc)
-        raise RuntimeError(
-            f"Failed to parse remote pattern policy YAML: {exc}"
+        raise PrismRuntimeError(
+            code="REMOTE_POLICY_YAML_INVALID",
+            category=ERROR_CATEGORY_CONFIG,
+            message=f"Failed to parse remote pattern policy YAML: {exc}",
+            layer="config",
+            recoverable=False,
         ) from exc
     except (TypeError, ValueError, UnicodeDecodeError) as exc:
         logger.error("Remote policy parse error (type/value/unicode): %s", exc)
-        raise RuntimeError(
-            f"Failed to parse remote pattern policy YAML: {exc}"
+        raise PrismRuntimeError(
+            code="REMOTE_POLICY_YAML_INVALID",
+            category=ERROR_CATEGORY_CONFIG,
+            message=f"Failed to parse remote pattern policy YAML: {exc}",
+            layer="config",
+            recoverable=False,
         ) from exc
     # Any other unexpected error should propagate and not be masked here.
 
     if not isinstance(data, dict):
-        raise RuntimeError("Remote pattern policy YAML did not parse to a mapping")
+        raise PrismRuntimeError(
+            code="REMOTE_POLICY_YAML_INVALID",
+            category=ERROR_CATEGORY_CONFIG,
+            message="Remote pattern policy YAML did not parse to a mapping",
+            layer="config",
+            recoverable=False,
+        )
 
     return _normalise(data)
 

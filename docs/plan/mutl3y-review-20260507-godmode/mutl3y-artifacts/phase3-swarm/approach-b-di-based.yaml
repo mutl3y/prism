@@ -1,0 +1,269 @@
+# Investigation: DI-Based Policy Resolution
+# Probe: Probe-DI-Bootstrap
+# Date: 2026-05-07
+# Task: Evaluate feasibility of moving policy constant resolution to DI layer
+
+investigation_title: "DI-Based Policy Resolution for Policy-Backed Proxies"
+probe_name: "Probe-DI-Bootstrap"
+finding_reference: "CRITICAL - Misuse of Policy-Backed Proxies"
+scope: "Single-angle investigation into DI-based policy initialization as alternative to proxies"
+
+## Executive Summary
+The DI-based approach would pre-resolve policy constants from prepared_policy_bundle into
+DIContainer after it's created, then replace module-level proxy objects with direct references
+to resolved values. Investigation reveals critical bootstrap sequencing constraint: prepared_policy_bundle
+is added to scan_options AFTER DIContainer creation, blocking pre-resolution. A post-DIContainer-creation
+lazy-init pattern is technically feasible but introduces initialization sequencing complexity
+and does not eliminate proxy overhead for code paths that access constants before init.
+
+---
+
+## Findings
+
+### 1. Bootstrap Order Sequencing: CRITICAL BLOCKER ⚠️
+**Current execution flow:**
+1. Line ~787 (execution_request_builder.py): DIContainer created with scan_options (NO prepared_policy_bundle yet)
+2. Line ~708: _assemble_runtime_participants() returns container without policy bundle
+3. Line ~740: ensure_prepared_policy_bundle_fn() called AFTER container creation
+4. Line ~740: prepared_policy_bundle added to scan_options
+5. Line ~741: container.replace_scan_options() refreshes DIContainer's copy
+
+**Evidence:**
+- `/raid5/source/test/prism/src/prism/scanner_core/execution_request_builder.py`, lines 687-753
+- `/raid5/source/test/prism/src/prism/api_layer/non_collection.py`, lines 673-741
+
+**Problem**: To pre-resolve constants into DI, the policy bundle must be available at DIContainer init time.
+Currently it is not. Moving bundle preparation earlier would require API changes:
+- Option A: Pass pre-prepared bundle to DIContainer.__init__() - adds complexity to bootstrap
+- Option B: Delay constant resolution until after replace_scan_options() - loses lazy-init benefit
+
+**Conclusion**: Bootstrap order does NOT support pre-resolution at DIContainer creation time.
+
+### 2. Lazy-Init Pattern: FEASIBLE BUT SEQUENCING-DEPENDENT ⚠️
+**Proposed alternative: Post-creation lazy init**
+```python
+# After replace_scan_options() in _finalize_execution_request
+di.initialize_policy_constants()  # (Line 741 in execution_request_builder.py)
+
+# In di.py:
+def initialize_policy_constants(self) -> None:
+    """Resolve and cache policy constants from prepared_policy_bundle."""
+    policy = require_prepared_policy(self, "task_line_parsing", "di_init")
+    self._cached_task_include_keys = policy.TASK_INCLUDE_KEYS
+    self._cached_role_include_keys = policy.ROLE_INCLUDE_KEYS
+    # ... cache all 6+ constants
+```
+
+**Feasibility**:
+- HIGHfor the DIContainer side (5-10 LOC to add caching attributes)
+- MEDIUM for scanner_extract/task_line_parsing side (requires conditional dispatch)
+- Implementation options:
+  1. Store resolved constants in DIContainer._cache dict
+  2. Add dedicated @property methods to DIContainer for each constant
+  3. Provide a get_policy_constant(di, const_name) helper function
+
+**Implementation cost**: ~20-30 LOC total (di.py + di_helpers.py)
+
+### 3. Caller Pattern Complications: MEDIUM COMPLEXITY
+**Current caller patterns:**
+- Direct module-level proxy access: `if "include" in TASK_INCLUDE_KEYS:` (tests + dead code)
+- DI-aware access: `require_prepared_policy(di, ...).TASK_INCLUDE_KEYS` (production code)
+- DI-delegating access: `get_task_include_keys(di)` (helpers exist for this)
+
+**Critical finding:**
+- Production code in task_catalog_assembly.py (line 156) uses:
+  ```python
+  require_prepared_policy(di, "task_line_parsing", "task_catalog_assembly").TASK_INCLUDE_KEYS
+  ```
+- NOT the module-level proxy `TASK_INCLUDE_KEYS`
+- Tests explicitly verify that proxies FAIL when bundle is unavailable
+
+**Implication**: Module-level proxies are currently used ONLY in unit tests with prepared policy setup.
+They are NOT on the canonical runtime hot path. Replacing them would NOT improve production performance
+without ALSO changing the production-path callers in task_catalog_assembly.py.
+
+### 4. Proxy Design Contract: INTENTIONAL FAIL-CLOSED
+**From test_task_line_parsing.py docstring:**
+```
+These proxies require a prepared_policy_bundle on the DI container; without one
+they must fail closed via require_prepared_policy.
+```
+
+**Tests assert:**
+- test_collection_proxy_iter_returns_empty_when_policy_unavailable() ✓
+- test_collection_proxy_contains_returns_false_when_policy_unavailable() ✓
+- test_marker_line_regex_proxy_raises_without_bundle() ✓
+
+**Conclusion**: Proxies are INTENTIONAL enforcement of contract, not a workaround.
+Removing proxies changes the design intent. Any replacement must preserve fail-closed semantics.
+
+### 5. DI Container Cache Infrastructure: AVAILABLE
+DIContainer already has caching infrastructure:
+- _cache: dict[str, Any] for storing computed values
+- _cache_lock: threading.RLock() for thread-safe access
+- _invalidate_scan_option_dependent_cache_locked() for cache management
+
+**Can use for**: Storing resolved policy constants after replace_scan_options()
+**Cost**: 1-2 property methods per constant type
+**Thread-safety**: RLock already manages concurrent access during replace_scan_options()
+
+### 6. Production Hot Path Analysis: REVEALING ⚠️
+**Actual runtime flow (task_line_parsing module NOT involved):**
+1. scanner_context.orchestrate_scan() called
+2. ScannerContext → variable_discovery.discover() + feature_detector.detect()
+3. feature_detector calls require_prepared_policy(di, "task_line_parsing", ...)
+   - This lookup uses REAL DI (not None)
+   - Cost: ~4.7µs per access
+4. task_catalog_assembly iterates tasks:
+   - Also uses require_prepared_policy(di, ...).TASK_INCLUDE_KEYS
+   - Not the module proxy
+
+**Critical insight**: The module-level proxies are DEAD CODE for production scanning.
+The overhead optimization target (Approach A: caching) aims to optimize code that
+doesn't execute on production hot path.
+
+### 7. Cost/Benefit Trade-off: DI-BASED APPROACH
+| Factor | Assessment |
+|--------|-----------|
+| Performance improvement | Zero on production hot path (proxies not used) |
+| Code complexity | +20-30 LOC (reasonable) |
+| Bootstrap sequencing | Requires post-replace-scan-options init call |
+| Thread-safety | Handles via existing RLock |
+| Test compatibility | Requires adjusting test expectations (proxies won't work same way) |
+| Maintenance burden | Medium (adds DIContainer responsibilities) |
+| Eliminates proxy pattern | No (proxies remain, just cached via DI) |
+| Architectural improvement | Minimal (still defers resolution to runtime) |
+
+---
+
+## Risk Assessment
+
+### Blocking Risks
+1. **Bootstrap sequencing cannot move prepared_policy_bundle earlier**
+   - Severity: HIGH
+   - Impact: Cannot pre-resolve at DIContainer.__init__ time
+   - Mitigation: Accept post-creation init or restructure bootstrap (major change)
+
+2. **Proxies are dead code on production path**
+   - Severity: HIGH
+   - Impact: Optimizing proxies provides zero production benefit
+   - Mitigation: Target actual hot-path callers (require_prepared_policy in task_catalog_assembly)
+
+3. **Module-level proxies design is intentional**
+   - Severity: MEDIUM
+   - Impact: Changing proxy behavior changes contract semantics
+   - Mitigation: Preserve fail-closed behavior in any replacement
+
+### Open Edges
+1. **Would lazy-init handle concurrent scans?**
+   - DIContainer is per-scan, so cache is isolated ✓
+   - But test mocks might conflict with lazy init
+
+2. **Would DIContainer cache survive across scanner invocations?**
+   - DIContainer is destroyed per scan, so cache is garbage collected
+   - Multiple scans in same process get independent containers ✓
+
+3. **Is prepared_policy_bundle ever mutated after creation?**
+   - Tests and code suggest immutable after ensure_prepared_policy_bundle
+   - But not documented explicitly
+
+---
+
+## Recommendation
+
+### Feasibility: MEDIUM
+- Technically feasible with post-create lazy init (25 LOC)
+- Requires explicit initialization call in execution flow
+- Adds minor DIContainer responsibilities
+- Does NOT impact production performance (proxies are dead code)
+
+### Cost/Benefit Trade-off
+| Aspect | Assessment |
+|--------|-----------|
+| Performance gain | ZERO on hot path (target already-inefficient proxy-independent code) |
+| Code maintainability | +Slightly improved (cache in DI is clearer than proxy magic) |
+| Bootstrap coupling | -Slightly increased (init call required) |
+| Architectural clarity | -Maintains proxy pattern instead of eliminating it |
+| Test compatibility | -Requires proxy-access tests to be adapted |
+
+### Why DI-Based Approach Is WEAKER Than Alternatives
+
+**vs. Approach A (Caching)**:
+- Both require similar initialization effort
+- Caching is simpler (just @functools.lru_cache decorator)
+- Caching can target ANY policy lookup, not just module level
+- Caching provides immediate benefit (~176ms improvement in large scans)
+
+**vs. Approach C/D (Static Resolution)**:
+- Static resolution eliminates proxies entirely
+- No runtime lookup needed
+- Pure architectural improvement
+- Would remove dead code
+
+### Recommended for Wave 2: **NO**
+
+**Rationale:**
+1. Zero performance improvement on production hot path
+2. Module-level proxies are currently dead code for production
+3. Bootstrap sequencing forces post-creation init (higher coupling)
+4. Does not eliminate proxy complexity, just relocates it
+5. Caching (Approach A) provides better cost/benefit ratio
+6. Static resolution (Approach C/D) provides better architectural clarity
+
+**If chosen despite recommendations:**
+1. Explicitly document when initialize_policy_constants() must be called
+2. Add test coverage for lazy-init in concurrent scenarios
+3. Ensure fail-closed behavior is preserved for proxies during migration
+4. Consider replacing actual hot-path callers (task_catalog_assembly) first
+
+---
+
+## Conclusion
+DI-based initialization is feasible but offers no production performance benefit
+(proxies are dead code) and introduces initialization sequencing coupling.
+Module-level proxies were intentionally designed to fail-closed, suggesting
+the problem is not their existence but their use on non-existent production paths.
+Recommend Approach C (static resolution) or focus on Approach A (caching) for
+the ACTUAL hot-path callers.
+
+**One-sentence summary**: DI-based resolution eliminates zero overhead
+since module proxies are dead code on the production hot path; real optimization
+must target the require_prepared_policy() calls that task_catalog_assembly uses.
+
+---
+
+# Artifact Properties
+artifact_path: "docs/plan/mutl3y-review-20260507-godmode/mutl3y-artifacts/phase3-swarm/approach-b-di-based.yaml"
+feasibility: "medium"
+recommended_for_wave_2: "no"
+estimated_loc_change: 25
+risk_level: "medium"
+timeline_estimate: "6-8 hours (bootstrap coupling investigation + test adaptation)"
+bootstrap_requirement: "yes"
+production_hot_path_benefit: "zero"
+pros:
+  - DIContainer already has _cache and threading infrastructure
+  - post-replace-scan-options init timing is clear (one call site)
+  - Preserves existing proxy design contract (fail-closed)
+  - Easier to debug than @functools.lru_cache
+  - Per-scan isolation (cache doesn't leak across scans)
+cons:
+  - Module-level proxies are DEAD CODE on production path (zero benefit)
+  - Requires explicit init call (bootstrap coupling)
+  - Does NOT eliminate proxy pattern, just caches it
+  - Tests must change to accommodate lazy init semantics
+  - Actual hot-path callers (task_catalog_assembly) still use require_prepared_policy
+  - Post-creation init adds initialization sequencing risk
+  - Would need explicit cache invalidation if policy bundle ever changes
+risks:
+  - Init-sequencing bug if initialize_policy_constants not called
+  - Concurrent test mocking might conflict with DIContainer cache
+  - Changes to bootstrap flow could break lazy-init invariant
+  - Does not address that proxies are intentionally dead code
+architectural_implications:
+  - Adds policy-resolution responsibility to DIContainer
+  - Makes bootstrap sequencing more explicit but also more coupled
+  - Still maintains runtime dynamic resolution (not static)
+  - Does not eliminate proxy complexity
+dead_code_finding: "Module-level proxies (TASK_INCLUDE_KEYS, etc.) are ONLY used in unit tests with prepared policy setup. Production code uses require_prepared_policy(di, ...) directly. Optimizing proxies provides ZERO production benefit."
+actual_hot_path_optimization: "To improve production performance, optimize require_prepared_policy() calls in task_catalog_assembly.py and other real callers, NOT the module-level proxy pattern."

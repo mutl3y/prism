@@ -1,0 +1,232 @@
+---
+plan_id: mutl3y-review-20260507-g78
+scout_name: Scout-Graph
+focus_axis: error_handling
+scan_date: "2026-05-07"
+scope: src/prism
+target_lane: Graph
+
+findings_summary:
+  total: 8
+  critical: 2
+  high: 3
+  medium: 2
+  low: 1
+
+# Critical findings - exception loss or silent failures that break observability
+findings:
+  - id: EH-G78-001
+    severity: CRITICAL
+    category: exception_loss
+    title: "Exception object returned instead of raised in variable payload loader"
+    location: src/prism/scanner_extract/discovery.py:274-281
+    description: |
+      The _load_variable_payload() function catches all exceptions and returns them
+      as objects instead of raising them. While the caller checks isinstance(data, Exception)
+      and handles it with conditional re-raise, this pattern breaks exception type
+      propagation and stack traces. The exception object is passed through a parallel
+      map operation, losing its original execution context.
+    code_snippet: |
+      def _load_variable_payload(path: Path) -> object:
+          try:
+              return load_yaml_file(path, di=di)
+          except Exception as exc:
+              return exc  # BUG: returns exception instead of raising
+    impact: |
+      - Stack trace is lost in the exception object
+      - Exception type information obscured when passed through collections
+      - Error context from async/parallel execution path is stripped
+      - Callers must manually check isinstance() to recover the error
+    recommendation: |
+      Re-raise the exception with original context, or use a Result type wrapper.
+      Do not return exception objects as data values.
+
+  - id: EH-G78-002
+    severity: CRITICAL
+    category: silent_exception_loss
+    title: "EventBus listener exceptions silently suppressed in non-strict mode"
+    location: src/prism/scanner_core/events.py:87-102
+    description: |
+      The EventBus.emit() method catches all exceptions from listeners and only logs them.
+      When strict=False (the default), listener exceptions are logged but never propagated,
+      causing silent observer failures. This violates the observable telemetry contract:
+      "observability must not change production semantics", but here observability changes
+      are silently lost.
+    code_snippet: |
+      for listener in listeners_snapshot:
+          try:
+              listener(event)
+          except Exception as exc:
+              logger.error(...)
+              if self._strict:
+                  raise  # Only raised in strict mode; silently swallowed otherwise
+    impact: |
+      - Listener failures are never surfaced to the caller
+      - Phase events may not be emitted correctly to progress reporters
+      - Telemetry/observability side effects fail silently
+      - Integration tests relying on event emission may miss failures
+    recommendation: |
+      Emit a warning or use a callback pattern to allow callers to decide on failure handling.
+      Document that listener exceptions are swallowed unless strict=True.
+
+  - id: EH-G78-003
+    severity: HIGH
+    category: error_propagation
+    title: "Unregister default listener silently ignores missing listener"
+    location: src/prism/scanner_core/events.py:172-175
+    description: |
+      The unregister_default_listener() function catches ValueError when removing
+      a listener and returns silently. No error is raised or logged, so callers
+      cannot detect if they attempted to unregister a non-existent listener.
+    code_snippet: |
+      def unregister_default_listener(listener: EventListener) -> None:
+          listeners = list(get_default_listeners())
+          try:
+              listeners.remove(listener)
+          except ValueError:
+              return  # Silent failure: caller doesn't know listener wasn't registered
+          _DEFAULT_LISTENERS.set(tuple(listeners))
+    impact: |
+      - Unregistering a non-existent listener produces no diagnostic
+      - May mask caller bugs that reference wrong listener objects
+      - Inconsistent with subscribe(), which validates callable type
+    recommendation: |
+      Either (1) document this as idempotent no-op behavior, (2) raise an error,
+      or (3) return a bool indicating success/failure. Currently ambiguous.
+
+  - id: EH-G78-004
+    severity: HIGH
+    category: error_context_loss
+    title: "Orchestrator signature validation swallows inspection errors"
+    location: src/prism/scanner_kernel/orchestrator.py:100-115, 142-157
+    description: |
+      ProcessScanPipelinePlugin and OrchestrateScanPayloadPlugin signature validation
+      catch ValueError and TypeError during inspect.signature() calls, then log only
+      a warning and "proceed with runtime execution". This defers the error to runtime
+      and loses the inspection context. If signature mismatch occurs, the error won't
+      be caught until plugin execution, not plugin registration.
+    code_snippet: |
+      except (ValueError, TypeError) as e:
+          if isinstance(e, TypeError) and "missing required" in str(e):
+              raise
+          logger.warning(
+              "Failed to inspect process_scan_pipeline signature: %s. Proceeding with runtime execution.",
+              e,
+          )  # BUG: swallows inspection error, defers to runtime
+    impact: |
+      - Plugin signature mismatches discovered at runtime instead of registration
+      - Error context lost when inspection failure is logged
+      - "Proceeding with runtime execution" may fail harder later
+      - Integration tests may not catch plugin registration issues
+    recommendation: |
+      Fail early with the inspection error. If deferring to runtime is intentional,
+      document it and add explicit runtime signature validation.
+
+  - id: EH-G78-005
+    severity: HIGH
+    category: call_chain_error_loss
+    title: "Kernel plugin runner logs phase failure but doesn't stop execution"
+    location: src/prism/scanner_kernel/kernel_plugin_runner.py:150-170
+    description: |
+      The kernel_plugin_runner.py phase handler catches exceptions, logs the error,
+      and then appends to response["errors"] and response["phase_results"]. However,
+      it's unclear from this snippet whether execution continues to the next phase
+      or if the error is re-raised. The log message says "FAILED" but control flow
+      is ambiguous.
+    code_snippet: |
+      except Exception as exc:
+          logger.error("Phase %s: FAILED with exception: %s", phase, exc)
+          error_envelope: KernelPhaseFailure = {
+              "code": "KERNEL_PLUGIN_PHASE_FAILED",
+              "message": str(exc),
+              "phase": phase,
+              "recoverable": not fail_fast,
+          }
+          _response_list(response, "errors").append(error_envelope)
+          # ... unclear if execution continues to next phase
+    impact: |
+      - Error visibility is logged but caller must inspect response structure
+      - No exception re-raised to outer handlers
+      - Phase dependencies may not be enforced correctly
+      - fail_fast flag behavior needs explicit documentation
+    recommendation: |
+      After logging, either raise the exception or return a Result tuple.
+      Document whether errors are recoverable or fatal.
+
+  - id: EH-G78-006
+    severity: MEDIUM
+    category: silent_fallback
+    title: "Plugin registry constructor validation catches broad TypeError"
+    location: src/prism/scanner_plugins/registry.py:158-162
+    description: |
+      The _validate_plugin_slot_signature function catches TypeError and ValueError
+      when calling inspect.signature(), then returns silently. This allows plugins
+      with uninspectable signatures to be admitted to the registry without validation.
+      The error context is lost.
+    code_snippet: |
+      try:
+          signature = inspect.signature(plugin_class)
+      except TypeError, ValueError:  # Also: syntax error (comma instead of 'as')
+          return  # Silent failure
+    impact: |
+      - Plugin signature validation is skipped silently
+      - DI container may fail later when attempting to instantiate
+      - Deferred validation makes error diagnosis harder
+      - Syntax error in exception handling (comma instead of 'as')
+
+  - id: EH-G78-007
+    severity: MEDIUM
+    category: error_context_loss_transformation
+    title: "Strict-mode conditional error suppression in discovery layer"
+    location: src/prism/scanner_extract/discovery.py:74-320 (multiple locations)
+    description: |
+      The discover_* functions accept a strict parameter that gates whether to raise
+      exceptions or silently continue on error. The pattern is correct in structure,
+      but the non-strict path loses all error context - exceptions are not logged when
+      strict=False, only silently skipped.
+    code_snippet: |
+      if strict:
+          raise RuntimeError(f"Error: {path}: {exc}") from exc
+      logger.warning("Failed to load variable file %s: %s (type=%s, non-strict mode: skipping file)",
+                     path, exc, type(exc).__name__)
+      # continues silently
+    impact: |
+      - In production (strict=False), errors are logged but not available to callers
+      - Call chains cannot determine which files were skipped due to errors
+      - Error recovery decisions are made silently by the framework
+    recommendation: |
+      Return a Result type or status object indicating which files were skipped due to errors.
+
+  - id: EH-G78-008
+    severity: LOW
+    category: exception_handler_side_effect
+    title: "Fallback plugin construction error handling defers context"
+    location: src/prism/scanner_plugins/defaults.py:390-410
+    description: |
+      When plugin construction fails, _construct_registry_plugin catches the exception
+      and delegates to _fallback_or_raise_plugin_construction_error. This is a proper
+      error transformation, but the strict_mode flag gates whether the error is raised
+      or a fallback plugin is returned. The error context is passed correctly, but
+      callers relying on exceptions must check if strict_mode=True.
+    impact: |
+      - Error recovery is implicit based on strict_mode flag
+      - May hide plugin construction issues in non-strict mode
+      - Callers must understand strict_mode semantics
+    recommendation: |
+      Document the strict_mode contract clearly. Consider explicit result types
+      instead of mode flags.
+
+summary: |
+  Scout-Graph Phase 0 scan identified 8 error-handling issues across the src/prism codebase,
+  with 2 critical findings related to exception loss and silent listener failures.
+
+  Key patterns detected:
+  - Exception objects returned as data values (discovery.py)
+  - Silent exception suppression in event systems (events.py)
+  - Deferred validation with swallowed context (orchestrator.py)
+  - Error logging without propagation (kernel_plugin_runner.py)
+  - Strict-mode gating of error handling (discovery.py, defaults.py)
+
+  Recommended next phase: Focus on EH-G78-001 and EH-G78-002 as they represent
+  fundamental error propagation anti-patterns. Consider establishing an error
+  propagation policy that forbids returning exception objects or silent swallowing.

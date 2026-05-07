@@ -7,6 +7,7 @@ from typing import Callable
 
 import yaml
 
+from prism.errors import ERROR_CATEGORY_CONFIG, PrismRuntimeError
 from prism.scanner_config.legacy_retirement import (
     LEGACY_SECTION_CONFIG_FILENAME,
     LEGACY_SECTION_CONFIG_UNSUPPORTED,
@@ -52,25 +53,36 @@ def resolve_role_config_file(
     config_filenames: tuple[str, ...] = SECTION_CONFIG_FILENAMES,
     default_filename: str = SECTION_CONFIG_FILENAME,
 ) -> Path:
-    """Resolve role config path from explicit or auto-discovered location."""
+    """Resolve role config path from explicit or auto-discovered location.
+
+    Raises PrismRuntimeError with layer='config' when legacy config is encountered.
+    """
     if config_path:
         explicit_path = Path(config_path)
         if explicit_path.name == LEGACY_SECTION_CONFIG_FILENAME:
-            raise RuntimeError(
-                format_legacy_retirement_error(
+            raise PrismRuntimeError(
+                code=LEGACY_SECTION_CONFIG_UNSUPPORTED,
+                category=ERROR_CATEGORY_CONFIG,
+                message=format_legacy_retirement_error(
                     LEGACY_SECTION_CONFIG_UNSUPPORTED,
                     LEGACY_SECTION_CONFIG_UNSUPPORTED_MESSAGE,
-                )
+                ),
+                layer="config",
+                recoverable=False,
             )
         return explicit_path
     role_root = Path(role_path)
     legacy_cfg = role_root / LEGACY_SECTION_CONFIG_FILENAME
     if legacy_cfg.is_file():
-        raise RuntimeError(
-            format_legacy_retirement_error(
+        raise PrismRuntimeError(
+            code=LEGACY_SECTION_CONFIG_UNSUPPORTED,
+            category=ERROR_CATEGORY_CONFIG,
+            message=format_legacy_retirement_error(
                 LEGACY_SECTION_CONFIG_UNSUPPORTED,
                 LEGACY_SECTION_CONFIG_UNSUPPORTED_MESSAGE,
-            )
+            ),
+            layer="config",
+            recoverable=False,
         )
     for filename in config_filenames:
         candidate = role_root / filename
@@ -140,8 +152,12 @@ def load_readme_section_config(
         raw = yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
     except yaml.YAMLError as exc:
         if strict:
-            raise RuntimeError(
-                f"{README_SECTION_CONFIG_YAML_INVALID}: {cfg_file}: {exc}"
+            raise PrismRuntimeError(
+                code=README_SECTION_CONFIG_YAML_INVALID,
+                category=ERROR_CATEGORY_CONFIG,
+                message=f"{cfg_file}: {exc}",
+                layer="config",
+                recoverable=False,
             ) from exc
         _record_readme_config_warning(
             warning_collector,
@@ -152,8 +168,12 @@ def load_readme_section_config(
         return None
     except (OSError, UnicodeDecodeError) as exc:
         if strict:
-            raise RuntimeError(
-                f"{README_SECTION_CONFIG_IO_ERROR}: {cfg_file}: {exc}"
+            raise PrismRuntimeError(
+                code=README_SECTION_CONFIG_IO_ERROR,
+                category=ERROR_CATEGORY_CONFIG,
+                message=f"{cfg_file}: {exc}",
+                layer="config",
+                recoverable=False,
             ) from exc
         _record_readme_config_warning(
             warning_collector,

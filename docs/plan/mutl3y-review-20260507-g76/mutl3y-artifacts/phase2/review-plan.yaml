@@ -1,0 +1,88 @@
+plan_id: mutl3y-review-20260507-g76
+phase: 2
+created_by: Tactical Coordinator (GPT-5 mini)
+summary: >-
+  Phase 2 focused review plan for the top prioritized slice. This artifact
+  records the top files, intended named workers, validation surfaces, gate
+  criteria, and the immediate next action to move into Phase 3/4.
+
+top_slice:
+  - rank: 1
+    path: src/prism/scanner_core/di.py
+    reviewers:
+      - Builder-Abstraction
+      - Builder-Ownership
+    validation:
+      unit_tests:
+        - src/prism/tests/test_scanner_context.py
+      gate_criteria:
+        - all existing DI unit tests pass
+        - no hidden global mutable state introduced
+        - cache invalidation behavior covered by tests
+    estimated_effort: medium
+
+  - rank: 2
+    path: src/prism/scanner_plugins/registry.py
+    reviewers:
+      - Builder-Ownership
+      - Builder-Abstraction
+    validation:
+      unit_tests:
+        - src/prism/tests/test_comment_doc_plugin_resolution.py
+        - src/prism/tests/test_g02_thread_safety.py
+      gate_criteria:
+        - plugin registration/deregistration deterministic under concurrent load
+        - API version validation produces clear, testable errors
+    estimated_effort: medium
+
+  - rank: 3
+    path: src/prism/scanner_core/scanner_context.py
+    reviewers:
+      - Builder-Abstraction
+      - Gatekeeper
+    validation:
+      unit_tests:
+        - src/prism/tests/test_scanner_context.py
+      integration_smoke:
+        - small kernel-integration that exercises blocker-fact translation
+      gate_criteria:
+        - scanner_context payload keys stable and documented
+        - blocker-fact translation verified in kernel integration tests
+    estimated_effort: medium
+
+named_workers:
+  - name: Builder-Abstraction
+    responsibility: Review abstraction boundaries, refactor where needed, propose minimal API-preserving changes.
+  - name: Builder-Ownership
+    responsibility: Verify ownership semantics, thread-safety, and runtime wiring; implement targeted fixes.
+  - name: Gatekeeper
+    responsibility: Run unit and integration gating tests, validate gate criteria, and grade readiness for Phase 4.
+  - name: Auditor-Regression
+    responsibility: Run regression smoke suite after changes and verify no broad regressions.
+
+validation_surfaces:
+  - unit_tests: |
+      .venv/bin/python -m pytest -q src/prism/tests/test_scanner_context.py -q
+  - concurrency_smoke: |
+      small harness: a short concurrent registration/deregistration test from
+      src/prism/tests/test_g02_thread_safety.py (run with pytest -q)
+  - kernel_integration_smoke: |
+      run a focused kernel integration scenario that triggers blocker-fact
+      emission (see docs/plan mutly3y Phase 1 notes); keep runtime inputs minimal.
+
+artifacts_expected:
+  - path: docs/plan/mutl3y-review-20260507-g76/mutl3y-artifacts/phase2/review-plan.yaml
+  - path: docs/plan/mutl3y-review-20260507-g76/mutl3y-artifacts/phase2/wave-summary.md
+
+immediate_next_action:
+  recommended: Phase 3 — Implementation micro-swarm (conditional)
+  when: any Phase 2 review finds changes required to meet gate criteria
+  Phase3_shape:
+    - launch: Builder-Abstraction and Builder-Ownership as a disjoint micro-swarm
+    - scope: each worker owns non-overlapping files where possible (enforce disjoint write scopes)
+    - deliverable: short patch proposals and test updates under docs/plan/.../artifacts/phase3/
+  else_next: Phase 4 — Gate verification (if no code changes required, Gatekeeper runs full gate and closes slice)
+
+notes:
+  - keep all review conversations and artifacts under docs/plan/mutl3y-review-20260507-g76/mutl3y-artifacts/
+  - record model usage ledger entry for this dispatch: model=GPT-5 mini, tier=low-cost

@@ -1,0 +1,261 @@
+---
+# Scout-ControlFlow Phase 0 Discovery
+# Plan ID: mutl3y-review-20260507-g78
+# Focus Axis: error_handling
+# Target: src/prism
+# Lane: ControlFlow
+# Generated: 2026-05-07
+
+metadata:
+  scout_name: Scout-ControlFlow
+  plan_id: mutl3y-review-20260507-g78
+  focus_axis: error_handling
+  target_package: src/prism
+  scan_date: 2026-05-07
+  findings_count: 8
+  severity_breakdown:
+    critical: 2
+    high: 3
+    medium: 2
+    low: 1
+
+findings:
+
+  - id: CF-001
+    severity: critical
+    category: silent_failure
+    file: src/prism/scanner_extract/task_catalog_assembly.py
+    line: 79
+    title: Silent OSError suppression without logging
+    description: |
+      Exception handler catches OSError but silently sets empty list without any logging.
+      This masks file system errors and could lead to missed task annotations. When
+      read_text() fails, raw_lines is set to [] with no diagnostic.
+    code_context: |
+      try:
+          raw_lines = task_file.read_text(encoding="utf-8").splitlines()
+      except OSError:
+          raw_lines = []
+    impact: |
+      - File read failures are unobservable
+      - Could silently skip critical task file analysis
+      - No way to distinguish between "file not found" and "permission denied"
+      - May lead to incomplete scan results without error indication
+    recommendation: Add logging and consider making this a non-recoverable error
+
+  - id: CF-002
+    severity: critical
+    category: error_handling_syntax
+    file: src/prism/scanner_extract/variable_extractor.py
+    line: 92
+    title: Python 2 exception handler syntax (comma-separated exceptions)
+    description: |
+      Uses comma-separated exception tuple syntax instead of parentheses.
+      While technically valid in Python 3, this is deprecated Python 2 syntax
+      and creates a tuple of exceptions: (OSError, yaml.YAMLError, ...).
+    code_context: |
+      except OSError, yaml.YAMLError, UnicodeDecodeError, ValueError, RuntimeError:
+          # Seed files are optional user-supplied inputs; silently skip
+          continue
+    impact: |
+      - Non-standard syntax reduces code clarity
+      - Silent `continue` swallows file read errors without logging
+      - Inconsistent with rest of codebase (some handlers use proper parentheses)
+      - Multiple error types caught but none are logged or diagnosed
+    recommendation: |
+      Replace with: except (OSError, yaml.YAMLError, UnicodeDecodeError, ValueError, RuntimeError):
+      Add logging before continue statement
+
+  - id: CF-003
+    severity: high
+    category: silent_failure
+    file: src/prism/scanner_extract/discovery.py
+    line: 280
+    title: Exception returned as data object instead of re-raised
+    description: |
+      Exception is caught and returned as a data payload instead of raising.
+      Later checked with isinstance(data, Exception) for control flow.
+      This uses exceptions for flow control, which is non-idiomatic.
+    code_context: |
+      def _load_variable_payload(path: Path) -> object:
+          try:
+              return load_yaml_file(path, di=di)
+          except Exception as exc:
+              return exc  # Returns exception object as data
+
+      # Later checked:
+      if isinstance(data, Exception):
+          exc = data
+          if strict:
+              raise RuntimeError(...) from exc
+    impact: |
+      - Non-idiomatic use of exceptions for control flow
+      - Confusing contract (object | Exception return type)
+      - Delays exception handling and loses original traceback context
+      - Makes code harder to reason about error paths
+    recommendation: |
+      Consider raising exceptions immediately and handling at call site,
+      or use Result[T, E] pattern with explicit error type
+
+  - id: CF-004
+    severity: high
+    category: silent_failure
+    file: src/prism/scanner_extract/filter_scanner.py
+    line: 186
+    title: Python 2 exception syntax with silent failure
+    description: |
+      Uses comma-separated exception syntax and silently returns empty list
+      when file read fails. No logging of why files were skipped.
+    code_context: |
+      except UnicodeDecodeError, PermissionError, OSError:
+          logger.warning(
+              "scan_file_for_default_filters: file skipped due to error: %s",
+              file_path,
+              exc_info=True,
+          )
+          return []
+    impact: |
+      - Outdated exception handling syntax
+      - Function fails silently (returns []) on legitimate file I/O errors
+      - Caller cannot distinguish between "no matches found" and "error reading file"
+    note: This one DOES have logging (unlike CF-001), but syntax is still non-standard
+
+  - id: CF-005
+    severity: high
+    category: overly_broad_catch
+    file: src/prism/scanner_kernel/orchestrator.py
+    line: 381
+    title: Broad Exception catch without diagnostic context
+    description: |
+      Multiple locations catch generic Exception without distinguishing
+      error types. Makes debugging and error categorization difficult.
+    code_context: |
+      except PrismRuntimeError:
+          raise
+      except Exception as exc:
+          _raise_execution_failure(...)  # Re-raises but loses context
+    impact: |
+      - Cannot distinguish between different failure modes
+      - All unspecified exceptions treated equally
+      - Difficult to implement graceful degradation for different error types
+    note: Appears at lines 381, 484, 530, 576, 646 in same file
+
+  - id: CF-006
+    severity: medium
+    category: silent_failure
+    file: src/prism/scanner_extract/variable_helpers.py
+    line: 64
+    title: OSError silently returns None without logging
+    description: |
+      When searching for pattern in file fails due to I/O error,
+      returns None without any logging. Caller cannot tell if pattern
+      was not found or if file could not be read.
+    code_context: |
+      for line_no, line in enumerate(
+          path.read_text(encoding="utf-8").splitlines(), 1
+      ):
+          if pattern.search(line):
+              return line_no
+      except OSError:
+          return None  # Silent failure
+      return None  # Explicit "not found"
+    impact: |
+      - Two different outcomes (not found vs error) return same value
+      - No diagnostic when file cannot be read
+      - Ambiguous error path
+    recommendation: |
+      Log OSError before returning None, or raise exception to caller
+
+  - id: CF-007
+    severity: medium
+    category: unhandled_path
+    file: src/prism/scanner_io/output.py
+    line: 57
+    title: Python 2 exception syntax in markdown renderer
+    description: |
+      Uses comma-separated exception syntax.
+      Multiple exception types caught but no context about which one failed.
+    code_context: |
+      except ImportError, AttributeError, TypeError, ValueError:
+          html_body = f"<pre>{_html.escape(markdown_content)}</pre>"
+    impact: |
+      - Non-standard syntax
+      - Falls back to plaintext rendering on any of 4 different errors
+      - No way to know what actually failed
+    recommendation: Replace with parentheses and add logging
+
+  - id: CF-008
+    severity: medium
+    category: ambiguous_recovery
+    file: src/prism/scanner_io/loader.py
+    line: 136
+    title: ValueError handler with unclear intent
+    description: |
+      ValueError caught and None returned. Intent is to handle
+      path.relative_to() raising ValueError when path not under role_root,
+      but not logged or documented.
+    code_context: |
+      def _role_relative_candidate_path(path: Path, role_root: Path) -> str | None:
+          try:
+              return path.relative_to(role_root).as_posix()
+          except ValueError:
+              return None  # Path not under role_root - intentional fallback
+    impact: |
+      - Intentional control flow, but not documented
+      - Could mask programming errors (other ValueError sources)
+    recommendation: |
+      Add docstring clarifying that ValueError is expected when
+      path is outside role_root, or catch more specific error
+
+  - id: CF-009
+    severity: low
+    category: silent_failure
+    file: src/prism/cli.py
+    line: 567
+    title: KeyboardInterrupt suppressed without logging
+    description: |
+      User cancellation (Ctrl+C) is caught and silently converted to exit code.
+      No logging or user feedback about interruption.
+    code_context: |
+      except KeyboardInterrupt:
+          return _EXIT_CODE_INTERRUPTED
+    impact: |
+      - User cancellation not logged in audit trail
+      - Silent exit with no "interrupted" message
+      - Could confuse troubleshooting (exit code vs message)
+    note: Probably intentional design, but worth confirming
+
+summary:
+  controlflow_findings_written: 9
+  critical: 2
+  high: 3
+  medium: 2
+  low: 1
+
+  top_findings:
+    - id: CF-001
+      title: Silent OSError suppression in task_catalog_assembly
+      severity: critical
+      action: Add logging and make non-recoverable
+
+    - id: CF-002
+      title: Python 2 exception syntax + silent continue in variable_extractor
+      severity: critical
+      action: Fix syntax and add logging
+
+    - id: CF-003
+      title: Exception used as data in discovery.py parallel loading
+      severity: high
+      action: Refactor to raise immediately or use Result type
+
+  patterns_identified:
+    - Silent exception suppression: 5 findings (CF-001, 003, 006, 007, 009)
+    - Python 2 syntax: 3 findings (CF-002, 004, 007)
+    - Overly broad Exception catches: 1 finding (CF-005)
+    - Ambiguous recovery paths: 2 findings (CF-006, 008)
+
+  next_steps:
+    - Audit all except handlers for logging gaps
+    - Standardize on parentheses syntax across codebase
+    - Consider Result[T,E] pattern for parallel loading in discovery.py
+    - Review each silent failure to determine if logging is needed

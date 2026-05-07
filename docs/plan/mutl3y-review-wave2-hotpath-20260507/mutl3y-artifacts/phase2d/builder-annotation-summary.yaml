@@ -1,0 +1,7 @@
+builder_name: Builder-Hotpath-Annotation
+owned_files:
+  - src/prism/scanner_extract/task_annotation_parsing.py
+artifact_path: docs/plan/mutl3y-review-wave2-hotpath-20260507/mutl3y-artifacts/phase2d/builder-annotation-summary.yaml
+changed_functions_count: 7
+status: PASS
+short_error_excerpt: ''

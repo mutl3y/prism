@@ -1,0 +1,13 @@
+cycle: g75
+phase: P0
+models:
+  GPT-4.1 (copilot):
+    attempts: 4
+    route_failures: 0
+    quality_failures: 1
+    reedit_count: 1
+    rolling_quality_avg: 3.5
+    lane_tags:
+    - discovery
+    status: degraded
+notes: []

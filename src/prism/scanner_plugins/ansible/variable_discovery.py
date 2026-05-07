@@ -7,26 +7,20 @@ import re
 from pathlib import Path
 from typing import Any, NamedTuple, TypeGuard
 
+from prism.scanner_plugins.ansible.constants import JINJA_IDENTIFIER_RE
 from prism.scanner_plugins.ansible.extract_utils import format_inline_yaml
 from prism.scanner_plugins.ansible.extract_utils import find_variable_line_in_yaml
 from prism.scanner_plugins.ansible.extract_utils import infer_variable_type
 from prism.scanner_plugins.ansible.extract_utils import is_sensitive_variable
-from prism.scanner_plugins.ansible.extract_utils import JINJA_IDENTIFIER_RE
 from prism.scanner_data.builders import VariableRowBuilder
 from prism.scanner_data.contracts_request import YamlParseFailure
 from prism.scanner_data.contracts_variables import VariableRow
 from prism.scanner_plugins.ansible.extract_utils import collect_task_files
 from prism.scanner_plugins.ansible.extract_utils import is_path_excluded
 from prism.scanner_plugins.ansible.extract_utils import iter_task_mappings
-from prism.scanner_plugins.ansible.extract_utils import (
-    load_task_yaml_file,
-)
-from prism.scanner_io.loader import map_argument_spec_type as _map_argument_spec_type
+from prism.scanner_plugins.ansible.extract_utils import load_task_yaml_file
 from prism.scanner_plugins.ansible.extract_utils import (
     iter_role_variable_map_candidates as _iter_variable_map_candidates,
-)
-from prism.scanner_plugins.ansible import (
-    variable_extractor as variable_extractor_module,
 )
 
 logger = logging.getLogger(__name__)
@@ -354,6 +348,10 @@ def _read_variable_sources(
             vars_map.update(loaded)
 
         include_vars_keys = _get_task_line_parsing_policy(options).INCLUDE_VARS_KEYS
+        from prism.scanner_plugins.ansible import (
+            variable_extractor as variable_extractor_module,
+        )
+
         for candidate in variable_extractor_module.collect_include_vars_files(
             role_path=str(role_root),
             exclude_paths=exclude_paths,
@@ -638,7 +636,9 @@ class AnsibleVariableDiscoveryPlugin:
 
             spec_type = spec.get("type", "documented")
             default_value = spec.get("default", "")
-            inferred_type = _map_argument_spec_type(spec_type)
+            from prism.scanner_io.loader import map_argument_spec_type
+
+            inferred_type = map_argument_spec_type(spec_type)
             if default_value != "":
                 inferred_type = infer_variable_type(default_value)
 
