@@ -30,6 +30,12 @@ from prism.scanner_plugins.kubernetes.error_codes import (
 from prism.scanner_plugins.kubernetes.readme_renderer import (
     KubernetesReadmeRendererPlugin,
 )
+from prism.scanner_plugins.kubernetes.feature_detection import (
+    KubernetesFeatureDetectionPlugin,
+)
+from prism.scanner_plugins.kubernetes.variable_discovery import (
+    KubernetesVariableDiscoveryPlugin,
+)
 from prism.scanner_data.contracts_request import PreparedPolicyBundle
 from prism.scanner_data.contracts_request import ScanMetadata, ScanOptionsDict
 from prism.scanner_data.contracts_request import TaskAnnotation, TaskMapping
@@ -341,6 +347,8 @@ def build_unsupported_scan_pipeline_outcome() -> dict[str, object]:
 __all__ = [
     "KubernetesReadmeRendererPlugin",
     "KubernetesScanPipelinePlugin",
+    "KubernetesFeatureDetectionPlugin",
+    "KubernetesVariableDiscoveryPlugin",
     "KUBERNETES_RESERVED_TARGET_CLASSIFIER_ENTRY",
     "KUBERNETES_RESERVED_TARGET_PLUGIN_MANIFEST",
     "build_kubernetes_execution_bundle",
