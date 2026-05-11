@@ -18,17 +18,18 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
 
 def _resolve_test_node(filename: str, test_name: str) -> str:
-    search_roots = (
-        Path("src/prism/tests"),
-        Path("src/prism/tests/core"),
-        Path("src/prism/tests/plugins"),
-        Path("src/prism/tests/plugins/ansible"),
-        Path("src/prism/tests/integration"),
+    test_root = PROJECT_ROOT / "src/prism/tests"
+    matches = sorted(
+        path.relative_to(PROJECT_ROOT).as_posix()
+        for path in test_root.rglob(filename)
+        if path.is_file()
     )
-    for root in search_roots:
-        candidate = root / filename
-        if (PROJECT_ROOT / candidate).exists():
-            return f"{candidate.as_posix()}::{test_name}"
+    if len(matches) == 1:
+        return f"{matches[0]}::{test_name}"
+    if len(matches) > 1:
+        raise FileNotFoundError(
+            f"Ambiguous guardrail test file for {filename}: {matches}"
+        )
     raise FileNotFoundError(f"Unable to locate test file for guardrail: {filename}")
 
 
@@ -142,6 +143,46 @@ def test_registry_does_not_enforce_stateless_for_feature_detection_slot() -> Non
     # Should NOT raise.
     reg.register_feature_detection_plugin("ok", _Stateful)  # type: ignore[arg-type]
     assert "ok" in reg.list_feature_detection_plugins()
+
+
+def test_resolve_test_node_finds_nested_moved_plugin_test(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    moved_test = (
+        tmp_path
+        / "src"
+        / "prism"
+        / "tests"
+        / "plugins"
+        / "moved"
+        / "test_demo.py"
+    )
+    moved_test.parent.mkdir(parents=True)
+    moved_test.write_text("def test_ok():\n    pass\n", encoding="utf-8")
+
+    monkeypatch.setattr(f"{__name__}.PROJECT_ROOT", tmp_path)
+
+    assert _resolve_test_node("test_demo.py", "test_ok") == (
+        "src/prism/tests/plugins/moved/test_demo.py::test_ok"
+    )
+
+
+def test_bootstrap_custom_registry_reserves_future_platform_names_without_wiring_plugins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prism import scanner_plugins
+    from prism.scanner_plugins.registry import PluginRegistry
+
+    registry = PluginRegistry()
+    monkeypatch.setattr(scanner_plugins, "discover_entry_point_plugins", lambda **_: [])
+
+    scanner_plugins.bootstrap_default_plugins(registry)
+
+    assert registry.get_default_platform_key() == "ansible"
+    assert registry.is_reserved_unsupported_platform("kubernetes") is True
+    assert registry.is_reserved_unsupported_platform("terraform") is True
+    assert registry.get_scan_pipeline_plugin("kubernetes") is None
+    assert registry.get_scan_pipeline_plugin("terraform") is None
 
 
 def test_warning_prone_scan_pipeline_fixture_cluster_stays_warning_clean() -> None:
