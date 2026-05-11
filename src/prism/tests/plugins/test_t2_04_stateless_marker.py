@@ -185,6 +185,66 @@ def test_bootstrap_custom_registry_reserves_future_platform_names_without_wiring
     assert registry.get_scan_pipeline_plugin("terraform") is None
 
 
+def test_register_platform_plugin_bundle_reserves_unsupported_platform_without_runtime_plugins() -> None:
+    from prism.scanner_plugins.bootstrap import register_platform_plugin_bundle
+    from prism.scanner_plugins.registry import PluginRegistry
+
+    registry = PluginRegistry()
+
+    register_platform_plugin_bundle(
+        registry,
+        platform_key="kubernetes",
+        support_state="unsupported",
+    )
+
+    assert registry.is_reserved_unsupported_platform("kubernetes") is True
+    assert registry.get_scan_pipeline_plugin("kubernetes") is None
+    assert registry.get_variable_discovery_plugin("kubernetes") is None
+    assert registry.get_feature_detection_plugin("kubernetes") is None
+    assert registry.get_default_platform_key() is None
+
+
+def test_register_platform_plugin_bundle_registers_supported_runtime_seams() -> None:
+    from prism.scanner_plugins.bootstrap import register_platform_plugin_bundle
+    from prism.scanner_plugins.registry import PluginRegistry
+
+    registry = PluginRegistry()
+
+    class _PlatformScanPipelinePlugin:
+        PLUGIN_IS_STATELESS = True
+
+        def process_scan_pipeline(self, scan_options, scan_context):
+            return scan_context
+
+    class _PlatformVariableDiscoveryPlugin:
+        def __init__(self, di: object | None = None) -> None:
+            self.di = di
+
+    class _PlatformFeatureDetectionPlugin:
+        def __init__(self, di: object | None = None) -> None:
+            self.di = di
+
+    register_platform_plugin_bundle(
+        registry,
+        platform_key="example",
+        support_state="supported",
+        scan_pipeline_plugin=_PlatformScanPipelinePlugin,
+        variable_discovery_plugin=_PlatformVariableDiscoveryPlugin,
+        feature_detection_plugin=_PlatformFeatureDetectionPlugin,
+    )
+
+    assert registry.is_reserved_unsupported_platform("example") is False
+    assert registry.get_scan_pipeline_plugin("example") is _PlatformScanPipelinePlugin
+    assert (
+        registry.get_variable_discovery_plugin("example")
+        is _PlatformVariableDiscoveryPlugin
+    )
+    assert (
+        registry.get_feature_detection_plugin("example")
+        is _PlatformFeatureDetectionPlugin
+    )
+
+
 def test_warning_prone_scan_pipeline_fixture_cluster_stays_warning_clean() -> None:
     completed = subprocess.run(
         [
