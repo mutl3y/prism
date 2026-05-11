@@ -1,0 +1,41 @@
+status: completed
+tier_selected: BALANCED (1x)
+tier_reason: nested module traversal and metadata extraction changes touch cross-file contracts.
+files_changed:
+  - src/prism/scanner_plugins/terraform/execution_bundle.py
+  - src/prism/scanner_plugins/terraform/feature_detection.py
+  - src/prism/scanner_plugins/terraform/variable_discovery.py
+  - src/prism/tests/integration/test_terraform_execution_metadata.py
+  - src/prism/tests/integration/test_terraform_feature_detection.py
+  - src/prism/tests/integration/test_terraform_variable_discovery.py
+  - src/prism/tests/fixtures/fixtures_terraform_modules.py
+tests:
+  - command: >-
+      pytest -q
+      src/prism/tests/integration/test_terraform_execution_metadata.py
+      src/prism/tests/integration/test_terraform_feature_detection.py
+      src/prism/tests/integration/test_terraform_variable_discovery.py
+    result: pass
+    passed: 21
+    failed: 0
+  - command: >-
+      python3 -m ruff check
+      src/prism/scanner_plugins/terraform/__init__.py
+      src/prism/scanner_plugins/terraform/execution_bundle.py
+      src/prism/scanner_plugins/terraform/feature_detection.py
+      src/prism/scanner_plugins/terraform/variable_discovery.py
+      src/prism/tests/integration/test_terraform_execution_metadata.py
+      src/prism/tests/integration/test_terraform_feature_detection.py
+      src/prism/tests/integration/test_terraform_variable_discovery.py
+      src/prism/tests/fixtures/fixtures_terraform_modules.py
+    result: pass
+capability_limits:
+  - Metadata extraction follows deterministic local module source paths under role_path only; it does not evaluate Terraform expressions or implement a full HCL parser.
+  - Feature detection remains metadata-only and fail-closed for unsupported runtime behavior.
+  - Variable discovery is limited to static variable blocks in the root module and referenced local child modules; it does not resolve computed defaults, remote modules, or input propagation.
+  - Terraform runtime execution remains platform-not-supported, preserving fail-closed behavior while metadata and variable discovery expand.
+next_slice:
+  objective: Extend deterministic metadata to additional safe hints such as backend/workspace signals or deeper local module chains without weakening fail-closed execution gates.
+  candidate_tests:
+    - src/prism/tests/integration/test_terraform_renderer_metadata_output.py
+    - src/prism/tests/integration/test_terraform_prepared_policy_contract.py

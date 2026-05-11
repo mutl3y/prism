@@ -16,7 +16,7 @@ class TerraformVariableDiscoveryPlugin:
 
     Implements the VariableDiscoveryPlugin protocol with stateless,
     contract-valid behavior. Uses deterministic variable block discovery
-    without claiming full Terraform evaluation support.
+    under role_path without claiming full Terraform evaluation support.
     """
 
     PLUGIN_IS_STATELESS: ClassVar[bool] = True
@@ -29,14 +29,14 @@ class TerraformVariableDiscoveryPlugin:
         role_path: str,
         scan_options: ScanOptionsDict,
     ) -> tuple[VariableRow, ...]:
-        """Discover Terraform module variables from root-level variable blocks.
+        """Discover Terraform module variables from deterministic variable blocks.
 
         Args:
             role_path: Path to the Terraform module being scanned
             scan_options: Scan configuration options
 
         Returns:
-            Deterministic VariableRow entries for root-level variable blocks,
+            Deterministic VariableRow entries for Terraform variable blocks,
             or an empty tuple when no Terraform files are available.
         """
         del scan_options

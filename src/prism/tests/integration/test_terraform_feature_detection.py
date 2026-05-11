@@ -10,6 +10,9 @@ from prism.scanner_plugins.terraform.feature_detection import (
     TerraformFeatureDetectionPlugin,
 )
 from prism.scanner_data.contracts_request import ScanOptionsDict
+from prism.tests.fixtures.fixtures_terraform_modules import (
+    build_nested_terraform_module_fixture,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -114,3 +117,24 @@ class TestTerraformFeatureDetectionPlugin:
 
         assert isinstance(result, dict)
         assert result["task_files_scanned"] == 0
+
+    def test_terraform_feature_detection_counts_nested_module_signals(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Verify feature detection includes nested Terraform directories under role_path."""
+        plugin = TerraformFeatureDetectionPlugin()
+        fixture_root = build_nested_terraform_module_fixture(tmp_path)
+
+        result = plugin.detect_features(
+            role_path=str(fixture_root),
+            scan_options={"role_path": str(fixture_root)},
+        )
+
+        assert result["task_files_scanned"] == 6
+        assert result["tasks_scanned"] == 3
+        assert result["recursive_task_includes"] == 2
+        assert result["included_role_calls"] == 2
+        assert result["included_roles"] == "compute, networking"
+        assert result["unique_modules"] == "aws_instance.app, aws_s3_bucket.logs"
+        assert result["external_collections"] == "aws"
