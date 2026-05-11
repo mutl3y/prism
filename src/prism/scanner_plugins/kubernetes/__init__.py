@@ -238,6 +238,13 @@ class KubernetesScanPipelinePlugin:
         context["kubernetes_plugin_enabled"] = True
         if "role_path" in scan_options and "role_path" not in context:
             context["role_path"] = scan_options["role_path"]
+        
+        # Wave 3 enhancement: Populate metadata schema for renderer consumers
+        if "resource_kinds" not in context:
+            context["resource_kinds"] = []
+        if "operational_notes" not in context:
+            context["operational_notes"] = []
+        
         return cast(ScanPipelinePreflightContext, context)
 
     def orchestrate_scan_payload(

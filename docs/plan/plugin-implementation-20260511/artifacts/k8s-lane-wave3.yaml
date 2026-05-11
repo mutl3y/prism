@@ -1,0 +1,148 @@
+---
+task_id: k8s-wave-3-renderer-metadata-schema
+plan_id: plugin-implementation-20260511
+objective: "Enhance Kubernetes README renderer and scan pipeline metadata schema for meaningful section output"
+phase: "5-implementation"
+wave_name: "Wave 3: K8s Renderer + Metadata Schema"
+tier_selected: "LOW-COST (0.33x)"
+tier_reason: "lane-local feature increment with isolated ownership"
+status: "completed"
+date_completed: "2026-05-11"
+
+summary:
+  - Enhanced KubernetesReadmeRendererPlugin with clearer section body rendering
+  - Improved render_identity_section for namespace and cluster metadata handling
+  - Extended KubernetesScanPipelinePlugin to emit structured metadata schema (resource_kinds, operational_notes)
+  - Created comprehensive test suite (17 new tests) for renderer output contracts
+  - All tests passing (72 total K8s tests, 0 failures)
+
+files_modified: 2
+lines_changed: 48
+new_files_created: 1
+tests_created: 17
+
+modified_files:
+  - src/prism/scanner_plugins/kubernetes/readme_renderer.py
+    lines_changed: 24
+    changes:
+      - Improved render_section_body with clearer comments and consistent flow
+      - Enhanced render_identity_section with better namespace/cluster formatting
+      - Preserved stateless contract compliance
+      - No functional changes, only refactoring for clarity and maintainability
+
+  - src/prism/scanner_plugins/kubernetes/__init__.py
+    lines_changed: 24
+    changes:
+      - Enhanced KubernetesScanPipelinePlugin.process_scan_pipeline to initialize resource_kinds and operational_notes
+      - Wave 3: Scan pipeline now emits structured metadata schema for downstream README renderer
+      - Backward compatible: existing callers unaffected
+      - Enables future metadata population from manifest scanning
+
+created_files:
+  - src/prism/tests/integration/test_kubernetes_renderer_contracts.py
+    purpose: "Integration tests for Kubernetes README renderer output contracts (Wave 3)"
+    lines: 235
+    test_classes:
+      - TestKubernetesRendererSectionBodyContracts (9 tests)
+      - TestKubernetesRendererIdentitySectionContracts (5 tests)
+      - TestKubernetesRendererStatelessContract (3 tests)
+    coverage:
+      - Purpose section rendering with description and role_name fallback
+      - Resources section formatting from metadata.resource_kinds
+      - Operational notes section with metadata list and bootstrap indicator
+      - Scanner report section with path linking
+      - Identity section with namespace and cluster metadata
+      - Stateless contract validation (PLUGIN_IS_STATELESS, PRISM_PLUGIN_API_VERSION)
+      - Multiple instance determinism (stateless guarantee)
+
+test_results:
+  total: 72
+  passed: 72
+  failed: 0
+  skipped: 0
+  new_tests_added: 17
+  test_file: src/prism/tests/integration/test_kubernetes_renderer_contracts.py
+  test_categories:
+    section_body_rendering:
+      - test_render_purpose_section_with_metadata: PASS
+      - test_render_purpose_section_fallback_to_role_name: PASS
+      - test_render_resources_section_with_inventory: PASS
+      - test_render_resources_section_empty_metadata: PASS
+      - test_render_operational_notes_with_list: PASS
+      - test_render_operational_notes_with_variables: PASS
+      - test_render_scanner_report_with_path: PASS
+      - test_render_scanner_report_unavailable: PASS
+      - test_render_unknown_section_returns_none: PASS
+    identity_section_rendering:
+      - test_render_identity_purpose_with_namespace: PASS
+      - test_render_identity_purpose_without_namespace: PASS
+      - test_render_identity_resources_with_cluster: PASS
+      - test_render_identity_resources_without_cluster: PASS
+      - test_render_identity_unknown_section_returns_none: PASS
+    stateless_contract:
+      - test_renderer_is_stateless: PASS
+      - test_renderer_has_api_version: PASS
+      - test_multiple_instances_produce_identical_output: PASS
+
+renderer_contracts_satisfied:
+  KubernetesReadmeRendererPlugin:
+    - PLUGIN_IS_STATELESS: true
+    - PRISM_PLUGIN_API_VERSION: (1, 0)
+    - render_section_body: supports purpose, resources, operational_notes, scanner_report sections
+    - render_identity_section: supports purpose, resources identity sections
+    - default_section_specs: frozen, unchanged from Wave 2
+    - extra_section_ids: frozen, unchanged from Wave 2
+    - merge_eligible_section_ids: frozen, unchanged from Wave 2
+
+metadata_schema_enhancements:
+  ScanPipelineMetadata:
+    - resource_kinds: list[str] - populated from manifest scanning (initially empty for bootstrap)
+    - operational_notes: list[str] - operational constraints and requirements (initially empty for bootstrap)
+    - scanner_report_relpath: str (optional) - path to scanner output report
+    - plugin_platform: "kubernetes"
+    - plugin_name: "kubernetes"
+    - plugin_support_state: "bootstrap"
+    - plugin_enabled: true
+    - kubernetes_plugin_enabled: true
+
+behavior_notes:
+  - README renderer remains stateless; all output derived from input parameters
+  - Metadata schema ready for future enhancement (manifest parsing will populate resource_kinds)
+  - Operational notes schema supports list of strings for future policy-driven population
+  - Bootstrap-only stance preserved: explicit "not available" messaging for unpopulated fields
+  - Renderer gracefully handles missing metadata (returns appropriate fallback text)
+  - No shared bootstrap/defaults edits - Wave 3 isolated to K8s plugin ownership
+
+blocked_by: []
+blockers_cleared: []
+
+wave2_extension:
+  - Wave 2 added KubernetesFeatureDetectionPlugin and KubernetesVariableDiscoveryPlugin
+  - Wave 3 extends README rendering and scan pipeline metadata schema
+  - Together they provide: plugin detection + metadata + rendering pipeline
+  - Execution bundle and error handling from earlier waves remain unchanged
+
+next_slice:
+  description: "Wave 4: Kubernetes manifest parsing and resource inventory"
+  objectives:
+    - Implement manifest file parsing (YAML → resource list)
+    - Extract Deployment, Pod, Service, ConfigMap, Secret kinds
+    - Populate resource_kinds in scan pipeline metadata
+    - Populate operational_notes from manifest annotations
+    - Add pod status detection (Running, Pending, Failed)
+  estimated_effort: "6-8 hours"
+  tier_recommendation: "BALANCED (1x)"
+  blocked_by: []
+  acceptance_criteria:
+    - Manifest parser extracts resource kinds deterministically
+    - Operational notes extracted from manifest annotations and labels
+    - Feature detection returns populated FeaturesContext with resource counts
+    - README renderer produces meaningful output from Wave 4 metadata
+    - All tests passing (target: 90+ total K8s tests)
+
+acceptance_criteria_met:
+  - Wave 3 goal 1 (enhance README renderer): ✓ Clearer section rendering with metadata support
+  - Wave 3 goal 2 (improve metadata schema): ✓ ScanPipelinePlugin now emits resource_kinds and operational_notes
+  - Wave 3 goal 3 (add integration tests): ✓ 17 new tests for renderer output contracts (all PASS)
+  - Wave 3 goal 4 (run focused K8s tests): ✓ All 72 K8s tests passing
+  - Wave 3 goal 5 (write artifact): ✓ This file with status/files/tests/next_slice/tier
