@@ -1,0 +1,53 @@
+---
+task_id: k8s-wave-4-manifest-metadata
+plan_id: plugin-implementation-20260511
+objective: "Implement deterministic Kubernetes manifest scanning from role_path to populate metadata contracts and feature counters"
+phase: "5-implementation"
+wave_name: "Wave 4: K8s Manifest Metadata"
+status: completed
+date_completed: "2026-05-11"
+tier_selected: "BALANCED (1x)"
+tier_reason: "Wave 4 requires architecture-sensitive manifest parsing and cross-module metadata contracts."
+
+files_changed:
+  - src/prism/scanner_plugins/kubernetes/__init__.py
+  - src/prism/scanner_plugins/kubernetes/feature_detection.py
+  - src/prism/tests/integration/test_kubernetes_detection_plugins.py
+
+summary:
+  - Added deterministic top-level Kubernetes manifest inventory scanning from role_path.
+  - Populated renderer-consumable metadata.resource_kinds and metadata.operational_notes from manifest content.
+  - Enriched Kubernetes feature detection with manifest-aware counters while preserving existing contract keys.
+
+diff_stat:
+  files_modified: 3
+  insertions: 254
+  deletions: 22
+
+tests:
+  red_phase:
+    - command: pytest -q src/prism/tests/integration/test_kubernetes_detection_plugins.py
+      passed: 9
+      failed: 2
+  green_phase:
+    - command: pytest -q src/prism/tests/integration/test_kubernetes_detection_plugins.py
+      passed: 11
+      failed: 0
+    - command: pytest -q src/prism/tests/integration/test_kubernetes_detection_plugins.py src/prism/tests/integration/test_kubernetes_renderer_contracts.py
+      passed: 29
+      failed: 0
+    - command: pytest -q src/prism/tests/integration/test_kubernetes_detection_plugins.py src/prism/tests/integration/test_kubernetes_renderer_contracts.py src/prism/tests/integration/test_kubernetes_plugin_contracts.py
+      passed: 33
+      failed: 0
+
+capability_limits:
+  - Scans only top-level .yaml/.yml manifest files directly under role_path; nested scenario directories are not traversed in this slice.
+  - Invalid or unreadable manifest files contribute no metadata, preserving conservative fail-closed output rather than guessed values.
+  - Execution bundle and bootstrap defaults remain unchanged; this slice only enriches metadata and detector outputs.
+
+next_slice:
+  description: "Expand manifest inventory depth and policy-aware parsing without changing shared bootstrap seams"
+  candidates:
+    - Evaluate whether recursive manifest discovery is needed for real-world Kubernetes role layouts.
+    - Promote manifest-derived task catalog assertions into dedicated integration coverage if downstream consumers emerge.
+    - Decide whether variable discovery should surface Kubernetes secret/config references as documented inputs.
