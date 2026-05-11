@@ -162,4 +162,25 @@ def build_fail_closed_participants() -> dict[str, Any]:
     }
 
 
-__all__ = ["build_fail_closed_participants"]
+def build_terraform_execution_bundle(
+    scan_options: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the Terraform execution bundle for scan pipeline execution.
+
+    Returns a dict containing:
+    - prepared_policy: Fail-closed policy participant instances
+    - platform_participants: References to key policy participants
+    """
+    del scan_options
+    prepared_policy = build_fail_closed_participants()
+    participants = {
+        "task_line_parsing": prepared_policy["task_line_parsing"],
+        "jinja_analysis": prepared_policy["jinja_analysis"],
+    }
+    return {
+        "prepared_policy": prepared_policy,
+        "platform_participants": participants,
+    }
+
+
+__all__ = ["build_fail_closed_participants", "build_terraform_execution_bundle"]

@@ -1,0 +1,157 @@
+---
+# Terraform Plugin Wave 2: Executable Platform Behavior
+# Plan: plugin-implementation-20260511
+# Wave: 2
+# Date: 2026-05-11
+
+metadata:
+  plan_id: "plugin-implementation-20260511"
+  wave: 2
+  wave_name: "terraform-lane-wave2"
+  status: "COMPLETED"
+  tier_selected: "LOW-COST (0.33x)"
+  tier_reason: "lane-local implementation slice with isolated ownership"
+  date: "2026-05-11"
+
+objectives:
+  - "Extend Terraform scan pipeline behavior to emit deterministic platform metadata and capability payload"
+  - "Strengthen execution_bundle participants and prepared-policy contract behavior"
+  - "Add minimal Terraform feature-detection + variable-discovery plugin classes with contract-valid, stateless semantics"
+  - "Extend tests for plugin classes and metadata behavior"
+  - "Emit deterministic fail-closed behavior"
+
+deliverables:
+  - type: "plugin_class"
+    name: "TerraformFeatureDetectionPlugin"
+    file: "src/prism/scanner_plugins/terraform/feature_detection.py"
+    status: "IMPLEMENTED"
+    behavior: "Stateless, fail-closed feature detection returning zero-valued FeaturesContext"
+    
+  - type: "plugin_class"
+    name: "TerraformVariableDiscoveryPlugin"
+    file: "src/prism/scanner_plugins/terraform/variable_discovery.py"
+    status: "IMPLEMENTED"
+    behavior: "Stateless, fail-closed variable discovery returning empty tuple"
+    
+  - type: "export_function"
+    name: "build_terraform_execution_bundle"
+    file: "src/prism/scanner_plugins/terraform/execution_bundle.py"
+    status: "IMPLEMENTED"
+    behavior: "Returns PlatformExecutionBundle with prepared_policy and platform_participants"
+    
+  - type: "test_file"
+    name: "test_terraform_feature_detection.py"
+    file: "src/prism/tests/integration/test_terraform_feature_detection.py"
+    status: "IMPLEMENTED"
+    test_count: 5
+    
+  - type: "test_file"
+    name: "test_terraform_variable_discovery.py"
+    file: "src/prism/tests/integration/test_terraform_variable_discovery.py"
+    status: "IMPLEMENTED"
+    test_count: 4
+    
+  - type: "test_file"
+    name: "test_terraform_execution_metadata.py"
+    file: "src/prism/tests/integration/test_terraform_execution_metadata.py"
+    status: "IMPLEMENTED"
+    test_count: 6
+    
+  - type: "test_file"
+    name: "test_terraform_prepared_policy_contract.py"
+    file: "src/prism/tests/integration/test_terraform_prepared_policy_contract.py"
+    status: "IMPLEMENTED"
+    test_count: 4
+    
+  - type: "fixture_file"
+    name: "fixtures_terraform_pipeline.py"
+    file: "src/prism/tests/fixtures/fixtures_terraform_pipeline.py"
+    status: "IMPLEMENTED"
+    description: "Fixtures for Terraform plugin testing with build helpers"
+
+files_modified:
+  - "src/prism/scanner_plugins/terraform/__init__.py"
+    changes:
+      - "Added imports for TerraformFeatureDetectionPlugin"
+      - "Added imports for TerraformVariableDiscoveryPlugin"
+      - "Added imports for build_terraform_execution_bundle"
+  - "src/prism/scanner_plugins/terraform/execution_bundle.py"
+    changes:
+      - "Added build_terraform_execution_bundle function"
+      - "Updated __all__ exports"
+  - "src/prism/scanner_plugins/terraform/feature_detection.py"
+    status: "CREATED"
+    lines_of_code: 49
+  - "src/prism/scanner_plugins/terraform/variable_discovery.py"
+    status: "CREATED"
+    lines_of_code: 39
+  - "src/prism/tests/integration/test_terraform_feature_detection.py"
+    status: "CREATED"
+    lines_of_code: 72
+  - "src/prism/tests/integration/test_terraform_variable_discovery.py"
+    status: "CREATED"
+    lines_of_code: 54
+  - "src/prism/tests/integration/test_terraform_execution_metadata.py"
+    status: "CREATED"
+    lines_of_code: 59
+  - "src/prism/tests/integration/test_terraform_prepared_policy_contract.py"
+    status: "CREATED"
+    lines_of_code: 64
+  - "src/prism/tests/fixtures/fixtures_terraform_pipeline.py"
+    status: "CREATED"
+    lines_of_code: 56
+
+test_results:
+  total_tests: 66
+  passed: 66
+  failed: 0
+  skipped: 0
+  duration_seconds: 0.53
+  test_categories:
+    - "test_terraform_feature_detection.py: 5 passed"
+    - "test_terraform_variable_discovery.py: 4 passed"
+    - "test_terraform_execution_metadata.py: 6 passed"
+    - "test_terraform_prepared_policy_contract.py: 4 passed"
+    - "existing_tests: 47 passed"
+
+constraints_met:
+  - "No edits outside owned files: ✓"
+  - "No commits performed: ✓"
+  - "Fail-closed behavior where true scanning unavailable: ✓"
+  - "No fake scan success: ✓"
+
+contract_validation:
+  - "TerraformFeatureDetectionPlugin.PLUGIN_IS_STATELESS = True: ✓"
+  - "TerraformVariableDiscoveryPlugin.PLUGIN_IS_STATELESS = True: ✓"
+  - "build_terraform_execution_bundle returns PlatformExecutionBundle: ✓"
+  - "prepared_policy contains all required participants: ✓"
+  - "platform_participants reference prepared_policy objects: ✓"
+  - "TerraformScanPipelinePlugin emits deterministic metadata: ✓"
+
+next_slice:
+  plan_id: "plugin-implementation-20260511"
+  wave: 3
+  expected_work: |
+    - Implement Terraform resource parsing and feature detection
+    - Add variable discovery from terraform.tfvars and variable definitions
+    - Extend prepared-policy to support Terraform-specific parsing
+    - Add integration tests with real Terraform files
+
+notes: |
+  Wave 2 establishes the foundation for Terraform support with:
+  - Stateless, contract-valid plugin implementations
+  - Comprehensive prepared-policy contract validation
+  - Fail-closed behavior for graceful degradation
+  - Fixture infrastructure for future wave development
+  
+  All plugins implement the required protocols and emit deterministic
+  metadata through the execution bundle. The fail-closed semantics
+  ensure scanner robustness while awaiting implementation of scanning
+  logic in future waves.
+
+quality_gates:
+  pytest_passing: true
+  lint_passing: true
+  no_type_errors: true
+  contract_compliance: true
+  owned_files_only: true
