@@ -184,6 +184,7 @@ def test_di_factory_override_precedence_preserved_for_feature_detection_plugin()
         result = container.factory_feature_detection_plugin()
         assert result.__class__.__name__ == "_CustomPlugin"
 
+
 # --- GF2-W1-T01: _resolve_platform_key selection chain tests ---
 
 

@@ -74,8 +74,10 @@ K8S_ERROR_CATEGORY_MAP: dict[str, str] = {
 }
 
 # Transient (recoverable) error codes
-K8S_TRANSIENT_ERRORS = frozenset({
-    K8S_POD_PENDING,
-    K8S_REPLICAS_NOT_READY,
-    K8S_SERVICE_ENDPOINT_EMPTY,
-})
+K8S_TRANSIENT_ERRORS = frozenset(
+    {
+        K8S_POD_PENDING,
+        K8S_REPLICAS_NOT_READY,
+        K8S_SERVICE_ENDPOINT_EMPTY,
+    }
+)

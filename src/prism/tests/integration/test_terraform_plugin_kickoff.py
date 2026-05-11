@@ -8,7 +8,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, get_type_hints
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 SRC_ROOT = PROJECT_ROOT / "src"
 
@@ -98,10 +97,10 @@ def test_terraform_execution_bundle_returns_fail_closed_contract_bundle() -> Non
     )
 
     task_annotation = prepared_policy["task_annotation_parsing"]
-    assert callable(
-        getattr(task_annotation, "extract_task_annotations_for_file", None)
-    )
-    assert task_annotation.extract_task_annotations_for_file([], include_task_index=True) == (
+    assert callable(getattr(task_annotation, "extract_task_annotations_for_file", None))
+    assert task_annotation.extract_task_annotations_for_file(
+        [], include_task_index=True
+    ) == (
         [],
         {},
     )
@@ -127,23 +126,29 @@ def test_terraform_readme_renderer_plugin_satisfies_minimal_contract() -> None:
     assert plugin.PLUGIN_IS_STATELESS is True
     assert plugin.default_section_specs()
     assert "scanner_report" in plugin.extra_section_ids()
-    assert plugin.render_section_body(
-        "purpose",
-        "terraform-vpc",
-        "Provision a VPC.",
-        {},
-        [],
-        [],
-        {},
-    ) == "Provision a VPC."
-    assert plugin.render_identity_section(
-        "requirements",
-        "terraform-vpc",
-        "Provision a VPC.",
-        [">= 1.6.0"],
-        {},
-        {},
-    ) == "- >= 1.6.0"
+    assert (
+        plugin.render_section_body(
+            "purpose",
+            "terraform-vpc",
+            "Provision a VPC.",
+            {},
+            [],
+            [],
+            {},
+        )
+        == "Provision a VPC."
+    )
+    assert (
+        plugin.render_identity_section(
+            "requirements",
+            "terraform-vpc",
+            "Provision a VPC.",
+            [">= 1.6.0"],
+            {},
+            {},
+        )
+        == "- >= 1.6.0"
+    )
     assert plugin.default_template_path() is None
     assert "scanner-report" in plugin.scanner_report_blurb("reports/scan.md")
 

@@ -166,4 +166,3 @@ def test_api_scan_for_all_filters_importable_and_callable(fs):
     assert callable(api.scan_for_all_filters)
     result = api.scan_for_all_filters("/role")
     assert isinstance(result, list)
-

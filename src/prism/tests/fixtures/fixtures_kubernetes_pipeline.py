@@ -36,5 +36,10 @@ def build_kubernetes_scan_options() -> dict[str, Any]:
 def build_kubernetes_scan_context() -> dict[str, Any]:
     return {
         "features": {"kubernetes_manifest": True},
-        "role_notes": {"warnings": [], "deprecations": [], "notes": [], "additionals": []},
+        "role_notes": {
+            "warnings": [],
+            "deprecations": [],
+            "notes": [],
+            "additionals": [],
+        },
     }

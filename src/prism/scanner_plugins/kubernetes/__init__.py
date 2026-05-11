@@ -246,7 +246,7 @@ class KubernetesScanPipelinePlugin:
             context["resource_kinds"] = list(inventory.resource_kinds)
         if "operational_notes" not in context:
             context["operational_notes"] = list(inventory.operational_notes)
-        
+
         return cast(ScanPipelinePreflightContext, context)
 
     def orchestrate_scan_payload(
@@ -304,11 +304,11 @@ def build_kubernetes_execution_bundle(
             and scan_options.get("comment_doc_marker_prefix")
             else "prism"
         ),
-        "ignore_unresolved_internal_underscore_references": bool(
-            scan_options.get("ignore_unresolved_internal_underscore_references")
-        )
-        if isinstance(scan_options, dict)
-        else False,
+        "ignore_unresolved_internal_underscore_references": (
+            bool(scan_options.get("ignore_unresolved_internal_underscore_references"))
+            if isinstance(scan_options, dict)
+            else False
+        ),
     }
     return PlatformExecutionBundle(
         prepared_policy=prepared_policy,

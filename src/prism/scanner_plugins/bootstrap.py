@@ -160,7 +160,9 @@ def register_platform_plugin_bundle(
 
     if readme_renderer_plugin is not None:
         if platform_key not in registry.list_readme_renderer_plugins():
-            registry.register_readme_renderer_plugin(platform_key, readme_renderer_plugin)
+            registry.register_readme_renderer_plugin(
+                platform_key, readme_renderer_plugin
+            )
 
     if scan_pipeline_plugin is not None:
         for name in runtime_names:
@@ -170,7 +172,9 @@ def register_platform_plugin_bundle(
     if variable_discovery_plugin is not None:
         for name in runtime_names:
             if name not in registry.list_variable_discovery_plugins():
-                registry.register_variable_discovery_plugin(name, variable_discovery_plugin)
+                registry.register_variable_discovery_plugin(
+                    name, variable_discovery_plugin
+                )
     elif variable_discovery_loader is not None:
         module_path, class_name = variable_discovery_loader
         for name in runtime_names:
@@ -184,7 +188,9 @@ def register_platform_plugin_bundle(
     if feature_detection_plugin is not None:
         for name in runtime_names:
             if name not in registry.list_feature_detection_plugins():
-                registry.register_feature_detection_plugin(name, feature_detection_plugin)
+                registry.register_feature_detection_plugin(
+                    name, feature_detection_plugin
+                )
     elif feature_detection_loader is not None:
         module_path, class_name = feature_detection_loader
         for name in runtime_names:

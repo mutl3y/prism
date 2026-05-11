@@ -148,7 +148,9 @@ def test_identity_license_propagates_from_galaxy() -> None:
 
 
 def test_identity_author_propagates_from_galaxy() -> None:
-    result = _PLUGIN.render_identity_section("author_information", "r", "d", [], {"author": "Alice"}, {})
+    result = _PLUGIN.render_identity_section(
+        "author_information", "r", "d", [], {"author": "Alice"}, {}
+    )
     assert result is not None
     assert "Alice" in result
 

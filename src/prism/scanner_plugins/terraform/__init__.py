@@ -37,8 +37,12 @@ from prism.scanner_plugins.terraform.execution_bundle import (
     build_fail_closed_participants,
     extract_terraform_module_metadata,
 )
-from prism.scanner_plugins.terraform.feature_detection import TerraformFeatureDetectionPlugin
-from prism.scanner_plugins.terraform.variable_discovery import TerraformVariableDiscoveryPlugin
+from prism.scanner_plugins.terraform.feature_detection import (
+    TerraformFeatureDetectionPlugin,
+)
+from prism.scanner_plugins.terraform.variable_discovery import (
+    TerraformVariableDiscoveryPlugin,
+)
 from prism.scanner_plugins.terraform.readme_renderer import (
     TerraformReadmeRendererPlugin,
 )
@@ -77,9 +81,10 @@ class TerraformScanPipelinePlugin:
         context = cast(
             ScanPipelinePreflightContext,
             {
-            key: value
-            for key, value in copy.copy(scan_context).items()
-            if key in {"plugin_name", "plugin_platform", "plugin_enabled", "role_path"}
+                key: value
+                for key, value in copy.copy(scan_context).items()
+                if key
+                in {"plugin_name", "plugin_platform", "plugin_enabled", "role_path"}
             },
         )
         context.setdefault("plugin_platform", "terraform")
@@ -144,7 +149,9 @@ def build_reserved_target_classifier_entry() -> dict[str, object]:
         "target_type": TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["target_type"],
         "plugin_id": TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["plugin_id"],
         "support_state": TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["support_state"],
-        "matchers": list(cast(list[Any], TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["matchers"])),
+        "matchers": list(
+            cast(list[Any], TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["matchers"])
+        ),
     }
 
 

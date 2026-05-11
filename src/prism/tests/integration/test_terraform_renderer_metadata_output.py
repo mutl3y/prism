@@ -6,7 +6,6 @@ import pytest
 
 from prism.scanner_plugins.terraform import TerraformReadmeRendererPlugin
 
-
 pytestmark = pytest.mark.terraform
 
 
@@ -123,9 +122,7 @@ class TestTerraformRendererMetadataBackedSections:
         """RED: scanner_report section should render when metadata has relpath."""
         plugin = TerraformReadmeRendererPlugin()
 
-        metadata = {
-            "scanner_report_relpath": "docs/terraform-scan-report.md"
-        }
+        metadata = {"scanner_report_relpath": "docs/terraform-scan-report.md"}
 
         result = plugin.render_section_body(
             section_id="scanner_report",
@@ -159,7 +156,11 @@ class TestTerraformRendererMetadataBackedSections:
 
         # Then output should be sensible fallback
         assert result is not None
-        assert "No" in result or "resources" in result.lower() or "detected" in result.lower()
+        assert (
+            "No" in result
+            or "resources" in result.lower()
+            or "detected" in result.lower()
+        )
 
     def test_identity_section_with_workspace_metadata(self) -> None:
         """RED: identity section should render workspace from metadata."""
@@ -181,7 +182,7 @@ class TestTerraformRendererMetadataBackedSections:
 
         # Then output should include workspace information
         assert result is not None
-        assert ("production" in result.lower() or "production-infra" in result)
+        assert "production" in result.lower() or "production-infra" in result
 
     def test_extra_section_ids_includes_operational_constraints(self) -> None:
         """RED: plugin should advertise operational_constraints as extra section."""

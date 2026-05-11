@@ -67,7 +67,9 @@ TF_ERROR_CATEGORY_MAP: dict[str, str] = {
 }
 
 # Transient (recoverable) error codes
-TF_TRANSIENT_ERRORS = frozenset({
-    TF_LOCK_FAILED,
-    TF_BACKEND_FAILED,
-})
+TF_TRANSIENT_ERRORS = frozenset(
+    {
+        TF_LOCK_FAILED,
+        TF_BACKEND_FAILED,
+    }
+)

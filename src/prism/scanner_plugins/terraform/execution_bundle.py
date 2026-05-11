@@ -12,7 +12,6 @@ from prism.scanner_data.contracts_request import TaskAnnotation, TaskMapping
 from prism.scanner_data.contracts_request import YamlParseFailure
 from prism.scanner_data.contracts_variables import VariableRow
 
-
 _RESOURCE_BLOCK_RE = re.compile(
     r'^\s*resource\s+"([^"]+)"\s+"([^"]+)"\s*\{',
     re.MULTILINE,
@@ -25,18 +24,18 @@ _MODULE_BLOCK_RE = re.compile(r'^\s*module\s+"([^"]+)"\s*\{', re.MULTILINE)
 _LOCAL_MODULE_SOURCE_RE = re.compile(r'^\s*source\s*=\s*"([^"]+)"', re.MULTILINE)
 _VARIABLE_BLOCK_RE = re.compile(r'^\s*variable\s+"([^"]+)"\s*\{', re.MULTILINE)
 _REQUIRED_PROVIDERS_BLOCK_RE = re.compile(
-    r'^\s*required_providers\s*\{',
+    r"^\s*required_providers\s*\{",
     re.MULTILINE,
 )
 _REQUIRED_VERSION_RE = re.compile(r'^\s*required_version\s*=\s*"([^"]+)"', re.MULTILINE)
-_PROVIDER_ENTRY_RE = re.compile(r'^\s*([A-Za-z0-9_-]+)\s*=\s*\{', re.MULTILINE)
+_PROVIDER_ENTRY_RE = re.compile(r"^\s*([A-Za-z0-9_-]+)\s*=\s*\{", re.MULTILINE)
 _PROVIDER_SOURCE_RE = re.compile(r'^\s*source\s*=\s*"([^"]+)"', re.MULTILINE)
 _PROVIDER_VERSION_RE = re.compile(r'^\s*version\s*=\s*"([^"]+)"', re.MULTILINE)
 _BACKEND_BLOCK_RE = re.compile(r'^\s*backend\s+"([^"]+)"\s*\{', re.MULTILINE)
 _DESCRIPTION_RE = re.compile(r'^\s*description\s*=\s*"([^"]*)"', re.MULTILINE)
-_TYPE_RE = re.compile(r'^\s*type\s*=\s*(.+)$', re.MULTILINE)
-_DEFAULT_RE = re.compile(r'^\s*default\s*=\s*(.+)$', re.MULTILINE)
-_SENSITIVE_NAME_RE = re.compile(r'(?:secret|token|password|passwd|key)', re.IGNORECASE)
+_TYPE_RE = re.compile(r"^\s*type\s*=\s*(.+)$", re.MULTILINE)
+_DEFAULT_RE = re.compile(r"^\s*default\s*=\s*(.+)$", re.MULTILINE)
+_SENSITIVE_NAME_RE = re.compile(r"(?:secret|token|password|passwd|key)", re.IGNORECASE)
 
 
 def _extract_braced_block(text: str, open_brace_index: int) -> str:
@@ -138,7 +137,9 @@ def _discover_terraform_files(role_path: str | Path) -> tuple[Path, ...]:
     return tuple(terraform_files)
 
 
-def _module_hints_for_directories(root: Path, terraform_directories: Iterable[Path]) -> list[str]:
+def _module_hints_for_directories(
+    root: Path, terraform_directories: Iterable[Path]
+) -> list[str]:
     nested_directories = sorted(
         {
             _relative_terraform_path(root, terraform_directory)
@@ -146,7 +147,9 @@ def _module_hints_for_directories(root: Path, terraform_directories: Iterable[Pa
             if terraform_directory != root
         }
     )
-    return ["root_module", *nested_directories] if nested_directories else ["root_module"]
+    return (
+        ["root_module", *nested_directories] if nested_directories else ["root_module"]
+    )
 
 
 def _read_text(path: Path) -> str:
@@ -160,10 +163,15 @@ def _normalize_literal(value: str | None) -> str:
     if value is None:
         return ""
     normalized = value.strip().rstrip(",")
-    if len(normalized) >= 2 and normalized[0] == normalized[-1] and normalized[0] in {
-        '"',
-        "'",
-    }:
+    if (
+        len(normalized) >= 2
+        and normalized[0] == normalized[-1]
+        and normalized[0]
+        in {
+            '"',
+            "'",
+        }
+    ):
         return normalized[1:-1]
     return normalized
 
@@ -194,9 +202,7 @@ def _extract_provider_requirements(text: str) -> tuple[list[str], list[str]]:
 
             providers.append(provider_name)
             if source and version:
-                provider_requirements.append(
-                    f"{provider_name} ({source}) {version}"
-                )
+                provider_requirements.append(f"{provider_name} ({source}) {version}")
             elif version:
                 provider_requirements.append(f"{provider_name} {version}")
             elif source:

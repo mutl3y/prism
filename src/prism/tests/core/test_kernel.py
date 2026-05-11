@@ -139,4 +139,3 @@ def test_finalize_reports_payload_presence() -> None:
     without_payload = plugin.finalize(request, KernelResponse())
     assert with_payload["metadata"]["has_payload"] is True
     assert without_payload["metadata"]["has_payload"] is False
-

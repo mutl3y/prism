@@ -25,7 +25,6 @@ from prism.scanner_plugins.terraform.error_codes import (
     TF_VERSION_FAILED,
 )
 
-
 pytestmark = pytest.mark.terraform
 
 
