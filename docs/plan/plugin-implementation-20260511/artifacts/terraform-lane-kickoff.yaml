@@ -1,0 +1,31 @@
+platform: terraform
+status: COMPLETE
+implementation_date: "2026-05-11"
+tier_selected: "BALANCED (1x)"
+tier_reason: "architecture-sensitive builder work for platform plugin seams"
+
+files_changed:
+  - src/prism/scanner_plugins/terraform/__init__.py
+  - src/prism/scanner_plugins/terraform/execution_bundle.py
+  - src/prism/scanner_plugins/terraform/readme_renderer.py
+  - src/prism/tests/integration/test_terraform_plugin_kickoff.py
+
+tests_run:
+  - command: "/raid5/source/test/prism/.venv/bin/pytest -q src/prism/tests/integration/test_terraform_plugin_kickoff.py"
+    result: PASS
+    passed: 5
+    failed: 0
+  - command: "/raid5/source/test/prism/.venv/bin/pytest -q src/prism/tests/integration/test_terraform_*.py"
+    result: PASS
+    passed: 47
+    failed: 0
+
+next_slice: >-
+  Integrate the Terraform scan-pipeline, execution-bundle builder, and README
+  renderer into shared registry/bootstrap wiring after the Terraform lane owns
+  the next cross-cutting seam.
+
+notes:
+  - Terraform now exports a concrete scan-pipeline plugin class from the package.
+  - The execution bundle is fail-closed but satisfies the prepared-policy and platform-participant contracts.
+  - The README renderer is intentionally minimal and contract-valid, without shared wiring changes.
