@@ -6,8 +6,6 @@ and identity sections.
 """
 
 from __future__ import annotations
-
-import pytest
 from typing import Any
 
 from prism.scanner_plugins.kubernetes.readme_renderer import (

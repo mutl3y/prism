@@ -6,8 +6,6 @@ for Kubernetes platform errors.
 
 from __future__ import annotations
 
-import pytest
-
 from prism.scanner_plugins.kubernetes.error_adapter import (
     build_k8s_error_detail,
     classify_k8s_error,

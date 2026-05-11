@@ -10,7 +10,6 @@ from prism.scanner_plugins.terraform import (
     build_terraform_execution_bundle,
 )
 from prism.tests.fixtures.fixtures_terraform_pipeline import (
-    build_terraform_scan_context,
     build_terraform_scan_options,
 )
 

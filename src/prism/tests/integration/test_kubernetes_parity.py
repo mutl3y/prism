@@ -5,8 +5,6 @@ adapter for consistency across platforms.
 """
 
 from __future__ import annotations
-
-import pytest
 from typing import Any
 
 from prism.scanner_plugins.kubernetes.error_adapter import (

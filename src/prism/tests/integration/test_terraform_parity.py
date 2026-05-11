@@ -15,7 +15,6 @@ from prism.scanner_plugins.terraform.error_adapter import (
 from prism.scanner_plugins.terraform.error_codes import (
     TF_ERROR_CATEGORY_MAP,
     TF_ERROR_CODES,
-    TF_TRANSIENT_ERRORS,
 )
 
 

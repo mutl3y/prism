@@ -142,6 +142,7 @@ def _guard_platform_specific_non_strict_fallback(
     selected_platform_key = _resolve_selected_platform_key(di=di, registry=registry)
     if selected_platform_key in (None, fallback_platform_key):
         return
+    assert selected_platform_key is not None
 
     platform_registration_state = "unregistered"
     if registry is not None:

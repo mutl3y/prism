@@ -18,7 +18,6 @@ from prism.scanner_config.legacy_retirement import (
     format_legacy_retirement_error,
 )
 from prism.scanner_config.readme import (
-    load_readme_section_config,
     resolve_role_config_file,
 )
 from prism.scanner_config.marker import load_readme_marker_prefix
@@ -30,7 +29,6 @@ from prism.scanner_config.patterns import (
     load_pattern_config,
     build_policy_context,
 )
-from prism.scanner_config.style import load_section_display_titles
 
 
 class TestSectionConstants:

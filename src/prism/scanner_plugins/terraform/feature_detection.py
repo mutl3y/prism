@@ -49,9 +49,13 @@ class TerraformFeatureDetectionPlugin:
         data_source_names = data_sources if isinstance(data_sources, list) else []
         provider_names = providers if isinstance(providers, list) else []
         included_modules = module_calls if isinstance(module_calls, list) else []
+        terraform_files_scanned = metadata.get("terraform_files_scanned", 0)
+        files_scanned_count = (
+            terraform_files_scanned if isinstance(terraform_files_scanned, int) else 0
+        )
 
         return {
-            "task_files_scanned": int(metadata.get("terraform_files_scanned", 0)),
+            "task_files_scanned": files_scanned_count,
             "tasks_scanned": len(resource_names) + len(data_source_names),
             "recursive_task_includes": len(included_modules),
             "unique_modules": ", ".join(resource_names) if resource_names else "none",

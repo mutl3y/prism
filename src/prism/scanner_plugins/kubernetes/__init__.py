@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import types
 from pathlib import Path
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, Collection, cast
 
 from prism.scanner_plugins.kubernetes.error_adapter import (
     build_k8s_error_detail,
@@ -90,12 +90,12 @@ def _merge_preserving_existing(
 
 
 class _KubernetesTaskLineParsingPolicyStub:
-    TASK_INCLUDE_KEYS = frozenset[str]()
-    ROLE_INCLUDE_KEYS = frozenset[str]()
-    INCLUDE_VARS_KEYS = frozenset[str]()
-    SET_FACT_KEYS = frozenset[str]()
-    TASK_BLOCK_KEYS = frozenset[str]()
-    TASK_META_KEYS = frozenset[str]()
+    TASK_INCLUDE_KEYS: Collection[str] = frozenset()
+    ROLE_INCLUDE_KEYS: Collection[str] = frozenset()
+    INCLUDE_VARS_KEYS: Collection[str] = frozenset()
+    SET_FACT_KEYS: Collection[str] = frozenset()
+    TASK_BLOCK_KEYS: Collection[str] = frozenset()
+    TASK_META_KEYS: Collection[str] = frozenset()
 
     def detect_task_module(self, task: TaskMapping) -> str | None:
         del task
@@ -261,15 +261,19 @@ class KubernetesScanPipelinePlugin:
         metadata = payload.get("metadata")
         base_metadata = copy.deepcopy(metadata) if isinstance(metadata, dict) else {}
 
+        plugin_output: ScanPipelinePreflightContext
         if isinstance(preflight_context, dict):
-            plugin_output = dict(preflight_context)
+            plugin_output = cast(ScanPipelinePreflightContext, dict(preflight_context))
         else:
             plugin_output = self.process_scan_pipeline(
                 scan_options=copy.deepcopy(scan_options),
                 scan_context=cast(ScanMetadata, copy.deepcopy(base_metadata)),
             )
 
-        payload["metadata"] = _merge_preserving_existing(base_metadata, plugin_output)
+        payload["metadata"] = _merge_preserving_existing(
+            base_metadata,
+            cast(dict[str, Any], plugin_output),
+        )
         return payload
 
 
@@ -294,8 +298,9 @@ def build_kubernetes_execution_bundle(
         "variable_extractor": variable_extractor,
         "task_annotation_parsing": task_annotation_parsing,
         "comment_doc_marker_prefix": (
-            scan_options.get("comment_doc_marker_prefix")
+            str(scan_options.get("comment_doc_marker_prefix"))
             if isinstance(scan_options, dict)
+            and isinstance(scan_options.get("comment_doc_marker_prefix"), str)
             and scan_options.get("comment_doc_marker_prefix")
             else "prism"
         ),
