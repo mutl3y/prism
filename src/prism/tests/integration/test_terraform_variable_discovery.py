@@ -9,6 +9,9 @@ import pytest
 from prism.scanner_plugins.terraform.variable_discovery import (
     TerraformVariableDiscoveryPlugin,
 )
+from prism.tests.fixtures.fixtures_terraform_modules import (
+    build_nested_terraform_module_fixture,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -95,3 +98,33 @@ class TestTerraformVariableDiscoveryPlugin:
 
         assert isinstance(result, tuple)
         assert len(result) == 0
+
+    def test_terraform_variable_discovery_includes_nested_module_variables(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Verify variable discovery preserves deterministic root-first relative provenance."""
+        plugin = TerraformVariableDiscoveryPlugin()
+        fixture_root = build_nested_terraform_module_fixture(tmp_path)
+
+        result = plugin.discover(
+            role_path=str(fixture_root),
+            scan_options={"role_path": str(fixture_root)},
+        )
+
+        assert [row["name"] for row in result] == [
+            "root_region",
+            "instance_type",
+            "vpc_cidr",
+        ]
+        assert [row["source"] for row in result] == [
+            "terraform:variables.tf",
+            "terraform:modules/compute/variables.tf",
+            "terraform:modules/networking/variables.tf",
+        ]
+        assert [row["provenance_source_file"] for row in result] == [
+            "variables.tf",
+            "modules/compute/variables.tf",
+            "modules/networking/variables.tf",
+        ]
+        assert [row["provenance_line"] for row in result] == [1, 1, 1]

@@ -14,8 +14,8 @@ class TerraformFeatureDetectionPlugin:
     """Terraform-specific feature detection plugin.
 
     Implements the FeatureDetectionPlugin protocol with stateless,
-    contract-valid behavior. Uses deterministic root-level metadata
-    extraction without claiming full Terraform parser support.
+    contract-valid behavior. Uses deterministic Terraform metadata
+    extraction under role_path without claiming full parser support.
     """
 
     PLUGIN_IS_STATELESS: ClassVar[bool] = True
@@ -28,14 +28,14 @@ class TerraformFeatureDetectionPlugin:
         role_path: str,
         scan_options: ScanOptionsDict,
     ) -> FeaturesContext:
-        """Detect Terraform module features from deterministic root-level signals.
+        """Detect Terraform module features from deterministic Terraform signals.
 
         Args:
             role_path: Path to the Terraform module being scanned
             scan_options: Scan configuration options
 
         Returns:
-            FeaturesContext populated from root-level Terraform metadata when
+            FeaturesContext populated from deterministic Terraform metadata when
             available, otherwise fail-closed zeros.
         """
         del scan_options

@@ -22,6 +22,7 @@ _DATA_BLOCK_RE = re.compile(
     re.MULTILINE,
 )
 _MODULE_BLOCK_RE = re.compile(r'^\s*module\s+"([^"]+)"\s*\{', re.MULTILINE)
+_LOCAL_MODULE_SOURCE_RE = re.compile(r'^\s*source\s*=\s*"([^"]+)"', re.MULTILINE)
 _VARIABLE_BLOCK_RE = re.compile(r'^\s*variable\s+"([^"]+)"\s*\{', re.MULTILINE)
 _REQUIRED_PROVIDERS_BLOCK_RE = re.compile(
     r'^\s*required_providers\s*\{',
@@ -56,6 +57,96 @@ def _top_level_terraform_files(role_path: str | Path) -> tuple[Path, ...]:
     if not root.exists() or not root.is_dir():
         return ()
     return tuple(sorted(path for path in root.glob("*.tf") if path.is_file()))
+
+
+def _relative_terraform_path(root: Path, path: Path) -> str:
+    return path.relative_to(root).as_posix()
+
+
+def _resolve_local_module_directory(
+    *,
+    base_directory: Path,
+    source_value: str,
+    role_root: Path,
+) -> Path | None:
+    normalized_source = _normalize_literal(source_value)
+    if not normalized_source.startswith(("./", "../")):
+        return None
+
+    module_directory = (base_directory / normalized_source).resolve()
+    try:
+        module_directory.relative_to(role_root.resolve())
+    except ValueError:
+        return None
+    if not module_directory.is_dir():
+        return None
+    return module_directory
+
+
+def _discover_terraform_directories(role_path: str | Path) -> tuple[Path, ...]:
+    role_root = Path(role_path)
+    root_files = _top_level_terraform_files(role_root)
+    if not root_files:
+        return ()
+
+    discovered_directories: list[Path] = [role_root]
+    pending_directories: list[Path] = [role_root]
+    visited_directories: set[Path] = set()
+
+    while pending_directories:
+        directory = pending_directories.pop(0)
+        if directory in visited_directories:
+            continue
+        visited_directories.add(directory)
+
+        discovered_children: set[Path] = set()
+        for terraform_file in _top_level_terraform_files(directory):
+            text = _read_text(terraform_file)
+            for module_match in _MODULE_BLOCK_RE.finditer(text):
+                block_body = _extract_braced_block(text, module_match.end() - 1)
+                source_match = _LOCAL_MODULE_SOURCE_RE.search(block_body)
+                if source_match is None:
+                    continue
+                module_directory = _resolve_local_module_directory(
+                    base_directory=directory,
+                    source_value=source_match.group(1),
+                    role_root=role_root,
+                )
+                if module_directory is None:
+                    continue
+                if not _top_level_terraform_files(module_directory):
+                    continue
+                if module_directory in visited_directories:
+                    continue
+                discovered_children.add(module_directory)
+
+        for child_directory in sorted(
+            discovered_children,
+            key=lambda path: _relative_terraform_path(role_root, path),
+        ):
+            if child_directory not in discovered_directories:
+                discovered_directories.append(child_directory)
+            pending_directories.append(child_directory)
+
+    return tuple(discovered_directories)
+
+
+def _discover_terraform_files(role_path: str | Path) -> tuple[Path, ...]:
+    terraform_files: list[Path] = []
+    for directory in _discover_terraform_directories(role_path):
+        terraform_files.extend(_top_level_terraform_files(directory))
+    return tuple(terraform_files)
+
+
+def _module_hints_for_directories(root: Path, terraform_directories: Iterable[Path]) -> list[str]:
+    nested_directories = sorted(
+        {
+            _relative_terraform_path(root, terraform_directory)
+            for terraform_directory in terraform_directories
+            if terraform_directory != root
+        }
+    )
+    return ["root_module", *nested_directories] if nested_directories else ["root_module"]
 
 
 def _read_text(path: Path) -> str:
@@ -130,7 +221,8 @@ def _readme_description(role_root: Path) -> str:
 
 def extract_terraform_module_metadata(role_path: str | Path) -> dict[str, object]:
     role_root = Path(role_path)
-    terraform_files = _top_level_terraform_files(role_root)
+    terraform_directories = _discover_terraform_directories(role_root)
+    terraform_files = _discover_terraform_files(role_root)
     if not terraform_files:
         return {
             "terraform_files_scanned": 0,
@@ -152,6 +244,7 @@ def extract_terraform_module_metadata(role_path: str | Path) -> dict[str, object
     provider_requirements: list[str] = []
     providers: list[str] = []
     backend_types: list[str] = []
+    module_hints = _module_hints_for_directories(role_root, terraform_directories)
 
     for terraform_file in terraform_files:
         text = _read_text(terraform_file)
@@ -180,9 +273,9 @@ def extract_terraform_module_metadata(role_path: str | Path) -> dict[str, object
         operational_constraints.append(
             "No explicit backend block detected in scanned root module."
         )
-    if module_calls:
+    if module_calls or len(module_hints) > 1:
         operational_constraints.append(
-            "Module call discovery is limited to root-level module blocks."
+            "Module discovery is limited to deterministic module blocks and nested Terraform directories under role_path."
         )
 
     return {
@@ -192,7 +285,7 @@ def extract_terraform_module_metadata(role_path: str | Path) -> dict[str, object
         "provider_requirements": sorted(set(provider_requirements)),
         "providers": sorted(set(providers)),
         "module_calls": sorted(set(module_calls)),
-        "module_hints": sorted(set(module_calls)) or ["root_module"],
+        "module_hints": module_hints,
         "operational_constraints": operational_constraints,
         "module_description": _readme_description(role_root),
     }
@@ -200,10 +293,11 @@ def extract_terraform_module_metadata(role_path: str | Path) -> dict[str, object
 
 def extract_terraform_variable_rows(role_path: str | Path) -> tuple[VariableRow, ...]:
     variable_rows: list[VariableRow] = []
+    role_root = Path(role_path)
 
-    for terraform_file in _top_level_terraform_files(role_path):
+    for terraform_file in _discover_terraform_files(role_root):
         text = _read_text(terraform_file)
-        relative_file = terraform_file.name
+        relative_file = _relative_terraform_path(role_root, terraform_file)
         for variable_match in _VARIABLE_BLOCK_RE.finditer(text):
             variable_name = variable_match.group(1)
             block_body = _extract_braced_block(text, variable_match.end() - 1)

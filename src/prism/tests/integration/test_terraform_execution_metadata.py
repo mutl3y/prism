@@ -10,6 +10,9 @@ from prism.scanner_plugins.terraform import (
     build_terraform_execution_bundle,
     TerraformScanPipelinePlugin,
 )
+from prism.tests.fixtures.fixtures_terraform_modules import (
+    build_nested_terraform_module_fixture,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -135,3 +138,38 @@ class TestTerraformExecutionBundleMetadata:
         assert isinstance(bundle, dict)
         assert "prepared_policy" in bundle
         assert "platform_participants" in bundle
+
+    def test_terraform_scan_pipeline_plugin_scans_nested_modules_deterministically(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Verify metadata extraction includes nested Terraform directories under role_path."""
+        plugin = TerraformScanPipelinePlugin()
+        fixture_root = build_nested_terraform_module_fixture(tmp_path)
+
+        result = plugin.orchestrate_scan_payload(
+            payload={"metadata": {}},
+            scan_options={"role_path": str(fixture_root)},
+            strict_mode=False,
+        )
+
+        metadata = result.get("metadata")
+        assert isinstance(metadata, dict)
+        assert metadata.get("terraform_files_scanned") == 6
+        assert metadata.get("managed_resources") == [
+            "aws_instance.app",
+            "aws_s3_bucket.logs",
+        ]
+        assert metadata.get("data_sources") == ["aws_vpc.selected"]
+        assert metadata.get("module_calls") == ["compute", "networking"]
+        assert metadata.get("module_hints") == [
+            "root_module",
+            "modules/compute",
+            "modules/networking",
+        ]
+        assert metadata.get("provider_requirements") == ["aws (hashicorp/aws) ~> 5.0"]
+        assert metadata.get("operational_constraints") == [
+            "Static analysis only: Terraform execution capabilities remain fail-closed.",
+            "No explicit backend block detected in scanned root module.",
+            "Module discovery is limited to deterministic module blocks and nested Terraform directories under role_path.",
+        ]
