@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import TYPE_CHECKING, Any, Callable, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, cast
 
 if TYPE_CHECKING:
     from prism.scanner_plugins.registry import PluginRegistry
@@ -24,6 +24,12 @@ RESERVED_UNSUPPORTED_PLATFORM_KEYS: tuple[str, ...] = (
     "kubernetes",
     "terraform",
 )
+PlatformSupportState = Literal[
+    "supported",
+    "reserved",
+    "stubbed",
+    "unsupported",
+]
 
 
 # Module-level singleton registry reference, populated by initialize_default_registry()
@@ -45,6 +51,117 @@ def get_default_plugin_registry() -> PluginRegistry:
 def is_registry_initialized() -> bool:
     """Check whether the default plugin registry has been initialized."""
     return _DEFAULT_REGISTRY is not None
+
+
+def _distinct_platform_names(
+    platform_key: str,
+    runtime_aliases: tuple[str, ...],
+) -> tuple[str, ...]:
+    names: list[str] = []
+    for name in (platform_key, *runtime_aliases):
+        if name and name not in names:
+            names.append(name)
+    return tuple(names)
+
+
+def describe_platform_registration_state(
+    registry: PluginRegistry,
+    *,
+    platform_key: str,
+) -> str:
+    """Describe whether a platform key is executable, reserved, or unknown.
+
+    The registry stays fail-closed: reserved/stubbed platforms are visible for
+    controlled onboarding but are not treated as fully supported unless runtime
+    seams are explicitly registered.
+    """
+    has_runtime_seams = any(
+        platform_key in names
+        for names in (
+            registry.list_scan_pipeline_plugins(),
+            registry.list_variable_discovery_plugins(),
+            registry.list_feature_detection_plugins(),
+        )
+    )
+    if registry.is_reserved_unsupported_platform(platform_key):
+        return "reserved_partial" if has_runtime_seams else "reserved_unsupported"
+    if has_runtime_seams:
+        return "supported"
+    return "unregistered"
+
+
+def register_platform_plugin_bundle(
+    registry: PluginRegistry,
+    *,
+    platform_key: str,
+    support_state: PlatformSupportState,
+    runtime_aliases: tuple[str, ...] = (),
+    scan_pipeline_plugin: type[Any] | None = None,
+    readme_renderer_plugin: type[Any] | None = None,
+    variable_discovery_plugin: type[Any] | None = None,
+    variable_discovery_loader: tuple[str, str] | None = None,
+    feature_detection_plugin: type[Any] | None = None,
+    feature_detection_loader: tuple[str, str] | None = None,
+) -> None:
+    """Register explicit platform seams without implying unsupported capabilities.
+
+    Unsupported or stubbed platforms are recorded as reserved, while runtime
+    seams are registered only when they are explicitly provided.
+    """
+    if support_state not in {"supported", "reserved", "stubbed", "unsupported"}:
+        raise ValueError(f"Unsupported platform support state: {support_state!r}")
+    if variable_discovery_plugin is not None and variable_discovery_loader is not None:
+        raise ValueError(
+            "Provide either variable_discovery_plugin or "
+            "variable_discovery_loader, not both"
+        )
+    if feature_detection_plugin is not None and feature_detection_loader is not None:
+        raise ValueError(
+            "Provide either feature_detection_plugin or "
+            "feature_detection_loader, not both"
+        )
+
+    runtime_names = _distinct_platform_names(platform_key, runtime_aliases)
+
+    if support_state != "supported":
+        registry.register_reserved_unsupported_platform(platform_key)
+
+    if readme_renderer_plugin is not None:
+        if platform_key not in registry.list_readme_renderer_plugins():
+            registry.register_readme_renderer_plugin(platform_key, readme_renderer_plugin)
+
+    if scan_pipeline_plugin is not None:
+        for name in runtime_names:
+            if name not in registry.list_scan_pipeline_plugins():
+                registry.register_scan_pipeline_plugin(name, scan_pipeline_plugin)
+
+    if variable_discovery_plugin is not None:
+        for name in runtime_names:
+            if name not in registry.list_variable_discovery_plugins():
+                registry.register_variable_discovery_plugin(name, variable_discovery_plugin)
+    elif variable_discovery_loader is not None:
+        module_path, class_name = variable_discovery_loader
+        for name in runtime_names:
+            if name not in registry.list_variable_discovery_plugins():
+                registry.register_deferred_variable_discovery_plugin(
+                    name,
+                    module_path,
+                    class_name,
+                )
+
+    if feature_detection_plugin is not None:
+        for name in runtime_names:
+            if name not in registry.list_feature_detection_plugins():
+                registry.register_feature_detection_plugin(name, feature_detection_plugin)
+    elif feature_detection_loader is not None:
+        module_path, class_name = feature_detection_loader
+        for name in runtime_names:
+            if name not in registry.list_feature_detection_plugins():
+                registry.register_deferred_feature_detection_plugin(
+                    name,
+                    module_path,
+                    class_name,
+                )
 
 
 def bootstrap_plugin_registry(
@@ -78,13 +195,7 @@ def bootstrap_plugin_registry(
 
     direct_registrations: tuple[tuple[str, str, type[Any]], ...] = (
         ("comment_driven_doc", "default", CommentDrivenDocumentationParser),
-        ("readme_renderer", DEFAULT_SUPPORTED_PLATFORM_KEY, AnsibleReadmeRendererPlugin),
         ("scan_pipeline", "default", cast(type[Any], DefaultScanPipelinePlugin)),
-        (
-            "scan_pipeline",
-            DEFAULT_SUPPORTED_PLATFORM_KEY,
-            cast(type[Any], AnsibleScanPipelinePlugin),
-        ),
         (
             "extract_policy",
             "task_line_parsing",
@@ -110,33 +221,6 @@ def bootstrap_plugin_registry(
             "jinja_analysis_policy",
             "jinja_analysis",
             DefaultJinjaAnalysisPolicyPlugin,
-        ),
-    )
-
-    deferred_registrations: tuple[tuple[str, str, str, str], ...] = (
-        (
-            "variable_discovery",
-            DEFAULT_SUPPORTED_PLATFORM_KEY,
-            "prism.scanner_plugins.ansible.variable_discovery",
-            "AnsibleVariableDiscoveryPlugin",
-        ),
-        (
-            "variable_discovery",
-            "default",
-            "prism.scanner_plugins.ansible.variable_discovery",
-            "AnsibleVariableDiscoveryPlugin",
-        ),
-        (
-            "feature_detection",
-            DEFAULT_SUPPORTED_PLATFORM_KEY,
-            "prism.scanner_plugins.ansible.feature_detection",
-            "AnsibleFeatureDetectionPlugin",
-        ),
-        (
-            "feature_detection",
-            "default",
-            "prism.scanner_plugins.ansible.feature_detection",
-            "AnsibleFeatureDetectionPlugin",
         ),
     )
 
@@ -167,30 +251,34 @@ def bootstrap_plugin_registry(
         ),
     }
 
-    deferred_slot_dispatch: dict[str, tuple[str, str]] = {
-        "variable_discovery": (
-            "list_variable_discovery_plugins",
-            "register_deferred_variable_discovery_plugin",
-        ),
-        "feature_detection": (
-            "list_feature_detection_plugins",
-            "register_deferred_feature_detection_plugin",
-        ),
-    }
-
     for slot, name, plugin_cls in direct_registrations:
         list_method, register_method = direct_slot_dispatch[slot]
         if name not in getattr(registry, list_method)():
             getattr(registry, register_method)(name, plugin_cls)
 
-    for slot, name, module_path, class_name in deferred_registrations:
-        list_method, register_method = deferred_slot_dispatch[slot]
-        if name not in getattr(registry, list_method)():
-            getattr(registry, register_method)(name, module_path, class_name)
+    register_platform_plugin_bundle(
+        registry,
+        platform_key=DEFAULT_SUPPORTED_PLATFORM_KEY,
+        support_state="supported",
+        runtime_aliases=("default",),
+        scan_pipeline_plugin=cast(type[Any], AnsibleScanPipelinePlugin),
+        readme_renderer_plugin=AnsibleReadmeRendererPlugin,
+        variable_discovery_loader=(
+            "prism.scanner_plugins.ansible.variable_discovery",
+            "AnsibleVariableDiscoveryPlugin",
+        ),
+        feature_detection_loader=(
+            "prism.scanner_plugins.ansible.feature_detection",
+            "AnsibleFeatureDetectionPlugin",
+        ),
+    )
 
     for platform_name in RESERVED_UNSUPPORTED_PLATFORM_KEYS:
-        if not registry.is_reserved_unsupported_platform(platform_name):
-            registry.register_reserved_unsupported_platform(platform_name)
+        register_platform_plugin_bundle(
+            registry,
+            platform_key=platform_name,
+            support_state="unsupported",
+        )
 
     registry.set_default_platform_key(DEFAULT_SUPPORTED_PLATFORM_KEY)
 
@@ -251,9 +339,12 @@ def initialize_default_registry() -> PluginRegistry:
 
 __all__ = [
     "DEFAULT_SUPPORTED_PLATFORM_KEY",
+    "PlatformSupportState",
     "RESERVED_UNSUPPORTED_PLATFORM_KEYS",
     "bootstrap_plugin_registry",
+    "describe_platform_registration_state",
     "get_default_plugin_registry",
     "initialize_default_registry",
     "is_registry_initialized",
+    "register_platform_plugin_bundle",
 ]

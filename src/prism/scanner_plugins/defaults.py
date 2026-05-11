@@ -7,7 +7,10 @@ from typing import TYPE_CHECKING, Any, Callable, NoReturn, Protocol, cast
 from collections.abc import Mapping
 
 from prism.errors import PrismRuntimeError
-from prism.scanner_plugins.bootstrap import DEFAULT_SUPPORTED_PLATFORM_KEY
+from prism.scanner_plugins.bootstrap import (
+    DEFAULT_SUPPORTED_PLATFORM_KEY,
+    describe_platform_registration_state,
+)
 from prism.scanner_plugins.ansible.default_policies import (
     AnsibleDefaultTaskAnnotationPolicyPlugin,
     AnsibleDefaultTaskLineParsingPolicyPlugin,
@@ -140,16 +143,25 @@ def _guard_platform_specific_non_strict_fallback(
     if selected_platform_key in (None, fallback_platform_key):
         return
 
+    platform_registration_state = "unregistered"
+    if registry is not None:
+        platform_registration_state = describe_platform_registration_state(
+            registry,
+            platform_key=selected_platform_key,
+        )
+
     raise PrismRuntimeError(
         code="malformed_plugin_shape",
         category="runtime",
         message=(
             f"Non-strict {plugin_kind} fallback would substitute "
-            f"{fallback_platform_key} defaults for platform {selected_platform_key}."
+            f"{fallback_platform_key} defaults for platform {selected_platform_key}. "
+            f"Platform registration state is {platform_registration_state}."
         ),
         detail={
             "plugin_kind": plugin_kind,
             "selected_platform_key": selected_platform_key,
+            "platform_registration_state": platform_registration_state,
             "fallback_platform_key": fallback_platform_key,
             "fallback_plugin_type": type(fallback_plugin).__name__,
         },

@@ -11,8 +11,10 @@ from __future__ import annotations
 
 from prism.scanner_plugins.bootstrap import (
     bootstrap_plugin_registry,
+    describe_platform_registration_state,
     get_default_plugin_registry,
     initialize_default_registry,
+    register_platform_plugin_bundle,
 )
 from prism.scanner_plugins.registry import (
     PRISM_PLUGIN_API_VERSION,
@@ -60,10 +62,12 @@ __all__ = [
     "PluginRegistry",
     "ScanPipelinePlugin",
     "bootstrap_default_plugins",
+    "describe_platform_registration_state",
     "discover_entry_point_plugins",
     "get_default_plugin_registry",
     "initialize_default_registry",
     "interfaces",
+    "register_platform_plugin_bundle",
     "registry",
     "validate_plugin_api_version",
 ]
