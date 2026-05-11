@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from typing import Any
 
@@ -21,14 +22,46 @@ class _ManifestInventory:
     secret_reference_count: int
 
 
+_MANIFEST_IGNORED_DIRS = frozenset(
+    {
+        ".git",
+        ".tox",
+        ".venv",
+        "__pycache__",
+        "node_modules",
+        "venv",
+    }
+)
+
+
+def _relative_manifest_path(path: Path, role_root: Path) -> str:
+    relative_path = path.relative_to(role_root)
+    return relative_path.as_posix()
+
+
+def _catalog_entry_name(path: Path, role_root: Path) -> str:
+    relative_path = _relative_manifest_path(path, role_root)
+    return path.name if "/" not in relative_path else relative_path
+
+
 def _iter_manifest_files(role_root: Path) -> tuple[Path, ...]:
     if not role_root.is_dir():
         return ()
+    manifest_files: list[Path] = []
+    for root, dirs, files in os.walk(role_root):
+        dirs[:] = sorted(
+            directory for directory in dirs if directory not in _MANIFEST_IGNORED_DIRS
+        )
+        for file_name in sorted(files):
+            candidate = Path(root) / file_name
+            if candidate.suffix.lower() not in {".yaml", ".yml"}:
+                continue
+            manifest_files.append(candidate)
+
     return tuple(
         sorted(
-            path
-            for path in role_root.iterdir()
-            if path.is_file() and path.suffix.lower() in {".yaml", ".yml"}
+            manifest_files,
+            key=lambda path: _relative_manifest_path(path, role_root),
         )
     )
 
@@ -162,9 +195,11 @@ class KubernetesFeatureDetectionPlugin:
             "task_files_scanned": inventory.file_count,
             "tasks_scanned": inventory.document_count,
             "recursive_task_includes": 0,
-            "unique_modules": ", ".join(inventory.resource_kinds)
-            if inventory.resource_kinds
-            else "none",
+            "unique_modules": (
+                ", ".join(inventory.resource_kinds)
+                if inventory.resource_kinds
+                else "none"
+            ),
             "external_collections": "none",
             "handlers_notified": "none",
             "privileged_tasks": inventory.secret_reference_count,
@@ -217,7 +252,7 @@ class KubernetesFeatureDetectionPlugin:
                 for note in _manifest_operational_notes(document)
                 if "references Secret" in note
             )
-            result[manifest_file.name] = {
+            result[_catalog_entry_name(manifest_file, role_root)] = {
                 "task_count": len(documents),
                 "async_count": 0,
                 "modules_used": resource_kinds,

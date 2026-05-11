@@ -1,0 +1,49 @@
+---
+task_id: k8s-wave-5-nested-manifest-traversal
+plan_id: plugin-implementation-20260511
+objective: "Extend Kubernetes manifest inventory from top-level-only scanning to deterministic nested traversal with explicit noise-path skips"
+phase: "5-implementation"
+wave_name: "Wave 5: K8s Nested Manifest Traversal"
+status: completed
+date_completed: "2026-05-11"
+tier_selected: "BALANCED (1x)"
+tier_reason: "nested manifest traversal and metadata contract expansion is architecture-sensitive."
+
+files_changed:
+  - src/prism/scanner_plugins/kubernetes/feature_detection.py
+  - src/prism/tests/integration/test_kubernetes_detection_plugins.py
+
+summary:
+  - Extended Kubernetes manifest discovery from direct children only to deterministic recursive traversal under role_path.
+  - Added explicit skip rules for noise directories while preserving fail-closed parsing and sorted renderer-consumable metadata.
+  - Preserved top-level task catalog keys for backward compatibility and used relative paths only for nested manifest entries.
+
+tests:
+  red_phase:
+    - command: pytest -q src/prism/tests/integration/test_kubernetes_detection_plugins.py
+      passed: 11
+      failed: 2
+  green_phase:
+    - command: pytest -q src/prism/tests/integration/test_kubernetes_detection_plugins.py
+      passed: 13
+      failed: 0
+  final_validation:
+    - command: pytest -q src/prism/tests/integration/test_kubernetes_*.py
+      passed: 76
+      failed: 0
+    - command: python3 -m ruff check src/prism/scanner_plugins/kubernetes/feature_detection.py src/prism/tests/integration/test_kubernetes_detection_plugins.py
+      passed: true
+    - command: python3 -m black --check src/prism/scanner_plugins/kubernetes/feature_detection.py src/prism/tests/integration/test_kubernetes_detection_plugins.py
+      passed: true
+
+capability_limits:
+  - Recursive manifest discovery skips only the explicit noise directories in this slice: .git, .tox, .venv, __pycache__, node_modules, and venv.
+  - Invalid or unreadable manifest files still contribute zero parsed documents, preserving conservative fail-closed output instead of guessed metadata.
+  - Variable discovery and execution-bundle behavior remain unchanged; this slice only expands manifest inventory and deterministic catalog ordering.
+
+next_slice:
+  description: "Decide whether Kubernetes manifest traversal should also honor runtime exclude-path policy without touching shared bootstrap seams."
+  candidates:
+    - Add focused coverage for duplicate nested filenames to lock in relative-path catalog keys.
+    - Evaluate whether renderer/reporting surfaces should expose manifest-relative paths directly.
+    - Assess whether Kubernetes variable discovery should document ConfigMap and Secret references as user-facing inputs.
