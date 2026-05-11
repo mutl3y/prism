@@ -10,6 +10,9 @@ O001/O008/O010/O015 (DI/plugin bootstrap coupling and ordering risks).
 from __future__ import annotations
 
 from prism.scanner_plugins.bootstrap import (
+    DEFAULT_SUPPORTED_PLATFORM_KEY,
+    PlatformSupportState,
+    RESERVED_UNSUPPORTED_PLATFORM_KEYS,
     bootstrap_plugin_registry,
     describe_platform_registration_state,
     get_default_plugin_registry,
@@ -55,11 +58,14 @@ def bootstrap_default_plugins(registry=None):
 
 
 __all__ = [
+    "DEFAULT_SUPPORTED_PLATFORM_KEY",
     "EntryPointPluginLoadError",
+    "PlatformSupportState",
     "PRISM_PLUGIN_API_VERSION",
     "PRISM_PLUGIN_ENTRY_POINT_GROUP",
     "PluginAPIVersionMismatch",
     "PluginRegistry",
+    "RESERVED_UNSUPPORTED_PLATFORM_KEYS",
     "ScanPipelinePlugin",
     "bootstrap_default_plugins",
     "describe_platform_registration_state",

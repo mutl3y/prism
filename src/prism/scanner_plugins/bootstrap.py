@@ -64,6 +64,36 @@ def _distinct_platform_names(
     return tuple(names)
 
 
+def _has_any_runtime_platform_seam(
+    registry: PluginRegistry,
+    *,
+    platform_key: str,
+) -> bool:
+    return any(
+        platform_key in names
+        for names in (
+            registry.list_scan_pipeline_plugins(),
+            registry.list_variable_discovery_plugins(),
+            registry.list_feature_detection_plugins(),
+        )
+    )
+
+
+def _has_complete_runtime_platform_seams(
+    registry: PluginRegistry,
+    *,
+    platform_key: str,
+) -> bool:
+    return all(
+        registry_getter(platform_key) is not None
+        for registry_getter in (
+            registry.get_scan_pipeline_plugin,
+            registry.get_variable_discovery_plugin,
+            registry.get_feature_detection_plugin,
+        )
+    )
+
+
 def describe_platform_registration_state(
     registry: PluginRegistry,
     *,
@@ -75,17 +105,19 @@ def describe_platform_registration_state(
     controlled onboarding but are not treated as fully supported unless runtime
     seams are explicitly registered.
     """
-    has_runtime_seams = any(
-        platform_key in names
-        for names in (
-            registry.list_scan_pipeline_plugins(),
-            registry.list_variable_discovery_plugins(),
-            registry.list_feature_detection_plugins(),
-        )
+    has_runtime_seams = _has_any_runtime_platform_seam(
+        registry,
+        platform_key=platform_key,
+    )
+    has_complete_runtime_seams = _has_complete_runtime_platform_seams(
+        registry,
+        platform_key=platform_key,
     )
     if registry.is_reserved_unsupported_platform(platform_key):
+        if has_complete_runtime_seams:
+            return "supported"
         return "reserved_partial" if has_runtime_seams else "reserved_unsupported"
-    if has_runtime_seams:
+    if has_complete_runtime_seams or has_runtime_seams:
         return "supported"
     return "unregistered"
 

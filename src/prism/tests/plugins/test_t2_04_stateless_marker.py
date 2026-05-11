@@ -245,6 +245,55 @@ def test_register_platform_plugin_bundle_registers_supported_runtime_seams() -> 
     )
 
 
+def test_describe_platform_registration_state_activates_reserved_platform_only_after_all_runtime_seams() -> None:
+    from prism.scanner_plugins.bootstrap import (
+        describe_platform_registration_state,
+        register_platform_plugin_bundle,
+    )
+    from prism.scanner_plugins.registry import PluginRegistry
+
+    registry = PluginRegistry()
+
+    class _PlatformScanPipelinePlugin:
+        PLUGIN_IS_STATELESS = True
+
+        def process_scan_pipeline(self, scan_options, scan_context):
+            return scan_context
+
+    class _PlatformVariableDiscoveryPlugin:
+        def __init__(self, di: object | None = None) -> None:
+            self.di = di
+
+    class _PlatformFeatureDetectionPlugin:
+        def __init__(self, di: object | None = None) -> None:
+            self.di = di
+
+    register_platform_plugin_bundle(
+        registry,
+        platform_key="kubernetes",
+        support_state="unsupported",
+        scan_pipeline_plugin=_PlatformScanPipelinePlugin,
+        variable_discovery_plugin=_PlatformVariableDiscoveryPlugin,
+    )
+
+    assert (
+        describe_platform_registration_state(registry, platform_key="kubernetes")
+        == "reserved_partial"
+    )
+
+    register_platform_plugin_bundle(
+        registry,
+        platform_key="kubernetes",
+        support_state="supported",
+        feature_detection_plugin=_PlatformFeatureDetectionPlugin,
+    )
+
+    assert (
+        describe_platform_registration_state(registry, platform_key="kubernetes")
+        == "supported"
+    )
+
+
 def test_warning_prone_scan_pipeline_fixture_cluster_stays_warning_clean() -> None:
     completed = subprocess.run(
         [
