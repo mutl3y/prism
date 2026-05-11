@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import copy
 import types
-from typing import Any, ClassVar, cast
+from typing import ClassVar
 
 from prism.scanner_plugins.terraform.error_adapter import (
     build_terraform_error_detail,
@@ -32,7 +33,10 @@ from prism.scanner_plugins.interfaces import (
     ScanPipelinePayload,
     ScanPipelinePreflightContext,
 )
-from prism.scanner_plugins.terraform.execution_bundle import build_fail_closed_participants, build_terraform_execution_bundle
+from prism.scanner_plugins.terraform.execution_bundle import (
+    build_fail_closed_participants,
+    extract_terraform_module_metadata,
+)
 from prism.scanner_plugins.terraform.feature_detection import TerraformFeatureDetectionPlugin
 from prism.scanner_plugins.terraform.variable_discovery import TerraformVariableDiscoveryPlugin
 from prism.scanner_plugins.terraform.readme_renderer import (
@@ -70,7 +74,11 @@ class TerraformScanPipelinePlugin:
         scan_options: ScanOptionsDict,
         scan_context: ScanMetadata,
     ) -> ScanPipelinePreflightContext:
-        context = cast(ScanPipelinePreflightContext, dict(scan_context))
+        context: ScanPipelinePreflightContext = {
+            key: value
+            for key, value in copy.copy(scan_context).items()
+            if key in {"plugin_name", "plugin_platform", "plugin_enabled", "role_path"}
+        }
         context.setdefault("plugin_platform", "terraform")
         context.setdefault("plugin_name", "terraform")
         context["plugin_enabled"] = True
@@ -88,16 +96,19 @@ class TerraformScanPipelinePlugin:
     ) -> ScanPipelinePayload:
         del strict_mode
         metadata = payload.get("metadata")
-        merged_metadata = dict(metadata) if isinstance(metadata, dict) else {}
+        merged_metadata = copy.copy(metadata) if isinstance(metadata, dict) else {}
         if isinstance(preflight_context, dict):
             merged_metadata.update(preflight_context)
         else:
             merged_metadata.update(
                 self.process_scan_pipeline(
                     scan_options=scan_options,
-                    scan_context=cast(ScanMetadata, merged_metadata),
+                    scan_context=merged_metadata,
                 )
             )
+        role_path = scan_options.get("role_path")
+        if isinstance(role_path, str) and role_path:
+            merged_metadata.update(extract_terraform_module_metadata(role_path))
         payload["metadata"] = merged_metadata
         return payload
 
@@ -131,7 +142,7 @@ def build_reserved_target_classifier_entry() -> dict[str, object]:
         "plugin_id": TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["plugin_id"],
         "support_state": TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["support_state"],
         "matchers": list(
-            cast(list[Any], TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["matchers"])
+            TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["matchers"]
         ),
     }
 
@@ -168,8 +179,10 @@ def build_unsupported_scan_pipeline_outcome() -> dict[str, object]:
 
 
 __all__ = [
+    "TerraformFeatureDetectionPlugin",
     "TerraformReadmeRendererPlugin",
     "TerraformScanPipelinePlugin",
+    "TerraformVariableDiscoveryPlugin",
     "TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY",
     "TERRAFORM_RESERVED_TARGET_PLUGIN_MANIFEST",
     "build_terraform_execution_bundle",
