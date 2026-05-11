@@ -1,0 +1,10 @@
+aws_region           = "us-east-1"
+project_name         = "prism-prod"
+environment          = "prod"
+vpc_cidr             = "10.0.0.0/16"
+instance_count       = 4
+instance_type        = "t3.small"
+db_instance_class    = "db.t3.small"
+db_allocated_storage = 100
+enable_monitoring    = true
+log_retention_days   = 30

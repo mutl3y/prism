@@ -1,0 +1,400 @@
+---
+# Marker-Prefix Flow Specification (MP1 Contract)
+# Date: May 9, 2026
+# Status: PROPOSED (Ready for MP1 Phase Implementation)
+
+mp1_specification:
+  id: "MP1-marker-prefix-ownership-contract"
+  title: "Marker-Prefix Single-Write, Standardized-Read Contract"
+  version: "1.0"
+  effective_date: "2026-Q3"
+
+---
+## CANONICAL OWNERSHIP MODEL
+
+ownership_chain:
+  1_ingress_acceptance:
+    owner: "API/CLI callers"
+    interface: "scan_options['comment_doc_marker_prefix']"
+    type: "str | None"
+    contract:
+      - "Accept any valid string from caller"
+      - "Pass to bundle_resolver without modification"
+      - "No validation at ingress (validation is bundle_resolver's job)"
+    files:
+      - "src/prism/scanner_core/scan_request.py"
+      - "src/prism/api_layer/non_collection.py"
+
+  2_bundle_assembly_and_write:
+    owner: "scanner_plugins.bundle_resolver.ensure_prepared_policy_bundle()"
+    interface: "prepared_policy_bundle['comment_doc_marker_prefix']"
+    type: "str (post-write invariant)"
+    contract:
+      - "Single write point for marker-prefix"
+      - "Resolve from: scan_options → policy_context → default"
+      - "Normalize via normalize_marker_prefix()"
+      - "Validate result is non-empty string"
+      - "Fail-closed if normalization produces invalid value"
+      - "After write, bundle is read-only for marker-prefix"
+    files:
+      - "src/prism/scanner_plugins/bundle_resolver.py:142-157"
+    pseudocode: |
+      def ensure_prepared_policy_bundle(...):
+          raw_prefix = scan_options.get("comment_doc_marker_prefix")
+          if not raw_prefix:
+              raw_prefix = policy_context.get("comment_doc.marker.prefix")
+          if not raw_prefix:
+              raw_prefix = DEFAULT_DOC_MARKER_PREFIX
+          
+          normalized = normalize_marker_prefix(raw_prefix)
+          assert isinstance(normalized, str) and normalized  # Fail-closed
+          
+          bundle["comment_doc_marker_prefix"] = normalized
+          # NO FURTHER WRITES TO THIS KEY ALLOWED
+
+  3_runtime_resolution:
+    owner: "scanner_core.task_extract_adapters._resolve_marker_prefix()"
+    interface: "Read from DI's prepared_policy_bundle"
+    type: "str (returns only valid strings)"
+    contract:
+      - "Retrieve prepared_policy_bundle from DI context"
+      - "Extract bundle['comment_doc_marker_prefix']"
+      - "Validate is non-empty string (fail-closed)"
+      - "Return to caller for use as parameter"
+      - "Never modify or cache the value"
+    files:
+      - "src/prism/scanner_core/task_extract_adapters.py:211-226"
+    pseudocode: |
+      def _resolve_marker_prefix(di):
+          bundle = scan_options_from_di(di).get("prepared_policy_bundle")
+          prefix = bundle.get("comment_doc_marker_prefix")
+          assert isinstance(prefix, str) and prefix  # Fail-closed
+          return prefix
+
+  4_downstream_resolution:
+    owner: "All consumers (scanner_core, scanner_plugins, scanner_extract)"
+    interface: "Accept as parameter from _resolve_marker_prefix() or feature_detector"
+    type: "str (parameter passing)"
+    contract:
+      - "Accept marker_prefix as explicit parameter"
+      - "Never attempt to resolve independently"
+      - "Never write to bundle"
+      - "Use for regex matching, pattern building only"
+      - "May perform local normalization for algorithmic purposes (not state mutation)"
+    files:
+      - "src/prism/scanner_plugins/parsers/comment_doc/annotation_parsing.py"
+      - "src/prism/scanner_plugins/ansible/feature_detection.py"
+      - "src/prism/scanner_extract/task_annotation_parsing.py"
+
+---
+## RESOLUTION INTERFACE
+
+public_api_functions:
+  extract_task_annotations_for_file:
+    file: "src/prism/scanner_core/task_extract_adapters.py"
+    signature: "def extract_task_annotations_for_file(raw_lines: list[str], *, include_task_index: bool = False, di: object | None = None) -> ..."
+    marker_prefix_handling:
+      - step: "Call _resolve_marker_prefix(di) internally"
+      - step: "Pass to _extract_task_annotations_for_file(marker_prefix=...)"
+      - guarantees: "Caller never needs to supply marker_prefix"
+    contract:
+      "When called with di object, marker_prefix is resolved from bundle automatically."
+
+  collect_task_handler_catalog:
+    file: "src/prism/scanner_core/task_extract_adapters.py"
+    signature: "def collect_task_handler_catalog(role_path: str, exclude_paths: list[str] | None = None, *, di: object | None = None) -> ..."
+    marker_prefix_handling:
+      - step: "Call _resolve_marker_prefix(di) internally"
+      - step: "Pass to _collect_task_handler_catalog(marker_prefix=...)"
+      - guarantees: "Caller never needs to supply marker_prefix"
+    contract:
+      "When called with di object, marker_prefix is resolved from bundle automatically."
+
+plugin_factory_pattern:
+  feature_detector:
+    file: "src/prism/scanner_plugins/ansible/feature_detection.py"
+    method: "def _resolve_marker_prefix(options: dict[str, object]) -> str"
+    contract:
+      - "Extract from prepared_policy_bundle in options dict"
+      - "Fail-closed (ValueError) if bundle missing or prefix invalid"
+      - "Used internally by detect() method"
+
+---
+## INVARIANTS AND CONSTRAINTS
+
+invariant_01_single_write:
+  name: "Single Write Point"
+  statement: "prepared_policy_bundle['comment_doc_marker_prefix'] is written exactly once, during ensure_prepared_policy_bundle()"
+  checked_by:
+    - "No other file writes to bundle['comment_doc_marker_prefix']"
+    - "grep: bundle\\[.comment_doc_marker_prefix.\\] = (only in bundle_resolver:155-157)"
+  consequence: "After bundle assembly, marker-prefix is immutable"
+
+invariant_02_read_only_post_write:
+  name: "Read-Only After Assembly"
+  statement: "All runtime accesses to marker-prefix are reads, never writes"
+  checked_by:
+    - "No scan_core writes"
+    - "No plugin writes"
+    - "No scanner_extract writes"
+    - "No scanner_readme writes"
+  consequence: "State consistency guaranteed across all modules"
+
+invariant_03_fail_closed:
+  name: "Fail-Closed on Invalid"
+  statement: "If marker-prefix is missing or invalid, raise ValueError (not fallback)"
+  checked_by:
+    - "_resolve_marker_prefix(di) raises on missing bundle"
+    - "_resolve_marker_prefix(di) raises on missing/invalid prefix"
+    - "normalize_marker_prefix() returns only valid strings (never None/empty)"
+  consequence: "Invalid state propagates as hard error, not silent misconfiguration"
+
+invariant_04_normalization_deterministic:
+  name: "Normalization is Deterministic"
+  statement: "normalize_marker_prefix(x) returns the same value every time (pure function)"
+  checked_by:
+    - "No external dependencies (no DI, no config lookups)"
+    - "Only string methods (strip, lower, validation)"
+  consequence: "Bundle value is stable and reproducible"
+
+invariant_05_no_runtime_reconfiguration:
+  name: "No Runtime Reconfiguration"
+  statement: "Once bundle is assembled, marker-prefix cannot be changed"
+  checked_by:
+    - "No re-call to ensure_prepared_policy_bundle() during scan"
+    - "Bundle is frozen after assembly phase"
+  consequence: "Marker-prefix is stable throughout scan execution"
+
+---
+## BOUNDARY CONTRACTS
+
+boundary_scanner_core_to_plugins:
+  description: "How scanner_core passes marker-prefix to plugins"
+  pattern: "DI object with resolved bundle"
+  flow: |
+    scanner_core/task_extract_adapters.py
+      _resolve_marker_prefix(di) 
+        → scanner_options_from_di(di)
+        → prepared_policy_bundle['comment_doc_marker_prefix']
+        → plugins receive via parameter passing
+  contract:
+    - scanner_core: "Resolves once, passes as parameter"
+    - plugins: "Receives as parameter, never resolves independently"
+  test_coverage:
+    - "Verify di object reaches feature_detector with bundle intact"
+    - "Verify marker_prefix parameter flows to parse_comment_doc_annotations()"
+
+boundary_scanner_readme_separation:
+  description: "Verify scanner_readme does not access comment_doc_marker_prefix"
+  pattern: "Complete isolation — no coupling"
+  flow: |
+    scanner_readme/render.py
+      _generated_merge_markers() (uses legacy_merge_marker_prefixes from plugin)
+      [DOES NOT ACCESS prepared_policy_bundle or comment_doc_marker_prefix]
+  contract:
+    - scanner_readme: "Uses plugin method for legacy markers, never bundle"
+    - plugins: "Provide legacy_merge_marker_prefixes() as separate interface"
+    - bundle_resolver: "Does not provide marker-prefix to scanner_readme"
+  test_coverage:
+    - "Verify scanner_readme has no imports from bundle_resolver"
+    - "Verify render.py does not access scan_options"
+
+boundary_normalization_idempotency:
+  description: "Normalization applied consistently and deterministically"
+  pattern: "Single function, pure implementation"
+  flow: |
+    bundle_resolver.ensure_prepared_policy_bundle()
+      → normalize_marker_prefix(raw_prefix)
+      → stored result in bundle
+      → never re-normalized (stored result used directly)
+  contract:
+    - bundle_resolver: "Normalizes once during assembly"
+    - runtime: "Uses stored normalized value directly"
+    - extract_layer: "Can normalize locally for algorithmic purposes (not state change)"
+  test_coverage:
+    - "Verify normalize_marker_prefix() is pure (no side effects)"
+    - "Verify stored value in bundle is used, never re-normalized"
+
+---
+## PLUGIN RESOLUTION PATTERNS
+
+pattern_a_di_based_resolution:
+  name: "DI-based (Scanner-Core Hot Path)"
+  usage: |
+    def extract_task_annotations_for_file(..., di=None):
+        marker_prefix = _resolve_marker_prefix(di)
+        return _extract_task_annotations_for_file(..., marker_prefix=marker_prefix)
+  when_to_use: "Public scanner_core API called with DI object"
+  files:
+    - "src/prism/scanner_core/task_extract_adapters.py:231-253"
+  guarantee: "Caller never supplies marker_prefix manually"
+
+pattern_b_options_based_resolution:
+  name: "Options-based (Ansible Feature Detector)"
+  usage: |
+    def _resolve_marker_prefix(options: dict[str, object]) -> str:
+        bundle = options.get("prepared_policy_bundle")
+        return bundle.get("comment_doc_marker_prefix")
+  when_to_use: "Plugin internal logic with direct access to options dict"
+  files:
+    - "src/prism/scanner_plugins/ansible/feature_detection.py:42-52"
+  guarantee: "Plugin receives complete options dict, resolves internally"
+
+pattern_c_explicit_parameter:
+  name: "Explicit Parameter (Low-Level Functions)"
+  usage: |
+    def parse_comment_doc_annotations(
+        raw_lines: list[str],
+        *,
+        marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX,
+        ...
+    ):
+        marker_line_re = get_marker_line_re(marker_prefix)
+  when_to_use: "Low-level parsing functions, direct calling"
+  files:
+    - "src/prism/scanner_plugins/parsers/comment_doc/annotation_parsing.py:74"
+    - "src/prism/scanner_plugins/parsers/comment_doc/role_notes_parser.py:71"
+  guarantee: "Caller passes marker_prefix explicitly; default used only for direct calls"
+
+---
+## NORMALIZATION CONTRACT
+
+normalize_marker_prefix_function:
+  file: "src/prism/scanner_plugins/parsers/comment_doc/marker_utils.py"
+  signature: "def normalize_marker_prefix(marker_prefix: str | None) -> str"
+  
+  input_handling:
+    None: "→ DEFAULT_DOC_MARKER_PREFIX"
+    empty_string: "→ DEFAULT_DOC_MARKER_PREFIX"
+    whitespace_only: "→ DEFAULT_DOC_MARKER_PREFIX"
+    contains_space: "→ DEFAULT_DOC_MARKER_PREFIX"
+    valid_string: "→ string.lower().strip()"
+  
+  output_guarantee: "Always returns non-empty string"
+  
+  usage_locations:
+    - "bundle_resolver.py:155 (during bundle assembly)"
+    - "marker_utils.py:33 (mixin method)"
+    - "role_notes_parser.py:154 (explicit call in parsing)"
+  
+  invariant: "Calling normalize_marker_prefix() twice with same input always produces same output"
+
+---
+## TESTING REQUIREMENTS FOR MP1
+
+test_suite_marker_prefix_ownership:
+  test_01_single_write_point:
+    description: "Verify bundle_resolver is only writer to comment_doc_marker_prefix"
+    type: "Static analysis + code inspection"
+    method: |
+      grep -r "bundle\[.comment_doc_marker_prefix.\]\s*=" src/
+      # Should return ONLY bundle_resolver.py:155-157
+    expected_result: "1 match in bundle_resolver.py only"
+
+  test_02_resolution_consistency:
+    description: "Verify all consumers use standardized resolution"
+    type: "Dynamic test"
+    method: |
+      1. Create prepared_policy_bundle with marker_prefix="custom-marker"
+      2. Call extract_task_annotations_for_file(di=di_with_bundle)
+      3. Verify marker_prefix="custom-marker" used in annotation parsing
+      4. Verify no fallback to DEFAULT occurred
+    expected_result: "Custom marker used consistently throughout execution"
+
+  test_03_fail_closed_on_missing:
+    description: "Verify fail-closed behavior if bundle/prefix missing"
+    type: "Exception test"
+    method: |
+      1. Create DI without prepared_policy_bundle
+      2. Call extract_task_annotations_for_file(di=incomplete_di)
+      3. Catch exception
+    expected_result: "ValueError raised with message mentioning 'prepared_policy_bundle'"
+
+  test_04_scanner_readme_isolation:
+    description: "Verify scanner_readme never accesses marker-prefix"
+    type: "Integration test"
+    method: |
+      1. Mock bundle_resolver to raise on marker_prefix access
+      2. Call scanner_readme.render.render_section(...)
+      3. Verify no exception thrown
+    expected_result: "scanner_readme executes without accessing bundle"
+
+  test_05_normalization_deterministic:
+    description: "Verify normalize_marker_prefix is pure"
+    type: "Unit test"
+    method: |
+      for test_case in [
+          ("prism", "prism"),
+          ("PRISM", "prism"),
+          ("  prism  ", "prism"),
+          ("", DEFAULT),
+          (None, DEFAULT),
+          ("bad space", DEFAULT),
+      ]:
+          assert normalize_marker_prefix(test_case[0]) == test_case[1]
+    expected_result: "All assertions pass, function is deterministic"
+
+  test_06_plugin_access_patterns:
+    description: "Verify all plugin access patterns work correctly"
+    type: "Integration test"
+    method: |
+      1. Test Pattern A: extract_task_annotations_for_file(di=di)
+      2. Test Pattern B: feature_detector._resolve_marker_prefix(options)
+      3. Test Pattern C: parse_comment_doc_annotations(marker_prefix="test")
+      Verify each pattern retrieves correct value
+    expected_result: "All three patterns produce same marker_prefix value"
+
+---
+## ROLLOUT PLAN (Q3 2026)
+
+phase_1_validation:
+  timing: "Week 1-2 Q3"
+  tasks:
+    - "Run complete test suite (test_suite_marker_prefix_ownership)"
+    - "Code review MP1 contract against implementation"
+    - "Verify no implementation changes needed (audit shows clean state)"
+  gate: "All tests pass, no violations"
+  output: "Validation report signed off"
+
+phase_2_documentation:
+  timing: "Week 2-3 Q3"
+  tasks:
+    - "Add docstrings to bundle_resolver highlighting single-write nature"
+    - "Add docstrings to _resolve_marker_prefix explaining fail-closed guarantee"
+    - "Update scanner_core README with marker-prefix resolution flow"
+  output: "Documentation updates"
+
+phase_3_enforcement:
+  timing: "Week 3-4 Q3"
+  tasks:
+    - "Add lint rule: bundle['comment_doc_marker_prefix'] write only in bundle_resolver.py"
+    - "Add type annotation check: marker_prefix parameters marked as str (not str | None)"
+    - "Add integration test to CI/CD: verify all three resolution patterns work"
+  output: "Automated enforcement in CI"
+
+---
+## RELATED DOCUMENTS
+
+related_artifacts:
+  - name: "marker-prefix-ownership-audit.md"
+    role: "Current state analysis"
+    finding: "Clean, single-write pattern already implemented"
+  
+  - name: "marker-prefix-boundary-violations.yaml"
+    role: "Boundary verification"
+    finding: "No violations detected across all boundaries"
+  
+  - name: "GF2 full remediation plan (2026-04-19)"
+    role: "Platform-agnostic DI refactor"
+    scope: "Removed Ansible hardcodes, marker-prefix now policy-injected"
+  
+  - name: "PAR platform-agnostic remediation plan (2026-04-19)"
+    role: "Multi-platform expansion readiness"
+    scope: "Verified marker-prefix works with any platform plugin"
+
+---
+
+mp1_contract_status: READY_FOR_IMPLEMENTATION
+recommendation: "Proceed with phase 1 validation. No implementation changes required."
+audited_by: "Scout-MarkerPrefixAudit"
+audit_date: "2026-05-09"

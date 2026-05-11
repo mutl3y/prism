@@ -1,0 +1,1080 @@
+metadata:
+  wave: wave_2_high_di_architecture
+  tier: TIER_2
+  model: Claude Sonnet 4.5
+  cost_multiplier: 1.0
+  total_findings: 59
+  strategy: Tier 2 architectural reasoning with coordinated refactoring
+  reason: Tier 1 hit feasibility ceiling at 1/30 fixed - requires deep architectural
+    analysis
+  fixed: 8
+  already_addressed: 7
+  deferred: 44
+status: COMPLETE
+findings:
+- id: GILF-NODE1-03
+  severity: HIGH
+  category: ownership
+  location: '[scanner_context.py:various, di.py:various]'
+  issue: Policy Ownership Split and Fallbacks
+  root_cause: Policies are set in one place (scan_request, ingress) and read or normalized
+    in others (scanner_context, adapters), with fallback logic scattered everywhere.
+  impact: Impossible to trace policy flow. Fallbacks create hidden state and normalization
+    bugs. Ownership is ambiguous.
+  confidence: 90
+  fix_suggestion: Enforce single-point policy preparation at ingress. All consumers
+    must require explicit, pre-normalized policy bundles—no fallback, no local normalization.
+  source_file: tier0-gpt41-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE1-01
+  severity: HIGH
+  category: type-safety
+  location: '[src/prism/scanner_core/di.py:1-120]'
+  issue: Unchecked cast() and TypedDict identity loss when cloning scan options
+  root_cause: '`clone_scan_options` builds a plain dict and uses `cast(ScanOptionsDict,
+    ...)` to declare typed identity; many factories then consume that dict assuming
+    TypedDict contracts without runtime validation.'
+  impact: Silent type contract violations, loss of TypedDict shape guarantees, and
+    downstream code may rely on TypedDict identity (or typed keys) which can be lost
+    — leads to runtime KeyError/ValueError and brittle checks.
+  confidence: 95
+  fix_suggestion: Avoid broad `cast(...)` shortcuts. Validate/construct a `ScanOptionsDict`
+    explicitly (schema-check or dataclass factory) or create helper that performs
+    runtime validation when cloning; preserve TypedDict-like construction instead
+    of blind cast.
+  source_file: tier0-gpt5m-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE1-03
+  severity: HIGH
+  category: lazy-imports|circular-deps
+  location: '[src/prism/scanner_core/di.py:1-240]'
+  issue: Widespread deferred imports to hide circular dependencies
+  root_cause: Factory helpers defer imports (e.g., FeatureDetector, VariableDiscovery)
+    to runtime to avoid import-time cycles instead of resolving architectural layering.
+  impact: Load-order coupling is masked rather than solved — can produce surprising
+    runtime errors, hides real layering violations, and complicates static analysis
+    and type-checking.
+  confidence: 96
+  fix_suggestion: Introduce clearer module boundaries / interface modules (protocols)
+    so concrete implementations can live in plugin modules. Prefer inversion-of-control
+    at module import time (small registry or entrypoint) instead of ad-hoc deferred
+    imports.
+  source_file: tier0-gpt5m-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE1-02
+  severity: HIGH
+  category: architecture
+  location: '[src/prism/scanner_core/di.py:120-320]'
+  issue: DIContainer is a god-object with mixed responsibilities
+  root_cause: DIContainer owns platform resolution, caching, mock injection, event
+    bus wiring, plugin construction, blocker building and scanner-context wiring —
+    many cross-cutting concerns concentrated in one mutable instance.
+  impact: High coupling, hard-to-test surface, hidden runtime side effects (cache/mocks),
+    and composes circular-dependency workarounds into runtime factory code; makes
+    refactors risky and review-intensive.
+  confidence: 98
+  fix_suggestion: 'Split responsibilities: separate a thin immutable composition root
+    (registrations, wiring) from run-time instance-holder (caches, mocks). Expose
+    small Protocols for consumers; move platform-key resolution and blocker-factory
+    resolution to separate helper/service classes.'
+  source_file: tier0-gpt5m-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE3-03
+  severity: HIGH
+  category: event-reliability
+  location: '[src/prism/scanner_core/events.py:1-140]'
+  issue: Silent event handler failures swallow exceptions
+  root_cause: Event bus dispatch wraps handler calls in bare except blocks or logs
+    only the exception type, discarding stack traces and context. Other handlers may
+    or may not run depending on the implementation.
+  impact: Lost diagnostics, undetected bugs, and handlers failing without any trace.
+    Amateur hour.
+  confidence: 98
+  fix_suggestion: Log full exception details with stack traces, always chain exceptions,
+    and ensure all handlers run even if one fails. Consider using a robust pub/sub
+    library.
+  source_file: tier0-gpt41-node3-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE3-02
+  severity: HIGH
+  category: cache-safety
+  location: '[src/prism/scanner_core/scan_cache.py:1-160]'
+  issue: No explicit cache invalidation or TTL enforcement
+  root_cause: Cache entries are stored indefinitely with no time-to-live, eviction,
+    or invalidation logic. The code assumes the world is static and memory is infinite.
+  impact: Unbounded memory growth, stale data, and eventual OOM crashes. The only
+    thing getting evicted is your uptime.
+  confidence: 90
+  fix_suggestion: Implement TTLs for cache entries, periodic, and explicit invalidation
+    hooks. Use an LRU or time-based eviction policy.
+  source_file: tier0-gpt41-node3-findings.yaml
+  status: ALREADY_ADDRESSED
+  fix_type: prior_work
+- id: GILF-NODE3-03
+  severity: HIGH
+  category: copy-semantics
+  location: '[src/prism/scanner_core/scan_cache.py:1-40] & [src/prism/scanner_core/scan_request.py:1-80]'
+  issue: Shallow or incomplete cloning leads to shared mutable state
+  root_cause: _clone_container_structure clones basic containers but returns original
+    for non-container objects; `build_run_scan_options_canonical` uses `copy.copy`
+    for `prepared_policy_bundle` and leaves other lists/maps as-is.
+  impact: Mutable objects inside cached values or returned scan options can be mutated
+    by callers or consumers after caching, breaking immutability assumptions and causing
+    hard-to-debug state corruption or cross-request leakage.
+  confidence: 95
+  fix_suggestion: 'Use a robust defensive copy strategy: either `copy.deepcopy` (with
+    care for performance) or a serialization round-trip (JSON/MessagePack) for cache
+    boundaries. For non-serializable domain objects, require a `get_state_fingerprint()`
+    or provide explicit serializer hooks. In `build_run_scan_options_canonical`, deep-copy
+    incoming lists/dicts (or freeze them) before placing into the returned options.'
+  source_file: tier0-gpt5m-node3-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE3-01
+  severity: HIGH
+  category: cache-safety
+  location: '[src/prism/scanner_core/scan_cache.py:30-110]'
+  issue: No TTL or byte-size eviction — only entry-count LRU
+  root_cause: InMemoryLRUScanCache only limits entries by count (`maxsize`) and never
+    evicts based on age or value size.
+  impact: Large scan results (or many large entries) can exhaust process memory despite
+    LRU count limits; long-lived stale entries remain until evicted by count pressure.
+  confidence: 95
+  fix_suggestion: Add optional TTL per-entry and/or a byte-size budget. Implement
+    time-based expiry and an LRU that accounts for value size (bytes). Consider background
+    maintenance thread or lazy expiry on access to avoid long pause events.
+  source_file: tier0-gpt5m-node3-findings.yaml
+  status: ALREADY_ADDRESSED
+  fix_type: prior_work
+- id: GILF-NODE3-07
+  severity: HIGH
+  category: validation
+  location: '[src/prism/scanner_core/scan_request.py:1-120]'
+  issue: Weak/late validation and fragile `prepared_policy_bundle` handling
+  root_cause: Only `role_path` is validated early; `prepared_policy_bundle` is copied
+    only when it's a plain `dict` (`isinstance(dict)`), otherwise ignored. Many inputs
+    are accepted without type checks until `validate_scan_options` is invoked late.
+  impact: Invalid or unexpected types can be embedded into the options and later cause
+    runtime errors, silent skips, or inadvertent cache key collisions (if callers
+    assume shapes). Prepared bundles that are valid but not `dict` (e.g., TypedDict,
+    Mapping, or a plugin-provided object) will be ignored leading to incorrect scan
+    behavior.
+  confidence: 95
+  fix_suggestion: 'Validate inputs early: use `collections.abc.Mapping` / explicit
+    TypedDict checks for `prepared_policy_bundle` and copy/normalize accordingly.
+    Perform defensive deep-copying of lists/maps passed in. Fail-fast with clear,
+    chained exceptions that include the offending key name and expected type.'
+  source_file: tier0-gpt5m-node3-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE3-05
+  severity: HIGH
+  category: validation
+  location: '[src/prism/scanner_core/scan_request.py:1-380]'
+  issue: Request objects lack strict field validation
+  root_cause: Required fields are not consistently validated at construction or ingestion.
+    Optional fields default to None or empty, but downstream code assumes presence.
+  impact: Invalid requests propagate through scanner_core, causing downstream errors,
+    silent failures, or security issues.
+  confidence: 92
+  fix_suggestion: Enforce strict validation of all required fields at object creation.
+    Use pydantic or dataclasses with type enforcement and validation hooks.
+  source_file: tier0-gpt41-node3-findings.yaml
+  status: ALREADY_ADDRESSED
+  fix_type: prior_work
+- id: GILF-NODE3-07
+  severity: HIGH
+  category: error-handling
+  location: '[src/prism/scanner_core/scan_request.py:1-380], [src/prism/scanner_core/events.py:1-140]'
+  issue: Error messages lack context and exception chaining
+  root_cause: Exceptions are raised with generic messages, missing contextual data
+    (e.g., request IDs, cache keys). Exception chaining is not used, so root causes
+    are lost.
+  impact: Impossible-to-debug errors, lost root cause, and a support queue full of
+    angry users.
+  confidence: 90
+  fix_suggestion: Always include contextual data in error messages, and use 'raise
+    ... from exc' to chain exceptions. Log all errors with full context.
+  source_file: tier0-gpt41-node3-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-DI-05
+  severity: HIGH
+  category: testability
+  location: di.py:134-176 (_construct_runtime_plugin)
+  issue: Plugin constructor validation uses signature inspection but doesn't validate
+    plugin class shape at registration time
+  root_cause: DIContainer._construct_runtime_plugin() inspects the constructor signature
+    at runtime to check if the plugin accepts `di=...`. This check should happen when
+    the plugin is registered, not when it's instantiated.
+  impact: Errors surface at scan runtime, not at plugin bootstrap. Bad plugins slip
+    through initialization and fail deep in execution. No fail-fast validation.
+  confidence: 88
+  fix_suggestion: Move signature validation to PluginRegistry.register_plugin(). Validate
+    all plugins once at bootstrap. Store pre-validated plugin classes. Fail fast.
+  source_file: tier1-haiku45-node1-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE1-02
+  severity: HIGH
+  category: architecture
+  location: di.py:188-561 (entire DIContainer class)
+  issue: God-object antipattern - DIContainer has 17 factory methods and manages caching,
+    locking, mocking, platform resolution, and event bus lifecycle
+  root_cause: 'Classic ''throw everything in one class'' design. Started as lightweight
+    DI, accumulated responsibilities. Now manages: plugin resolution (7 types), service
+    creation (variable_discovery, feature_detector), cache lifecycle, mock injection,
+    threading locks, platform key resolution, event bus, scanner context wiring. Single
+    class knows about scanner_core, scanner_extract, scanner_plugins, scanner_data.'
+  impact: Testing nightmare - must understand 3-level override hierarchy (mocks →
+    factory_overrides → actual). Changing any plugin registration requires understanding
+    entire DI contract. 561 lines in single class. Circular dependency workarounds
+    everywhere. Every new capability adds another factory method. Class will grow
+    indefinitely.
+  confidence: 100
+  fix_suggestion: 'Split into: (1) PluginResolver (platform key + registry queries),
+    (2) ServiceLocator (caching + lifecycle), (3) TestDoubleInjector (mocking). Estimated
+    1-2 weeks refactoring + full test coverage rewrite. But you won''t do it because
+    ''it works'' and ''we don''t have time''. Classic.'
+  source_file: tier2-sonnet45-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE2-02
+  severity: HIGH
+  category: caching
+  location: di.py:228-235
+  issue: Anemic Cache Invalidation for Options Mutation
+  root_cause: replace_scan_options only invalidates 'feature_detector' and 'variable_discovery'.
+    It completely ignores the fact that nearly every other factory in this container
+    (like scanner_context) also captures scan_options in its closure or constructor.
+  impact: Stale scan options persist in the ScannerContext or any other long-lived
+    DI-provided component after an options update. You're effectively running a scan
+    with two different realities at once.
+  confidence: 95
+  fix_suggestion: Invalidate the entire _cache on replace_scan_options, or use a proper
+    property-dependency graph if you're actually pretending to be a systems architect.
+  source_file: tier1-gemini3f-node2-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE1-04
+  severity: HIGH
+  category: architecture
+  location: di.py:24-54 (TYPE_CHECKING block), di.py:103-113 (deferred imports)
+  issue: Circular dependency architecture smell - 30 lines of TYPE_CHECKING imports
+    and deferred factory imports indicate wrong module boundaries
+  root_cause: scanner_core imports from scanner_extract, scanner_plugins. Those modules
+    import di_helpers from scanner_core. Broke import cycle by deferring imports to
+    factory call sites. Symptom treatment instead of fixing module dependency graph.
+    Every future scanner_core addition risks new circular dependency.
+  impact: Cognitive load - developers must understand when imports happen vs when
+    types are available. Refactoring paralyzed - moving code between modules requires
+    checking TYPE_CHECKING blocks. Import order bugs hide until runtime. Adding new
+    scanner_extract dependency requires another deferred import pattern. Architecture
+    fighting itself.
+  confidence: 95
+  fix_suggestion: 'Invert dependency: extract scanner_core interfaces to scanner_data/protocols.
+    scanner_extract and scanner_plugins depend only on protocols, not concrete scanner_core.
+    DI wires implementations. Cost: 1 week architectural refactoring. Alternative:
+    accept technical debt and watch it compound. You probably already have.'
+  source_file: tier2-sonnet45-node1-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE1-01
+  severity: HIGH
+  category: type-safety
+  location: di.py:76-80, di.py:321, di.py:346, di.py:403, di.py:429, plus 8 more
+  issue: Type erasure epidemic through blind cast() on factory override results
+  root_cause: Factory override pattern trusts caller-provided objects without validation.
+    Every factory method does `cast(ReturnType, override_result)` after calling `_call_factory_override()`,
+    which returns `object | None`. Zero runtime validation that override actually
+    conforms to expected protocol.
+  impact: Type checker believes contracts are enforced when they're completely optional
+    at runtime. Test doubles or malicious overrides can inject arbitrary objects.
+    Runtime failure occurs deep in call stack with cryptic AttributeError instead
+    of at DI boundary with clear contract violation. Mystery why anyone bothered with
+    type hints if you're just going to lie to mypy.
+  confidence: 98
+  fix_suggestion: 'Replace blind cast() with runtime Protocol validation using isinstance()
+    checks. For override results, verify required methods exist before casting. Cost:
+    2-3h to add validation helpers. Alternative: remove override mechanism entirely
+    if you can''t be bothered to validate contracts. That''s what adults do.'
+  source_file: tier2-sonnet45-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-DI-01
+  severity: HIGH
+  category: type-safety
+  location: di.py:78
+  issue: Blind TypedDict cast loses identity through dict comprehension
+  root_cause: clone_scan_options() uses cast(ScanOptionsDict, {...}) to force type
+    after building dict via comprehension. TypedDict is nominal—this cast is purely
+    aspirational and fails at runtime type checking.
+  impact: Downstream code like scan_options_from_di() does isinstance(di, HasScanOptions)
+    checks on the scan_options property, but mypy has no guarantee the cast actually
+    produced a ScanOptionsDict. Type erasure creates contract violations.
+  confidence: 95
+  fix_suggestion: 'Return ScanOptionsDict explicitly: `result: ScanOptionsDict = {};
+    result.update({...}); return result` or use TypedDict constructor if available.'
+  source_file: tier1-haiku45-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-DI-03
+  severity: HIGH
+  category: ownership
+  location: di.py:85-110, di.py:283, di.py:228
+  issue: scan_options cloning scattered across multiple locations without clear ownership
+  root_cause: 'clone_scan_options() is called in: (1) __init__ to store, (2) replace_scan_options(),
+    (3) _snapshot_scan_options(), (4) each factory_* method that needs current options.
+    Cloning policy is distributed; no single source of truth.'
+  impact: If cloning logic needs to change (e.g., to handle new mutable types), you
+    must hunt through 20+ call sites. Inconsistent snapshots could leak mutable state
+    despite cloning intent. Expensive operation called repeatedly.
+  confidence: 92
+  fix_suggestion: 'Make scan_options an immutable property: `@property scan_options(self)
+    -> ScanOptionsDict` returns a fresh snapshot. Call site doesn''t need to know
+    cloning happens. Single source of truth for snapshot policy.'
+  source_file: tier1-haiku45-node1-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-DI-02
+  severity: HIGH
+  category: architecture
+  location: src/prism/scanner_core/di.py:115-163
+  issue: Constructor-shape checking via introspection
+  root_cause: The `_construct_runtime_plugin` function uses `inspect.signature` to
+    verify if a plugin class accepts `di=...`, essentially reinventing building-block
+    DI at runtime.
+  impact: Performance tax on every plugin instantiation and a brittle dependency on
+    constructor naming conventions. It bypasses the Protocol-based safety that static
+    analysis should provide.
+  confidence: 90
+  fix_suggestion: Enforce a uniform base class or a stricter Protocol for plugins
+    that the Registry validates *before* handing them to the DI container, eliminating
+    the need for runtime signature sniffing.
+  source_file: tier1-gemini3f-node1-findings.yaml
+  status: ALREADY_ADDRESSED
+  fix_type: prior_work
+- id: GILF-NODE1-02
+  severity: HIGH
+  category: type-safety
+  location: src/prism/scanner_core/di.py:140-186
+  issue: Runtime plugin validation checks only whether the constructor accepts `di`,
+    not whether the instantiated object actually satisfies the expected plugin protocol.
+  root_cause: The registry hands back `type[Any]`, and `_construct_runtime_plugin()`
+    enforces constructor shape instead of behavioral shape.
+  impact: A plugin class with a `di` parameter but missing required methods will be
+    accepted at composition time and fail later inside discovery or feature detection.
+    That pushes the real fault away from the DI boundary and turns a clean configuration
+    error into downstream runtime noise.
+  confidence: 95
+  fix_suggestion: 'Have registry methods return Protocol-constrained plugin classes,
+    or validate the constructed instance against a `@runtime_checkable` protocol with
+    explicit required callables. Effort: medium. Impact: high for fail-fast behavior.'
+  source_file: tier2-gpt54-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE1-03
+  severity: HIGH
+  category: testability
+  location: src/prism/scanner_core/di.py:190-221,540-558
+  issue: 'The DI container is doing five jobs at once: composition root, plugin resolver,
+    cache owner, event-bus owner, and mutable test harness via `inject_mock()`/`clear_mocks()`.'
+  root_cause: Test seams were embedded directly into the production container instead
+    of being isolated in a builder, fixture adapter, or test-only wrapper.
+  impact: Mocking requires magic names that mirror factory keys, container state becomes
+    mutable in ways production code should never need, and tests are coupled to internal
+    resolution order instead of behavior. That is classic god-object drift, just with
+    more ceremony.
+  confidence: 93
+  fix_suggestion: 'Split test override support out of `DIContainer` into a dedicated
+    test harness or container builder, and move plugin resolution/cache concerns behind
+    narrower collaborators. Effort: medium-high. Impact: high for maintainability
+    and isolation.'
+  source_file: tier2-gpt54-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE1-03
+  severity: HIGH
+  category: error-handling
+  location: src/prism/scanner_core/di.py:200-220
+  issue: Silent failure in `_call_factory_override`
+  root_cause: Factory override errors are swallowed, leading to silent failures.
+  impact: Hinders debugging and can cause downstream failures with unclear root causes.
+  confidence: 85
+  fix_suggestion: Log errors explicitly and raise exceptions for critical failures.
+  source_file: tier0-gpt4o-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE1-01
+  severity: HIGH
+  category: architecture
+  location: src/prism/scanner_core/di.py:200-309
+  issue: The container's extensibility seams are stringly typed. `scanner_context_wiring`
+    is a raw `dict[str, object]`, factory overrides are selected by magic string keys,
+    and `factory_scanner_context()` relies on a `cast()` instead of a validated constructor
+    contract.
+  root_cause: The DI composition root was made flexible through unstructured dictionaries
+    rather than typed seam objects or Protocol-backed adapters.
+  impact: Miswired runtime seams fail late, only when a factory is invoked, and the
+    failure shape depends on whatever object happened to be stuffed into the dict.
+    Tests also inherit this mess and end up casting plain dicts into override types
+    instead of getting compile-time enforcement.
+  confidence: 97
+  fix_suggestion: 'Replace `scanner_context_wiring` and string-keyed factory override
+    maps with typed dataclasses or dedicated Protocol interfaces, and validate them
+    once in `DIContainer.__init__`. Effort: medium. Impact: high for testability and
+    runtime diagnostics.'
+  source_file: tier2-gpt54-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-DI-03
+  severity: HIGH
+  category: ownership
+  location: src/prism/scanner_core/di.py:205-209
+  issue: Split ownership of ScanOptions snapshots
+  root_cause: The container clones `scan_options` in `__init__`, but provides `replace_scan_options`
+    and `_snapshot_scan_options` methods that allow external mutation of the container's
+    core state.
+  impact: Inconsistent state across the system. If one part of the code calls `replace_scan_options`,
+    already-instantiated objects like `ScannerContext` may still hold references to
+    the old snapshot, leading to 'split-brain' scanning results.
+  confidence: 85
+  fix_suggestion: Make `ScanOptions` immutable within the DI container's lifecycle.
+    If options must change, a new Container instance should be spawned to ensure all
+    child objects see the same worldview.
+  source_file: tier1-gemini3f-node1-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE1-09
+  severity: HIGH
+  category: DI-container-architecture
+  location: src/prism/scanner_core/di.py:250-280
+  issue: Cache invalidation logic tightly coupled to DIContainer
+  root_cause: Cache management is embedded within DIContainer, violating separation
+    of concerns.
+  impact: Complicates cache management and increases the risk of stale data.
+  confidence: 90
+  fix_suggestion: Extract cache management into a dedicated CacheManager class.
+  source_file: tier0-gpt4o-node1-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE1-01
+  severity: HIGH
+  category: type-safety
+  location: src/prism/scanner_core/di.py:50-70
+  issue: Excessive reliance on `cast()` for type coercion
+  root_cause: The DIContainer uses `cast()` to enforce type safety, masking potential
+    runtime type errors.
+  impact: Introduces fragility in type enforcement, making debugging harder and risking
+    runtime failures.
+  confidence: 90
+  fix_suggestion: Replace `cast()` with explicit type checks or refactor to use Protocols
+    with runtime validation.
+  source_file: tier0-gpt4o-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE1-01
+  severity: HIGH
+  category: type-safety
+  location: src/prism/scanner_core/di.py:74-82
+  issue: TypedDict contract erased by generic clone + cast
+  root_cause: clone_scan_options deep-clones scan_options into a plain dict and then
+    uses cast(ScanOptionsDict, ...), which preserves no runtime TypedDict invariants.
+  impact: Invalid or incomplete ScanOptionsDict values can propagate silently until
+    later orchestration steps, making failures harder to diagnose and weakening static
+    type guarantees.
+  confidence: 92
+  fix_suggestion: Use a stricter runtime validation path for ScanOptionsDict or construct
+    the cloned object via explicit TypedDict-aware helpers instead of raw cast.
+  source_file: tier0-raptor-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE1-01
+  severity: HIGH
+  category: architecture
+  location: src/prism/scanner_core/di.py:_construct_runtime_plugin
+  issue: The DI container's plugin constructor has a gaping security and reliability
+    hole, allowing any plugin to crash the scanner if it has a TypeError in its constructor.
+  root_cause: A misguided attempt to create a generic plugin constructor that catches
+    `TypeError` but not other `PrismRuntimeError` exceptions. It assumes only DI-related
+    `TypeError` can happen, which is laughably naive.
+  impact: Any third-party or poorly written first-party plugin with a `TypeError`
+    in its `__init__` will bring down the entire scan. This makes the system brittle
+    and vulnerable to trivial bugs in extensions. It's an open invitation for failure.
+  confidence: 100
+  fix_suggestion: 'Stop trying to be clever and just let exceptions propagate. Remove
+    the `try...except TypeError` block entirely. If a plugin is broken, it should
+    fail loudly and explicitly, not be caught by a generic, indiscriminate error handler
+    in the core DI framework. Effort: Trivial. Impact: The system becomes resilient
+    to plugin-level failures.'
+  source_file: tier2-gemini25-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE1-02
+  severity: HIGH
+  category: type-safety
+  location: src/prism/scanner_core/di.py:clone_scan_options
+  issue: The `clone_scan_options` function blindly casts a dictionary to `ScanOptionsDict`,
+    completely bypassing any structural validation and creating a type safety mirage.
+  root_cause: Laziness. Instead of properly validating the structure of the `scan_options`
+    dictionary against the `TypedDict` definition, the code just assumes it's correct
+    and uses `cast()` to silence the type checker.
+  impact: This completely defeats the purpose of using a `TypedDict`. Any caller can
+    pass a malformed dictionary, leading to `KeyError` or `TypeError` exceptions deep
+    within the scanner at runtime. It creates a brittle contract based on wishful
+    thinking, not verification.
+  confidence: 100
+  fix_suggestion: 'Replace the `cast` with a proper validation function that checks
+    for the presence and types of required keys defined in `ScanOptionsDict`. Raise
+    a `ValueError` if the structure is incorrect at the boundary. Effort: Low. Impact:
+    Enforces the `ScanOptionsDict` contract, preventing runtime errors from invalid
+    options.'
+  source_file: tier2-gemini25-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE1-08
+  severity: HIGH
+  category: type-safety
+  location: src/prism/scanner_core/di_helpers.py:100-120
+  issue: Inconsistent use of Protocols for type enforcement
+  root_cause: Some utility functions rely on duck typing instead of Protocols, reducing
+    type safety.
+  impact: Increases risk of runtime errors and complicates static analysis.
+  confidence: 90
+  fix_suggestion: Enforce Protocol usage consistently across all utility functions.
+  source_file: tier0-gpt4o-node1-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE3-02
+  severity: HIGH
+  category: event-reliability
+  location: src/prism/scanner_core/events.py:126-136
+  issue: Sequential event processing causes listener-induced latency
+  root_cause: The EventBus uses a simple for-loop over subscribers within a synchronized
+    block. If a listener is slow or blocks, it stalls the entire pipeline.
+  impact: The 'lightweight' promise of the event system is a lie. A single misbehaving
+    telemetry listener can turn an O(N) scan into O(forever), degrading throughput
+    and potentially causing timeouts in consumer applications.
+  confidence: 90
+  fix_suggestion: Implement a thread-pool or async queue for event dispatching to
+    decouple the scan pipeline from listener execution overhead.
+  source_file: tier1-gemini3f-node3-findings.yaml
+  status: ALREADY_ADDRESSED
+  fix_type: prior_work
+- id: GILF-NODE3-02
+  severity: HIGH
+  category: copy-semantics
+  location: src/prism/scanner_core/events.py:157-179
+  issue: The phase context manager only shallow-copies context and metadata, then
+    reuses the same dicts for both pre and post events.
+  root_cause: ctx = dict(context or {}) and meta = dict(metadata or {}) copy only
+    the top-level mapping. Nested lists/dicts remain shared with the caller, and the
+    same shared objects are sent to both pre and post emissions.
+  impact: One listener can mutate nested payload state seen by later listeners or
+    by the post event, making event payloads nondeterministic and order-dependent.
+    For infrastructure telemetry, that is amateur-hour data corruption.
+  confidence: 95
+  fix_suggestion: 'Freeze or deep-copy event payloads at the emission boundary. At
+    minimum, clone nested container structures before constructing ScanPhaseEvent
+    and use distinct payload instances for pre vs post. Effort: small to medium. Impact:
+    high.'
+  source_file: tier2-gpt54-node3-findings.yaml
+  status: ALREADY_ADDRESSED
+  fix_type: prior_work
+- id: GILF-NODE2-02
+  severity: HIGH
+  category: data-flow
+  location: src/prism/scanner_core/feature_detector.py:120-126, src/prism/scanner_core/task_extract_adapters.py:222-233
+  issue: FeatureDetector options and task-extraction marker resolution come from different
+    sources
+  root_cause: FeatureDetector.collect_task_handler_catalog uses self._options, while
+    collect_task_handler_catalog in task_extract_adapters resolves marker_prefix from
+    live DI scan_options.
+  impact: Marker-prefix policy can diverge from the feature-detection execution context,
+    breaking invariant consistency between task catalog assembly and annotation extraction.
+  confidence: 88
+  fix_suggestion: Make collect_task_handler_catalog consume the same cloned scan options
+    used by FeatureDetector, and derive marker_prefix from that single options object
+    rather than raw DI state.
+  source_file: tier0-raptor-node2-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE2-04
+  severity: HIGH
+  category: policy
+  location: src/prism/scanner_core/feature_detector.py:120-127
+  issue: Catalog collection mixes stale exclusion state with current marker-prefix
+    policy.
+  root_cause: collect_task_handler_catalog() reads exclude_path_patterns from the
+    detector's constructor-time snapshot (`self._options`), but the adapter it calls
+    resolves comment_doc_marker_prefix from current DI scan_options at call time.
+  impact: After DI.replace_scan_options() or retained-instance reuse, one catalog
+    run can apply one request's exclusions and another request's marker policy. That
+    makes task visibility and annotation matching depend on timing instead of input.
+  confidence: 94
+  fix_suggestion: Derive both exclude paths and marker prefix from the same fresh
+    option snapshot, or pass marker_prefix explicitly from the detector snapshot into
+    the adapter. Small effort, high determinism impact.
+  source_file: tier2-gpt54-node2-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE2-06
+  severity: HIGH
+  category: performance
+  location: src/prism/scanner_core/feature_detector.py:85-127
+  issue: The detector API forces repeated full-role traversals with no shared task
+    snapshot or memoization.
+  root_cause: detect(), analyze_task_catalog(), and collect_task_handler_catalog()
+    are exposed as independent entrypoints and each restarts downstream traversal/parsing
+    instead of sharing a per-scan task inventory.
+  impact: Large roles pay for repeated YAML loads, file reads, include expansion,
+    and annotation parsing. The cost scales like multiple full passes over the same
+    tree, which is a needless performance cliff in the scanner hot path.
+  confidence: 92
+  fix_suggestion: Build a per-scan task snapshot/cache keyed by role path plus normalized
+    exclusions and policy fingerprint, then derive features, catalog, and handler
+    views from that shared artifact. Medium effort, high latency improvement.
+  source_file: tier2-gpt54-node2-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE3-03
+  severity: HIGH
+  category: cache-safety
+  location: src/prism/scanner_core/scan_cache.py:148-154, 195-199
+  issue: Runtime wiring identity can mask internal registry state changes
+  root_cause: When runtime_registry lacks get_state_fingerprint, the cache key falls
+    back to object identity instead of registry state.
+  impact: Cache entries may remain valid across internal runtime registry mutations,
+    causing stale semantics or bad payload reuse.
+  confidence: 88
+  fix_suggestion: Require a stable registry fingerprint interface or forbid caching
+    when runtime_registry cannot provide a state fingerprint.
+  source_file: tier0-raptor-node3-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE3-05
+  severity: HIGH
+  category: cache-safety
+  location: src/prism/scanner_core/scan_cache.py:19-30
+  issue: Custom recursive clone lacks support for specialized types
+  root_cause: _clone_container_structure only handles standard collection types (dict,
+    list, tuple, set, frozenset).
+  impact: If scan results contain high-level objects or custom dataclasses (which
+    they do), they are passed by reference. This allows a consumer of a cached result
+    to modify the underlying cache entry accidentally, leading to cache poisoning.
+  confidence: 90
+  fix_suggestion: Migrate to copy.deepcopy() or extend the cloning logic to support
+    dataclasses and general object attributes via __dict__ or __slots__.
+  source_file: tier1-gemini3f-node3-findings.yaml
+  status: ALREADY_ADDRESSED
+  fix_type: prior_work
+- id: GILF-NODE3-04
+  severity: HIGH
+  category: cache-safety
+  location: src/prism/scanner_core/scan_cache.py:203-241
+  issue: Cache key canonicalization collapses every opaque object to its type name,
+    so distinct values of the same class hash to the same cache key.
+  root_cause: '_canonicalize falls back to {''__opaque_type__'': module.qualname}
+    for unsupported values and ignores instance identity or semantic fingerprints.
+    The codebase even defines a CacheFingerprintProvider protocol elsewhere, but this
+    function does not use it.'
+  impact: Different scan inputs can produce the same key and return the wrong cached
+    result. In practice that is cache poisoning by type collision, not caching.
+  confidence: 94
+  fix_suggestion: 'Teach _canonicalize to use a stable semantic fingerprint for opaque
+    values, preferably via an explicit protocol such as cache_fingerprint(), and fail
+    closed when no stable fingerprint exists. Effort: medium. Impact: high.'
+  source_file: tier2-gpt54-node3-findings.yaml
+  status: ALREADY_ADDRESSED
+  fix_type: prior_work
+- id: GILF-NODE3-02
+  severity: HIGH
+  category: cache-safety
+  location: src/prism/scanner_core/scan_cache.py:215-216
+  issue: Non-string mapping keys can collide in cache key generation
+  root_cause: Dict keys are converted with str(key) during canonicalization, so distinct
+    keys like 1 and '1' produce the same cache entry key.
+  impact: Cache collisions can silently return the wrong result for semantically different
+    scan options.
+  confidence: 90
+  fix_suggestion: Preserve key type information in canonicalization or enforce and
+    validate that scan option keys are always strings.
+  source_file: tier0-raptor-node3-findings.yaml
+  status: ALREADY_ADDRESSED
+  fix_type: prior_work
+- id: GILF-NODE3-08
+  severity: HIGH
+  category: copy-semantics
+  location: src/prism/scanner_core/scan_request.py:21-31,93-94
+  issue: Request copying is shallow, so nested policy_context structures and prepared_policy_bundle
+    contents remain shared across requests.
+  root_cause: ScanPolicyContext(**policy_context) and copy.copy(prepared_policy_bundle)
+    preserve only the outer mapping. Nested dicts like policy_context.comment_doc
+    or selection and any mutable values inside prepared_policy_bundle are still aliased.
+  impact: Mutating nested request state after canonicalization can affect other consumers
+    or later pipeline phases. Shared mutable request state inside scanner infrastructure
+    is how you manufacture heisenbugs for sport.
+  confidence: 95
+  fix_suggestion: 'Deep-copy only the supported nested container shapes for ScanPolicyContext
+    and PreparedPolicyBundle, or make these structures immutable at ingress. Effort:
+    medium. Impact: high.'
+  source_file: tier2-gpt54-node3-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE3-03
+  severity: HIGH
+  category: validation
+  location: src/prism/scanner_core/scan_request.py:40-75
+  issue: Incomplete Boolean Normalization in dict-building
+  root_cause: The code manually calls bool() on some fields but uses raw assignment
+    for others like 'fail_on_unconstrained_dynamic_includes'.
+  impact: A downstream consumer expecting strict Booleans from the ScanOptionsDict
+    will find itself processing truthy junk or Nones. This is a classic 'hope-based'
+    validation strategy that violates the principle of a canonical contract.
+  confidence: 95
+  fix_suggestion: Enforce strict Boolean conversion for all flag fields at the point
+    of dict entry, or use a proper Pydantic-like model for early coercion.
+  source_file: tier1-gemini3f-node3-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE3-07
+  severity: HIGH
+  category: validation
+  location: src/prism/scanner_core/scan_request.py:68-89
+  issue: Boolean request fields are truthified with bool(...) instead of validated,
+    so invalid caller input is silently rewritten.
+  root_cause: build_run_scan_options_canonical coerces multiple flags with bool(value),
+    which turns values like 'false', '0', [1], or object() into True rather than rejecting
+    them.
+  impact: Mis-typed API or CLI inputs can flip behavior in the wrong direction while
+    still producing a 'valid' request. That is the kind of bug that wastes days because
+    everything looks normal until it very much isn't.
+  confidence: 99
+  fix_suggestion: 'Require actual bool instances for boolean fields and raise a validation
+    error otherwise. Reuse a helper like require_strict_phase_failures-style enforcement
+    for all boolean request options. Effort: small. Impact: high.'
+  source_file: tier2-gpt54-node3-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE3-06
+  severity: HIGH
+  category: validation
+  location: src/prism/scanner_core/scan_request.py:93-95
+  issue: Malformed prepared_policy_bundle values are silently dropped instead of being
+    rejected.
+  root_cause: The function only copies prepared_policy_bundle when isinstance(...,
+    dict) is true; otherwise it omits the key entirely and still returns a validated
+    options dict.
+  impact: Invalid requests can cross the request boundary in a degraded state and
+    fail later, far from the origin, or fall back to different runtime behavior. That
+    is exactly how boundary contracts become useless.
+  confidence: 96
+  fix_suggestion: 'Reject any non-None prepared_policy_bundle that is not a valid
+    PreparedPolicyBundle. Do not silently omit it. Effort: small. Impact: high.'
+  source_file: tier2-gpt54-node3-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE3-04
+  severity: HIGH
+  category: copy-semantics
+  location: src/prism/scanner_core/scan_request.py:build_scan_request
+  issue: The function performs a shallow copy of the `scan_options` dictionary, risking
+    shared mutable state.
+  root_cause: The use of `scan_options.copy()` creates a shallow copy. If any of the
+    values in the dictionary are mutable objects (like lists or other dictionaries),
+    they will be shared between the original and the copy, leading to unintended cross-request
+    state pollution.
+  impact: A change to a mutable object within one scan request's options will unexpectedly
+    affect other scan requests that were created from the same base options. This
+    leads to race conditions and non-deterministic behavior that is a nightmare to
+    debug.
+  confidence: 95
+  fix_suggestion: 'Use `copy.deepcopy()` to ensure that the `scan_options` are completely
+    isolated between scan requests. This prevents any possibility of shared state.
+    Effort: Trivial. Impact: Guarantees request isolation and prevents a wide range
+    of subtle, state-related bugs.'
+  source_file: tier2-gemini25-node3-findings.yaml
+  status: ALREADY_ADDRESSED
+  fix_type: prior_work
+- id: GILF-NODE3-03
+  severity: HIGH
+  category: validation
+  location: src/prism/scanner_core/scan_request.py:ensure_prepared_policy_bundle
+  issue: The function mutates its input `scan_options` dictionary with a default value
+    if a key is missing.
+  root_cause: The code uses `scan_options.setdefault('prepared_policy_bundle', {})`,
+    which modifies the original dictionary passed by the caller. This is a side effect
+    that violates the principle of functional purity and creates non-local, unpredictable
+    behavior.
+  impact: Callers will find their data structures unexpectedly modified, which can
+    lead to subtle and infuriating bugs that are difficult to trace. It breaks the
+    contract of the function, which should not have side effects on its inputs.
+  confidence: 100
+  fix_suggestion: 'Create a shallow copy of `scan_options` before performing any modifications.
+    This isolates the function''s behavior and prevents it from affecting the caller''s
+    state. For example: `opts = scan_options.copy()`. Effort: Trivial. Impact: Restores
+    predictable behavior and eliminates a whole class of potential bugs.'
+  source_file: tier2-gemini25-node3-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE1-05
+  severity: HIGH
+  category: policy-ownership
+  location: src/prism/scanner_core/scanner_context.py:100-130
+  issue: Split ownership of `prepared_policy_bundle`
+  root_cause: Policy normalization is duplicated across DI and ScannerContext, leading
+    to inconsistent state.
+  impact: Increases maintenance overhead and risks policy desynchronization.
+  confidence: 90
+  fix_suggestion: Centralize policy normalization in a dedicated PolicyManager class.
+  source_file: tier0-gpt4o-node1-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-CONTEXT-02
+  severity: HIGH
+  category: architecture
+  location: src/prism/scanner_core/scanner_context.py:192-230
+  issue: Hidden Policy Fallback in Context Registry
+  root_cause: The `ScannerContext` constructor accepts an optional `prepared_policy_bundle`
+    but allows it to be `None`, deferring policy initialization to a later state.
+  impact: Split-phase initialization risk. Methods like `orchestrate_scan` require
+    the bundle but don't enforce its presence at the constructor level, leading to
+    potential `AttributeError` when accessing `policy_constants` if the lifecycle
+    is mismanaged.
+  confidence: 88
+  fix_suggestion: Make `prepared_policy_bundle` mandatory in the constructor. If you
+    don't have policies, you don't have a ScannerContext. Stop supporting 'half-baked'
+    objects.
+  source_file: tier1-gemini3f-node1-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE1-07
+  severity: HIGH
+  category: ownership
+  location: src/prism/scanner_core/scanner_context.py:320-330
+  issue: Fallback paths undermine fail-closed policy enforcement
+  root_cause: require_prepared_policy_bundle enforces bundle presence, but scanner_extract
+    policy shims retain late-resolver fallbacks
+  impact: Inconsistent policy availability, some code paths work without bundle while
+    others fail, unpredictable behavior
+  confidence: 90
+  fix_suggestion: Audit all policy access points; remove fallbacks outside documented
+    seams; enforce bundle at all entry points
+  source_file: tier1-grok1-node1-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE1-03
+  severity: HIGH
+  category: error-handling
+  location: src/prism/scanner_core/scanner_context.py:350-370
+  issue: Broad fail-open error swallowing in core orchestration
+  root_cause: Variable discovery and feature detection catch wide exception sets (PrismRuntimeError,
+    ValueError, RuntimeError, TypeError) and continue in best-effort mode unless strict
+    failures are enabled.
+  impact: Critical scan orchestration failures can degrade silently into incomplete
+    payloads while callers only see warnings and metadata flags, increasing the chance
+    of undetected broken scans.
+  confidence: 94
+  fix_suggestion: Narrow exception handling, require explicit configuration for fail-open
+    behavior, and ensure failures surface as structured errors rather than only log
+    warnings.
+  source_file: tier0-raptor-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE1-07
+  severity: HIGH
+  category: error-handling
+  location: src/prism/scanner_core/scanner_context.py:350-389
+  issue: Non-strict execution treats broad `TypeError` and `RuntimeError` failures
+    from discovery and feature detection as recoverable degradation instead of distinguishing
+    configuration bugs from domain failures.
+  root_cause: Best-effort mode is keyed off phase strictness, but the catch clauses
+    are broader than the actual recoverable contract.
+  impact: A bad plugin shape, wrong mock object, or DI wiring bug can be silently
+    converted into partial scan output with warning metadata. That makes broken composition
+    look like degraded analysis rather than a hard failure, which is precisely how
+    systems rot without anyone noticing.
+  confidence: 96
+  fix_suggestion: 'Only degrade explicitly recoverable domain exceptions, such as
+    `PrismRuntimeError` variants marked recoverable. Let programmer errors and unexpected
+    `TypeError`/`RuntimeError` fail closed with phase context. Effort: low-medium.
+    Impact: high for correctness.'
+  source_file: tier2-gpt54-node1-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE1-03
+  severity: HIGH
+  category: error-handling
+  location: src/prism/scanner_core/scanner_context.py:370-385
+  issue: Silent failure mode masks critical discovery errors
+  root_cause: Best-effort mode catches exceptions and continues with empty results,
+    logging only warnings without surfacing failures to callers
+  impact: Incomplete scans appear successful, downstream consumers get garbage data,
+    hard to diagnose why scans are empty
+  confidence: 95
+  fix_suggestion: Always surface discovery failures in metadata.scan_errors; remove
+    best-effort continuation for critical phases
+  source_file: tier1-grok1-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE1-01
+  severity: HIGH
+  category: type-safety
+  location: src/prism/scanner_core/scanner_context.py:47-49
+  issue: TypedDict identity loss through dict() conversion
+  root_cause: ScanMetadata TypedDict is converted to plain dict via dict(metadata)
+    before cast(ScanMetadata, ...), losing TypedDict contract and enabling runtime
+    type violations
+  impact: Breaks type safety guarantees, allows invalid keys/values into metadata
+    without mypy detection, potential runtime KeyError or attribute access failures
+  confidence: 95
+  fix_suggestion: Replace dict(metadata) with copy.copy(metadata) to preserve TypedDict
+    identity; validate cast only if necessary
+  source_file: tier1-grok1-node1-findings.yaml
+  status: FIXED
+  fix_type: direct
+- id: GILF-NODE2-06
+  severity: HIGH
+  category: concurrency
+  location: src/prism/scanner_core/task_extract_adapters.py:1-100
+  issue: Per-call marker resolution and per-file annotation parsing not safe for parallel
+    extraction
+  root_cause: The module resolves marker_prefix by consulting DI per call and then
+    delegates to extractors. If multiple worker threads run `extract_task_annotations_for_file`
+    concurrently while DI or prepared_policy_bundle is mutated (or lazily populated),
+    races occur. There's no defensive copy or synchronization.
+  impact: Concurrent extraction (common in scanners) can parse files with inconsistent
+    marker prefixes, producing mismatched task indexes and inconsistent catalogs.
+    Hard-to-reproduce nondeterministic failures will appear under parallel scanning.
+  confidence: 90
+  fix_suggestion: Adopt a per-scan immutable context object that contains `marker_prefix`
+    and pass it to extraction functions. Avoid reading DI inside file-level extractors.
+    If DI must be used, add a stable read lock or snapshot to guarantee consistent
+    view during parallel extraction.
+  source_file: tier0-gpt5m-node2-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE2-01
+  severity: HIGH
+  category: concurrency
+  location: src/prism/scanner_core/task_extract_adapters.py:189-205
+  issue: Raw DI scan_options access breaks the clone snapshot contract
+  root_cause: task_extract_adapters reads prepared_policy_bundle directly from di.scan_options
+    while VariableDiscovery and FeatureDetector clone scan options for plugin calls.
+  impact: Concurrent callers can observe inconsistent marker-prefix policy state,
+    leading to non-deterministic parsing results and hidden TOCTOU races if the DI
+    container mutates scan_options.
+  confidence: 90
+  fix_suggestion: Use a single explicit scan-options snapshot or pass prepared_policy_bundle
+    through a canonical immutable request object instead of reading raw di.scan_options
+    in task_extract_adapters.
+  source_file: tier0-raptor-node2-findings.yaml
+  status: ALREADY_ADDRESSED
+  fix_type: prior_work
+- id: GILF-NODE2-03
+  severity: HIGH
+  category: policy
+  location: src/prism/scanner_core/task_extract_adapters.py:189-233
+  issue: Hidden comment_doc_marker_prefix ownership seam
+  root_cause: Marker prefix is resolved indirectly from prepared_policy_bundle in
+    DI, creating a hidden dependency instead of an explicit policy parameter.
+  impact: Upstream callers must implicitly satisfy prepared_policy_bundle wiring or
+    extraction fails with a generic ValueError, making the policy contract fragile
+    and hard to reason about.
+  confidence: 92
+  fix_suggestion: Make marker_prefix an explicit parameter in the task-extraction
+    adapter API or centralize policy bundle ownership in a dedicated context object
+    passed through the pipeline.
+  source_file: tier0-raptor-node2-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE2-03
+  severity: HIGH
+  category: caching
+  location: src/prism/scanner_core/variable_discovery.py:12-40, src/prism/scanner_core/feature_detector.py:20-48
+  issue: Mutable DI/ScanOptions snapshotting and implicit shared-state risk
+  root_cause: Both modules clone scan options with `clone_scan_options(self._options)`
+    but also read from DI via helpers (e.g. `scan_options_from_di`) that may return
+    references to mutable objects. There's no defensive immutability or canonical
+    cache key generation for derived values (marker prefix etc.).
+  impact: 'TOCTOU and cache-poisoning vectors: if DI or prepared_policy_bundle is
+    mutated concurrently (tests, plugins, or layered code), extracted marker prefixes
+    and option-dependent outputs may be inconsistent across calls. Plugins that cache
+    based on received dicts may be poisoned with transient state.'
+  confidence: 88
+  fix_suggestion: Treat scan options and prepared_policy_bundle as immutable value
+    objects on scan start. Use a single canonical snapshot object passed to all downstream
+    components; if cloning needed, do it once and freeze (e.g., MappingProxyType or
+    a small dataclass). Avoid reading live DI inside hot-path helpers.
+  source_file: tier0-gpt5m-node2-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE2-03
+  severity: HIGH
+  category: data-flow
+  location: src/prism/scanner_core/variable_discovery.py:146-151
+  issue: Explicit empty referenced sets are silently discarded and replaced with a
+    fresh discovery pass.
+  root_cause: resolve_unresolved() uses `referenced or self.discover_referenced()`
+    instead of checking `referenced is None`, unlike the adjacent static_names handling.
+  impact: Callers cannot intentionally say 'there are zero referenced variables'.
+    An empty frozenset triggers extra I/O and can reintroduce variables the caller
+    had already filtered out, violating pipeline invariants.
+  confidence: 99
+  fix_suggestion: Use `effective_referenced = referenced if referenced is not None
+    else self.discover_referenced()`. Tiny effort, high correctness payoff.
+  source_file: tier2-gpt54-node2-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+- id: GILF-NODE2-01
+  severity: HIGH
+  category: concurrency
+  location: src/prism/scanner_core/variable_discovery.py:36-92
+  issue: Double-checked plugin resolution race + inconsistent null-checking
+  root_cause: 'The class uses a double-checked pattern: fast path reads _plugin_resolved
+    without lock, then enters a locked region to initialize. Feature/variable plugin
+    initialization and the resolved-flag handling differ between modules (VariableDiscovery
+    raises if _plugin_resolved True and _plugin is None; FeatureDetector returns None).'
+  impact: Under heavy concurrent calls a rare interleaving or non-atomic factory could
+    lead to None plugin being observed or unexpected ValueError at call sites; inconsistent
+    behavior across modules increases risk of subtle runtime failures and makes callers
+    handle plugin None inconsistently.
+  confidence: 85
+  fix_suggestion: 'Make plugin resolution atomic and uniform: always take the lock
+    before reading/mutating _plugin/_plugin_resolved, or adopt Python-safe initialization
+    (use threading.RLock and set _plugin then _plugin_resolved in a single locked
+    block). Normalize behavior: either guarantee factories never return None (preferred)
+    or make _resolve_plugin consistently raise a clear exception if resolution fails.'
+  source_file: tier0-gpt5m-node2-findings.yaml
+  status: ALREADY_ADDRESSED
+  fix_type: prior_work
+- id: GILF-NODE2-05
+  severity: HIGH
+  category: caching
+  location: src/prism/scanner_core/variable_discovery.py:48-57; src/prism/scanner_core/variable_discovery.py:56-94;
+    src/prism/scanner_core/feature_detector.py:57-83
+  issue: Runner instances pin both options and resolved plugins for their lifetime,
+    creating stale-policy bleed when instances outlive a request.
+  root_cause: Both classes deep-clone options in __init__ and memoize the plugin on
+    first use. If a caller retains the object while DI scan options are replaced,
+    later calls keep using the original option snapshot and previously selected plugin.
+  impact: A later request can execute with the wrong platform/plugin selection or
+    stale policy bundle. In concurrent or long-lived container usage, that is textbook
+    cross-request state bleed.
+  confidence: 85
+  fix_suggestion: Treat these runners as single-use objects, or re-resolve options
+    and plugin identity from current DI state on each call. Medium effort, high isolation
+    benefit.
+  source_file: tier2-gpt54-node2-findings.yaml
+  status: DEFERRED
+  fix_type: multi_week_refactoring
+tier1_attempt:
+  fixed: 1
+  deferred: 29
+  reason: God-object decomposition, policy ownership, cross-module coordination beyond
+    Tier 1 scope

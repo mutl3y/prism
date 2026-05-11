@@ -1,0 +1,83 @@
+model_used: GPT-5.4
+findings:
+  - id: GILF-NODE3-01
+    severity: CRITICAL
+    category: event-reliability
+    location: "src/prism/scanner_core/events.py:EventBus._record_listener_error"
+    issue: "Listener failures are retained in an unbounded in-memory list, and each retained EventBusError keeps the original exception object alive."
+    root_cause: "The bus appends every failure to _error_events with no cap or eviction policy, and EventBusError stores the Exception instance itself rather than a serialized snapshot."
+    impact: "A noisy or permanently broken listener will create an unbounded memory leak. Because exception objects can retain traceback frames and locals, the leak can pin much larger object graphs than the list size suggests."
+    confidence: 97
+    fix_suggestion: "Replace _error_events with a bounded ring buffer or maxlen deque, and store a lightweight error snapshot instead of the live exception object. Include listener name, event phase/kind, exception type, message, and timestamp. Effort: small. Impact: high."
+  - id: GILF-NODE3-02
+    severity: HIGH
+    category: copy-semantics
+    location: "src/prism/scanner_core/events.py:157-179"
+    issue: "The phase context manager only shallow-copies context and metadata, then reuses the same dicts for both pre and post events."
+    root_cause: "ctx = dict(context or {}) and meta = dict(metadata or {}) copy only the top-level mapping. Nested lists/dicts remain shared with the caller, and the same shared objects are sent to both pre and post emissions."
+    impact: "One listener can mutate nested payload state seen by later listeners or by the post event, making event payloads nondeterministic and order-dependent. For infrastructure telemetry, that is amateur-hour data corruption."
+    confidence: 95
+    fix_suggestion: "Freeze or deep-copy event payloads at the emission boundary. At minimum, clone nested container structures before constructing ScanPhaseEvent and use distinct payload instances for pre vs post. Effort: small to medium. Impact: high."
+  - id: GILF-NODE3-03
+    severity: MEDIUM
+    category: error-handling
+    location: "src/prism/scanner_core/events.py:145-153"
+    issue: "Listener exceptions are logged without traceback data or event payload detail."
+    root_cause: "logger.error records only phase, kind, listener, exception type, and repr(exc); it omits exc_info and does not include context/metadata that would explain the failing event."
+    impact: "You can tell that the bus is broken, but not why. That turns production diagnostics into a scavenger hunt, which is exactly the kind of systems incompetence logs are supposed to prevent."
+    confidence: 92
+    fix_suggestion: "Log with exc_info=exc and include a sanitized summary of event.context and event.metadata. If payload size is a concern, truncate or hash large fields. Effort: small. Impact: medium."
+  - id: GILF-NODE3-04
+    severity: HIGH
+    category: cache-safety
+    location: "src/prism/scanner_core/scan_cache.py:203-241"
+    issue: "Cache key canonicalization collapses every opaque object to its type name, so distinct values of the same class hash to the same cache key."
+    root_cause: "_canonicalize falls back to {'__opaque_type__': module.qualname} for unsupported values and ignores instance identity or semantic fingerprints. The codebase even defines a CacheFingerprintProvider protocol elsewhere, but this function does not use it."
+    impact: "Different scan inputs can produce the same key and return the wrong cached result. In practice that is cache poisoning by type collision, not caching."
+    confidence: 94
+    fix_suggestion: "Teach _canonicalize to use a stable semantic fingerprint for opaque values, preferably via an explicit protocol such as cache_fingerprint(), and fail closed when no stable fingerprint exists. Effort: medium. Impact: high."
+  - id: GILF-NODE3-05
+    severity: CRITICAL
+    category: validation
+    location: "src/prism/scanner_core/scan_request.py:26-31"
+    issue: "Malformed policy_context values are silently discarded instead of being rejected."
+    root_cause: "_normalize_policy_context treats any non-dict policy_context as None and returns no warning, and build_run_scan_options_canonical then validates the resulting None as acceptable."
+    impact: "Caller intent is silently erased. A bad policy payload can disable selection or policy overrides and let the request proceed with defaults, which is a silent infrastructure failure by definition."
+    confidence: 98
+    fix_suggestion: "Raise a validation error when policy_context is provided but is not a valid ScanPolicyContext mapping. If compatibility is required, emit an explicit ScanPolicyWarning and fail under strict mode. Effort: small. Impact: very high."
+  - id: GILF-NODE3-06
+    severity: HIGH
+    category: validation
+    location: "src/prism/scanner_core/scan_request.py:93-95"
+    issue: "Malformed prepared_policy_bundle values are silently dropped instead of being rejected."
+    root_cause: "The function only copies prepared_policy_bundle when isinstance(..., dict) is true; otherwise it omits the key entirely and still returns a validated options dict."
+    impact: "Invalid requests can cross the request boundary in a degraded state and fail later, far from the origin, or fall back to different runtime behavior. That is exactly how boundary contracts become useless."
+    confidence: 96
+    fix_suggestion: "Reject any non-None prepared_policy_bundle that is not a valid PreparedPolicyBundle. Do not silently omit it. Effort: small. Impact: high."
+  - id: GILF-NODE3-07
+    severity: HIGH
+    category: validation
+    location: "src/prism/scanner_core/scan_request.py:68-89"
+    issue: "Boolean request fields are truthified with bool(...) instead of validated, so invalid caller input is silently rewritten."
+    root_cause: "build_run_scan_options_canonical coerces multiple flags with bool(value), which turns values like 'false', '0', [1], or object() into True rather than rejecting them."
+    impact: "Mis-typed API or CLI inputs can flip behavior in the wrong direction while still producing a 'valid' request. That is the kind of bug that wastes days because everything looks normal until it very much isn't."
+    confidence: 99
+    fix_suggestion: "Require actual bool instances for boolean fields and raise a validation error otherwise. Reuse a helper like require_strict_phase_failures-style enforcement for all boolean request options. Effort: small. Impact: high."
+  - id: GILF-NODE3-08
+    severity: HIGH
+    category: copy-semantics
+    location: "src/prism/scanner_core/scan_request.py:21-31,93-94"
+    issue: "Request copying is shallow, so nested policy_context structures and prepared_policy_bundle contents remain shared across requests."
+    root_cause: "ScanPolicyContext(**policy_context) and copy.copy(prepared_policy_bundle) preserve only the outer mapping. Nested dicts like policy_context.comment_doc or selection and any mutable values inside prepared_policy_bundle are still aliased."
+    impact: "Mutating nested request state after canonicalization can affect other consumers or later pipeline phases. Shared mutable request state inside scanner infrastructure is how you manufacture heisenbugs for sport."
+    confidence: 95
+    fix_suggestion: "Deep-copy only the supported nested container shapes for ScanPolicyContext and PreparedPolicyBundle, or make these structures immutable at ingress. Effort: medium. Impact: high."
+  - id: GILF-NODE3-09
+    severity: MEDIUM
+    category: validation
+    location: "src/prism/scanner_core/scan_request.py:99 and src/prism/scanner_data/scan_options_schema.py:278-319"
+    issue: "The request boundary relies on a validator that checks only top-level container types, not the contents of lists or nested dict contracts."
+    root_cause: "validate_scan_options verifies that exclude_path_patterns and vars_seed_paths are lists and policy_context/prepared_policy_bundle are dicts, but it does not validate element types or nested schema shape."
+    impact: "Requests that are structurally wrong but top-level type-correct can enter scanner_core and fail later in path handling, plugin selection, or policy resolution. The boundary looks strict; in reality it's mostly decorative."
+    confidence: 93
+    fix_suggestion: "Add nested validation for known structured fields: list[str] element checks, ScanPolicyContext shape checks, and PreparedPolicyBundle key/value contract checks. Effort: medium. Impact: medium to high."

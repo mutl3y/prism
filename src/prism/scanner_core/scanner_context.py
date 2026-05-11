@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import copy
 import logging
+import re
+import traceback
 from collections.abc import Collection, Mapping
 from typing import Any, Callable, TypeGuard, cast
 
@@ -281,7 +283,27 @@ __all__ = [
 
 
 class ScannerContext:
-    """Coordinate variable discovery, feature detection, and payload shaping."""
+    """Coordinate variable discovery, feature detection, and payload shaping.
+
+    Lifecycle and Reuse Semantics
+    ------------------------------
+    ScannerContext is designed for **single-use** per scan. While the instance
+    can theoretically be reused via orchestrate_scan(), this is **not recommended**
+    in production code. Key considerations:
+
+    1. **Mutable State**: Instance state (_discovered_variables, _detected_features,
+       _scan_metadata, _scan_errors) is reset at the start of orchestrate_scan().
+       This implicit reset is fragile and non-obvious.
+
+    2. **Policy Constants Lifecycle**: policy_constants is initialized in __init__
+       only if prepared_policy_bundle is provided. It remains None until then,
+       creating a half-initialized object state that violates fail-fast semantics.
+
+    3. **Recommendation**: Create a fresh ScannerContext instance for each scan
+       to ensure clear lifecycle and avoid subtle state leakage bugs.
+
+    Threading: ScannerContext is NOT thread-safe. Use one instance per thread.
+    """
 
     policy_constants: PolicyConstants | None = None
 
@@ -334,12 +356,51 @@ class ScannerContext:
 
         return self._build_output_payload()
 
-    def _record_phase_error(self, phase: str, error: Exception) -> ScanErrorEntry:
-        entry: ScanErrorEntry = {
-            "phase": phase,
-            "error_type": error.__class__.__name__,
-            "message": str(error),
-        }
+    def _record_phase_error(
+        self,
+        phase: str,
+        error: Exception,
+        error_code: str | None = None,
+        category: str | None = None,
+        recoverable: bool | None = None,
+        resource_id: str | None = None,
+        detail: dict[str, Any] | None = None,
+        cause_type: str | None = None,
+    ) -> ScanErrorEntry:
+        """Record a phase error with optional platform-specific extensions.
+
+        Args:
+            phase: Execution phase (ingress, discovery, extraction, etc.)
+            error: The exception that occurred
+            error_code: Platform-specific error code (e.g., K8S_API_ERROR, ANSIBLE_MODULE_NOT_FOUND)
+            category: Error category (runtime, io, parser, api, auth, etc.)
+            recoverable: Whether the scan can continue despite this error
+            resource_id: Identifier for affected resource (namespace/pod, role-name, etc.)
+            detail: Platform-specific structured data dictionary
+            cause_type: Underlying exception class name (different from error_type if wrapped)
+        """
+        # Capture traceback for context preservation (GILF-NODE1-06).
+        tb_str = traceback.format_exc()
+
+        # Sanitize detail if provided
+        sanitized_detail = None
+        if detail is not None:
+            sanitized_detail = self._sanitize_error_detail(detail)
+
+        # Build error entry with all provided fields
+        entry = self._build_error_entry(
+            phase=phase,
+            error_type=error.__class__.__name__,
+            message=str(error),
+            traceback=tb_str,
+            error_code=error_code,
+            category=category,
+            recoverable=recoverable,
+            resource_id=resource_id,
+            detail=sanitized_detail,
+            cause_type=cause_type,
+        )
+
         self._scan_errors.append(entry)
         self._scan_metadata = ScanMetadata(
             scan_errors=list(self._scan_errors),
@@ -347,11 +408,104 @@ class ScannerContext:
         )
         return entry
 
+    def _build_error_entry(
+        self,
+        phase: str,
+        error_type: str,
+        message: str,
+        traceback: str,
+        error_code: str | None = None,
+        category: str | None = None,
+        recoverable: bool | None = None,
+        resource_id: str | None = None,
+        detail: dict[str, Any] | None = None,
+        cause_type: str | None = None,
+    ) -> ScanErrorEntry:
+        """Build a ScanErrorEntry with only the provided fields.
+
+        Args:
+            phase: Execution phase
+            error_type: Exception class name
+            message: Error message
+            traceback: Stack trace string
+            error_code: Optional platform error code
+            category: Optional error category
+            recoverable: Optional recoverability flag
+            resource_id: Optional resource identifier
+            detail: Optional platform-specific detail dict
+            cause_type: Optional underlying exception type
+
+        Returns:
+            ScanErrorEntry with only non-None fields populated
+        """
+        entry: ScanErrorEntry = {
+            "phase": phase,
+            "error_type": error_type,
+            "message": message,
+            "traceback": traceback,
+        }
+
+        if error_code is not None:
+            entry["error_code"] = error_code
+        if category is not None:
+            entry["category"] = category
+        if recoverable is not None:
+            entry["recoverable"] = recoverable
+        if resource_id is not None:
+            entry["resource_id"] = resource_id
+        if detail is not None:
+            entry["detail"] = detail
+        if cause_type is not None:
+            entry["cause_type"] = cause_type
+
+        return entry
+
+    def _sanitize_error_detail(self, detail: dict[str, Any]) -> dict[str, Any]:
+        """Sanitize error detail to remove sensitive information.
+
+        Removes or redacts:
+        - kubeconfig paths
+        - tokens, passwords, secrets, keys
+
+        Args:
+            detail: Original error detail dictionary
+
+        Returns:
+            Sanitized copy of detail dictionary
+        """
+        sanitized = {}
+        secret_patterns = [
+            re.compile(r".*kubeconfig.*", re.IGNORECASE),
+            re.compile(r".*(token|password|secret|key).*", re.IGNORECASE),
+        ]
+
+        for key, value in detail.items():
+            # Check if key matches secret patterns
+            key_is_secret = any(pattern.match(key) for pattern in secret_patterns)
+            if key_is_secret:
+                sanitized[key] = "[REDACTED]"
+                continue
+
+            # Check if value is a string matching secret patterns
+            if isinstance(value, str):
+                value_matches_secret = any(
+                    pattern.match(value) for pattern in secret_patterns
+                )
+                if value_matches_secret:
+                    sanitized[key] = "[REDACTED]"
+                    continue
+
+            # Keep the value as-is
+            sanitized[key] = value
+
+        return sanitized
+
     def _discover_variables(self) -> tuple[Any, ...]:
         try:
             discovery = self._di.factory_variable_discovery()
             return discovery.discover()
-        except (PrismRuntimeError, ValueError, RuntimeError, TypeError) as error:
+        except (PrismRuntimeError, ValueError) as error:
+            # PrismRuntimeError and ValueError are expected policy/contract violations
             logger = logging.getLogger(__name__)
             if self._strict_phase_failures:
                 logger.error(
@@ -366,12 +520,32 @@ class ScannerContext:
                 extra={"scan_error": entry},
             )
             return ()
+        except (RuntimeError, TypeError) as error:
+            # RuntimeError/TypeError are programming errors, not policy violations; propagate
+            # and log with context to help debugging
+            logger = logging.getLogger(__name__)
+            logger.error(
+                "Variable discovery failed with unexpected error: %s: %s (this is a programming error)",
+                type(error).__name__,
+                error,
+                exc_info=True,
+            )
+            raise PrismRuntimeError(
+                code="variable_discovery_unexpected_error",
+                category="runtime",
+                message=f"Variable discovery encountered an unexpected {type(error).__name__}",
+                detail={
+                    "error_type": type(error).__name__,
+                    "error_message": str(error),
+                },
+            ) from error
 
     def _detect_features(self) -> FeaturesContext:
         try:
             detector = self._di.factory_feature_detector()
             return detector.detect()
-        except (PrismRuntimeError, ValueError, RuntimeError, TypeError) as error:
+        except (PrismRuntimeError, ValueError) as error:
+            # PrismRuntimeError and ValueError are expected policy/contract violations
             logger = logging.getLogger(__name__)
             if self._strict_phase_failures:
                 logger.error(
@@ -386,6 +560,25 @@ class ScannerContext:
                 extra={"scan_error": entry},
             )
             return _build_empty_features_context()
+        except (RuntimeError, TypeError) as error:
+            # RuntimeError/TypeError are programming errors, not policy violations; propagate
+            # and log with context to help debugging
+            logger = logging.getLogger(__name__)
+            logger.error(
+                "Feature detection failed with unexpected error: %s: %s (this is a programming error)",
+                type(error).__name__,
+                error,
+                exc_info=True,
+            )
+            raise PrismRuntimeError(
+                code="feature_detection_unexpected_error",
+                category="runtime",
+                message=f"Feature detection encountered an unexpected {type(error).__name__}",
+                detail={
+                    "error_type": type(error).__name__,
+                    "error_message": str(error),
+                },
+            ) from error
 
     def _build_output_payload(self) -> dict[str, object]:
         self._validate_required_scan_option_keys()

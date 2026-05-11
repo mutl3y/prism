@@ -1,0 +1,61 @@
+model_used: GPT-5.4
+findings:
+  - id: GILF-NODE2-01
+    severity: CRITICAL
+    category: concurrency
+    location: "src/prism/scanner_core/variable_discovery.py:172-188"
+    issue: "Concurrent unresolved-row construction reuses a shared mutable builder."
+    root_cause: "discover() obtains DI's cached VariableRowBuilder and drives it through a fluent mutation chain for every unresolved variable. The builder keeps in-flight state in an internal _payload until build() clears it, so concurrent callers share mutable construction state."
+    impact: "Concurrent discover() calls on the same container can interleave field writes and produce corrupted VariableRow payloads, wrong uncertainty reasons, or dropped unresolved findings."
+    confidence: 98
+    fix_suggestion: "Stop using a cached mutable builder on this path. Create a fresh VariableRowBuilder per discover() call or per row, or replace the builder with an immutable constructor helper. Small-to-medium effort, high correctness impact."
+
+  - id: GILF-NODE2-02
+    severity: CRITICAL
+    category: concurrency
+    location: "src/prism/scanner_core/variable_discovery.py:163-169"
+    issue: "discover() assembles one result from three independent scans of live inputs."
+    root_cause: "Static rows, referenced names, and unresolved-name reasons are computed by separate plugin calls with no shared snapshot of the filesystem, README content, or task graph."
+    impact: "If role files or generated artifacts change between passes, the final result can combine mismatched states and report phantom unresolved variables, miss newly declared ones, or attach stale reasons to the wrong set."
+    confidence: 87
+    fix_suggestion: "Collapse this into one plugin operation that returns a single coherent discovery snapshot, or snapshot the role inputs once and pass that immutable snapshot through all three stages. Medium effort, high correctness impact."
+
+  - id: GILF-NODE2-03
+    severity: HIGH
+    category: data-flow
+    location: "src/prism/scanner_core/variable_discovery.py:146-151"
+    issue: "Explicit empty referenced sets are silently discarded and replaced with a fresh discovery pass."
+    root_cause: "resolve_unresolved() uses `referenced or self.discover_referenced()` instead of checking `referenced is None`, unlike the adjacent static_names handling."
+    impact: "Callers cannot intentionally say 'there are zero referenced variables'. An empty frozenset triggers extra I/O and can reintroduce variables the caller had already filtered out, violating pipeline invariants."
+    confidence: 99
+    fix_suggestion: "Use `effective_referenced = referenced if referenced is not None else self.discover_referenced()`. Tiny effort, high correctness payoff."
+
+  - id: GILF-NODE2-04
+    severity: HIGH
+    category: policy
+    location: "src/prism/scanner_core/feature_detector.py:120-127"
+    issue: "Catalog collection mixes stale exclusion state with current marker-prefix policy."
+    root_cause: "collect_task_handler_catalog() reads exclude_path_patterns from the detector's constructor-time snapshot (`self._options`), but the adapter it calls resolves comment_doc_marker_prefix from current DI scan_options at call time."
+    impact: "After DI.replace_scan_options() or retained-instance reuse, one catalog run can apply one request's exclusions and another request's marker policy. That makes task visibility and annotation matching depend on timing instead of input."
+    confidence: 94
+    fix_suggestion: "Derive both exclude paths and marker prefix from the same fresh option snapshot, or pass marker_prefix explicitly from the detector snapshot into the adapter. Small effort, high determinism impact."
+
+  - id: GILF-NODE2-05
+    severity: HIGH
+    category: caching
+    location: "src/prism/scanner_core/variable_discovery.py:48-57; src/prism/scanner_core/variable_discovery.py:56-94; src/prism/scanner_core/feature_detector.py:57-83"
+    issue: "Runner instances pin both options and resolved plugins for their lifetime, creating stale-policy bleed when instances outlive a request."
+    root_cause: "Both classes deep-clone options in __init__ and memoize the plugin on first use. If a caller retains the object while DI scan options are replaced, later calls keep using the original option snapshot and previously selected plugin."
+    impact: "A later request can execute with the wrong platform/plugin selection or stale policy bundle. In concurrent or long-lived container usage, that is textbook cross-request state bleed."
+    confidence: 85
+    fix_suggestion: "Treat these runners as single-use objects, or re-resolve options and plugin identity from current DI state on each call. Medium effort, high isolation benefit."
+
+  - id: GILF-NODE2-06
+    severity: HIGH
+    category: performance
+    location: "src/prism/scanner_core/feature_detector.py:85-127"
+    issue: "The detector API forces repeated full-role traversals with no shared task snapshot or memoization."
+    root_cause: "detect(), analyze_task_catalog(), and collect_task_handler_catalog() are exposed as independent entrypoints and each restarts downstream traversal/parsing instead of sharing a per-scan task inventory."
+    impact: "Large roles pay for repeated YAML loads, file reads, include expansion, and annotation parsing. The cost scales like multiple full passes over the same tree, which is a needless performance cliff in the scanner hot path."
+    confidence: 92
+    fix_suggestion: "Build a per-scan task snapshot/cache keyed by role path plus normalized exclusions and policy fingerprint, then derive features, catalog, and handler views from that shared artifact. Medium effort, high latency improvement."

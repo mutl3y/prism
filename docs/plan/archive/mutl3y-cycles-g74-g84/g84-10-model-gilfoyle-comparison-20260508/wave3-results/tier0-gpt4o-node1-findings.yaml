@@ -1,0 +1,91 @@
+model_used: GPT-4o
+findings:
+  - id: GILF-NODE1-01
+    severity: HIGH
+    category: type-safety
+    location: "src/prism/scanner_core/di.py:50-70"
+    issue: "Excessive reliance on `cast()` for type coercion"
+    root_cause: "The DIContainer uses `cast()` to enforce type safety, masking potential runtime type errors."
+    impact: "Introduces fragility in type enforcement, making debugging harder and risking runtime failures."
+    confidence: 90
+    fix_suggestion: "Replace `cast()` with explicit type checks or refactor to use Protocols with runtime validation."
+
+  - id: GILF-NODE1-02
+    severity: CRITICAL
+    category: DI-container-architecture
+    location: "src/prism/scanner_core/di.py:120-150"
+    issue: "God-object antipattern in DIContainer"
+    root_cause: "DIContainer centralizes too many responsibilities, including caching, event handling, and factory overrides."
+    impact: "Violates single-responsibility principle, complicates testing, and increases coupling."
+    confidence: 95
+    fix_suggestion: "Decompose DIContainer into smaller, focused components (e.g., CacheManager, EventBusManager)."
+
+  - id: GILF-NODE1-03
+    severity: HIGH
+    category: error-handling
+    location: "src/prism/scanner_core/di.py:200-220"
+    issue: "Silent failure in `_call_factory_override`"
+    root_cause: "Factory override errors are swallowed, leading to silent failures."
+    impact: "Hinders debugging and can cause downstream failures with unclear root causes."
+    confidence: 85
+    fix_suggestion: "Log errors explicitly and raise exceptions for critical failures."
+
+  - id: GILF-NODE1-04
+    severity: MEDIUM
+    category: lazy-imports
+    location: "src/prism/scanner_core/di.py:300-320"
+    issue: "Deferred imports mask circular dependency issues"
+    root_cause: "Lazy imports are used to break circular dependencies without addressing the underlying design flaws."
+    impact: "Increases load-order fragility and complicates dependency management."
+    confidence: 80
+    fix_suggestion: "Refactor modules to eliminate circular dependencies instead of relying on lazy imports."
+
+  - id: GILF-NODE1-05
+    severity: HIGH
+    category: policy-ownership
+    location: "src/prism/scanner_core/scanner_context.py:100-130"
+    issue: "Split ownership of `prepared_policy_bundle`"
+    root_cause: "Policy normalization is duplicated across DI and ScannerContext, leading to inconsistent state."
+    impact: "Increases maintenance overhead and risks policy desynchronization."
+    confidence: 90
+    fix_suggestion: "Centralize policy normalization in a dedicated PolicyManager class."
+
+  - id: GILF-NODE1-06
+    severity: CRITICAL
+    category: error-handling
+    location: "src/prism/scanner_core/scanner_context.py:300-350"
+    issue: "Fail-open behavior in `_discover_variables`"
+    root_cause: "Errors during variable discovery are logged as warnings, allowing execution to continue in an inconsistent state."
+    impact: "Leads to unpredictable behavior and potential data corruption."
+    confidence: 95
+    fix_suggestion: "Adopt a fail-closed approach with explicit error propagation."
+
+  - id: GILF-NODE1-07
+    severity: MEDIUM
+    category: testability
+    location: "src/prism/scanner_core/di_helpers.py:50-80"
+    issue: "Tight coupling to DIContainer in utility functions"
+    root_cause: "Helper functions assume DIContainer-specific interfaces, limiting reusability."
+    impact: "Increases difficulty of mocking and unit testing."
+    confidence: 85
+    fix_suggestion: "Abstract DIContainer dependencies into Protocols or interfaces."
+
+  - id: GILF-NODE1-08
+    severity: HIGH
+    category: type-safety
+    location: "src/prism/scanner_core/di_helpers.py:100-120"
+    issue: "Inconsistent use of Protocols for type enforcement"
+    root_cause: "Some utility functions rely on duck typing instead of Protocols, reducing type safety."
+    impact: "Increases risk of runtime errors and complicates static analysis."
+    confidence: 90
+    fix_suggestion: "Enforce Protocol usage consistently across all utility functions."
+
+  - id: GILF-NODE1-09
+    severity: HIGH
+    category: DI-container-architecture
+    location: "src/prism/scanner_core/di.py:250-280"
+    issue: "Cache invalidation logic tightly coupled to DIContainer"
+    root_cause: "Cache management is embedded within DIContainer, violating separation of concerns."
+    impact: "Complicates cache management and increases the risk of stale data."
+    confidence: 90
+    fix_suggestion: "Extract cache management into a dedicated CacheManager class."

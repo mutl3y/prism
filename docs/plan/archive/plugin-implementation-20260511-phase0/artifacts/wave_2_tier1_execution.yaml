@@ -1,0 +1,117 @@
+metadata:
+  wave: wave_2_high
+  severity: HIGH
+  tier: TIER_1
+  model: Claude Haiku 4.5
+  cost_multiplier: 0.33
+  total_findings: 98
+  retry_limit: 3
+  rollback_on_failure: true
+  strategy: Tier 1 with 3-retry + escalate to TIER_2 on attempt 3 failure
+  execution_date: 2026-05-09
+  status: INITIATED
+
+findings_by_category:
+  type-safety: 10
+  cache-safety: 11
+  policy: 9
+  architecture: 7
+  concurrency: 8
+  error-handling: 7
+  event-reliability: 7
+  copy-semantics: 6
+  ownership: 5
+  validation: 8
+  caching: 5
+  data-flow: 6
+  performance: 4
+  testability: 2
+  DI-container-architecture: 1
+  lazy-imports|circular-deps: 1
+
+execution_plan:
+  - batch: 1
+    findings: 20
+    category: "Type-Safety & Cache Safety Foundation"
+    focus: "Fix type erasure and cache key collisions (highest criticality)"
+    estimated_time: "2 hours"
+    status: PENDING
+  - batch: 2
+    findings: 20
+    category: "Policy & Ownership Cleanup"
+    focus: "Clear ownership boundaries for prepared-policy and marker-prefix"
+    estimated_time: "2 hours"
+    status: PENDING
+  - batch: 3
+    findings: 20
+    category: "Event & Error Handling"
+    focus: "Fix silent failures, exception swallowing, logging gaps"
+    estimated_time: "2 hours"
+    status: PENDING
+  - batch: 4
+    findings: 20
+    category: "Concurrency & Performance"
+    focus: "Thread safety, race conditions, lazy init issues"
+    estimated_time: "2 hours"
+    status: PENDING
+  - batch: 5
+    findings: 18
+    category: "Architecture & Data Flow"
+    focus: "Reduce god-objects, clarify DI, fix data flow leaks"
+    estimated_time: "1.5 hours"
+    status: PENDING
+
+batch_summary:
+  batch_1:
+    status: NOT_STARTED
+    findings_completed: 0
+    findings_failed: 0
+    findings_escalated: 0
+    attempt: 0
+  batch_2:
+    status: NOT_STARTED
+    findings_completed: 0
+    findings_failed: 0
+    findings_escalated: 0
+    attempt: 0
+  batch_3:
+    status: NOT_STARTED
+    findings_completed: 0
+    findings_failed: 0
+    findings_escalated: 0
+    attempt: 0
+  batch_4:
+    status: NOT_STARTED
+    findings_completed: 0
+    findings_failed: 0
+    findings_escalated: 0
+    attempt: 0
+  batch_5:
+    status: NOT_STARTED
+    findings_completed: 0
+    findings_failed: 0
+    findings_escalated: 0
+    attempt: 0
+
+rollback_checkpoints:
+  - batch: 1
+    git_commit: null
+    timestamp: null
+  - batch: 2
+    git_commit: null
+    timestamp: null
+  - batch: 3
+    git_commit: null
+    timestamp: null
+  - batch: 4
+    git_commit: null
+    timestamp: null
+  - batch: 5
+    git_commit: null
+    timestamp: null
+
+findings: []
+# Findings to be populated during execution
+
+overall_status: READY_FOR_EXECUTION
+cost_estimate: 0.015

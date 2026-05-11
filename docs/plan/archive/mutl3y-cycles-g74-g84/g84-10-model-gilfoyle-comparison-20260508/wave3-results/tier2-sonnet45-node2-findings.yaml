@@ -1,0 +1,121 @@
+model_used: Claude Sonnet 4.5
+
+findings:
+  - id: GILF-NODE2-01
+    severity: CRITICAL
+    category: concurrency
+    location: "variable_discovery.py:56-89 and feature_detector.py:64-83"
+    issue: "Double-checked locking pattern contains TOCTOU race condition in plugin resolution. The _plugin_resolved flag is checked outside the lock, then the lock is acquired, creating a window where another thread can set _plugin_resolved=True while _plugin is still being constructed."
+    root_cause: "Attempt to optimize plugin resolution with double-checked locking, but the pattern is implemented incorrectly. The first check `if self._plugin_resolved:` happens outside the lock, and between that check and the lock acquisition, another thread could be inside the locked section setting _plugin and _plugin_resolved. Thread A could read _plugin_resolved=True and then read a partially-initialized _plugin before Thread B finishes assignment."
+    impact: "Race condition can cause threads to receive a None or partially-initialized plugin, leading to AttributeError crashes, incorrect scan results, or data corruption. In variable_discovery.py, this could corrupt variable extraction. In feature_detector.py, this could corrupt feature detection results. Both are on the critical path for scan correctness."
+    confidence: 95
+    fix_suggestion: "Use single-lock pattern: acquire lock first, then check _plugin_resolved inside the lock. Or use Python's @functools.lru_cache(maxsize=1) on a plugin factory method to let the runtime handle thread-safe memoization. Estimated effort: 20 minutes. Impact: eliminates all TOCTOU races in plugin resolution. Example: Move the `if self._plugin_resolved:` check INSIDE the `with self._plugin_lock:` block, or refactor to use threading.RLock with proper memory barriers."
+
+  - id: GILF-NODE2-02
+    severity: HIGH
+    category: concurrency
+    location: "variable_discovery.py:48-54 and feature_detector.py:57-63"
+    issue: "clone_scan_options() is called in __init__ and again in _snapshot_options(), but there's no guarantee that _options itself isn't being mutated elsewhere. The clone happens after construction, so if the original options dict is mutable and shared across threads, there's a race between initialization and first snapshot."
+    root_cause: "Defensive copying assumes immutability after cloning, but the stored _options can still reference mutable nested containers if clone_scan_options() doesn't do deep copies of ALL nested structures. The _clone_container_structure() function in di.py only clones dict/list/tuple/set/frozenset, but doesn't handle custom objects or other mutable containers."
+    impact: "If options contain custom mutable objects (e.g., policy_context with mutable state), multiple threads calling discover_static()/discover_referenced() concurrently could see inconsistent options or trigger data races on shared mutable state. Severity is HIGH (not CRITICAL) because the clone_scan_options implementation appears to handle common containers, but the risk remains for edge cases."
+    confidence: 80
+    fix_suggestion: "Document that scan_options must be fully immutable after passing to VariableDiscovery/FeatureDetector, or implement true deep-copy semantics in clone_scan_options() using copy.deepcopy(). Add a validation check in __init__ to reject mutable option values. Estimated effort: 1 hour for docs + validation, 2 hours for deep-copy implementation. Impact: eliminates sneaky mutation races."
+
+  - id: GILF-NODE2-03
+    severity: HIGH
+    category: policy
+    location: "task_extract_adapters.py:185-196 and 198-208"
+    issue: "Marker prefix resolution happens at extraction call-time (extract_task_annotations_for_file, collect_task_handler_catalog) by calling _resolve_marker_prefix(di), not at construction or first call. If prepared_policy_bundle changes in scan_options between calls, marker prefix could be inconsistent across a single scan, leading to annotation mismatches."
+    root_cause: "Late binding of marker prefix resolution was chosen to defer policy application until execution time, but this creates temporal coupling. The _resolve_marker_prefix function drills into scan_options → prepared_policy_bundle → comment_doc_marker_prefix every time it's called, without caching or consistency guarantees."
+    impact: "If scan_options or prepared_policy_bundle is mutated between extract_task_annotations_for_file() and collect_task_handler_catalog() calls, different parts of the scan will use different marker prefixes. This breaks annotation correlation and task catalog consistency. Annotations extracted with 'prism:' might not match catalogs extracted with 'ansible_doc:'. In a multi-threaded environment, this becomes a data race."
+    confidence: 90
+    fix_suggestion: "Cache the resolved marker prefix at construction time or first resolution, and store it immutably in the caller (FeatureDetector, VariableDiscovery, or ScannerContext). Remove _resolve_marker_prefix from task_extract_adapters and have callers pass the marker prefix explicitly. This makes policy application explicit and prevents mid-scan drift. Estimated effort: 2 hours to refactor all call sites. Impact: eliminates marker prefix drift and makes policy ownership explicit."
+
+  - id: GILF-NODE2-04
+    severity: MEDIUM
+    category: performance
+    location: "variable_discovery.py:99, 119, 157 (three calls to _snapshot_options in discover())"
+    issue: "variable_discovery.discover() calls _snapshot_options() three times during a single pipeline execution: once in discover_static(), once in discover_referenced(), and once in resolve_unresolved(). Each call invokes clone_scan_options(), which iterates over all options and recursively clones container structures. This is wasteful—options don't change during the pipeline."
+    root_cause: "Defensive programming pattern: each plugin method call takes a fresh snapshot to guarantee isolation. But the discover() orchestrator calls three plugin methods in quick succession, creating three identical snapshots. The pattern assumes plugins might mutate options, but the plugin interface doesn't allow mutation (options are passed as dict[str, Any], not returned)."
+    impact: "Performance overhead scales with options complexity. If scan_options contains large policy_context dictionaries or extensive prepared_policy_bundle data, each clone could be expensive (O(n) where n = size of options tree). For a single scan, this is 3x unnecessary work. For 100 concurrent scans, this is 300x work. Not a correctness issue, but wasteful."
+    confidence: 85
+    fix_suggestion: "Take ONE snapshot at the start of discover() and reuse it for all three plugin calls, or pass options by reference if plugins are documented as non-mutating. Add a comment explaining that plugins MUST NOT mutate options. Estimated effort: 15 minutes. Impact: reduces cloning overhead by 66% in discover() path, potentially significant for large scans."
+
+  - id: GILF-NODE2-05
+    severity: MEDIUM
+    category: data-flow
+    location: "variable_discovery.py:56-89 and feature_detector.py:64-83 (_resolve_plugin methods)"
+    issue: "Plugin resolution can fail with overly verbose error messages (4-5 different ValueError messages with similar content). The 'plugin was None after resolution' check at line 89 in variable_discovery.py is redundant—if _plugin is None after the lock, it means the factory returned None, which was already checked at line 81."
+    root_cause: "Defensive error handling that checks the same condition multiple times at different points. The pattern is: check factory callable, call factory, check result not None, set _plugin, set _plugin_resolved, then check _plugin again. The final check at line 89 is a 'trust but verify' pattern, but it's redundant given the explicit None check at line 81."
+    impact: "No functional impact—correctness is preserved. But the redundant checks add cognitive load and make error messages harder to correlate. If a plugin resolution fails, the error could come from any of 4-5 different ValueError sites, making debugging harder. The verbosity also suggests lack of confidence in the implementation."
+    confidence: 70
+    fix_suggestion: "Consolidate error checks. Remove the final 'if self._plugin is None:' check after the lock (lines 89-93 in variable_discovery.py). The factory None check at line 81 is sufficient. Simplify error messages to a single ValueError('Plugin factory returned None'). Estimated effort: 10 minutes. Impact: reduces code size by ~10 lines, improves debuggability."
+
+  - id: GILF-NODE2-06
+    severity: MEDIUM
+    category: caching
+    location: "variable_discovery.py:56-89 and feature_detector.py:64-83"
+    issue: "Plugin resolution uses instance-level caching (_plugin, _plugin_resolved), but there's no cache invalidation or refresh mechanism. If the DI container's factory changes (e.g., during testing or hot-reload), the cached plugin becomes stale. This is especially problematic in long-lived scanner instances or test suites."
+    root_cause: "Plugin resolution is designed for single-use scanners (construct, scan once, discard), so cache invalidation wasn't considered. But the API doesn't prevent reuse, and there's no documented lifecycle contract (e.g., 'VariableDiscovery instances are single-use')."
+    impact: "In test suites that reuse DI containers or mock plugin factories, the cached plugin can persist across test cases, causing test pollution. In long-lived scanner services (if ever implemented), factory changes wouldn't take effect without reconstructing VariableDiscovery/FeatureDetector instances. Not a critical runtime issue, but a maintainability trap."
+    confidence: 75
+    fix_suggestion: "Add a clear lifecycle contract: 'VariableDiscovery/FeatureDetector instances are single-use and must not be reused after discover()/detect() completes.' Document this in class docstrings. OR implement a reset_plugin_cache() method for testing. OR remove caching entirely and resolve the plugin on every call (if resolution is cheap). Estimated effort: 30 minutes for documentation, 1 hour for reset method. Impact: prevents test pollution and makes lifecycle explicit."
+
+  - id: GILF-NODE2-07
+    severity: MEDIUM
+    category: error-handling
+    location: "task_extract_adapters.py:185-196 (_resolve_marker_prefix)"
+    issue: "_resolve_marker_prefix raises ValueError with message 'prepared_policy_bundle must be available' if scan_options, prepared_policy_bundle, or comment_doc_marker_prefix is missing or wrong type. But the ValueError doesn't include diagnostic info (what was actually passed, what type was wrong). This makes debugging failures harder."
+    impact: "When marker prefix resolution fails in production, the error message doesn't tell you WHAT was missing or wrong—just that 'it must be available'. If scan_options is present but prepared_policy_bundle is the wrong type (e.g., string instead of dict), the error says 'must be available' instead of 'wrong type'. Debugging requires adding print statements or debugger."
+    confidence: 80
+    fix_suggestion: "Improve error messages to include actual types and values. Example: 'prepared_policy_bundle must be dict, got {type(bundle).__name__}' or 'comment_doc_marker_prefix must be str, got {type(bundle_prefix).__name__}'. Add repr(scan_options.keys()) to show what's available. Estimated effort: 15 minutes. Impact: reduces debugging time for marker prefix failures from 30 minutes to 2 minutes."
+
+  - id: GILF-NODE2-08
+    severity: LOW
+    category: error-handling
+    location: "variable_discovery.py:105-108 and feature_detector.py:93-99 (event bus context managers)"
+    issue: "Event bus context manager usage (event_bus.phase(...)) could silently fail if the context manager __enter__ or __exit__ raises an exception. The pattern is 'if event_bus is not None: with event_bus.phase(...): <work>' but there's no except block to catch event bus failures. If the event bus is broken, it could crash the entire scan instead of just disabling telemetry."
+    root_cause: "Event bus is designed as optional telemetry, but the error handling treats it as infallible. If event_bus.phase() raises (e.g., due to serialization failures in context dict, or broken listener), the exception propagates and kills the scan. The 'if event_bus is not None:' check only guards against missing event bus, not broken event bus."
+    impact: "Low severity because event bus failures are unlikely in practice (EventBus implementation appears simple). But if a custom event bus or listener is buggy, it could crash production scans. Telemetry should never be a scan-blocking dependency."
+    confidence: 65
+    fix_suggestion: "Wrap event_bus.phase() in try/except and log errors instead of propagating. Example: 'try: with event_bus.phase(...): <work> except Exception as e: logger.warning(f\"Event bus failed: {e}\"); <work without telemetry>'. Or refactor event bus to guarantee no-throw (catch internally). Estimated effort: 30 minutes. Impact: makes event bus truly optional, prevents telemetry bugs from killing scans."
+
+  - id: GILF-NODE2-09
+    severity: LOW
+    category: performance
+    location: "variable_discovery.py:175-199 (discover() method - builder pattern for unresolved variables)"
+    issue: "discover() method iterates over referenced - static_names to build unresolved variable rows using factory_variable_row_builder().name(...).type(...).build() pattern. The builder pattern creates a new builder instance per variable, calls 10+ setter methods per variable, then builds. This is more expensive than direct dictionary construction."
+    root_cause: "Builder pattern was chosen for type safety and fluent API, but it's overkill for this use case. The variable rows are simple dictionaries with known keys. Direct dict construction would be 5-10x faster (no method dispatch overhead, no builder object allocation)."
+    impact: "Performance overhead scales with number of unresolved variables. For a role with 100 referenced variables and 50 static variables, this loop creates 50 builder instances and calls 500+ setter methods. For most roles this is negligible (<10ms), but for large roles or 100+ concurrent scans, it adds up. Not a correctness issue, just inefficient."
+    confidence: 60
+    fix_suggestion: "Replace builder pattern with direct dictionary construction for unresolved variables, OR add a bulk-build method to VariableRowBuilder (e.g., build_unresolved_batch(names, uncertainty_reasons)). Estimated effort: 1 hour to refactor and test. Impact: 5-10x speedup for unresolved variable construction, ~5-10ms saved per scan."
+
+  - id: GILF-NODE2-10
+    severity: CRITICAL
+    category: concurrency
+    location: "variable_discovery.py:56-58 and feature_detector.py:64-66 (double-checked locking first read)"
+    issue: "In the double-checked locking pattern, the first read of _plugin_resolved outside the lock has no memory barrier in Python. In CPython, this is mostly safe due to GIL, but in alternative Python implementations (PyPy, Jython) or with future free-threaded Python (PEP 703), this could cause _plugin_resolved to be cached in thread-local registers, causing infinite staleness."
+    root_cause: "Python doesn't have explicit memory barriers or volatile keywords. The double-checked locking pattern assumes that reads and writes to _plugin_resolved are atomic and visible across threads, but this isn't guaranteed by the Python memory model. CPython's GIL happens to enforce this, but it's not part of the language spec."
+    impact: "On CPython with GIL, this is mostly safe (CRITICAL downgraded from APOCALYPTIC). But the codebase has no GIL dependency documentation, and if Prism ever runs on PyPy or future free-threaded CPython, threads could cache stale _plugin_resolved=False forever and keep hitting the lock, or worse, cache _plugin_resolved=True while _plugin is still None. This is a portability time bomb."
+    confidence: 70
+    fix_suggestion: "Document explicit CPython+GIL dependency, OR replace double-checked locking with single-lock pattern (no optimization needed—plugin resolution happens once per scan), OR use threading.RLock and proper memory barriers. Estimated effort: 30 minutes to document dependency, 1 hour to refactor to single-lock. Impact: future-proofs code for post-GIL Python, eliminates subtle portability bugs."
+
+  - id: GILF-NODE2-11
+    severity: HIGH
+    category: data-flow
+    location: "task_extract_adapters.py:29-42 and 45-58 (_extract_task_annotations_for_file and _collect_task_handler_catalog wrapper functions)"
+    issue: "Both wrapper functions take marker_prefix as an explicit parameter, then pass it through to scanner_extract functions along with di. But the public-facing functions (lines 185-208) ignore the marker_prefix parameter and call _resolve_marker_prefix(di) instead. This creates two conflicting marker-prefix resolution paths: explicit parameter vs. DI resolution. If a caller passes marker_prefix='custom' to the private _extract_task_annotations_for_file, it works. If they call the public extract_task_annotations_for_file, their marker_prefix is ignored and _resolve_marker_prefix overrides it."
+    root_cause: "Layering confusion between internal adapters (which take explicit marker_prefix) and public adapters (which resolve marker_prefix from DI). The internal functions were designed to be parameter-driven, but the public API was added later and hardcoded DI resolution. Now there are two ways to specify marker_prefix, and they don't compose."
+    impact: "If code ever tries to pass a custom marker_prefix to extract_task_annotations_for_file or collect_task_handler_catalog, it will be silently ignored—the DI-resolved prefix always wins. This breaks the principle of least surprise and makes testing harder (can't inject test marker prefixes without mocking the entire DI container). Also makes it impossible to scan the same role with multiple marker prefixes in parallel."
+    confidence: 85
+    fix_suggestion: "Remove marker_prefix parameter from internal _extract_task_annotations_for_file and _collect_task_handler_catalog, OR remove _resolve_marker_prefix from public functions and require callers to pass marker_prefix explicitly. Recommended: make public API require explicit marker_prefix (resolve once at FeatureDetector/VariableDiscovery construction, pass explicitly). This makes policy application explicit and testable. Estimated effort: 2 hours to refactor call sites. Impact: eliminates conflicting resolution paths, makes marker prefix ownership clear."
+
+  - id: GILF-NODE2-12
+    severity: MEDIUM
+    category: architecture
+    location: "feature_detector.py:34-39 (_collect_task_handler_catalog lazy import)"
+    issue: "FeatureDetector imports collect_task_handler_catalog from task_extract_adapters via a module-level _collect_task_handler_catalog helper function. Then task_extract_adapters imports collect_task_handler_catalog from scanner_extract.task_catalog_assembly. And task_catalog_assembly imports extract_task_annotations_for_file from task_annotation_parsing. And task_annotation_parsing imports require_prepared_policy from di_helpers. This creates a 4-level import chain with circular dependency risk."
+    root_cause: "Attempt to break circular imports using lazy imports and adapter layers. But the layering has become baroque: feature_detector → task_extract_adapters → task_catalog_assembly → task_annotation_parsing → di_helpers. Each layer adds indirection, and the dependency graph is hard to reason about. If any layer re-imports feature_detector, the cycle closes."
+    impact: "No immediate functional impact—the lazy import pattern works. But the 4-level indirection makes the code harder to understand and refactor. If someone adds a feature_detector import to di_helpers or task_annotation_parsing (for type hints or validation), Python will raise ImportError. This is a maintenance trap, not a runtime bug."
+    confidence: 75
+    fix_suggestion: "Flatten the import chain: move collect_task_handler_catalog into scanner_core (where FeatureDetector lives), or move FeatureDetector into scanner_extract (where task_catalog_assembly lives). Or extract a shared 'task_extraction_contracts' module with interfaces only, no implementations. Estimated effort: 4 hours for major refactor, 1 hour for contracts module. Impact: reduces import chain from 4 levels to 2, eliminates circular dependency risk, improves code navigability."

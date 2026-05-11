@@ -26,7 +26,7 @@ changes:
       # Replace broad Exception catch with specific exception types from plugin.discover()
       # Expected exceptions: PrismRuntimeError (plugin failure), ValueError (validation),
       # RuntimeError (execution error), TypeError (config issue)
-      
+
       try:
           discovery = self._di.factory_variable_discovery()
           return discovery.discover()
@@ -70,7 +70,7 @@ changes:
     pseudocode: |
       # Parallel narrowing to Scout-ControlFlow-05.
       # Replace broad Exception catch with specific exception types from plugin.detect()
-      
+
       try:
           detector = self._di.factory_feature_detector()
           return detector.detect()
@@ -118,10 +118,10 @@ changes:
       # - json.JSONDecodeError (config parsing)
       # - HTTPError, URLError (network issues)
       # - OSError (generic IO)
-      
+
       import json
       from urllib.error import HTTPError, URLError
-      
+
       except (
           PrismRuntimeError,
           FileNotFoundError,
@@ -168,7 +168,7 @@ changes:
       # Leave broad catch in place; this is a defensive boundary.
       # Listeners are externally-provided code with unknown exception contracts.
       # Add clarifying docstring and update comment to explain the design.
-      
+
       # NO CODE CHANGE — only add or expand comment:
       except Exception as exc:  # pragma: no cover
           # Defensive: catch all exceptions from external listeners to prevent
@@ -219,9 +219,9 @@ changes:
       # """
       #
       # Step 2: Update the factory to narrow the catch and add logging
-      
+
       from scanner_plugins.defaults import get_expected_variable_discovery_exceptions
-      
+
       try:
           inner = self._variable_discovery_cls(di, resolved_role_path, options)
       except (TypeError, ValueError, PrismRuntimeError) as exc:
@@ -280,7 +280,7 @@ changes:
       # """
       #
       # Step 2: Update the factory to narrow the catch and add logging (mirrors Scout-ControlFlow-03)
-      
+
       try:
           inner = self._feature_detector_cls(di, resolved_role_path, options)
       except (TypeError, ValueError, PrismRuntimeError) as exc:
@@ -319,13 +319,13 @@ sequencing:
     - Scout-ControlFlow-06
     duration_hours: 5
     rationale: "Hot paths on scanner_core orchestration. These improve error semantics on critical execution paths. No dependencies; can be done in parallel if desired."
-    
+
   phase_2_quick_wins:
     - Scout-ControlFlow-01
     - Scout-ControlFlow-02
     duration_hours: 2
     rationale: "UTILITY_PATH and defensive boundary. Scout-ControlFlow-02 requires minimal change (comment only). Scout-ControlFlow-01 is straightforward CLI narrowing. Both independent of phase 1."
-    
+
   phase_3_contract_dependent:
     - Scout-ControlFlow-03
     - Scout-ControlFlow-04
@@ -336,7 +336,7 @@ out_of_scope_findings:
   - finding_id: Scout-ControlFlow-07
     file: src/prism/scanner_core/telemetry.py
     reason: "Not in owned files (exclusive wave scope)"
-    
+
   - finding_id: Scout-ControlFlow-08
     file: src/prism/scanner_kernel/kernel_plugin_runner.py
     reason: "Not in owned files (exclusive wave scope)"
@@ -351,7 +351,7 @@ validation_gates:
   precheck:
     - "Verify _RECOVERABLE_PHASE_ERRORS tuple and its usage; consider removal if no longer needed after Scout-ControlFlow-05 and 06"
     - "Verify VariableDiscovery/FeatureDetector plugins (Ansible, Kubernetes, Terraform) only raise expected exception types"
-    
+
   post_implementation:
     - "pytest -k error -x (run error-related tests; should pass with no regressions)"
     - "pytest src/prism/tests/test_fsrc_scanner_parity.py (verify parity not broken)"
@@ -363,11 +363,11 @@ risk_assessment:
   low:
     - "Scout-ControlFlow-01: CLI narrowing is isolated, CLI tests should catch regressions"
     - "Scout-ControlFlow-02: No code change; only comment update"
-    
+
   medium:
     - "Scout-ControlFlow-05, 06: Hot paths; need thorough testing to verify exception types are correct"
     - "Verify that non-recoverable exceptions (not in the tuple) propagate correctly in both strict and best-effort modes"
-    
+
   medium_deferred:
     - "Scout-ControlFlow-03, 04: Depend on plugin contract formalization; if not available, keep broad catch with comment"
 

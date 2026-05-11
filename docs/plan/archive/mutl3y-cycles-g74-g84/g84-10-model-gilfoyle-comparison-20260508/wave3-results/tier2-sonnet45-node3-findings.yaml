@@ -1,0 +1,102 @@
+model_used: claude-sonnet-4.5
+
+findings:
+  - id: GILF-NODE3-01
+    severity: CRITICAL
+    category: cache-safety
+    location: "scan_cache.py:20-32 (_clone_container_structure)"
+    issue: "Cache clone function returns custom objects by reference, not by value. Any mutable custom object in cached data is shared across all cache consumers, creating invisible aliasing and race conditions."
+    root_cause: "The recursive cloner only handles built-in container types (dict, list, tuple, set, frozenset). When it encounters any other object type, it just returns it as-is: `return value`. This means custom objects—dataclasses, TypedDicts after runtime, any domain objects—are never cloned."
+    impact: "Cache corruption. If thread A retrieves a cached scan result containing a mutable object, modifies it, thread B's subsequent cache hit sees thread A's modifications. Silent data corruption across cache boundaries. The entire cache isolation contract is void for non-primitive types."
+    confidence: 100
+    fix_suggestion: "CRITICAL FIX (2-4 hours): Add deep copy fallback for non-container types: `return copy.deepcopy(value)` as last resort. Or better: Define a cloneable protocol and require cached values implement it. Document that caching non-primitive types is unsafe without explicit clone protocol. Prefer immutable types in cache payloads. Add validation that detects mutable custom objects and either rejects them or warns loudly."
+
+  - id: GILF-NODE3-02
+    severity: CRITICAL
+    category: cache-safety
+    location: "scan_cache.py:217-238 (_canonicalize in compute_scan_cache_key)"
+    issue: "Cache key canonicalization collapses distinct object instances into identical keys. Two different instances of the same custom class produce identical cache keys, causing cache collisions."
+    root_cause: "Line 235: `return {'__opaque_type__': (f'{type(value).__module__}.{type(value).__qualname__}')}` — this only includes type name, not object state. Two `PolicyConfig` instances with different settings produce the same canonical representation."
+    impact: "Cache poisoning. Request A with PolicyConfig(strict=True) computes key K1. Request B with PolicyConfig(strict=False) also computes K1. Request B gets Request A's cached result, which was computed with wrong policy. Silent wrong-answer bug. The cache becomes a reliability hazard instead of a performance optimization."
+    confidence: 100
+    fix_suggestion: "CRITICAL FIX (1-2 hours): For opaque types, require them to be hashable and use `hash(value)` in the canonical form. Or require a `__cache_key__` protocol method. Or fail loudly: raise an exception for non-primitive, non-container types instead of silently producing colliding keys. Document that only primitive types and containers of primitives are safe to cache. Any custom objects must implement explicit cache-key protocol."
+
+  - id: GILF-NODE3-03
+    severity: HIGH
+    category: event-reliability
+    location: "events.py:93-95, 116-127 (_error_events list)"
+    issue: "EventBus error recording is append-only with no bounds. Every listener exception is recorded forever. Long-running processes with recurring listener failures leak memory unboundedly."
+    root_cause: "Line 95: `self._error_events: list[EventBusError] = []` is append-only. Line 127: `self._error_events.append(error_event)` never checks size. No TTL, no rotation, no max-size enforcement. Error events accumulate forever."
+    impact: "Memory leak. A misbehaving listener that throws 100 exceptions per second will allocate 100 EventBusError objects per second indefinitely. In a 24-hour run, that's 8.6 million error objects. Each error event captures the full exception and event data. OOM crash in production after days of runtime."
+    confidence: 95
+    fix_suggestion: "HIGH-PRIORITY FIX (1 hour): Add maxsize to error events: `_error_events: collections.deque(maxlen=1000)`. Oldest errors are auto-evicted. Or add a `clear_errors()` method and document that consumers must periodically drain the error queue. Or disable error recording by default and make it opt-in via a flag. Unbounded append-only collections in infrastructure code are a cardinal sin."
+
+  - id: GILF-NODE3-04
+    severity: HIGH
+    category: event-reliability
+    location: "events.py:109-128 (emit method, strict mode)"
+    issue: "EventBus strict mode breaks event delivery contract. When strict=True and listener N fails, listeners N+1 onward never receive the event. Partial delivery violates pub/sub semantics."
+    root_cause: "Line 119-128: The listener loop catches exceptions, logs, records, and then `if self._strict: raise`. Re-raising stops the loop. Subsequent listeners in `listeners_snapshot` are never invoked."
+    impact: "Observability loss. If listener A logs metrics, listener B records diagnostics, listener C updates state, and listener B fails in strict mode, listener C never runs. The failure of one observer breaks all downstream observers. Violates the isolation guarantee of pub/sub: observers should be independent. Strict mode makes observers non-independent."
+    confidence: 100
+    fix_suggestion: "HIGH-PRIORITY FIX (30 min): Strict mode should collect all exceptions and raise an aggregate exception after all listeners run, not stop the loop early. Or document that strict mode breaks delivery and is only for testing. Or remove strict mode entirely—event buses should be fail-safe, not fail-fast. The current behavior is a reliability landmine."
+
+  - id: GILF-NODE3-05
+    severity: HIGH
+    category: copy-semantics
+    location: "scan_request.py:19-21 (_copy_scan_policy_context), scan_request.py:70 (prepared_policy_bundle copy)"
+    issue: "Shallow copy via TypedDict unpacking and copy.copy() shares mutable nested structures. Mutations to nested lists/dicts in one request affect other requests. Shared mutable state across request boundaries."
+    root_cause: "Line 21: `return ScanPolicyContext(**policy_context)` only shallow-copies the top-level dict keys. If `policy_context['some_list']` is a list, all copies share the same list object. Line 70: `copy.copy(prepared_policy_bundle)` has the same issue—shallow copy. Python's copy module shallow-copies dicts."
+    impact: "Request interference. Request A modifies `scan_options['exclude_path_patterns'].append('/tmp')`. Request B, which was handed a 'copy' of scan_options, now sees `/tmp` in its exclusion list even though it never asked for it. Silent cross-request contamination. Heisenbugs in concurrent scans."
+    confidence: 95
+    fix_suggestion: "HIGH-PRIORITY FIX (1 hour): Use `copy.deepcopy(policy_context)` and `copy.deepcopy(prepared_policy_bundle)`. Or require that these structures are immutable (frozen dataclasses, tuples instead of lists). Or document prominently that callers must not mutate these after passing them. Shallow copy is a correctness bug waiting to happen in any concurrent or reused-options scenario."
+
+  - id: GILF-NODE3-06
+    severity: MEDIUM
+    category: performance
+    location: "scan_cache.py:264-298 (compute_path_content_hash, directory walk)"
+    issue: "Path content hashing walks entire directory trees with no depth limit, no size limit, no early termination. Maliciously large or deeply nested directories cause excessive memory/CPU consumption or stack overflow."
+    root_cause: "Line 272: `for dirpath, dirnames, filenames in os.walk(root):` — unbounded walk. If the role directory is a symlink to `/` or contains millions of files, this function blocks indefinitely and consumes unbounded memory buffering filenames. No timeout, no max-file-count, no max-depth."
+    impact: "Denial of service. Attacker provides a role directory that symlinks to a massive tree. Cache key computation takes minutes and allocates gigabytes. Or accidental misconfiguration (role_path = '/') causes the scanner to try to hash the entire filesystem. Hangs, OOM, unresponsive scanner."
+    confidence: 90
+    fix_suggestion: "MEDIUM-PRIORITY FIX (2-3 hours): Add safety limits: max_depth (default 10), max_files (default 10,000), timeout (default 60s). If limits exceeded, fail fast with a clear error: 'Role directory too large to hash'. Or use a faster fingerprinting strategy: hash only metadata (file count, total size, mtime) instead of full content. The current brute-force approach is a DoS vector."
+
+  - id: GILF-NODE3-07
+    severity: MEDIUM
+    category: performance
+    location: "scan_cache.py:217-238 (_canonicalize recursion)"
+    issue: "Canonicalization recursion has no depth limit. Deeply nested data structures (dict of dict of dict... 10,000 levels deep) cause stack overflow. Python default recursion limit is ~1000."
+    root_cause: "Line 222-236: Recursive calls to `_canonicalize` with no depth counter or limit check. If `scan_options` contains a pathological nested structure (intentional or accidental), recursion exceeds Python's stack limit and raises RecursionError."
+    impact: "Cache key computation crashes. Malicious or buggy caller passes `scan_options = {'a': {'b': {'c': ... (10k deep)}}}`. _canonicalize hits recursion limit, raises RecursionError, crashes the scan. Unhandled exception propagates, scan fails with cryptic stack trace."
+    confidence: 85
+    fix_suggestion: "MEDIUM-PRIORITY FIX (1 hour): Add depth tracking: pass `depth=0` parameter, increment on each recursive call, raise ValueError if depth > 100. Or use an explicit stack-based (iterative) canonicalization algorithm to avoid recursion entirely. Document that excessively nested scan_options are rejected. Recursion without bounds checks is a code smell in production infrastructure."
+
+  - id: GILF-NODE3-08
+    severity: MEDIUM
+    category: copy-semantics
+    location: "events.py:163-168 (phase context manager, context/metadata copy)"
+    issue: "Context manager shallow-copies context and metadata dicts, then emits events. If caller mutates the original dict after calling phase(), events reflect those mutations. Temporal coupling and confusing behavior."
+    root_cause: "Line 166: `ctx = dict(context or {})` and `meta = dict(metadata or {})` are shallow copies. If `context = {'items': [1, 2, 3]}`, the `ctx['items']` list is the same object. Caller appends to `context['items']` after calling `phase()`, the emitted events see the appended values."
+    impact: "Confusing event data. Developer passes `context={'state': some_list}` to `bus.phase()`, then mutates `some_list` during the phase block. The post event's context includes those mutations, but the pre event doesn't. Events are supposed to snapshot the state at emit time, but this implementation shares mutable references, causing post-hoc contamination of event data."
+    confidence: 80
+    fix_suggestion: "MEDIUM-PRIORITY FIX (30 min): Deep-copy context and metadata: `ctx = copy.deepcopy(context or {})`. Or document prominently that context/metadata dicts must not be mutated after passing to phase(). Or freeze them (convert to immutable mappings). Current behavior is subtle and error-prone for event consumers trying to correlate pre/post data."
+
+  - id: GILF-NODE3-09
+    severity: LOW
+    category: validation
+    location: "scan_request.py:13-14 (_is_scan_policy_context type guard)"
+    issue: "Type guard only checks isinstance(dict), no structural validation. Any dict passes as ScanPolicyContext, even if it's missing required keys or has wrong types. False sense of type safety."
+    root_cause: "Line 14: `return isinstance(value, dict)` — TypedDicts are dicts at runtime, so this technically works, but it provides no validation. A completely unrelated dict passes the guard. TypeGuard is supposed to narrow types, but this implementation doesn't actually verify the structure."
+    impact: "Type safety illusion. If a caller passes a random dict that's missing ScanPolicyContext keys, the type system says it's fine (because TypeGuard says so), but runtime will fail later when code tries to access missing keys. Silent type-hole. The guard is worse than useless—it actively misleads type checkers and developers."
+    confidence: 75
+    fix_suggestion: "LOW-PRIORITY FIX (1 hour): Either remove the type guard (just accept `dict | None` and let callers deal with it), or implement real structural validation: check for required keys, check value types, raise TypeError on mismatch. A type guard that doesn't validate structure is a lie. Prefer honest types over false confidence."
+
+  - id: GILF-NODE3-10
+    severity: LOW
+    category: validation
+    location: "scan_request.py:27-73 (build_run_scan_options_canonical, minimal validation)"
+    issue: "Only role_path is validated as non-empty string. All other parameters are cast to bool or passed through without validation. Invalid values (wrong types, nonsensical combinations) are accepted silently. Garbage in, garbage out."
+    root_cause: "Line 30-31: Validates role_path. Line 41-59: Everything else is just cast (bool()) or assigned directly. No checks for: valid path strings, sensible boolean combinations, required vs optional fields. validate_scan_options() is called at line 72, but we don't see its implementation—if it's weak, the validation gap remains."
+    impact: "Invalid requests reach scanner_core. Caller passes `include_task_runbooks=True` but `inline_task_runbooks=True` which might be contradictory. Or passes `adopt_heading_mode='nonsense_value'`. No validation, request proceeds, scan produces wrong/garbage output or crashes later with unclear error. Fail-late instead of fail-fast."
+    confidence: 70
+    fix_suggestion: "LOW-PRIORITY FIX (2-3 hours): Add comprehensive validation for all parameters: path strings must be valid paths or None, boolean combinations must be sensible, enums must be from allowed sets. Fail fast with clear ValueError messages at request construction time, not deep in scanner_core. Document validation requirements. Current approach relies entirely on validate_scan_options() being thorough, which is a single point of failure."

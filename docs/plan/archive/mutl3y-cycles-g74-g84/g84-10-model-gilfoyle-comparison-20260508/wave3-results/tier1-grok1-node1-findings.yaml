@@ -1,0 +1,101 @@
+model_used: Grok Code Fast 1
+findings:
+  - id: GILF-NODE1-01
+    severity: HIGH
+    category: type-safety
+    location: "src/prism/scanner_core/scanner_context.py:47-49"
+    issue: "TypedDict identity loss through dict() conversion"
+    root_cause: "ScanMetadata TypedDict is converted to plain dict via dict(metadata) before cast(ScanMetadata, ...), losing TypedDict contract and enabling runtime type violations"
+    impact: "Breaks type safety guarantees, allows invalid keys/values into metadata without mypy detection, potential runtime KeyError or attribute access failures"
+    confidence: 95
+    fix_suggestion: "Replace dict(metadata) with copy.copy(metadata) to preserve TypedDict identity; validate cast only if necessary"
+
+  - id: GILF-NODE1-02
+    severity: MEDIUM
+    category: ownership
+    location: "src/prism/scanner_core/di.py:280-290"
+    issue: "Split ownership of prepared_policy_bundle between ingress and DI backfill"
+    root_cause: "scan_request ensures prepared_policy_bundle at ingress, but variable_discovery._get_prepared_policy_bundle still calls scan_request.ensure_prepared_policy_bundle when absent, creating dual ownership paths"
+    impact: "Inconsistent policy resolution, potential for stale or missing policies in non-canonical execution paths, complicates debugging"
+    confidence: 90
+    fix_suggestion: "Remove backfill from variable_discovery; enforce prepared_policy_bundle requirement at all DI factory seams"
+
+  - id: GILF-NODE1-03
+    severity: HIGH
+    category: error-handling
+    location: "src/prism/scanner_core/scanner_context.py:370-385"
+    issue: "Silent failure mode masks critical discovery errors"
+    root_cause: "Best-effort mode catches exceptions and continues with empty results, logging only warnings without surfacing failures to callers"
+    impact: "Incomplete scans appear successful, downstream consumers get garbage data, hard to diagnose why scans are empty"
+    confidence: 95
+    fix_suggestion: "Always surface discovery failures in metadata.scan_errors; remove best-effort continuation for critical phases"
+
+  - id: GILF-NODE1-04
+    severity: MEDIUM
+    category: testability
+    location: "src/prism/scanner_core/di.py:200-210"
+    issue: "God-object DI container with excessive coupling"
+    root_cause: "DIContainer holds scan_options, registry, platform_key, cache, mocks, wiring, overrides, event_bus, cache_backend, blocker_fact_builder in single class"
+    impact: "Hard to test components in isolation, mock injection requires full container setup, increases cognitive load for DI consumers"
+    confidence: 85
+    fix_suggestion: "Split DIContainer into focused protocols (ScanOptionsProvider, PluginRegistryProvider, etc.) with composition over inheritance"
+
+  - id: GILF-NODE1-05
+    severity: LOW
+    category: architecture
+    location: "src/prism/scanner_core/di_helpers.py:50-70"
+    issue: "Normalization duplication across policy getters"
+    root_cause: "Multiple _get_*_policy(di) functions repeat scan_options extraction and prepared_policy_bundle validation logic"
+    impact: "Code duplication, inconsistent error messages, harder to maintain policy access patterns"
+    confidence: 80
+    fix_suggestion: "Extract shared _extract_policy_from_bundle(di, policy_name) helper; standardize error messages and logging"
+
+  - id: GILF-NODE1-06
+    severity: MEDIUM
+    category: type-safety
+    location: "src/prism/scanner_core/di.py:120-130"
+    issue: "Protocol enforcement gaps in plugin construction"
+    root_cause: "_construct_runtime_plugin validates constructor accepts 'di' but doesn't enforce plugin protocol compliance beyond callable check"
+    impact: "Invalid plugin classes pass construction but fail at runtime, delayed error detection, poor developer experience"
+    confidence: 85
+    fix_suggestion: "Add protocol shape validation before construction; use hasattr checks for required plugin methods"
+
+  - id: GILF-NODE1-07
+    severity: HIGH
+    category: ownership
+    location: "src/prism/scanner_core/scanner_context.py:320-330"
+    issue: "Fallback paths undermine fail-closed policy enforcement"
+    root_cause: "require_prepared_policy_bundle enforces bundle presence, but scanner_extract policy shims retain late-resolver fallbacks"
+    impact: "Inconsistent policy availability, some code paths work without bundle while others fail, unpredictable behavior"
+    confidence: 90
+    fix_suggestion: "Audit all policy access points; remove fallbacks outside documented seams; enforce bundle at all entry points"
+
+  - id: GILF-NODE1-08
+    severity: MEDIUM
+    category: testability
+    location: "src/prism/scanner_core/di.py:250-270"
+    issue: "Cache invalidation logic tied to hardcoded keys"
+    root_cause: "_SCAN_OPTION_DEPENDENT_CACHE_KEYS frozenset hardcodes 'feature_detector', 'variable_discovery' without abstraction"
+    impact: "Adding new cached factories requires code changes, not configuration; breaks open-closed principle"
+    confidence: 75
+    fix_suggestion: "Make cache dependencies configurable via factory metadata; allow factories to declare invalidation triggers"
+
+  - id: GILF-NODE1-09
+    severity: LOW
+    category: error-handling
+    location: "src/prism/scanner_core/di.py:150-170"
+    issue: "Exception chaining missing in plugin construction"
+    root_cause: "TypeError from plugin construction raises PrismRuntimeError but doesn't chain original exception"
+    impact: "Lost root cause information, harder to debug plugin issues, stack traces don't show original failure"
+    confidence: 70
+    fix_suggestion: "Use raise ... from exc for all re-raised exceptions in _construct_runtime_plugin"
+
+  - id: GILF-NODE1-10
+    severity: MEDIUM
+    category: architecture
+    location: "src/prism/scanner_core/di_helpers.py:120-140"
+    issue: "Lazy import workarounds mask design issues"
+    root_cause: "Deferred imports in factory methods avoid circular deps but don't address underlying coupling"
+    impact: "Technical debt accumulation, harder to refactor module boundaries, lazy imports are code smell for architecture problems"
+    confidence: 80
+    fix_suggestion: "Refactor import graph to eliminate circular dependencies; use explicit dependency injection instead of lazy loading"

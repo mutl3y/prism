@@ -12,7 +12,7 @@ decisions:
     decision: NARROW_EXCEPT
     reason: "map_top_level_exception_to_exit_code() is designed to handle specific types: PrismRuntimeError, FileNotFoundError, PermissionError, JSONDecodeError, HTTPError, URLError, OSError. Narrow catch improves debugging and documents expected exception types at CLI boundary."
     exception_types: |
-      Narrow to: (PrismRuntimeError, FileNotFoundError, PermissionError, 
+      Narrow to: (PrismRuntimeError, FileNotFoundError, PermissionError,
                   json.JSONDecodeError, HTTPError, URLError, OSError)
       Fallback: Add generic Exception catch after specific types for unforeseen cases.
     criticality: UTILITY_PATH
@@ -127,11 +127,11 @@ decisions:
 implementation_readiness: ready
 summary: |
   BLOCKING: Two hot-path findings (05, 06) in scanner_core orchestration need narrowing to improve error semantics on critical execution paths.
-  
+
   CONTRACT_NEEDED: Two factory findings (03, 04) require plugin contract definitions before narrowing (low priority, utility paths).
-  
+
   READY_TO_NARROW: Four findings (01, 07, 08) can be narrowed immediately with specific exception types.
-  
+
   ACCEPT_BROAD: One finding (02) should remain broad due to defensive boundary nature (event bus listeners from external code).
 
 implementation_sequence: |
@@ -150,6 +150,6 @@ notes: |
   Memory: _RECOVERABLE_PHASE_ERRORS is a tuple[type[Exception], ...] = (PrismRuntimeError,)
   The scanner_context pattern catches broad Exception but immediately narrows via isinstance.
   This is safe but inefficient; move isinstance logic into the except clause type tuple.
-  
+
   CLI broad except is acceptable because map_top_level_exception_to_exit_code has type dispatch,
   so any Exception that reaches it gets handled gracefully.

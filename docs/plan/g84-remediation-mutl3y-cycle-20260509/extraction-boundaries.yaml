@@ -1,0 +1,325 @@
+# Extraction Boundaries: Proposed DI Container Refactoring Plan
+
+**Phase**: Q2 Initiative 1, Phase 0 (Architecture Review)  
+**Target Refactoring**: Decompose DIContainer into focused responsibility classes  
+**Current State**: Partial extraction (PluginResolver extracted, ServiceLocator stub exists)  
+**Proposed Target**: Full extraction with clear seams  
+
+---
+
+## Three-Phase Refactoring Strategy
+
+### Phase 1: Consolidate ServiceLocator (RECOMMENDED FIRST)
+**Objective**: Move all service lifecycle/caching logic into ServiceLocator  
+**Impact**: ~70 lines moved; DIContainer shrinks ~15%  
+**Risk**: Low (already partially extracted; proven pattern in PluginResolver)  
+
+```yaml
+ServiceLocator:
+  owns:
+    - factory_event_bus()                      # Already delegated ✅
+    - factory_scanner_context()                # New: move from DIContainer
+    - factory_variable_discovery()             # New: move from DIContainer
+    - factory_feature_detector()               # New: move from DIContainer
+    - factory_variable_row_builder()           # New: move from DIContainer
+    - factory_policy_registry()                # New: move from DIContainer
+    - factory_policy_manager()                 # New: move from DIContainer
+  internal_methods:
+    - _create_scanner_context()                # Internal factory helper
+    - _create_variable_discovery()             # Already exists at module level
+    - _create_feature_detector()               # Already exists at module level
+    - replace_scan_options()                   # Already delegates to DI; update
+  dependencies:
+    - DIContainer._cache (access to cache dict + lock)
+    - DIContainer._mocks (for mock injection)
+    - DIContainer._factory_overrides (for override dispatch)
+    - DIContainer._role_path (readonly)
+    - DIContainer._scan_options (readonly)
+    - DIContainer._scanner_context_wiring (readonly)
+
+  data_flow:
+    - Reads: DIContainer state (cache, mocks, overrides, config)
+    - Writes: DIContainer._cache (service instances)
+    - Thread Safety: Uses DIContainer._cache_lock for all cache operations
+
+  interface_changes:
+    - DIContainer.factory_event_bus() stays public (backward compat)
+    - DIContainer.factory_scanner_context() stays public (backward compat)
+    - ServiceLocator becomes primary owner (internal)
+    - Mock/override checks stay in DIContainer (remain orchestrator)
+```
+
+**Rationale**:
+- PluginResolver already proves single-responsibility extraction works
+- ServiceLocator is thread-safe, cache-aware, and stateless
+- DIContainer retains override/mock logic (it's the "gateway")
+- Call sites unchanged (they call di.factory_*(), not locator.factory_*() directly)
+
+---
+
+### Phase 2: Extract Mock/Override Gateway (OPTIONAL, FOLLOW-UP)
+**Objective**: Deduplicate the mock → override → delegate pattern (used 12 times)  
+**Impact**: ~40 lines moved; eliminates boilerplate; improves testability  
+**Risk**: Medium (new abstraction; needs careful API design)  
+
+```yaml
+MockAndOverrideGateway:
+  owns:
+    - route_to_resolver()                      # Central mock/override dispatcher
+    - Encapsulates: mock check → override check → delegate logic
+  
+  public_methods:
+    - route_to_resolver(name, delegate_fn) -> object
+      """
+      Args:
+        name: Mock/override key (e.g., "variable_discovery_plugin")
+        delegate_fn: Callable that executes resolver logic
+      
+      Returns:
+        Mock result, override result, or delegate_fn() result
+      """
+
+  used_by:
+    - factory_variable_discovery_plugin()
+    - factory_feature_detection_plugin()
+    - factory_comment_driven_doc_plugin()
+    - factory_task_annotation_policy_plugin()
+    - factory_task_line_parsing_policy_plugin()
+    - factory_task_traversal_policy_plugin()
+    - factory_variable_extractor_policy_plugin()
+    - factory_yaml_parsing_policy_plugin()
+    - factory_jinja_analysis_policy_plugin()
+    - factory_audit_plugin()
+
+  benefit:
+    - 10 methods reduce to single-line dispatcher calls
+    - Each plugin method becomes: return gateway.route_to_resolver("plugin_name", resolver_fn)
+    - Centralizes mock/override policy
+    - Easier to add new routing strategies (tracing, logging, caching)
+
+  risk:
+    - Adds indirection to call stack (may affect debuggability)
+    - New abstraction to maintain
+    - Only beneficial if extracted correctly (stay in DIContainer class, don't extract to separate file)
+```
+
+**Decision**: DEFER this to Phase 1B (after Phase 1 proves servicelocator extraction successful).
+
+---
+
+### Phase 3: Clarify DIContainer Orchestration (OPTIONAL, FOLLOW-UP)
+**Objective**: Minimize DIContainer responsibility to pure orchestration  
+**Impact**: ~20 lines of pure logic; rest is delegation  
+**Risk**: Low (mostly renames + documentation)  
+
+```yaml
+DIContainer_After_Phase1_And_2:
+  retains_ownership:
+    # Orchestration: delegates to sub-classes
+    - factory_event_bus()                      # Delegates to ServiceLocator
+    - factory_scanner_context()                # Delegates to ServiceLocator
+    - factory_variable_discovery()             # Delegates to ServiceLocator
+    - factory_feature_detector()               # Delegates to ServiceLocator
+    - factory_variable_row_builder()           # Delegates to ServiceLocator
+    - factory_policy_registry()                # Delegates to ServiceLocator
+    - factory_policy_manager()                 # Delegates to ServiceLocator
+    - factory_variable_discovery_plugin()      # Delegates to Gateway/PluginResolver
+    - factory_feature_detection_plugin()       # Delegates to Gateway/PluginResolver
+    - factory_comment_driven_doc_plugin()      # Delegates to Gateway/PluginResolver
+    - factory_task_annotation_policy_plugin()  # Delegates to Gateway/PluginResolver
+    - factory_task_line_parsing_policy_plugin() # Delegates to Gateway/PluginResolver
+    - factory_task_traversal_policy_plugin()   # Delegates to Gateway/PluginResolver
+    - factory_variable_extractor_policy_plugin() # Delegates to Gateway/PluginResolver
+    - factory_yaml_parsing_policy_plugin()     # Delegates to Gateway/PluginResolver
+    - factory_jinja_analysis_policy_plugin()   # Delegates to Gateway/PluginResolver
+    - factory_audit_plugin()                   # Delegates to Gateway/PluginResolver
+
+    # Container management: cache, wiring, state
+    - replace_scan_options()                   # Invalidates caches (delegated to ServiceLocator)
+    - __init__()                               # Initialization (create ServiceLocator, PluginResolver)
+    - _call_factory_override()                 # Override dispatch (kept here, minimal)
+    - inject_mock()                            # Testing support
+    - clear_mocks()                            # Testing support
+    - clear_cache()                            # Testing support
+
+  structure_after_refactoring:
+    - DIContainer: ~200 lines (pure orchestration + properties)
+      ├─ ServiceLocator: ~200 lines (service lifecycle + caching)
+      ├─ PluginResolver: ~150 lines (plugin instantiation)
+      ├─ MockAndOverrideGateway: ~30 lines (Optional Phase 2)
+      └─ DI Helpers: ~50 lines (module-level utilities, existing)
+
+  readability_improvement:
+    Before: 1000+ lines (mixed concerns)
+    After:  ~630 lines (clear seams + reduced DIContainer to orchestration only)
+```
+
+---
+
+## Proposed Allocation by Phase
+
+### CURRENT STATE
+```yaml
+DIContainer:
+  orchestration: 50 lines (initialize, override dispatch, cache management)
+  service_locator_logic: 80 lines (7 factory methods)
+  plugin_resolver_logic: 60 lines (10 factory methods)
+  mock_gateway_boilerplate: 40 lines (duplicated 10 times)
+  properties: 10 lines
+  cache_helpers: 20 lines
+  total: 1000+ lines (mixed)
+
+PluginResolver:
+  plugin_factories: 120 lines (9 methods)
+  registry_helpers: 20 lines
+  total: 140 lines (extracted ✅)
+
+ServiceLocator:
+  event_bus_only: 30 lines (current)
+  stubs_for_future: 20 lines
+  total: 50 lines (partially extracted)
+```
+
+### AFTER PHASE 1 (ServiceLocator Consolidation) ✅ RECOMMENDED
+```yaml
+DIContainer:
+  orchestration: 50 lines (initialize, override dispatch, gateway check)
+  plugin_resolver_logic: 60 lines (10 factory methods, mock check → override check → delegate)
+  properties: 10 lines
+  cache_helpers: 20 lines
+  total: ~140 lines (REDUCED ~85%)
+
+PluginResolver:
+  plugin_factories: 120 lines (9 methods)
+  registry_helpers: 20 lines
+  total: 140 lines (unchanged)
+
+ServiceLocator:
+  service_factories: 80 lines (7 factory methods from DIContainer)
+  event_bus: 10 lines
+  caching_logic: 40 lines
+  replace_scan_options: 10 lines
+  total: ~140 lines (EXPANDED from 50)
+```
+
+**Impact**:
+- DIContainer reduced by 85% (1000 → 140 lines)
+- Clear responsibility boundary: DIContainer = gateway, ServiceLocator = lifecycle
+- No external call site changes (still call `di.factory_*()`)
+- All cache/thread-safety preserved
+
+### AFTER PHASE 2 (Mock/Override Gateway) - OPTIONAL, DEFER
+```yaml
+DIContainer:
+  orchestration: 30 lines (pure delegation + initialize)
+  mock_override_gateway: 30 lines (central dispatcher for 10 methods)
+  properties: 10 lines
+  helpers: 20 lines
+  total: ~90 lines (FURTHER REDUCED)
+
+MockAndOverrideGateway:
+  router_logic: 25 lines
+  error_handling: 10 lines
+  total: ~35 lines (new class)
+```
+
+**Note**: Phase 2 deferred pending Phase 1 validation. If Phase 1 extraction is successful, Phase 2 becomes lower-priority hygiene work.
+
+---
+
+## Backward Compatibility Guarantee
+
+All existing callsites will continue to work without modification:
+
+```python
+# Current usage (will work after Phase 1)
+container = DIContainer(role_path, scan_options)
+
+# These all stay public ✅
+container.factory_event_bus()
+container.factory_scanner_context()
+container.factory_variable_discovery()
+container.factory_feature_detector()
+container.factory_variable_row_builder()
+container.factory_policy_registry()
+container.factory_policy_manager()
+container.factory_variable_discovery_plugin()
+container.factory_feature_detection_plugin()
+# ... all 18 public methods unchanged
+
+# Internal delegation hidden:
+# di.factory_scanner_context()
+#   → locator.factory_scanner_context()  (AFTER Phase 1)
+#     → DIContainer._service_locator.factory_scanner_context()
+#       → ScannerContext(...)
+```
+
+---
+
+## Risk & Rollback Strategy
+
+| Phase | Risk Level | Rollback Plan | Go/No-Go Criteria |
+|-------|-----------|----------------|------------------|
+| Phase 1 (ServiceLocator) | Low | Revert file to original; unit tests validate | All 18 factory methods return same type; cache hits preserved; mock injection works |
+| Phase 2 (Mock Gateway) | Medium | Remove gateway class; restore 10 methods to inline pattern | Callsites unaffected; 0 new test failures; readability improves >20% |
+| Phase 3 (Documentation) | Low | Rename classes back; restore original structure | Code quality gates pass; architecture docs match implementation |
+
+---
+
+## Testing Validation Gates (Per Phase)
+
+### Phase 1 Gate
+```bash
+# All existing tests must pass unchanged
+pytest src/prism/tests/test_scanner_core_di.py -v
+pytest src/prism/tests/test_di_container.py -v
+pytest src/prism/tests/test_scanner_context.py -v
+
+# Validation: service instances are same across repeated factory calls
+def test_service_locator_caching():
+    di = DIContainer(...)
+    assert di.factory_event_bus() is di.factory_event_bus()
+    assert di.factory_variable_discovery() is di.factory_variable_discovery()
+    # ... etc for all 7 services
+```
+
+### Phase 2 Gate (Optional)
+```bash
+# Boilerplate reduction: each method becomes 1 line
+# assert mock_override_gateway usage in all 10 plugin methods
+# assert coverage on new MockAndOverrideGateway class >= 95%
+```
+
+---
+
+## Recommended Action Plan
+
+**Immediate (Q2 Week 1-2)**:
+- ✅ Phase 1: Consolidate ServiceLocator (low risk, high clarity)
+  - Estimated effort: 2-3 hours
+  - Lines moved: 70
+  - Tests: 0 changes needed (backward compat)
+
+**Follow-up (Q2 Week 3-4, if Phase 1 validates)**:
+- ⏸ Phase 2: Mock/Override Gateway (defer, contingent on Phase 1 success)
+  - Estimated effort: 2-3 hours
+  - Lines moved: 40
+  - Risk: Medium; requires careful API design
+
+**After both phases stabilize**:
+- 📝 Phase 3: Documentation & architecture review (ongoing, low priority)
+
+---
+
+## Summary Table
+
+| Aspect | Current | After Phase 1 | After Phase 1+2 |
+|--------|---------|---------------|-----------------|
+| DIContainer LOC | 1000+ | ~140 | ~90 |
+| ServiceLocator LOC | 50 | 140 | 140 |
+| PluginResolver LOC | 140 | 140 | 140 |
+| Mock/Override boilerplate | 40 (duplicated) | 40 (duplicated) | Consolidated |
+| Extract readiness | ✅ Ready | N/A | N/A |
+| Backward compat | N/A | ✅ 100% | ✅ 100% |
+| Responsibility clarity | Moderate | High | Very High |
+| Test breakage | N/A | 0 expected | 0 expected |

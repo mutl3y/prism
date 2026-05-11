@@ -1,0 +1,111 @@
+model_used: GPT-5 mini
+findings:
+  - id: GILF-NODE3-01
+    severity: HIGH
+    category: cache-safety
+    location: "[src/prism/scanner_core/scan_cache.py:30-110]"
+    issue: "No TTL or byte-size eviction — only entry-count LRU"
+    root_cause: "InMemoryLRUScanCache only limits entries by count (`maxsize`) and never evicts based on age or value size."
+    impact: "Large scan results (or many large entries) can exhaust process memory despite LRU count limits; long-lived stale entries remain until evicted by count pressure."
+    confidence: 95
+    fix_suggestion: "Add optional TTL per-entry and/or a byte-size budget. Implement time-based expiry and an LRU that accounts for value size (bytes). Consider background maintenance thread or lazy expiry on access to avoid long pause events."
+
+  - id: GILF-NODE3-02
+    severity: CRITICAL
+    category: cache-safety
+    location: "[src/prism/scanner_core/scan_cache.py:120-200]"
+    issue: "Cache key ignores runtime wiring identity; callable identity uses process `id()`"
+    root_cause: "compute_scan_cache_key only uses `role_content_hash` and scan options. `build_runtime_wiring_identity` exists but is not composed into compute key; callable/object identity embeds Python `id()` which is process-volatile."
+    impact: "Cache poisoning or stale hits when orchestration functions / runtime registry change. Keys may be valid in one process run and invalid in another; false cache hits across semantic changes lead to incorrect scan outputs — a correctness/SECURITY risk."
+    confidence: 96
+    fix_suggestion: "Require callers to include the canonical `build_runtime_wiring_identity(...)` result into scan options (or accept an explicit `runtime_identity` param) and include it in the canonical key. Replace `id()`-based identities with stable fingerprints where possible (e.g., module + qualname + optional user-supplied version). Document that process-local `id()` makes cache non-persistent across restarts."
+
+  - id: GILF-NODE3-03
+    severity: HIGH
+    category: copy-semantics
+    location: "[src/prism/scanner_core/scan_cache.py:1-40] & [src/prism/scanner_core/scan_request.py:1-80]"
+    issue: "Shallow or incomplete cloning leads to shared mutable state"
+    root_cause: "_clone_container_structure clones basic containers but returns original for non-container objects; `build_run_scan_options_canonical` uses `copy.copy` for `prepared_policy_bundle` and leaves other lists/maps as-is."
+    impact: "Mutable objects inside cached values or returned scan options can be mutated by callers or consumers after caching, breaking immutability assumptions and causing hard-to-debug state corruption or cross-request leakage."
+    confidence: 95
+    fix_suggestion: "Use a robust defensive copy strategy: either `copy.deepcopy` (with care for performance) or a serialization round-trip (JSON/MessagePack) for cache boundaries. For non-serializable domain objects, require a `get_state_fingerprint()` or provide explicit serializer hooks. In `build_run_scan_options_canonical`, deep-copy incoming lists/dicts (or freeze them) before placing into the returned options."
+
+  - id: GILF-NODE3-04
+    severity: MEDIUM
+    category: performance
+    location: "[src/prism/scanner_core/scan_cache.py:48-52] & [src/prism/scanner_core/events.py:30-60]"
+    issue: "Race conditions: length/count access without locking"
+    root_cause: "InMemoryLRUScanCache.__len__ and EventBus.listener_count access internal containers without acquiring the instance lock."
+    impact: "Concurrent callers may observe inconsistent counts; in pathological races this can produce incorrect decisions in callers relying on those metrics (e.g., instrumentation or eviction logic)."
+    confidence: 90
+    fix_suggestion: "Guard `__len__` and `listener_count` with the same locks used for mutations (use `with self._lock:` / `with self._listeners_lock:`). Keep these accessors cheap by using `with` and returning snapshot values."
+
+  - id: GILF-NODE3-05
+    severity: MEDIUM
+    category: event-reliability
+    location: "[src/prism/scanner_core/events.py:60-140]"
+    issue: "EventBus records Exception objects (including tracebacks) directly"
+    root_cause: "_record_listener_error stores the raw Exception object on the EventBus internal error list."
+    impact: "Storing exception objects retains traceback frames and locals, causing potential memory leaks and accidental retention of large objects; repeated listener failures amplify memory growth."
+    confidence: 94
+    fix_suggestion: "Record a minimal error record: listener name, exception type, message, and a formatted traceback string (e.g., `traceback.format_exc()`). Do not store exception objects or tracebacks themselves. Optionally cap stored error events and rotate or sample them."
+
+  - id: GILF-NODE3-06
+    severity: MEDIUM
+    category: event-reliability
+    location: "[src/prism/scanner_core/events.py:80-120]"
+    issue: "Strict mode raises inside emit and can break pre/post pairing"
+    root_cause: "When `_strict` is True, `emit` re-raises after recording a listener exception, which may abort the caller's flow and prevent a matched `post` event from being emitted by the `phase` context manager."
+    impact: "In strict mode an exception from one listener can prevent the `post` event from firing, leaving downstream observability/state transitions inconsistent and making instrumentation unreliable."
+    confidence: 92
+    fix_suggestion: "If strictness must re-raise, ensure `phase` always emits the `post` event (e.g., catch exceptions inside `emit`, record them, and optionally re-raise only after `finally` has emitted the `post`). Document strict semantics clearly. Alternatively provide an explicit `emit_strict()` that guarantees post emission."
+
+  - id: GILF-NODE3-07
+    severity: HIGH
+    category: validation
+    location: "[src/prism/scanner_core/scan_request.py:1-120]"
+    issue: "Weak/late validation and fragile `prepared_policy_bundle` handling"
+    root_cause: "Only `role_path` is validated early; `prepared_policy_bundle` is copied only when it's a plain `dict` (`isinstance(dict)`), otherwise ignored. Many inputs are accepted without type checks until `validate_scan_options` is invoked late."
+    impact: "Invalid or unexpected types can be embedded into the options and later cause runtime errors, silent skips, or inadvertent cache key collisions (if callers assume shapes). Prepared bundles that are valid but not `dict` (e.g., TypedDict, Mapping, or a plugin-provided object) will be ignored leading to incorrect scan behavior."
+    confidence: 95
+    fix_suggestion: "Validate inputs early: use `collections.abc.Mapping` / explicit TypedDict checks for `prepared_policy_bundle` and copy/normalize accordingly. Perform defensive deep-copying of lists/maps passed in. Fail-fast with clear, chained exceptions that include the offending key name and expected type."
+
+  - id: GILF-NODE3-08
+    severity: LOW
+    category: cache-safety
+    location: "[src/prism/scanner_core/scan_cache.py:140-170]"
+    issue: "Canonicalization coerces dict keys to `str` leading to collisions"
+    root_cause: "compute_scan_cache_key canonicalization converts keys via `str(key)` which collapses distinct non-string keys that string-equal when coerced."
+    impact: "Different scan options using keys like `1` and `'1'` become indistinguishable and will share cache entries, causing incorrect scan reuse."
+    confidence: 88
+    fix_suggestion: "Require option keys to be strings, or preserve key type in the canonical representation (e.g., encode a tuple `(type_name, repr(key))`), and validate keys early with clear error messages."
+
+  - id: GILF-NODE3-09
+    severity: MEDIUM
+    category: error-handling
+    location: "[src/prism/scanner_core/events.py:100-120]"
+    issue: "Listener exceptions logged without full traceback/context"
+    root_cause: "emit logs listener failures using `logger.error(...)` with `exc` and type, but does not include formatted traceback or structured context."
+    impact: "Troubleshooting is harder: logs lack standard stack traces and structured fields for automated diagnostics; root cause analysis of listener failures becomes manual and slow."
+    confidence: 90
+    fix_suggestion: "Use `logger.exception(...)` or include `traceback.format_exc()` in the logged payload. Emit structured event metadata (phase, kind, listener) and optionally a stable error id for correlation with `_error_events`."
+
+  - id: GILF-NODE3-10
+    severity: MEDIUM
+    category: performance
+    location: "[src/prism/scanner_core/scan_cache.py:200-320]"
+    issue: "Path content hash is fully synchronous and potentially slow on large trees"
+    root_cause: "compute_path_content_hash walks directories and reads all files synchronously with a 64KiB chunk size; no incremental caching, concurrency, or skip-list beyond dotfiles and `__pycache__`."
+    impact: "Hash computation can add significant latency to scan startup for large role trees and can block caller threads; repeated calls can be expensive."
+    confidence: 85
+    fix_suggestion: "Introduce optional incremental hashing/backing cache, thread off heavy hashing, allow caller to opt-in skip patterns, or parallelize file reads. Consider fingerprinting based on file mtimes + sizes as a fast path with configurable strictness."
+
+  - id: GILF-NODE3-11
+    severity: LOW
+    category: copy-semantics
+    location: "[src/prism/scanner_core/events.py:12-40] & [src/prism/scanner_core/scan_request.py:24-56]"
+    issue: "Mutable mappings embedded inside frozen dataclass `ScanPhaseEvent`"
+    root_cause: "ScanPhaseEvent is `@dataclass(frozen=True)` but contains `context` and `metadata` which are plain mutable `dict` instances; freezing prevents attribute reassignment but not mutation of contained dicts."
+    impact: "Listeners can inadvertently mutate event context, causing surprising cross-listener side effects and undermining the immutability contract."
+    confidence: 92
+    fix_suggestion: "Wrap `context` and `metadata` in `types.MappingProxyType` (an immutable mapping) before constructing `ScanPhaseEvent`, or deep-copy and document mutability contract. This preserves the 'frozen' semantics for contained data."

@@ -1,0 +1,327 @@
+---
+# MP1 Ruff Rules — Marker-Prefix Boundary Enforcement
+#
+# Phase: Phase 1, Task 1.2 (May 10-12, 2026)
+# Purpose: Define 4 linting rules to enforce MP1 marker-prefix contract
+# Acceptance Criteria:
+#   - All 4 rules implemented
+#   - Dry-run: 0 violations on current codebase
+#   - GitHub Actions workflow runs on all PRs
+# Status: DEFINING
+
+metadata:
+  cycle: g84-remediation-mutl3y-cycle-20260509
+  phase: phase-1
+  task: task-1-2-ruff-rules
+  created_date: 2026-05-10
+  enforcement_tool: ruff (0.15.6)
+  enforcement_scope: src/prism/**/*.py
+  baseline_violations: 0
+
+# MP1 CONTRACT SUMMARY
+# Marker-prefix is ingress-owned and flows through bundle_resolver only.
+# Consumers MUST read from PreparedPolicyBundle, never import marker config directly.
+# Bundle is immutable after creation at line 157 in bundle_resolver.py.
+
+---
+
+# RULE 1: MP1-IMPORT-AUDIT
+# Prevent scanner_core, scanner_extract, and scanner_plugins from importing marker config
+# This ensures all access to marker-prefix goes through the bundle, not direct imports.
+
+rules:
+  - rule_id: MP1-IMPORT-AUDIT
+    severity: ERROR
+    enabled: true
+    enforcement_mode: warnings-only  # Week 1: warnings only, no hard errors
+    
+    name: "MP1 Import Audit — Prevent Direct Marker-Config Access"
+    
+    description: |
+      Enforce that internal modules (scanner_core, scanner_extract, scanner_plugins)
+      do NOT import marker configuration directly from scanner_config.marker.
+      All marker-prefix access must flow through PreparedPolicyBundle.
+    
+    what_it_prevents: |
+      ❌ VIOLATIONS:
+        - from prism.scanner_config.marker import load_readme_marker_prefix
+        - from prism.scanner_config.marker import MARKER_PATTERN
+        - from prism.scanner_config import DEFAULT_DOC_MARKER_PREFIX (in scanner_core)
+      
+      ✅ ALLOWED (Exceptions):
+        - src/prism/api.py (facade layer, can import for projection)
+        - src/prism/cli.py (CLI entry point, can pass to API)
+        - src/prism/scanner_core/di.py (needs DEFAULT for DI factory default)
+        - src/prism/scanner_core/policy_registry.py (needs DEFAULT for fallback)
+        - src/prism/scanner_plugins/bundle_resolver.py (owns projection)
+        - src/prism/api_layer/** (can project into bundle)
+        - src/prism/tests/** (test code exempt)
+    
+    scope:
+      - src/prism/scanner_core/**/*.py (except: di.py, policy_registry.py, tests/)
+      - src/prism/scanner_extract/**/*.py
+      - src/prism/scanner_plugins/**/*.py (except: bundle_resolver.py, tests/)
+    
+    pattern: |
+      # Ruff built-in rule: F401 + custom grep pattern
+      # Pattern: detect imports from scanner_config.marker or DEFAULT_DOC_MARKER_PREFIX
+      
+      Regex patterns to match (implemented in workflow):
+        1. from prism.scanner_config.marker import
+        2. from prism.scanner_config import .*DEFAULT_DOC_MARKER_PREFIX
+        3. from prism\.scanner_config import .*MARKER
+    
+    implementation:
+      - tool: grep-based pattern matching (via GitHub Actions)
+      - check: scan all .py files in scope for forbidden import patterns
+      - exception_list: define in .github/workflows/mp1-ci-enforcement.yml
+      - action: fail if violation found (warning-only in Week 1)
+    
+    test_command: |
+      # Dry-run (no violations expected):
+      grep -r "from prism.scanner_config.marker import\|from prism.scanner_config import.*DEFAULT_DOC_MARKER_PREFIX" \
+        src/prism/scanner_core src/prism/scanner_extract src/prism/scanner_plugins \
+        --include="*.py" \
+        --exclude-dir=tests \
+        --exclude="di.py" --exclude="policy_registry.py" --exclude="bundle_resolver.py" \
+        | wc -l  # Expect: 0
+
+---
+
+# RULE 2: MP1-BUNDLE-MUTATION-AUDIT
+# Detect attempts to write/mutate bundle['comment_doc_marker_prefix'] outside bundle_resolver
+# This enforces immutability: once bundle is created, marker-prefix cannot be changed.
+
+  - rule_id: MP1-BUNDLE-MUTATION-AUDIT
+    severity: ERROR
+    enabled: true
+    enforcement_mode: warnings-only  # Week 1: warnings only
+    
+    name: "MP1 Bundle Mutation Audit — Enforce Immutability"
+    
+    description: |
+      Enforce that PreparedPolicyBundle['comment_doc_marker_prefix'] is immutable
+      after creation. Only bundle_resolver.ensure_prepared_policy_bundle() can
+      perform the initial write (lines 142-157).
+    
+    what_it_prevents: |
+      ❌ VIOLATIONS:
+        - bundle["comment_doc_marker_prefix"] = new_value  (outside bundle_resolver)
+        - bundle.update({"comment_doc_marker_prefix": ...})
+        - bundle.setdefault("comment_doc_marker_prefix", ...)
+        - prepared_policy_bundle.comment_doc_marker_prefix = X
+      
+      ✅ ALLOWED:
+        - bundle.get("comment_doc_marker_prefix")  (read-only)
+        - prefix = bundle["comment_doc_marker_prefix"]  (read-only)
+        - bundle["comment_doc_marker_prefix"] = X  (ONLY inside bundle_resolver.py)
+    
+    scope:
+      - src/prism/**/*.py (entire codebase)
+      - exception: src/prism/scanner_plugins/bundle_resolver.py (write allowed)
+      - exception: src/prism/tests/** (tests exempt, but validates contract)
+    
+    pattern: |
+      # AST-based or grep pattern (implemented in workflow):
+      Regex patterns to match:
+        1. bundle\["comment_doc_marker_prefix"\]\s*=  (assignment outside bundle_resolver)
+        2. bundle\.update\(.*comment_doc_marker_prefix  (update call)
+        3. bundle\.setdefault.*comment_doc_marker_prefix  (setdefault call)
+        4. \.comment_doc_marker_prefix\s*=  (attribute assignment)
+    
+    implementation:
+      - tool: grep + optional AST validation (via GitHub Actions)
+      - check: scan all .py files for write patterns to marker-prefix bundle key
+      - exception_list: exclude bundle_resolver.py
+      - action: fail if violation found (warning-only in Week 1)
+    
+    test_command: |
+      # Dry-run (no violations expected outside bundle_resolver.py):
+      grep -r "bundle\[.comment_doc_marker_prefix.\]\s*=" \
+        src/prism/ --include="*.py" \
+        --exclude="bundle_resolver.py" \
+        | wc -l  # Expect: 0
+
+---
+
+# RULE 3: MP1-CONSUMER-VALIDATION
+# Ensure all consumers (task_extract_adapters, feature_detector, plugins) read marker-prefix from bundle
+# This validates that the canonical path is used at runtime.
+
+  - rule_id: MP1-CONSUMER-VALIDATION
+    severity: WARNING
+    enabled: true
+    enforcement_mode: warnings-only
+    
+    name: "MP1 Consumer Validation — Enforce Bundle Source"
+    
+    description: |
+      Enforce that all code consuming marker_prefix reads from PreparedPolicyBundle,
+      never from computed/fallback sources or hardcoded values.
+      Key consumers: task_extract_adapters, feature_detector, ansible plugins.
+    
+    what_it_prevents: |
+      ❌ VIOLATIONS:
+        - marker_prefix = normalize_marker_prefix(...)  (computed outside bundle)
+        - marker_prefix = "prism"  (hardcoded assumption)
+        - marker_prefix = config.marker.prefix  (direct config access)
+      
+      ✅ ALLOWED:
+        - marker_prefix = bundle.get("comment_doc_marker_prefix")
+        - marker_prefix = prepared_policy_bundle["comment_doc_marker_prefix"]
+        - validate bundle contains marker_prefix before use
+    
+    scope:
+      - src/prism/scanner_core/task_extract_adapters.py
+      - src/prism/scanner_core/feature_detector.py
+      - src/prism/scanner_plugins/ansible/feature_detection.py
+      - src/prism/scanner_plugins/ansible/** (all ansible plugins)
+    
+    pattern: |
+      # Code review + pytest patterns:
+      
+      Pattern 1 (task_extract_adapters.py):
+        - Function: task_extract_adapters() should accept marker_prefix from bundle parameter
+        - Violation: If marker_prefix computed or imported from config
+      
+      Pattern 2 (feature_detector.py):
+        - Function: feature_detector.detect() should validate bundle contains marker_prefix
+        - Violation: If marker_prefix assumed or computed
+      
+      Pattern 3 (ansible plugins):
+        - All *.py files in scanner_plugins/ansible/
+        - Violation: If marker_prefix imported from scanner_config or hardcoded
+    
+    implementation:
+      - tool: pytest validators (static + runtime)
+      - check: run pytest tests that validate bundle sourcing
+      - check: grep for hardcoded "prism" strings in consumer code
+      - action: warning if violation found (Week 1 warnings-only)
+    
+    test_command: |
+      # Static check: grep for hardcoded marker in consumer code:
+      grep -n "= ['\"]prism['\"]" \
+        src/prism/scanner_core/task_extract_adapters.py \
+        src/prism/scanner_core/feature_detector.py \
+        src/prism/scanner_plugins/ansible/** \
+        --include="*.py" 2>/dev/null | wc -l  # Expect: 0
+      
+      # Runtime check (in workflow):
+      pytest -q src/prism/tests/test_mp1_consumer_sourcing.py
+
+---
+
+# RULE 4: MP1-API-BOUNDARY
+# Validate that API layers (api.py, cli.py) properly project marker-prefix into bundle
+# This ensures ingress paths are correct and bundle is properly initialized.
+
+  - rule_id: MP1-API-BOUNDARY
+    severity: WARNING
+    enabled: true
+    enforcement_mode: warnings-only
+    
+    name: "MP1 API Boundary Validation — Enforce Projection"
+    
+    description: |
+      Enforce that API layers (api.py, cli.py, api_layer/) properly handle marker-prefix
+      projection into PreparedPolicyBundle. Validate that scan_options are correctly
+      passed to bundle_resolver.ensure_prepared_policy_bundle().
+    
+    what_it_prevents: |
+      ❌ VIOLATIONS:
+        - marker-prefix not passed to bundle_resolver call
+        - scan_options missing comment_doc_marker_prefix key
+        - bundle_resolver not called before scanner_core execution
+        - marker-prefix passed but not normalized before storage
+      
+      ✅ ALLOWED:
+        - scan_options = {..., "comment_doc_marker_prefix": provided_prefix}
+        - prepared_bundle = bundle_resolver.ensure_prepared_policy_bundle(scan_options, di)
+        - Scanner uses prepared_bundle["comment_doc_marker_prefix"]
+    
+    scope:
+      - src/prism/api.py
+      - src/prism/cli.py
+      - src/prism/api_layer/**/*.py
+      - src/prism/scanner_kernel/** (runtime coordination layer)
+    
+    pattern: |
+      # Code review patterns:
+      
+      Pattern 1 (api.py):
+        - scan_options must contain comment_doc_marker_prefix or allow default
+        - bundle_resolver.ensure_prepared_policy_bundle() must be called
+        - prepared_policy_bundle must be stored in scan_options
+      
+      Pattern 2 (cli.py):
+        - User-provided marker-prefix from CLI args must be passed to api layer
+        - Validation: marker-prefix is string or None (not other types)
+      
+      Pattern 3 (api_layer/non_collection.py and others):
+        - Must not bypass bundle_resolver
+        - Prepared bundle must be available before scanner execution
+    
+    implementation:
+      - tool: code review (manual) + pytest
+      - check: verify bundle_resolver calls in code flow
+      - check: verify prepared_policy_bundle is in scan_options before scanner execution
+      - action: warning if violation found (Week 1 warnings-only)
+    
+    test_command: |
+      # Check that api.py calls bundle_resolver:
+      grep -n "bundle_resolver.ensure_prepared_policy_bundle\|prepared_policy_bundle" \
+        src/prism/api.py | wc -l  # Expect: >0
+      
+      # Runtime check:
+      pytest -q src/prism/tests/test_mp1_api_boundary.py
+
+---
+
+# ENFORCEMENT SUMMARY
+
+enforcement_summary:
+  total_rules: 4
+  
+  rule_schedule:
+    week_1_(May_10-12):
+      - all_4_rules: "warnings-only, no CI failures"
+      - violations_allowed: true
+      - purpose: "establish baseline, gather data"
+    
+    week_2_onwards:
+      - all_4_rules: "enforced, CI failures on violation"
+      - violations_allowed: false
+      - purpose: "strict enforcement"
+  
+  baseline_expectation: 0 violations (current codebase)
+  
+  violation_handling:
+    during_week_1:
+      - Log violations to artifacts
+      - Generate report
+      - Do NOT block merge
+    
+    after_week_1:
+      - Treat violations as CI failures
+      - Block PR merge
+      - Require fixes before merge
+
+# DRY-RUN CHECKLIST (Task 1.2 acceptance)
+dry_run_checklist:
+  - description: "Run MP1-IMPORT-AUDIT on current codebase"
+    expected_result: "0 violations"
+    command: "see test_command above"
+  
+  - description: "Run MP1-BUNDLE-MUTATION-AUDIT on current codebase"
+    expected_result: "0 violations"
+    command: "see test_command above"
+  
+  - description: "Run MP1-CONSUMER-VALIDATION on current codebase"
+    expected_result: "0 violations"
+    command: "see test_command above"
+  
+  - description: "Run MP1-API-BOUNDARY validation on current codebase"
+    expected_result: "0 violations (warnings-only)"
+    command: "see test_command above"
+  
+  overall_expectation: "All 4 rules: 0 violations, baseline matches Phase 0 audit"

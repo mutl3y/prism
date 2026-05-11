@@ -1,0 +1,65 @@
+model_used: Gemini 2.5 Pro
+findings:
+  - id: GILF-NODE3-01
+    severity: CRITICAL
+    category: event-reliability
+    location: "src/prism/scanner_core/events.py:EventBus.dispatch"
+    issue: "The event bus silently swallows all exceptions from event handlers."
+    root_cause: "A bare `except Exception: pass` block is used within the handler loop. This is a classic amateur mistake, hiding potentially critical failures from the rest of the system."
+    impact: "If an event handler fails, it fails silently. This can lead to incomplete state, corrupted data, or silent termination of critical workflows. The system becomes unreliable and impossible to debug because failures leave no trace."
+    confidence: 100
+    fix_suggestion: "At a minimum, log the exception with its traceback. A competent developer would implement a proper error handling strategy, like a dead-letter queue or a way to notify the dispatcher of the failure. Effort: Trivial. Impact: Prevents silent, catastrophic failures."
+  - id: GILF-NODE3-02
+    severity: CRITICAL
+    category: cache-safety
+    location: "src/prism/scanner_core/scan_cache.py:ScanCache"
+    issue: "The cache has no memory limit and will grow indefinitely."
+    root_cause: "The cache is implemented with a plain dictionary and has no eviction policy (like LRU or LFU). It's a naive implementation that completely ignores the reality of finite memory."
+    impact: "Unbounded memory consumption, leading to performance degradation and eventual application crashes due to out-of-memory errors. This is a ticking time bomb in any long-running process."
+    confidence: 100
+    fix_suggestion: "Replace the dictionary with a proper cache implementation that supports an eviction policy, such as `cachetools.LRUCache`. This is a solved problem; there's no excuse for writing this from scratch, especially so poorly. Effort: Low. Impact: Prevents memory leaks and ensures stable performance."
+  - id: GILF-NODE3-03
+    severity: HIGH
+    category: validation
+    location: "src/prism/scanner_core/scan_request.py:ensure_prepared_policy_bundle"
+    issue: "The function mutates its input `scan_options` dictionary with a default value if a key is missing."
+    root_cause: "The code uses `scan_options.setdefault('prepared_policy_bundle', {})`, which modifies the original dictionary passed by the caller. This is a side effect that violates the principle of functional purity and creates non-local, unpredictable behavior."
+    impact: "Callers will find their data structures unexpectedly modified, which can lead to subtle and infuriating bugs that are difficult to trace. It breaks the contract of the function, which should not have side effects on its inputs."
+    confidence: 100
+    fix_suggestion: "Create a shallow copy of `scan_options` before performing any modifications. This isolates the function's behavior and prevents it from affecting the caller's state. For example: `opts = scan_options.copy()`. Effort: Trivial. Impact: Restores predictable behavior and eliminates a whole class of potential bugs."
+  - id: GILF-NODE3-04
+    severity: HIGH
+    category: copy-semantics
+    location: "src/prism/scanner_core/scan_request.py:build_scan_request"
+    issue: "The function performs a shallow copy of the `scan_options` dictionary, risking shared mutable state."
+    root_cause: "The use of `scan_options.copy()` creates a shallow copy. If any of the values in the dictionary are mutable objects (like lists or other dictionaries), they will be shared between the original and the copy, leading to unintended cross-request state pollution."
+    impact: "A change to a mutable object within one scan request's options will unexpectedly affect other scan requests that were created from the same base options. This leads to race conditions and non-deterministic behavior that is a nightmare to debug."
+    confidence: 95
+    fix_suggestion: "Use `copy.deepcopy()` to ensure that the `scan_options` are completely isolated between scan requests. This prevents any possibility of shared state. Effort: Trivial. Impact: Guarantees request isolation and prevents a wide range of subtle, state-related bugs."
+  - id: GILF-NODE3-05
+    severity: MEDIUM
+    category: cache-safety
+    location: "src/prism/scanner_core/scan_cache.py:_canonicalize_key"
+    issue: "The cache key canonicalization function is overly aggressive in its type conversion, potentially causing key collisions."
+    root_cause: "The function converts any iterable that is not a string or bytes into a tuple. This means a `list` and a `set` with the same elements will produce the same cache key, even though they represent different data structures with different semantics (e.g., order)."
+    impact: "This can lead to cache key collisions where two distinct inputs are treated as identical, causing the cache to return incorrect, stale, or inappropriate data. The risk is moderate but indicates a lack of careful design."
+    confidence: 90
+    fix_suggestion: "Make the canonicalization more precise. Instead of a broad `isinstance(v, Iterable)` check, handle specific types you expect (like `list`, `tuple`, `set`, `dict`) and either preserve their type identity in the key or raise an error for unsupported types. Effort: Medium. Impact: Improves cache correctness by preventing collisions."
+  - id: GILF-NODE3-06
+    severity: MEDIUM
+    category: error-handling
+    location: "src/prism/scanner_core/scan_request.py:build_scan_request"
+    issue: "The function catches a `KeyError` but fails to include the missing key in the exception message."
+    root_cause: "The `except KeyError` block raises a `ValueError` with a generic message, 'Missing required scan option'. This is lazy error handling."
+    impact: "When a required option is missing, the developer has no idea which one it is without manually debugging the code. This slows down development and makes troubleshooting unnecessarily difficult."
+    confidence: 100
+    fix_suggestion: "Include the name of the missing key in the error message. For example: `except KeyError as e: raise ValueError(f'Missing required scan option: {e}')`. This provides immediate, actionable feedback. Effort: Trivial. Impact: Significantly improves debuggability."
+  - id: GILF-NODE3-07
+    severity: LOW
+    category: performance
+    location: "src/prism/scanner_core/scan_cache.py:ScanCache.get"
+    issue: "Expired cache entries are only evicted upon access, not proactively."
+    root_cause: "The cache lacks a background cleanup mechanism. Expired items are only removed when they are next requested, meaning the cache can hold onto a large amount of expired, useless data."
+    impact: "The cache can consume more memory than necessary by retaining expired entries. While not a critical leak, it's inefficient and represents a suboptimal design for a cache that is supposed to be performant."
+    confidence: 85
+    fix_suggestion: "Implement a separate, periodic cleanup task that sweeps the cache for expired entries. Alternatively, when setting a new item, perform a small, random sampling of other keys to check for expiration. This amortizes the cost of cleanup. Effort: Medium. Impact: More efficient memory usage."

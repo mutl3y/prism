@@ -18,11 +18,11 @@ implementation_phases:
         change_type: REPLACE_PROTOCOL
         pseudocode: |
           # Replace varargs signature with explicit re.Pattern[str] contract
-          def match(self, string: str, pos: int = 0, 
+          def match(self, string: str, pos: int = 0,
                     endpos: int = sys.maxsize) -> re.Match[str] | None:
               # Delegates to re.Pattern[str].match which has same signature
               return self._current_regex().match(string, pos, endpos)
-          
+
           # Rationale: _current_regex() returns re.Pattern[str], so proxy should
           # expose its actual method contract instead of masking with *args/**kwargs.
         effort_hours: 0.5
@@ -39,7 +39,7 @@ implementation_phases:
                      endpos: int = sys.maxsize) -> re.Match[str] | None:
               # Delegates to re.Pattern[str].search which has same signature
               return self._current_regex().search(string, pos, endpos)
-          
+
           # Rationale: Same as match(); exposes actual contract.
         effort_hours: 0.5
         risk: LOW
@@ -55,7 +55,7 @@ implementation_phases:
                         endpos: int = sys.maxsize) -> re.Match[str] | None:
               # Delegates to re.Pattern[str].fullmatch which has same signature
               return self._current_regex().fullmatch(string, pos, endpos)
-          
+
           # Rationale: Same as match() and search(); consistent interface.
         effort_hours: 0.5
         risk: LOW
@@ -176,13 +176,13 @@ implementation_phases:
           #   def _normalise_token_collection(raw: str | Collection[str]) -> set[str]:
           #       """
           #       Normalize input that can be a single string or collection of strings.
-          #       
+          #
           #       Args:
           #           raw: A single string or collection of strings (list, tuple, set, etc.)
-          #       
+          #
           #       Returns:
           #           Normalized set of strings.
-          #       
+          #
           #       Note: Collection items are assumed to be str; type checking does not
           #       validate item types at static analysis time.
           #       """
@@ -199,7 +199,7 @@ implementation_phases:
   phase_4:
     name: "Accept-as-is with Documentation (Low-impact, no code changes)"
     findings: [02, 04, 05]
-    files: 
+    files:
       - src/prism/scanner_core/di.py
       - src/prism/scanner_core/scan_cache.py
     effort_hours: 1
@@ -220,14 +220,14 @@ implementation_phases:
           #   def inject_mock(self, name: str, mock: Any) -> None:
           #       """
           #       Inject a mock object into the DI container for test isolation.
-          #       
+          #
           #       Args:
           #           name: Key name for the mock (e.g., 'event_bus', 'registry').
           #           mock: Mock object of any type. Can be VariableDiscovery, FeatureDetector,
           #               Plugin, EventBus, or any other service. Generic TypeVar would
           #               require complex overloads; instead, callers must cast the retrieved
           #               mock to the expected type.
-          #       
+          #
           #       Note: Any is intentional; mock registry is polymorphic by design.
           #       """
           #       self._mocks[name] = mock
@@ -250,14 +250,14 @@ implementation_phases:
           #   def set(self, key: str, value: Any) -> None:
           #       """
           #       Store a heterogeneous scan result in the cache.
-          #       
+          #
           #       Args:
           #           key: Cache key (typically scan request hash).
           #           value: Cached scan result. Can be dict, RunScanOutputPayload,
           #               mixed nested structures, or any serializable payload.
           #               Union of all cached types is unmaintainable. _clone_container_structure
           #               recursively clones nested containers without type awareness.
-          #       
+          #
           #       Note: Any is intentional; cache backend explicitly accepts heterogeneous values.
           #       """
         effort_hours: 0.25
@@ -279,7 +279,7 @@ implementation_phases:
           #   def set(self, key: str, value: Any) -> None:
           #       """
           #       Store a heterogeneous scan result in the LRU cache.
-          #       
+          #
           #       Implements ScanCacheBackend protocol. See protocol docstring for rationale
           #       on Any annotation. Implementation mirrors protocol contract.
           #       """
@@ -302,7 +302,7 @@ validation_gate:
     - mypy src/prism/scanner_data/scan_options_schema.py
     - ruff check src/prism/scanner_data/scan_options_schema.py
     - black --check src/prism/scanner_data/scan_options_schema.py
-    
+
   stage_3_full: "All phases completion (Phase 4 is doc-only)"
     - pytest -q src/prism/tests
     - mypy src/prism (target: same or fewer errors as baseline)
@@ -314,13 +314,13 @@ sequencing_notes: |
   2. PHASE 2 depends on Phase 1 passing mypy (no new type errors introduced).
   3. PHASE 3 is optional and can run in parallel with Phase 2 or after.
   4. PHASE 4 (documentation) has zero dependencies; can be interleaved with any phase.
-  
+
   Recommended execution order:
     Step 1: Phase 1 (regex proxy fixes) → validate with mypy + pytest
     Step 2: Phase 4 (doc comments) → no risk, low effort, can run anytime
     Step 3: Phase 2 (schema audit & refactor) → depends on Phase 1 passing
     Step 4: Phase 3 (patterns utility) → optional, can be deferred
-  
+
   Rollback plan (if issues arise):
     - Phase 1: Straightforward revert (isolated file, 3 method sigs)
     - Phase 2: Joint audit revert (both findings must go together)
@@ -335,6 +335,6 @@ risk_mitigation:
   audit_items:
     - Scout-Typing-06, 07: Requires catalog of actual defaults in SCAN_OPTIONS_SCHEMA
     - Scout-Typing-01: Already low-risk (utility) but verify Collection import exists
-  
+
   optional_items:
     - Scout-Typing-03 (KernelPayload): Follow-up, not in current wave

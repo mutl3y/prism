@@ -1,0 +1,556 @@
+# Q3 Initiative 5 — Layer Boundary Enforcement Rules
+
+**Status**: ✅ PROPOSED (Audit Phase Complete — Ready for Implementation Planning)  
+**Objective**: Prevent new layer violations + remediate existing violations  
+**Enforcement Model**: Follow MP1 pattern (CI-enforced tests + linting rules)  
+**Phase**: Phase 1 (Remediation), Phase 2+ (CI Integration)
+
+---
+
+## 1. Layer Definition (Machine-Readable)
+
+```yaml
+layers:
+  layer_0:
+    id: "L0"
+    name: "Core"
+    directories:
+      - "src/prism/scanner_core/"
+    forbidden_imports:
+      - "scanner_extract"
+      - "scanner_io"
+      - "scanner_plugins"
+      - "scanner_readme"
+      - "scanner_reporting"
+      - "scanner_kernel"
+      - "scanner_config"  # Weak boundary: config can import from core
+      - "api_layer"
+      - "cli_app"
+      - "repo_services"
+    allowed_imports:
+      - "scanner_data"  # Data layer has no deps
+      - "errors"        # Top-level error module
+      - "path_safety"   # Top-level shared utilities
+      - "monitoring"    # Top-level shared utilities
+
+  layer_1:
+    id: "L1"
+    name: "Extract"
+    directories:
+      - "src/prism/scanner_extract/"
+    forbidden_imports:
+      - "scanner_io"    # ⚠️ VIOLATION: Should not import I/O utilities
+      - "scanner_plugins"
+      - "scanner_readme"
+      - "scanner_reporting"
+      - "scanner_kernel"
+      - "api_layer"
+      - "cli_app"
+      - "repo_services"
+    allowed_imports:
+      - "scanner_core"
+      - "scanner_data"
+      - "scanner_config"
+      - "errors"
+      - "path_safety"
+      - "monitoring"
+
+  layer_2:
+    id: "L2"
+    name: "Config"
+    directories:
+      - "src/prism/scanner_config/"
+    forbidden_imports:
+      - "scanner_extract"
+      - "scanner_io"
+      - "scanner_plugins"
+      - "scanner_readme"
+      - "scanner_reporting"
+      - "scanner_kernel"
+      - "api_layer"
+      - "cli_app"
+      - "repo_services"
+    allowed_imports:
+      - "scanner_core"
+      - "scanner_data"
+      - "errors"
+      - "path_safety"
+      - "monitoring"
+
+  layer_3:
+    id: "L3"
+    name: "Plugins"
+    directories:
+      - "src/prism/scanner_plugins/"
+    forbidden_imports:
+      - "scanner_extract"  # ⚠️ VIOLATION: Ansible plugin imports extract internals
+      - "scanner_io"       # ⚠️ VIOLATION: Should not import I/O directly
+      - "scanner_readme"
+      - "scanner_reporting"
+      - "scanner_kernel"
+      - "api_layer"
+      - "cli_app"
+      - "repo_services"
+    allowed_imports:
+      - "scanner_core"
+      - "scanner_data"
+      - "scanner_config"
+      - "errors"
+      - "path_safety"
+      - "monitoring"
+    exception_files:  # Intentional seams documented here
+      - "scanner_plugins/defaults.py"  # Facade seam (allowed to bridge to lower layers)
+
+  layer_4:
+    id: "L4"
+    name: "I/O"
+    directories:
+      - "src/prism/scanner_io/"
+    forbidden_imports:
+      - "scanner_extract"
+      - "scanner_plugins"
+      - "scanner_readme"
+      - "scanner_reporting"
+      - "scanner_kernel"
+      - "api_layer"
+      - "cli_app"
+      - "repo_services"
+    allowed_imports:
+      - "scanner_core"
+      - "scanner_data"
+      - "scanner_config"
+      - "errors"
+      - "path_safety"
+      - "monitoring"
+
+  layer_5:
+    id: "L5"
+    name: "Readme/Reporting"
+    directories:
+      - "src/prism/scanner_readme/"
+      - "src/prism/scanner_reporting/"
+    forbidden_imports:
+      - "scanner_extract"
+      - "scanner_kernel"
+      - "scanner_io"
+      - "api_layer"
+      - "cli_app"
+      - "repo_services"
+    allowed_imports:
+      - "scanner_core"
+      - "scanner_data"
+      - "scanner_config"
+      - "scanner_plugins"  # ✅ Allowed (plugin-driven rendering)
+      - "errors"
+      - "path_safety"
+      - "monitoring"
+    exception_files:
+      - "scanner_readme/plugin_seams.py"  # Intentional plugin resolution seam
+
+  layer_6:
+    id: "L6"
+    name: "Kernel"
+    directories:
+      - "src/prism/scanner_kernel/"
+    forbidden_imports:
+      - "api_layer"
+      - "cli_app"
+      - "repo_services"
+    allowed_imports:
+      - "scanner_core"
+      - "scanner_data"
+      - "scanner_extract"
+      - "scanner_config"
+      - "scanner_plugins"
+      - "scanner_io"
+      - "errors"
+      - "path_safety"
+      - "monitoring"
+
+  layer_7:
+    id: "L7"
+    name: "API/CLI"
+    directories:
+      - "src/prism/api_layer/"
+      - "src/prism/cli_app/"
+      - "src/prism/"  # Top-level api.py, cli.py, repo_services.py
+    forbidden_imports: []  # ✅ Facade allowed to import all layers
+    allowed_imports: ["*"]
+
+  data:
+    id: "DATA"
+    name: "Data/Contracts"
+    directories:
+      - "src/prism/scanner_data/"
+    forbidden_imports: ["*"]  # Data layer has NO dependencies on other layers
+    allowed_imports:
+      - "errors"
+      - "path_safety"
+
+shared_utils:
+  id: "SHARED"
+  name: "Top-Level Shared"
+  directories:
+    - "src/prism/errors.py"
+    - "src/prism/path_safety.py"
+    - "src/prism/monitoring/"
+    - "src/prism/progress.py"
+    - "src/prism/env_config.py"
+  rules:
+    - "No layer imports (only imported FROM, never imports TO)"
+    - "Shared utilities only"
+```
+
+---
+
+## 2. Ruff Linting Rules (flake8-compatible)
+
+### 2.1 Rule: Layer Import Violations (Custom)
+
+**Rule Code**: `LB001` (Layer Boundary)
+
+```toml
+# pyproject.toml
+[tool.ruff.lint]
+extend-select = ["LB"]
+
+[tool.ruff.lint.isort]
+# Ensure imports follow layer boundaries
+known-first-party = ["prism"]
+force-sort-within-sections = true
+
+[tool.ruff.lint.flake8-import-order]
+# Custom import grouping by layer
+# Layer 0 (core) cannot import from layers 1-7
+# Layer 1 (extract) cannot import from layers 3-7
+# etc.
+```
+
+### 2.2 Implementation: Custom Ruff Plugin (Pseudo-Code)
+
+```yaml
+violations:
+  # Violation L1→L4 (Extract imports I/O)
+  - rule: "LB-1001"
+    id: "layer_skip_violation"
+    name: "Layer Skip Violation: Lower layer imports higher layer"
+    severity: "error"
+    pattern: "^from prism\\.scanner_io\\.(loader|output_orchestrator)"
+    apply_to:
+      - "src/prism/scanner_extract/**/*.py"
+    message: "scanner_extract must not import from scanner_io (Layer 4). Move utilities to scanner_data or scanner_core."
+    affected_files:
+      - "scanner_extract/variable_extractor.py"
+      - "scanner_extract/discovery.py"
+      - "scanner_extract/dataload.py"
+      - "scanner_extract/task_file_traversal.py"
+
+  # Violation L3→L1 (Ansible plugin imports Extract)
+  - rule: "LB-1002"
+    id: "plugin_layer_internals_violation"
+    name: "Plugin-to-Extract Direct Import Violation"
+    severity: "error"
+    pattern: "^from prism\\.scanner_extract\\.(task_|variable_|discovery)"
+    apply_to:
+      - "src/prism/scanner_plugins/**/*.py"
+    except:
+      - "src/prism/scanner_plugins/defaults.py"  # Facade seam
+    message: "scanner_plugins must use DI/Core APIs, not Extract internals. Use PolicyManager or Core layer."
+    affected_files:
+      - "scanner_plugins/ansible/extract_utils.py"
+      - "scanner_plugins/ansible/**/*.py" (30+ occurrences)
+
+  # Intentional: L0 TYPE_CHECKING import (allowed)
+  - rule: "LB-1003"
+    id: "type_checking_import_allowed"
+    name: "Type-Checking Import (Allowed)"
+    severity: "ignore"
+    pattern: "^if TYPE_CHECKING:.*from prism\\.scanner_kernel"
+    apply_to:
+      - "src/prism/scanner_core/**/*.py"
+    message: "TYPE_CHECKING imports allowed (no runtime circular dependency)"
+    affected_files:
+      - "scanner_core/protocols_runtime.py"
+```
+
+---
+
+## 3. Test-Based Enforcement (MP1 Pattern)
+
+### 3.1 Test Suite: Import Boundary Tests
+
+**File**: `src/prism/tests/test_layer_boundaries.py`
+
+```python
+# Pseudo-code structure (implementation follows MP1 pattern)
+
+import ast
+import sys
+from pathlib import Path
+from typing import NamedTuple
+
+class ImportViolation(NamedTuple):
+    source_file: str
+    import_statement: str
+    violation_type: str  # "upward" | "skip" | "cross"
+    severity: str        # "high" | "medium" | "low"
+
+# Layer definitions
+LAYERS = {
+    "L0_CORE": "scanner_core",
+    "L1_EXTRACT": "scanner_extract",
+    "L2_CONFIG": "scanner_config",
+    "L3_PLUGINS": "scanner_plugins",
+    "L4_IO": "scanner_io",
+    "L5_README": "scanner_readme",
+    "L5_REPORTING": "scanner_reporting",
+    "L6_KERNEL": "scanner_kernel",
+    "L7_API": "api_layer",
+}
+
+FORBIDDEN_IMPORTS = {
+    "L1_EXTRACT": [
+        "scanner_io",          # Violation LB-1001
+        "scanner_plugins",
+        "scanner_readme",
+        "scanner_reporting",
+        "scanner_kernel",
+        "api_layer",
+    ],
+    "L3_PLUGINS": [
+        "scanner_extract",     # Violation LB-1002
+        "scanner_io",
+        "scanner_readme",
+        "scanner_reporting",
+        "scanner_kernel",
+        "api_layer",
+    ],
+    "L0_CORE": [
+        "scanner_extract",
+        "scanner_io",
+        "scanner_plugins",
+        "scanner_readme",
+        "scanner_reporting",
+        "scanner_kernel",
+        "api_layer",
+    ],
+}
+
+ALLOWED_EXCEPTIONS = {
+    "TYPE_CHECKING_IMPORTS": [
+        ("scanner_core/protocols_runtime.py", "scanner_kernel"),
+    ],
+    "FACADE_SEAMS": [
+        ("scanner_plugins/defaults.py", "*"),  # Facade allowed
+        ("scanner_readme/plugin_seams.py", "scanner_plugins"),  # Intentional seam
+        ("api_layer/**", "*"),  # API facade
+    ],
+}
+
+def test_layer_boundary_l1_extract_no_io_imports():
+    """L1 (Extract) must not import from L4 (I/O)."""
+    violations = find_import_violations("scanner_extract", ["scanner_io"])
+    assert len(violations) == 0, f"Found L1→L4 violations: {violations}"
+
+def test_layer_boundary_l3_plugins_no_extract_internals():
+    """L3 (Plugins) must not import Extract layer internals."""
+    violations = find_import_violations("scanner_plugins", [
+        "scanner_extract.task_",
+        "scanner_extract.variable_",
+        "scanner_extract.discovery",
+    ])
+    assert len(violations) == 0, f"Found L3→L1 violations: {violations}"
+
+def test_layer_boundary_l0_core_no_upward_imports():
+    """L0 (Core) must not import from any higher layer."""
+    forbidden = [
+        "scanner_extract", "scanner_io", "scanner_plugins",
+        "scanner_readme", "scanner_reporting", "scanner_kernel",
+        "api_layer", "cli_app"
+    ]
+    violations = find_import_violations("scanner_core", forbidden)
+    
+    # Allow TYPE_CHECKING imports
+    violations = [v for v in violations if "TYPE_CHECKING" not in v.import_statement]
+    assert len(violations) == 0, f"Found L0 upward violations: {violations}"
+
+def test_circular_dependencies_none():
+    """No circular dependencies allowed."""
+    cycles = detect_circular_imports("src/prism")
+    assert len(cycles) == 0, f"Found circular dependencies: {cycles}"
+```
+
+### 3.2 Test Execution (CI Gate)
+
+```bash
+# Run layer boundary tests before merge
+pytest src/prism/tests/test_layer_boundaries.py -v
+
+# Integration with existing CI (parallel to pytest)
+# Exit code 0 = all layers clean
+# Exit code 1 = violations found, merge blocked
+```
+
+---
+
+## 4. Remediation Actions (For Phase 1 Planning)
+
+### 4.1 Violation LB-1001: L1→L4 (Extract imports I/O)
+
+**Affected Files**: 4 files, 8 imports
+
+| File | Import | Fix Strategy |
+|------|--------|--------------|
+| `scanner_extract/variable_extractor.py` (line 17) | `load_yaml_file` | Move to scanner_data or L0 helpers |
+| `scanner_extract/discovery.py` (lines 11-13) | `_ordered_parallel_map`, `load_yaml_file`, `parse_yaml_candidate` | Move to scanner_data |
+| `scanner_extract/dataload.py` (line 8) | `load_yaml_file`, `parse_yaml_candidate` | Move to scanner_data |
+| `scanner_extract/task_file_traversal.py` (line 15) | `parse_yaml_candidate` | Move to scanner_data |
+
+**Recommended Fix**: Create `scanner_data/yaml_utils.py` with:
+- `load_yaml_file()`
+- `parse_yaml_candidate()`
+- `_ordered_parallel_map()`
+
+**Effort**: Low (2-3 hours)  
+**Risk**: Low (pure utility move, no logic change)  
+**Test Coverage**: Existing tests should pass without modification
+
+### 4.2 Violation LB-1002: L3→L1 (Ansible plugin imports Extract)
+
+**Affected Files**: 1 file, 30+ import lines
+
+| File | Imports | Fix Strategy |
+|------|---------|--------------|
+| `scanner_plugins/ansible/extract_utils.py` | Direct imports from scanner_extract (30+ lines) | Refactor to use DI/Core APIs or create plugin interface |
+
+**Recommended Fix Option A**: Use DI/PolicyManager pattern
+- Create plugin interface in `scanner_plugins/interfaces.py`
+- Ansible plugin delegates to PolicyManager (not direct Extract imports)
+- Extract changes → Policy changes → Plugin still works
+
+**Recommended Fix Option B**: Facade seam pattern
+- Create `scanner_plugins/ansible/adapters.py` (seam file)
+- All Extract imports centralized in one adapter file
+- Changes localized to one place
+
+**Effort**: High (8-12 hours)  
+**Risk**: High (Ansible plugin behavior change risk)  
+**Test Coverage**: Requires comprehensive Ansible plugin tests
+
+---
+
+## 5. CI Integration Plan
+
+### 5.1 Enforcement Gate (Phase 2)
+
+```yaml
+# .github/workflows/layer-boundary-check.yml
+name: Layer Boundary Check
+on: [pull_request, push]
+
+jobs:
+  layer-boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Run layer boundary tests
+      - run: pytest src/prism/tests/test_layer_boundaries.py -v
+        name: "Layer Boundary Tests"
+        id: test-boundaries
+      
+      # Step 2: Run ruff linting (custom rules)
+      - run: ruff check src/prism --select LB
+        name: "Ruff Layer Boundary Rules"
+        id: ruff-boundaries
+      
+      # Step 3: Detect circular dependencies
+      - run: python scripts/detect_circular_deps.py src/prism
+        name: "Circular Dependency Check"
+        id: circular-deps
+      
+      # Step 4: Report violations
+      - if: failure()
+        run: |
+          echo "❌ Layer boundary violations found"
+          echo "See layer-dependency-audit.md for remediation plan"
+          exit 1
+        name: "Violation Report"
+
+  merge-gate:
+    runs-on: ubuntu-latest
+    needs: [layer-boundaries]
+    steps:
+      - if: needs.layer-boundaries.result == 'success'
+        run: echo "✅ Layer boundaries verified — ready to merge"
+      - if: needs.layer-boundaries.result == 'failure'
+        run: exit 1
+```
+
+### 5.2 Reporting
+
+```yaml
+# Generate artifact for visibility
+- uses: actions/upload-artifact@v3
+  if: always()
+  with:
+    name: layer-boundary-report
+    path: docs/plan/q3-init5-layer-dependency-audit.md
+```
+
+---
+
+## 6. Exception Handling
+
+### 6.1 TYPE_CHECKING Imports (Allowed)
+
+**Pattern**: Allowed in any layer, no runtime risk
+
+```python
+# ✅ Allowed
+if TYPE_CHECKING:
+    from prism.scanner_kernel.plugin_name_resolver import RoutePreflightRuntimeCarrier
+```
+
+**Rule**: `if TYPE_CHECKING:` guards exempt from layer checks
+
+### 6.2 Facade Seams (Allowed)
+
+**Files** (Exceptions):
+- `api_layer/**` (L7 facade)
+- `cli_app/**` (L7 CLI facade)  
+- `api.py`, `cli.py`, `repo_services.py` (L7 top-level facades)
+- `scanner_plugins/defaults.py` (L3 facade)
+- `scanner_readme/plugin_seams.py` (L5 plugin seam)
+
+**Rule**: Facade files allowed to break layer rules with documentation
+
+---
+
+## 7. Summary of Enforcement Rules
+
+```yaml
+enforcement_summary:
+  total_rules: 3
+  active_checks:
+    - ruff_custom_rules_LB: "Layer import violations"
+    - test_boundary_checks: "Test-based validation"
+    - circular_dependency_detection: "No cycles allowed"
+  
+  violations_prevented:
+    - "L1→L4 skip imports" (affects 4 files)
+    - "L3→L1 internal imports" (affects 1 file, 30+ lines)
+    - "All other upward/cross imports"
+  
+  exceptions_documented:
+    - TYPE_CHECKING imports (runtime safe)
+    - API/CLI facade imports (intentional)
+    - Plugin seams (documented)
+  
+  enforcement_phases:
+    phase_1: "Create rules + tests (manual validation)"
+    phase_2: "Integrate CI gate (automated enforcement)"
+    phase_2: "Dashboard + metrics (visibility)"
+```
+
+---
+
+*Enforcement Rules Complete — Ready for Phase 1 Implementation*

@@ -1,0 +1,93 @@
+# findings.yaml plan template
+# Save to: docs/plan/<plan-id>/findings.yaml
+# Replace <plan-id> with e.g. fsrc-mutl3y-review-20260420
+
+plan_id: "<plan-id>"
+target: "<module or package path reviewed>"
+reviewer: "Gilfoyle"
+date: "<YYYY-MM-DD>"
+grade: "B+"   # A / B+ / B / C / D / F
+summary: "<One-sentence summary of the state of the codebase under review>"
+
+findings:
+
+  - id: FIND-01
+    category: duplication          # duplication | ownership | typing | silent_fallback | guard | abstraction
+    severity: medium               # critical | high | medium | low
+    status: open                   # open | in_progress | closed
+    title: "Duplicate _find_variable_line function"
+    description: >
+      `variable_discovery.py` defines `_find_variable_line` which is functionally
+      identical to `_find_variable_line_in_yaml` already exported from `variable_helpers`.
+      Any divergence between these two copies will be silent.
+    affected_files:
+      - fsrc/src/prism/scanner_plugins/ansible/variable_discovery.py
+      - fsrc/src/prism/scanner_data/variable_helpers.py
+    needs_investigation: false
+    decision: "Remove local copy; import from variable_helpers"
+    decision_rationale: "Single authoritative definition; no behavior change."
+    decision_deadline: null        # set to gN if decision: null — must resolve by that cycle
+    closed_evidence: "306 fsrc + 1441 src passed"
+    # For High/Critical architecture findings, closed_evidence must contain ALL THREE:
+    #   line_citation: "src/prism/scanner_core/di.py:84 — added plugin_registry property"
+    #   regression_test: "test_scanner_context.py::test_injected_registry_propagates or <reason existing test covers it>"
+    #   gate: "959 passed / 7 skipped, ruff clean, black clean, mypy delta=0"
+
+  - id: FIND-02
+    category: ownership
+    severity: high
+    status: open
+    title: "Ansible traversal primitives live in policies/ (platform-agnostic namespace)"
+    description: >
+      `policies/task_traversal_defaults.py` is documented as "platform-agnostic" but
+      imports from `policies.constants` which includes Ansible FQCN key sets.
+      The `DefaultTaskTraversalPolicyPlugin` it defines is Ansible-specific in practice.
+    affected_files:
+      - fsrc/src/prism/scanner_plugins/policies/task_traversal_defaults.py
+      - fsrc/src/prism/scanner_plugins/policies/extract_defaults.py
+    needs_investigation: true
+    investigation_conclusion: >
+      Confirmed Ansible-specific: TASK_INCLUDE_KEYS and ROLE_INCLUDE_KEYS in
+      policies/constants.py include ansible.builtin.* FQCNs. The traversal primitives
+      depend on these sets and therefore belong in ansible/.
+      Import graph: ansible/ already imports from policies/constants (safe, no circular).
+      No test directly imports DefaultTaskTraversalPolicyPlugin.
+    options:
+      - id: a
+        label: "Leave in policies/ (add honest docstring)"
+        description: "Document that it is Ansible-specific; no structural change"
+      - id: b
+        label: "Move into ansible/ package"
+        description: >
+          Create ansible/task_traversal_bare.py with the primitives.
+          Move DefaultTaskTraversalPolicyPlugin to ansible/extract_policies.py.
+          Update all 6 re-export chains.
+    decision: b
+    decision_rationale: "Ownership must match reality; honest naming prevents future confusion."
+    decision_deadline: null        # set to gN if decision: null — must resolve by that cycle
+    closed_evidence: null
+    # deferred_reeval_due: gN     # set this if status: deferred — re-evaluate at that cycle number
+
+# suppressed_highs: required when any severity_hint: high scout observation was NOT promoted.
+# Leave as empty list [] if all highs were promoted.
+suppressed_highs:
+  - observation_summary: "<<=80 chars from evidence_snippet>"
+    file: "<path>"
+    line: <int>
+    rationale_code: false_positive   # false_positive | do_not_re_flag | deferred | duplicate_of
+    rationale_detail: "<one sentence — mandatory, no blank rationales>"
+    # If rationale_code is do_not_re_flag, cite the digest.yaml entry:
+    # digest_entry: "FIND-G13-02 — closed 2026-03-29, skip_pattern confirmed"
+    # If rationale_code is duplicate_of, cite the finding:
+    # duplicate_of: "FIND-G19-01"
+
+# --- Status legend ---
+# open          : Finding identified, not yet started
+# in_progress   : Being fixed in current wave
+# closed        : Fix applied, gate passed, evidence recorded
+#
+# --- Severity rubric ---
+# critical : Silent data loss, wrong behavior, security risk
+# high     : Misplaced ownership, duplicate authoritative logic
+# medium   : Weak typing, missing guards, undocumented soft fallbacks
+# low      : Style, minor redundancy, non-blocking annoyances

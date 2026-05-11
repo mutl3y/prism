@@ -1,0 +1,146 @@
+wave: 1
+phase: design
+tasks: [d1_error_code_spec, d2_fixture_design, d3_test_structure]
+
+error_code_mapping:
+  kubernetes:
+    base_range: "300-310"
+    codes:
+      - code: 300
+        name: pod_not_found
+        category: task_error
+        provenance_fields: [pod_name, namespace, cluster, node, manifest_file, timestamp, error_message]
+      - code: 301
+        name: pod_failed
+        category: task_error
+        provenance_fields: [pod_name, namespace, cluster, container, exit_code, timestamp, error_message]
+      - code: 302
+        name: image_pull_error
+        category: parse_error
+        provenance_fields: [image, registry, pod_name, namespace, cluster, timestamp, error_message]
+      - code: 303
+        name: deployment_not_ready
+        category: task_error
+        provenance_fields: [deployment, namespace, cluster, desired_replicas, ready_replicas, timestamp, error_message]
+      - code: 304
+        name: configmap_missing
+        category: variable_error
+        provenance_fields: [configmap_name, namespace, cluster, referenced_by, manifest_file, timestamp, error_message]
+      - code: 305
+        name: secret_missing_or_unreadable
+        category: secret_error
+        provenance_fields: [secret_name, namespace, cluster, referenced_by, access_method, timestamp, error_message]
+      - code: 306
+        name: admission_controller_reject
+        category: policy_error
+        provenance_fields: [resource, namespace, cluster, admission_name, request_uid, timestamp, error_message]
+      - code: 307
+        name: resource_quota_exceeded
+        category: policy_error
+        provenance_fields: [namespace, cluster, quota_name, requested, allowed, timestamp, error_message]
+      - code: 308
+        name: api_server_unreachable
+        category: system_error
+        provenance_fields: [api_server_endpoint, cluster, timeout_ms, network_path, timestamp, retry_count, error_message]
+      - code: 309
+        name: node_not_ready
+        category: system_error
+        provenance_fields: [node_name, cluster, condition, last_heartbeat, taints, timestamp, error_message]
+
+  terraform:
+    base_range: "400-410"
+    codes:
+      - code: 400
+        name: plan_failed
+        category: policy_error
+        provenance_fields: [module, resource, workspace, state_file, plan_output_snippet, timestamp, error_message]
+      - code: 401
+        name: apply_failed
+        category: task_error
+        provenance_fields: [module, resource, workspace, state_file, attempted_action, timestamp, error_message]
+      - code: 402
+        name: state_lock_error
+        category: system_error
+        provenance_fields: [state_file, locker_id, workspace, backend, timestamp, retry_attempts, error_message]
+      - code: 403
+        name: provider_init_failed
+        category: parse_error
+        provenance_fields: [provider, version_constraint, module, invocation_location, timestamp, env_vars, error_message]
+      - code: 404
+        name: resource_conflict
+        category: policy_error
+        provenance_fields: [resource, module, address, existing_state, desired_change, timestamp, error_message]
+      - code: 405
+        name: invalid_variable
+        category: variable_error
+        provenance_fields: [variable_name, module, given_value, expected_type, plan_file, timestamp, error_message]
+      - code: 406
+        name: module_not_found
+        category: task_error
+        provenance_fields: [module_source, module_version, calling_module, registry, timestamp, resolution_attempts, error_message]
+      - code: 407
+        name: validation_failed
+        category: policy_error
+        provenance_fields: [validation_rule, module, resource, captured_output, timestamp, severity, error_message]
+      - code: 408
+        name: credential_error
+        category: system_error
+        provenance_fields: [credential_type, provider, account_id, retrieval_method, timestamp, sanitized_detail, error_message]
+      - code: 409
+        name: backend_config_error
+        category: system_error
+        provenance_fields: [backend_type, config_file, workspace, region, timestamp, attempt_count, error_message]
+
+fixture_design:
+  kubernetes:
+    scenario_categories: [pod_errors, deployment_errors, service_errors, config_errors, resource_errors]
+    sanitization_patterns: [kubeconfig_removal, token_removal, secret_removal, ca_cert_removal]
+    fixture_count: 6
+    scenario_count: 15-20
+    notes: |
+      - Fixtures include minimal YAML manifests, kubeconfig stubs, and canned API-server responses.
+      - Each fixture file should include metadata for which error codes it exercises and which provenance fields are expected.
+
+  terraform:
+    scenario_categories: [plan_errors, apply_errors, state_errors, module_errors, validation_errors]
+    sanitization_patterns: [tfstate_removal, credential_removal, private_key_removal]
+    fixture_count: 6
+    scenario_count: 15-20
+    notes: |
+      - Fixtures include small module directories, sample `terraform.tfstate` fragments (sanitized), and mocked provider responses.
+      - Each fixture file should declare expected error codes and required provenance fields.
+
+test_structure:
+  kubernetes:
+    marker: pytest -m kubernetes
+    test_file_count: 3
+    test_count: ~30
+    boundaries: [core (NA), plugins/kubernetes, integration]
+    parity_tests_needed: yes
+    file_layout: |
+      - tests/plugins/kubernetes/test_adapter_unit.py  # unit + adapter-level
+      - tests/plugins/kubernetes/test_adapter_integration.py  # integration with fixtures
+      - tests/plugins/kubernetes/test_provenance_and_sanitization.py
+    marker_assignments: |
+      - unit: mark with 'kubernetes and not integration'
+      - integration: mark with 'kubernetes and integration'
+      - provenance/sanitization: mark with 'kubernetes and plugins'
+
+  terraform:
+    marker: pytest -m terraform
+    test_file_count: 3
+    test_count: ~30
+    boundaries: [core (NA), plugins/terraform, integration]
+    parity_tests_needed: yes
+    file_layout: |
+      - tests/plugins/terraform/test_adapter_unit.py
+      - tests/plugins/terraform/test_adapter_integration.py
+      - tests/plugins/terraform/test_provenance_and_sanitization.py
+    marker_assignments: |
+      - unit: mark with 'terraform and not integration'
+      - integration: mark with 'terraform and integration'
+      - provenance/sanitization: mark with 'terraform and plugins'
+
+recommendations:
+  - Keep adapter error envelope aligned with existing 5-category schema and 7-field provenance; reuse shared sanitizer utilities.
+  - Start with 6 fixtures per platform (small, focused) and iterate to cover the 15-20 scenarios; require each fixture to declare exercised error codes and expected provenance.

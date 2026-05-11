@@ -1,0 +1,161 @@
+scout_id: scout-02-ownership
+focus_axis: ownership
+timestamp: '2026-05-08T18:15:33.442881'
+plan_id: mutl3y-review-20260508-g82-test
+target: src/prism
+findings_count: 11
+severity_distribution:
+  HIGH: 3
+  MEDIUM: 7
+  LOW: 1
+
+findings:
+  - id: FIND-O01
+    severity: HIGH
+    location: src/prism/scanner_plugins/ansible/extract_utils.py
+    line_range: [30, 226]
+    category: reverse_dependency
+    finding: "scanner_plugins/ansible/extract_utils.py imports 15+ functions directly from scanner_extract (task_file_traversal, task_annotation_parsing, task_catalog_assembly, variable_helpers, requirements, discovery)"
+    rationale: "Plugin layer should not depend on extract layer. This creates a reverse dependency that violates canonical ownership: scanner_extract is a shared extraction layer, not a plugin utility library. Extract-specific logic should remain in extract, with plugins using only plugin-level seams."
+    fix_category: facade
+    affected_modules:
+      - scanner_plugins.ansible
+      - scanner_extract
+    actionable_next: "Create plugin-to-extract seam layer or move extract-owned functions to canonical plugin interfaces"
+
+  - id: FIND-O02
+    severity: HIGH
+    location: src/prism/scanner_plugins/parsers/yaml/parsing_policy.py:L11
+    category: cross_layer_import
+    finding: "scanner_plugins/parsers/yaml/parsing_policy.py imports build_yaml_load_error and format_candidate_failure_path from scanner_io.loader"
+    rationale: "Plugin layer is importing from IO layer, which creates unexpected cross-layer coupling. IO layer is typically upstream/orthogonal, not a plugin utility provider."
+    fix_category: import
+    affected_modules:
+      - scanner_plugins.parsers.yaml
+      - scanner_io
+    actionable_next: "Move YAML parsing error formatting logic into plugin-owned module or seams"
+
+  - id: FIND-O03
+    severity: HIGH
+    location: src/prism/scanner_plugins/ansible/variable_discovery.py:L639
+    category: cross_layer_import
+    finding: "scanner_plugins/ansible/variable_discovery.py imports map_argument_spec_type from scanner_io.loader at runtime"
+    rationale: "Plugin layer directly depends on IO layer. This bypasses any plugin-to-io seams and creates tight coupling to IO implementation details."
+    fix_category: seam
+    affected_modules:
+      - scanner_plugins.ansible.variable_discovery
+      - scanner_io.loader
+    actionable_next: "Route map_argument_spec_type through a plugin-owned seam or move to plugin layer"
+
+  - id: FIND-O04
+    severity: MEDIUM
+    location: src/prism/scanner_extract/task_file_traversal.py
+    line_range: [172, 211]
+    category: backward_dependency
+    finding: "scanner_extract/task_file_traversal.py imports from scanner_plugins.ansible.task_traversal_bare at runtime (lazy imports within functions)"
+    rationale: "Extract layer has a backward dependency on plugin layer. Canonical layering should flow plugin→extract, not extract→plugin. This creates circular or inverted dependency risks."
+    fix_category: import
+    affected_modules:
+      - scanner_extract.task_file_traversal
+      - scanner_plugins.ansible
+    actionable_next: "Move Ansible-specific traversal into plugin layer or establish explicit seam with DI-based resolution"
+
+  - id: FIND-O05
+    severity: MEDIUM
+    location: src/prism/scanner_io/loader.py
+    line_range: [68, 125]
+    category: cross_layer_import
+    finding: "scanner_io/loader.py imports _get_registry_from_di and other helpers from scanner_plugins.defaults"
+    rationale: "IO layer depends on plugin layer internals. IO should be independent of plugin infrastructure; if it needs plugin data, it should receive it via parameters or DI, not import directly."
+    fix_category: seam
+    affected_modules:
+      - scanner_io.loader
+      - scanner_plugins.defaults
+    actionable_next: "Pass plugin registry/DI into IO layer functions instead of accessing scanner_plugins directly"
+
+  - id: FIND-O06
+    severity: MEDIUM
+    location: src/prism/scanner_io/output_orchestrator.py
+    line_range: [16, 113]
+    category: cross_layer_import
+    finding: "scanner_io/output_orchestrator.py imports from scanner_core.di_helpers and scanner_core.events, accessing core internals"
+    rationale: "IO layer imports core-level helpers and events. While io may need to emit output during core phases, direct imports of scanner_core internals bypass any canonical api/kernel seams."
+    fix_category: encapsulation
+    affected_modules:
+      - scanner_io.output_orchestrator
+      - scanner_core
+    actionable_next: "Route core event access through io-layer-owned event subscription or kernel interface"
+
+  - id: FIND-O07
+    severity: MEDIUM
+    location: src/prism/scanner_core/di_helpers.py:L10
+    category: plugin_import
+    finding: "scanner_core/di_helpers.py imports from scanner_plugins.interfaces - core layer depends on plugin protocol definitions"
+    rationale: "Core layer imports plugin interfaces. While justified for DI setup, this creates a core→plugin dependency that could be encapsulated via Protocol-only imports."
+    fix_category: import
+    affected_modules:
+      - scanner_core.di_helpers
+      - scanner_plugins.interfaces
+    actionable_next: "Consider using typing.Protocol instead of importing concrete scanner_plugins.interfaces to reduce coupling"
+
+  - id: FIND-O08
+    severity: MEDIUM
+    location: src/prism/scanner_core/feature_detector.py:L19
+    category: plugin_import
+    finding: "scanner_core/feature_detector.py and variable_discovery.py import FeatureDetectionPlugin, VariableDiscoveryPlugin from scanner_plugins.interfaces"
+    rationale: "Core layer directly imports plugin protocol types. This creates a core→plugin dependency for type contracts."
+    fix_category: import
+    affected_modules:
+      - scanner_core.feature_detector
+      - scanner_core.variable_discovery
+      - scanner_plugins.interfaces
+    actionable_next: "Define plugin protocol interfaces in scanner_core.protocols or scanner_data to avoid circular core→plugin imports"
+
+  - id: FIND-O09
+    severity: MEDIUM
+    location: src/prism/scanner_extract/task_file_traversal.py
+    line_range: [172, 211]
+    category: missing_seam
+    finding: "scanner_extract/task_file_traversal.py directly imports scanner_plugins.ansible.task_traversal_bare without a seam or facade"
+    rationale: "Extract layer has hard-coded imports of Ansible plugin implementations. If other platforms (Kubernetes, Terraform) are supported, they must use the same extract layer, creating maintenance friction."
+    fix_category: facade
+    affected_modules:
+      - scanner_extract.task_file_traversal
+      - scanner_plugins.ansible.task_traversal_bare
+    actionable_next: "Create extract-level abstraction for platform-specific traversal logic, resolved via DI or registry"
+
+  - id: FIND-O10
+    severity: MEDIUM
+    location: src/prism/scanner_readme/plugin_seams.py
+    line_range: [12, 38]
+    category: cross_layer_import
+    finding: "scanner_readme/plugin_seams.py imports ReadmeRendererPlugin, PluginRegistry, and defaults from scanner_plugins (lines 12, 13, 38)"
+    rationale: "README layer has direct imports from plugin layer. While plugin_seams.py exists as a facade, scanner_readme still depends on scanner_plugins internals. The seam should completely hide plugin imports."
+    fix_category: encapsulation
+    affected_modules:
+      - scanner_readme.plugin_seams
+      - scanner_plugins.interfaces
+      - scanner_plugins.defaults
+    actionable_next: "Move plugin interface re-exports into scanner_readme so other scanner_readme modules never see scanner_plugins imports"
+
+  - id: FIND-O11
+    severity: LOW
+    location: src/prism/scanner_io/loader.py
+    line_range: [68, 125]
+    category: pattern_fragility
+    finding: "scanner_io/loader.py uses getattr patterns and late imports to resolve plugin registry without explicit type hints or seams"
+    rationale: "IO layer uses implicit DI resolution via getattr. While this avoids hard imports, it's fragile and hides dependencies. Explicit seams would improve readability and safety."
+    fix_category: seam
+    affected_modules:
+      - scanner_io.loader
+    actionable_next: "Add explicit DIContainer parameter to IO functions or define typed getter protocol"
+
+observations:
+  - "Reverse dependencies: scanner_plugins → scanner_extract (15+ imports in ansible/extract_utils.py) is the strongest violation"
+  - "Cross-layer imports: IO layer inconsistently imports plugin and core layers (scanner_io → scanner_plugins, scanner_io → scanner_core)"
+  - "Missing seams: extract layer directly imports Ansible plugin implementations without abstraction or DI"
+  - "Facade incomplete: scanner_readme/plugin_seams.py is a facade, but other readme modules can still reach scanner_plugins indirectly"
+  - "Protocol imports: Core layer imports plugin-layer protocols instead of defining canonical protocol boundaries"
+
+phase: 0
+status: COMPLETE

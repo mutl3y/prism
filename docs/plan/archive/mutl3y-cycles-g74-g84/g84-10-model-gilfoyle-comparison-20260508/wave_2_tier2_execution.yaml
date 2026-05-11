@@ -1,0 +1,86 @@
+metadata:
+  wave_id: wave_2_tier2
+  tier: 2
+  model: Claude Sonnet 4.5
+  cost_multiplier: 1.0x
+  start_time: 2026-05-09
+  scope: 59 HIGH DI/Architecture findings
+  baseline_tests: 1161/1171 passing (99.1%)
+
+execution_strategy:
+  approach: Coordinated architectural refactoring
+  validation_frequency: Every 10-15 fixes
+  dependency_order: Foundational → Dependent
+  rollback_policy: Not needed (Tier 2 full reasoning)
+
+fix_groups:
+  group_1_di_container_decomposition:
+    priority: 1
+    findings: [GILF-NODE1-01, GILF-DI-02, GILF-NODE1-02, GILF-NODE1-04, GILF-NODE1-09, GILF-NODE2-02]
+    description: "Decompose DIContainer god-object, reduce factory duplication"
+    estimated_effort: High
+    
+  group_2_type_safety:
+    priority: 2
+    findings: [GILF-NODE1-01, GILF-DI-01, GILF-NODE1-01, GILF-NODE1-01, GILF-NODE1-02]
+    description: "Replace blind cast() with validation, fix TypedDict semantics"
+    estimated_effort: Medium
+    
+  group_3_policy_ownership:
+    priority: 3
+    findings: [GILF-NODE1-03, GILF-NODE1-05, GILF-NODE1-07, GILF-CONTEXT-02]
+    description: "Consolidate policy ownership to single ingress point"
+    estimated_effort: High
+    
+  group_4_cache_safety:
+    priority: 4
+    findings: [GILF-NODE3-01, GILF-NODE3-02, GILF-NODE3-03, GILF-NODE3-04, GILF-NODE3-05]
+    description: "Fix cache key canonicalization and cloning semantics"
+    estimated_effort: Medium
+    
+  group_5_event_reliability:
+    priority: 5
+    findings: [GILF-NODE3-03, GILF-NODE3-02, GILF-NODE3-01]
+    description: "Fix silent event failures, add error policies"
+    estimated_effort: Low
+    
+  group_6_validation_and_errors:
+    priority: 6
+    findings: [GILF-NODE3-05, GILF-NODE3-07, GILF-NODE3-03, GILF-NODE3-06, GILF-NODE3-07, GILF-NODE3-04]
+    description: "Strengthen validation, add exception chaining"
+    estimated_effort: Medium
+    
+  group_7_concurrency:
+    priority: 7
+    findings: [GILF-NODE2-06, GILF-NODE2-01, GILF-NODE2-03, GILF-NODE2-05]
+    description: "Fix shared mutable state, TOCTOU races"
+    estimated_effort: Medium
+    
+  group_8_copy_semantics:
+    priority: 8
+    findings: [GILF-NODE3-03, GILF-NODE3-08, GILF-NODE3-03, GILF-NODE3-04, GILF-NODE3-05]
+    description: "Replace shallow copy with deep copy where needed"
+    estimated_effort: Low
+
+progress:
+  completed: []
+  in_progress: []
+  deferred: []
+  
+validation_checkpoints:
+  checkpoint_1:
+    after_group: 1
+    tests_required: "pytest -q --tb=short"
+    expected_status: "≥1150 passing"
+  checkpoint_2:
+    after_group: 3
+    tests_required: "pytest -q + mypy + ruff"
+    expected_status: "All green"
+  checkpoint_3:
+    after_group: 6
+    tests_required: "Full validation suite"
+    expected_status: "All green"
+  final_validation:
+    after_group: 8
+    tests_required: "pytest + mypy + ruff + black"
+    expected_status: "All green, 0 deferred"

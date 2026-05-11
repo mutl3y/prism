@@ -1,0 +1,56 @@
+model_used: Gemini 2.5 Pro
+findings:
+  - id: GILF-NODE1-01
+    severity: HIGH
+    category: architecture
+    location: "src/prism/scanner_core/di.py:_construct_runtime_plugin"
+    issue: "The DI container's plugin constructor has a gaping security and reliability hole, allowing any plugin to crash the scanner if it has a TypeError in its constructor."
+    root_cause: "A misguided attempt to create a generic plugin constructor that catches `TypeError` but not other `PrismRuntimeError` exceptions. It assumes only DI-related `TypeError` can happen, which is laughably naive."
+    impact: "Any third-party or poorly written first-party plugin with a `TypeError` in its `__init__` will bring down the entire scan. This makes the system brittle and vulnerable to trivial bugs in extensions. It's an open invitation for failure."
+    confidence: 100
+    fix_suggestion: "Stop trying to be clever and just let exceptions propagate. Remove the `try...except TypeError` block entirely. If a plugin is broken, it should fail loudly and explicitly, not be caught by a generic, indiscriminate error handler in the core DI framework. Effort: Trivial. Impact: The system becomes resilient to plugin-level failures."
+  - id: GILF-NODE1-02
+    severity: HIGH
+    category: type-safety
+    location: "src/prism/scanner_core/di.py:clone_scan_options"
+    issue: "The `clone_scan_options` function blindly casts a dictionary to `ScanOptionsDict`, completely bypassing any structural validation and creating a type safety mirage."
+    root_cause: "Laziness. Instead of properly validating the structure of the `scan_options` dictionary against the `TypedDict` definition, the code just assumes it's correct and uses `cast()` to silence the type checker."
+    impact: "This completely defeats the purpose of using a `TypedDict`. Any caller can pass a malformed dictionary, leading to `KeyError` or `TypeError` exceptions deep within the scanner at runtime. It creates a brittle contract based on wishful thinking, not verification."
+    confidence: 100
+    fix_suggestion: "Replace the `cast` with a proper validation function that checks for the presence and types of required keys defined in `ScanOptionsDict`. Raise a `ValueError` if the structure is incorrect at the boundary. Effort: Low. Impact: Enforces the `ScanOptionsDict` contract, preventing runtime errors from invalid options."
+  - id: GILF-NODE1-03
+    severity: MEDIUM
+    category: architecture
+    location: "src/prism/scanner_core/di.py:factory_scanner_context"
+    issue: "The `factory_scanner_context` relies on a dictionary-based configuration (`scanner_context_wiring`) for its core components, which is a fragile, non-discoverable, and error-prone pattern."
+    root_cause: "This is a classic string-based programming antipattern, likely chosen to avoid circular imports or to create a 'flexible' seam. In reality, it just decouples the components in the worst way possible, using magic strings instead of explicit dependencies."
+    impact: "Refactoring is a nightmare. There's no static analysis to track where `scanner_context_cls` or `prepare_scan_context_fn` are set. A simple typo in the dictionary key leads to a runtime `ValueError`. It's brittle, hard to understand, and makes the system less reliable."
+    confidence: 95
+    fix_suggestion: "Introduce explicit, typed parameters in the `DIContainer` constructor for the necessary components, like `scanner_context_factory: Callable[..., ScannerContext]`. This makes dependencies explicit, type-safe, and discoverable. Effort: Medium, as it requires updating `DIContainer` instantiation sites. Impact: Vastly improved maintainability and reliability."
+  - id: GILF-NODE1-04
+    severity: MEDIUM
+    category: error-handling
+    location: "src/prism/scanner_core/scanner_context.py:_discover_variables"
+    issue: "The error handling in `_discover_variables` and `_detect_features` is inconsistent and depends on a boolean flag (`_strict_phase_failures`) to decide whether to raise an exception or just log a warning."
+    root_cause: "Indecisive design. The system can't decide if a failure in a core phase is catastrophic or not, so it punts the decision to a configuration flag. This creates two divergent, untested execution paths."
+    impact: "The scanner's behavior is unpredictable. In non-strict mode, it can continue a scan with incomplete or missing data, potentially producing misleading results. This 'best-effort' mode is a recipe for silent failures and corrupted output."
+    confidence: 90
+    fix_suggestion: "Fail fast, fail always. Remove the `_strict_phase_failures` flag and the `try...except` blocks that swallow exceptions. A failure in variable discovery or feature detection is a critical failure of the scan. Let the exception propagate and terminate the process. Effort: Low. Impact: Predictable, reliable scan execution."
+  - id: GILF-NODE1-05
+    severity: MEDIUM
+    category: ownership
+    location: "src/prism/scanner_core/di.py:resolve_platform_key"
+    issue: "Platform key resolution is a convoluted mess, checking four different locations in a specific, non-obvious order. This logic is duplicated by being a public function and also being implicitly used inside the container."
+    root_cause: "Organic growth without refactoring. Instead of establishing a single source of truth for the platform key, new lookup paths were bolted on, creating a complex and implicit precedence order."
+    impact: "It's impossible to know where the platform key is *actually* coming from without debugging this function. This makes configuration confusing and error-prone. A change in one place can have unforeseen consequences due to this implicit hierarchy."
+    confidence: 95
+    fix_suggestion: "Establish a single, explicit source for the platform key. The `DIContainer` should receive it as a constructor argument. The calling code should be responsible for resolving it, not the container. This centralizes the resolution logic and makes the container's behavior explicit. Effort: Medium. Impact: Clearer configuration and predictable behavior."
+  - id: GILF-NODE1-06
+    severity: LOW
+    category: type-safety
+    location: "src/prism/scanner_core/di_helpers.py"
+    issue: "The `di_helpers` module is littered with `Protocol` definitions that are only used for `isinstance` checks, which is a misuse of the feature and adds unnecessary boilerplate."
+    root_cause: "A fundamental misunderstanding of Python's duck typing and `Protocol`s. The code is trying to emulate nominal typing in a structural typing system, resulting in verbose and pointless checks."
+    impact: "The code is unnecessarily complex and verbose. It gives a false sense of security while providing no real benefit over simple `hasattr` checks, which would be more Pythonic and concise. It's just noise."
+    confidence: 100
+    fix_suggestion: "Delete the `Protocol` classes and replace the `isinstance` checks with simple `hasattr` calls to check for the required methods or attributes. This is what a competent Python developer would do. Effort: Trivial. Impact: Simpler, more idiomatic, and more readable code."

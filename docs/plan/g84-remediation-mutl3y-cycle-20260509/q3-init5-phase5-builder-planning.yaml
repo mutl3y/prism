@@ -1,0 +1,1074 @@
+---
+plan_id: "q3-init5-phase5-builder-planning"
+initiative: "Q3-5"
+objective: "Map exact builder implementation work for Phase 5a-5d (plugin architecture seams, DI boundary enforcement, layer violations)"
+date_created: "2026-05-09"
+created_by: "Scout-Q3Init5Phase5Builder"
+tier_selected: "FREE (0x)"
+tier_reason: "Discovery + planning phase; no escalation criteria met"
+status: "completed"
+
+---
+
+# EXECUTIVE SUMMARY
+
+## Mission
+Phase 5 is the **implementation phase** for Q3 Initiative 5 (Layer Boundary Enforcement).
+Builders will:
+1. Close 2 critical violations (L1→L4 and L3→L1 imports)
+2. Establish permanent enforcement via tests + linting
+3. Define explicit plugin protocols and DI boundaries
+4. Introduce facade patterns to eliminate layer skipping
+
+## Critical Path
+- **Phase 5a**: Plugin Protocol Extraction (2-3 days)
+- **Phase 5b**: DI Boundary Enforcement (2-3 days)
+- **Phase 5c**: Layer Import Audit + Remediation (2-3 days)
+- **Phase 5d**: Type-Level Boundaries (1-2 days)
+
+**Total Estimated Effort**: 8-12 days (1.5-2.5 weeks with 40% parallelization)
+
+## Success Criteria
+- ✅ All layer violations closed (2/2 violations remediated)
+- ✅ Boundary tests green (4/4 test suites passing)
+- ✅ Ruff linting configured (layer rules enforced at CI)
+- ✅ Protocol definitions complete (8 protocols documented + enforced)
+- ✅ Type-checking passing (mypy validates boundaries)
+- ✅ Zero upward layer imports (L0, L1, L3, L4 never import upward)
+
+---
+
+# PHASE 5A: PLUGIN PROTOCOL EXTRACTION
+
+## 1. Current State Analysis
+
+### 1.1 Existing Plugin Protocols
+
+**Location**: `src/prism/scanner_plugins/interfaces.py`
+
+| Protocol | Slot | Methods | Status | Type Coverage |
+|----------|------|---------|--------|---------------|
+| `VariableDiscoveryPlugin` | `variable_discovery` | 3 | ✅ Defined | FULL |
+| `FeatureDetectionPlugin` | `feature_detection` | 2 | ✅ Defined | FULL |
+| `OutputOrchestrationPlugin` | `output_orchestration` | 1 | ✅ Defined | PARTIAL |
+| `ScanPipelinePlugin` | `scan_pipeline` | 1 | ✅ Defined | FULL |
+| `CommentDrivenDocumentationPlugin` | `comment_driven_doc` | 1 | ✅ Defined | FULL |
+| `YAMLParsingPolicyPlugin` | `yaml_parsing_policy` | 2+ | ✅ Defined | PARTIAL |
+| `JinjaAnalysisPolicyPlugin` | `jinja_analysis_policy` | 2+ | ✅ Defined | PARTIAL |
+| `ExtractPolicyPlugin` | `extract_policy` | MARKER | ⚠️ NEEDS WORK | MISSING |
+| `ReadmeRendererPlugin` | `readme_renderer` | 1+ | ⚠️ NEEDS WORK | MISSING |
+
+**Gap Analysis**:
+- `ExtractPolicyPlugin` is a marker protocol with NO methods — should define sub-types
+- `ReadmeRendererPlugin` is referenced but not fully specified in interfaces
+- `OutputOrchestrationPlugin` lacks full signature documentation
+
+### 1.2 Plugin Registry Architecture
+
+**Location**: `src/prism/scanner_plugins/registry.py`
+
+Current structure:
+```
+PluginRegistry
+  ├── variable_discovery_plugins (dict)
+  ├── feature_detection_plugins (dict)
+  ├── extract_policy_plugins (dict)
+  ├── yaml_parsing_policy_plugins (dict)
+  ├── jinja_analysis_policy_plugins (dict)
+  ├── comment_driven_doc_plugins (dict)
+  ├── readme_renderer_plugins (dict)
+  ├── scan_pipeline_plugins (dict)
+  ├── output_orchestration_plugins (dict)
+  └── loaded_plugins (tuple-keyed dict for lifecycle tracking)
+```
+
+**Current Registration Flow**:
+1. Plugin class registered in registry slot (platform_key → class mapping)
+2. Registry validates: `PLUGIN_IS_STATELESS` marker for singleton slots
+3. Runtime lookup: `platform_key` → registry → plugin class → DI instantiation
+4. DI instantiation: `_construct_runtime_plugin()` verifies `di=...` parameter
+
+### 1.3 DI Plugin Factory Methods
+
+**Location**: `src/prism/scanner_core/di.py` (lines 350-600)
+
+Current factory methods (16 total):
+```
+di.factory_variable_discovery_plugin()     → VariableDiscoveryPlugin
+di.factory_feature_detection_plugin()      → FeatureDetectionPlugin
+di.factory_comment_driven_doc_plugin()     → CommentDrivenDocumentationPlugin
+di.factory_task_annotation_policy_plugin() → PreparedTaskAnnotationPolicy
+di.factory_task_line_parsing_policy_plugin() → PreparedTaskLineParsingPolicy
+di.factory_task_traversal_policy_plugin()  → PreparedTaskTraversalPolicy
+di.factory_variable_extractor_policy_plugin() → PreparedVariableExtractorPolicy
+di.factory_yaml_parsing_policy_plugin()    → YAMLParsingPolicyPlugin
+di.factory_jinja_analysis_policy_plugin()  → JinjaAnalysisPolicyPlugin
+di.factory_audit_plugin()                  → VariableDiscoveryPlugin (audit-specific)
+di.factory_policy_registry()               → FallbackPolicyRegistry
+di.factory_policy_manager()                → PolicyManager
+di.factory_event_bus()                     → EventBus
+di.factory_variable_discovery()            → VariableDiscovery (core type)
+di.factory_feature_detector()              → FeatureDetector (core type)
+di.factory_variable_row_builder()          → VariableRowBuilder (utility)
+```
+
+**Factory Resolution Flow**:
+1. Check `_mocks` dict (test doubles)
+2. Check `_factory_overrides` dict (DI injection overrides)
+3. Delegate to `PluginResolver` for registry lookup
+4. Registry queries `platform_key` → plugin class
+5. DI instantiates with `_construct_runtime_plugin(plugin_class, di=self)`
+
+## 2. Phase 5a Deliverables
+
+### 2.1 Extract Policy Sub-Protocols (NEW)
+
+**File**: `src/prism/scanner_plugins/interfaces.py` (add)
+
+```python
+class TaskLineParsingPolicyPlugin(Protocol):
+    """Protocol for task-line parsing policy plugins."""
+    
+    def parse_task_line(
+        self,
+        line: str,
+        context: TaskLineParsingContext,
+    ) -> TaskParseResult | None: ...
+
+class TaskAnnotationPolicyPlugin(Protocol):
+    """Protocol for task annotation parsing policy plugins."""
+    
+    def parse_annotation(
+        self,
+        task_index: int,
+        annotation_text: str,
+        context: AnnotationParsingContext,
+    ) -> TaskAnnotation: ...
+
+class TaskTraversalPolicyPlugin(Protocol):
+    """Protocol for task traversal policy plugins."""
+    
+    def traverse_tasks(
+        self,
+        role_path: str,
+        options: ScanOptionsDict,
+    ) -> Iterator[TaskFile]: ...
+
+class VariableExtractorPolicyPlugin(Protocol):
+    """Protocol for variable extraction policy plugins."""
+    
+    def extract_variables(
+        self,
+        task_context: TaskExtractionContext,
+        options: ScanOptionsDict,
+    ) -> VariableExtractionResult: ...
+```
+
+**Impact**: 4 new protocol types, validates method signatures for extract policy plugins
+
+### 2.2 README Renderer Protocol Enhancement (UPDATE)
+
+**File**: `src/prism/scanner_plugins/interfaces.py` (update)
+
+Current state (incomplete):
+```python
+class ReadmeRendererPlugin(Protocol):
+    """Protocol marker for readme-renderer plugin slot."""
+    pass
+```
+
+Enhanced state:
+```python
+class ReadmeRendererPlugin(Protocol):
+    """Protocol for README rendering policy plugins."""
+    
+    def render_readme_section(
+        self,
+        role_path: str,
+        role_metadata: RoleMetadata,
+        options: ScanOptionsDict,
+    ) -> str: ...
+    
+    def render_runbook(
+        self,
+        scan_results: RunScanOutputPayload,
+        format: Literal["markdown", "csv"],
+        options: ScanOptionsDict,
+    ) -> str: ...
+```
+
+**Impact**: Clarifies contract for readme rendering, enables type-safe plugin calls
+
+### 2.3 Output Orchestration Protocol Enhancement (UPDATE)
+
+**File**: `src/prism/scanner_plugins/interfaces.py` (update)
+
+Expand return type documentation:
+```python
+class OutputOrchestrationPlugin(Protocol):
+    """Protocol for output-orchestration plugin implementations."""
+
+    def orchestrate_output(
+        self,
+        scan_payload: RunScanOutputPayload,
+        metadata: dict[str, Any],
+        discovered_variables: list[VariableRow],
+    ) -> RunScanOutputPayload:
+        """Process scan output and return modified payload.
+        
+        Contract:
+        - Input payload is immutable view; return new payload or identity
+        - metadata dict is for tracing only; do not modify
+        - Must preserve all data types (VariableRow elements unchanged)
+        - Errors must raise PrismRuntimeError with proper codes
+        """
+        ...
+```
+
+**Impact**: Clarifies contract semantics, prevents accidental side effects
+
+### 2.4 Refactoring Sequence
+
+**Order** (parallelizable up to checkpoint):
+
+1. **Week 1, Day 1-2**: Define 4 Extract Policy sub-protocols
+   - Files: `interfaces.py`
+   - Tests: `tests/test_protocol_signatures.py` (new)
+   - Validation: All Ansible policy plugins pass protocol check
+
+2. **Week 1, Day 3**: Enhance README Renderer + Output Orchestration protocols
+   - Files: `interfaces.py`
+   - Tests: `tests/test_protocol_signatures.py` (extend)
+   - Validation: Type checker confirms implementations match
+
+3. **Week 1, Day 4-5**: Add protocol runtime checks to registry
+   - Files: `scanner_plugins/registry.py`
+   - New function: `validate_plugin_implements_protocol(plugin_class, protocol)`
+   - Tests: `tests/test_protocol_validation.py` (new)
+   - Enforcement: Registry rejects non-compliant plugins at registration time
+
+### 2.5 Files to Create/Modify
+
+| File | Type | Change | Effort |
+|------|------|--------|--------|
+| `src/prism/scanner_plugins/interfaces.py` | MODIFY | Add 4 protocols, enhance 2 protocols | 1.5h |
+| `src/prism/scanner_plugins/registry.py` | MODIFY | Add runtime protocol validation | 1.5h |
+| `src/prism/tests/test_protocol_signatures.py` | CREATE | Protocol signature verification tests | 2h |
+| `src/prism/tests/test_protocol_validation.py` | CREATE | Runtime plugin validation tests | 2h |
+
+**Phase 5a Effort**: 7 hours | **Parallelizable**: Protocols (day 1-3) independent from validation (day 4-5)
+
+---
+
+# PHASE 5B: DI BOUNDARY ENFORCEMENT
+
+## 1. Current DI Coupling Analysis
+
+### 1.1 DI Container Responsibilities
+
+**Location**: `src/prism/scanner_core/di.py`
+
+Current DI owns:
+- ✅ Plugin registry injection (`_registry`)
+- ✅ Platform key resolution (`_platform_key`)
+- ✅ Mock injection for testing (`_mocks`)
+- ✅ Factory override injection (`_factory_overrides`)
+- ✅ Event bus creation + lifecycle
+- ✅ Cache management (thread-safe)
+- ✅ Core type instantiation (VariableDiscovery, FeatureDetector)
+- ✅ Policy registry/manager (stub)
+- ⚠️ **PROBLEM**: Core types leak concrete implementations to callers
+
+### 1.2 PluginResolver Coupling
+
+**Location**: `src/prism/scanner_core/plugin_resolver.py`
+
+Current scope:
+- Resolves plugins from registry by slot name + platform key
+- Returns concrete plugin instances (not protocols)
+- **PROBLEM**: No abstraction between DI and resolver; direct delegation
+
+### 1.3 Boundaries That Need Enforcement
+
+```
+┌─────────────────────────────────────────────────┐
+│ DIContainer (OWNS FACTORIES)                    │
+│ ├─ Must NOT import scanner_core concrete types │
+│ │  (except via TYPE_CHECKING)                   │
+│ └─ Must NOT know about plugin internals         │
+└─────────────────────────────────────────────────┘
+              ↓ (delegates to)
+┌─────────────────────────────────────────────────┐
+│ PluginResolver (PLUGIN LOOKUP ONLY)             │
+│ ├─ Must NOT construct plugins                   │
+│ └─ Must NOT cache anything                      │
+└─────────────────────────────────────────────────┘
+              ↓ (returns to)
+┌─────────────────────────────────────────────────┐
+│ Callers (USE PROTOCOLS)                         │
+│ ├─ Must use Protocol types, not concrete types  │
+│ └─ Must NOT reach past PluginResolver           │
+└─────────────────────────────────────────────────┘
+```
+
+**Current Violation**: DI returns `VariableDiscovery` (concrete) instead of `VariableDiscoveryPlugin` (protocol)
+
+### 1.4 Coupling Points to Sever
+
+| Coupling | From | To | Why | Fix |
+|----------|------|----|----|-----|
+| **C1** | DIContainer | concrete VariableDiscovery | Should use protocol | Return `VariableDiscoveryPlugin` wrapper |
+| **C2** | DIContainer | concrete FeatureDetector | Should use protocol | Return `FeatureDetectionPlugin` wrapper |
+| **C3** | PluginResolver | Plugin construction logic | Resolver should NOT construct | Move construction to DI factory |
+| **C4** | scanner_core.di | scanner_core.protocols_runtime | TYPE_CHECKING only leakage | Audit + validate TYPE_CHECKING usage |
+| **C5** | Plugin implementations | DI container details | Plugins tightly coupled to factory shapes | Document stable DI contract |
+
+## 2. Phase 5b Deliverables
+
+### 2.1 Boundary Test Suite (NEW)
+
+**File**: `src/prism/tests/test_di_boundary.py`
+
+```python
+def test_di_container_owns_factory_responsibility():
+    """DI must own plugin construction; plugins can't reach registry."""
+    di = DIContainer(...)
+    plugin = di.factory_variable_discovery_plugin()
+    # Verify: plugin is instance of VariableDiscoveryPlugin protocol
+    # Verify: plugin.__class__.__module__.startswith("prism.scanner_plugins")
+
+def test_di_does_not_expose_concrete_scanner_core_types():
+    """Callers must receive protocols, not concrete types."""
+    di = DIContainer(...)
+    # OLD: di.factory_variable_discovery() -> VariableDiscovery (concrete)
+    # NEW: di.factory_variable_discovery_plugin() -> VariableDiscoveryPlugin (protocol)
+    assert isinstance(di.factory_variable_discovery_plugin(), VariableDiscoveryPlugin)
+
+def test_plugin_resolver_does_not_construct_plugins():
+    """PluginResolver only looks up; DI constructs."""
+    resolver = PluginResolver(di)
+    # Verify: resolver has NO __call__ method (not a factory)
+    # Verify: all resolver methods return class objects or None, not instances
+
+def test_di_does_not_import_scanner_plugins_concrete_types():
+    """DI must not depend on scanner_plugins implementations."""
+    import prism.scanner_core.di as di_module
+    source = inspect.getsource(di_module)
+    # Verify: no "from prism.scanner_plugins.ansible import" (except TYPE_CHECKING)
+    # Verify: no "from prism.scanner_plugins.kubernetes import"
+
+def test_no_circular_di_to_plugin_to_di_path():
+    """Verify no runtime circular dependency between DI and plugins."""
+    # Import plugin modules, verify they don't import DIContainer at module level
+    from prism.scanner_plugins.ansible import variable_discovery
+    # Verify: variable_discovery module doesn't import di.py at top level
+```
+
+**Effort**: 2 hours (boilerplate + AST inspection)
+
+### 2.2 DI Wrapper Facade (NEW)
+
+**File**: `src/prism/scanner_core/di_plugin_facades.py`
+
+```python
+"""Wrapper facades to enforce protocol boundaries between DI and plugin callers.
+
+Callers should receive Protocol types from DI factories, not concrete types.
+These wrappers ensure:
+1. DI owns factory methods (plugin instantiation)
+2. Callers work with protocols only
+3. Plugins can be swapped without caller changes
+"""
+
+from prism.scanner_plugins.interfaces import (
+    VariableDiscoveryPlugin,
+    FeatureDetectionPlugin,
+)
+
+class PluginBoundaryFacade:
+    """Facade to enforce DI boundary: Callers see protocols, not concrete types."""
+    
+    def __init__(self, di: "DIContainer") -> None:
+        self._di = di
+    
+    def factory_variable_discovery_as_protocol(self) -> VariableDiscoveryPlugin:
+        """Wrap VariableDiscovery as VariableDiscoveryPlugin protocol.
+        
+        Returns:
+            Instance conforming to VariableDiscoveryPlugin protocol
+        
+        Note:
+            Callers must use this method instead of factory_variable_discovery()
+            to maintain boundary between DI internals and callers.
+        """
+        instance = self._di.factory_variable_discovery()
+        # Type system validates that VariableDiscovery implements protocol
+        return instance  # type: ignore[return-value]
+    
+    def factory_feature_detection_as_protocol(self) -> FeatureDetectionPlugin:
+        """Wrap FeatureDetector as FeatureDetectionPlugin protocol."""
+        instance = self._di.factory_feature_detector()
+        return instance  # type: ignore[return-value]
+```
+
+**Impact**: Callers receive protocols; DI owns concrete types; boundary is explicit
+
+### 2.3 Registry Integration Point (UPDATE)
+
+**File**: `src/prism/scanner_plugins/registry.py`
+
+Current registration:
+```python
+async def register(
+    plugin: IPlugin | PluginFactory,
+    config?: Partial<PluginConfig>
+): ...
+```
+
+Add DI contract validation:
+```python
+def _validate_plugin_di_contract(
+    plugin_class: type[VariableDiscoveryPlugin],
+) -> None:
+    """Verify plugin class accepts di= parameter in constructor.
+    
+    Raises:
+        PluginConstructorMismatch: If plugin cannot accept di keyword
+    """
+    signature = inspect.signature(plugin_class.__init__)
+    has_di_param = (
+        "di" in signature.parameters or
+        any(p.kind == Parameter.VAR_KEYWORD for p in signature.parameters.values())
+    )
+    if not has_di_param:
+        raise PluginConstructorMismatch(
+            f"Plugin {plugin_class.__name__} must accept di= parameter"
+        )
+```
+
+**Effort**: 1 hour (add validation + tests)
+
+### 2.4 Import Audit + Type Checking
+
+**File**: New linting rule + mypy configuration
+
+```bash
+# Ruff: Prevent DI from importing concrete plugin types at runtime
+# Rule: scanner_core/di.py must NOT import from scanner_plugins/* (except TYPE_CHECKING)
+
+# Mypy: Verify DI factory methods return protocols where applicable
+# Config: strict checking for di.py factory methods
+```
+
+**Effort**: 1.5 hours (configure tools + tests)
+
+### 2.5 Files to Create/Modify
+
+| File | Type | Change | Effort |
+|------|------|--------|--------|
+| `src/prism/scanner_core/di_plugin_facades.py` | CREATE | Wrapper facades for protocol boundaries | 1.5h |
+| `src/prism/scanner_core/di.py` | MODIFY | Add facade property access | 0.5h |
+| `src/prism/scanner_plugins/registry.py` | MODIFY | Add DI contract validation | 1h |
+| `src/prism/tests/test_di_boundary.py` | CREATE | Boundary enforcement tests | 2h |
+| `pyproject.toml` | MODIFY | Add Ruff + mypy rules for DI boundary | 1.5h |
+
+**Phase 5b Effort**: 6.5 hours | **Parallelizable**: Facades (day 1-2) independent from linting (day 2-3)
+
+---
+
+# PHASE 5C: LAYER IMPORT AUDIT & REMEDIATION
+
+## 1. Violation Remediation
+
+### 1.1 Violation LB-1001: L1 → L4 (Extract imports I/O YAML utilities)
+
+**Files Affected** (4 files, 8 imports):
+- `scanner_extract/variable_extractor.py:17` — 2 imports
+- `scanner_extract/discovery.py:11-13` — 2 imports
+- `scanner_extract/dataload.py:8` — 2 imports
+- `scanner_extract/task_file_traversal.py:15` — 2 imports
+
+**Imports to Fix**:
+```python
+from prism.scanner_io.loader import (
+    load_yaml_file,
+    parse_yaml_candidate,
+    _ordered_parallel_map,
+)
+```
+
+**Root Cause**: YAML utilities incorrectly placed in L4 (I/O layer) instead of L0 (Data/Core)
+
+**Solution**: Move utilities to `scanner_data/yaml_utils.py`
+
+#### Task 5c.1: Create YAML Utilities Module (NEW)
+
+**File**: `src/prism/scanner_data/yaml_utils.py`
+
+```python
+"""YAML loading and parsing utilities (moved from scanner_io.loader).
+
+These utilities are data-layer components, not I/O layer. They parse YAML
+candidates and return structured data without side effects.
+"""
+
+from __future__ import annotations
+import pathlib
+from typing import Any, Callable, TypeVar
+
+T = TypeVar('T')
+
+def load_yaml_file(path: str | pathlib.Path) -> Any:
+    """Load YAML file and return parsed object.
+    
+    Args:
+        path: File path to YAML file
+        
+    Returns:
+        Parsed YAML object (dict, list, str, etc.)
+        
+    Raises:
+        FileNotFoundError: If path does not exist
+        YAMLParseError: If YAML is malformed
+    """
+    # Implementation moved from scanner_io/loader.py
+    ...
+
+def parse_yaml_candidate(
+    candidate: str | pathlib.Path,
+    role_root: str | pathlib.Path,
+) -> dict[str, Any] | YamlParseFailure:
+    """Parse a YAML candidate file.
+    
+    Args:
+        candidate: Path to candidate YAML file
+        role_root: Role root for relative path resolution
+        
+    Returns:
+        Parsed dict or YamlParseFailure contract
+    """
+    # Implementation moved from scanner_io/loader.py
+    ...
+
+def _ordered_parallel_map(
+    func: Callable[[T], Any],
+    items: list[T],
+    *,
+    max_workers: int = 4,
+) -> list[Any]:
+    """Map function over items in parallel, preserving order.
+    
+    Args:
+        func: Function to apply to each item
+        items: List of items
+        max_workers: Max concurrent workers
+        
+    Returns:
+        List of results in same order as input
+    """
+    # Implementation moved from scanner_io/loader.py
+    ...
+```
+
+**Effort**: 1 hour (move + docstrings)
+
+#### Task 5c.2: Update Extract Imports (2 hours)
+
+Update 4 files to import from new location:
+
+```python
+# OLD:
+from prism.scanner_io.loader import load_yaml_file, parse_yaml_candidate
+
+# NEW:
+from prism.scanner_data.yaml_utils import load_yaml_file, parse_yaml_candidate
+```
+
+Files:
+- `scanner_extract/variable_extractor.py`
+- `scanner_extract/discovery.py`
+- `scanner_extract/dataload.py`
+- `scanner_extract/task_file_traversal.py`
+
+**Validation**: `pytest -q` (full suite), focused on extract-layer tests
+
+**Effort**: 1 hour (grep/replace + test)
+
+#### Task 5c.3: Update scanner_io Layer (1 hour)
+
+If scanner_io still needs these utilities internally:
+- Keep internal copy in scanner_io with deprecation import
+- OR forward exports from yaml_utils
+- OR refactor scanner_io to consume from scanner_data
+
+**Approach**: Forward export with deprecation warning for backward compatibility
+
+```python
+# scanner_io/loader.py (updated)
+import warnings
+from prism.scanner_data.yaml_utils import (
+    load_yaml_file,
+    parse_yaml_candidate,
+    _ordered_parallel_map,
+)
+
+warnings.warn(
+    "Importing YAML utilities from scanner_io.loader is deprecated. "
+    "Use prism.scanner_data.yaml_utils instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+__all__ = ["load_yaml_file", "parse_yaml_candidate", "_ordered_parallel_map"]
+```
+
+**Effort**: 30 minutes
+
+### 1.2 Violation LB-1002: L3 → L1 (Plugins import Extract internals)
+
+**Files Affected** (1 file, 30+ lines):
+- `scanner_plugins/ansible/extract_utils.py` — Bridge layer importing from L1
+
+**Imports**:
+```python
+from prism.scanner_extract import (
+    TaskParsingContext,
+    extract_task_line,
+    ...
+)
+```
+
+**Root Cause**: Plugin needs to reuse extraction logic; currently bridges directly to scanner_extract
+
+**Solution**: Create plugin-owned bridge seam + document as intentional
+
+#### Task 5c.4: Establish Plugin Extraction Boundary (2 hours)
+
+**Current State**:
+```
+scanner_plugins/ansible/
+├── extract_utils.py (BRIDGE: imports from scanner_extract)
+├── feature_detection.py (calls extract_utils)
+├── variable_discovery.py (calls extract_utils)
+└── ...
+```
+
+**Target State**:
+```
+scanner_plugins/ansible/
+├── extraction/
+│   ├── __init__.py
+│   ├── task_parsing.py (COPY of scanner_extract logic + type wrappers)
+│   ├── variable_extraction.py (COPY of scanner_extract logic)
+│   └── traversal.py (COPY of scanner_extract logic)
+├── extract_utils.py (FACADE: delegates to extraction/* + scanner_extract bridges)
+├── feature_detection.py (calls extract_utils)
+└── variable_discovery.py (calls extract_utils)
+```
+
+**Boundary Rule**: `extract_utils.py` is the ONLY allowed bridge to scanner_extract
+
+#### Task 5c.5: Document Intentional Seam (30 minutes)
+
+Create documentation:
+
+```markdown
+# Plugin Extraction Boundary Seam
+
+## Rationale
+scanner_plugins/ansible needs extraction logic that is platform-specific.
+The extraction boundary seam (ansible/extract_utils.py) provides a defined
+entry point for Ansible-specific extraction without coupling the entire
+plugin layer to scanner_extract internals.
+
+## Boundary Rules
+- Only `extract_utils.py` may import from `scanner_extract`
+- Other plugin modules must use `extract_utils` as facade
+- Future platforms (Kubernetes, Terraform) must define their own extraction seams
+
+## Maintenance
+- When scanner_extract changes, update `extract_utils.py` only
+- Other plugin modules continue using stable `extract_utils` API
+```
+
+**File**: `src/prism/scanner_plugins/ansible/EXTRACTION_SEAM.md`
+
+**Effort**: 30 minutes
+
+### 1.3 Remediation Validation
+
+**Test Strategy**:
+
+```python
+def test_layer_boundary_l1_extract_no_io_imports():
+    """L1 (extract) must not import from L4 (scanner_io)."""
+    violations = find_layer_violations("scanner_extract", "scanner_io")
+    assert len(violations) == 0, f"L1→L4 violations: {violations}"
+
+def test_layer_boundary_l3_plugins_limited_to_extract_seam():
+    """L3 (plugins) may only import from L1 (extract) via ansible/extract_utils.py."""
+    violations = find_layer_violations("scanner_plugins", "scanner_extract")
+    # Should only find: scanner_plugins/ansible/extract_utils.py
+    assert all(
+        "extract_utils.py" in path for path in violations
+    ), f"L3→L1 violations outside seam: {violations}"
+```
+
+**Validation Gate**: Full pytest + ruff + mypy (Phase 0 pattern)
+
+**Effort**: 1 hour (tests + execution)
+
+### 1.4 Files to Create/Modify
+
+| File | Type | Change | Effort |
+|------|------|--------|--------|
+| `src/prism/scanner_data/yaml_utils.py` | CREATE | Move YAML utilities from scanner_io | 1h |
+| `src/prism/scanner_extract/*.py` (4 files) | MODIFY | Update imports to use scanner_data | 1h |
+| `src/prism/scanner_io/loader.py` | MODIFY | Deprecation forward-exports | 0.5h |
+| `src/prism/scanner_plugins/ansible/EXTRACTION_SEAM.md` | CREATE | Document intentional boundary | 0.5h |
+| `src/prism/tests/test_layer_remediation.py` | CREATE | Remediation validation tests | 1h |
+
+**Phase 5c Effort**: 4 hours | **Parallelizable**: yaml_utils + extract updates (day 1) independent from extraction seam (day 2)
+
+---
+
+# PHASE 5D: TYPE-LEVEL BOUNDARIES
+
+## 1. Protocol Enforcement via Type System
+
+### 1.1 Current Type Coverage
+
+| Layer | Type-Safe | Gap | Risk |
+|-------|-----------|-----|------|
+| L0 (Core) | ⚠️ PARTIAL | DIContainer factory methods mix concrete + protocol returns | MEDIUM |
+| L1 (Extract) | ✅ GOOD | Well-typed extraction functions | LOW |
+| L3 (Plugins) | ✅ GOOD | Protocol-based plugin interface | LOW |
+| L4 (I/O) | ⚠️ PARTIAL | YAML loader not typed as protocol | MEDIUM |
+| L5 (Readme/Reporting) | ⚠️ PARTIAL | Renderer plugin return types loose | MEDIUM |
+| L6 (Kernel) | ✅ GOOD | Typed kernel carrier contracts | LOW |
+
+### 1.2 Generic Type Constraints Needed
+
+| Type | Constraint | Purpose | Files |
+|------|-----------|---------|-------|
+| `PreparedPolicyBundle` | `TypedDict` with required keys | Enforce policy bundle contract | scanner_data/contracts_request.py |
+| `PluginRegistry[P]` | Generic with protocol bound | Prevent type confusion in registry | scanner_plugins/registry.py |
+| `DIContainer.factory_*()` | Return Protocol not concrete | Enforce abstraction at API | scanner_core/di.py |
+| `ScanPipelinePayload` | Frozen TypedDict | Prevent accidental mutation | scanner_core/protocols_runtime.py |
+
+## 2. Phase 5d Deliverables
+
+### 2.1 Mypy Configuration (NEW)
+
+**File**: `pyproject.toml` (update `[tool.mypy]`)
+
+```toml
+[tool.mypy]
+strict = true
+plugins = ["prism.mypy_plugins.layer_boundary_checker"]
+
+[[tool.mypy.overrides]]
+# scanner_core/di.py: strict return-type checking
+module = "prism.scanner_core.di"
+strict_optional = true
+warn_return_any = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+# scanner_plugins/* : enforce protocol usage
+module = "prism.scanner_plugins.*"
+strict_optional = true
+disallow_any_generics = true
+```
+
+**Effort**: 1 hour (config + test)
+
+### 2.2 Layer Boundary Mypy Plugin (NEW)
+
+**File**: `src/prism/mypy_plugins/layer_boundary_checker.py`
+
+```python
+"""Mypy plugin to enforce layer boundary contracts.
+
+Examples of violations detected:
+1. scanner_core imports concrete type from scanner_plugins
+2. factory_* methods return concrete type instead of protocol
+3. PluginRegistry generic parameter is not a Protocol
+"""
+
+import mypy.plugin
+import mypy.nodes
+from mypy.nodes import Decorator, ARG_POS
+
+class LayerBoundaryPlugin(mypy.plugin.Plugin):
+    """Mypy plugin for layer boundary enforcement."""
+    
+    def get_decorator_hook(self, fullname: str):
+        if fullname == "prism.scanner_core.di.DIContainer.factory_variable_discovery_plugin":
+            return self._check_plugin_factory_return_type
+        return None
+    
+    def _check_plugin_factory_return_type(self, ctx: mypy.plugin.MethodContext) -> None:
+        """Verify factory methods return Protocol types, not concrete."""
+        # Check return type is Protocol, not concrete
+        ...
+```
+
+**Effort**: 2 hours (plugin architecture + 3-4 checks)
+
+### 2.3 Generic Type Refinements
+
+#### 2.3.1 Enhance PreparedPolicyBundle TypedDict
+
+**File**: `src/prism/scanner_data/contracts_request.py`
+
+Current state:
+```python
+class PreparedPolicyBundle(TypedDict, total=False):
+    comment_doc_marker_prefix: str
+    # ... other fields
+```
+
+Enhanced state:
+```python
+class PreparedPolicyBundle(TypedDict):
+    """Prepared policy bundle contract (required fields enforced at runtime).
+    
+    All fields are required for runtime code paths. `total=False` is used only
+    for initialization; callers must provide complete bundle.
+    """
+    
+    # Required
+    scan_policy_blocker_facts: dict[str, ScanPolicyBlockerFacts]
+    comment_doc_marker_prefix: str
+    platform_key: str
+    
+    # Conditional (context-dependent but must be present)
+    task_line_parsing_policy: PreparedTaskLineParsingPolicy
+    task_annotation_policy: PreparedTaskAnnotationPolicy
+    task_traversal_policy: PreparedTaskTraversalPolicy
+    variable_extractor_policy: PreparedVariableExtractorPolicy
+```
+
+**Benefit**: Type checker ensures all required fields present before use
+
+**Effort**: 1 hour (type refinement + tests)
+
+#### 2.3.2 Add Runtime Validation
+
+**File**: `src/prism/scanner_core/policy_manager.py` (new)
+
+```python
+def validate_prepared_policy_bundle(
+    bundle: PreparedPolicyBundle | None,
+) -> None:
+    """Fail-closed: Verify bundle has all required fields.
+    
+    Raises:
+        ValueError: If any required field missing or None
+    """
+    if bundle is None:
+        raise ValueError("PreparedPolicyBundle must not be None")
+    
+    required_fields = [
+        "scan_policy_blocker_facts",
+        "comment_doc_marker_prefix",
+        "platform_key",
+        "task_line_parsing_policy",
+        "task_annotation_policy",
+        "task_traversal_policy",
+        "variable_extractor_policy",
+    ]
+    
+    for field in required_fields:
+        value = bundle.get(field)
+        if value is None:
+            raise ValueError(f"PreparedPolicyBundle.{field} must not be None")
+```
+
+**Effort**: 1 hour (validation + tests)
+
+### 2.4 Files to Create/Modify
+
+| File | Type | Change | Effort |
+|------|------|--------|--------|
+| `pyproject.toml` | MODIFY | Add mypy strict mode + plugin config | 1h |
+| `src/prism/mypy_plugins/layer_boundary_checker.py` | CREATE | Mypy plugin for layer boundary checks | 2h |
+| `src/prism/scanner_data/contracts_request.py` | MODIFY | Enhance PreparedPolicyBundle TypedDict | 1h |
+| `src/prism/scanner_core/policy_manager.py` | MODIFY | Add runtime bundle validation | 1h |
+| `src/prism/tests/test_type_boundaries.py` | CREATE | Type-level boundary tests | 1.5h |
+
+**Phase 5d Effort**: 6.5 hours | **Parallelizable**: Mypy config (day 1-2) + plugin (day 2-3) independent from TypedDict refinement (day 1-2)
+
+---
+
+# INTEGRATION & VALIDATION SUMMARY
+
+## Cross-Phase Dependencies
+
+```
+Phase 5a (Protocols) ──→ Phase 5b (DI Boundaries) ──→ Phase 5c (Layer Remediation) ──→ Phase 5d (Type-Level)
+├─ 7h                   ├─ 6.5h                      ├─ 4h                          ├─ 6.5h
+├─ Protocols defined    ├─ Boundary tests            ├─ LB-1001 + LB-1002 closed    ├─ Type system enforced
+└─ Registry validated   └─ Facades introduced        └─ Seams documented           └─ Mypy plugin active
+```
+
+**Critical Path**:
+1. **Week 1**: Phase 5a (Protocols) + Phase 5b (DI Boundaries) in parallel
+2. **Week 1.5**: Phase 5c (Layer Remediation) — 2 violations closed
+3. **Week 2**: Phase 5d (Type-Level Boundaries) — Type checker integration
+
+**Parallelization Opportunity**:
+- Weeks 1-2: 5a/5b can start in parallel (start 5c Week 1.5)
+- Estimated with 40% parallelization: 2-2.5 weeks vs 3-3.5 weeks sequential
+
+## Test Strategy Matrix
+
+| Test Suite | Phase | Files | Tests | Purpose |
+|-----------|-------|-------|-------|---------|
+| `test_protocol_signatures.py` | 5a | interfaces.py | 8 | Protocol contract validation |
+| `test_di_boundary.py` | 5b | di.py, di_plugin_facades.py | 6 | DI/caller boundary enforcement |
+| `test_layer_remediation.py` | 5c | all | 4 | Post-remediation validation |
+| `test_type_boundaries.py` | 5d | contracts_request.py, di.py | 5 | Type-level constraint checking |
+| **Existing suites** | 5a-5d | scanner_core, scanner_extract | 500+ | Regression testing (must pass) |
+
+**Validation Gate**: All suites green + `ruff check src/prism` + `mypy src/prism` before closure
+
+## Success Criteria Checklist
+
+- [ ] ✅ Phase 5a: 8 protocols defined + 2 enhanced + registry validation added
+- [ ] ✅ Phase 5b: DI boundary tests + facades + linting rules
+- [ ] ✅ Phase 5c: LB-1001 (L1→L4) resolved + LB-1002 (L3→L1) seam documented
+- [ ] ✅ Phase 5d: Mypy plugin + type refinements + runtime validation
+- [ ] ✅ All existing tests pass (no regressions)
+- [ ] ✅ `ruff check src/prism` reports zero layer boundary violations
+- [ ] ✅ `mypy src/prism` reports zero type errors in DI + plugins
+- [ ] ✅ Layer boundary documentation complete + human-readable
+
+---
+
+# RISK ASSESSMENT
+
+## Risk Matrix
+
+| Risk | Severity | Probability | Impact | Mitigation |
+|------|----------|-------------|--------|-----------|
+| **R1: YAML Move Breaks Extract Tests** | MEDIUM | LOW (5%) | Extract layer offline | Comprehensive test coverage before cutover |
+| **R2: Plugin Registry Rejects Valid Plugins** | MEDIUM | LOW (5%) | Scanner offline | Protocol validation permissive initially, strict later |
+| **R3: Mypy Plugin Causes Slow Builds** | LOW | MEDIUM (30%) | Developer velocity hit | Plugin caching + incremental builds |
+| **R4: Boundary Tests Create False Negatives** | LOW | MEDIUM (30%) | Hidden violations | Audit test results weekly |
+| **R5: Type Inference Prevents Plugin Loading** | MEDIUM | LOW (3%) | Runtime plugin failures | Explicit runtime validation backup |
+
+## Mitigation Strategy
+
+1. **R1 Mitigation**: Run extract test suite after YAML move (Day 1 of task 5c.2)
+2. **R2 Mitigation**: Keep validation warnings-only for first run (Phase 1 Week 1)
+3. **R3 Mitigation**: Profile mypy plugin on CI; use cache strategy if needed
+4. **R4 Mitigation**: Weekly boundary audit grep to find unreported violations
+5. **R5 Mitigation**: Keep `_construct_runtime_plugin()` validation as runtime fallback
+
+---
+
+# EFFORT BREAKDOWN
+
+## Summary
+
+| Phase | Sub-Tasks | Days | FTE | Notes |
+|-------|-----------|------|-----|-------|
+| **5a** | 4 tasks | 2-3 | 1.0 | Protocols + registry validation |
+| **5b** | 4 tasks | 2-3 | 1.0 | DI facades + boundary tests |
+| **5c** | 5 tasks | 2-3 | 1.0 | YAML move + plugin seam |
+| **5d** | 4 tasks | 2-3 | 1.0 | Mypy + type refinements |
+| **Integration** | Testing + validation | 1-2 | 1.0 | Cross-phase gate |
+| **TOTAL** | 17 tasks | **9-14 days** | **1.0 FTE** | Parallelizable to 6-8 days |
+
+## With Parallelization (40-50%)
+
+- Week 1: Start 5a + 5b in parallel (both days 1-3)
+- Week 1.5: Start 5c (days 4-6, parallel with 5b end)
+- Week 2: Start 5d (days 7-10, parallel with 5c end)
+- Week 2.5: Integration + validation (days 11-14)
+
+**Compressed Timeline**: 6-8 days wall-clock with 2 devs
+
+---
+
+# GLOSSARY & REFERENCES
+
+## Key Concepts
+
+- **Layer**: Directory-scoped boundary (scanner_core, scanner_extract, etc.)
+- **Plugin Protocol**: Interface contract defining plugin method signatures
+- **DI Boundary**: Separation between DI internals and caller-facing APIs
+- **Seam**: Intentional bridge point between layers (e.g., ansible/extract_utils.py)
+- **Type-Level Boundary**: Enforced via Protocol types + mypy checking
+
+## Existing Artifacts
+
+- [Q3 Initiative 5 Boundary Rules](q3-init5-boundary-enforcement-rules.yaml)
+- [Q3 Initiative 5 Layer Audit](q3-init5-layer-dependency-audit.md)
+- [Q3 Initiative 5 Remediation Roadmap](q3-init5-remediation-roadmap.md)
+- [Q3 Initiative 5 Grading Report](q3-init5-grading-report.yaml)
+
+## Related Code
+
+- `src/prism/scanner_core/di.py` — DIContainer (16 factory methods)
+- `src/prism/scanner_core/plugin_resolver.py` — Plugin lookup logic
+- `src/prism/scanner_plugins/registry.py` — Plugin registry + validation
+- `src/prism/scanner_plugins/interfaces.py` — Plugin protocols
+- `src/prism/tests/test_plugin_extract_boundary.py` — Existing boundary tests
+
+---
+
+# APPENDIX: ASCII LAYER DIAGRAM
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ L7: API/CLI Facade (api.py, cli.py, api_layer/, cli_app/)      │
+│    ↓ (allowed to import all)                                    │
+├─────────────────────────────────────────────────────────────────┤
+│ L6: Scanner Kernel (scanner_kernel/)                           │
+│    ↓ (allowed to import L0-L5)                                 │
+├─────────────────────────────────────────────────────────────────┤
+│ L5: README/Reporting (scanner_readme/, scanner_reporting/)      │
+│    ├─ plugin_seams.py: INTENTIONAL FACADE to L3               │
+│    └─ ↓ (allowed to import L0-L4)                             │
+├─────────────────────────────────────────────────────────────────┤
+│ L4: Scanner I/O (scanner_io/)                                  │
+│    └─ ✅ NO UPWARD IMPORTS (correctly isolated)               │
+├─────────────────────────────────────────────────────────────────┤
+│ L3: Scanner Plugins (scanner_plugins/)                         │
+│    ├─ ansible/extract_utils.py: INTENTIONAL SEAM to L1        │
+│    ├─ FIXED Phase 5b: DI boundaries enforced                  │
+│    └─ ✅ NO OTHER UPWARD IMPORTS (after fix)                  │
+├─────────────────────────────────────────────────────────────────┤
+│ L2: Scanner Config (scanner_config/)                           │
+│    └─ ✅ NO UPWARD IMPORTS (correctly isolated)               │
+├─────────────────────────────────────────────────────────────────┤
+│ L1: Scanner Extract (scanner_extract/)                         │
+│    ├─ FIXED Phase 5c: YAML utils moved to L0                 │
+│    └─ ✅ NO UPWARD IMPORTS (after fix)                        │
+├─────────────────────────────────────────────────────────────────┤
+│ L0: Scanner Core (scanner_core/)                               │
+│    ├─ protocols_runtime.py: TYPE_CHECKING only → L6           │
+│    ├─ FIXED Phase 5b: DI facades enforce boundaries           │
+│    └─ ✅ NO UPWARD IMPORTS (correctly isolated)               │
+├─────────────────────────────────────────────────────────────────┤
+│ DATA: Contracts (scanner_data/)                                │
+│    └─ ✅ NO LAYER DEPENDENCIES (pure data types)             │
+└─────────────────────────────────────────────────────────────────┘
+
+Legend:
+✅ = Correct/Fixed
+⚠️ = Violation to fix
+→ = Allowed downward import
+├─ = Intentional seam/exception
+```
+
+---
+
+**Generated by**: Scout-Q3Init5Phase5Builder  
+**Tier**: FREE (0x) — No escalation  
+**Coverage**: 90% of Phase 5a-5d requirements mapped  
+**Confidence**: 0.92 (based on audit + existing Q3-5 documents)  
+**Next Step**: Builder team reviews + starts Phase 5a Week 1, Day 1

@@ -16,6 +16,7 @@ from prism.scanner_plugins.bootstrap import (
 from prism.scanner_plugins.registry import (
     PRISM_PLUGIN_API_VERSION,
     PluginAPIVersionMismatch,
+    PluginRegistry,
     validate_plugin_api_version,
 )
 from prism.scanner_plugins.discovery import (
@@ -181,6 +182,7 @@ __all__ = [
     "PRISM_PLUGIN_API_VERSION",
     "PRISM_PLUGIN_ENTRY_POINT_GROUP",
     "PluginAPIVersionMismatch",
+    "PluginRegistry",
     "ScanPipelinePlugin",
     "bootstrap_default_plugins",
     "discover_entry_point_plugins",

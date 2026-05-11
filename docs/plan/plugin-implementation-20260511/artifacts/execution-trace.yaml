@@ -1,0 +1,177 @@
+authoritative_resume_anchor: docs/plan/plugin-implementation-20260511/plan.yaml
+current_phase: phase_1
+current_wave: wave_5
+cycle: plugin-implementation-20260511
+k8s_terraform_parity: ACHIEVED
+latest_checkpoint:
+  artifact_proof: []
+  blocking_issues: []
+  failure_debug: null
+  next_action: Continue phase_1 migration from 42 remaining root tests, prioritizing
+    path-sensitive guardrail/parity suites.
+  phase: phase_1
+  plan_pointer_synced: true
+  receipt_proof: []
+  source_summary_artifact: docs/plan/plugin-implementation-20260511/artifacts/phase1-batch4-validation.yaml
+  status: in_progress
+  status_line: 'Phase 1 wave 4 complete: delegated migration landed, duplicate root
+    copies reconciled, blocker test patched, and all marker lanes are green.'
+  wave: 4
+migration_status:
+  core:
+    files: 4
+    status: migrated
+  integration:
+    files: 37
+    status: migrated
+  plugins:
+    files: 1
+    status: migrated
+  total: 42
+next_action: 'Phase 7: Commit & Documentation Finalization (Wave 5)'
+note: Phases 4 and 5 can execute in parallel (disjoint file sets)
+phase_1_status: COMPLETE
+phase_1_task_1_2: complete - 121 tests reorganized
+phase_1_task_1_3: complete - tox marker envs verified working
+phase_2_gate: PASS
+phase_2_status: COMPLETE
+phase_2_task_2_1: complete - PRD.yaml updated (error_envelope, platform_adapters,
+  test_infrastructure)
+phase_2_task_2_2: complete - README.md updated (test boundaries table, platform status,
+  error envelope)
+phase_2_task_2_3: complete - architecture.md updated (error adapter, platform status,
+  test architecture)
+phase_2_task_2_4: complete - REVIEW_20260511.md updated (execution recommendations)
+phase_3_plan: K8s/Terraform DAG created (16 tasks, 4 waves, 30.5h effort)
+phase_3_status: COMPLETE
+phase_3_summary: DAG-based K8s/Terraform implementation plan (4 waves, 16 tasks, 30.5h
+  effort)
+phase_4_completion_date: '2026-05-11'
+phase_4_regressions: false
+phase_4_status: COMPLETE
+phase_4_summary:
+  error_codes_implemented: 11
+  fixtures_created: 6
+  no_regressions: true
+  platform: kubernetes
+  scenarios_implemented: 27
+  tasks_completed: 4
+  tests_added: 42
+  tests_passing: 42
+phase_5_regressions: false
+phase_5_status: COMPLETE
+plan_id: plugin-implementation-20260511
+ready_for_phase_2: true
+ready_for_phase_3: true
+ready_for_phase_4: true
+ready_for_phase_5: true
+ready_for_phase_6: true
+timeline:
+- event: phase_barrier
+  failure_debug: null
+  phase: phase_0
+  plan_pointer_synced: true
+  source_artifacts: []
+  status: completed
+  summary: Executed Option A kickoff with model routing validation (Tier 2 scout +
+    Tier 0 archivist), produced inventory/manifest artifacts, moved 26 stale plan
+    artifacts into docs/plan/archive/plugin-implementation-20260511-phase0, and re-ran
+    pytest baseline successfully (1369 passed).
+  timestamp: '2026-05-11T15:41:58.746452+00:00'
+  wave: 0
+- event: phase_barrier
+  failure_debug: null
+  phase: phase_0
+  plan_pointer_synced: true
+  source_artifacts: []
+  status: completed
+  summary: Executed Option A kickoff with model routing validation (Tier 2 scout +
+    Tier 0 archivist), produced inventory/manifest artifacts, moved 26 stale plan
+    artifacts into docs/plan/archive/plugin-implementation-20260511-phase0, and re-ran
+    pytest baseline successfully (1369 passed).
+  timestamp: '2026-05-11T15:42:31.583658+00:00'
+  wave: 0
+- event: wave_barrier
+  failure_debug: null
+  phase: phase_1
+  plan_pointer_synced: true
+  source_artifacts:
+  - docs/plan/plugin-implementation-20260511/artifacts/model-usage-ledger.yaml
+  - docs/plan/plugin-implementation-20260511/artifacts/phase1-parallel-validation.yaml
+  status: completed
+  summary: Delegated a first migration wave (16 test files) into core/plugins/ansible/integration,
+    then executed parallel lane gates (-m core, -m plugins, -m integration) with all
+    lanes green.
+  timestamp: '2026-05-11T16:31:00+00:00'
+  wave: 1
+- event: wave_barrier
+  failure_debug: null
+  phase: phase_1
+  plan_pointer_synced: true
+  source_artifacts:
+  - docs/plan/plugin-implementation-20260511/artifacts/phase1-batch2-move-plan.yaml
+  - docs/plan/plugin-implementation-20260511/artifacts/phase1-batch2-validation.yaml
+  - docs/plan/plugin-implementation-20260511/artifacts/model-usage-ledger.yaml
+  status: completed
+  summary: Dispatched three disjoint builders in parallel for batch-2 test migration,
+    reconciled copy-retain drift by removing 12 root duplicates, and revalidated core/plugins/integration
+    lanes in parallel with all passes.
+  timestamp: '2026-05-11T16:48:00+00:00'
+  wave: 2
+- event: wave_barrier
+  failure_debug: null
+  phase: phase_1
+  plan_pointer_synced: true
+  source_artifacts:
+  - docs/plan/plugin-implementation-20260511/artifacts/phase1-batch3-move-plan.yaml
+  - docs/plan/plugin-implementation-20260511/artifacts/phase1-batch3-validation.yaml
+  - docs/plan/plugin-implementation-20260511/artifacts/model-usage-ledger.yaml
+  status: completed
+  summary: Dispatched three disjoint builders in parallel for batch-3 migration (18
+    files), reconciled copy-retain drift by removing duplicate root files, and revalidated
+    core/plugins/integration lanes in parallel with all passes.
+  timestamp: '2026-05-11T17:24:00+00:00'
+  wave: 3
+- event: wave_barrier
+  failure_debug: null
+  phase: phase_1
+  plan_pointer_synced: true
+  source_artifacts:
+  - docs/plan/plugin-implementation-20260511/artifacts/phase1-batch4-move-plan.yaml
+  - docs/plan/plugin-implementation-20260511/artifacts/phase1-batch4-validation.yaml
+  - docs/plan/plugin-implementation-20260511/artifacts/model-usage-ledger.yaml
+  status: completed
+  summary: Dispatched three disjoint builders in parallel for batch-4 migration (18
+    files), reconciled copy-retain drift by removing duplicate root files, fixed a
+    stateless-marker guardrail test that referenced pre-move node IDs, and revalidated
+    marker lanes successfully.
+  timestamp: '2026-05-11T17:55:00+00:00'
+  wave: 4
+timestamp: '2026-05-11T19:04:49.712266'
+total_tests_passing: 1443
+updated_at: '2026-05-11T17:55:00+00:00'
+validation_gates:
+  core: 613 passed, 1 skipped
+  integration: 933 passed, 7 skipped
+  plugins: 318 passed, 1 skipped
+  total: 1864 passed, 9 skipped
+version: 1
+wave_1_analysis: Stub audit + error category mapping documented
+wave_1_design: Error code specs + fixture/test design documented
+wave_1_status: COMPLETE
+wave_2_k8s: 42 tests passing, 257-line adapter, 6 fixture modules (27 scenarios)
+wave_2_status: COMPLETE
+wave_3_status: COMPLETE
+wave_3_terraform: 42 tests passing, 160-line adapter, 6 fixture modules (18 scenarios)
+wave_5_status: complete
+phase_6_status: COMPLETE
+wave_4_status: COMPLETE
+v1_parity_tests: 110 passed, 6 skipped
+v2_integration_full_suite: 1443 passed, 7 skipped
+v2_integration_markers:
+  core: 613 passed
+  plugins: 318 passed
+  integration: 1017 passed
+v3_closure_regressions: 0
+phase_6_timestamp: '2026-05-11T19:00:10.002323'
+ready_for_phase_7: true

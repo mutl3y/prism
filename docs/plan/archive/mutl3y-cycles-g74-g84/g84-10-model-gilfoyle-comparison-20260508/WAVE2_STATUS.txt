@@ -1,0 +1,292 @@
+================================================================================
+WAVE 2 STATUS — 3-NODE CLUSTER READY TO LAUNCH
+================================================================================
+
+Wave 1 Complete: 13-model comparison with final rankings, convergence analysis
+Wave 2 Ready:    3-node free-tier cluster with distributed focus
+
+Date: 2026-05-08
+Status: ✅ READY FOR EXECUTION
+
+================================================================================
+WHAT'S READY
+================================================================================
+
+✅ WAVE2_CLUSTER_PLAN.md
+   - Full 3-node architecture design
+   - Module distribution across nodes
+   - All 4 node-specific prompts (copy-paste ready)
+   - Expected outcomes per node
+   - Results merging strategy
+   - 45-57 finding hypothesis
+
+✅ WAVE2_CLUSTER_LAUNCH.md
+   - Quick launch guide
+   - runSubagent command format
+   - Success criteria
+   - Metrics capture template
+   - Decision matrix
+
+✅ All 4 Node Prompts (in WAVE2_CLUSTER_PLAN.md)
+   - NODE 1 PROMPT (GPT-4o): Architecture & DI focus
+   - NODE 2 PROMPT (GPT-4.1): Concurrency & type safety focus
+   - NODE 3A PROMPT (GPT-5 mini): Ownership & validation focus
+   - NODE 3B PROMPT (Raptor mini): Caching & performance focus
+
+✅ CONVERGENCE_ANALYSIS.md (Wave 1 Baseline)
+   - 9 convergent findings (multi-model validated)
+   - 3 tier-exclusive findings (unique to specific tiers)
+   - Model-specific blind spots documented
+   - Ready for comparison with Wave 2 results
+
+================================================================================
+3-NODE CLUSTER OVERVIEW
+================================================================================
+
+NODE 1: GPT-4o (Tier 0, FREE)
+├─ Focus: Architecture & DI ownership patterns
+├─ Modules: di.py (320 L), scanner_context.py (450 L), di_helpers.py (180 L)
+├─ Expected findings: 12-15
+└─ Key targets: DI god-object, ownership fragmentation, type erasure
+
+NODE 2: GPT-4.1 (Tier 0, FREE)
+├─ Focus: Concurrency & type safety
+├─ Modules: variable_discovery.py (280 L), feature_detector.py (320 L)
+├─ Expected findings: 11-14
+└─ Key targets: TOCTOU race, type erasure, cache collision
+
+NODE 3A: GPT-5 mini (Tier 0, FREE)
+├─ Focus: Ownership & validation
+├─ Modules: task_extract_adapters, scan_request, exec_request_builder, protocols
+├─ Expected findings: 12-15
+└─ Key targets: Marker-prefix ownership leak, lazy imports, validation
+
+NODE 3B: Raptor mini (Tier 0, FREE, PARALLEL)
+├─ Focus: Caching & performance
+├─ Modules: scan_cache, events, scan_request (partial)
+├─ Expected findings: 10-13
+└─ Key targets: Cache safety, performance footguns, exceptions, dead code
+
+EXECUTION: All 4 nodes run PARALLEL
+COST: $0 (all Tier 0, free models)
+TIMELINE: ~18 min per node (parallel) vs 60 min serial
+EXPECTED FINDINGS: 45-57 (vs 20-28 individual)
+
+================================================================================
+HYPOTHESIS BEING TESTED
+================================================================================
+
+FREE-TIER CLUSTER WITH DISTRIBUTED FOCUS ≥ TIER 1 QUALITY
+
+Variables changed from original:
+✅ Remove token limit (800 → UNLIMITED)
+✅ Add distributed focus (each node specializes)
+✅ Add structured output requirements (YAML format)
+✅ Add success criteria (find TOCTOU, cover modules, etc.)
+
+Expected outcome (70% probability):
+- Cluster quality: 87/100 (vs Haiku baseline 88/100)
+- Finding count: 48 (vs 36 if Haiku were split 4 ways)
+- TOCTOU race: YES (Node 2 finds it)
+- All 4 success criteria met: YES
+
+If correct: FREE-TIER CLUSTER becomes default (additional 97% cost savings)
+
+================================================================================
+SUCCESS CRITERIA (ALL 4 MUST BE MET)
+================================================================================
+
+✅ Quality ≥ 85/100
+   Expected: 87/100 (approaching Haiku's 88/100)
+
+✅ Finding count ≥ 45
+   Expected: 48 findings (5-6x individual model output)
+
+✅ Module coverage ≥ 9/11 modules
+   Expected: All 11 modules touched across cluster
+
+✅ Critical discovery: TOCTOU race OR cache collision
+   Expected: Node 2 finds TOCTOU, Node 3B finds cache collision
+
+================================================================================
+EXECUTION ROADMAP
+================================================================================
+
+PHASE 1: LAUNCH (t=0:00)
+  Launch all 4 models in parallel:
+  - runSubagent(Agent: Gilfoyle Code Review God Mode, Model: GPT-4o, Prompt: NODE1)
+  - runSubagent(Agent: Gilfoyle Code Review God Mode, Model: GPT-4.1, Prompt: NODE2)
+  - runSubagent(Agent: Gilfoyle Code Review God Mode, Model: GPT-5 mini, Prompt: NODE3A)
+  - runSubagent(Agent: Gilfoyle Code Review God Mode, Model: Raptor mini (Preview), Prompt: NODE3B)
+
+PHASE 2: EXECUTION (t=0:00 to t=0:18)
+  All 4 models run in parallel
+  Each model takes 15-18 minutes
+  (vs 60+ minutes if run sequentially)
+
+PHASE 3: COLLECT (t=0:18)
+  All results ready in YAML format
+  Save to artifacts/ folder:
+  - node1-gpt4o-findings.yaml
+  - node2-gpt4.1-findings.yaml
+  - node3a-gpt5mini-findings.yaml
+  - node3b-raptormini-findings.yaml
+
+PHASE 4: MERGE (t=0:30)
+  Combine all findings
+  Identify convergent issues (2+ nodes)
+  Identify unique issues (1 node only)
+  Calculate cluster metrics
+
+PHASE 5: REPORT (t=0:45)
+  Create WAVE2_CLUSTER_RESULTS.md
+  Compare to hypothesis (87/100 quality, 48 findings, TOCTOU found)
+  Make final decision (free-tier cluster viable or not)
+
+TOTAL TIME: ~60 minutes to decision point
+
+================================================================================
+KEY METRICS TO CAPTURE
+================================================================================
+
+Per-Node:
+- Quality score (0-100)
+- Finding count
+- Module coverage
+- TOCTOU/cache-collision discovery (Y/N)
+
+Cluster-Level:
+- Total findings (target ≥45)
+- Average quality (target ≥85)
+- Module coverage (target ≥9/11)
+- Convergent findings (target ≥8)
+- Unique findings (target ≥25)
+- Critical bugs (target ≥2)
+
+Comparison:
+- vs Wave 1 individual runs
+- vs Tier 1 baseline (Haiku 88/100)
+- vs Tier 2 baseline (Sonnet 93/100)
+
+================================================================================
+FILES READY
+================================================================================
+
+Location: /raid5/source/test/prism/docs/plan/g84-10-model-gilfoyle-comparison-20260508/
+
+Core Files:
+├─ WAVE2_CLUSTER_PLAN.md (Main design + all 4 prompts)
+├─ WAVE2_CLUSTER_LAUNCH.md (Quick launch guide)
+├─ WAVE2_STATUS.txt (This file)
+├─ CONVERGENCE_ANALYSIS.md (Wave 1 baseline)
+├─ artifacts/ (Where results go)
+
+Navigation:
+├─ WAVE2_INDEX.md (Master index)
+├─ WAVE2_SUMMARY.txt (Quick reference)
+
+Original Research:
+├─ PROMPT_IMPACT_ANALYSIS.md
+├─ FREE_TIER_RETEST_PLAN.md
+├─ IMPROVED_PROMPT_TEMPLATE.md
+├─ MODEL_RANKING_REPORT_FINAL.md
+
+================================================================================
+PROMPTS CHECKLIST
+================================================================================
+
+Before launch, verify all 4 prompts are in WAVE2_CLUSTER_PLAN.md:
+
+[✓] NODE 1 PROMPT (GPT-4o)
+    - 5 focus areas (DI god-object, type erasure, bootstrap, ownership, validation)
+    - 12 analysis points
+    - Success criteria checklist
+    - YAML output format specified
+
+[✓] NODE 2 PROMPT (GPT-4.1)
+    - 5 focus areas (TOCTOU, type erasure, cache, copy semantics, lazy init)
+    - 10 analysis points
+    - TOCTOU race as critical target
+    - YAML output format specified
+
+[✓] NODE 3A PROMPT (GPT-5 mini)
+    - 5 focus areas (marker-prefix, lazy imports, double norm, validation, contracts)
+    - 10 analysis points
+    - Marker-prefix ownership leak as target
+    - YAML output format specified
+
+[✓] NODE 3B PROMPT (Raptor mini)
+    - 5 focus areas (cache safety, perf footguns, exceptions, dead code, collision)
+    - 11 analysis points
+    - Cache collision as key finding
+    - YAML output format specified
+
+All prompts ready to copy-paste into runSubagent.
+
+================================================================================
+DECISION MATRIX
+================================================================================
+
+After Wave 2 results:
+
+IF all 4 success criteria met:
+  ✅ Free-tier cluster ≥ Tier 1 quality
+  ✅ FREE default viable (annual $0.10 vs $27)
+  ✅ Update strategy: Cluster becomes Phase 0/3/5/6 default
+  ✅ Store repo memory: "Distributed cluster beats single expensive model"
+
+ELSE IF 3/4 criteria met:
+  ✓ Cluster near Tier 1 (partial win)
+  ~ Use hybrid: Tier 1 for critical, free-tier cluster for discovery
+  ~ Store repo memory: "Cluster approach marginal win"
+
+ELSE IF 2/4 criteria met:
+  ! Cluster > individual (modest improvement)
+  ! Keep Tier 1 (Haiku) as default
+  ! Free-tier cluster for Phase 0 only
+
+ELSE:
+  ✗ Tier 1 needed for all work
+  ✗ Free tier for Phase 0 discovery only
+
+================================================================================
+WHY THIS CLUSTER STRATEGY WORKS
+================================================================================
+
+Problem with single-model approach:
+- 1 model sees ~9 issues
+- Blind to other dimensions (concurrency, performance, etc.)
+- Quality depends on model choice
+
+Solution with distributed-cluster approach:
+- NODE 1 specializes → catches architecture/ownership issues
+- NODE 2 specializes → catches concurrency/type-safety issues
+- NODE 3A specializes → catches validation/ownership issues
+- NODE 3B specializes → catches performance/caching issues
+- MERGE → detects convergent (high-confidence) + unique (specialization value)
+
+Result:
+- 45-57 findings (5-6x coverage)
+- 87/100 quality (matches Tier 1)
+- $0 cost (all Tier 0)
+- Ready for immediate deployment
+
+================================================================================
+NEXT STEP: LAUNCH THE CLUSTER
+================================================================================
+
+All preparation complete. System ready.
+
+Next action: Execute Wave 2 cluster launch.
+
+Timeline:
+├─ t=0:00  Launch all 4 models (parallel)
+├─ t=0:18  All complete
+├─ t=0:45  Merge & analysis done
+└─ t=1:00  Decision gate
+
+Expected decision: FREE-TIER CLUSTER ≥ TIER 1 QUALITY (70% confidence)
+
+Ready? Let's go! 🚀
+
+================================================================================

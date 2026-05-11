@@ -1,9 +1,29 @@
-"""Terraform reserved target plugin ownership seam."""
+"""Terraform reserved target plugin ownership seam with error adapter support."""
 
 from __future__ import annotations
 
 import types
 from typing import Any, cast
+
+from prism.scanner_plugins.terraform.error_adapter import (
+    build_terraform_error_detail,
+    classify_terraform_error,
+)
+from prism.scanner_plugins.terraform.error_codes import (
+    TF_APPLY_FAILED,
+    TF_BACKEND_FAILED,
+    TF_CREDENTIAL_FAILED,
+    TF_ERROR_CATEGORY_MAP,
+    TF_ERROR_CODES,
+    TF_LOCK_FAILED,
+    TF_MODULE_NOT_FOUND,
+    TF_PLAN_FAILED,
+    TF_RESOURCE_FAILED,
+    TF_STATE_CORRUPTED,
+    TF_TRANSIENT_ERRORS,
+    TF_VALIDATION_FAILED,
+    TF_VERSION_FAILED,
+)
 
 PLUGIN_CONTRACT_VERSION: types.MappingProxyType[str, int] = types.MappingProxyType(
     {"major": 1, "minor": 0}
@@ -74,4 +94,20 @@ __all__ = [
     "build_reserved_target_capability_response",
     "build_reserved_target_classifier_entry",
     "build_unsupported_scan_pipeline_outcome",
+    # Error adapter exports
+    "build_terraform_error_detail",
+    "classify_terraform_error",
+    "TF_APPLY_FAILED",
+    "TF_BACKEND_FAILED",
+    "TF_CREDENTIAL_FAILED",
+    "TF_ERROR_CATEGORY_MAP",
+    "TF_ERROR_CODES",
+    "TF_LOCK_FAILED",
+    "TF_MODULE_NOT_FOUND",
+    "TF_PLAN_FAILED",
+    "TF_RESOURCE_FAILED",
+    "TF_STATE_CORRUPTED",
+    "TF_TRANSIENT_ERRORS",
+    "TF_VALIDATION_FAILED",
+    "TF_VERSION_FAILED",
 ]

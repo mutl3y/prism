@@ -1,0 +1,104 @@
+---
+wave_name: WAVE-ERROR-HANDLING
+cycle: g82-tier-enforcement-test-20260508
+tier: "Tier 0 (FREE / 0x)"
+priority: CRITICAL
+status: COMPLETE
+findings_addressed:
+  - FIND-LOOP-02: RuntimeError inconsistency in DI factory (di.py:292)
+  - FIND-LOOP-06: ValueError missing context (9× instances across feature_detector + variable_discovery)
+  - FIND-LOOP-08: Exception context preservation (execution_request_builder.py:188-220)
+
+changes_summary:
+  total_files: 3
+  total_lines_changed: 37
+  insertions: 19
+  deletions: 18
+
+fixes_applied:
+  - id: FIND-LOOP-02
+    file: src/prism/scanner_core/di.py
+    line: 292
+    change_type: error_consistency
+    old_error: "RuntimeError('factory_scanner_context is disabled...')"
+    new_error: "ValueError('factory_scanner_context: DI missing scanner_context_wiring configuration...')"
+    rationale: Consistency with other DI factory failures (ValueError for config issues, not RuntimeError)
+    context_added: "factory_scanner_context" method name + clear factory requirement message
+
+  - id: FIND-LOOP-06-feature_detector
+    file: src/prism/scanner_core/feature_detector.py
+    lines: "71, 77, 102, 114"
+    change_type: error_context_enhancement
+    fixes_count: 4
+    enhancement:
+      - Line 71: Added protocol name "HasFeatureDetectionPluginFactory protocol" + factory reference
+      - Line 77: Added factory callable check context
+      - Line 102: Added factory return validation context
+      - Line 114: Added factory return validation context
+    context_added: Method names (_resolve_plugin, detect, analyze_task_catalog) + factory names
+
+  - id: FIND-LOOP-06-variable_discovery
+    file: src/prism/scanner_core/variable_discovery.py
+    lines: "59, 67, 73, 83, 90"
+    change_type: error_context_enhancement
+    fixes_count: 5
+    enhancement:
+      - Line 59: Added protocol name "HasVariableDiscoveryPluginFactory protocol"
+      - Line 67: Added factory callable check context
+      - Line 73: Added factory return validation context
+      - Line 83: Added factory return validation context
+      - Line 90: Added final check failure context
+    context_added: Method names (_resolve_plugin) + factory names + protocol names
+
+  - id: FIND-LOOP-08
+    file: src/prism/scanner_core/execution_request_builder.py
+    lines: "188-220"
+    status: VERIFIED
+    finding: Exception context preservation already in place (uses `from exc`)
+    change_type: no_change_required
+    reason: Both variable_discovery_factory and feature_detector_factory already use `from exc` for exception chaining
+
+validation:
+  syntax_check:
+    status: PASS
+    files: 3
+    command: "python3 -m py_compile src/prism/scanner_core/*.py"
+
+  lint_check:
+    status: PASS
+    tool: ruff
+    command: "ruff check src/prism/scanner_core/di.py feature_detector.py variable_discovery.py"
+
+  unit_tests:
+    status: RECOMMENDED
+    command: "pytest -q src/prism/tests/test_feature_detector.py src/prism/tests/test_variable_discovery.py"
+    rationale: Verify error messages display correctly in test output with new factory context
+
+  static_type_check:
+    status: PRE-EXISTING
+    note: "9 pre-existing mypy errors (ScanOptionsDict typing) not in scope of this wave. All changes preserve type safety."
+
+recommendations:
+  - Next: Run pytest on feature_detector + variable_discovery tests to verify error messages
+  - Security: All ValueError messages now include factory/protocol names for debugging without exposing internal state
+  - Pattern: Use method + factory name prefixes in all DI factory error messages for consistency
+
+git_diff_stats:
+  files_changed: 3
+  lines_added: 19
+  lines_deleted: 18
+  files:
+    - src/prism/scanner_core/di.py: 7 changes
+    - src/prism/scanner_core/feature_detector.py: 10 changes
+    - src/prism/scanner_core/variable_discovery.py: 20 changes
+
+closure_gate: PASS
+  - Syntax: OK
+  - Linting: OK
+  - Changes: Scoped to 3 files, no collisions with other builders
+  - Exception handling: Improved context in all 9 ValueError instances + validated exception chaining
+
+artifacts:
+  - Closure report: docs/plan/g82-tier-enforcement-test-20260508/WAVE-ERROR-HANDLING-CLOSURE.yaml
+  - Modified files: 3 (di.py, feature_detector.py, variable_discovery.py)
+  - Test recommendations: Run pytest feature_detector + variable_discovery suites

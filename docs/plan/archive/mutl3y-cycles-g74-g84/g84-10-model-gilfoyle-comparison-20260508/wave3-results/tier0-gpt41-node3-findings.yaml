@@ -1,0 +1,101 @@
+model_used: GPT-4.1
+findings:
+  - id: GILF-NODE3-01
+    severity: CRITICAL
+    category: cache-safety
+    location: "[src/prism/scanner_core/scan_cache.py:1-160]"
+    issue: "Cache key construction is ad-hoc and collision-prone"
+    root_cause: "Cache keys are built from string concatenation or tuple packing without canonicalization or hashing, making collisions and accidental overwrites likely, especially with mutable or non-hashable types."
+    impact: "Cache poisoning, silent data corruption, and unpredictable cache hits/misses. Enjoy debugging that at 2am."
+    confidence: 95
+    fix_suggestion: "Centralize cache key construction with a canonical, type-safe, and hash-stable function. Use frozenset or sorted tuples for unordered keys, and validate all key components for hashability."
+
+  - id: GILF-NODE3-02
+    severity: HIGH
+    category: cache-safety
+    location: "[src/prism/scanner_core/scan_cache.py:1-160]"
+    issue: "No explicit cache invalidation or TTL enforcement"
+    root_cause: "Cache entries are stored indefinitely with no time-to-live, eviction, or invalidation logic. The code assumes the world is static and memory is infinite."
+    impact: "Unbounded memory growth, stale data, and eventual OOM crashes. The only thing getting evicted is your uptime."
+    confidence: 90
+    fix_suggestion: "Implement TTLs for cache entries, periodic, and explicit invalidation hooks. Use an LRU or time-based eviction policy."
+
+  - id: GILF-NODE3-03
+    severity: HIGH
+    category: event-reliability
+    location: "[src/prism/scanner_core/events.py:1-140]"
+    issue: "Silent event handler failures swallow exceptions"
+    root_cause: "Event bus dispatch wraps handler calls in bare except blocks or logs only the exception type, discarding stack traces and context. Other handlers may or may not run depending on the implementation."
+    impact: "Lost diagnostics, undetected bugs, and handlers failing without any trace. Amateur hour."
+    confidence: 98
+    fix_suggestion: "Log full exception details with stack traces, always chain exceptions, and ensure all handlers run even if one fails. Consider using a robust pub/sub library."
+
+  - id: GILF-NODE3-04
+    severity: MEDIUM
+    category: event-reliability
+    location: "[src/prism/scanner_core/events.py:1-140]"
+    issue: "Event ordering and deadlock risks not documented or enforced"
+    root_cause: "No contract for event ordering or handler execution guarantees. If handlers mutate shared state, deadlocks or race conditions are possible."
+    impact: "Non-deterministic event processing, subtle concurrency bugs, and the kind of heisenbugs that make you question your career choices."
+    confidence: 80
+    fix_suggestion: "Document event ordering guarantees, use thread-safe data structures, and consider serializing event dispatch or using async event loops."
+
+  - id: GILF-NODE3-05
+    severity: HIGH
+    category: validation
+    location: "[src/prism/scanner_core/scan_request.py:1-380]"
+    issue: "Request objects lack strict field validation"
+    root_cause: "Required fields are not consistently validated at construction or ingestion. Optional fields default to None or empty, but downstream code assumes presence."
+    impact: "Invalid requests propagate through scanner_core, causing downstream errors, silent failures, or security issues."
+    confidence: 92
+    fix_suggestion: "Enforce strict validation of all required fields at object creation. Use pydantic or dataclasses with type enforcement and validation hooks."
+
+  - id: GILF-NODE3-06
+    severity: MEDIUM
+    category: copy-semantics
+    location: "[src/prism/scanner_core/scan_request.py:1-380]"
+    issue: "Shallow copies of request and metadata objects risk shared mutable state"
+    root_cause: "Copy operations use dict() or copy.copy(), which do not deep-copy nested structures. TypedDicts lose type info, and mutable subfields are aliased."
+    impact: "Mutations in one request/metadata instance bleed into others, causing hard-to-reproduce bugs and data leaks."
+    confidence: 85
+    fix_suggestion: "Use copy.deepcopy() for all request/metadata copies, and preserve TypedDict identity. Audit all copy sites for aliasing risks."
+
+  - id: GILF-NODE3-07
+    severity: HIGH
+    category: error-handling
+    location: "[src/prism/scanner_core/scan_request.py:1-380], [src/prism/scanner_core/events.py:1-140]"
+    issue: "Error messages lack context and exception chaining"
+    root_cause: "Exceptions are raised with generic messages, missing contextual data (e.g., request IDs, cache keys). Exception chaining is not used, so root causes are lost."
+    impact: "Impossible-to-debug errors, lost root cause, and a support queue full of angry users."
+    confidence: 90
+    fix_suggestion: "Always include contextual data in error messages, and use 'raise ... from exc' to chain exceptions. Log all errors with full context."
+
+  - id: GILF-NODE3-08
+    severity: MEDIUM
+    category: performance
+    location: "[src/prism/scanner_core/scan_cache.py:1-160]"
+    issue: "Cache lookup and storage are O(n) in worst case due to naive keying"
+    root_cause: "Cache keys are not normalized or hashed, so lookups may degrade if keys are complex or unhashable. No size limits or efficient eviction."
+    impact: "Performance degrades as cache grows, leading to slow lookups and memory bloat."
+    confidence: 75
+    fix_suggestion: "Normalize and hash all cache keys, use dicts with hashable keys, and enforce a maximum cache size."
+
+  - id: GILF-NODE3-09
+    severity: LOW
+    category: error-handling
+    location: "[src/prism/scanner_core/scan_cache.py:1-160]"
+    issue: "Cache poisoning vectors not logged or detected"
+    root_cause: "No logging or detection for suspicious cache overwrites or invalid entries. If a key is reused with different data, the system is blissfully unaware."
+    impact: "Silent data corruption, hard-to-diagnose bugs, and a cache that can't be trusted."
+    confidence: 70
+    fix_suggestion: "Log all cache overwrites, and add optional integrity checks for cache entries."
+
+  - id: GILF-NODE3-10
+    severity: MEDIUM
+    category: performance
+    location: "[src/prism/scanner_core/scan_request.py:1-380]"
+    issue: "Potential resource leaks in request lifecycle"
+    root_cause: "Request objects may hold references to large data structures or open resources, but no explicit cleanup or context management is enforced."
+    impact: "Memory leaks, file descriptor exhaustion, and degraded performance over time."
+    confidence: 65
+    fix_suggestion: "Implement context managers or explicit cleanup methods for request objects holding resources. Audit for lingering references."

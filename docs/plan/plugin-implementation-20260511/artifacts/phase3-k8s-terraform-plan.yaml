@@ -1,0 +1,998 @@
+plan_id: plugin-implementation-20260511-phase3
+title: "K8s/Terraform Adapter Implementation Plan"
+created_at: 2026-05-11T00:00:00Z
+created_by: gem-planner
+status: pending
+complexity: complex
+phase: phase_3
+
+objective: |
+  Implement production-ready K8s and Terraform platform error adapters with full error envelope
+  protocol support, comprehensive fixture coverage, and cross-platform parity validation against
+  the Ansible reference implementation.
+
+codebase_state:
+  error_envelope:
+    categories: 5
+    codes: 21
+    provenance_fields: 7
+    secret_sanitization: true
+  ansible_reference:
+    implementation_lines: 176
+    scenario_coverage: 19
+    stability: production
+  test_infrastructure:
+    boundaries: 4  # core/plugins/ansible/integration
+    markers: 4  # core, plugins, ansible, integration
+    fixture_files: 21
+    scenario_dirs: 6
+  plugin_architecture:
+    di_registry: platform-agnostic PluginRegistry-driven
+    adapter_protocol: PlatformErrorAdapter defined
+    stub_status: kubernetes and terraform stubs present (not implemented)
+
+research_confidence: high
+
+plan_metrics:
+  wave_1_task_count: 6
+  total_dependencies: 18
+  risk_score: medium
+
+tldr: |
+  Four-wave DAG for K8s/Terraform adapter implementation:
+  Wave 1 (Analysis/Design): Audit stubs, map error codes (10 per platform), design fixtures
+  Wave 2 (K8s Implementation): Adapter core, fixtures, tests, registry wiring (parallel execution)
+  Wave 3 (Terraform Implementation): Adapter core, fixtures, tests, registry wiring (parallel to Wave 2)
+  Wave 4 (Validation): Cross-platform parity tests, integration gates, closure artifacts
+
+pre_mortem:
+  overall_risk_level: medium
+  critical_failure_modes:
+    - scenario: "K8s/Terraform error codes overlap or conflict with Ansible codes"
+      likelihood: low
+      impact: high
+      mitigation: "Reserve code ranges: K8s 300-310, Terraform 400-410, validate no collisions"
+    - scenario: "Fixture design diverges from Ansible patterns, breaks parity tests"
+      likelihood: medium
+      impact: high
+      mitigation: "Design Phase D2 explicitly references Ansible fixture structure; V1 parity gate catches divergence"
+    - scenario: "Secret sanitization patterns incomplete for K8s kubeconfig or Terraform state files"
+      likelihood: medium
+      impact: critical
+      mitigation: "D1 error code spec includes secret pattern catalog per platform; I_K8S_2/I_TF_2 implement with explicit test coverage"
+    - scenario: "DI registry wiring conflicts between K8s and Terraform adapters"
+      likelihood: low
+      impact: medium
+      mitigation: "I_K8S_4 and I_TF_4 run sequentially (Wave 2 then Wave 3 completion); shared registry code frozen after K8s wiring"
+  assumptions:
+    - Ansible adapter implementation patterns are stable and reusable
+    - PlatformErrorAdapter protocol is complete and won't change during implementation
+    - Existing 21-code error envelope can accommodate K8s/Terraform without redesign
+    - Test infrastructure markers and tox envs support new platform markers without changes
+
+implementation_specification:
+  code_structure: |
+    src/prism/scanner_plugins/kubernetes/
+      adapter.py          # PlatformErrorAdapter implementation (~200 lines)
+      error_codes.py      # 10 K8s error code definitions
+      __init__.py         # Plugin registry entry point
+    src/prism/scanner_plugins/terraform/
+      adapter.py          # PlatformErrorAdapter implementation (~200 lines)
+      error_codes.py      # 10 Terraform error code definitions
+      __init__.py         # Plugin registry entry point
+    src/prism/tests/fixtures/
+      fixtures_k8s_base.py
+      fixtures_k8s_errors.py
+      fixtures_k8s_edge_cases.py
+      fixtures_tf_base.py
+      fixtures_tf_errors.py
+      fixtures_tf_edge_cases.py
+    src/prism/tests/integration/
+      test_k8s_adapter.py         # 20 K8s adapter tests
+      test_k8s_parity.py          # 10 K8s parity tests
+      test_tf_adapter.py          # 20 Terraform adapter tests
+      test_tf_parity.py           # 10 Terraform parity tests
+      test_multi_platform_parity.py  # 30 cross-platform parity tests
+  affected_areas:
+    - scanner_plugins.kubernetes (new implementation)
+    - scanner_plugins.terraform (new implementation)
+    - tests.fixtures (6 new fixture modules)
+    - tests.integration (5 new test modules)
+    - conftest.py (marker registration for kubernetes/terraform)
+  component_details:
+    - component: PlatformErrorAdapter (K8s)
+      responsibility: "Detect K8s errors, map to error codes, extract 7-field provenance, sanitize kubeconfig secrets"
+      interfaces:
+        - detect_error(scan_result) -> ErrorEnvelope | None
+        - extract_provenance(error_context) -> ProvenanceFields
+        - sanitize_secrets(error_message) -> str
+      dependencies:
+        - component: error_codes.py
+          relationship: imports K8s error code definitions
+        - component: PlatformErrorAdapter protocol
+          relationship: implements protocol contract
+      integration_points:
+        - PluginRegistry.resolve_platform_adapter("kubernetes")
+        - DI container factory methods
+    - component: PlatformErrorAdapter (Terraform)
+      responsibility: "Detect Terraform errors, map to error codes, extract 7-field provenance, sanitize state file secrets"
+      interfaces:
+        - detect_error(scan_result) -> ErrorEnvelope | None
+        - extract_provenance(error_context) -> ProvenanceFields
+        - sanitize_secrets(error_message) -> str
+      dependencies:
+        - component: error_codes.py
+          relationship: imports Terraform error code definitions
+        - component: PlatformErrorAdapter protocol
+          relationship: implements protocol contract
+      integration_points:
+        - PluginRegistry.resolve_platform_adapter("terraform")
+        - DI container factory methods
+    - component: K8s Fixtures
+      responsibility: "Provide pod manifests, deployment errors, config errors, kubeconfig sanitization scenarios"
+      interfaces:
+        - fixture_k8s_pod_error() -> dict
+        - fixture_k8s_deployment_error() -> dict
+        - fixture_k8s_kubeconfig_with_token() -> str
+      dependencies:
+        - component: Ansible fixtures
+          relationship: mirrors structure and naming conventions
+      integration_points:
+        - pytest fixture resolution in test_k8s_*.py
+    - component: Terraform Fixtures
+      responsibility: "Provide plan errors, apply failures, state file issues, HCL syntax scenarios"
+      interfaces:
+        - fixture_tf_plan_error() -> dict
+        - fixture_tf_apply_failure() -> dict
+        - fixture_tf_state_with_keys() -> str
+      dependencies:
+        - component: Ansible fixtures
+          relationship: mirrors structure and naming conventions
+      integration_points:
+        - pytest fixture resolution in test_tf_*.py
+
+contracts:
+  - from_task: a2_error_category_mapping
+    to_task: d1_error_code_spec
+    interface: "10 error codes per platform with category, severity, example patterns"
+    format: "YAML artifact with code definitions"
+  - from_task: a3_fixture_coverage
+    to_task: d2_fixture_design
+    interface: "Fixture scenario matrix: happy paths, error cases, edge cases per platform"
+    format: "Markdown table with scenario coverage requirements"
+  - from_task: d1_error_code_spec
+    to_task: i_k8s_1_adapter_core
+    interface: "K8s error code mapping table and detection patterns"
+    format: "Python constants module (error_codes.py)"
+  - from_task: d1_error_code_spec
+    to_task: i_tf_1_adapter_core
+    interface: "Terraform error code mapping table and detection patterns"
+    format: "Python constants module (error_codes.py)"
+  - from_task: d2_fixture_design
+    to_task: i_k8s_2_fixtures
+    interface: "K8s fixture scenario specifications (pod, deployment, config errors)"
+    format: "Fixture design doc with pytest signatures"
+  - from_task: d2_fixture_design
+    to_task: i_tf_2_fixtures
+    interface: "Terraform fixture scenario specifications (plan, apply, state errors)"
+    format: "Fixture design doc with pytest signatures"
+  - from_task: d3_test_structure
+    to_task: i_k8s_3_tests
+    interface: "Test file organization, marker assignments, parity test strategy for K8s"
+    format: "Test structure specification (file paths, test counts, markers)"
+  - from_task: d3_test_structure
+    to_task: i_tf_3_tests
+    interface: "Test file organization, marker assignments, parity test strategy for Terraform"
+    format: "Test structure specification (file paths, test counts, markers)"
+  - from_task: i_k8s_1_adapter_core
+    to_task: i_k8s_4_plugin_wiring
+    interface: "K8s adapter class ready for PluginRegistry registration"
+    format: "Importable adapter.py module with PlatformErrorAdapter implementation"
+  - from_task: i_tf_1_adapter_core
+    to_task: i_tf_4_plugin_wiring
+    interface: "Terraform adapter class ready for PluginRegistry registration"
+    format: "Importable adapter.py module with PlatformErrorAdapter implementation"
+  - from_task: i_k8s_2_fixtures
+    to_task: i_k8s_3_tests
+    interface: "K8s fixtures available for test imports"
+    format: "pytest-discoverable fixture modules"
+  - from_task: i_tf_2_fixtures
+    to_task: i_tf_3_tests
+    interface: "Terraform fixtures available for test imports"
+    format: "pytest-discoverable fixture modules"
+  - from_task: i_k8s_3_tests
+    to_task: v1_parity_gate
+    interface: "K8s tests passing with marker coverage"
+    format: "pytest -m kubernetes exit code 0"
+  - from_task: i_tf_3_tests
+    to_task: v1_parity_gate
+    interface: "Terraform tests passing with marker coverage"
+    format: "pytest -m terraform exit code 0"
+
+tasks:
+  # === WAVE 1: ANALYSIS & DESIGN ===
+  
+  - id: a1_stub_audit
+    title: "Audit K8s/Terraform Stubs"
+    description: |
+      Audit existing K8s and Terraform stub implementations to understand:
+      - Current function signatures and placeholder behavior
+      - Error handling patterns (or lack thereof)
+      - Fixture references and integration points
+      - Dependencies on PluginRegistry and DI container
+      
+      Deliverable: Stub audit report documenting current state and gaps.
+    wave: 1
+    agent: gem-researcher
+    priority: high
+    status: pending
+    dependencies: []
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_plugins/kubernetes/__init__.py
+        description: "K8s stub implementation"
+      - path: src/prism/scanner_plugins/terraform/__init__.py
+        description: "Terraform stub implementation"
+      - path: src/prism/scanner_plugins/ansible/adapter.py
+        description: "Ansible reference implementation (176 lines)"
+    estimated_effort: medium
+    estimated_files: 2
+    estimated_lines: 0  # analysis only
+    verification:
+      - "Stub audit report exists at artifacts/a1-stub-audit.md"
+      - "Report documents 6+ integration points per platform"
+      - "Report identifies delta between stub and Ansible reference"
+    acceptance_criteria:
+      - "Stub signatures documented for both platforms"
+      - "Gap analysis against Ansible adapter complete"
+      - "Fixture integration points identified"
+    failure_modes:
+      - scenario: "Stub implementations have breaking incompatibilities with PlatformErrorAdapter protocol"
+        likelihood: low
+        impact: high
+        mitigation: "Audit includes protocol compliance check; D1 adjusts error code spec if needed"
+
+  - id: a2_error_category_mapping
+    title: "Map Error Categories to K8s/Terraform"
+    description: |
+      Design 10 error codes per platform mapped to the 5 error categories:
+      
+      K8s error codes (300-310):
+      - Pod lifecycle errors (start, crash, OOM)
+      - Deployment errors (replica failures, rollout issues)
+      - Service errors (selector mismatch, port conflicts)
+      - Config errors (configmap, secret missing)
+      - Resource quota errors
+      
+      Terraform error codes (400-410):
+      - Plan errors (syntax, module missing)
+      - Apply errors (provider timeout, resource conflict)
+      - State file errors (lock, corruption)
+      - Module resolution errors
+      - Validation errors (type mismatch, required missing)
+      
+      Deliverable: Error code mapping table with category, severity, detection patterns.
+    wave: 1
+    agent: gem-designer
+    priority: high
+    status: pending
+    dependencies: [a1_stub_audit]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_plugins/ansible/error_codes.py
+        description: "Ansible error code reference (if exists, else adapter.py constants)"
+      - path: docs/PRD.yaml
+        description: "Error envelope 5-category specification"
+    estimated_effort: medium
+    estimated_files: 1
+    estimated_lines: 100  # error code definitions
+    verification:
+      - "Error code mapping table exists at artifacts/a2-error-mapping.yaml"
+      - "10 codes defined per platform with no collisions"
+      - "Each code mapped to one of 5 categories"
+      - "Detection pattern specified for each code"
+    acceptance_criteria:
+      - "K8s codes 300-310 defined with examples"
+      - "Terraform codes 400-410 defined with examples"
+      - "No overlap with Ansible codes (200-210 range)"
+      - "All 5 categories represented across both platforms"
+    failure_modes:
+      - scenario: "Error code ranges overlap with existing Ansible codes"
+        likelihood: low
+        impact: high
+        mitigation: "Reserve 300-310 for K8s, 400-410 for Terraform, validate against Ansible 200-210"
+
+  - id: a3_fixture_coverage
+    title: "Design Fixture Coverage Matrix"
+    description: |
+      Design fixture scenario coverage for K8s and Terraform:
+      
+      K8s fixtures (6 files):
+      - fixtures_k8s_base.py: Happy path pod/deployment manifests
+      - fixtures_k8s_errors.py: Error scenarios (crash loop, OOM, config missing)
+      - fixtures_k8s_edge_cases.py: Edge cases (empty selector, invalid port)
+      - fixtures_k8s_secrets.py: Kubeconfig with tokens, TLS certs
+      
+      Terraform fixtures (6 files):
+      - fixtures_tf_base.py: Valid HCL plans
+      - fixtures_tf_errors.py: Plan/apply errors (provider timeout, lock conflict)
+      - fixtures_tf_edge_cases.py: Edge cases (circular deps, orphaned resources)
+      - fixtures_tf_secrets.py: State files with API keys, passwords
+      
+      Deliverable: Fixture coverage matrix with scenario counts and secret patterns.
+    wave: 1
+    agent: gem-designer
+    priority: medium
+    status: pending
+    dependencies: [a2_error_category_mapping]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/tests/fixtures/
+        description: "Existing fixture structure (21 files)"
+      - path: src/prism/tests/fixtures/fixtures_ansible_base.py
+        description: "Ansible fixture reference"
+    estimated_effort: small
+    estimated_files: 1
+    estimated_lines: 0  # design doc
+    verification:
+      - "Fixture coverage matrix exists at artifacts/a3-fixture-coverage.md"
+      - "6 fixture files planned per platform"
+      - "20+ scenarios per platform documented"
+      - "Secret sanitization patterns specified"
+    acceptance_criteria:
+      - "Fixture structure mirrors Ansible pattern"
+      - "Happy path, error, and edge case scenarios defined"
+      - "Secret patterns catalog complete (kubeconfig, state files)"
+
+  - id: d1_error_code_spec
+    title: "Finalize Error Code Specifications"
+    description: |
+      Finalize error code specs for K8s and Terraform with:
+      - Error code constants (10 per platform)
+      - Detection regex patterns or structural patterns
+      - Provenance extraction templates (7 fields per error)
+      - Secret sanitization rules per error type
+      - Example error messages with expected outputs
+      
+      Output: error_codes.py modules for both platforms.
+    wave: 1
+    agent: gem-designer
+    priority: high
+    status: pending
+    dependencies: [a2_error_category_mapping]
+    conflicts_with: []
+    context_files:
+      - path: docs/plan/plugin-implementation-20260511/artifacts/a2-error-mapping.yaml
+        description: "Error category mapping from A2"
+      - path: src/prism/scanner_plugins/ansible/adapter.py
+        description: "Ansible error detection patterns"
+    estimated_effort: medium
+    estimated_files: 2
+    estimated_lines: 200  # 100 lines per platform
+    verification:
+      - "error_codes.py exists for kubernetes and terraform"
+      - "10 constants defined per module"
+      - "Detection patterns specified (regex or structural)"
+      - "Provenance template documented per code"
+    acceptance_criteria:
+      - "Each error code has detection pattern"
+      - "Provenance extraction logic documented"
+      - "Secret sanitization rules complete"
+    failure_modes:
+      - scenario: "Detection patterns too broad, cause false positives"
+        likelihood: medium
+        impact: medium
+        mitigation: "D1 includes negative test cases; I_K8S_3/I_TF_3 validate precision"
+
+  - id: d2_fixture_design
+    title: "Design K8s/Terraform Fixtures"
+    description: |
+      Design fixture implementations with:
+      - Pytest fixture signatures
+      - Return value structures (dict, str, ErrorEnvelope)
+      - Dependency chains (base fixtures -> error fixtures)
+      - Naming conventions matching Ansible pattern
+      - Secret injection patterns for sanitization tests
+      
+      Output: Fixture design doc with function signatures and examples.
+    wave: 1
+    agent: gem-designer
+    priority: medium
+    status: pending
+    dependencies: [a3_fixture_coverage]
+    conflicts_with: []
+    context_files:
+      - path: docs/plan/plugin-implementation-20260511/artifacts/a3-fixture-coverage.md
+        description: "Fixture coverage matrix from A3"
+      - path: src/prism/tests/fixtures/fixtures_ansible_base.py
+        description: "Ansible fixture structure reference"
+    estimated_effort: medium
+    estimated_files: 1
+    estimated_lines: 0  # design doc
+    verification:
+      - "Fixture design doc exists at artifacts/d2-fixture-design.md"
+      - "6 fixture files specified per platform"
+      - "Pytest signatures documented for 20+ fixtures"
+      - "Dependency graph between fixtures shown"
+    acceptance_criteria:
+      - "Fixture naming matches Ansible conventions"
+      - "Return types specified for all fixtures"
+      - "Secret injection patterns documented"
+
+  - id: d3_test_structure
+    title: "Design Test File Structure"
+    description: |
+      Design test file organization:
+      - test_k8s_adapter.py: 20 adapter tests (error detection, provenance, sanitization)
+      - test_k8s_parity.py: 10 parity tests against Ansible
+      - test_tf_adapter.py: 20 adapter tests
+      - test_tf_parity.py: 10 parity tests against Ansible
+      - test_multi_platform_parity.py: 30 cross-platform tests
+      
+      Specify:
+      - Pytest markers (kubernetes, terraform, integration)
+      - Test parametrization strategy
+      - Assertion patterns
+      - Parity test dimensions (error categories, provenance fields, secret patterns)
+      
+      Output: Test structure specification.
+    wave: 1
+    agent: gem-designer
+    priority: medium
+    status: pending
+    dependencies: [a3_fixture_coverage]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/tests/integration/test_ansible_adapter.py
+        description: "Ansible test reference (if exists)"
+      - path: conftest.py
+        description: "Current marker definitions"
+    estimated_effort: small
+    estimated_files: 1
+    estimated_lines: 0  # design doc
+    verification:
+      - "Test structure spec exists at artifacts/d3-test-structure.md"
+      - "5 test files specified with test counts"
+      - "Marker assignments documented"
+      - "Parity test dimensions defined"
+    acceptance_criteria:
+      - "Test files organized by platform and concern"
+      - "Marker strategy supports `pytest -m kubernetes`"
+      - "Parity dimensions cover error categories and provenance"
+
+  # === WAVE 2: K8S IMPLEMENTATION ===
+  
+  - id: i_k8s_1_adapter_core
+    title: "Implement K8s PlatformErrorAdapter"
+    description: |
+      Implement kubernetes/adapter.py with:
+      - PlatformErrorAdapter protocol compliance
+      - Error detection using D1 patterns
+      - 7-field provenance extraction
+      - Kubeconfig secret sanitization
+      - Error code mapping (300-310)
+      
+      Target: ~200 lines, mirrors Ansible adapter structure.
+    wave: 2
+    agent: gem-implementer
+    priority: high
+    status: pending
+    dependencies: [d1_error_code_spec]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_plugins/ansible/adapter.py
+        description: "Ansible reference implementation"
+      - path: docs/plan/plugin-implementation-20260511/artifacts/d1-error-code-spec/
+        description: "K8s error code spec from D1"
+    estimated_effort: large
+    estimated_files: 2
+    estimated_lines: 250  # adapter.py + error_codes.py
+    tech_stack: [Python, pytest]
+    test_coverage: "Unit tests for each detection pattern, provenance extraction, sanitization"
+    verification:
+      - "adapter.py exists and implements PlatformErrorAdapter"
+      - "All 10 error codes have detection logic"
+      - "Provenance extraction returns 7 fields"
+      - "Kubeconfig sanitization removes tokens/certs"
+    acceptance_criteria:
+      - "PlatformErrorAdapter protocol fully implemented"
+      - "Unit tests pass for all error codes"
+      - "Secret sanitization validated with test cases"
+    failure_modes:
+      - scenario: "Error detection patterns too strict, miss valid errors"
+        likelihood: medium
+        impact: medium
+        mitigation: "I_K8S_3 includes regression tests from real K8s error corpus"
+
+  - id: i_k8s_2_fixtures
+    title: "Implement K8s Fixtures"
+    description: |
+      Implement 6 K8s fixture files following D2 design:
+      - fixtures_k8s_base.py: Happy path manifests
+      - fixtures_k8s_errors.py: Error scenarios
+      - fixtures_k8s_edge_cases.py: Edge cases
+      - fixtures_k8s_secrets.py: Secret sanitization scenarios
+      
+      Fixtures must be pytest-discoverable and match Ansible naming conventions.
+    wave: 2
+    agent: gem-implementer
+    priority: medium
+    status: pending
+    dependencies: [d2_fixture_design]
+    conflicts_with: []
+    context_files:
+      - path: docs/plan/plugin-implementation-20260511/artifacts/d2-fixture-design.md
+        description: "Fixture design from D2"
+      - path: src/prism/tests/fixtures/fixtures_ansible_base.py
+        description: "Ansible fixture reference"
+    estimated_effort: medium
+    estimated_files: 3  # implement 3-4 at once, batch remaining
+    estimated_lines: 300  # ~50 lines per file
+    tech_stack: [Python, pytest]
+    test_coverage: "Fixture sanity tests (structure validation, no exceptions)"
+    verification:
+      - "6 fixture files exist under tests/fixtures/"
+      - "20+ pytest fixtures discoverable"
+      - "Fixtures return expected types (dict, str, ErrorEnvelope)"
+      - "Secret fixtures contain realistic kubeconfig patterns"
+    acceptance_criteria:
+      - "Fixtures match Ansible naming conventions"
+      - "No fixture raises exceptions during resolution"
+      - "Secret patterns realistic for sanitization tests"
+
+  - id: i_k8s_3_tests
+    title: "Implement K8s Tests"
+    description: |
+      Implement 3 K8s test files:
+      - test_k8s_adapter.py: 20 adapter tests (detection, provenance, sanitization)
+      - test_k8s_parity.py: 10 parity tests vs Ansible
+      - Contribution to test_multi_platform_parity.py: K8s portion
+      
+      Tests must use kubernetes marker and integrate with tox envs.
+    wave: 2
+    agent: gem-implementer
+    priority: high
+    status: pending
+    dependencies: [i_k8s_2_fixtures, d3_test_structure]
+    conflicts_with: []
+    context_files:
+      - path: docs/plan/plugin-implementation-20260511/artifacts/d3-test-structure.md
+        description: "Test structure from D3"
+      - path: src/prism/tests/fixtures/fixtures_k8s_base.py
+        description: "K8s fixtures from I_K8S_2"
+    estimated_effort: large
+    estimated_files: 3
+    estimated_lines: 300  # ~100 lines per file
+    tech_stack: [Python, pytest]
+    test_coverage: "Tests themselves are the coverage"
+    verification:
+      - "pytest -m kubernetes passes with 30+ tests"
+      - "test_k8s_adapter.py covers all 10 error codes"
+      - "test_k8s_parity.py validates against Ansible reference"
+      - "No test warnings or failures"
+    acceptance_criteria:
+      - "All K8s tests pass"
+      - "Marker assignment correct (kubernetes marker)"
+      - "Parity tests validate error categories and provenance structure"
+    failure_modes:
+      - scenario: "Parity tests fail due to structural differences in error envelope"
+        likelihood: medium
+        impact: high
+        mitigation: "I_K8S_1 follows Ansible adapter structure exactly; D1 spec reviewed against Ansible"
+
+  - id: i_k8s_4_plugin_wiring
+    title: "Wire K8s Adapter into PluginRegistry"
+    description: |
+      Update kubernetes/__init__.py and conftest.py to:
+      - Register K8s adapter in PluginRegistry
+      - Add DI factory defaults for platform="kubernetes"
+      - Register kubernetes pytest marker
+      - Update tox.ini if needed for kubernetes marker
+      
+      Verify: PluginRegistry.resolve_platform_adapter("kubernetes") returns K8s adapter.
+    wave: 2
+    agent: gem-implementer
+    priority: high
+    status: pending
+    dependencies: [i_k8s_1_adapter_core]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_plugins/kubernetes/__init__.py
+        description: "K8s plugin entry point"
+      - path: conftest.py
+        description: "Marker registration"
+      - path: src/prism/scanner_core/di.py
+        description: "DI factory defaults"
+    estimated_effort: small
+    estimated_files: 3
+    estimated_lines: 50
+    tech_stack: [Python, pytest]
+    test_coverage: "Registry resolution test in test_k8s_adapter.py"
+    verification:
+      - "PluginRegistry.resolve_platform_adapter('kubernetes') succeeds"
+      - "pytest --markers shows kubernetes marker"
+      - "DI defaults route to K8s adapter when platform=kubernetes"
+    acceptance_criteria:
+      - "K8s adapter registered in PluginRegistry"
+      - "Marker registered and documented"
+      - "DI wiring complete"
+
+  # === WAVE 3: TERRAFORM IMPLEMENTATION ===
+  
+  - id: i_tf_1_adapter_core
+    title: "Implement Terraform PlatformErrorAdapter"
+    description: |
+      Implement terraform/adapter.py with:
+      - PlatformErrorAdapter protocol compliance
+      - Error detection using D1 patterns
+      - 7-field provenance extraction
+      - State file secret sanitization (API keys, passwords)
+      - Error code mapping (400-410)
+      
+      Target: ~200 lines, mirrors Ansible adapter structure.
+    wave: 3
+    agent: gem-implementer
+    priority: high
+    status: pending
+    dependencies: [d1_error_code_spec]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_plugins/ansible/adapter.py
+        description: "Ansible reference implementation"
+      - path: docs/plan/plugin-implementation-20260511/artifacts/d1-error-code-spec/
+        description: "Terraform error code spec from D1"
+    estimated_effort: large
+    estimated_files: 2
+    estimated_lines: 250  # adapter.py + error_codes.py
+    tech_stack: [Python, pytest]
+    test_coverage: "Unit tests for each detection pattern, provenance extraction, sanitization"
+    verification:
+      - "adapter.py exists and implements PlatformErrorAdapter"
+      - "All 10 error codes have detection logic"
+      - "Provenance extraction returns 7 fields"
+      - "State file sanitization removes API keys/passwords"
+    acceptance_criteria:
+      - "PlatformErrorAdapter protocol fully implemented"
+      - "Unit tests pass for all error codes"
+      - "Secret sanitization validated with test cases"
+    failure_modes:
+      - scenario: "HCL parsing errors not correctly classified"
+        likelihood: medium
+        impact: medium
+        mitigation: "I_TF_3 includes HCL syntax error corpus for validation"
+
+  - id: i_tf_2_fixtures
+    title: "Implement Terraform Fixtures"
+    description: |
+      Implement 6 Terraform fixture files following D2 design:
+      - fixtures_tf_base.py: Valid HCL plans
+      - fixtures_tf_errors.py: Plan/apply errors
+      - fixtures_tf_edge_cases.py: Edge cases
+      - fixtures_tf_secrets.py: State files with secrets
+      
+      Fixtures must be pytest-discoverable and match Ansible naming conventions.
+    wave: 3
+    agent: gem-implementer
+    priority: medium
+    status: pending
+    dependencies: [d2_fixture_design]
+    conflicts_with: []
+    context_files:
+      - path: docs/plan/plugin-implementation-20260511/artifacts/d2-fixture-design.md
+        description: "Fixture design from D2"
+      - path: src/prism/tests/fixtures/fixtures_ansible_base.py
+        description: "Ansible fixture reference"
+    estimated_effort: medium
+    estimated_files: 3  # implement 3-4 at once, batch remaining
+    estimated_lines: 300  # ~50 lines per file
+    tech_stack: [Python, pytest]
+    test_coverage: "Fixture sanity tests (structure validation, no exceptions)"
+    verification:
+      - "6 fixture files exist under tests/fixtures/"
+      - "20+ pytest fixtures discoverable"
+      - "Fixtures return expected types (dict, str, ErrorEnvelope)"
+      - "Secret fixtures contain realistic state file patterns"
+    acceptance_criteria:
+      - "Fixtures match Ansible naming conventions"
+      - "No fixture raises exceptions during resolution"
+      - "Secret patterns realistic for sanitization tests"
+
+  - id: i_tf_3_tests
+    title: "Implement Terraform Tests"
+    description: |
+      Implement 3 Terraform test files:
+      - test_tf_adapter.py: 20 adapter tests (detection, provenance, sanitization)
+      - test_tf_parity.py: 10 parity tests vs Ansible
+      - Contribution to test_multi_platform_parity.py: Terraform portion
+      
+      Tests must use terraform marker and integrate with tox envs.
+    wave: 3
+    agent: gem-implementer
+    priority: high
+    status: pending
+    dependencies: [i_tf_2_fixtures, d3_test_structure]
+    conflicts_with: []
+    context_files:
+      - path: docs/plan/plugin-implementation-20260511/artifacts/d3-test-structure.md
+        description: "Test structure from D3"
+      - path: src/prism/tests/fixtures/fixtures_tf_base.py
+        description: "Terraform fixtures from I_TF_2"
+    estimated_effort: large
+    estimated_files: 3
+    estimated_lines: 300  # ~100 lines per file
+    tech_stack: [Python, pytest]
+    test_coverage: "Tests themselves are the coverage"
+    verification:
+      - "pytest -m terraform passes with 30+ tests"
+      - "test_tf_adapter.py covers all 10 error codes"
+      - "test_tf_parity.py validates against Ansible reference"
+      - "No test warnings or failures"
+    acceptance_criteria:
+      - "All Terraform tests pass"
+      - "Marker assignment correct (terraform marker)"
+      - "Parity tests validate error categories and provenance structure"
+    failure_modes:
+      - scenario: "Parity tests fail due to Terraform-specific provenance fields"
+        likelihood: medium
+        impact: high
+        mitigation: "I_TF_1 follows Ansible adapter structure exactly; D1 spec reviewed against Ansible"
+
+  - id: i_tf_4_plugin_wiring
+    title: "Wire Terraform Adapter into PluginRegistry"
+    description: |
+      Update terraform/__init__.py and conftest.py to:
+      - Register Terraform adapter in PluginRegistry
+      - Add DI factory defaults for platform="terraform"
+      - Register terraform pytest marker
+      - Update tox.ini if needed for terraform marker
+      
+      Verify: PluginRegistry.resolve_platform_adapter("terraform") returns Terraform adapter.
+      
+      NOTE: This task runs after I_K8S_4 completes to avoid registry wiring conflicts.
+    wave: 3
+    agent: gem-implementer
+    priority: high
+    status: pending
+    dependencies: [i_tf_1_adapter_core, i_k8s_4_plugin_wiring]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/scanner_plugins/terraform/__init__.py
+        description: "Terraform plugin entry point"
+      - path: conftest.py
+        description: "Marker registration"
+      - path: src/prism/scanner_core/di.py
+        description: "DI factory defaults"
+    estimated_effort: small
+    estimated_files: 3
+    estimated_lines: 50
+    tech_stack: [Python, pytest]
+    test_coverage: "Registry resolution test in test_tf_adapter.py"
+    verification:
+      - "PluginRegistry.resolve_platform_adapter('terraform') succeeds"
+      - "pytest --markers shows terraform marker"
+      - "DI defaults route to Terraform adapter when platform=terraform"
+    acceptance_criteria:
+      - "Terraform adapter registered in PluginRegistry"
+      - "Marker registered and documented"
+      - "DI wiring complete"
+
+  # === WAVE 4: VALIDATION ===
+  
+  - id: v1_parity_gate
+    title: "Cross-Platform Parity Validation"
+    description: |
+      Implement test_multi_platform_parity.py with 30 tests validating:
+      - K8s vs Ansible parity (error categories, provenance structure, secret sanitization)
+      - Terraform vs Ansible parity (same dimensions)
+      - K8s vs Terraform parity (consistent error envelope structure)
+      
+      Parity tests must pass for all three platform pairs.
+    wave: 4
+    agent: gem-reviewer
+    priority: high
+    status: pending
+    dependencies: [i_k8s_3_tests, i_tf_3_tests]
+    conflicts_with: []
+    context_files:
+      - path: src/prism/tests/integration/test_k8s_parity.py
+        description: "K8s parity tests"
+      - path: src/prism/tests/integration/test_tf_parity.py
+        description: "Terraform parity tests"
+    estimated_effort: medium
+    estimated_files: 1
+    estimated_lines: 200
+    requires_review: true
+    review_depth: standard
+    review_security_sensitive: false
+    verification:
+      - "test_multi_platform_parity.py exists with 30 tests"
+      - "All parity tests pass"
+      - "Error categories consistent across platforms"
+      - "Provenance structure identical across platforms"
+    acceptance_criteria:
+      - "K8s/Ansible parity validated"
+      - "Terraform/Ansible parity validated"
+      - "K8s/Terraform parity validated"
+      - "No structural divergence in error envelopes"
+    failure_modes:
+      - scenario: "Parity tests reveal structural divergence requiring adapter refactor"
+        likelihood: low
+        impact: high
+        mitigation: "D1 and D2 designs explicitly reference Ansible patterns; early parity checks in I_K8S_3/I_TF_3"
+
+  - id: v2_integration_gate
+    title: "Full Integration Test Suite"
+    description: |
+      Run full pytest suite with multiple strategies:
+      1. Full suite: pytest -q src/prism/tests
+      2. Marker-based: pytest -m core, pytest -m plugins, pytest -m ansible, pytest -m kubernetes, pytest -m terraform
+      3. Tox envs: tox -e py314 (or current Python version)
+      
+      Validate:
+      - All tests pass (no regressions)
+      - K8s/Terraform tests add 60+ new tests to suite
+      - No warnings or fixture resolution failures
+      
+      Capture: pytest output, tox output, test count delta.
+    wave: 4
+    agent: gem-reviewer
+    priority: high
+    status: pending
+    dependencies: [v1_parity_gate]
+    conflicts_with: []
+    context_files:
+      - path: tox.ini
+        description: "Tox configuration"
+      - path: conftest.py
+        description: "Marker definitions"
+    estimated_effort: small
+    estimated_files: 0  # validation only
+    estimated_lines: 0
+    requires_review: true
+    review_depth: full
+    review_security_sensitive: false
+    verification:
+      - "pytest -q src/prism/tests exits with code 0"
+      - "pytest -m kubernetes passes 30+ tests"
+      - "pytest -m terraform passes 30+ tests"
+      - "Total test count increases by 60+"
+    acceptance_criteria:
+      - "Full pytest suite passes"
+      - "All marker-based runs pass"
+      - "Tox envs pass"
+      - "No test regressions"
+
+  - id: v3_closure_artifacts
+    title: "Phase 3 Closure Artifacts"
+    description: |
+      Create Phase 3 closure artifacts:
+      - phase3-closure-report.md: Summary of implementation, test results, parity validation
+      - execution-trace.yaml: Update with Phase 3 completion status
+      - model-usage-ledger.yaml: Update with agent/model usage during Phase 3
+      
+      Closure report must document:
+      - K8s adapter: 200 lines, 10 error codes, 30 tests
+      - Terraform adapter: 200 lines, 10 error codes, 30 tests
+      - Parity validation: 30 cross-platform tests passing
+      - Test count delta: +60 tests
+      - Zero regressions
+    wave: 4
+    agent: gem-documentation-writer
+    priority: medium
+    status: pending
+    dependencies: [v2_integration_gate]
+    conflicts_with: []
+    context_files:
+      - path: docs/plan/plugin-implementation-20260511/artifacts/execution-trace.yaml
+        description: "Current execution trace"
+    estimated_effort: small
+    estimated_files: 2
+    estimated_lines: 100  # closure report
+    task_type: documentation
+    audience: developers
+    coverage_matrix:
+      - "Implementation summary (adapters, fixtures, tests)"
+      - "Test results (pytest, tox, markers)"
+      - "Parity validation results"
+      - "Lessons learned"
+    verification:
+      - "phase3-closure-report.md exists"
+      - "execution-trace.yaml updated with phase_3_status: COMPLETE"
+      - "Closure report documents test count delta (+60)"
+    acceptance_criteria:
+      - "Closure report complete with all sections"
+      - "Execution trace updated"
+      - "Model usage ledger updated"
+
+effort_summary:
+  analysis: "6h (A1: 2h, A2: 2h, A3: 1h)"
+  design: "4.5h (D1: 1.5h, D2: 2h, D3: 1h)"
+  implementation_kubernetes: "8.5h (I_K8S_1: 3h, I_K8S_2: 2h, I_K8S_3: 2.5h, I_K8S_4: 1h)"
+  implementation_terraform: "8.5h (I_TF_1: 3h, I_TF_2: 2h, I_TF_3: 2.5h, I_TF_4: 1h)"
+  validation: "3h (V1: 1.5h, V2: 1h, V3: 0.5h)"
+  total_hours: 30.5
+
+wave_decomposition: |
+  Wave 1 (Analysis & Design): A1, A2, A3, D1, D2, D3
+    - A1 has no dependencies (parallel start)
+    - A2 depends on A1
+    - A3 depends on A2
+    - D1 depends on A2 (parallel with A3)
+    - D2 depends on A3 (parallel with D1 completion)
+    - D3 depends on A3 (parallel with D1, D2)
+    - Expected duration: ~6h (longest path: A1 → A2 → A3 → D2)
+  
+  Wave 2 (K8s Implementation): I_K8S_1, I_K8S_2, I_K8S_3, I_K8S_4
+    - I_K8S_1 depends on D1 (adapter core)
+    - I_K8S_2 depends on D2 (fixtures, parallel to I_K8S_1)
+    - I_K8S_3 depends on I_K8S_2 and D3 (tests after fixtures)
+    - I_K8S_4 depends on I_K8S_1 (wiring after adapter)
+    - Expected duration: ~5h (longest path: I_K8S_1 → I_K8S_4 or I_K8S_2 → I_K8S_3)
+  
+  Wave 3 (Terraform Implementation): I_TF_1, I_TF_2, I_TF_3, I_TF_4
+    - I_TF_1 depends on D1 (adapter core, parallel to I_K8S_1)
+    - I_TF_2 depends on D2 (fixtures, parallel to I_TF_1 and I_K8S_2)
+    - I_TF_3 depends on I_TF_2 and D3 (tests after fixtures, parallel to I_K8S_3)
+    - I_TF_4 depends on I_TF_1 AND I_K8S_4 (wiring after K8s wiring completes)
+    - Expected duration: ~5h (longest path: I_TF_1 → I_TF_4, blocked by I_K8S_4)
+  
+  Wave 4 (Validation): V1, V2, V3
+    - V1 depends on I_K8S_3 and I_TF_3 (parity after all tests)
+    - V2 depends on V1 (integration gate after parity)
+    - V3 depends on V2 (closure after validation)
+    - Expected duration: ~3h (sequential)
+
+sequencing_strategy: |
+  Parallel Execution Opportunities:
+  - Wave 1: A1 starts immediately; A2/D1 can run after A1; A3/D2/D3 can overlap
+  - Wave 2 and 3 run in parallel (disjoint file sets)
+  - Within Wave 2: I_K8S_1 and I_K8S_2 can run in parallel (adapter core vs fixtures)
+  - Within Wave 3: I_TF_1 and I_TF_2 can run in parallel (adapter core vs fixtures)
+  
+  Sequential Dependencies:
+  - I_K8S_3 must wait for I_K8S_2 (tests need fixtures)
+  - I_TF_3 must wait for I_TF_2 (tests need fixtures)
+  - I_TF_4 must wait for I_K8S_4 (avoid registry wiring conflicts)
+  - V1 must wait for both I_K8S_3 and I_TF_3 (parity needs both platforms)
+  - V2/V3 are strictly sequential
+  
+  Critical Path:
+  A1 → A2 → D1 → I_K8S_1 → I_K8S_4 → I_TF_4 → V1 → V2 → V3 (~17h)
+  
+  Optimization:
+  - Use 2-3 parallel gem-implementer agents for Wave 2/3
+  - One agent per platform + shared fixture work
+  - Sequential validation prevents conflicts
+
+recommendations:
+  execution:
+    - "Phase 4 implementation: K8s adapter (Wave 2), assign 1-2 gem-implementer agents"
+    - "Phase 5 implementation: Terraform adapter (Wave 3), assign 1-2 gem-implementer agents (parallel to Phase 4)"
+    - "Phase 6 validation: V1/V2/V3 (Wave 4), assign gem-reviewer for gates"
+  parallelism:
+    - "Within Phase 4: I_K8S_1 and I_K8S_2 can run simultaneously (disjoint concerns)"
+    - "Phase 4 and Phase 5 can run simultaneously (disjoint file sets)"
+    - "Within Phase 5: I_TF_1 and I_TF_2 can run simultaneously"
+  checkpoints:
+    - "After Wave 1: Validate D1/D2/D3 artifacts exist and are reviewed"
+    - "After Wave 2: Run pytest -m kubernetes to validate K8s implementation"
+    - "After Wave 3: Run pytest -m terraform to validate Terraform implementation"
+    - "After Wave 4: Run full pytest suite and document closure"
+  risk_mitigation:
+    - "Early parity checks in I_K8S_3/I_TF_3 catch structural divergence"
+    - "D1 error code spec reviewed against Ansible adapter before implementation"
+    - "Fixture design (D2) explicitly mirrors Ansible patterns"
+    - "Sequential I_TF_4 after I_K8S_4 prevents registry wiring conflicts"
+  cost_optimization:
+    - "Use LOW-COST tier (Haiku 4.5) for I_K8S_2, I_TF_2, V3 (fixture/doc work)"
+    - "Use BALANCED tier (Sonnet 4.5) for I_K8S_1, I_TF_1, V1, V2 (adapter core, validation)"
+    - "A1-A3 and D1-D3 can use LOW-COST tier (research/design, no implementation)"
+
+next_steps: |
+  1. Review this plan with user for approval
+  2. Create Phase 4 execution plan for K8s implementation (Wave 2)
+  3. Create Phase 5 execution plan for Terraform implementation (Wave 3)
+  4. Assign gem-implementer agents to Phases 4 and 5
+  5. Execute Phases 4 and 5 in parallel
+  6. Execute Phase 6 validation (Wave 4) after both platforms complete
+  7. Document closure and promote lessons learned

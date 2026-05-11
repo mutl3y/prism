@@ -1,0 +1,23 @@
+plan_id: mutl3y-review-20260508-g82-test
+phase: 5
+wave_id: W1
+theme: Return Type Annotations
+timestamp: '2026-05-08T17:56:08.962537'
+status: COMPLETE
+findings_fixed:
+- FIND-TYPING-001
+- FIND-TYPING-002
+changes:
+- finding_id: FIND-TYPING-001
+  file: src/prism/scanner_core/di_helpers.py
+  change: require_prepared_policy() -> Any changed to -> object
+  status: COMPLETE
+- finding_id: FIND-TYPING-002
+  file: src/prism/scanner_extract/task_line_parsing.py
+  change: get_marker_line_re() missing return type added as -> re.Pattern[str]
+  status: COMPLETE
+files_modified: 2
+tests_run:
+- src/prism/scanner_extract/task_line_parsing.py::test_*
+validation: Python syntax check passed
+next_action: Phase 6 validation gates (pytest, mypy, ruff, black)

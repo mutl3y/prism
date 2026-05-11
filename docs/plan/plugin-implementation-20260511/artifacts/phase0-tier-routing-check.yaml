@@ -1,0 +1,9 @@
+timestamp: "2026-05-11T15:36:36Z"
+requested_tier: "tier_0_free"
+requested_model: "gpt-5-mini"
+actual_model: "gpt-5-mini"
+task: "build phase0 archive manifest from scout inventory (dry-run only)"
+result: "matched"
+notes:
+  - "Tier 0 (FREE) chosen per mutl3y tier strategy for archivist bookkeeping tasks."
+  - "No higher-tier escalation required; task is mechanical YAML composition only."

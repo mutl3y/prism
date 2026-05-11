@@ -1,0 +1,61 @@
+model_used: Gemini 3 Flash (Preview)
+findings:
+  - id: GILF-NODE3-01
+    severity: CRITICAL
+    category: cache-safety
+    location: "src/prism/scanner_core/scan_cache.py:107-124"
+    issue: "Cache Identification based on id() creates false collisions"
+    root_cause: "The _callable_identity and _object_identity functions use id(value) as a fingerprint component. This is only valid for the lifetime of the object."
+    impact: "In a long-running process where objects are allocated and deallocated frequently, memory addresses (and thus IDs) will be reused. This leads to cache collisions where unrelated runtime setups share the same cache key, poisoning the cache with incorrect scan results."
+    confidence: 100
+    fix_suggestion: "Replace id(value) with stable content hashing or a persistent unique identifier associated with the object's configuration."
+
+  - id: GILF-NODE3-02
+    severity: HIGH
+    category: event-reliability
+    location: "src/prism/scanner_core/events.py:126-136"
+    issue: "Sequential event processing causes listener-induced latency"
+    root_cause: "The EventBus uses a simple for-loop over subscribers within a synchronized block. If a listener is slow or blocks, it stalls the entire pipeline."
+    impact: "The 'lightweight' promise of the event system is a lie. A single misbehaving telemetry listener can turn an O(N) scan into O(forever), degrading throughput and potentially causing timeouts in consumer applications."
+    confidence: 90
+    fix_suggestion: "Implement a thread-pool or async queue for event dispatching to decouple the scan pipeline from listener execution overhead."
+
+  - id: GILF-NODE3-03
+    severity: HIGH
+    category: validation
+    location: "src/prism/scanner_core/scan_request.py:40-75"
+    issue: "Incomplete Boolean Normalization in dict-building"
+    root_cause: "The code manually calls bool() on some fields but uses raw assignment for others like 'fail_on_unconstrained_dynamic_includes'."
+    impact: "A downstream consumer expecting strict Booleans from the ScanOptionsDict will find itself processing truthy junk or Nones. This is a classic 'hope-based' validation strategy that violates the principle of a canonical contract."
+    confidence: 95
+    fix_suggestion: "Enforce strict Boolean conversion for all flag fields at the point of dict entry, or use a proper Pydantic-like model for early coercion."
+
+  - id: GILF-NODE3-04
+    severity: MEDIUM
+    category: copy-semantics
+    location: "src/prism/scanner_core/scan_request.py:27-31"
+    issue: "TypedDict constructor used for 'shallow' copy"
+    root_cause: "_copy_scan_policy_context uses ScanPolicyContext(**policy_context) which performs a shallow copy of values."
+    impact: "Nested mutable objects within the policy_context (like lists of markers or dictionaries of rules) are shared by reference. Mutation in one request will silently bleed into another, leading to non-deterministic scan behavior that is a nightmare to debug."
+    confidence: 85
+    fix_suggestion: "Use copy.deepcopy() or a recursive clone helper similar to the ones seen in scan_cache.py to ensure total isolation."
+
+  - id: GILF-NODE3-05
+    severity: HIGH
+    category: cache-safety
+    location: "src/prism/scanner_core/scan_cache.py:19-30"
+    issue: "Custom recursive clone lacks support for specialized types"
+    root_cause: "_clone_container_structure only handles standard collection types (dict, list, tuple, set, frozenset)."
+    impact: "If scan results contain high-level objects or custom dataclasses (which they do), they are passed by reference. This allows a consumer of a cached result to modify the underlying cache entry accidentally, leading to cache poisoning."
+    confidence: 90
+    fix_suggestion: "Migrate to copy.deepcopy() or extend the cloning logic to support dataclasses and general object attributes via __dict__ or __slots__."
+
+  - id: GILF-NODE3-06
+    severity: MEDIUM
+    category: performance
+    location: "src/prism/scanner_core/scan_cache.py:65-79"
+    issue: "Inefficient LRU eviction in InMemoryLRUScanCache"
+    root_cause: "The pop(key) and re-assignment in get() moves the key to the end, but the loop-based popitem() in set() is unnecessary for a single eviction."
+    impact: "While not O(N^2), the OrderedDict thrashing under high lock contention causes unnecessary overhead for a core infrastructure module. It's essentially implementing what functools.lru_cache already does better in C."
+    confidence: 80
+    fix_suggestion: "Refactor to use a specialized LRU library or wrap functools.lru_cache if the locking requirements can be met, otherwise optimize the OrderedDict usage."

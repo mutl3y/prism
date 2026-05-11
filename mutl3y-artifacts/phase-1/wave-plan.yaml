@@ -18,14 +18,14 @@ high_severity_candidates:
     category: error_channel
     issue: "Broad exception handler with silent fallback"
     investigation_focus: "What exceptions are possible here? Should any be re-raised?"
-    
+
   - id: Scout-ControlFlow-02
     file: src/prism/scanner_core/events.py
     severity: high
     category: error_channel
     issue: "Silent event bus failure masking"
     investigation_focus: "What happens when event handlers fail? Retry? Ignore? Log?"
-    
+
   - id: Scout-ControlFlow-03
     file: src/prism/scanner_readme/guide.py
     severity: high
@@ -37,11 +37,11 @@ microswarm_probes:
   - probe_agent: Probe-Imports
     focus: "Import chains around error handler sites"
     output: "mutl3y-artifacts/phase-1/probe-imports-phase1.yaml"
-    
+
   - probe_agent: Probe-Tests
     focus: "Test coverage for error paths in identified files"
     output: "mutl3y-artifacts/phase-1/probe-tests-phase1.yaml"
-    
+
   - probe_agent: Probe-Ownership
     focus: "Module ownership and error handling policy authority"
     output: "mutl3y-artifacts/phase-1/probe-ownership-phase1.yaml"

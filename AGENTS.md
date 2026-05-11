@@ -232,7 +232,8 @@
 
 | Skill | Description |
 |-------|-------------|
-| [architecture-blueprint-generator](.github/skills/architecture-blueprint-generator/SKILL.md) | Comprehensive project architecture blueprint generator that analyzes codebases to create detailed architectural documentation. |
-| [suggest-awesome-github-copilot-instructions](.github/skills/suggest-awesome-github-copilot-instructions/SKILL.md) | Suggest relevant GitHub Copilot instruction files from the awesome-copilot repository based on cu... \| Suggest relevant GitHub Copilot instruction files from the awesome-copilot repository based on cu... |
+| [mutl3y-cluster-foreman](.github/skills/mutl3y-cluster-foreman/SKILL.md) | Three-node cluster swarm for Mutl3y review workflow with distributed coordination, workflow monit... \| A resilient three-node cluster architecture for code review and fix cycles with distributed coord... |
+| [mutl3y-foreman](.github/skills/mutl3y-foreman/SKILL.md) | Thin foreman for Mutl3y review/fix cycles. Orchestrates workflow phases and delegates model selec... \| **Purpose**: Workflow orchestration for Mutl3y review/fix cycles. Model selection delegated to mo... |
+| [mutl3y-setup](.github/skills/mutl3y-setup/SKILL.md) | Configure Mutl3y review workflow paths, settings, and preferences. Use when setting up a new workspace or reconfiguring existing p... \| Interactive configuration for the Mutl3y review workflow plugin. |
 
 <!-- skill-ninja-END -->

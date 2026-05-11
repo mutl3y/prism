@@ -1,0 +1,26 @@
+cycle: g84
+phase: P6
+status: blocked
+summary:
+  pytest:
+    command: "PYTHONPATH=src .venv/bin/python -m pytest -q"
+    result: pass
+    details: "1306 passed, 7 skipped, 18 warnings"
+  ruff:
+    command: ".venv/bin/python -m ruff check src/prism"
+    result: fail
+    details: "Multiple pre-existing lint violations across repo (including unrelated files)."
+  black:
+    command: ".venv/bin/python -m black --check src/prism"
+    result: fail
+    details: "19 files would be reformatted (includes unrelated existing workspace drift)."
+  mypy:
+    command: ".venv/bin/python -m mypy src/prism"
+    result: fail
+    details: "110 reported errors (pre-existing baseline includes numerous typing issues outside this wave)."
+wave_barriers:
+  rem-2: pass
+  rem-3: pass
+notes:
+  - "All known runtime regressions were fixed and full pytest is green."
+  - "Lint/format/type gates remain red due broader repository baseline not fully in this remediation scope."

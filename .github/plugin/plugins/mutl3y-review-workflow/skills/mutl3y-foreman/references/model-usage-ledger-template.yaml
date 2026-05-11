@@ -1,0 +1,30 @@
+# Model usage ledger template
+# Path: docs/plan/<plan-id>/mutl3y-artifacts/model-usage-ledger.yaml
+# Use spaces only. Tabs are invalid YAML and must not appear in this file.
+version: 1
+entries:
+  - timestamp: "2026-04-28T00:00:00Z"
+    cycle: "gNN"
+    phase: "P0"
+    worker: "Scout-Typing"
+    task_id: "phase0-discovery"
+    requested_tier: "low-cost"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success" # success|route_failure|quality_failure
+    failure_type: "none" # none|cancelled|timeout|startup|empty_response|missing_artifact|low_signal|mis-scoped_output|other
+    artifact_path: "docs/plan/<plan-id>/mutl3y-artifacts/phase0/Scout-Typing.yaml"
+    quality_score: 4
+    needed_reedit: false
+    recovery_action: "none" # none|reroute_same_tier|escalate_tier|prompt_tighten|foreman_recovery
+    notes: "Concise and actionable."
+summary:
+  by_model:
+    GPT-5 mini:
+      attempts: 1
+      successes: 1
+      route_failures: 0
+      quality_failures: 0
+      reedit_count: 0
+      quality_avg: 4.0
+      status: "healthy" # healthy|degraded|quarantined

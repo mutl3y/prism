@@ -19,12 +19,12 @@ barrier_checklist:
     status: FAIL
     detail: "Only 1 of 4 plans exists (impl-typing-plan.yaml)"
     finding: "Missing: error-handling, ownership, graph implementation plans"
-    
+
   files_owned_disjoint:
     status: SKIP
     detail: "Only 1 plan available; cannot validate cross-plan disjoint scope"
     note: "Will require audit when all 4 plans exist"
-    
+
   structure_validation:
     impl_typing_plan:
       exists: true
@@ -62,7 +62,7 @@ effort_hours_validation:
   impl_graph_plan:
     total_effort_hours: null
     status: MISSING
-  
+
   partial_total_effort_hours: 7
   projected_full_total_effort_hours: "UNKNOWN (3 plans missing)"
   reasonableness_check: "Cannot assess; need all 4 plans to sum and validate against 80-hour threshold"
@@ -81,7 +81,7 @@ blockers_validation:
       - "Phase 3 (patterns utility): Optional, can run in parallel or after Phase 2"
       - "Phase 4 (documentation): Zero dependencies, can run anytime"
     verdict: PASS
-  
+
   impl_error_handling_plan: null
   impl_ownership_plan: null
   impl_graph_plan: null
@@ -91,7 +91,7 @@ scope_validation:
     impl_typing_plan:
       all_files_in_scope: true
       files_outside_scope: []
-  
+
   disjoint_scope_audit: INCOMPLETE
     status: "Cannot validate disjoint scope with only 1 of 4 plans present"
     next_action: "Collect all 4 plans before running cross-plan overlap audit"
@@ -106,19 +106,19 @@ phase_5_readiness:
     graph: "MISSING (decision-graph.yaml exists in phase-4)"
 
 critical_path_blockers: []
-  
+
 gate_summary: |
   **GATE VERDICT: FAIL**
-  
+
   **Blocker**: 3 out of 4 implementation plans are missing.
-  
+
   Only impl-typing-plan.yaml exists and has been validated as well-formed.
-  
+
   Missing plans:
   - impl-error-handling-plan.yaml (from decision-error-handling.yaml)
   - impl-ownership-plan.yaml (from decision-ownership.yaml)
   - impl-graph-plan.yaml (from decision-graph.yaml)
-  
+
   **Action Required Before Phase 5 Proceeds:**
   1. Generate impl-error-handling-plan.yaml from decision-error-handling.yaml
   2. Generate impl-ownership-plan.yaml from decision-ownership.yaml
@@ -127,10 +127,10 @@ gate_summary: |
      - Disjoint file ownership across all 4 plans
      - Total effort_hours sum is reasonable (< 80 hours for 30 findings)
      - All blockers are documented and critical-path-ordered
-  
+
   **Validated Artifacts:**
   - impl-typing-plan.yaml: PASS (well-formed, 10 findings, 7 effort hours)
-  
+
   **Next Action:**
   Generate the 3 missing implementation plans using Phase 4 decision artifacts
   as input, then re-trigger gatekeeper validation.
@@ -141,7 +141,7 @@ recommendations:
     - "Generate impl-ownership-plan.yaml from phase-4/decision-ownership.yaml"
     - "Generate impl-graph-plan.yaml from phase-4/decision-graph.yaml"
     - "Re-run gatekeeper validation: /raid5/source/test/prism/mutl3y-artifacts/phase-5/gate-implementation-ready.yaml"
-  
+
   post_generation:
     - "Audit cross-plan file ownership for disjoint scope"
     - "Sum all effort_hours and verify < 80 hours"

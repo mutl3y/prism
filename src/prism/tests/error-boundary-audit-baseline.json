@@ -1,0 +1,41 @@
+{
+  "error_adapter_modules": [
+    "prism.scanner_plugins.error_taxonomy",
+    "prism.scanner_plugins.ansible.error_codes",
+    "prism.scanner_plugins.ansible.error_adapter",
+    "prism.scanner_plugins.kubernetes.error_adapter",
+    "prism.scanner_plugins.terraform.error_adapter",
+    "prism.scanner_core.error_envelope_builder"
+  ],
+  "error_wrapping_patterns": [
+    "ErrorEnvelopeBuilder.build_error_entry()",
+    "ErrorEnvelopeBuilder.sanitize_detail()",
+    "ErrorEnvelopeBuilder.validate_error_entry()",
+    "ScannerContext._record_phase_error()",
+    "build_ansible_error_detail()",
+    "classify_ansible_error()",
+    "error_code_to_category()",
+    "is_recoverable()",
+    "validate_error_code()"
+  ],
+  "test_coverage": {
+    "unit_tests": "test_error_envelope.py (20+ test cases)",
+    "integration_tests": "test_scanner_context_error_envelope.py (15+ test cases)",
+    "parity_tests": "test_scanner_parity.py::test_error_envelope_parity",
+    "coverage_areas": [
+      "basic error entry construction",
+      "platform-specific detail population",
+      "secret sanitization (kubeconfig, tokens, passwords, keys)",
+      "error code taxonomy",
+      "error envelope builder methods",
+      "backward compatibility",
+      "multiple platform errors",
+      "error assembly during scan phases",
+      "error normalization",
+      "ansible adapter integration"
+    ]
+  },
+  "implementation_status": "Phase 3 (Validation & Testing) - COMPLETE",
+  "date": "2026-05-11",
+  "notes": "Phase 3 validation: error envelope protocol fully tested and backward compatible. Phase 1 protocol design complete. Phase 2 core implementation with Ansible adapter and K8s/Terraform stubs complete."
+}

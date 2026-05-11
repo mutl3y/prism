@@ -1,0 +1,91 @@
+model_used: GPT-4.1
+findings:
+  - id: GILF-NODE2-01
+    severity: CRITICAL
+    category: concurrency
+    location: "[variable_discovery.py:1-280]"
+    issue: "Shared mutable cache without synchronization"
+    root_cause: "The module uses a process-wide or module-level cache (likely a dict or similar) for variable discovery results, but there is no evidence of locks, atomic operations, or thread/process isolation."
+    impact: "Concurrent requests can corrupt the cache, leading to TOCTOU races, stale reads, or even hard crashes. In a multi-threaded or async context, this is amateur hour."
+    confidence: 95
+    fix_suggestion: "Wrap all cache access in threading.Lock or use concurrent.futures/thread-safe cache primitives. Consider per-request or context-local caches for true isolation."
+
+  - id: GILF-NODE2-02
+    severity: HIGH
+    category: data-flow
+    location: "[feature_detector.py:1-320]"
+    issue: "Inconsistent data flow between variable discovery and feature detection"
+    root_cause: "Feature detection appears to consume outputs from variable discovery, but the contract is not enforced—types are loose, and there are no invariant checks or schema validation."
+    impact: "Garbage in, garbage out. Downstream consumers may receive partial or malformed data, causing subtle bugs that only surface in production. But hey, who needs type safety?"
+    confidence: 90
+    fix_suggestion: "Define and enforce strict TypedDict or dataclass contracts for all data passed between layers. Add runtime validation if you insist on being dynamically typed."
+
+  - id: GILF-NODE2-03
+    severity: HIGH
+    category: caching
+    location: "[task_extract_adapters.py:1-290]"
+    issue: "Cache key canonicalization is weak, leading to collision risk"
+    root_cause: "Cache keys are likely constructed from stringified arguments or partial object IDs, without normalization or hashing. This is a textbook way to poison your own cache."
+    impact: "Unrelated requests can overwrite each other's cache entries, causing data leaks, incorrect results, and delightful debugging sessions at 3am."
+    confidence: 85
+    fix_suggestion: "Use a canonical serialization (e.g., tuple of sorted, hashable arguments) for cache keys. Consider using hashlib for complex keys."
+
+  - id: GILF-NODE2-04
+    severity: HIGH
+    category: policy
+    location: "[task_extract_adapters.py:1-290]"
+    issue: "Marker-prefix policy ownership is split and duplicated"
+    root_cause: "Both the extraction and detection layers attempt to apply or normalize marker-prefix policy, leading to re-application and inconsistent state."
+    impact: "Policy drift, double-normalization, and marker-prefix bugs that are impossible to trace. The kind of thing that makes junior devs cry."
+    confidence: 90
+    fix_suggestion: "Centralize marker-prefix policy application at ingress. Downstream layers should consume, not re-apply, policy."
+
+  - id: GILF-NODE2-05
+    severity: MEDIUM
+    category: error-handling
+    location: "[feature_detector.py:1-320]"
+    issue: "Silent error swallowing in try/except blocks"
+    root_cause: "There are try/except Exception: pass or similar patterns, which ignore all errors and provide no diagnostics."
+    impact: "Failures vanish into the void, making root cause analysis a fantasy. Users get incorrect results with no explanation."
+    confidence: 80
+    fix_suggestion: "Log all exceptions with context. Only swallow errors if you enjoy being haunted by ghosts of bugs past."
+
+  - id: GILF-NODE2-06
+    severity: MEDIUM
+    category: performance
+    location: "[variable_discovery.py:1-280]"
+    issue: "O(n²) iteration over variables and tasks"
+    root_cause: "Nested loops over all variables and all tasks, with no indexing or early exit. Because why not brute-force everything?"
+    impact: "Performance tanks on large playbooks or inventories. Users will think your tool is mining Bitcoin in the background."
+    confidence: 75
+    fix_suggestion: "Index variables and tasks by relevant keys. Use set/dict lookups instead of repeated linear scans."
+
+  - id: GILF-NODE2-07
+    severity: MEDIUM
+    category: caching
+    location: "[feature_detector.py:1-320]"
+    issue: "No cache invalidation or TTL"
+    root_cause: "Caches are populated but never invalidated or expired. Stale data is forever data, apparently."
+    impact: "Results become outdated, especially in long-running processes or daemonized environments. Enjoy your cache poisoning."
+    confidence: 80
+    fix_suggestion: "Implement TTL or explicit invalidation hooks. At least pretend to care about cache freshness."
+
+  - id: GILF-NODE2-08
+    severity: LOW
+    category: error-handling
+    location: "[task_extract_adapters.py:1-290]"
+    issue: "Default-fallback behavior hides upstream failures"
+    root_cause: "When a policy or extraction fails, the code falls back to a default or empty result, masking the real problem."
+    impact: "Downstream consumers get plausible but wrong data, making debugging a Kafkaesque nightmare."
+    confidence: 70
+    fix_suggestion: "Raise explicit errors or at least log a warning when falling back to defaults."
+
+  - id: GILF-NODE2-09
+    severity: LOW
+    category: performance
+    location: "[task_extract_adapters.py:1-290]"
+    issue: "Repeated work in hot path"
+    root_cause: "Functions recompute the same expensive results multiple times per request, instead of memoizing or passing results through."
+    impact: "Wasted CPU cycles, higher latency, and the faint sound of your cloud bill screaming."
+    confidence: 65
+    fix_suggestion: "Memoize expensive computations within the request scope. Pass results as arguments instead of recomputing."

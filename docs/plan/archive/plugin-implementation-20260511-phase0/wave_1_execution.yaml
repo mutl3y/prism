@@ -1,0 +1,598 @@
+metadata:
+  wave: wave_1_critical
+  total_findings: 33
+  severity: CRITICAL
+  model_assigned: Claude Sonnet 4.5 (Tier 2, 1x)
+  reasoning: 'CRITICAL severity requires 92% critical coverage (g84: Sonnet 4.5)'
+status: IN_PROGRESS
+findings:
+- id: GILF-NODE1-01
+  severity: CRITICAL
+  category: architecture
+  location: '[di.py:1-320, di_helpers.py:1-180, scanner_context.py:1-450]'
+  issue: DIContainer God-Object Antipattern
+  root_cause: The DI container is a monolithic, all-knowing object with far too many
+    responsibilities, violating every principle of modularity and separation of concerns.
+    It centralizes construction, policy, registry, and even test hooks.
+  impact: Impossible to reason about, test, or extend. Any change risks breaking unrelated
+    features. Circular dependencies are inevitable.
+  confidence: 100
+  fix_suggestion: Decompose DIContainer into focused, single-responsibility providers.
+    Use explicit interface boundaries and inject only what is needed, not the whole
+    kitchen sink.
+  source_file: tier0-gpt41-node1-findings.yaml
+- id: GILF-NODE3-03
+  severity: CRITICAL
+  category: event-reliability
+  location: '[events.py:80-100]'
+  issue: Silent failure of event listeners
+  root_cause: Exceptions in event listeners are caught and logged but do not propagate
+    or halt execution.
+  impact: Critical errors in listeners may go unnoticed, leading to incomplete or
+    incorrect event handling.
+  confidence: 98
+  fix_suggestion: Introduce a strict mode where listener exceptions propagate, or
+    aggregate errors for post-processing.
+  source_file: tier0-gpt4o-node3-findings.yaml
+- id: GILF-NODE3-07
+  severity: CRITICAL
+  category: error-handling
+  location: '[scan_request.py:200-220]'
+  issue: Unlogged exceptions in scan option normalization
+  root_cause: Errors during normalization are raised but not logged with context.
+  impact: Difficult to diagnose issues in production due to lack of error traceability.
+  confidence: 95
+  fix_suggestion: Log all exceptions with detailed context before raising.
+  source_file: tier0-gpt4o-node3-findings.yaml
+- id: GILF-NODE3-01
+  severity: CRITICAL
+  category: cache-safety
+  location: '[src/prism/scanner_core/scan_cache.py:1-160]'
+  issue: Cache key construction is ad-hoc and collision-prone
+  root_cause: Cache keys are built from string concatenation or tuple packing without
+    canonicalization or hashing, making collisions and accidental overwrites likely,
+    especially with mutable or non-hashable types.
+  impact: Cache poisoning, silent data corruption, and unpredictable cache hits/misses.
+    Enjoy debugging that at 2am.
+  confidence: 95
+  fix_suggestion: Centralize cache key construction with a canonical, type-safe, and
+    hash-stable function. Use frozenset or sorted tuples for unordered keys, and validate
+    all key components for hashability.
+  source_file: tier0-gpt41-node3-findings.yaml
+- id: GILF-NODE3-02
+  severity: CRITICAL
+  category: cache-safety
+  location: '[src/prism/scanner_core/scan_cache.py:120-200]'
+  issue: Cache key ignores runtime wiring identity; callable identity uses process
+    `id()`
+  root_cause: compute_scan_cache_key only uses `role_content_hash` and scan options.
+    `build_runtime_wiring_identity` exists but is not composed into compute key; callable/object
+    identity embeds Python `id()` which is process-volatile.
+  impact: "Cache poisoning or stale hits when orchestration functions / runtime registry\
+    \ change. Keys may be valid in one process run and invalid in another; false cache\
+    \ hits across semantic changes lead to incorrect scan outputs \u2014 a correctness/SECURITY\
+    \ risk."
+  confidence: 96
+  fix_suggestion: Require callers to include the canonical `build_runtime_wiring_identity(...)`
+    result into scan options (or accept an explicit `runtime_identity` param) and
+    include it in the canonical key. Replace `id()`-based identities with stable fingerprints
+    where possible (e.g., module + qualname + optional user-supplied version). Document
+    that process-local `id()` makes cache non-persistent across restarts.
+  source_file: tier0-gpt5m-node3-findings.yaml
+- id: GILF-NODE2-01
+  severity: CRITICAL
+  category: concurrency
+  location: '[variable_discovery.py:1-280]'
+  issue: Shared mutable cache without synchronization
+  root_cause: The module uses a process-wide or module-level cache (likely a dict
+    or similar) for variable discovery results, but there is no evidence of locks,
+    atomic operations, or thread/process isolation.
+  impact: Concurrent requests can corrupt the cache, leading to TOCTOU races, stale
+    reads, or even hard crashes. In a multi-threaded or async context, this is amateur
+    hour.
+  confidence: 95
+  fix_suggestion: Wrap all cache access in threading.Lock or use concurrent.futures/thread-safe
+    cache primitives. Consider per-request or context-local caches for true isolation.
+  source_file: tier0-gpt41-node2-findings.yaml
+- id: GILF-DI-02
+  severity: CRITICAL
+  category: architecture
+  location: di.py:180-550
+  issue: DIContainer is a god-object factory bucket with 20+ copy-paste factory methods
+  root_cause: "Every factory_* method duplicates the same pattern: check mocks dict\
+    \ \u2192 check overrides dict \u2192 construct/return. No abstraction. The container\
+    \ also manages caching, event bus, wiring config, platform key resolution, and\
+    \ registry lookup."
+  impact: Impossible to test individual factories without coupling to the full DIContainer.
+    Adding a new factory requires copy-pasting 5-7 lines. Maintenance burden explodes
+    as factories grow. Single responsibility violated.
+  confidence: 99
+  fix_suggestion: "Extract a `_execute_factory_with_mocks_and_overrides()` helper\
+    \ that wraps the check-mock/check-override logic. Define factories as configuration\
+    \ (name \u2192 callable mapping) rather than explicit methods. This reduces boilerplate\
+    \ by 70%."
+  source_file: tier1-haiku45-node1-findings.yaml
+- id: GILF-NODE3-03
+  severity: CRITICAL
+  category: event-reliability
+  location: events.py:120-135
+  issue: Silent event handler failures mask critical errors
+  root_cause: Listener exceptions caught with 'except Exception as exc' and only logged,
+    allowing broken telemetry to continue silently
+  impact: Observability failures go undetected; one bad listener can silently break
+    entire event monitoring without any indication
+  confidence: 100
+  fix_suggestion: 'Add configurable failure policy: either fail-fast in strict mode
+    (already exists) or escalate to application error after N failures'
+  source_file: tier1-grok1-node3-findings.yaml
+- id: GILF-NODE3-04
+  severity: CRITICAL
+  category: event-reliability
+  location: events.py:143-157
+  issue: Exception logged but context lost; logging failure silently orphans the original
+    exception
+  root_cause: "When a listener raises, the code catches it, records it, and logs it.\
+    \ But if the logger itself fails \n(e.g., handler misconfigured, file permission\
+    \ denied), the exception is lost and the caller never \nknows the listener failed.\
+    \ This violates the contract: 'telemetry must not change production semantics'.\n"
+  impact: '- Silent listener failures go unnoticed (no exception propagates)
+
+    - Distributed tracing breaks (telemetry events never reach collectors)
+
+    - Debugging becomes impossible (no error signals to alert ops)
+
+    '
+  confidence: 96
+  fix_suggestion: "Wrap logger in try/except. If logging fails, emit to stderr or\
+    \ raise a RuntimeError \nwith chained exception: `raise RuntimeError(...) from\
+    \ exc`.\n"
+  source_file: tier1-haiku45-node3-findings.yaml
+- id: GILF-NODE2-06
+  severity: CRITICAL
+  category: data-flow
+  location: feature_detector.py:26-31 vs task_extract_adapters.py:164-171
+  issue: feature_detector.collect_task_handler_catalog() silently uses wrong (default)
+    marker_prefix because it doesn't call task_extract_adapters facade
+  root_cause: feature_detector.collect_task_handler_catalog() (line 122) calls _collect_task_handler_catalog()
+    directly (lines 26-31), which imports from scanner_extract.task_catalog_assembly
+    and does NOT resolve marker_prefix. But task_extract_adapters.collect_task_handler_catalog()
+    (lines 164-171) wraps the SAME underlying function and DOES resolve marker_prefix
+    via _resolve_marker_prefix(). feature_detector completely bypasses the facade,
+    so it gets default marker_prefix='prism' instead of the configured one.
+  impact: 'If scanner is configured with marker_prefix=''my_custom_marker'', feature_detector
+    will look for ''prism'' markers in task files instead. Task annotations will be
+    missed or misidentified. This is a silent data-loss bug: no error, just wrong
+    results.'
+  confidence: 98
+  fix_suggestion: 'In feature_detector.py, import from task_extract_adapters instead
+    of lazy-importing: from prism.scanner_core.task_extract_adapters import collect_task_handler_catalog.
+    Then line 122 calls the correct facade. OR manually resolve marker_prefix at line
+    122: marker_prefix = _resolve_marker_prefix(self._di). This is a one-line fix,
+    but it''s critical.'
+  source_file: tier1-haiku45-node2-findings.yaml
+- id: GILF-NODE3-01
+  severity: CRITICAL
+  category: cache-safety
+  location: scan_cache.py:136-150
+  issue: Identity-based cache key uses Python `id()` which is non-deterministic across
+    runs and GC cycles
+  root_cause: "The `build_runtime_wiring_identity` function constructs cache keys\
+    \ by concatenating object identity via `id(value)`, \nwhich is memory address-based.\
+    \ After object GC/reload, a new instance gets the same memory address, causing\
+    \ \nstale cache collisions. This is amateur hour caching.\n"
+  impact: '- Cache hits return stale data from previous unrelated scans
+
+    - Impossible to debug (collisions happen silently)
+
+    - Multiprocessing scenarios = guaranteed corruption (id() differs per process)
+
+    '
+  confidence: 98
+  fix_suggestion: 'Use content-addressable keys instead: hash(str(type) + callable_fqn
+    + state_fingerprint).
+
+    Never use id(). If you need object identity, use a WeakValueDictionary or explicit
+    token-based versioning.
+
+    '
+  source_file: tier1-haiku45-node3-findings.yaml
+- id: GILF-NODE3-01
+  severity: CRITICAL
+  category: cache-safety
+  location: scan_cache.py:20-32 (_clone_container_structure)
+  issue: Cache clone function returns custom objects by reference, not by value. Any
+    mutable custom object in cached data is shared across all cache consumers, creating
+    invisible aliasing and race conditions.
+  root_cause: "The recursive cloner only handles built-in container types (dict, list,\
+    \ tuple, set, frozenset). When it encounters any other object type, it just returns\
+    \ it as-is: `return value`. This means custom objects\u2014dataclasses, TypedDicts\
+    \ after runtime, any domain objects\u2014are never cloned."
+  impact: Cache corruption. If thread A retrieves a cached scan result containing
+    a mutable object, modifies it, thread B's subsequent cache hit sees thread A's
+    modifications. Silent data corruption across cache boundaries. The entire cache
+    isolation contract is void for non-primitive types.
+  confidence: 100
+  fix_suggestion: 'CRITICAL FIX (2-4 hours): Add deep copy fallback for non-container
+    types: `return copy.deepcopy(value)` as last resort. Or better: Define a cloneable
+    protocol and require cached values implement it. Document that caching non-primitive
+    types is unsafe without explicit clone protocol. Prefer immutable types in cache
+    payloads. Add validation that detects mutable custom objects and either rejects
+    them or warns loudly.'
+  source_file: tier2-sonnet45-node3-findings.yaml
+- id: GILF-NODE3-02
+  severity: CRITICAL
+  category: cache-safety
+  location: scan_cache.py:217-238 (_canonicalize in compute_scan_cache_key)
+  issue: Cache key canonicalization collapses distinct object instances into identical
+    keys. Two different instances of the same custom class produce identical cache
+    keys, causing cache collisions.
+  root_cause: "Line 235: `return {'__opaque_type__': (f'{type(value).__module__}.{type(value).__qualname__}')}`\
+    \ \u2014 this only includes type name, not object state. Two `PolicyConfig` instances\
+    \ with different settings produce the same canonical representation."
+  impact: Cache poisoning. Request A with PolicyConfig(strict=True) computes key K1.
+    Request B with PolicyConfig(strict=False) also computes K1. Request B gets Request
+    A's cached result, which was computed with wrong policy. Silent wrong-answer bug.
+    The cache becomes a reliability hazard instead of a performance optimization.
+  confidence: 100
+  fix_suggestion: 'CRITICAL FIX (1-2 hours): For opaque types, require them to be
+    hashable and use `hash(value)` in the canonical form. Or require a `__cache_key__`
+    protocol method. Or fail loudly: raise an exception for non-primitive, non-container
+    types instead of silently producing colliding keys. Document that only primitive
+    types and containers of primitives are safe to cache. Any custom objects must
+    implement explicit cache-key protocol.'
+  source_file: tier2-sonnet45-node3-findings.yaml
+- id: GILF-NODE1-03
+  severity: CRITICAL
+  category: error-handling
+  location: scanner_context.py:354-366, scanner_context.py:374-386
+  issue: Exception context loss in best-effort degradation mode - original tracebacks
+    discarded
+  root_cause: Graceful degradation pattern catches broad exception types (PrismRuntimeError,
+    ValueError, RuntimeError, TypeError) but calls `_record_phase_error` which only
+    stores error_type and message string. No `raise ... from error` chaining. Traceback
+    vanishes. Debug time multiplies by 10.
+  impact: Production failure in variable_discovery or feature_detection produces useless
+    ScanErrorEntry with no call stack. Root cause investigation requires local reproduction.
+    Non-strict mode silently continues with empty data. Nobody notices until customer
+    complains 'my variables are missing'. Then you spend 2 hours debugging instead
+    of 2 minutes with proper exception chaining.
+  confidence: 99
+  fix_suggestion: 'Store exception chain: `error_entry[''__cause__''] = error` in
+    _record_phase_error. Alternative: use `raise PrismRuntimeError(...) from error`
+    before recording. Cost: 30 minutes. But tracking down ONE production issue without
+    tracebacks costs 2+ hours. Your call.'
+  source_file: tier2-sonnet45-node1-findings.yaml
+- id: GILF-NODE1-02
+  severity: CRITICAL
+  category: DI-container-architecture
+  location: src/prism/scanner_core/di.py:120-150
+  issue: God-object antipattern in DIContainer
+  root_cause: DIContainer centralizes too many responsibilities, including caching,
+    event handling, and factory overrides.
+  impact: Violates single-responsibility principle, complicates testing, and increases
+    coupling.
+  confidence: 95
+  fix_suggestion: Decompose DIContainer into smaller, focused components (e.g., CacheManager,
+    EventBusManager).
+  source_file: tier0-gpt4o-node1-findings.yaml
+- id: GILF-DI-01
+  severity: CRITICAL
+  category: type-safety
+  location: src/prism/scanner_core/di.py:73-81
+  issue: Blind TypedDict Cast during shallow clone
+  root_cause: The `clone_scan_options` function uses `cast(ScanOptionsDict, ...)`
+    on the result of a generic recursive shallow clone that lacks any schema validation.
+  impact: Complete type erasure at the DI boundary. If `_clone_container_structure`
+    mangles a key or drops a required field, the rest of the system operates on a
+    lie until a runtime `KeyError` or `AttributeError` occurs deep in the call stack.
+  confidence: 100
+  fix_suggestion: Replace the blind `cast` with a proper Pydantic validator or a strict
+    TypedDict type guard that verifies the presence of required keys after cloning.
+  source_file: tier1-gemini3f-node1-findings.yaml
+- id: GILF-NODE3-01
+  severity: CRITICAL
+  category: event-reliability
+  location: src/prism/scanner_core/events.py:EventBus._record_listener_error
+  issue: Listener failures are retained in an unbounded in-memory list, and each retained
+    EventBusError keeps the original exception object alive.
+  root_cause: The bus appends every failure to _error_events with no cap or eviction
+    policy, and EventBusError stores the Exception instance itself rather than a serialized
+    snapshot.
+  impact: A noisy or permanently broken listener will create an unbounded memory leak.
+    Because exception objects can retain traceback frames and locals, the leak can
+    pin much larger object graphs than the list size suggests.
+  confidence: 97
+  fix_suggestion: 'Replace _error_events with a bounded ring buffer or maxlen deque,
+    and store a lightweight error snapshot instead of the live exception object. Include
+    listener name, event phase/kind, exception type, message, and timestamp. Effort:
+    small. Impact: high.'
+  source_file: tier2-gpt54-node3-findings.yaml
+- id: GILF-NODE3-01
+  severity: CRITICAL
+  category: event-reliability
+  location: src/prism/scanner_core/events.py:EventBus.dispatch
+  issue: The event bus silently swallows all exceptions from event handlers.
+  root_cause: 'A bare `except Exception: pass` block is used within the handler loop.
+    This is a classic amateur mistake, hiding potentially critical failures from the
+    rest of the system.'
+  impact: If an event handler fails, it fails silently. This can lead to incomplete
+    state, corrupted data, or silent termination of critical workflows. The system
+    becomes unreliable and impossible to debug because failures leave no trace.
+  confidence: 100
+  fix_suggestion: 'At a minimum, log the exception with its traceback. A competent
+    developer would implement a proper error handling strategy, like a dead-letter
+    queue or a way to notify the dispatcher of the failure. Effort: Trivial. Impact:
+    Prevents silent, catastrophic failures.'
+  source_file: tier2-gemini25-node3-findings.yaml
+- id: GILF-NODE3-01
+  severity: CRITICAL
+  category: cache-safety
+  location: src/prism/scanner_core/scan_cache.py:107-124
+  issue: Cache Identification based on id() creates false collisions
+  root_cause: The _callable_identity and _object_identity functions use id(value)
+    as a fingerprint component. This is only valid for the lifetime of the object.
+  impact: In a long-running process where objects are allocated and deallocated frequently,
+    memory addresses (and thus IDs) will be reused. This leads to cache collisions
+    where unrelated runtime setups share the same cache key, poisoning the cache with
+    incorrect scan results.
+  confidence: 100
+  fix_suggestion: Replace id(value) with stable content hashing or a persistent unique
+    identifier associated with the object's configuration.
+  source_file: tier1-gemini3f-node3-findings.yaml
+- id: GILF-NODE3-01
+  severity: CRITICAL
+  category: cache-safety
+  location: src/prism/scanner_core/scan_cache.py:235-237
+  issue: Opaque scan option values collapse to identical cache keys
+  root_cause: Unsupported non-primitive scan option values are canonicalized only
+    by type name, ignoring their internal state.
+  impact: Different scan option payloads can produce the same cache key, causing stale
+    or incorrect scan results to be returned.
+  confidence: 95
+  fix_suggestion: Reject unsupported scan option value types or extend canonicalization
+    to include stable object state fingerprints for custom objects.
+  source_file: tier0-raptor-node3-findings.yaml
+- id: GILF-NODE3-02
+  severity: CRITICAL
+  category: cache-safety
+  location: src/prism/scanner_core/scan_cache.py:ScanCache
+  issue: The cache has no memory limit and will grow indefinitely.
+  root_cause: The cache is implemented with a plain dictionary and has no eviction
+    policy (like LRU or LFU). It's a naive implementation that completely ignores
+    the reality of finite memory.
+  impact: Unbounded memory consumption, leading to performance degradation and eventual
+    application crashes due to out-of-memory errors. This is a ticking time bomb in
+    any long-running process.
+  confidence: 100
+  fix_suggestion: 'Replace the dictionary with a proper cache implementation that
+    supports an eviction policy, such as `cachetools.LRUCache`. This is a solved problem;
+    there''s no excuse for writing this from scratch, especially so poorly. Effort:
+    Low. Impact: Prevents memory leaks and ensures stable performance.'
+  source_file: tier2-gemini25-node3-findings.yaml
+- id: GILF-NODE3-05
+  severity: CRITICAL
+  category: validation
+  location: src/prism/scanner_core/scan_request.py:26-31
+  issue: Malformed policy_context values are silently discarded instead of being rejected.
+  root_cause: _normalize_policy_context treats any non-dict policy_context as None
+    and returns no warning, and build_run_scan_options_canonical then validates the
+    resulting None as acceptable.
+  impact: Caller intent is silently erased. A bad policy payload can disable selection
+    or policy overrides and let the request proceed with defaults, which is a silent
+    infrastructure failure by definition.
+  confidence: 98
+  fix_suggestion: 'Raise a validation error when policy_context is provided but is
+    not a valid ScanPolicyContext mapping. If compatibility is required, emit an explicit
+    ScanPolicyWarning and fail under strict mode. Effort: small. Impact: very high.'
+  source_file: tier2-gpt54-node3-findings.yaml
+- id: GILF-NODE1-06
+  severity: CRITICAL
+  category: error-handling
+  location: src/prism/scanner_core/scanner_context.py:300-350
+  issue: Fail-open behavior in `_discover_variables`
+  root_cause: Errors during variable discovery are logged as warnings, allowing execution
+    to continue in an inconsistent state.
+  impact: Leads to unpredictable behavior and potential data corruption.
+  confidence: 95
+  fix_suggestion: Adopt a fail-closed approach with explicit error propagation.
+  source_file: tier0-gpt4o-node1-findings.yaml
+- id: GILF-NODE2-02
+  severity: CRITICAL
+  category: data-flow
+  location: src/prism/scanner_core/task_extract_adapters.py:72-118
+  issue: "Marker-prefix ownership leak \u2014 reopens prepared_policy_bundle mid-pipeline"
+  root_cause: '`_resolve_marker_prefix` reads `prepared_policy_bundle` from `scan_options_from_di(di)`
+    and is used to inject marker_prefix at extraction time. This re-opens policy state
+    already canonicalized at ingress instead of consuming an explicit, caller-provided
+    prefix.'
+  impact: Split ownership of marker-prefix leads to inconsistent marker values across
+    pipeline steps, duplicated normalization, and potential mismatches between feature
+    detection and extraction (data loss or incorrect annotation parsing). It can produce
+    incorrect task catalogs when prefix is different at scan ingress vs. extraction
+    time.
+  confidence: 92
+  fix_suggestion: 'Enforce single ownership: require callers to pass `marker_prefix`
+    explicitly (from scan ingress), remove `_resolve_marker_prefix` calls, and treat
+    `scan_options` as read-only at hot paths. If fallback is necessary, resolve once
+    at scan initialization and store on the per-scan context object rather than resolving
+    per-call.'
+  source_file: tier0-gpt5m-node2-findings.yaml
+- id: GILF-NODE2-02
+  severity: CRITICAL
+  category: concurrency
+  location: src/prism/scanner_core/variable_discovery.py:163-169
+  issue: discover() assembles one result from three independent scans of live inputs.
+  root_cause: Static rows, referenced names, and unresolved-name reasons are computed
+    by separate plugin calls with no shared snapshot of the filesystem, README content,
+    or task graph.
+  impact: If role files or generated artifacts change between passes, the final result
+    can combine mismatched states and report phantom unresolved variables, miss newly
+    declared ones, or attach stale reasons to the wrong set.
+  confidence: 87
+  fix_suggestion: Collapse this into one plugin operation that returns a single coherent
+    discovery snapshot, or snapshot the role inputs once and pass that immutable snapshot
+    through all three stages. Medium effort, high correctness impact.
+  source_file: tier2-gpt54-node2-findings.yaml
+- id: GILF-NODE2-01
+  severity: CRITICAL
+  category: concurrency
+  location: src/prism/scanner_core/variable_discovery.py:172-188
+  issue: Concurrent unresolved-row construction reuses a shared mutable builder.
+  root_cause: discover() obtains DI's cached VariableRowBuilder and drives it through
+    a fluent mutation chain for every unresolved variable. The builder keeps in-flight
+    state in an internal _payload until build() clears it, so concurrent callers share
+    mutable construction state.
+  impact: Concurrent discover() calls on the same container can interleave field writes
+    and produce corrupted VariableRow payloads, wrong uncertainty reasons, or dropped
+    unresolved findings.
+  confidence: 98
+  fix_suggestion: Stop using a cached mutable builder on this path. Create a fresh
+    VariableRowBuilder per discover() call or per row, or replace the builder with
+    an immutable constructor helper. Small-to-medium effort, high correctness impact.
+  source_file: tier2-gpt54-node2-findings.yaml
+- id: GILF-NODE2-03
+  severity: CRITICAL
+  category: policy
+  location: task_extract_adapters.py:136-151 (marker resolution) vs scan_request.py:121
+    (where marker-prefix is placed)
+  issue: "Marker-prefix ownership violates MP1 closure contract\u2014resolved from\
+    \ nested bundle instead of top-level scan_options"
+  root_cause: "Lines 142-147 resolve marker_prefix by: scan_options \u2192 prepared_policy_bundle\
+    \ \u2192 comment_doc_marker_prefix. But per MP1 closure notes, marker-prefix should\
+    \ be 'ingress-owned' at scan_options.comment_doc_marker_prefix (top-level key),\
+    \ not nested. scan_request.py (line 121) projects prepared_policy_bundle into\
+    \ options but doesn't extract/hoist marker_prefix to top level. This is residual\
+    \ ownership leak."
+  impact: Every call to extract_task_annotations_for_file() or collect_task_handler_catalog()
+    re-dives into prepared_policy_bundle to find marker_prefix. If future refactoring
+    flattens or changes bundle structure, this breaks silently. Violates the explicit
+    boundary closure that said marker-prefix ownership moved to ingress (scanner_request).
+  confidence: 88
+  fix_suggestion: 'In scan_request.py, after line 121, add: options[''comment_doc_marker_prefix'']
+    = prepared_policy_bundle.get(''comment_doc_marker_prefix'', ''prism''). Then in
+    task_extract_adapters._resolve_marker_prefix(), get it from top-level: bundle_prefix
+    = scan_options.get(''comment_doc_marker_prefix'', ''prism''). This restores MP1
+    contract.'
+  source_file: tier1-haiku45-node2-findings.yaml
+- id: GILF-NODE2-05
+  severity: CRITICAL
+  category: error-handling
+  location: variable_discovery.py:120-140
+  issue: Silent fallback on plugin factory failure
+  root_cause: The `_resolve_plugin` method logs a debug message but does not raise
+    an error when the factory returns `None`.
+  impact: Critical failures in plugin resolution are masked, leading to undefined
+    behavior in `discover_static` and `discover_referenced`.
+  confidence: 95
+  fix_suggestion: Raise a `ValueError` if the factory returns `None`, ensuring the
+    failure is surfaced immediately.
+  source_file: tier0-gpt4o-node2-findings.yaml
+- id: GILF-NODE2-01
+  severity: CRITICAL
+  category: concurrency
+  location: variable_discovery.py:35-37
+  issue: Blatant Two-Check Lock Pattern Violation (TOCTOU)
+  root_cause: "In _resolve_plugin, you check self._plugin_resolved outside the lock,\
+    \ which is fine for the fast path, but then inside the lock, you check it again\u2014\
+    EXCEPT the boolean is volatile across threads and you aren't using an atomic primitive\
+    \ or ensuring the plugin instance itself is fully constructed before setting the\
+    \ flag."
+  impact: Thread A enters the lock, sets self._plugin_resolved = True, but has a preemption
+    gap before self._plugin = plugin. Thread B hits the fast-path check, sees True,
+    and returns self._plugin which is still None. Boom. Infinite NullPointer-equivalents
+    in a language that doesn't even have them.
+  confidence: 100
+  fix_suggestion: Check self._plugin inside the lock AFTER the second _plugin_resolved
+    check, or better yet, just use a double-checked locking pattern that actually
+    works by ensuring the assignment happens before the flag.
+  source_file: tier1-gemini3f-node2-findings.yaml
+- id: GILF-NODE2-01
+  severity: CRITICAL
+  category: concurrency
+  location: variable_discovery.py:40-60
+  issue: Thread safety violation in plugin resolution
+  root_cause: The `_plugin_resolved` flag is checked outside the lock, leading to
+    potential race conditions where multiple threads might attempt to resolve the
+    plugin simultaneously.
+  impact: Concurrent requests could corrupt the plugin resolution process, leading
+    to inconsistent or invalid plugin states.
+  confidence: 95
+  fix_suggestion: Move the `_plugin_resolved` check inside the lock to ensure atomicity.
+  source_file: tier0-gpt4o-node2-findings.yaml
+- id: GILF-NODE2-10
+  severity: CRITICAL
+  category: concurrency
+  location: variable_discovery.py:56-58 and feature_detector.py:64-66 (double-checked
+    locking first read)
+  issue: In the double-checked locking pattern, the first read of _plugin_resolved
+    outside the lock has no memory barrier in Python. In CPython, this is mostly safe
+    due to GIL, but in alternative Python implementations (PyPy, Jython) or with future
+    free-threaded Python (PEP 703), this could cause _plugin_resolved to be cached
+    in thread-local registers, causing infinite staleness.
+  root_cause: Python doesn't have explicit memory barriers or volatile keywords. The
+    double-checked locking pattern assumes that reads and writes to _plugin_resolved
+    are atomic and visible across threads, but this isn't guaranteed by the Python
+    memory model. CPython's GIL happens to enforce this, but it's not part of the
+    language spec.
+  impact: On CPython with GIL, this is mostly safe (CRITICAL downgraded from APOCALYPTIC).
+    But the codebase has no GIL dependency documentation, and if Prism ever runs on
+    PyPy or future free-threaded CPython, threads could cache stale _plugin_resolved=False
+    forever and keep hitting the lock, or worse, cache _plugin_resolved=True while
+    _plugin is still None. This is a portability time bomb.
+  confidence: 70
+  fix_suggestion: "Document explicit CPython+GIL dependency, OR replace double-checked\
+    \ locking with single-lock pattern (no optimization needed\u2014plugin resolution\
+    \ happens once per scan), OR use threading.RLock and proper memory barriers. Estimated\
+    \ effort: 30 minutes to document dependency, 1 hour to refactor to single-lock.\
+    \ Impact: future-proofs code for post-GIL Python, eliminates subtle portability\
+    \ bugs."
+  source_file: tier2-sonnet45-node2-findings.yaml
+- id: GILF-NODE2-01
+  severity: CRITICAL
+  category: concurrency
+  location: variable_discovery.py:56-89 and feature_detector.py:64-83
+  issue: Double-checked locking pattern contains TOCTOU race condition in plugin resolution.
+    The _plugin_resolved flag is checked outside the lock, then the lock is acquired,
+    creating a window where another thread can set _plugin_resolved=True while _plugin
+    is still being constructed.
+  root_cause: Attempt to optimize plugin resolution with double-checked locking, but
+    the pattern is implemented incorrectly. The first check `if self._plugin_resolved:`
+    happens outside the lock, and between that check and the lock acquisition, another
+    thread could be inside the locked section setting _plugin and _plugin_resolved.
+    Thread A could read _plugin_resolved=True and then read a partially-initialized
+    _plugin before Thread B finishes assignment.
+  impact: Race condition can cause threads to receive a None or partially-initialized
+    plugin, leading to AttributeError crashes, incorrect scan results, or data corruption.
+    In variable_discovery.py, this could corrupt variable extraction. In feature_detector.py,
+    this could corrupt feature detection results. Both are on the critical path for
+    scan correctness.
+  confidence: 95
+  fix_suggestion: 'Use single-lock pattern: acquire lock first, then check _plugin_resolved
+    inside the lock. Or use Python''s @functools.lru_cache(maxsize=1) on a plugin
+    factory method to let the runtime handle thread-safe memoization. Estimated effort:
+    20 minutes. Impact: eliminates all TOCTOU races in plugin resolution. Example:
+    Move the `if self._plugin_resolved:` check INSIDE the `with self._plugin_lock:`
+    block, or refactor to use threading.RLock with proper memory barriers.'
+  source_file: tier2-sonnet45-node2-findings.yaml
+- id: GILF-NODE2-01
+  severity: CRITICAL
+  category: concurrency
+  location: variable_discovery.py:_resolve_plugin, feature_detector.py:_resolve_plugin
+  issue: Textbook broken double-checked locking pattern for plugin resolution.
+  root_cause: A misguided attempt to implement a classic performance optimization
+    without understanding the memory model implications. The initial non-locked read
+    of `self._plugin_resolved` can be reordered by the Python interpreter or the CPU,
+    leading to a race condition where one thread sees the flag as True before the
+    `self._plugin` is actually assigned, resulting in a `None` value being returned.
+  impact: In a concurrent environment, this can lead to `ValueError` or `AttributeError`
+    exceptions being raised intermittently, making the system fundamentally unreliable.
+    It's a ticking time bomb that will detonate under load. Correctness is completely
+    compromised.
+  confidence: 100
+  fix_suggestion: 'Delete this amateurish attempt at double-checked locking. The performance
+    gain from avoiding a lock is negligible for a one-time initialization. Simplify
+    the logic to acquire the lock, check the flag, resolve the plugin, and release.
+    It''s simple, correct, and won''t explode. Effort: Trivial. Impact: System stability.'
+  source_file: tier2-gemini25-node2-findings.yaml
+fixed_count: 0
+failed_count: 0

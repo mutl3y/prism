@@ -94,7 +94,7 @@ findings_decisions:
     risk: LOW
     blocker: false
     replacement_hint: |
-      def match(self, string: str, pos: int = 0, 
+      def match(self, string: str, pos: int = 0,
                 endpos: int = sys.maxsize) -> re.Match[str] | None:
           return self._current_regex().match(string, pos, endpos)
 
@@ -200,7 +200,7 @@ overall_assessment:
   hot_path_findings: 6
   data_contract_findings: 2
   utility_findings: 1
-  
+
   breakdown:
     accept_any: 3
     replace_protocol: 3
@@ -212,16 +212,16 @@ implementation_sequencing: |
   1. PHASE 1 (Low-risk, immediate): Scout-Typing-08, 09, 10 (regex proxy signatures)
      - Straightforward: match re.Pattern[str] signatures
      - No dependencies; isolated file
-     
+
   2. PHASE 2 (Medium-risk, audit-dependent): Scout-Typing-06, 07 (scan_options defaults)
      - Requires audit of SCAN_OPTIONS_SCHEMA entries
      - Single coherent decision (must fix both together)
      - May expose other type issues in schema validation
-     
+
   3. PHASE 3 (Optional, low-impact): Scout-Typing-01 (patterns.py utility)
      - Isolated improvement
      - Run after core phases
-     
+
   4. PHASE 4 (Accept-as-is): Scout-Typing-02, 04, 05 (inject_mock, cache set)
      - Documented rationale for Any; no action needed unless architecture changes
 
@@ -230,7 +230,7 @@ validation_gate:
   - pytest src/prism/tests (full suite)
   - ruff check src/prism
   - black --check src/prism
-  
+
 notes: |
   - Regex proxy fixes (08, 09, 10) are independent and can be batched.
   - Data contract fixes (06, 07) require joint audit and decision.

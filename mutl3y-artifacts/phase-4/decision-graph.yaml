@@ -123,7 +123,7 @@ seam_removal_opportunities:
     recommended_action: lazy imports at call sites + constants extraction
     risk_level: HIGH
     effort: MEDIUM
-    
+
   - module: variable_discovery
     seam_type: shared_contract_duplication
     current_pattern: duplicate helpers from extract_utils

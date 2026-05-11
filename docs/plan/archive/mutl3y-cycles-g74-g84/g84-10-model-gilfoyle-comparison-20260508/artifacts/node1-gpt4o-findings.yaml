@@ -1,0 +1,45 @@
+findings:
+  - id: N001
+    severity: HIGH
+    category: architecture
+    location: "di.py:320"
+    issue: "DIContainer exhibits god-object tendencies."
+    root_cause: "The DIContainer class in di.py centralizes too many responsibilities, including event bus management, plugin registry, and factory overrides. This creates high coupling and makes the container difficult to test or replace."
+    impact: "High coupling increases the risk of cascading failures and makes the system harder to refactor or extend."
+    confidence: 90
+
+  - id: N002
+    severity: MEDIUM
+    category: type-safety
+    location: "di.py:50"
+    issue: "Type erasure via cast(Any) in clone_scan_options."
+    root_cause: "The use of cast(Any) in clone_scan_options obscures the actual type of scan options, reducing the effectiveness of type checking."
+    impact: "Type erasure can lead to runtime errors that are not caught during development."
+    confidence: 85
+
+  - id: N003
+    severity: HIGH
+    category: concurrency
+    location: "di_helpers.py:120"
+    issue: "TOCTOU race condition in lazy import resolution."
+    root_cause: "Lazy imports in di_helpers.py rely on runtime checks that can be invalidated by concurrent modifications."
+    impact: "Concurrent access to DI helpers may result in inconsistent or incorrect behavior."
+    confidence: 80
+
+  - id: N004
+    severity: MEDIUM
+    category: ownership
+    location: "scanner_context.py:200"
+    issue: "Ownership of prepared-policy-bundle is fragmented."
+    root_cause: "The prepared-policy-bundle is accessed and modified by multiple modules, including scan_request, variable_discovery, and scanner_context, without a clear ownership boundary."
+    impact: "Fragmented ownership leads to unclear responsibilities and increases the risk of bugs."
+    confidence: 75
+
+  - id: N005
+    severity: LOW
+    category: validation
+    location: "scanner_context.py:300"
+    issue: "Proliferation of _require_* validation functions."
+    root_cause: "Multiple _require_* functions are defined for defensive checks, leading to code duplication."
+    impact: "Code duplication increases maintenance overhead and the risk of inconsistencies."
+    confidence: 70

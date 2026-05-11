@@ -1,0 +1,54 @@
+---
+plan_id: post-g84-arch-refactor-20260511
+parent_cycle: g84-remediation-mutl3y-cycle-20260509
+status: ACTIVE
+date_started: 2026-05-11
+priority: CRITICAL
+tier: TIER-2-ARCHITECTURE
+---
+
+# Post-G84 Architectural Refinement (Immediate)
+
+## Objective
+
+Execute three critical architectural refactors identified as "Immediate (Now)" by Principal Engineer review before Kubernetes/Terraform expansion.
+
+## Scope (Principal Engineer Recommendations)
+
+### 1. Refactor Policy Fallback Mechanisms
+**Current State**: Late-resolver fallbacks exist in scanner_extract modules; violates fail-closed principle  
+**Target State**: Prepared-first enforcement; all policy resolution at ingress  
+**Estimated Effort**: 1 week  
+**Blocker For**: Platform expansion (Kubernetes/Terraform)
+
+### 2. Decouple scanner_core/extract/plugins Layers
+**Current State**: Hidden coupling; cascading change risk  
+**Target State**: Clear layer boundaries with explicit contracts  
+**Estimated Effort**: 2 weeks  
+**Blocker For**: Multi-team development; platform scalability
+
+### 3. Extend Error Envelope for Platforms
+**Current State**: Error envelope works for Ansible but lacks platform extensions  
+**Target State**: Platform-agnostic base + Kubernetes/Terraform extensions  
+**Estimated Effort**: 1 week  
+**Blocker For**: Platform-specific error handling consistency
+
+## Execution Strategy
+
+**Tier**: 2 (Balanced/High-Reasoning)  
+**Approach**: Analysis-first with discovery phase per refactor  
+**Validation**: Full pytest + mypy + lint gates after each refactor
+
+## Timeline
+
+- Week 1: Policy fallback refactor + Error envelope design
+- Week 2: Layer decoupling implementation
+- Week 3: Integration validation + Q3 handoff documentation
+
+## Success Criteria
+
+- [ ] Zero policy resolution fallbacks outside ingress
+- [ ] Layer dependency graph shows clear boundaries
+- [ ] Error envelope Protocol supports platform extensions
+- [ ] All tests green (1306+ passing)
+- [ ] Principal Engineer re-review GREEN

@@ -1,0 +1,134 @@
+---
+# Marker-Prefix Boundary Violations Audit (Q2 Initiative 3)
+# Date: May 9, 2026
+# Status: NO VIOLATIONS DETECTED ✅
+
+total_violations: 0
+severity_distribution:
+  critical: 0
+  high: 0
+  medium: 0
+  low: 0
+
+violations: []
+
+---
+# VERIFICATION PASS: All 5 Boundary Checks
+
+boundary_check_01:
+  name: "Bundle Write Isolation"
+  description: "Only bundle_resolver.ensure_prepared_policy_bundle() writes to marker-prefix"
+  checked: true
+  passed: true
+  evidence:
+    - file: "src/prism/scanner_plugins/bundle_resolver.py"
+      lines: [155, 157]
+      operation: "bundle['comment_doc_marker_prefix'] = ..."
+      write_count: 1 (after startup, never written again)
+    - file: "src/prism/scanner_core/task_extract_adapters.py"
+      operation: "No writes to bundle"
+      confirmed: true
+    - file: "src/prism/scanner_plugins/ansible/feature_detection.py"
+      operation: "No writes to bundle"
+      confirmed: true
+    - file: "src/prism/scanner_plugins/parsers/comment_doc/annotation_parsing.py"
+      operation: "No writes to bundle"
+      confirmed: true
+  finding: "✅ PASS — Single write point, then read-only"
+
+boundary_check_02:
+  name: "Scanner-Readme Isolation"
+  description: "scanner_readme module does not modify or access comment_doc_marker_prefix"
+  checked: true
+  passed: true
+  evidence:
+    - file: "src/prism/scanner_readme/render.py"
+      operation: "Uses legacy_merge_marker_prefixes() (different concept)"
+      imports: ["scanner_readme.plugin_seams"]
+      no_bundle_access: true
+    - file: "src/prism/scanner_readme/guide.py"
+      operation: "Calls resolve_readme_renderer_plugin()"
+      no_bundle_access: true
+    - grep_result: "No match for bundle|prepared_policy in scanner_readme/"
+  finding: "✅ PASS — Clean separation, no overlap"
+
+boundary_check_03:
+  name: "Plugin Write Authorization"
+  description: "Plugins do not write to prepared_policy_bundle directly"
+  checked: true
+  passed: true
+  evidence:
+    - scope: "scanner_plugins/ansible/"
+      write_count: 0
+    - scope: "scanner_plugins/parsers/"
+      write_count: 0
+    - file: "src/prism/scanner_plugins/ansible/feature_detection.py"
+      line: 129
+      operation: "_resolve_marker_prefix(options)" (read only)
+    - file: "src/prism/scanner_plugins/ansible/task_annotation_strategy.py"
+      operation: "Re-exports from marker_utils (no writes)"
+  finding: "✅ PASS — All plugin access is read-only"
+
+boundary_check_04:
+  name: "Extract Layer Non-Modification"
+  description: "scanner_extract layer does not modify marker-prefix"
+  checked: true
+  passed: true
+  evidence:
+    - file: "src/prism/scanner_extract/task_line_parsing.py"
+      line: 133
+      operation: "_normalize_marker_prefix()" (deterministic normalization, not write)"
+    - file: "src/prism/scanner_extract/task_annotation_parsing.py"
+      operation: "Receives marker_prefix as parameter"
+      modification_count: 0
+    - file: "src/prism/scanner_extract/task_catalog_assembly.py"
+      operation: "Passes marker_prefix through, no modification"
+  finding: "✅ PASS — Extract layer is transparent"
+
+boundary_check_05:
+  name: "Downstream Cache Safety"
+  description: "Caching patterns do not bypass bundle authority"
+  checked: true
+  passed: true
+  evidence:
+    - file: "src/prism/scanner_plugins/parsers/comment_doc/marker_utils.py"
+      line: 15
+      cache_target: "_MARKER_LINE_RE_CACHE" (compiled regex patterns)"
+      cache_key: "marker_prefix value"
+      cache_mutation: "No — read-through cache, not state mutation"
+    - cache_type: "Function-local static cache for regex compilation performance"
+      boundary_risk: "None (cache key is parameter, not override)"
+  finding: "✅ PASS — Cache is defensive, not a bypass"
+
+---
+# SUPPLEMENTARY FINDINGS
+
+implicit_ownership_contracts:
+  - principle: "Single Write, Distributed Read"
+    validation: "✅ Confirmed"
+    locations:
+      - write: "bundle_resolver:155-157"
+      - reads: [
+          "task_extract_adapters:238",
+          "task_extract_adapters:253",
+          "feature_detection:129",
+          "extract scenarios (via parameter)"
+        ]
+
+integration_points_audited:
+  - scanner_core ↔ scanner_plugins: "✅ Clean handoff via DI"
+  - scanner_plugins ↔ scanner_extract: "✅ Parameter passing, no shared state"
+  - scanner_core ↔ scanner_readme: "✅ No marker-prefix coupling"
+  - api_layer ↔ scanner_core: "✅ Options dict validated at ingress"
+
+---
+# AUDIT CONCLUSION
+
+audit_status: PASSED
+violations_count: 0
+severity_max: "N/A"
+recommendation: "No remediation required. Ownership is clean and follows single-write pattern."
+next_step: "Formalize MP1 contract (see marker-prefix-flow-specification.yaml)"
+
+audited_by: "Scout-MarkerPrefixAudit"
+audit_date: "2026-05-09"

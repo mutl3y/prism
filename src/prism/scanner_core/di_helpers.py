@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import AbstractContextManager
 import logging
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from prism.scanner_plugins.interfaces import (
@@ -102,7 +102,7 @@ def require_prepared_policy(
     di: object | None,
     policy_name: str,
     context_label: str,
-) -> Any:
+) -> object:
     """Retrieve a required policy from the prepared_policy_bundle or raise."""
     policy = get_prepared_policy_or_none(di, policy_name)
     if policy is not None:
@@ -121,3 +121,35 @@ def get_event_bus_or_none(di: object) -> EventBusProtocol | None:
     if not callable(factory_event_bus):
         return None
     return factory_event_bus()
+
+
+def get_variable_discovery_plugin_factory_or_none(
+    di: object,
+) -> Callable[[], VariableDiscoveryPlugin] | None:
+    """Get the variable discovery plugin factory from DI or None if not registered.
+
+    Returns the callable factory (not the result of calling it).
+    Consolidates duplicate isinstance + callable checks across scanner_core.
+    """
+    if not isinstance(di, HasVariableDiscoveryPluginFactory):
+        return None
+    factory = di.factory_variable_discovery_plugin
+    if not callable(factory):
+        return None
+    return factory
+
+
+def get_feature_detection_plugin_factory_or_none(
+    di: object,
+) -> Callable[[], FeatureDetectionPlugin] | None:
+    """Get the feature detection plugin factory from DI or None if not registered.
+
+    Returns the callable factory (not the result of calling it).
+    Consolidates duplicate isinstance + callable checks across scanner_core.
+    """
+    if not isinstance(di, HasFeatureDetectionPluginFactory):
+        return None
+    factory = di.factory_feature_detection_plugin
+    if not callable(factory):
+        return None
+    return factory

@@ -1,0 +1,35 @@
+- id: Scout-Ownership-01
+  category: ownership
+  fingerprint: "ownership:scanner_core/di:factory_blocker_fact_builder:runtime_import"
+  file: src/prism/scanner_core/di.py
+  line: 298
+  severity_hint: low
+  confidence: high
+  detector: neighbor_read
+  memory_status: matches_do_not_re_flag
+  memory_match: "FIND-G3-03"
+  evidence_snippet: "fn = resolve_blocker_fact_builder()"
+  evidence_command: "src/prism/scanner_core/di.py#L288-L302"
+  related_symbols: ["factory_blocker_fact_builder", "resolve_blocker_fact_builder"]
+  fix_group_key: "di.factory_blocker_fact_builder.runtime_import"
+  proposed_fix_class: lazy_bootstrap
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_scanner_core_di.py::test_factory_blocker_fact_builder_caches_callable"
+
+- id: Scout-Graph-01
+  category: registry_authority
+  fingerprint: "registry_authority:scanner_core/di:_get_registry:split_authority"
+  file: src/prism/scanner_core/di.py
+  line: 302
+  severity_hint: high
+  confidence: high
+  detector: neighbor_read
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "if self._registry is None: raise ValueError(\"No plugin registry provided\")"
+  evidence_command: "src/prism/scanner_core/di.py#L296-L306"
+  related_symbols: ["DIContainer._get_registry", "_registry"]
+  fix_group_key: "registry-split-authority"
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: "pytest -q src/prism/tests/test_di_registry_resolution.py::test_default_platform_key"

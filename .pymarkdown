@@ -1,0 +1,24 @@
+{
+  extensions: {
+    "front-matter": {
+      enabled: true,
+    },
+  },
+  plugins: {
+    md003: {
+      enabled: false,
+    },
+    md013: {
+      enabled: false,
+    },
+    md022: {
+      enabled: false,
+    },
+    md026: {
+      enabled: false,
+    },
+    md041: {
+      enabled: false,
+    },
+  },
+}

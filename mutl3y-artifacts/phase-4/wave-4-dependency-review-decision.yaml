@@ -1,0 +1,143 @@
+---
+phase: 4
+wave: 4
+fix_group: graph_dependency_review
+decision_date: "2026-05-08"
+decision_maker: tactical-planner
+
+summary: |
+  Phase 4, Wave 4: Dependency Review fixes (4 low-severity findings)
+  All findings target import-count reduction via type_only_import pattern.
+  Files are independent; zero inter-dependencies detected.
+
+findings_overview:
+  total_count: 4
+  severity_all_low: true
+  files:
+    - path: src/prism/api.py
+      imports: 25
+      issue: high import count
+    - path: src/prism/scanner_plugins/ansible/__init__.py
+      imports: 20
+      issue: high import count
+    - path: src/prism/scanner_plugins/ansible/extract_utils.py
+      imports: 21
+      issue: high import count
+    - path: src/prism/scanner_plugins/ansible/variable_discovery.py
+      imports: 20
+      issue: high import count
+
+decision: batch
+rationale: |
+  All 4 findings are homogeneous (high import count → type_only_import conversion),
+  independent (zero dependencies between target files), and low-severity.
+  Batching into single Wave 4 wave minimizes context-switching overhead.
+  Parallel execution is safe; no sequencing constraints.
+
+implementation_strategy:
+  wave_structure: single_parallel_wave
+  parallelism_level: 4
+  sequencing: none_required
+  ordering: |
+    No specific order required. All 4 files can be processed in parallel.
+    Suggest lexicographic order for consistency: api.py, ansible/__init__.py,
+    ansible/extract_utils.py, ansible/variable_discovery.py
+
+fix_pattern: type_only_import
+pattern_description: |
+  Convert runtime imports to TYPE_CHECKING block to reduce circular dependency
+  risk and import-time overhead. Pattern:
+  
+    from typing import TYPE_CHECKING
+    if TYPE_CHECKING:
+        from some_module import SomeType
+  
+  Then update runtime code to use string forward-refs or late imports as needed.
+
+prechecks:
+  - id: pc_1
+    name: Import graph audit (safety validation)
+    description: Verify no runtime code directly depends on these imports post-conversion
+    tool: grep + manual audit
+    scope: Each target file and its 2-hop dependents
+    gate: REQUIRED_BEFORE_IMPLEMENTATION
+    effort: 30 minutes (parallel across 4 files)
+
+  - id: pc_2
+    name: TYPE_CHECKING pattern compatibility check
+    description: Verify each target file already imports `from typing import ...` 
+    tool: grep for existing typing imports
+    scope: Each of 4 target files
+    gate: REQUIRED_BEFORE_IMPLEMENTATION
+    effort: 5 minutes
+
+  - id: pc_3
+    name: Pre-implementation type-check baseline
+    description: Capture baseline mypy output for comparison post-fix
+    tool: mypy src/prism
+    scope: Full codebase (fast, already installed)
+    gate: REQUIRED_BEFORE_IMPLEMENTATION
+    effort: 2 minutes
+
+effort_estimate: low
+total_effort_hours: 2
+breakdown:
+  prechecks: 0.5
+  implementation: 1.0
+  per_file_implementation_hours: 0.25
+  validation_and_testing: 0.5
+  notes: |
+    Each file is straightforward: audit imports, move TYPE_CHECKING imports,
+    add forward-ref strings where needed. No complex refactoring.
+
+risk_level: low
+risk_rationale: |
+  - Low severity findings (not blocking, no performance impact)
+  - Well-established pattern (TYPE_CHECKING is standard Python practice)
+  - Independent changes (zero inter-file dependencies)
+  - Minimal behavioral change (imports moved, not removed)
+  - Easy to verify (type-check passes or fails clearly)
+
+risk_mitigations:
+  - Run full pytest after each file to catch runtime import errors immediately
+  - Run mypy to catch missing forward-refs
+  - Staged rollout: implement 1 file, test, then next batch
+
+dependencies_on_other_waves:
+  - phase_4_wave_1: none (graph findings are independent)
+  - phase_4_wave_2: none
+  - phase_4_wave_3: none
+  - prior_phases: none (no blocking preconditions from earlier waves)
+
+blockers_detected: false
+blocker_list: []
+
+phase_5_readiness_impact:
+  current_status: impl-graph-plan.yaml MISSING from Phase 5 gate
+  wave_4_completion_unblocks: impl-graph-plan.yaml can now be written
+  phase_5_gate_readiness: IMPROVE (1 of 4 plans → 2 of 4 plans on completion)
+  next_phase_ready_after_wave_4: false
+  reason: |
+    Phase 5 gate requires all 4 implementation plans (typing, error-handling,
+    ownership, graph) to exist and validate disjoint scope. Wave 4 completion
+    enables impl-graph-plan.yaml, but 2 plans still missing (error-handling,
+    ownership). Phase 5 start remains blocked until Phase 4 decision artifacts
+    for all 4 wave groups exist.
+
+validation_gate:
+  post_implementation_checks:
+    - pytest -q (full suite)
+    - mypy src/prism > /tmp/post_wave4.out; diff baseline
+    - ruff check src/prism (no new violations)
+    - Manual audit: grep for any remaining high-import-count patterns
+
+approval_path:
+  gate_keeper_role: mutl3y-gatekeeper
+  review_required: false (low severity, standard pattern)
+  approval_via: automated validation only (prechecks + post-implementation gate)
+
+next_actions:
+  - Execute prechecks (pc_1, pc_2, pc_3) before implementation
+  - Dispatch to implementation agent once prechecks pass
+  - Implementation team creates impl-graph-plan.yaml after Wave 4 closes
+  - Update Phase 5 gate report after impl-graph-plan.yaml exists

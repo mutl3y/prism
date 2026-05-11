@@ -1,0 +1,52 @@
+---
+wave: 4
+plan_id: "g84-remediation-mutl3y-cycle-20260509"
+execution_date: "2026-05-09"
+tier_selected: "Tier 1 (0.33x)"
+tier_reason: "Complex error-handling/performance refactors; 12/130 architecture items flagged for conditional Tier 2 escalation"
+
+scope:
+  total_findings: 130
+  breakdown:
+    error_handling: 26
+    performance: 29
+    cache_safety: 3
+    architecture: 12
+    other: 60
+
+target:
+  minimum_success: 60  # 46% threshold — below triggers Tier 2 queue
+  aggressive_target: 80-130  # 60-100% success
+  success_gate_1: ">60 findings fixed (defer remainder if <46%)"
+  success_gate_2: ">99.5% tests (1150+/1162)"
+  success_gate_3: "0 new mypy errors"
+  success_gate_4: "0 ruff/black violations"
+
+owned_files:
+  - "src/prism/scanner_core/di.py"
+  - "src/prism/scanner_core/di_helpers.py"
+  - "src/prism/scanner_core/events.py"
+  - "src/prism/scanner_core/feature_detector.py"
+  - "src/prism/scanner_core/scan_cache.py"
+  - "src/prism/scanner_core/scan_request.py"
+  - "src/prism/scanner_core/scanner_context.py"
+  - "src/prism/scanner_core/task_extract_adapters.py"
+  - "src/prism/scanner_core/variable_discovery.py"
+
+execution_strategy:
+  phase_1: "Error-handling (26 findings) — logging, exception chains, error context"
+  phase_2: "Performance (29 findings) — cache optimization, efficiency"
+  phase_3: "Cache-safety (3 findings) — mutable object safety"
+  phase_4: "Architecture (12 findings) — ownership cleanup, layer violations [MONITOR FOR TIER 2 ESCALATION]"
+  phase_5: "Other (60 findings) — documentation, naming, refactoring"
+
+rollback_protocol:
+  threshold: "<46% success (fewer than 60 findings)"
+  action: "Defer remainder to multi-week queue + flag for Tier 2"
+  commit: "Partial progress committed"
+  status: "Failed Wave 4 (Tier 1 capacity limit)"
+
+execution_status: "NOT_STARTED"
+findings_fixed: 0
+tests_passing: 0
+escalation_flags: []

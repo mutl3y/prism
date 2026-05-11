@@ -1,0 +1,27 @@
+---
+plan_id: g82-tier-enforcement-test-20260508
+title: "Tier Enforcement Testing Cycle"
+date: 2026-05-08
+phase: 0
+objective: "Verify 5-tier escalation ladder enforcement mechanism works end-to-end with live scout dispatch"
+
+phases:
+  phase_0:
+    name: "Discovery (Scout Dispatch)"
+    objective: "Run Phase 0 scout with tier-dispatch-checklist logging to verify enforcement auto-load and tier matrix match"
+    task: "g82_p0_scout_01"
+    
+scope:
+  target: "prism/src/prism/scanner_core"
+  focus: "Type annotations, import organization, error handling"
+  
+criteria_for_success:
+  - "tier-dispatch-checklist completed before dispatch"
+  - "tier selection logged in artifact matches matrix default (Tier 0 FREE)"
+  - "memory auto-load verified (tool-behavior.md triggered)"
+  - "scout findings recorded with proper metadata"
+  - "no escalation triggered (shallow findings expected, tier 0 sufficient)"
+
+notes: |
+  This is a lightweight test cycle to verify tier enforcement mechanism.
+  Not a full review cycle—just enough to validate checklist, memory auto-load, and tier matrix work.

@@ -1,0 +1,288 @@
+================================================================================
+WAVE 2: SEQUENTIAL EXECUTION — READY TO START
+================================================================================
+
+Status: ✅ ALL SYSTEMS READY
+Timeline: ~115 minutes (~2 hours)
+Cost: $0 (all Tier 0)
+Approach: One node at a time (respects shared Gilfoyle agent resource)
+
+================================================================================
+WHAT YOU HAVE
+================================================================================
+
+Execution Guides:
+  ✅ START_HERE_NODE1.md
+     → 5-step guide to get started RIGHT NOW
+     → Just follow the steps and run Node 1
+
+  ✅ SEQUENTIAL_QUICK_REFERENCE.txt
+     → Quick cards for all 4 nodes
+     → Use while running each node
+
+  ✅ WAVE2_SEQUENTIAL_EXECUTION.md
+     → Detailed step-by-step instructions
+     → Complete merge & analysis guide
+     → Results capture templates
+
+All 4 Node Prompts:
+  ✅ NODE 1 PROMPT (GPT-4o) - Architecture & DI
+     → In WAVE2_CLUSTER_PLAN.md
+     → Copy-paste ready
+
+  ✅ NODE 2 PROMPT (GPT-4.1) - Concurrency & Type Safety
+     → In WAVE2_CLUSTER_PLAN.md
+     → Copy-paste ready
+     → Targets: TOCTOU race
+
+  ✅ NODE 3A PROMPT (GPT-5 mini) - Ownership & Validation
+     → In WAVE2_CLUSTER_PLAN.md
+     → Copy-paste ready
+
+  ✅ NODE 3B PROMPT (Raptor mini) - Caching & Performance
+     → In WAVE2_CLUSTER_PLAN.md
+     → Copy-paste ready
+
+Supporting Materials:
+  ✅ CONVERGENCE_ANALYSIS.md (Wave 1 baseline)
+  ✅ WAVE2_CLUSTER_PLAN.md (full architecture + all prompts)
+  ✅ LAUNCH_CHECKLIST.md (pre-flight verification)
+
+================================================================================
+HOW TO START (RIGHT NOW!)
+================================================================================
+
+Option A: FASTEST START (5 minutes from now)
+
+1. Open: WAVE2_CLUSTER_PLAN.md
+2. Find: NODE 1 PROMPT section
+3. Copy: Entire prompt (from "## Gilfoyle Code Review: Architecture & DI Focus"
+          through "### Token Limit UNLIMITED")
+4. Send to runSubagent:
+   - Agent: Gilfoyle Code Review God Mode
+   - Model: GPT-4o (copilot)
+   - Prompt: [PASTE HERE]
+5. Wait: ~18 minutes for results
+
+That's it! You're running Node 1.
+
+---
+
+Option B: SLOWER BUT MORE STRUCTURED
+
+1. Read: START_HERE_NODE1.md (5 min)
+2. Follow: 5 simple steps
+3. Launch: Node 1 run
+4. Continue: To Node 2, 3A, 3B in sequence
+
+================================================================================
+SEQUENTIAL TIMELINE
+================================================================================
+
+t=0:00   ▶ START NODE 1 (GPT-4o)
+         Execute: runSubagent with NODE 1 PROMPT
+
+t=0:18   ✓ Node 1 complete
+         Save: /artifacts/node1-gpt4o-findings.yaml
+
+t=0:23   ⏸ [5 min buffer for Gilfoyle agent reset]
+
+t=0:25   ▶ START NODE 2 (GPT-4.1)
+         Execute: runSubagent with NODE 2 PROMPT
+
+t=0:43   ✓ Node 2 complete
+         Save: /artifacts/node2-gpt4.1-findings.yaml
+         Check: TOCTOU race found? (critical metric)
+
+t=0:48   ⏸ [5 min buffer]
+
+t=0:50   ▶ START NODE 3A (GPT-5 mini)
+         Execute: runSubagent with NODE 3A PROMPT
+
+t=1:08   ✓ Node 3A complete
+         Save: /artifacts/node3a-gpt5mini-findings.yaml
+
+t=1:13   ⏸ [5 min buffer]
+
+t=1:15   ▶ START NODE 3B (Raptor mini)
+         Execute: runSubagent with NODE 3B PROMPT
+
+t=1:33   ✓ Node 3B complete
+         Save: /artifacts/node3b-raptormini-findings.yaml
+
+t=1:40   ▶ MERGE & ANALYSIS
+         Calculate: Cluster metrics
+         Compare: To success criteria
+         Create: WAVE2_CLUSTER_RESULTS.md
+
+t=1:55   ✓ COMPLETE
+
+TOTAL: ~115 minutes
+
+================================================================================
+EXPECTED RESULTS PER NODE
+================================================================================
+
+NODE 1 (GPT-4o):
+  Quality: 85-88/100
+  Findings: 12-15
+  Focus: DI god-object, ownership fragmentation, type erasure
+
+NODE 2 (GPT-4.1):
+  Quality: 85-88/100
+  Findings: 11-14
+  Focus: TOCTOU race ⚠️, type erasure, cache collision
+
+NODE 3A (GPT-5 mini):
+  Quality: 85-88/100
+  Findings: 12-15
+  Focus: Marker-prefix ownership leak, lazy imports, validation
+
+NODE 3B (Raptor mini):
+  Quality: 82-85/100
+  Findings: 10-13
+  Focus: Cache safety, performance footguns, exceptions
+
+CLUSTER TOTAL:
+  Quality: 85-87/100 (average)
+  Findings: 45-57 (total)
+  Target modules: 11/11
+  Critical discoveries: 2-3 (TOCTOU, cache collision, etc.)
+
+================================================================================
+SUCCESS CRITERIA (ALL 4 MUST BE MET)
+================================================================================
+
+After all 4 nodes complete, check:
+
+✓ Quality ≥ 85/100?
+  Average of 4 node scores
+  Expected: 87/100
+  Status: [PASS | FAIL]
+
+✓ Finding count ≥ 45?
+  Total across all nodes
+  Expected: 48
+  Status: [PASS | FAIL]
+
+✓ Module coverage ≥ 9/11?
+  Union of modules covered by all nodes
+  Expected: 11/11
+  Status: [PASS | FAIL]
+
+✓ Critical discovery (TOCTOU or cache collision)?
+  Node 2 targets TOCTOU
+  Node 3B targets cache collision
+  Expected: YES
+  Status: [YES | NO | PARTIAL]
+
+DECISION:
+  IF all 4 criteria met:
+    ✅ Free-tier cluster ≥ Tier 1 quality
+    ✅ Update model dispatch strategy
+    ✅ Annual savings: $27 → $0.10 (99.6% reduction!)
+
+================================================================================
+FILES IN FOLDER
+================================================================================
+
+Location: /raid5/source/test/prism/docs/plan/g84-10-model-gilfoyle-comparison-20260508/
+
+START HERE:
+  📄 START_HERE_NODE1.md ← READ THIS FIRST
+  📄 SEQUENTIAL_QUICK_REFERENCE.txt ← Use while running nodes
+
+Detailed Guides:
+  📄 WAVE2_SEQUENTIAL_EXECUTION.md ← Complete step-by-step
+  📄 WAVE2_CLUSTER_PLAN.md ← All 4 prompts (copy-paste ready)
+
+Reference:
+  📄 LAUNCH_CHECKLIST.md
+  📄 CONVERGENCE_ANALYSIS.md (Wave 1 baseline)
+  📄 WAVE2_INDEX.md (master index)
+
+Results (created during execution):
+  📁 artifacts/
+     - node1-gpt4o-findings.yaml
+     - node2-gpt4.1-findings.yaml
+     - node3a-gpt5mini-findings.yaml
+     - node3b-raptormini-findings.yaml
+     - WAVE2_CLUSTER_RESULTS.md (final report, created after merge)
+
+================================================================================
+KEY DIFFERENCES FROM PARALLEL
+================================================================================
+
+Parallel Approach (originally planned):
+  ✗ All 4 nodes run simultaneously
+  ✗ Overwhelming shared Gilfoyle agent
+  ✗ 18 minutes to completion
+  ✓ Selfish use of resources
+
+Sequential Approach (your choice):
+  ✓ One node at a time
+  ✓ Respects shared Gilfoyle agent
+  ✓ Allows other users to get turns
+  ✓ 115 minutes to completion
+  ✓ Community-friendly
+  ✓ Same end result (45-57 findings, 87/100 quality)
+
+================================================================================
+QUICK CHECKLIST
+================================================================================
+
+Before starting:
+  [ ] Have WAVE2_CLUSTER_PLAN.md open
+  [ ] Know where NODE 1 PROMPT is
+  [ ] Can access /artifacts/ folder
+  [ ] Ready to save YAML outputs
+
+Per node:
+  [ ] Copied entire prompt from WAVE2_CLUSTER_PLAN.md
+  [ ] Sent to runSubagent with correct agent name
+  [ ] Waited for completion (~18 min)
+  [ ] Copied YAML findings to clipboard
+  [ ] Saved to artifacts/node{N}-{model}-findings.yaml
+  [ ] Recorded quality score, finding count
+  [ ] Waited 5 minutes before next node
+
+After all 4:
+  [ ] All 4 YAML files verified in artifacts/ folder
+  [ ] Calculated cluster metrics
+  [ ] Identified convergent findings (2+ nodes)
+  [ ] Checked all 4 success criteria
+  [ ] Created WAVE2_CLUSTER_RESULTS.md
+  [ ] Made final decision (free-tier cluster viable or not)
+
+================================================================================
+YOU ARE READY
+================================================================================
+
+Everything is prepared. All prompts are ready. The folder structure is set.
+
+All you need to do is:
+
+1. Read: START_HERE_NODE1.md (5 min)
+2. Execute: Node 1 (18 min)
+3. Wait: 5 min buffer
+4. Repeat: For Nodes 2, 3A, 3B
+5. Analyze: Merge all findings
+
+Total time: ~115 minutes
+
+The research is sound. The prompts are tuned. The metrics are defined.
+
+Let's go! 🚀
+
+================================================================================
+NEXT ACTION
+================================================================================
+
+Open: START_HERE_NODE1.md
+Follow: 5 simple steps
+Start: Node 1 execution
+
+That's all you need to do right now.
+
+Go! 🚀
+================================================================================

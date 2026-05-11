@@ -15,7 +15,7 @@ checks:
       Phase 2: ✓ entries exist (2-1 through 2-4)
       Phase 4: ✗ NO entries (expected 4-1 through 4-N)
       Phase 5: ✗ NO entries (expected 5-1 through 5-N)
-      
+
       Latest checkpoint: P2 at 20:00:42Z (via entry_id 2-4)
       Trace last updated: 20:17:36
       But Phase 4 work started: 20:19:31 (barrier-check)
@@ -31,7 +31,7 @@ checks:
       - decision-error-handling.yaml (20:20:17)
       - decision-graph.yaml (20:20:34)
       - decision-ownership.yaml (20:21:06)
-      
+
       Findings count consistency: All 4 decision files reference findings from Phase 1 grading (10+8+8+4=30 total)
     proof_path: /raid5/source/test/prism/mutl3y-artifacts/phase-4/ (5 files, 50KB total)
 
@@ -44,7 +44,7 @@ checks:
       - impl-error-handling-plan.yaml (20:23:00, 18KB, 8 findings)
       - impl-graph-plan.yaml (20:23:00, 20KB, 4 findings)
       - impl-ownership-plan.yaml (20:23:00, 25KB, 8 findings)
-      
+
       Total: 4/4 impl plans written, sequential timestamps, references Phase 4 decisions
     proof_path: /raid5/source/test/prism/mutl3y-artifacts/phase-5/impl-*.yaml (4 files, 78KB total)
 
@@ -64,17 +64,17 @@ checks:
       Phase 4 decision artifacts:
         - Have: fix_group, findings_count, investigation_date, investigation_lens
         - Missing: phase, status fields in consistent header block
-        
+
       Phase 5 implementation artifacts:
         - Have: fix_group, files_owned, implementation_phases
         - Missing: phase, status, findings_count fields in header
-        
+
       Phase 4 barrier-check:
         - Has: phase, barrier_name, status (GOOD format)
-        
+
       Phase 5 gate:
         - Has: phase, gate_name, timestamp (GOOD format)
-        
+
       Inconsistency: Barrier/gate artifacts follow discipline, but decision/impl artifacts do not.
     proof_path: /raid5/source/test/prism/mutl3y-artifacts/phase-4/*.yaml, /raid5/source/test/prism/mutl3y-artifacts/phase-5/impl-*.yaml
 
@@ -96,7 +96,7 @@ drift_categories:
       - phase_4_barrier_mtime: 20:19:31
       - phase_5_gate_mtime: 20:25:00
     blocker: false
-    
+
   missing_phase_4_trace_entries:
     severity: HIGH
     description: Phase 4 barrier-check, 4 decision files exist but zero execution trace entries for Phase 4
@@ -107,7 +107,7 @@ drift_categories:
       - grep result: "grep -c 'phase: 4' execution-trace.yaml = 0"
       - grep result: "grep -c 'entry_id: 4-' execution-trace.yaml = 0"
     blocker: false
-    
+
   missing_phase_5_trace_entries:
     severity: MEDIUM
     description: Phase 5 impl plans and gate artifact exist but zero execution trace entries for Phase 5
@@ -132,7 +132,7 @@ drift_categories:
     actual_verdict_now: PASS (all 4 artifacts exist)
     impact: Stale artifact, gate status does not reflect current state
     blocker: false
-    
+
   stale_gate_artifact:
     severity: MEDIUM
     description: Phase 5 gate-implementation-ready.yaml (20:25:00) reports only 1 of 4 impl plans exist, but all 4 exist by 20:23:52
@@ -155,7 +155,7 @@ status_line_violations:
   - artifact_type: Phase 4 decision-*.yaml files
     violation: Missing standardized phase/status header (only have fix_group + findings_count)
     impact: No consistent audit trail format across decision artifacts
-    
+
   - artifact_type: Phase 5 impl-*-plan.yaml files
     violation: Missing standardized phase/status header (only have fix_group + files_owned)
     impact: Implementation plans not marked with phase/status for quick audit scanning
@@ -170,7 +170,7 @@ findings_summary:
 
 drift_summary: |
   Phase 5 execution is PROGRESSING but DIVERGED from execution trace.
-  
+
   Root causes:
   1. Execution trace was frozen at Phase 2 (20:17:36) and not updated for Phase 4/5 execution
   2. Phase 4 work (20:19-20:21) produced artifacts but no trace entries
@@ -187,7 +187,7 @@ verdict_justification: |
   NOT HEALTHY: Multiple stale artifacts, execution trace significantly out-of-sync
   NOT BLOCKED: Phase 5 implementation work is proceeding, all expected artifacts present
   NOT STALLED: Artifacts are being created at ~1-2 minute intervals, no time gaps
-  
+
   DEGRADED: Execution trace has not been updated to reflect Phase 4/5 execution.
   Barrier-check and gate artifacts are stale and report blocking conditions that have been resolved.
   Implementation plans are present and complete, but header discipline inconsistent.

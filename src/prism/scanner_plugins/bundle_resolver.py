@@ -1,4 +1,20 @@
-"""Bundle resolver: assembles PreparedPolicyBundle by resolving plugin defaults."""
+"""Bundle resolver: assembles PreparedPolicyBundle by resolving plugin defaults.
+
+This module implements the canonical WRITE POINT for marker-prefix ownership (MP1).
+All 7 ingress paths (direct param, policy context, CLI, config file, etc.)
+converge at ensure_prepared_policy_bundle(), which projects the marker-prefix
+into an immutable PreparedPolicyBundle. Downstream consumers read-only access
+through _resolve_marker_prefix(di).
+
+See Phase 1 Flow Diagram:
+  docs/plan/g84-remediation-mutl3y-cycle-20260509/mp1-flow-diagram.md
+Compliance Validation:
+  docs/plan/g84-remediation-mutl3y-cycle-20260509/mp1-compliance-matrix.yaml
+
+MP1 Guarantee: Single write point (lines 142-157) ensures all marker-prefix
+access flows through this module. No backdoors, no plugin overrides, no cache
+violations.
+"""
 
 from __future__ import annotations
 

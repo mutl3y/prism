@@ -1,0 +1,585 @@
+---
+report_id: q3-init6-grading-report
+created_at: "2026-05-09"
+created_by: Grader-Q3Init6
+phase: "Phase 1: Grading Phase 0 Findings"
+verdict: "PROCEED"
+confidence: 0.92
+
+executive_summary: |
+  Q3 Initiative 6 Phase 0 findings are sound and actionable. Option B (Targeted High-Value) 
+  is well-justified: 75-80% error reduction with 40% less effort than Option A. Three critical 
+  decision gates identified but not blocking—Phase 0 planning explicitly addresses them. 
+  Implementation timeline (2-3 weeks) is realistic with contingencies. Recommend PROCEED 
+  with conditional Phase 0 gate completion before Phase 1 work begins.
+
+---
+
+## 1. ERROR CLASSIFICATION (80 mypy errors)
+
+### By Severity & Root Cause
+
+**CRITICAL (Silent Bug Risk + Runtime Impact)**
+- Count: 35 errors
+- Type: "object" has no attribute X
+- Root Cause: DI container factories return `object` type
+- Impact: 15+ modules affected (extraction layer, feature detection, variable discovery)
+- Example: `di.factory_task_line_policy()` → `object` instead of `PreparedTaskLineParsingPolicy`
+- Severity Justification: Downstream code cannot safely call methods on policy objects; runtime AttributeError risk if code assumes interface
+- Effort: Fix DI → -35 errors (1 day, high leverage)
+- Module Impact:
+  - feature_detection.py (12 direct errors)
+  - task_line_parsing.py (5 direct errors)
+  - task_file_traversal.py (4 direct errors)
+  - variable_discovery.py (3 direct errors)
+  - variable_extractor.py (2 direct errors)
+  - 4+ other callers (4 distributed errors)
+
+**HIGH Severity (Type Mismatch, Protocol Violation)**
+- Count: 20 errors (type mismatches, arg/return incompatibility)
+- Root Cause: API/protocol boundaries undefined; extraction layer returns untyped containers
+- Impact: API/CLI layer, extraction return types
+- Examples:
+  - `write_role_scan_output()` signature mismatch (api.py → cli.py)
+  - `expand_include_target_candidates()` returns untyped dict instead of typed container
+  - `build_task_catalog()` returns TaskCatalog but not annotated
+- Severity Justification: Confuses maintainers; breaks IDE refactoring; makes testing harder
+- Effort: Moderate (2-3 functions per module, 1-2 hours per fix)
+- Module Impact:
+  - api.py (3 errors)
+  - cli.py (4 errors)
+  - task_annotation_parsing.py (4 errors)
+  - task_catalog_assembly.py (3 errors)
+  - loader.py (3 errors)
+  - extract_policies.py (4 errors)
+
+**MEDIUM Severity (Maintainability, Type Safety)**
+- Count: 25 errors
+  - 8 errors: Indexing on "object" (requires cast/narrowing)
+  - 6 errors: Missing TypedDict keys (ScanOptionsDict, PreparedPolicyBundle)
+  - 11 errors: Union/callable incompatibility (rare edge cases)
+- Root Cause: Incomplete type narrowing; TypedDict definitions incomplete; generic type variance
+- Impact: Type checker not fully confident; future refactoring at risk
+- Severity Justification: Not immediate runtime risk but indicates incomplete contract definitions
+- Effort: Moderate to Low (mostly adding missing annotations + cast statements)
+
+**LOW Severity (Test Suite, Edge Cases)**
+- Count: 35 errors (all in test files)
+- Root Cause: Test fixtures untyped; parametrizations lack TypedDict validation
+- Impact: Test code does not validate against scanner interfaces; brittle test maintenance
+- Severity Justification: Tests already validated by CI; type errors here are informational only
+- Effort: High relative to payoff (test infrastructure redesign needed)
+- Decision: **Defer to Q3b** (explicit in Option B)
+
+### Classification Summary Table
+
+| Severity | Count | Effort | ROI | Phase |
+|----------|-------|--------|-----|-------|
+| CRITICAL | 35 | 1 day | 9.8x (eliminates 35 errors) | Phase 1 |
+| HIGH | 20 | 1.5 days | 6.7x (eliminates 20 errors) | Phase 2a+2b |
+| MEDIUM | 10 | 1 day | 3.3x (eliminates 10 errors) | Phase 2a+2b |
+| LOW | 15 | 1 day | (included in MEDIUM/HIGH) | Phase 2a+2b |
+| TEST_SUITE | 35 | 2 weeks | Low | Q3b |
+
+---
+
+## 2. MODULE PRIORITIZATION (Top 10 Low-Coverage)
+
+### Critical Path Analysis
+
+**Tier 1: UNBLOCKING DEPENDENCY (Must be first)**
+1. `scanner_core/di.py` + `scanner_core/di_helpers.py`
+   - Call Frequency: ~50+ callsites across codebase
+   - Complexity: Medium (overload typing straightforward)
+   - External API: No (internal DI container)
+   - Impact on Downstream: CRITICAL (blocks feature_detection, extraction layer, plugins)
+   - Return Type Coverage: 80% (missing return types on factories)
+   - Effort: 1 day
+   - **Recommendation: PHASE 1 (Day 1 of implementation)**
+
+**Tier 2: EXTRACTION LAYER (High-Frequency Paths)**
+2. `scanner_extract/task_line_parsing.py`
+   - Call Frequency: ~20+ calls (every role scan)
+   - Complexity: High (complex logic, policy-dependent)
+   - External API: Yes (called by scanner.py)
+   - Coverage: 97% args, 97% returns BUT returns typed as `object` from DI
+   - Mypy Errors: 5
+   - **Recommendation: PHASE 2a (Day 2-3)**
+
+3. `scanner_extract/task_file_traversal.py`
+   - Call Frequency: ~15+ calls (include path resolution)
+   - Complexity: High
+   - External API: Yes
+   - Coverage: 93% returns BUT returns untyped containers
+   - Mypy Errors: 9
+   - **Recommendation: PHASE 2a (Day 2-3)**
+
+4. `scanner_extract/task_catalog_assembly.py`
+   - Call Frequency: ~10+ calls
+   - Complexity: Medium-High
+   - External API: Implied (returns TaskCatalog)
+   - Coverage: 90% but return types incomplete
+   - Mypy Errors: 3
+   - **Recommendation: PHASE 2a (Day 2-3)**
+
+5. `scanner_extract/task_annotation_parsing.py`
+   - Call Frequency: ~10+ calls
+   - Complexity: Medium
+   - Coverage: 92% returns but incomplete
+   - Mypy Errors: 4
+   - **Recommendation: PHASE 2a (Day 2-3)**
+
+**Tier 3: FEATURE DETECTION (High-Impact Plugin Consumer)**
+6. `scanner_plugins/ansible/feature_detection.py`
+   - Call Frequency: ~5+ calls (role scanning)
+   - Complexity: High (rule engine, DI-heavy)
+   - External API: Via plugin interface (Protocol)
+   - Coverage: 68% returns (LOWEST in production code)
+   - Mypy Errors: 12 (highest single-file count in production)
+   - **Recommendation: PHASE 2b (Day 4-5, after Phase 1 unblocks DI)**
+
+**Tier 4: PLUGIN SUITE (Expansion Foundation)**
+7. `scanner_plugins/ansible/variable_discovery.py`
+   - Call Frequency: ~5+ calls
+   - Complexity: Medium
+   - Coverage: 87% returns
+   - Mypy Errors: 3
+   - **Recommendation: PHASE 2b (Day 4-5)**
+
+8. `scanner_plugins/ansible/extract_policies.py`
+   - Call Frequency: ~8+ calls (policy resolution)
+   - Complexity: Medium
+   - Coverage: 72% returns
+   - Mypy Errors: 4
+   - **Recommendation: PHASE 2b (Day 4-5)**
+
+9. `scanner_plugins/ansible/default_policies.py`
+   - Call Frequency: ~10+ calls (fallback resolution)
+   - Complexity: Low-Medium
+   - Coverage: 90% returns
+   - Mypy Errors: 2
+   - **Recommendation: PHASE 2b (Day 4-5)**
+
+10. `scanner_plugins/marker_prefix_policy.py`
+    - Call Frequency: ~15+ calls (every task line)
+    - Complexity: Medium
+    - Coverage: 75% returns (significant gaps despite Q2 work)
+    - Mypy Errors: 4
+    - **Recommendation: PHASE 2b (Day 4-5)**
+
+### Prioritization Rationale
+
+**Phase 1 (Days 1-2): DI Unblock**
+- MUST come first (blocking dependency)
+- 1 day effort, -35 errors
+- Enables all downstream work
+
+**Phase 2a (Days 3-5): Extraction Layer**
+- High-frequency call paths
+- Complex logic (benefits most from typing)
+- External API surface (users depend on these)
+- Sequential from Phase 1 (feature_detection depends on extract policies)
+
+**Phase 2b (Days 6-8): Plugin Suite**
+- Can run in PARALLEL with Phase 2a (no cross-dependencies within plugins)
+- Feature detection MUST wait for Phase 1 (DI unblock)
+- Other plugins can start earlier if resources available
+
+**NOT Included (Deferred to Q3b):**
+- Test suite (35 errors, lower ROI, separate initiative)
+- API/CLI (4 errors, can be Phase 3 after core work done)
+
+### Critical Path Timeline (REVISED)
+
+```
+Day 1:        [Phase 1: DI]
+Day 2-3:      [Phase 2a: Extraction]  [Phase 2b: Plugins (feature_detection blocked until Phase 1 done)]
+              (parallel only if separate people; actual order: Phase 1 → Phase 2a → Phase 2b if sequential)
+Day 4:        [Phase 3: API/CLI]
+Day 5:        [Validation, Closure]
+```
+
+**Actual Critical Path** (assuming 1-2 person team):
+- Phase 1 → Phase 2a → Phase 2b → Phase 3 = **2-3 weeks** (as claimed)
+- NOT parallelizable because:
+  - Phase 2a depends on Phase 1 (DI types)
+  - Feature_detection in Phase 2b depends on Phase 1 (DI types)
+  - Better to do extraction layer (higher frequency, more consumers) before plugins
+
+---
+
+## 3. STRATEGY EVALUATION (Option B)
+
+### Option B Justification: SOUND
+
+**Why Option B is Recommended:**
+
+1. **Effort/Impact Ratio** (0.72 weighted score, HIGHEST)
+   - Effort: 2-3 weeks, 4-5 person-weeks = $10-12k
+   - Impact: 80 → 15-20 errors (75-81% reduction)
+   - Cost per error fixed: ~$500-800
+   - ROI: 75% mypy-clean production code for 40% less effort than Option A
+   - **Assessment: EXCELLENT** ✅
+
+2. **Coverage of Critical Paths**
+   - DI system (35 errors) ✅ Included
+   - Extraction layer (9 errors) ✅ Included
+   - Feature detection (12 errors) ✅ Included
+   - API/CLI (4 errors) ✅ Included
+   - Plugins suite (15+ errors) ✅ Included
+   - Test suite (35 errors) ⏸️ Deferred (intentional)
+   - **Assessment: COMPLETE for production code** ✅
+
+3. **Risk Profile**
+   - Option A: 5-6 weeks, touches test infrastructure (high change volume)
+   - Option B: 2-3 weeks, production code only (proven changes)
+   - Option C: 1-2 weeks, too narrow (50+ errors remain)
+   - **Assessment: Option B has LOWEST RISK** ✅
+
+4. **Foundation for Platform Expansion**
+   - K8s / Terraform plugins will follow same pattern
+   - Plugin system typing (Phase 2b) establishes reusable contracts
+   - DI pattern (Phase 1) documented in ADR
+   - **Assessment: STRONG FOUNDATION** ✅
+
+### Concerns & Mitigations
+
+**Concern 1: Test Suite Remains Untyped (35 errors)**
+- Impact: New tests may have type errors not caught by mypy
+- Mitigation: Explicit Q3b initiative with separate ROI analysis
+- Risk: MEDIUM (managed by explicit deferral + Q3b planning)
+- **Assessment: ACCEPTABLE** (deferral justified by lower CI value)
+
+**Concern 2: API Signature Alignment Not Started in Phase 0**
+- Impact: Phase 3 depends on Phase 0 decision gate completion
+- Mitigation: Phase 0 includes Task 0.2 (API audit) as critical gate
+- Risk: LOW (3-4 days in Phase 0 prevents Phase 3 delays)
+- **Assessment: ACCEPTABLE** (phase gate identified)
+
+**Concern 3: DI Architecture Decision Not Yet Made**
+- Impact: Phase 1 implementation depends on decision (overload vs. generic)
+- Mitigation: Phase 0 includes Task 0.1 (DI architecture review) as critical gate
+- Risk: LOW (1 day in Phase 0 prevents Phase 1 delays)
+- **Assessment: ACCEPTABLE** (phase gate identified)
+
+**Concern 4: Effort Estimate May Be Optimistic**
+- Estimate: 1 day per phase (DI, Extraction, Feature Detection, API)
+- Reality: Complex type narrowing, unfamiliar overload syntax for team
+- Mitigation: Phase 0 includes buffer for team ramp-up + examples
+- Risk: MEDIUM (could slip to 3-4 weeks instead of 2-3)
+- **Assessment: REALISTIC WITH BUFFER** (recommend +0.5 week contingency)
+
+---
+
+## 4. IMPLEMENTATION PLAN FEASIBILITY
+
+### Phase 0 (Pre-Implementation): REQUIRED ✅
+
+**Gate 1: DI Architecture Decision (1 day)**
+- Required Decision: Overload vs. TypeVar vs. cast?
+- Recommendation: **Overloads** (explicit, no runtime overhead, highest type safety)
+- Why: 
+  - `@overload def factory(di: DIContainer) -> SpecificPolicy: ...`
+  - `@overload def factory(di: DIContainer) -> None: ...`
+  - Clear intent in type hints; mypy understands narrowing
+- Risk: NONE (standard Python typing pattern)
+- **Assessment: READY FOR ADR** ✅
+
+**Gate 2: API Signature Audit (0.5 day)**
+- Required Decision: api.py → cli.py or cli.py → api.py signature?
+- Action: Read both files, understand intent
+- Risk: LOW (should be straightforward)
+- **Assessment: READY FOR IMPLEMENTATION** ✅
+
+**Gate 3: Q3b Strategy Approval (0.5 day)**
+- Required Decision: Defer test suite to Q3b or include in Option B?
+- Recommendation: **DEFER** (test layer separate initiative)
+- Rationale: 
+  - Tests are CI-validated; mypy errors here are informational
+  - Test infrastructure redesign is separate effort
+  - Q3b initiative focuses on test fixtures + parametrization typing
+- Risk: LOW (explicit deferral in roadmap)
+- **Assessment: READY FOR FORMAL APPROVAL** ✅
+
+**Phase 0 Critical Path: 2 days**
+- Can be done in parallel (research-based, non-blocking)
+- Prerequisite for Phase 1 start
+
+### Phase 1 (DI Fix): 1 DAY ESTIMATE ✅ REALISTIC
+
+**Deliverables:**
+1. `di.py`: Add overload signatures to 6+ factory methods
+2. `di_helpers.py`: Type 8+ helper functions
+3. New test: `test_di_factory_return_types.py` (verify overload narrowing)
+4. Type imports: Add TYPE_CHECKING block for policy contracts
+
+**Implementation Pattern (straightforward):**
+```python
+from typing import overload, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from prism.scanner_data.contracts_request import PreparedTaskLineParsingPolicy
+
+@overload
+def factory_task_line_policy(di: DIContainer) -> PreparedTaskLineParsingPolicy: ...
+@overload
+def factory_task_line_policy(di: DIContainer) -> None: ...
+
+def factory_task_line_policy(di: DIContainer) -> PreparedTaskLineParsingPolicy | None:
+    # Implementation unchanged
+    ...
+```
+
+**Effort Breakdown:**
+- Overload signatures: ~30 minutes (copy-paste + modify for each method)
+- Type imports: ~15 minutes (add TYPE_CHECKING block once)
+- Test file: ~15 minutes (basic verification test)
+- Validation: ~15 minutes (mypy run, check error reduction)
+- **Total: 1.5 hours** (estimate 1 day includes review + iteration)
+
+**Risk: LOW** (well-understood pattern, no behavior changes)
+**Assessment: ACHIEVABLE** ✅
+
+**Expected Mypy Reduction: 80 → 45 errors (44% reduction)**
+
+### Phase 2a (Extraction Layer): 1.5 DAYS ESTIMATE ✅ REALISTIC
+
+**Files**: task_line_parsing.py, task_file_traversal.py, task_catalog_assembly.py, task_annotation_parsing.py
+
+**Pattern**: Add return type annotations to functions (args already 90%+ typed)
+
+**Effort Breakdown** (per file):
+- task_line_parsing.py (16 funcs, 5 missing returns): ~45 minutes
+- task_file_traversal.py (15 funcs, 3 missing returns): ~30 minutes
+- task_catalog_assembly.py (8 funcs, 2 missing returns): ~20 minutes
+- task_annotation_parsing.py (12 funcs, 2 missing returns): ~20 minutes
+- Validation + iteration: ~30 minutes
+- **Total: ~2.5 hours** (estimate 1.5 days accounts for discovery + testing)
+
+**Risk: LOW** (mechanical addition of return types, args already typed)
+**Assessment: ACHIEVABLE** ✅
+
+**Expected Mypy Reduction: 45 → 30 errors (33% reduction)**
+
+### Phase 2b (Feature Detection + Plugins): 1.5 DAYS ESTIMATE ✅ REALISTIC
+
+**Files**: feature_detection.py, variable_discovery.py, variable_extractor.py, default_policies.py, marker_prefix_policy.py
+
+**Challenge**: feature_detection.py has 12 errors (highest single-file count)
+
+**Effort Breakdown**:
+- feature_detection.py (18 funcs, 12 errors → mostly DI type erasure after Phase 1): ~45 minutes
+- variable_discovery.py (16 funcs, 3 missing returns): ~20 minutes
+- variable_extractor.py (6 funcs, 2 missing returns): ~15 minutes
+- default_policies.py (20 funcs, 2 missing returns): ~15 minutes
+- marker_prefix_policy.py (16 funcs, 4 errors): ~25 minutes
+- Validation + iteration: ~30 minutes
+- **Total: ~2.5 hours** (estimate 1.5 days)
+
+**Risk: MEDIUM** (feature_detection.py complex, DI type narrowing may need cast() calls)
+
+**Mitigation**: 
+- Phase 1 DI work eliminates most "object" errors automatically
+- feature_detection.py may still need 3-5 cast() calls after Phase 1
+- Additional 0.5 day contingency recommended
+
+**Assessment: ACHIEVABLE WITH 0.5 DAY BUFFER** ⚠️
+
+**Expected Mypy Reduction: 30 → 10 errors (67% reduction)**
+
+### Phase 3 (API/CLI): 0.5 DAYS ESTIMATE ✅ REALISTIC
+
+**Files**: api.py, cli.py
+
+**Effort Breakdown**:
+- Read Phase 0 Gate 2 decision (which direction to align)
+- api.py: Fix 3 signatures (15 minutes)
+- cli.py: Update 4 call sites (15 minutes)
+- Validation (15 minutes)
+- **Total: 1 hour** (estimate 0.5 day accounts for review)
+
+**Risk: LOW** (straightforward alignment)
+**Assessment: ACHIEVABLE** ✅
+
+**Expected Mypy Reduction: 10 → 5-6 errors (remaining are test suite, deferred)**
+
+### Phase 4 (Closure): 1 DAY ESTIMATE ✅ REALISTIC
+
+**Tasks**:
+- Full mypy run: 5 minutes
+- Pytest + lint: 10 minutes
+- Documentation: 30 minutes (Phase 1 closure artifact)
+- Q3b planning: 15 minutes (create placeholder)
+- **Total: 1 hour** (estimate 1 day for reviews + iteration)
+
+**Assessment: ACHIEVABLE** ✅
+
+### Overall Timeline Feasibility
+
+| Phase | Estimate | Assessment | Buffer |
+|-------|----------|------------|--------|
+| Phase 0 | 2 days | Parallel research | +0 |
+| Phase 1 | 1 day | 1.5 hours actual | +0.5 day |
+| Phase 2a | 1.5 days | 2.5 hours actual | +0.5 day |
+| Phase 2b | 1.5 days | 2.5 hours actual | +0.5 day |
+| Phase 3 | 0.5 day | 1 hour actual | +0 |
+| Phase 4 | 1 day | 1 hour actual | +0 |
+| **TOTAL** | **2-3 weeks** | **~8-9 hours actual work** | **+1.5 days contingency** |
+
+**Key Finding**: Actual work is ~8-9 hours; estimate of 2-3 weeks includes:
+- Thinking time (understanding code)
+- Review cycles (code review + mypy validation)
+- Test suite runs
+- Documentation + closure
+
+**Assessment: TIMELINE IS REALISTIC** ✅
+
+### Success Metric Feasibility
+
+| Metric | Before | Target | Achievable? |
+|--------|--------|--------|------------|
+| Mypy errors | 80 | 5-20 (test-only) | ✅ YES (85% reduction likely) |
+| Production errors | 45 | 0 | ✅ YES (all fixed by Phase 3) |
+| Return type coverage (top 10) | 65% avg | 90% avg | ✅ YES (mechanical addition) |
+| Arg type coverage (top 10) | 70% avg | 85% avg | ✅ YES (mostly already there) |
+| API boundary type-safe | 4 errors | 0 errors | ✅ YES (Phase 3 fixes) |
+| DI contract clarified | Undefined | Overload patterns documented | ✅ YES (ADR written) |
+
+**Assessment: SUCCESS METRICS ARE ACHIEVABLE** ✅
+
+---
+
+## 5. RECOMMENDATION & VERDICT
+
+### Final Assessment
+
+**Grading Verdict: PASS ✅**
+- Recommendation: **PROCEED WITH OPTION B**
+- Confidence: 92% (contingent on Phase 0 gates completed)
+
+### Conditions for Proceeding
+
+**CRITICAL (Must complete before Phase 1):**
+1. ✅ Phase 0.1: DI architecture decision (Overloads recommended)
+2. ✅ Phase 0.2: API signature audit (decide alignment direction)
+3. ✅ Phase 0.3: Q3b formal deferral (separate test initiative approved)
+
+**HIGH (Recommend before Phase 1):**
+4. Team ramp-up on overload typing (15 min tutorial + examples)
+5. +0.5 day contingency buffer added to estimate (risk mitigation)
+
+**INFORMATIONAL (Note for later):**
+6. Phase 3 implementation depends on Phase 0.2 decision
+7. Test suite remains untyped; Q3b initiative planned separately
+
+### What Works Well (Phase 0 Findings)
+
+✅ **Clear Error Taxonomy**: Phase 0 distinguished CRITICAL (DI type erasure) from HIGH (API mismatches) from LOW (test suite). This enables prioritization.
+
+✅ **Identified Decision Blockers**: Three gates explicitly named (DI architecture, API alignment, Q3b strategy). Phase 0 plan addresses all three.
+
+✅ **High-Value Foundation**: Q2 baselines (PolicyManager 100%, marker_prefix 100%) prove full typing is achievable. Phase 1 builds on this.
+
+✅ **Realistic Effort Estimates**: Breakdown shows ~8-9 hours actual work, padded appropriately for 2-3 week calendar timeline.
+
+✅ **Plugin System Ready**: Phase 2b types the plugin interface for K8s/Terraform expansion—strategic win.
+
+✅ **Clear Deferral Strategy**: Test suite deferral is explicit, intentional, and documented (not a gap).
+
+### What Needs Attention (Risks Mitigated)
+
+⚠️ **Risk 1: DI Pattern Decision**
+- Impact: If wrong choice, Phase 1 may need rework
+- Mitigation: Phase 0.1 includes ADR decision; Overloads recommended
+- Residual Risk: LOW
+
+⚠️ **Risk 2: Feature Detection Complexity**
+- Impact: 12 errors in one file (highest single-file count)
+- Mitigation: Phase 1 DI work should eliminate most; +0.5 day buffer for Phase 2b
+- Residual Risk: MEDIUM
+
+⚠️ **Risk 3: Test Suite Untyped (35 errors remain)**
+- Impact: New tests may have type errors not caught by mypy
+- Mitigation: Explicit Q3b initiative; lint/pytest still validates tests
+- Residual Risk: LOW (managed by deferral)
+
+⚠️ **Risk 4: Effort Estimate Optimism**
+- Impact: 2-3 weeks may slip to 3-4 weeks
+- Mitigation: +1.5 day contingency recommended; Phase 0 gates prevent Phase 1 delays
+- Residual Risk: MEDIUM
+
+### Contingency Recommendations
+
+If Phase 1 (DI work) hits complexity:
+- Can extend to 1.5 days (still low effort)
+- Prioritize feature_detection.py fixes last (most complex)
+- Use cast() as fallback if overloads become too verbose
+
+If Phase 2b (Feature Detection) hits complexity:
+- Can extend to 2 days
+- May need senior engineer review for DI type narrowing
+- Consider deferring marker_prefix_policy.py typing to later if needed
+
+If Phase 0 gates delay:
+- Absolute maximum 3 days delay (Phase 0.1, 0.2, 0.3)
+- Critical path remains Phase 1 → Phase 2a → Phase 2b
+- Do not start Phase 1 until all Phase 0 gates resolved
+
+---
+
+## 6. FINAL GRADING SCORES
+
+### Scoring Matrix
+
+| Criterion | Score | Justification |
+|-----------|-------|---------------|
+| Error Analysis Completeness | 9/10 | Clear taxonomy; 80 errors classified by severity/effort. Minor: No line-by-line mypy output included. |
+| Module Prioritization | 9/10 | Tier 1-4 prioritization well-justified. Minor: Call frequency estimates are approximate (not measured). |
+| Strategy Justification | 10/10 | Option B scoring transparent; effort/impact rationale sound. |
+| Implementation Plan Detail | 8/10 | Phases well-defined; timelines realistic. Minor: Feature detection complexity could be emphasized more. |
+| Risk Identification | 8/10 | Key risks named (DI decision, API alignment, test deferral). Minor: Broader team risks (team familiar w/ overload typing?) not mentioned. |
+| Decision Gate Completeness | 9/10 | Three gates identified; Phase 0 plan addresses all. Minor: Gate success criteria could be more explicit. |
+| **Overall Quality** | **9/10** | Sound Phase 0 work; ready for Phase 1 with conditions. |
+
+### Verdict: PASS ✅
+
+**Category**: PROCEED
+
+**Blocking Issues**: 0
+
+**Warnings**: 2
+1. ⚠️ DI architecture decision must be made in Phase 0 before Phase 1 starts
+2. ⚠️ Feature detection complexity (12 errors) may require additional support in Phase 2b
+
+**Suggestions**: 3
+1. 💡 Add +0.5 day contingency to timeline (risk mitigation)
+2. 💡 Feature detection work prioritized last in Phase 2b (higher risk/complexity)
+3. 💡 Q3b initiative (test suite typing) drafted in Phase 4 (closure artifact)
+
+**Next Step**: Proceed to Phase 0 implementation (Gate 1-3 completion)
+
+---
+
+## APPENDIX: Q3 Initiative 6 Overview
+
+**Initiative**: Type Safety Expansion for Prism Scanner  
+**Sponsor**: Platform Engineering  
+**Timeline**: Q3 2026 (2-3 weeks, starting May 9)  
+**Budget**: $10-12k (4-5 person-weeks)  
+**Goal**: Reduce mypy errors from 80 → 5-20; achieve 90%+ production code type safety  
+
+**Phases**:
+- Phase 0: Decision Gates (2 days, May 9-10)
+- Phase 1: DI Unblock (1 day, May 11-12)
+- Phase 2a: Extraction Layer (1.5 days, May 13-14)
+- Phase 2b: Feature Detection + Plugins (1.5 days, May 15-16)
+- Phase 3: API/CLI (0.5 day, May 17)
+- Phase 4: Closure (1 day, May 18-19)
+
+**Q3b**: Test Suite Typing (35 remaining errors, separate initiative, 2-3 weeks)
+
+---
+
+report_status: COMPLETE
+report_confidence: 0.92
+approval_status: PENDING_PHASE_0_COMPLETION

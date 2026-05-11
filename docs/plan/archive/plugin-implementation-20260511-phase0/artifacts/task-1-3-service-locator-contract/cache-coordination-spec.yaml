@@ -1,0 +1,441 @@
+cache_coordination_specification:
+  version: "1.0"
+  date: "2026-05-09"
+  scout: "ServiceLocatorContract"
+  purpose: "Define cache management strategy for ServiceLocator and DIContainer"
+
+  overview: |
+    DIContainer owns a single unified cache (_cache: dict[str, Any]) managed via
+    threading.RLock(). ServiceLocator stores service instances in this cache by key.
+    Cache invalidation is triggered by replace_scan_options() for policy-dependent services.
+
+    This document defines which services are cached, when they're cached, and when
+    they're invalidated.
+
+  # ============================================================================
+  # CACHE OWNERSHIP & ARCHITECTURE
+  # ============================================================================
+
+  cache_ownership:
+    - cache_name: "_cache"
+      owner: "DIContainer"
+      location: "DIContainer.__init__() → self._cache = {}"
+      type: "dict[str, Any]"
+      protection: "threading.RLock() via _cache_lock"
+      responsibility: "Service Cache"
+      description: |
+        Unified cache for all service instances created by ServiceLocator.
+        All access is protected by _cache_lock (RLock).
+
+    - cache_name: "_mocks"
+      owner: "DIContainer"
+      location: "DIContainer.__init__() → self._mocks = {}"
+      type: "dict[str, Any]"
+      protection: "threading.RLock() via _cache_lock (for consistency)"
+      responsibility: "Test Mock Storage"
+      description: |
+        Test injection point for unit testing. Mocks are checked before caching logic.
+        inject_mock(key, value) adds to _mocks; clear_mocks() empties it.
+
+    - cache_name: "cache_backend"
+      owner: "DIContainer (optional)"
+      location: "DIContainer.__init__() → self.cache_backend = cache_backend or None"
+      type: "ScanCacheBackend | None"
+      protection: "Caller responsibility (optional)"
+      responsibility: "Scan Result Cache (separate domain)"
+      description: |
+        Optional backend cache for scan results. NOT managed by ServiceLocator.
+        Separate from the service cache; can be Redis-backed or in-memory.
+
+  # ============================================================================
+  # SERVICE CACHE KEYS & INVALIDATION SEMANTICS
+  # ============================================================================
+
+  service_cache_keys:
+    - key: "event_bus"
+      factory_method: "ServiceLocator.factory_event_bus()"
+      cached: true
+      invalidated_by: []
+      rationale: |
+        EventBus is a singleton per container. It has no dependencies on
+        scan_options or policy context, so it is NEVER invalidated.
+        The event bus lives for the container's lifetime.
+
+    - key: "scanner_context"
+      factory_method: "ServiceLocator.factory_scanner_context()"
+      cached: true
+      invalidated_by: []
+      rationale: |
+        ScannerContext is created once per container via the runtime seam
+        (prepare_scan_context_fn). It is NOT invalidated by replace_scan_options()
+        because the seam function controls the invalidation boundary.
+        
+        If the seam needs to react to option changes, it owns the responsibility
+        to call factory methods for fresh VariableDiscovery/FeatureDetector instances.
+
+    - key: "variable_discovery"
+      factory_method: "ServiceLocator.factory_variable_discovery()"
+      cached: true
+      invalidated_by:
+        - event_name: "replace_scan_options()"
+          reason: "Variable discovery behavior depends on scan_options policy context"
+      rationale: |
+        VariableDiscovery is policy-aware. Its behavior changes when scan_options
+        change (e.g., platform_key, variable_discovery_policy).
+        
+        INVALIDATION: When replace_scan_options() is called, the "variable_discovery"
+        cache entry is deleted. Next call to factory_variable_discovery() will create
+        a new instance with the updated options.
+
+    - key: "feature_detector"
+      factory_method: "ServiceLocator.factory_feature_detector()"
+      cached: true
+      invalidated_by:
+        - event_name: "replace_scan_options()"
+          reason: "Feature detection behavior depends on scan_options policy context"
+      rationale: |
+        FeatureDetector is policy-aware. Its behavior changes when scan_options
+        change (e.g., platform_key, feature_detection_policy).
+        
+        INVALIDATION: When replace_scan_options() is called, the "feature_detector"
+        cache entry is deleted. Next call to factory_feature_detector() will create
+        a new instance with the updated options.
+
+    - key: "variable_row_builder"
+      factory_method: "ServiceLocator.factory_variable_row_builder()"
+      cached: true
+      invalidated_by: []
+      rationale: |
+        VariableRowBuilder is a stateless utility for assembling variable rows.
+        It has no dependencies on scan_options or policy context, so it is
+        NEVER invalidated.
+
+    - key: "blocker_fact_builder"
+      factory_method: "ServiceLocator.factory_blocker_fact_builder()"
+      cached: true
+      invalidated_by: []
+      rationale: |
+        BlockerFactBuilder is a callable determined at DIContainer initialization time.
+        It is injected via blocker_fact_builder_fn or resolved from scanner_plugins.defaults.
+        It has no policy dependency, so it is NEVER invalidated.
+
+  # ============================================================================
+  # INVALIDATION STRATEGY & TRIGGERING
+  # ============================================================================
+
+  invalidation_strategy:
+    trigger_method: "replace_scan_options()"
+    trigger_signature: "def replace_scan_options(self, scan_options: ScanOptionsDict) -> None"
+    implementation: |
+      class DIContainer:
+          def replace_scan_options(self, scan_options: ScanOptionsDict) -> None:
+              with self._cache_lock:
+                  self._scan_options = clone_scan_options(scan_options)
+                  self._invalidate_scan_option_dependent_cache_locked()
+
+          def _invalidate_scan_option_dependent_cache_locked(self) -> None:
+              for key in _SCAN_OPTION_DEPENDENT_CACHE_KEYS:
+                  self._cache.pop(key, None)
+
+    invalidation_set: "_SCAN_OPTION_DEPENDENT_CACHE_KEYS"
+    invalidation_set_definition: |
+      _SCAN_OPTION_DEPENDENT_CACHE_KEYS = frozenset({
+          "feature_detector",
+          "variable_discovery",
+      })
+
+    invalidation_atomicity: |
+      All invalidation happens within a single _cache_lock critical section:
+      1. Acquire _cache_lock
+      2. Update _scan_options
+      3. Pop dependent cache entries
+      4. Release _cache_lock
+      
+      This ensures that concurrent readers either see all-old or all-new state,
+      never a partial/inconsistent state.
+
+    when_called: |
+      replace_scan_options() is called when:
+      - Ingress normalization mutates scan_options (e.g., policy resolution)
+      - Test changes options between runs
+      - Platform detection changes options mid-scan
+
+  # ============================================================================
+  # CACHE LOCKING & SYNCHRONIZATION
+  # ============================================================================
+
+  threading_model:
+    lock_type: "threading.RLock (reentrant lock)"
+    lock_location: "DIContainer._cache_lock"
+    protected_operations:
+      - operation: "Cache read (check if key exists)"
+        locking: "OPTIONAL (atomic under GIL, but best practice is to lock)"
+        code: "if 'variable_discovery' in self._cache"
+
+      - operation: "Cache write (insert new value)"
+        locking: "REQUIRED (non-atomic operation)"
+        code: "with self._cache_lock: self._cache[key] = value"
+
+      - operation: "Cache delete (remove key)"
+        locking: "REQUIRED (non-atomic operation)"
+        code: "with self._cache_lock: self._cache.pop(key, None)"
+
+      - operation: "Mock check (before cache lookup)"
+        locking: "OPTIONAL (atomic dict read under GIL)"
+        code: "if 'variable_discovery' in self._mocks"
+
+    reentrancy: |
+      threading.RLock() allows the same thread to acquire the lock multiple times.
+      This is important because factory methods may call other factory methods:
+      
+      Example (hypothetical):
+        factory_scanner_context() 
+          → calls factory_variable_discovery()
+            → both need _cache_lock
+
+      With RLock, the same thread can acquire the lock twice without deadlock.
+
+    gc_impact: |
+      All lock operations are short-duration (microseconds). No risk of GC pauses
+      holding locks.
+
+  concurrent_access_scenarios:
+    - scenario: "Multiple threads call factory_variable_discovery() simultaneously"
+      expected_behavior: |
+        Thread 1 acquires lock, creates instance, caches it, releases lock.
+        Thread 2, 3, 4 wait for lock, then see cached value and return immediately.
+        Result: One instance created, returned to all threads.
+
+    - scenario: "Thread A calls factory_variable_discovery() while Thread B calls replace_scan_options()"
+      expected_behavior: |
+        If Thread B's replace_scan_options() completes first:
+          - Thread B invalidates "variable_discovery" cache entry
+          - Thread A then calls factory_variable_discovery()
+          - Thread A sees empty cache, creates new instance
+        
+        If Thread A's factory_variable_discovery() completes first:
+          - Thread A caches old instance
+          - Thread B calls replace_scan_options()
+          - Thread B invalidates cache
+          - Next call to factory_variable_discovery() gets new instance
+        
+        Result: Consistent cache state, no race conditions.
+
+    - scenario: "Multiple threads call different factory methods (e.g., factory_event_bus and factory_variable_discovery)"
+      expected_behavior: |
+        Both methods use the same _cache_lock, but each lock acquisition is short.
+        Multiple threads can interleave factory calls without deadlock.
+        
+        Result: All threads make progress, cache remains consistent.
+
+  # ============================================================================
+  # MOCK INJECTION & OVERRIDE TESTING
+  # ============================================================================
+
+  mock_injection_strategy:
+    mechanism: "inject_mock(key, value) and clear_mocks()"
+    usage_in_factories: |
+      All ServiceLocator factory methods check mocks FIRST:
+      
+      def factory_variable_discovery(self) -> VariableDiscovery:
+          if "variable_discovery" in self._di._mocks:
+              return self._di._mocks["variable_discovery"]  # ← Return mock
+          
+          # ... normal creation logic
+
+    mock_check_locking: |
+      Mock checks don't acquire _cache_lock (optimization). This is safe because:
+      1. Mock dict is only written in inject_mock(), which is rarely called
+      2. Mock dict reads are atomic under CPython GIL
+      3. Callers are responsible for not reading stale cache after clearing mocks
+
+    test_usage_pattern: |
+      @pytest.fixture
+      def di_with_mocks(di):
+          mock_vd = MagicMock(spec=VariableDiscovery)
+          di.inject_mock("variable_discovery", mock_vd)
+          yield di
+          di.clear_mocks()
+
+    override_testing: |
+      Factory overrides are checked AFTER mocks but BEFORE normal creation:
+      
+      def factory_variable_discovery(self) -> VariableDiscovery:
+          if "variable_discovery" in self._di._mocks:
+              return self._di._mocks["variable_discovery"]  # ← Mocks take priority
+          
+          override_result = self._di._call_factory_override("variable_discovery_factory")
+          if override_result is not None:
+              return override_result  # ← Override second priority
+          
+          # ... normal creation logic (cache, then create if needed)
+
+  # ============================================================================
+  # CACHE CLEARING & RESET
+  # ============================================================================
+
+  cache_clearing_operations:
+    - method: "clear_cache()"
+      signature: "def clear_cache(self) -> None"
+      purpose: "Completely clear _cache dict (all service instances)"
+      locking: "Protected by _cache_lock"
+      use_case: "Reset container state for testing or reinitialization"
+      code: |
+        def clear_cache(self) -> None:
+            with self._cache_lock:
+                self._cache.clear()
+
+    - method: "clear_mocks()"
+      signature: "def clear_mocks(self) -> None"
+      purpose: "Clear _mocks dict (all test injections)"
+      locking: "Protected by _cache_lock (for consistency)"
+      use_case: "Test cleanup after inject_mock()"
+      code: |
+        def clear_mocks(self) -> None:
+            with self._cache_lock:
+                self._mocks.clear()
+
+    - method: "_invalidate_scan_option_dependent_cache_locked()"
+      signature: "def _invalidate_scan_option_dependent_cache_locked(self) -> None"
+      purpose: "Invalidate only policy-dependent cache entries"
+      locking: "ASSUMES _cache_lock is held by caller"
+      use_case: "Internal method called by replace_scan_options()"
+      code: |
+        def _invalidate_scan_option_dependent_cache_locked(self) -> None:
+            for key in _SCAN_OPTION_DEPENDENT_CACHE_KEYS:
+                self._cache.pop(key, None)
+
+  # ============================================================================
+  # VALIDATION TEST SCENARIOS
+  # ============================================================================
+
+  test_scenarios:
+    - scenario_name: "Cache Hit Test"
+      description: "Same factory called twice returns cached instance"
+      steps:
+        - step: "Call factory_variable_discovery() (creates instance)"
+          expected: "Instance created and cached"
+        - step: "Call factory_variable_discovery() again (cache hit)"
+          expected: "Same instance returned from cache"
+        - step: "Verify instance identity (id(result1) == id(result2))"
+          expected: "true"
+
+    - scenario_name: "Cache Invalidation Test"
+      description: "replace_scan_options() invalidates dependent caches"
+      steps:
+        - step: "Call factory_variable_discovery() → Instance A created"
+          expected: "Cached"
+        - step: "Call replace_scan_options(new_options)"
+          expected: "Cache entry 'variable_discovery' deleted"
+        - step: "Call factory_variable_discovery() → Instance B created"
+          expected: "New instance created (old one garbage collected)"
+        - step: "Verify identity (id(A) != id(B))"
+          expected: "true"
+
+    - scenario_name: "No Invalidation of event_bus"
+      description: "replace_scan_options() does NOT invalidate EventBus"
+      steps:
+        - step: "Call factory_event_bus() → Bus A created"
+          expected: "Cached"
+        - step: "Call replace_scan_options(new_options)"
+          expected: "Cache entry 'event_bus' NOT deleted"
+        - step: "Call factory_event_bus() → Bus B returned"
+          expected: "Same instance (from cache)"
+        - step: "Verify identity (id(A) == id(B))"
+          expected: "true"
+
+    - scenario_name: "Mock Injection Test"
+      description: "inject_mock() causes factory to return mock instead of creating"
+      steps:
+        - step: "Create DIContainer"
+          expected: "Initialized"
+        - step: "Inject mock: inject_mock('variable_discovery', MockVD)"
+          expected: "Mock stored in _mocks"
+        - step: "Call factory_variable_discovery()"
+          expected: "Mock returned (not created, not cached)"
+        - step: "Clear mocks: clear_mocks()"
+          expected: "Mock removed"
+        - step: "Call factory_variable_discovery() again"
+          expected: "Real instance created and cached"
+
+    - scenario_name: "Concurrent Factory Calls"
+      description: "Multiple threads calling factory methods don't race"
+      steps:
+        - step: "Thread 1 calls factory_variable_discovery()"
+          expected: "Acquires lock, creates instance"
+        - step: "Thread 2 calls factory_variable_discovery() (concurrent)"
+          expected: "Waits for lock, then returns cached instance"
+        - step: "Both threads verify same instance"
+          expected: "id(result1) == id(result2)"
+
+    - scenario_name: "Concurrent replace_scan_options and factory calls"
+      description: "No race condition between invalidation and cache population"
+      steps:
+        - step: "Thread 1 acquires lock in replace_scan_options()"
+          expected: "Invalidates 'variable_discovery' cache"
+        - step: "Thread 2 calls factory_variable_discovery() (concurrent)"
+          expected: "Blocks on lock, then sees empty cache, creates new instance"
+        - step: "Both threads complete successfully"
+          expected: "No race condition, consistent state"
+
+  # ============================================================================
+  # MONITORING & OBSERVABILITY
+  # ============================================================================
+
+  monitoring_recommendations:
+    - metric_name: "Cache Hit Rate"
+      description: "Percentage of factory calls that returned cached values"
+      collection_point: "ServiceLocator factory methods (would need instrumentation)"
+      expected_value: ">90% (assuming stable scan_options)"
+
+    - metric_name: "Cache Invalidation Count"
+      description: "Number of times replace_scan_options() invalidated caches"
+      collection_point: "_invalidate_scan_option_dependent_cache_locked()"
+      expected_value: "0-5 per scan (typically 1)"
+
+    - metric_name: "Lock Contention"
+      description: "Time threads wait for _cache_lock"
+      collection_point: "threading.RLock acquisition"
+      expected_value: "<1ms typically (GIL-safe operations)"
+
+  # ============================================================================
+  # FUTURE EXTENSIBILITY
+  # ============================================================================
+
+  extensibility_opportunities:
+    - extension_name: "Alternative Cache Strategy"
+      description: "Replace dict + RLock with LRU cache or distributed cache"
+      implementation: |
+        Create CacheStrategy protocol:
+          def get(key: str) -> Any | None
+          def set(key: str, value: Any) -> None
+          def pop(key: str) -> None
+          def clear() -> None
+        
+        Inject into ServiceLocator:
+          service_locator = ServiceLocator(di, cache_strategy=LRUCache())
+
+    - extension_name: "Cache Metrics & Monitoring"
+      description: "Wrap factories with instrumentation"
+      implementation: |
+        Create InstrumentedServiceLocator(ServiceLocator):
+          def factory_variable_discovery(self):
+              if "variable_discovery" in self._cache:
+                  self._metrics.inc("cache_hit")
+              else:
+                  self._metrics.inc("cache_miss")
+              return super().factory_variable_discovery()
+
+    - extension_name: "Cache TTL & Expiration"
+      description: "Add time-to-live for cached instances"
+      implementation: |
+        Store (value, created_at) tuples instead of just values.
+        Check if now - created_at > ttl before returning cached value.
+        Requires TTL constants per cache key.
+
+    - extension_name: "Distributed Caching"
+      description: "Share cache across processes via Redis or memcached"
+      implementation: |
+        Implement CacheStrategy using Redis client.
+        Requires serialization of service instances (may not be possible).
+        Consider distributed locking (Redis locks) instead of RLock.

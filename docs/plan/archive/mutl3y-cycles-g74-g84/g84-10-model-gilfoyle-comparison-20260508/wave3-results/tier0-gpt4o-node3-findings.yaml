@@ -1,0 +1,101 @@
+model_used: GPT-4o
+findings:
+  - id: GILF-NODE3-01
+    severity: HIGH
+    category: cache-safety
+    location: "[scan_cache.py:60-80]"
+    issue: "Cache key collision risk due to lack of namespace isolation"
+    root_cause: "Cache keys are simple strings without enforced uniqueness across different scan contexts."
+    impact: "Potential for overwriting unrelated cache entries, leading to incorrect scan results."
+    confidence: 95
+    fix_suggestion: "Prefix cache keys with a namespace derived from scan context or role path."
+
+  - id: GILF-NODE3-02
+    severity: MEDIUM
+    category: copy-semantics
+    location: "[scan_cache.py:30-40]"
+    issue: "Inefficient deep copy in cache cloning"
+    root_cause: "Recursive cloning of container structures is implemented manually, which is error-prone and slow."
+    impact: "Performance degradation for large nested structures; potential for missed edge cases."
+    confidence: 90
+    fix_suggestion: "Use `copy.deepcopy` for cloning or a specialized library for optimized deep copies."
+
+  - id: GILF-NODE3-03
+    severity: CRITICAL
+    category: event-reliability
+    location: "[events.py:80-100]"
+    issue: "Silent failure of event listeners"
+    root_cause: "Exceptions in event listeners are caught and logged but do not propagate or halt execution."
+    impact: "Critical errors in listeners may go unnoticed, leading to incomplete or incorrect event handling."
+    confidence: 98
+    fix_suggestion: "Introduce a strict mode where listener exceptions propagate, or aggregate errors for post-processing."
+
+  - id: GILF-NODE3-04
+    severity: HIGH
+    category: event-reliability
+    location: "[events.py:120-140]"
+    issue: "Unbounded growth of error event list"
+    root_cause: "Error events are appended to a list without any retention policy or size limit."
+    impact: "Memory usage can grow unbounded in long-running processes with frequent listener failures."
+    confidence: 95
+    fix_suggestion: "Implement a retention policy (e.g., fixed-size ring buffer) for error events."
+
+  - id: GILF-NODE3-05
+    severity: HIGH
+    category: validation
+    location: "[scan_request.py:40-60]"
+    issue: "Weak validation of required fields in scan options"
+    root_cause: "Validation only checks for non-empty strings but does not enforce semantic correctness."
+    impact: "Invalid or nonsensical scan options may propagate, causing runtime errors or undefined behavior."
+    confidence: 90
+    fix_suggestion: "Enhance validation to include semantic checks (e.g., valid paths, logical consistency)."
+
+  - id: GILF-NODE3-06
+    severity: MEDIUM
+    category: copy-semantics
+    location: "[scan_request.py:100-120]"
+    issue: "Shallow copy of policy context risks mutation"
+    root_cause: "Policy context is shallow-copied, leaving nested structures mutable and shared."
+    impact: "Unintended side effects if nested structures are modified elsewhere."
+    confidence: 85
+    fix_suggestion: "Use deep copies for policy context or ensure immutability of nested structures."
+
+  - id: GILF-NODE3-07
+    severity: CRITICAL
+    category: error-handling
+    location: "[scan_request.py:200-220]"
+    issue: "Unlogged exceptions in scan option normalization"
+    root_cause: "Errors during normalization are raised but not logged with context."
+    impact: "Difficult to diagnose issues in production due to lack of error traceability."
+    confidence: 95
+    fix_suggestion: "Log all exceptions with detailed context before raising."
+
+  - id: GILF-NODE3-08
+    severity: HIGH
+    category: performance
+    location: "[scan_cache.py:100-120]"
+    issue: "Inefficient LRU cache eviction"
+    root_cause: "Eviction uses `popitem(last=False)` in a loop, which is suboptimal for large caches."
+    impact: "Performance degradation during high cache churn."
+    confidence: 90
+    fix_suggestion: "Use a more efficient eviction strategy, such as a priority queue or deque."
+
+  - id: GILF-NODE3-09
+    severity: MEDIUM
+    category: performance
+    location: "[events.py:60-80]"
+    issue: "Inefficient locking in event emission"
+    root_cause: "Listeners are iterated under a lock, blocking other threads from subscribing or unsubscribing."
+    impact: "Reduced concurrency and potential for thread contention in high-frequency event systems."
+    confidence: 85
+    fix_suggestion: "Use a read-write lock or snapshot listeners outside the lock."
+
+  - id: GILF-NODE3-10
+    severity: HIGH
+    category: cache-safety
+    location: "[scan_cache.py:140-160]"
+    issue: "No TTL enforcement for cached entries"
+    root_cause: "Cache entries persist indefinitely unless explicitly invalidated."
+    impact: "Stale data may accumulate, leading to incorrect results and unbounded memory growth."
+    confidence: 95
+    fix_suggestion: "Add TTL support to automatically evict stale entries."

@@ -1,0 +1,81 @@
+model_used: Raptor mini (Preview)
+findings:
+  - id: GILF-NODE3-01
+    severity: CRITICAL
+    category: cache-safety
+    location: "src/prism/scanner_core/scan_cache.py:235-237"
+    issue: "Opaque scan option values collapse to identical cache keys"
+    root_cause: "Unsupported non-primitive scan option values are canonicalized only by type name, ignoring their internal state."
+    impact: "Different scan option payloads can produce the same cache key, causing stale or incorrect scan results to be returned."
+    confidence: 95
+    fix_suggestion: "Reject unsupported scan option value types or extend canonicalization to include stable object state fingerprints for custom objects."
+
+  - id: GILF-NODE3-02
+    severity: HIGH
+    category: cache-safety
+    location: "src/prism/scanner_core/scan_cache.py:215-216"
+    issue: "Non-string mapping keys can collide in cache key generation"
+    root_cause: "Dict keys are converted with str(key) during canonicalization, so distinct keys like 1 and '1' produce the same cache entry key."
+    impact: "Cache collisions can silently return the wrong result for semantically different scan options."
+    confidence: 90
+    fix_suggestion: "Preserve key type information in canonicalization or enforce and validate that scan option keys are always strings."
+
+  - id: GILF-NODE3-03
+    severity: HIGH
+    category: cache-safety
+    location: "src/prism/scanner_core/scan_cache.py:148-154, 195-199"
+    issue: "Runtime wiring identity can mask internal registry state changes"
+    root_cause: "When runtime_registry lacks get_state_fingerprint, the cache key falls back to object identity instead of registry state."
+    impact: "Cache entries may remain valid across internal runtime registry mutations, causing stale semantics or bad payload reuse."
+    confidence: 88
+    fix_suggestion: "Require a stable registry fingerprint interface or forbid caching when runtime_registry cannot provide a state fingerprint."
+
+  - id: GILF-NODE3-04
+    severity: MEDIUM
+    category: cache-safety
+    location: "src/prism/scanner_core/scan_cache.py:21-33"
+    issue: "Cache value cloning is incomplete for custom mutable objects"
+    root_cause: "_clone_container_structure only deep-copies builtin containers and returns custom objects by reference."
+    impact: "Mutable scan results containing custom objects may still be aliased between cache and caller, breaking cache isolation."
+    confidence: 85
+    fix_suggestion: "Either document the cache value contract clearly or implement a safer copy strategy for arbitrary objects, such as using a serializer-based deep copy or validating object immutability."
+
+  - id: GILF-NODE3-05
+    severity: MEDIUM
+    category: event-reliability
+    location: "src/prism/scanner_core/events.py:119-130"
+    issue: "EventBus error history grows without bound"
+    root_cause: "Failed listener events are stored indefinitely in _error_events with no retention policy."
+    impact: "A noisy or failing listener can leak memory over time and destabilize long-running scanner processes."
+    confidence: 82
+    fix_suggestion: "Add a bounded error buffer, prune old events, or expose an eviction policy for stored EventBusError records."
+
+  - id: GILF-NODE3-06
+    severity: MEDIUM
+    category: event-reliability
+    location: "src/prism/scanner_core/events.py:104-106"
+    issue: "listener_count reads shared listener list without locking"
+    root_cause: "listener_count returns len(self._listeners) without acquiring the listeners lock."
+    impact: "Concurrent subscribe/unsubscribe operations can race with listener_count, producing inconsistent counts or tearing."
+    confidence: 80
+    fix_suggestion: "Guard listener_count with _listeners_lock like other listener operations."
+
+  - id: GILF-NODE3-07
+    severity: MEDIUM
+    category: copy-semantics
+    location: "src/prism/scanner_core/scan_request.py:93-94"
+    issue: "Prepared policy bundle copy is shallow and type-restricted"
+    root_cause: "prepared_policy_bundle is copied only when it is exactly a dict, using copy.copy, and other mapping-like values are ignored."
+    impact: "Nested mutable state may alias across request boundaries, and valid non-dict bundle implementations may be dropped silently."
+    confidence: 85
+    fix_suggestion: "Use a deep copy or structured clone for prepared_policy_bundle, and validate or normalize accepted mapping-like bundle types explicitly."
+
+  - id: GILF-NODE3-08
+    severity: LOW
+    category: validation
+    location: "src/prism/scanner_core/scan_request.py:61-90"
+    issue: "Minimal explicit request validation before schema check"
+    root_cause: "Only role_path and policy_context receive explicit validation; most scalar and path fields are forwarded without guard."
+    impact: "Invalid or malformed request data can progress farther into the scanner before being rejected, increasing runtime risk and reducing diagnostic clarity."
+    confidence: 75
+    fix_suggestion: "Add explicit pre-validation for critical request fields and tighten type/format expectations before calling validate_scan_options."

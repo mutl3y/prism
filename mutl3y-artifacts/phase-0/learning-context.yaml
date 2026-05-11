@@ -19,17 +19,17 @@ scout_discoveries:
 context_health:
   - note: "Phase 0 discovery completed with 30 findings across 4 scout categories"
     status: healthy
-    
+
   - note: "Scout-ControlFlow identified 3 high-severity error handling issues (broad exception handlers)"
     status: action_required_phase_1
     target_phase: investigation
-    
+
   - note: "No critical findings. Safe to proceed with Phase 1 investigation."
     status: clear_to_proceed
-    
+
   - note: "Findings are well-distributed: 20 medium-severity items suitable for builders"
     status: builder_ready
-    
+
   - note: "Scout artifacts are properly formatted and ready for micro-swarm investigation if needed"
     status: ready_for_phase_1_micro_swarm
 
@@ -44,12 +44,12 @@ top_findings_for_phase_1:
     category: error_channel
     severity: high
     fix_group: error_handling_broad_except
-    
+
   - id: Scout-ControlFlow-02
     category: error_channel
     severity: high
     fix_group: error_handling_broad_except
-    
+
   - id: Scout-ControlFlow-03
     category: error_channel
     severity: high

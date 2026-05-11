@@ -1,0 +1,29 @@
+timestamp: "2026-05-11T16:18:00Z"
+phase: "phase_1"
+wave: 1
+worker: "Scout-ControlFlow"
+tier_selected: "tier_0_free"
+model_selected: "GPT-5 mini"
+reason: "Read-only move mapping for low-risk files; no architecture synthesis needed."
+batch_1_moves:
+  core:
+    - "src/prism/tests/test_cache_key_protocol_compliance.py -> src/prism/tests/core/test_cache_key_protocol_compliance.py"
+    - "src/prism/tests/test_cache_memory_bounding.py -> src/prism/tests/core/test_cache_memory_bounding.py"
+    - "src/prism/tests/test_cache_metrics_collection.py -> src/prism/tests/core/test_cache_metrics_collection.py"
+    - "src/prism/tests/test_blocker_fact_evaluator.py -> src/prism/tests/core/test_blocker_fact_evaluator.py"
+    - "src/prism/tests/test_di_type_safety.py -> src/prism/tests/core/test_di_type_safety.py"
+    - "src/prism/tests/test_execution_request_builder.py -> src/prism/tests/core/test_execution_request_builder.py"
+    - "src/prism/tests/test_defaults.py -> src/prism/tests/core/test_defaults.py"
+    - "src/prism/tests/test_error_envelope.py -> src/prism/tests/core/test_error_envelope.py"
+    - "src/prism/tests/test_cli_app.py -> src/prism/tests/core/test_cli_app.py"
+    - "src/prism/tests/test_dataload.py -> src/prism/tests/core/test_dataload.py"
+  plugins_ansible:
+    - "src/prism/tests/test_ansible_task_traversal_bare.py -> src/prism/tests/plugins/ansible/test_ansible_task_traversal_bare.py"
+    - "src/prism/tests/test_extract_defaults_ansible_ownership.py -> src/prism/tests/plugins/ansible/test_extract_defaults_ansible_ownership.py"
+  integration:
+    - "src/prism/tests/test_scan_facade_helpers.py -> src/prism/tests/integration/test_scan_facade_helpers.py"
+    - "src/prism/tests/test_real_world_scans.py -> src/prism/tests/integration/test_real_world_scans.py"
+    - "src/prism/tests/test_collection_renderer.py -> src/prism/tests/integration/test_collection_renderer.py"
+    - "src/prism/tests/test_collection_payload.py -> src/prism/tests/integration/test_collection_payload.py"
+risk_notes:
+  - "Batch excludes known parent-depth path-sensitive tests."

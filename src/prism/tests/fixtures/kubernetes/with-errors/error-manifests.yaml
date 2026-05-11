@@ -1,0 +1,141 @@
+# ERROR: Invalid apiVersion
+apiVersion: v1beta1  # Invalid version
+kind: Deployment
+metadata:
+  name: error-deployment
+  namespace: default
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+
+---
+# ERROR: Missing required fields
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # Missing namespace!
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: missing-fields
+    # Missing spec!
+
+---
+# ERROR: Missing name in metadata
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: default
+  # Missing name!
+spec:
+  selector:
+    app: web
+  ports:
+  - port: 80
+
+---
+# ERROR: Invalid label selector format
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-selector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      "app/invalid": web  # Invalid label key format
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+      - name: web
+        image: nginx:latest
+
+---
+# ERROR: Port number out of range
+apiVersion: v1
+kind: Service
+metadata:
+  name: bad-port-service
+spec:
+  ports:
+  - port: 99999  # Out of range!
+    targetPort: 80
+  selector:
+    app: web
+
+---
+# ERROR: Invalid resource requests format
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bad-resources
+spec:
+  containers:
+  - name: app
+    image: python:3.9
+    resources:
+      requests:
+        cpu: "1000"  # Should be "1" or "100m"
+        memory: "1G"  # Should be "1Gi"
+
+---
+# ERROR: Missing image pull secret reference
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: missing-image-secret
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: private-app
+  template:
+    metadata:
+      labels:
+        app: private-app
+    spec:
+      containers:
+      - name: app
+        image: private-registry.com/app:latest
+        imagePullPolicy: IfNotPresent
+      # Missing imagePullSecrets!
+
+---
+# ERROR: Invalid tolerations format
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bad-tolerations
+spec:
+  tolerations:
+  - key: "gpu"
+    operator: "Equal"
+    value: "true"
+    effect: "InvalidEffect"  # Should be NoSchedule, NoExecute, PreferNoSchedule
+  containers:
+  - name: app
+    image: python:3.9
+
+---
+# ERROR: Malformed YAML
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bad-yaml
+data:
+  config.yaml: |
+    server:
+      port: 8080
+      timeout: 30s
+    database:
+      host: localhost
+      port: 5432
+      # Improper indentation causes parsing error
+     credentials: username:password

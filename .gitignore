@@ -37,3 +37,7 @@ README.json
 .tmp_exported_skill/
 .tmp_exported_skills/
 .github/skills/
+
+# MemPalace per-project files (issue #185)
+mempalace.yaml
+entities.json

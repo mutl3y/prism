@@ -10,7 +10,12 @@ from typing import cast
 import prism.scanner_extract.task_annotation_parsing as tap
 import prism.scanner_extract.task_file_traversal as tft
 from prism.scanner_core.di_helpers import require_prepared_policy
-from prism.scanner_data.contracts_request import DIContainer, TaskAnnotation
+from prism.scanner_data.contracts_request import (
+    DIContainer,
+    PreparedTaskLineParsingPolicy,
+    TaskAnnotation,
+    TaskMapping,
+)
 from prism.scanner_data.policy_constants import PolicyConstants
 from prism.scanner_extract.variable_helpers import format_inline_yaml
 
@@ -18,15 +23,19 @@ logger = logging.getLogger(__name__)
 
 
 def _detect_task_module(
-    task: dict,
+    task: TaskMapping,
     *,
     di: object | None = None,
     policy_constants: PolicyConstants | None = None,
 ) -> str | None:
     prepared_di = cast(DIContainer | None, di)
-    return require_prepared_policy(
-        prepared_di, "task_line_parsing", "task_catalog_assembly"
-    ).detect_task_module(task)
+    policy = cast(
+        PreparedTaskLineParsingPolicy,
+        require_prepared_policy(
+            prepared_di, "task_line_parsing", "task_catalog_assembly"
+        ),
+    )
+    return policy.detect_task_module(task)
 
 
 def _task_include_keys(
@@ -36,9 +45,13 @@ def _task_include_keys(
     if policy_constants is not None:
         return frozenset(policy_constants.task_include_keys)
     prepared_di = cast(DIContainer | None, di)
-    return require_prepared_policy(
-        prepared_di, "task_line_parsing", "task_catalog_assembly"
-    ).TASK_INCLUDE_KEYS
+    policy = cast(
+        PreparedTaskLineParsingPolicy,
+        require_prepared_policy(
+            prepared_di, "task_line_parsing", "task_catalog_assembly"
+        ),
+    )
+    return frozenset(policy.TASK_INCLUDE_KEYS)
 
 
 def _extract_collection_from_module_name(
@@ -334,7 +347,7 @@ def collect_molecule_scenarios(
 
 
 def detect_task_module(
-    task: dict,
+    task: TaskMapping,
     *,
     di: object | None = None,
     policy_constants: PolicyConstants | None = None,

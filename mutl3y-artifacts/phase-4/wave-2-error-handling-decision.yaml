@@ -1,0 +1,57 @@
+decision_id: wave-2-error-handling-tactical
+phase: phase_4
+wave: 2
+total_findings: 8
+review_date: 2026-05-08
+
+decision: STAGED_WAVES
+reasoning: |
+  Split 8 findings into 4 tiers by criticality + dependency:
+  TIER 1 (HOT_PATH): Findings 05, 06 → tight-couple in scanner_context.py
+  TIER 2 (QUICK): Findings 01, 07, 08 → parallel narrowing, low risk
+  TIER 3 (DEFERRED): Findings 03, 04 → blocked on plugin contracts
+  TIER 4 (NO-OP): Finding 02 → document as intentional broad catch
+
+prechecks:
+  - Baseline: pytest -q, tox -e typecheck (gate pre-changes)
+  - Scope audit: grep _RECOVERABLE_PHASE_ERRORS (verify only in 05, 06)
+  - Contract audit: plugin.discover() + plugin.detect() exception types
+  - Verify PrismRuntimeError imports available
+
+implementation_order:
+  tier_1_critical:
+    - "Scout-ControlFlow-05: scanner_context.py, _discover_variables() → (PrismRuntimeError, ValueError, RuntimeError, TypeError)"
+    - "Scout-ControlFlow-06: scanner_context.py, _detect_features() → mirror pattern from 05"
+    - "Dual-path validation: pytest src/prism/tests/test_scanner_context*.py -v"
+  tier_2_parallel:
+    - "Scout-ControlFlow-01: cli.py line 569 → (PrismRuntimeError, FileNotFoundError, ...OSError)"
+    - "Scout-ControlFlow-07: telemetry.py line 94 → (OSError, TypeError, ValueError, UnicodeError)"
+    - "Scout-ControlFlow-08: kernel_plugin_runner.py line 150 → (PrismRuntimeError, ValueError, TypeError, OSError)"
+
+effort_estimate:
+  tier_1: "8 hours (5h code + 3h testing, hot path scrutiny)"
+  tier_2: "4 hours (2.75h code + 1.25h testing)"
+  total: "12 hours (MEDIUM)"
+
+risk_level: MEDIUM
+risk_mitigation: |
+  Tier 1: MEDIUM (hot path changes). Mitigate by testing both discovery+detection
+  paths together; verify identical exception semantics; check _RECOVERABLE_PHASE_ERRORS
+  removal does not break fallback logic.
+  Tier 2: LOW (isolated boundary changes, clear mappings).
+
+validation_gates:
+  pre: "pytest -q src/prism/tests -x && tox -e typecheck"
+  post_tier_1: "pytest src/prism/tests/test_scanner_context*.py -v --tb=short"
+  post_tier_2: "pytest -q src/prism/tests -x && tox -e typecheck && ruff check src/prism"
+
+next_phase_readiness: CONDITIONAL
+readiness_criteria: |
+  Wave 3 (typing, ownership, graph) BLOCKED on Tier 1 completion + validation.
+  Tier 1 fixes hot-path error semantics; unblocks downstream layer-boundary work.
+  Tier 2 NON_BLOCKING; can run parallel or defer to Wave 3 without impact.
+  Tier 3, 4: Deferred; no Wave 2 scope.
+
+created_by: "PLANNER (gem-planner)"
+source_findings: "mutl3y-artifacts/phase-4/decision-error-handling.yaml"
+executor_next: "gem-implementer"

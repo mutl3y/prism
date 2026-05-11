@@ -1,0 +1,91 @@
+model_used: GPT-4.1
+findings:
+  - id: GILF-NODE1-01
+    severity: CRITICAL
+    category: architecture
+    location: "[di.py:1-320, di_helpers.py:1-180, scanner_context.py:1-450]"
+    issue: "DIContainer God-Object Antipattern"
+    root_cause: "The DI container is a monolithic, all-knowing object with far too many responsibilities, violating every principle of modularity and separation of concerns. It centralizes construction, policy, registry, and even test hooks."
+    impact: "Impossible to reason about, test, or extend. Any change risks breaking unrelated features. Circular dependencies are inevitable."
+    confidence: 100
+    fix_suggestion: "Decompose DIContainer into focused, single-responsibility providers. Use explicit interface boundaries and inject only what is needed, not the whole kitchen sink."
+
+  - id: GILF-NODE1-02
+    severity: HIGH
+    category: type-safety
+    location: "[di_helpers.py:various, scanner_context.py:various]"
+    issue: "TypedDict Identity Loss via dict() and cast()"
+    root_cause: "Frequent use of dict() on TypedDicts and cast() to silence type checkers, especially when copying or passing metadata."
+    impact: "Type safety is a lie; runtime errors slip through, and mypy is rendered useless. Downstream consumers get plain dicts, not TypedDicts."
+    confidence: 95
+    fix_suggestion: "Use copy.copy() for shallow copies, preserve TypedDict identity, and eliminate cast() in favor of real type enforcement."
+
+  - id: GILF-NODE1-03
+    severity: HIGH
+    category: ownership
+    location: "[scanner_context.py:various, di.py:various]"
+    issue: "Policy Ownership Split and Fallbacks"
+    root_cause: "Policies are set in one place (scan_request, ingress) and read or normalized in others (scanner_context, adapters), with fallback logic scattered everywhere."
+    impact: "Impossible to trace policy flow. Fallbacks create hidden state and normalization bugs. Ownership is ambiguous."
+    confidence: 90
+    fix_suggestion: "Enforce single-point policy preparation at ingress. All consumers must require explicit, pre-normalized policy bundles—no fallback, no local normalization."
+
+  - id: GILF-NODE1-04
+    severity: HIGH
+    category: error-handling
+    location: "[di_helpers.py:various, scanner_context.py:various]"
+    issue: "Silent Failures and Exception Swallowing"
+    root_cause: "try/except blocks that log or pass on Exception, sometimes without chaining or diagnostics. Some error paths just return None or default."
+    impact: "Failures are hidden, debugging is a nightmare, and root causes are lost. System can fail open in production."
+    confidence: 95
+    fix_suggestion: "Always raise with context (from exc), log with full trace, and never fail open. Use explicit error contracts."
+
+  - id: GILF-NODE1-05
+    severity: MEDIUM
+    category: testability
+    location: "[di.py:various, di_helpers.py:various]"
+    issue: "Test Backdoors and Overly Broad Injection"
+    root_cause: "DI container exposes test hooks and allows injection of arbitrary objects, sometimes via kwargs or direct attribute assignment."
+    impact: "Tests can mutate global state, leading to order-dependent failures and unmockable dependencies."
+    confidence: 85
+    fix_suggestion: "Limit injection scope, use explicit test doubles, and never expose global state for mutation."
+
+  - id: GILF-NODE1-06
+    severity: MEDIUM
+    category: architecture
+    location: "[di_helpers.py:various]"
+    issue: "Helper Function Bloat and Duplication"
+    root_cause: "Helper functions for DI, event bus, and policy access are duplicated or overly generic, with little cohesion."
+    impact: "Codebase is harder to navigate, helpers become a dumping ground, and maintenance cost rises."
+    confidence: 80
+    fix_suggestion: "Refactor helpers into focused modules, deduplicate logic, and document intent."
+
+  - id: GILF-NODE1-07
+    severity: MEDIUM
+    category: performance
+    location: "[scanner_context.py:various]"
+    issue: "Redundant Policy Normalization"
+    root_cause: "Policies are normalized multiple times across scanner_context and adapters, sometimes on hot paths."
+    impact: "Wasted CPU cycles, increased latency, and risk of inconsistent state."
+    confidence: 75
+    fix_suggestion: "Normalize once at ingress, pass through as immutable, and assert invariants at use sites."
+
+  - id: GILF-NODE1-08
+    severity: LOW
+    category: error-handling
+    location: "[di_helpers.py:various]"
+    issue: "Missing Exception Chaining"
+    root_cause: "When re-raising exceptions, original context is not always preserved with 'from exc'."
+    impact: "Stack traces are incomplete, making root cause analysis harder."
+    confidence: 70
+    fix_suggestion: "Always use 'raise ... from exc' when re-throwing exceptions."
+
+  - id: GILF-NODE1-09
+    severity: LOW
+    category: architecture
+    location: "[di.py:various]"
+    issue: "Lazy Imports Masking Circular Dependencies"
+    root_cause: "Lazy imports are used to break circular dependencies instead of fixing the underlying design."
+    impact: "Load-order bugs lurk beneath the surface, and refactoring is hazardous."
+    confidence: 80
+    fix_suggestion: "Refactor modules to eliminate circular dependencies, not just hide them with lazy imports."

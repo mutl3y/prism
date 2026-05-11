@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Callable, cast
 
 import yaml
 
+from prism.api_layer import cli_io as _api_cli_io
 from prism.api_layer import collection as api_collection
 from prism.api_layer import non_collection as api_non_collection
 from prism.api_layer import plugin_facade
@@ -24,16 +25,11 @@ from prism.scanner_core import DIContainer as _BaseDIContainer
 from prism.scanner_core import FeatureDetector as _BaseFeatureDetector
 from prism.scanner_core import ScannerContext as _BaseScannerContext
 from prism.scanner_data import (
-    CollectionDependencies,
-    CollectionFailureRecord,
-    CollectionIdentity,
-    CollectionPluginCatalog,
-    CollectionRoleEntry,
     CollectionScanResult,
     RepoScanResult,
     RunScanOutputPayload,
 )
-from prism.scanner_data.contracts_request import ScanPolicyContext
+from prism.scanner_data.contracts_request import ScanMetadata, ScanPolicyContext
 
 if TYPE_CHECKING:
     from prism.scanner_core import ScanCacheBackend
@@ -419,11 +415,7 @@ def scan_collection(
             payload=payload,
             render_readme_fn=render_readme,
         ),
-        write_collection_runbook_artifacts_fn=lambda **kwargs: api_collection.write_collection_runbook_artifacts_facade(
-            **kwargs,
-            render_runbook_fn=render_runbook,
-            render_runbook_csv_fn=render_runbook_csv,
-        ),
+        write_collection_runbook_artifacts_fn=write_collection_runbook_artifacts,
         build_collection_role_entry_fn=api_collection._build_collection_role_entry_facade,
         build_collection_failure_record_fn=api_collection._build_collection_failure_record_facade,
         build_collection_scan_result_fn=build_collection_scan_result,
@@ -433,6 +425,27 @@ def scan_collection(
         collection_role_runtime_recoverable_errors=(
             _COLLECTION_ROLE_RUNTIME_RECOVERABLE_ERRORS
         ),
+    )
+
+
+def write_collection_runbook_artifacts(
+    *,
+    role_name: str,
+    metadata: ScanMetadata,
+    runbook_output_dir: str | None,
+    runbook_csv_output_dir: str | None,
+) -> None:
+    """Write runbook artifacts for a collection role.
+
+    Compatibility wrapper for test monkey-patching support.
+    """
+    return api_collection.write_collection_runbook_artifacts_facade(
+        role_name=role_name,
+        metadata=metadata,
+        runbook_output_dir=runbook_output_dir,
+        runbook_csv_output_dir=runbook_csv_output_dir,
+        render_runbook_fn=render_runbook,
+        render_runbook_csv_fn=render_runbook_csv,
     )
 
 
@@ -779,3 +792,40 @@ def build_comparison_report(
         exclude_paths=exclude_paths,
         compute_quality_metrics=_metrics,
     )
+
+
+# Re-export CLI IO functions through package-owned API seam
+# (for use by prism.cli module to avoid direct api_layer imports)
+def write_role_scan_output(
+    payload: dict,
+    output: str | None,
+    output_format: str = "markdown",
+    dry_run: bool = False,
+) -> str | None:
+    """Write role scan output through the API seam."""
+    return _api_cli_io.write_role_scan_output(
+        payload,
+        output=cast(str, output),
+        output_format=output_format,
+        dry_run=dry_run,
+    )
+
+
+def render_collection_markdown(payload: dict) -> str:
+    """Render collection markdown through the API seam."""
+    return _api_cli_io.render_collection_markdown(payload)
+
+
+def resolve_output_path(output: str | None, format_: str) -> Path:
+    """Resolve output path through the API seam."""
+    return _api_cli_io.resolve_output_path(output, format_)
+
+
+def write_output(output_path: Path, rendered: str) -> str:
+    """Write output through the API seam."""
+    return _api_cli_io.write_output(output_path, rendered)
+
+
+def format_collection_summary(payload: dict) -> str:
+    """Format collection summary through the API seam."""
+    return _api_cli_io.format_collection_summary(payload)

@@ -6,15 +6,43 @@ from fnmatch import fnmatch
 import logging
 from pathlib import Path
 import re
+from typing import cast
 
 from prism.errors import PrismRuntimeError
-from prism.scanner_data.contracts_request import TaskMapping, YamlParseFailure
+from prism.scanner_data.contracts_request import (
+    PreparedTaskLineParsingPolicy,
+    PreparedTaskTraversalPolicy,
+    PreparedYAMLParsingPolicy,
+    TaskMapping,
+    YamlParseFailure,
+)
 from prism.scanner_data.policy_constants import PolicyConstants
 
 from prism.scanner_core.di_helpers import require_prepared_policy
 from prism.scanner_io.loader import parse_yaml_candidate
 
 logger = logging.getLogger(__name__)
+
+
+def _task_traversal_policy(di: object | None) -> PreparedTaskTraversalPolicy:
+    return cast(
+        PreparedTaskTraversalPolicy,
+        require_prepared_policy(di, "task_traversal", "task_file_traversal"),
+    )
+
+
+def _task_line_parsing_policy(di: object | None) -> PreparedTaskLineParsingPolicy:
+    return cast(
+        PreparedTaskLineParsingPolicy,
+        require_prepared_policy(di, "task_line_parsing", "task_file_traversal"),
+    )
+
+
+def _yaml_parsing_policy(di: object | None) -> PreparedYAMLParsingPolicy:
+    return cast(
+        PreparedYAMLParsingPolicy,
+        require_prepared_policy(di, "yaml_parsing", "yaml_parsing"),
+    )
 
 
 def _normalize_exclude_patterns(exclude_paths: list[str] | None) -> list[str]:
@@ -116,9 +144,7 @@ def _load_yaml_file_with_metadata(
                 yaml_failure_collector.append(failure)
         return None
     try:
-        parsed = require_prepared_policy(
-            di, "yaml_parsing", "yaml_parsing"
-        ).load_yaml_file(Path(identity[0]))
+        parsed = _yaml_parsing_policy(di).load_yaml_file(Path(identity[0]))
     except PrismRuntimeError:
         if yaml_failure_collector is None:
             raise
@@ -140,9 +166,7 @@ def _load_yaml_file_with_metadata(
 
 
 def _iter_task_mappings(data: object, *, di: object | None = None):
-    yield from require_prepared_policy(
-        di, "task_traversal", "task_file_traversal"
-    ).iter_task_mappings(data)
+    yield from _task_traversal_policy(di).iter_task_mappings(data)
 
 
 def _task_include_keys(
@@ -151,11 +175,7 @@ def _task_include_keys(
 ) -> frozenset[str]:
     if policy_constants is not None:
         return frozenset(policy_constants.task_include_keys)
-    return frozenset(
-        require_prepared_policy(
-            di, "task_line_parsing", "task_file_traversal"
-        ).TASK_INCLUDE_KEYS
-    )
+    return frozenset(_task_line_parsing_policy(di).TASK_INCLUDE_KEYS)
 
 
 def _iter_task_include_targets(
@@ -165,9 +185,7 @@ def _iter_task_include_targets(
     policy_constants: PolicyConstants | None = None,
 ) -> list[str]:
     if policy_constants is None:
-        return require_prepared_policy(
-            di, "task_traversal", "task_file_traversal"
-        ).iter_task_include_targets(data)
+        return _task_traversal_policy(di).iter_task_include_targets(data)
 
     from prism.scanner_plugins.ansible.task_traversal_bare import (
         expand_include_target_candidates as _expand_include_target_candidates_bare,
@@ -267,17 +285,15 @@ def _expand_include_target_candidates(
     *,
     di: object | None = None,
 ) -> list[str]:
-    return require_prepared_policy(
-        di, "task_traversal", "task_file_traversal"
-    ).expand_include_target_candidates(task, include_target)
+    return _task_traversal_policy(di).expand_include_target_candidates(
+        task, include_target
+    )
 
 
 def _iter_role_include_targets(
     task: TaskMapping, *, di: object | None = None
 ) -> list[str]:
-    return require_prepared_policy(
-        di, "task_traversal", "task_file_traversal"
-    ).iter_role_include_targets(task)
+    return _task_traversal_policy(di).iter_role_include_targets(task)
 
 
 def _iter_dynamic_role_include_targets(
@@ -285,9 +301,7 @@ def _iter_dynamic_role_include_targets(
     *,
     di: object | None = None,
 ) -> list[str]:
-    return require_prepared_policy(
-        di, "task_traversal", "task_file_traversal"
-    ).iter_dynamic_role_include_targets(task)
+    return _task_traversal_policy(di).iter_dynamic_role_include_targets(task)
 
 
 def _resolve_task_include(
@@ -443,16 +457,18 @@ def _collect_unconstrained_dynamic_task_includes(
     policy_constants: PolicyConstants | None = None,
 ) -> list[dict[str, str]]:
     role_root = Path(role_path).resolve()
-    return require_prepared_policy(
-        di, "task_traversal", "task_file_traversal"
-    ).collect_unconstrained_dynamic_task_includes(
-        role_root=role_root,
-        task_files=_collect_task_files(
+    task_files = cast(
+        list[object],
+        _collect_task_files(
             role_root,
             exclude_paths=exclude_paths,
             di=di,
             policy_constants=policy_constants,
         ),
+    )
+    return _task_traversal_policy(di).collect_unconstrained_dynamic_task_includes(
+        role_root=role_root,
+        task_files=task_files,
         load_yaml_file=lambda file_path: _load_yaml_file(file_path, di=di),
     )
 
@@ -465,16 +481,18 @@ def _collect_unconstrained_dynamic_role_includes(
     policy_constants: PolicyConstants | None = None,
 ) -> list[dict[str, str]]:
     role_root = Path(role_path).resolve()
-    return require_prepared_policy(
-        di, "task_traversal", "task_file_traversal"
-    ).collect_unconstrained_dynamic_role_includes(
-        role_root=role_root,
-        task_files=_collect_task_files(
+    task_files = cast(
+        list[object],
+        _collect_task_files(
             role_root,
             exclude_paths=exclude_paths,
             di=di,
             policy_constants=policy_constants,
         ),
+    )
+    return _task_traversal_policy(di).collect_unconstrained_dynamic_role_includes(
+        role_root=role_root,
+        task_files=task_files,
         load_yaml_file=lambda file_path: _load_yaml_file(file_path, di=di),
     )
 

@@ -18,7 +18,7 @@ decisions:
     layer_severity: "UTILITY_SEAM"
     implementation_effort: "NONE"
     implementation_readiness: "READY"
-    
+
   - finding_id: Scout-Ownership-02
     path: "src/prism/api.py"
     line: 13
@@ -145,23 +145,23 @@ decisions:
 implementation_readiness: "READY"
 summary: |
   Layer boundary analysis reveals 8 findings across three categories:
-  
+
   1. FACADE IMPORTS (01-03): Already correct — api.py properly imports from api_layer.
      Decision: KEEP_AS_IS. No implementation needed.
-  
+
   2. SHARED/OPTIONAL (04-06): Legitimate cross-layer imports for constants and contracts.
      Decision: KEEP_AS_IS (required) or MOVE_OPTIONAL (05, 06 for consistency).
      Effort: Low if pursued; not blocking.
-  
+
   3. CRITICAL VIOLATIONS (07-08): Implementation functions directly imported from
      scanner_io layer (two levels down). These break layer abstraction.
      Decision: MOVE_TO_SEAM. Move both to api_layer/collection.py.
      Effort: Medium. Straightforward refactor—expose functions through facade.
-  
+
   Blocking findings: 07, 08 (implementation functions in API layer)
   Optional findings: 05 (utility function), 06 (contract type)
   Non-issues: 01-04 (already correct or legitimate)
-  
+
   Recommended wave sequencing:
     Wave 1: Move 07-08 to api_layer/collection.py (critical path)
     Wave 2: Optional consistency improvements (05, 06) if facade standardization pursued
@@ -170,7 +170,7 @@ risk_assessment: |
   CRITICAL RISKS:
   - Findings 07-08: Direct scanner_io imports expose implementation to public API.
     If scanner_io refactors, api.py breaks. Move to facade isolates from changes.
-  
+
   OPEN EDGES:
   - cli.py may have similar violations (not in this scout run).
     Recommend parallel audit of cli.py after Phase 4 completion.

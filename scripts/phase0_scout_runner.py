@@ -19,7 +19,7 @@ def find_any_annotations() -> list[dict[str, Any]]:
     findings = []
     pattern = re.compile(r".*:\s*Any\b|Callable\[\.\.\.,\s*Any\]")
     finding_id = 1
-    
+
     for py_file in sorted(TARGET.rglob("*.py")):
         try:
             content = py_file.read_text(encoding="utf-8", errors="ignore")
@@ -50,7 +50,7 @@ def find_any_annotations() -> list[dict[str, Any]]:
                         return findings
         except Exception as e:
             print(f"Error reading {py_file}: {e}")
-    
+
     return findings
 
 
@@ -58,10 +58,10 @@ def find_ownership_issues() -> list[dict[str, Any]]:
     """Scout-Ownership: Find module ownership and layer violations."""
     findings = []
     finding_id = 1
-    
+
     # Look for private imports across modules
     private_import_pattern = re.compile(r"from\s+[\w.]*_[\w.]*\s+import|import\s+[\w.]*_[\w.]*")
-    
+
     for py_file in sorted(TARGET.rglob("*.py")):
         try:
             content = py_file.read_text(encoding="utf-8", errors="ignore")
@@ -94,7 +94,7 @@ def find_ownership_issues() -> list[dict[str, Any]]:
                         return findings
         except Exception:
             pass
-    
+
     return findings
 
 
@@ -102,10 +102,10 @@ def find_error_handling_issues() -> list[dict[str, Any]]:
     """Scout-ControlFlow: Find error handling and control flow issues."""
     findings = []
     finding_id = 1
-    
+
     broad_except_pattern = re.compile(r"except\s*(Exception|BaseException|:)")
     silent_pass_pattern = re.compile(r"except.*:\s*pass")
-    
+
     for py_file in sorted(TARGET.rglob("*.py")):
         try:
             content = py_file.read_text(encoding="utf-8", errors="ignore")
@@ -137,7 +137,7 @@ def find_error_handling_issues() -> list[dict[str, Any]]:
                         return findings
         except Exception:
             pass
-    
+
     return findings
 
 
@@ -145,10 +145,10 @@ def find_graph_issues() -> list[dict[str, Any]]:
     """Scout-Graph: Find dependency and import issues."""
     findings = []
     finding_id = 1
-    
+
     # Look for potential circular import patterns
     import_pattern = re.compile(r"^from\s+([\w.]+)\s+import|^import\s+([\w.]+)")
-    
+
     for py_file in sorted(TARGET.rglob("*.py")):
         try:
             content = py_file.read_text(encoding="utf-8", errors="ignore")
@@ -157,11 +157,11 @@ def find_graph_issues() -> list[dict[str, Any]]:
                 match = import_pattern.match(line)
                 if match:
                     imports.append(line.strip())
-            
+
             # Check for back-references (simple heuristic)
             rel_path = str(py_file.relative_to(TARGET.parent.parent))
             parent_pkg = rel_path.split("/")[2]  # Get package like scanner_core
-            
+
             if len(imports) > 15:  # Potential over-importing
                 findings.append({
                     "id": f"Scout-Graph-{finding_id:02d}",
@@ -187,34 +187,34 @@ def find_graph_issues() -> list[dict[str, Any]]:
                     return findings
         except Exception:
             pass
-    
+
     return findings
 
 
 def main() -> None:
     """Generate all scout findings and write artifacts."""
     print("[Phase 0] Generating scout findings...")
-    
+
     scouts = {
         "Scout-Typing": find_any_annotations,
         "Scout-Ownership": find_ownership_issues,
         "Scout-ControlFlow": find_error_handling_issues,
         "Scout-Graph": find_graph_issues,
     }
-    
+
     summaries = []
-    
+
     for scout_name, scout_fn in scouts.items():
         print(f"  Running {scout_name}...")
         findings = scout_fn()
-        
+
         artifact_path = ARTIFACTS_DIR / f"{scout_name}.yaml"
         artifact_path.write_text(
             yaml.safe_dump(findings, sort_keys=False, allow_unicode=True),
             encoding="utf-8",
         )
         print(f"    → {len(findings)} findings written to {artifact_path.relative_to(TARGET.parent.parent)}")
-        
+
         summary = {
             "scout": scout_name,
             "artifact_path": str(artifact_path.relative_to(TARGET.parent.parent.parent)),
@@ -228,7 +228,7 @@ def main() -> None:
             "top_fix_groups": list(set(f["fix_group_key"] for f in findings[:3])),
         }
         summaries.append(summary)
-    
+
     # Write phase 0 summary
     summary_path = ARTIFACTS_DIR.parent / "phase-0-scout-summary.yaml"
     summary_path.write_text(
@@ -238,7 +238,7 @@ def main() -> None:
         ),
         encoding="utf-8",
     )
-    
+
     print(f"\n[Phase 0] Scout summary written to {summary_path.relative_to(TARGET.parent.parent.parent)}")
     print(f"[Phase 0] Total findings: {sum(s['findings_count'] for s in summaries)}")
 

@@ -43,12 +43,55 @@ class DIContainer(Protocol):
     def plugin_registry(self) -> object | None: ...
 
 
+@runtime_checkable
+class CacheKeyProtocol(Protocol):
+    """Protocol for objects that support stable cache key generation.
+
+    Objects implementing this protocol can be safely included in cache keys
+    by providing a stable, deterministic string representation.
+
+    Example:
+        >>> class MyObject:
+        ...     def __init__(self, value: str):
+        ...         self.value = value
+        ...     def __cache_key__(self) -> str:
+        ...         return f"MyObject:{self.value}"
+    """
+
+    def __cache_key__(self) -> str:
+        """Generate a stable, deterministic cache key.
+
+        Must return a string that is:
+        - Deterministic (same object → same key)
+        - Unique across different objects (different objects → different keys)
+        - Serializable (no special characters that break JSON)
+
+        Raises:
+            ValueError: If key generation fails or conditions violated
+        """
+        ...
+
+
 class ScanErrorEntry(TypedDict):
-    """Structured scan-phase error emitted during best-effort execution."""
+    """Structured scan-phase error emitted during best-effort execution.
+
+    Core fields (phase, error_type, message) are always present for backward
+    compatibility with Ansible-only scans. Platform extensions (error_code,
+    category, recoverable, resource_id, detail, cause_type) are optional
+    and available for Kubernetes and Terraform plugins.
+    """
 
     phase: str
     error_type: str
     message: str
+    traceback: NotRequired[str]
+    cause: NotRequired[str]
+    error_code: NotRequired[str]
+    category: NotRequired[str]
+    recoverable: NotRequired[bool]
+    resource_id: NotRequired[str]
+    detail: NotRequired[dict[str, Any]]
+    cause_type: NotRequired[str]
 
 
 class ScanPolicyWarning(TypedDict, total=False):

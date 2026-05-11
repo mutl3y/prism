@@ -1,0 +1,94 @@
+wave_id: Wave-6-Cleanup
+batch_id: Batch-2-36-Findings
+tier_level: Tier-1 (Claude Haiku 4.5)
+execution_date: 2026-05-09
+batch_baseline_tests: 1161
+
+batch_scope:
+  total_findings: 36
+  severity_distribution:
+    LOW: 12
+    MEDIUM: 24
+  focus_areas:
+    - Documentation/Clarity (8 findings)
+    - Logging Improvements (6 findings)
+    - Performance (6 findings)
+    - Type Safety (5 findings)
+    - Error Handling (4 findings)
+    - Validation (4 findings)
+    - Architecture/Ownership (3 findings)
+
+high_confidence_findings:
+  # Documentation clarity fixes
+  - id: GILF-SC-03
+    severity: MEDIUM
+    category: architecture
+    file: scanner_context.py
+    issue: ScannerContext reuse semantics undocumented
+    fix_estimate: 15min
+    status: PENDING
+    confidence: 95
+    
+  - id: GILF-NODE1-07
+    severity: MEDIUM
+    category: ownership
+    file: scanner_context.py
+    issue: Policy constants lifecycle unclear
+    fix_estimate: 20min
+    status: PENDING
+    confidence: 90
+    
+  # More logging/diagnostics
+  - id: GILF-NODE2-05
+    severity: MEDIUM
+    category: error-handling
+    file: feature_detector.py
+    issue: Plugin resolution failure raises without context
+    fix_estimate: 15min
+    status: PENDING
+    confidence: 95
+    
+  - id: GILF-NODE1-06
+    severity: MEDIUM
+    category: architecture
+    file: di_helpers.py
+    issue: Helper Function Bloat - duplicate protocol checks
+    fix_estimate: 30min
+    status: PENDING
+    confidence: 85
+    
+  # Performance micro-optimizations
+  - id: GILF-NODE2-06
+    severity: MEDIUM
+    category: performance
+    file: feature_detector.py
+    issue: Repeated cloning of scan options
+    fix_estimate: 20min
+    status: PENDING
+    confidence: 95
+    
+  - id: GILF-NODE1-07
+    severity: MEDIUM
+    category: performance
+    file: scanner_context.py
+    issue: Redundant Policy Normalization on hot paths
+    fix_estimate: 25min
+    status: PENDING
+    confidence: 85
+
+gate_expectations:
+  pytest_baseline: 1161
+  pytest_minimum: 1155 (6 test slack)
+  lint: must pass (ruff)
+  format: must pass (black)
+  
+execution_strategy:
+  batch_1_estimate: 25-30 findings (2-3 hours)
+  batch_2_estimate: 6-8 findings (1-2 hours) if batch 1 yields mechanical wins
+  
+notes: |
+  Batch 2 prioritizes mechanical, high-confidence fixes that don't require
+  architectural changes. Focus on documentation, logging, and performance
+  micro-optimizations. Revert immediately if any fix breaks tests.
+
+checkpoint_status: BATCH_2_START

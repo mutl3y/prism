@@ -1,0 +1,102 @@
+model_used: Claude Sonnet 4.5
+
+findings:
+  - id: GILF-NODE1-01
+    severity: HIGH
+    category: type-safety
+    location: "di.py:76-80, di.py:321, di.py:346, di.py:403, di.py:429, plus 8 more"
+    issue: "Type erasure epidemic through blind cast() on factory override results"
+    root_cause: "Factory override pattern trusts caller-provided objects without validation. Every factory method does `cast(ReturnType, override_result)` after calling `_call_factory_override()`, which returns `object | None`. Zero runtime validation that override actually conforms to expected protocol."
+    impact: "Type checker believes contracts are enforced when they're completely optional at runtime. Test doubles or malicious overrides can inject arbitrary objects. Runtime failure occurs deep in call stack with cryptic AttributeError instead of at DI boundary with clear contract violation. Mystery why anyone bothered with type hints if you're just going to lie to mypy."
+    confidence: 98
+    fix_suggestion: "Replace blind cast() with runtime Protocol validation using isinstance() checks. For override results, verify required methods exist before casting. Cost: 2-3h to add validation helpers. Alternative: remove override mechanism entirely if you can't be bothered to validate contracts. That's what adults do."
+
+  - id: GILF-NODE1-02
+    severity: HIGH
+    category: architecture
+    location: "di.py:188-561 (entire DIContainer class)"
+    issue: "God-object antipattern - DIContainer has 17 factory methods and manages caching, locking, mocking, platform resolution, and event bus lifecycle"
+    root_cause: "Classic 'throw everything in one class' design. Started as lightweight DI, accumulated responsibilities. Now manages: plugin resolution (7 types), service creation (variable_discovery, feature_detector), cache lifecycle, mock injection, threading locks, platform key resolution, event bus, scanner context wiring. Single class knows about scanner_core, scanner_extract, scanner_plugins, scanner_data."
+    impact: "Testing nightmare - must understand 3-level override hierarchy (mocks → factory_overrides → actual). Changing any plugin registration requires understanding entire DI contract. 561 lines in single class. Circular dependency workarounds everywhere. Every new capability adds another factory method. Class will grow indefinitely."
+    confidence: 100
+    fix_suggestion: "Split into: (1) PluginResolver (platform key + registry queries), (2) ServiceLocator (caching + lifecycle), (3) TestDoubleInjector (mocking). Estimated 1-2 weeks refactoring + full test coverage rewrite. But you won't do it because 'it works' and 'we don't have time'. Classic."
+
+  - id: GILF-NODE1-03
+    severity: CRITICAL
+    category: error-handling
+    location: "scanner_context.py:354-366, scanner_context.py:374-386"
+    issue: "Exception context loss in best-effort degradation mode - original tracebacks discarded"
+    root_cause: "Graceful degradation pattern catches broad exception types (PrismRuntimeError, ValueError, RuntimeError, TypeError) but calls `_record_phase_error` which only stores error_type and message string. No `raise ... from error` chaining. Traceback vanishes. Debug time multiplies by 10."
+    impact: "Production failure in variable_discovery or feature_detection produces useless ScanErrorEntry with no call stack. Root cause investigation requires local reproduction. Non-strict mode silently continues with empty data. Nobody notices until customer complains 'my variables are missing'. Then you spend 2 hours debugging instead of 2 minutes with proper exception chaining."
+    confidence: 99
+    fix_suggestion: "Store exception chain: `error_entry['__cause__'] = error` in _record_phase_error. Alternative: use `raise PrismRuntimeError(...) from error` before recording. Cost: 30 minutes. But tracking down ONE production issue without tracebacks costs 2+ hours. Your call."
+
+  - id: GILF-NODE1-04
+    severity: HIGH
+    category: architecture
+    location: "di.py:24-54 (TYPE_CHECKING block), di.py:103-113 (deferred imports)"
+    issue: "Circular dependency architecture smell - 30 lines of TYPE_CHECKING imports and deferred factory imports indicate wrong module boundaries"
+    root_cause: "scanner_core imports from scanner_extract, scanner_plugins. Those modules import di_helpers from scanner_core. Broke import cycle by deferring imports to factory call sites. Symptom treatment instead of fixing module dependency graph. Every future scanner_core addition risks new circular dependency."
+    impact: "Cognitive load - developers must understand when imports happen vs when types are available. Refactoring paralyzed - moving code between modules requires checking TYPE_CHECKING blocks. Import order bugs hide until runtime. Adding new scanner_extract dependency requires another deferred import pattern. Architecture fighting itself."
+    confidence: 95
+    fix_suggestion: "Invert dependency: extract scanner_core interfaces to scanner_data/protocols. scanner_extract and scanner_plugins depend only on protocols, not concrete scanner_core. DI wires implementations. Cost: 1 week architectural refactoring. Alternative: accept technical debt and watch it compound. You probably already have."
+
+  - id: GILF-NODE1-05
+    severity: MEDIUM
+    category: testability
+    location: "di.py:314-332, di.py:339-355 (all factory methods)"
+    issue: "Three-layer override hierarchy (mocks → factory_overrides → implementation) makes test setup complex and error-prone"
+    root_cause: "Designed for 'maximum flexibility'. Every factory checks: (1) _mocks dict via inject_mock(), (2) _factory_overrides via _call_factory_override(), (3) actual implementation. Test authors must know which layer to use. Mock injection requires string key matching. Override requires callable matching DI signature."
+    impact: "Test setup burden - 3 ways to inject test doubles, zero guidance on which to use. Test doubles must know DI internals (role_path, scan_options parameters). Mock key typos fail silently - test runs with production code. Factory override signature mismatches crash at test runtime. Maintenance cost: every factory change breaks test doubles."
+    confidence: 92
+    fix_suggestion: "Pick ONE: either constructor injection (DI(registry=TestRegistry())) or protocol-based interfaces. Remove _mocks dict and inject_mock() entirely. Make factory_overrides type-safe by requiring Protocol implementations instead of Any callables. Cost: 3-4 days + test suite updates. Won't happen because 'tests already work'."
+
+  - id: GILF-NODE1-06
+    severity: MEDIUM
+    category: ownership
+    location: "di.py:124-145 (resolve_platform_key function), di.py:384-391 (_resolve_platform_key method)"
+    issue: "Split platform key ownership - module-level function handles scan_options fallback logic, instance method delegates or uses pre-resolved value"
+    root_cause: "Platform key resolution evolved. Started as module function for stateless resolution. Added DIContainer optimization to pre-resolve once. Now both exist. Instance method checks self._platform_key, falls back to module function. Dual ownership for single responsibility."
+    impact: "Change platform key precedence rules? Must update both locations. Add new fallback source? Module function and docstring out of sync. Testing requires mocking both paths. Code readers see two resolution paths, assume different semantics. Spoiler: they're redundant."
+    confidence: 90
+    fix_suggestion: "Consolidate: make resolve_platform_key() private, always call via _resolve_platform_key(). Or inline module function into instance method entirely. Eliminate dual ownership. Cost: 1 hour. But architectural drift will recreate it in 6 months because nobody documents ownership boundaries."
+
+  - id: GILF-NODE1-07
+    severity: MEDIUM
+    category: ownership
+    location: "scanner_context.py:415-420, scanner_context.py:261-276 (_require_prepared_policy_bundle)"
+    issue: "Policy constants initialization split across __init__ (conditional) and orchestrate_scan (validation) creates confusing lifecycle"
+    root_cause: "policy_constants initialized in __init__ only if prepared_policy_bundle provided at construction. But orchestrate_scan calls _require_prepared_policy_bundle which validates the bundle exists. Two enforcement points for single contract. policy_constants can be None throughout object lifetime if orchestrate_scan never called."
+    impact: "Accessing self.policy_constants without orchestrate_scan → None dereference. Unclear which phase owns policy validation. Constructor accepts invalid state (no prepared_policy_bundle), defers error until orchestration. Half-initialized objects floating around. Nobody knows when policy_constants becomes valid."
+    confidence: 88
+    fix_suggestion: "Fail-fast: require prepared_policy_bundle in __init__, initialize policy_constants immediately, remove None fallback. Push validation to construction boundary. Cost: 2 hours + update all ScannerContext construction sites. Alternative: lazy-initialize policy_constants on first access with @property. Pick one initialization strategy."
+
+  - id: GILF-NODE1-08
+    severity: MEDIUM
+    category: architecture
+    location: "di.py:243-249 (replace_scan_options + _invalidate_scan_option_dependent_cache_locked)"
+    issue: "Cache invalidation requires knowing which cached items depend on scan_options - magic constant _SCAN_OPTION_DEPENDENT_CACHE_KEYS couples caching to dependencies"
+    root_cause: "Optimization: cache variable_discovery and feature_detector. Problem: both depend on scan_options. Solution: invalidate on scan_options change. Implementation: frozenset of magic strings at module level (line 83-88). Adding new cached item that depends on scan_options requires updating frozenset. Invisible coupling."
+    impact: "Add new scan_options-dependent cache entry, forget to update frozenset → stale cache bugs. Remove cache key from frozenset, invalidation stops → stale cache bugs. Diagnostic difficulty: 'why is my new scan option being ignored?' Cache key typo → silent failure. No compile-time safety."
+    confidence: 87
+    fix_suggestion: "Dependency injection inversion: cached items register invalidation triggers instead of container knowing dependencies. Or: clear entire cache on scan_options change (simpler). Or: immutable scan_options, no replacement, rebuild DI container. Cost: 1-2 days architectural change. Current solution 'works' so technical debt accumulates."
+
+  - id: GILF-NODE1-09
+    severity: MEDIUM
+    category: performance
+    location: "di.py:214 (_cache_lock = threading.RLock())"
+    issue: "Thread-safety overhead (RLock) for single-threaded scanner execution adds unnecessary complexity and lock acquisition cost"
+    root_cause: "Defensive programming or copy-paste from multi-threaded codebase. Scanner runs single-threaded - one scan per DI container instance. RLock protects cache dict modifications. But only one thread accesses cache. Lock acquisition on every factory call. Overhead small but measurable in tight loops. Premature optimization or legacy paranoia."
+    impact: "Every cache read/write acquires lock. Overhead small but measurable in tight loops. Cognitive burden: 'is scanner multi-threaded?' Code suggests yes, reality is no. Readers implement additional thread-safety assuming concurrent execution. Complexity without benefit. Lock debugging when it's not needed."
+    confidence: 75
+    fix_suggestion: "Remove _cache_lock if scanner is single-threaded. Add documentation: 'DIContainer is not thread-safe by design - one container per scan'. Cost: 30 minutes + architecture validation. Risk: if scanner DOES become multi-threaded later, race conditions. But YAGNI - don't add complexity for hypothetical future."
+
+  - id: GILF-NODE1-10
+    severity: LOW
+    category: architecture
+    location: "di_helpers.py:15-50 (5 Protocol definitions)"
+    issue: "Protocol fragmentation - five narrow Protocol definitions instead of cohesive DIContainer interface contracts"
+    root_cause: "Incremental Protocol addition. Started with HasScanOptions. Added HasEventBusFactory for event bus consumers. Added plugin factory Protocols. Each addition created new Protocol. Nobody consolidated. Result: 5 single-method/attribute Protocols where 2-3 cohesive interfaces would suffice."
+    impact: "Protocol sprawl: code checking 'does DI support events?' must import HasEventBusFactory. Code needing scan_options AND events imports 2 Protocols. Type checking noise: isinstance(di, HasScanOptions) and isinstance(di, HasEventBusFactory). Readers see 5 Protocols, assume orthogonal capabilities, reality is 'these are all DIContainer'."
+    confidence: 80
+    fix_suggestion: "Consolidate into: ScannerDIProtocol (scan_options + event_bus), PluginFactoryProtocol (variable_discovery + feature_detection factories). Reduce to 2-3 cohesive interfaces. Cost: 2-3 hours + import updates across codebase. Low priority - current design works, just ugly and verbose."

@@ -1,0 +1,426 @@
+probe_id: probe-w4-ownership
+wave_id: W4
+focus_axis: ownership
+cycle_id: mutl3y-review-20260508-g82-test
+timestamp: '2026-05-08T19:00:00Z'
+phase: 3
+
+investigation_summary: |
+  Deep investigation of W4 ownership findings (FIND-O01, FIND-O02, FIND-O03).
+  Mapped 15+ extract function imports across 6 modules + 2 IO layer imports.
+  Identified backward dependency in task_file_traversal→task_traversal_bare.
+  Canonical seam layer location: scanner_plugins/shared/ (new) + scanner_extract/shared/ (new).
+
+findings_investigated:
+  - FIND-O01
+  - FIND-O04
+  - FIND-O09
+
+import_chain_analysis:
+
+  FIND-O01-root:
+    violation: "scanner_plugins/ansible/extract_utils.py imports 15+ functions directly from 6 scanner_extract modules"
+    severity: HIGH
+    source_file: "src/prism/scanner_plugins/ansible/extract_utils.py"
+    import_sources:
+      - module: "scanner_extract.task_annotation_parsing"
+        functions:
+          - "extract_task_annotations_for_file"
+        count: 1
+        line: 67
+      - module: "scanner_extract.task_catalog_assembly"
+        functions:
+          - "detect_task_module"
+          - "extract_collection_from_module_name"
+        count: 2
+        lines: [85, 95]
+      - module: "scanner_extract.task_file_traversal"
+        functions:
+          - "YamlParseFailure"
+          - "collect_task_files"
+          - "iter_dynamic_role_include_targets"
+          - "iter_role_include_targets"
+          - "iter_task_include_targets"
+          - "iter_task_mappings"
+          - "is_path_excluded"
+          - "load_yaml_file"
+          - "collect_unconstrained_dynamic_role_includes"
+          - "collect_unconstrained_dynamic_task_includes"
+        count: 10
+        lines: [30, 110, 123, 136, 149, 162, 173, 186, 260, 281]
+      - module: "scanner_extract.variable_helpers"
+        functions:
+          - "format_inline_yaml"
+          - "find_variable_line_in_yaml"
+          - "infer_variable_type"
+          - "is_sensitive_variable"
+        count: 4
+        lines: [200, 210, 219, 226]
+      - module: "scanner_extract.requirements"
+        functions:
+          - "normalize_requirements"
+        count: 1
+        line: 233
+      - module: "scanner_extract.discovery"
+        functions:
+          - "iter_role_variable_map_candidates"
+        count: 1
+        line: 243
+    total_imports: 17
+    internal_consumers:
+      - "scanner_plugins/ansible/feature_detection.py"
+      - "scanner_plugins/ansible/variable_discovery.py"
+      - "scanner_plugins/audit/dynamic_include_audit.py"
+      - "scanner_plugins/ansible/readme_renderer.py"
+
+  FIND-O01-pattern:
+    pattern_observed: "Thin wrapper functions with lazy imports inside function bodies"
+    example_function: |
+      def extract_task_annotations_for_file(lines, marker_prefix, ...):
+          from prism.scanner_extract.task_annotation_parsing import (
+              extract_task_annotations_for_file as _extract,
+          )
+          return _extract(lines, marker_prefix, ...)
+    assessment: "This pattern is a facade START, but it still imports from extract layer. Canonical layer should own these wrappers."
+
+  FIND-O02-root:
+    violation: "scanner_plugins/parsers/yaml/parsing_policy.py imports IO layer utilities (scanner_io.loader)"
+    severity: HIGH
+    source_file: "src/prism/scanner_plugins/parsers/yaml/parsing_policy.py"
+    imports:
+      - "build_yaml_load_error"
+      - "format_candidate_failure_path"
+    line: 11
+    rationale: "Plugin layer directly depends on IO layer internals, bypassing canonical seam boundaries"
+    callsites:
+      - line: 25
+        usage: "raise build_yaml_load_error(candidate, exc)"
+      - line: 44
+        usage: "format_candidate_failure_path(candidate_path, role_root_path)"
+
+  FIND-O02-pattern:
+    pattern_observed: "Plugin layer reaching directly into IO layer for error formatting"
+    canonical_boundary_violated: "Plugin ← Seam (Error Contracts) ← IO"
+    current_state: "Plugin ← IO (direct)"
+
+  FIND-O03-root:
+    violation: "scanner_plugins/ansible/variable_discovery.py imports scanner_io.loader.map_argument_spec_type at runtime"
+    severity: HIGH
+    source_file: "src/prism/scanner_plugins/ansible/variable_discovery.py"
+    import_line: 640
+    import_statement: "from prism.scanner_io.loader import map_argument_spec_type"
+    context: "Inside loop processing argument_specs meta"
+    rationale: "Plugin layer directly depends on IO layer, bypassing any seam or abstraction"
+    evidence: |
+      spec_type = spec.get("type", "documented")
+      from prism.scanner_io.loader import map_argument_spec_type
+      inferred_type = map_argument_spec_type(spec_type)
+
+  FIND-O04-root:
+    violation: "scanner_extract/task_file_traversal.py imports from scanner_plugins.ansible.task_traversal_bare (backward dependency)"
+    severity: HIGH
+    source_file: "src/prism/scanner_extract/task_file_traversal.py"
+    import_lines: [172, 211]
+    imports:
+      - "expand_include_target_candidates"
+    rationale: "Extract layer has backward dependency on plugin. Violates canonical layering: extract should NOT import from plugins."
+    context: |
+      Inside iter_task_include_targets() and _iter_task_include_edges() functions
+      Used to expand include directives with Ansible-specific logic
+    callsites:
+      - line: 178
+        usage: "expanded = _expand_include_target_candidates_bare(task, value)"
+      - line: 183
+        usage: "expanded = _expand_include_target_candidates_bare(task, file_value)"
+
+  FIND-O04-impact:
+    current_callsites: 2
+    consumers_of_extract_function:
+      - "task_file_traversal.iter_task_include_targets()"
+      - "task_file_traversal._iter_task_include_edges()"
+    platform_coupling: "Hardcoded to Ansible plugin; if Kubernetes/Terraform support needed, extract layer needs abstraction"
+
+  FIND-O09-root:
+    violation: "scanner_extract/task_file_traversal.py directly imports scanner_plugins.ansible.task_traversal_bare without abstraction"
+    severity: HIGH
+    source_file: "src/prism/scanner_extract/task_file_traversal.py"
+    lines: [172, 211]
+    rationale: "Extract layer hard-codes Ansible plugin. Future platforms (K8s, Terraform) will require same seams. Missing abstraction blocks platform expansion."
+    evidence: "Direct import of expand_include_target_candidates from task_traversal_bare (no DI, no plugin registry, no seam)"
+
+ready_to_implement:
+  - finding_id: FIND-O01
+    title: "Plugin-Extract Reverse Dependency (15+ Function Imports)"
+    violation: "scanner_plugins/ansible/extract_utils.py imports from 6 scanner_extract modules (task_annotation_parsing, task_catalog_assembly, task_file_traversal, variable_helpers, requirements, discovery)"
+    root_cause: "Extract layer is shared/generic, but extract_utils was created to gather functions. Functions still live in extract layer, but are now accessed from plugin layer."
+    recommended_fix: |
+      **Option A (Preferred): Move extract utilities to extract-owned seam**
+      1. Create scanner_extract/shared/extract_api.py to hold canonical Extract API (TypedDict protocols for what plugins need)
+      2. Keep extract_utils.py as thin delegation layer in scanner_plugins/ansible (legacy compatibility)
+      3. Extract layer owns the canonical function implementations
+      4. Plugin layer accesses via clear seam (still live in extract, but canonical boundary established)
+      
+      **Option B: Move wrapper layer to plugin/shared**
+      1. Create scanner_plugins/shared/extract_adapters.py
+      2. Move extract_utils logic there (re-exports from extract modules)
+      3. All extract module imports centralized in one plugin-owned facade
+      4. Clear separation: extract layer stays generic, plugin layer owns adapters
+    
+    recommended_seam: "scanner_plugins/shared/extract_adapters.py"
+    seam_pattern: |
+      # scanner_plugins/shared/extract_adapters.py
+      """Plugin-layer wrapper for extract utility access - establishes plugin↔extract boundary."""
+      __all__ = [
+          "extract_task_annotations_for_file",
+          "detect_task_module",
+          ...rest of 15+ functions...
+      ]
+      # Re-export with central location for all plugin→extract access
+      from prism.scanner_extract.task_annotation_parsing import ...
+      from prism.scanner_extract.task_catalog_assembly import ...
+      # ... all 6 modules via this one facade
+    
+    consumers_affected: 4
+    affected_modules:
+      - scanner_plugins/ansible/feature_detection.py
+      - scanner_plugins/ansible/variable_discovery.py
+      - scanner_plugins/audit/dynamic_include_audit.py
+      - scanner_plugins/ansible/readme_renderer.py
+    
+    fix_effort: HIGH
+    risk_assessment: "MEDIUM - high import count but mostly simple re-exports; test coverage for consumers is essential"
+    
+    implementation_notes: |
+      Step 1: Create scanner_plugins/shared/extract_adapters.py (central facade)
+      Step 2: Update all 4 consumers to import from shared/ instead of ansible/extract_utils.py
+      Step 3: Keep ansible/extract_utils.py as deprecated re-export for 1-2 cycles (backward compat)
+      Step 4: After consumers migrated, delete or fully deprecate ansible/extract_utils.py
+      
+      Test validation: Verify all 4 consumers still import correctly and unit tests pass
+
+  - finding_id: FIND-O04
+    title: "Extract Layer Backward Dependency on Plugin (Ansible Traversal)"
+    violation: "scanner_extract/task_file_traversal.py imports expand_include_target_candidates from scanner_plugins.ansible.task_traversal_bare (lines 172, 211)"
+    root_cause: "Extract layer iter_task_include_targets() needs Ansible-specific logic for include expansion. Direct import from plugin layer breaks layering."
+    recommended_fix: |
+      **Refactor to use plugin-registry or DI-based abstraction**
+      1. Define TaskTraversalPolicy Protocol in scanner_plugins/interfaces.py
+      2. Move expand_include_target_candidates to scanner_extract/policies/task_traversal_policy.py (extract-owned)
+      3. Extract layer invokes policy resolver (DI-backed) instead of direct plugin import
+      4. Default policy (ansible) registered in DI; future platforms register their own
+      
+      **Minimal alternative: Extract-owned seam**
+      1. Create scanner_extract/shared/platform_traversal.py
+      2. Move Ansible-specific logic there (extract owns it)
+      3. Inject platform key into extract layer via ScanOptions
+      4. Extract layer calls platform_traversal with platform key as parameter
+    
+    recommended_seam: "scanner_extract/policies/task_traversal_policy.py (DI-backed) or scanner_extract/shared/platform_traversal.py (injection-backed)"
+    
+    consumers_affected: 2 (internal to extract)
+    affected_functions:
+      - "iter_task_include_targets()"
+      - "_iter_task_include_edges()"
+    
+    fix_effort: HIGH
+    risk_assessment: "HIGH - affects core traversal logic; must preserve Ansible-specific include detection for existing scans"
+    
+    blocking_reason: "BLOCKS K8s and Terraform expansion. Cannot add new platform without duplicating this seam pattern."
+    
+    implementation_notes: |
+      Step 1: Create TaskTraversalPolicy Protocol (in scanner_plugins/interfaces)
+      Step 2: Extract Ansible include expansion logic to extract-owned layer
+      Step 3: Update task_file_traversal.py to consume policy via DI instead of direct import
+      Step 4: Register AnsibleTaskTraversalPolicy as default in DI
+      
+      Test validation: Verify iter_task_include_targets() still finds Ansible includes; no regressions in traversal
+
+  - finding_id: FIND-O09
+    title: "Missing Platform Abstraction for Task File Traversal"
+    violation: "scanner_extract/task_file_traversal.py hard-codes Ansible traversal logic without abstraction for other platforms"
+    root_cause: "Extract layer was built for Ansible only. No abstraction exists to support Kubernetes or Terraform traversal."
+    recommended_fix: |
+      **Same as FIND-O04** - implement platform-agnostic task traversal seam
+      This is essentially the same root issue: extract layer needs plugin-agnostic interface for traversal
+    
+    recommended_seam: "scanner_extract/policies/task_traversal_policy.py (Protocol + DI resolver)"
+    
+    fix_effort: HIGH (same as FIND-O04)
+    risk_assessment: "HIGH (same as FIND-O04)"
+    
+    blockers:
+      - FIND-O04 (must fix first; both use same expand_include_target_candidates logic)
+    
+    implementation_notes: |
+      This finding is tightly coupled with FIND-O04. Fixing O04 unblocks O09.
+      After O04 is fixed (platform-agnostic traversal policy exists), adding K8s/Terraform
+      traversal becomes a plugin registration task, not an extract layer change.
+
+  - finding_id: FIND-O02
+    title: "Plugin-IO Cross-Layer Import (YAML Error Formatting)"
+    violation: "scanner_plugins/parsers/yaml/parsing_policy.py imports build_yaml_load_error and format_candidate_failure_path from scanner_io.loader"
+    root_cause: "Plugin layer needs IO error formatting utilities. Direct import from IO layer bypasses seam."
+    recommended_fix: |
+      **Create shared error contract in scanner_data**
+      1. Define YAMLErrorContract TypedDict in scanner_data/contracts_io.py
+      2. Move error formatting utilities to scanner_plugins/parsers/shared/yaml_errors.py (plugin-owned)
+      3. Plugin YAML parser uses plugin-owned seam instead of scanner_io direct import
+    
+    recommended_seam: "scanner_plugins/parsers/shared/yaml_errors.py"
+    
+    seam_pattern: |
+      # scanner_plugins/parsers/shared/yaml_errors.py
+      """Plugin-owned error formatting for YAML parsing (extracts scanner_io coupling)."""
+      def build_yaml_parse_error(candidate: Path, exc: Exception) -> YAMLErrorContract:
+          # Copy or wrap scanner_io.loader logic here, owned by plugin layer
+          ...
+      def format_error_path(path: Path, role_root: Path) -> str:
+          # Formatting logic owned by plugin layer
+          ...
+    
+    affected_files: 1
+    affected_module: "scanner_plugins/parsers/yaml/parsing_policy.py"
+    
+    fix_effort: MEDIUM
+    risk_assessment: "LOW - isolated to YAML parsing; error formatting is straightforward copy-paste"
+    
+    implementation_notes: |
+      Step 1: Define YAMLErrorContract TypedDict in scanner_data/contracts_io.py
+      Step 2: Create scanner_plugins/parsers/shared/yaml_errors.py
+      Step 3: Copy error formatting logic from scanner_io.loader into yaml_errors.py
+      Step 4: Update parsing_policy.py to import from yaml_errors.py
+      
+      Alternative (simpler): If scanner_io.loader is lightweight, add __all__ to make it a public seam
+
+  - finding_id: FIND-O03
+    title: "Plugin Runtime Import from IO Layer (Ansible Variable Type Mapping)"
+    violation: "scanner_plugins/ansible/variable_discovery.py imports map_argument_spec_type from scanner_io.loader at runtime (line 640)"
+    root_cause: "Plugin needs to map Ansible argument_spec types to inferred variable types. Direct IO import is fragile."
+    recommended_fix: |
+      **Move type mapping to plugin-owned layer**
+      1. Create scanner_plugins/ansible/shared/type_mapping.py
+      2. Move map_argument_spec_type logic there (or implement plugin-specific wrapper)
+      3. Plugin layer owns all type-mapping logic; IO layer not imported
+      4. If IO layer needs updating, change is localized to plugin/shared
+    
+    recommended_seam: "scanner_plugins/ansible/shared/type_mapping.py"
+    
+    seam_pattern: |
+      # scanner_plugins/ansible/shared/type_mapping.py
+      """Ansible-specific type mapping for argument_spec fields."""
+      def map_argument_spec_type(spec_type: str) -> str:
+          # Implement or wrap scanner_io.loader logic here
+          # Owned by Ansible plugin, not coupled to IO layer
+          ...
+    
+    affected_files: 1
+    affected_module: "scanner_plugins/ansible/variable_discovery.py"
+    
+    fix_effort: MEDIUM
+    risk_assessment: "LOW - isolated to one function; can be safely extracted to plugin layer"
+    
+    implementation_notes: |
+      Step 1: Create scanner_plugins/ansible/shared/type_mapping.py
+      Step 2: Move map_argument_spec_type logic there (copy from scanner_io.loader or implement locally)
+      Step 3: Update variable_discovery.py to import from plugin/shared instead of scanner_io
+      
+      Test validation: Verify variable type inference still works for argument_specs
+
+recommended_seam_architecture: |
+  **Canonical Seam Layer Pattern for W4 Implementation**
+  
+  Ownership Summary:
+  ├─ scanner_extract/ (Extract Utilities)
+  │  ├─ shared/ (NEW - Extract-owned canonical seam)
+  │  │  └─ platform_traversal.py (Platform-agnostic include expansion)
+  │  ├─ task_file_traversal.py (Remove backward dependency on plugins)
+  │  └─ ... (other extract modules)
+  │
+  ├─ scanner_plugins/ (Plugin Layer)
+  │  ├─ shared/ (NEW - Plugin-shared adapters and utilities)
+  │  │  ├─ extract_adapters.py (Centralize all extract module imports)
+  │  │  └─ io_adapters.py (Centralize all IO module imports)
+  │  ├─ parsers/ (Parser Plugins)
+  │  │  ├─ shared/ (NEW - Error formatting owned by parsers)
+  │  │  │  └─ yaml_errors.py (YAML error contract and formatting)
+  │  │  └─ yaml/ (Specific YAML parser)
+  │  ├─ ansible/ (Ansible Plugin)
+  │  │  ├─ shared/ (NEW - Ansible-specific utilities)
+  │  │  │  └─ type_mapping.py (Type inference mapping)
+  │  │  ├─ extract_utils.py (Deprecated; migrate to shared/extract_adapters.py)
+  │  │  └─ ...
+  │  └─ interfaces.py (Protocols; might need new TaskTraversalPolicy)
+  │
+  └─ scanner_io/ (IO Layer - no imports from plugins)
+
+w4_implementation_wave_summary:
+  theme: "Plugin-Extract Boundary Facade"
+  findings_to_close: 5 (FIND-O01, FIND-O02, FIND-O03, FIND-O04, FIND-O09)
+  seam_layers_to_create: 4
+    - scanner_plugins/shared/extract_adapters.py
+    - scanner_plugins/shared/io_adapters.py
+    - scanner_plugins/parsers/shared/yaml_errors.py
+    - scanner_plugins/ansible/shared/type_mapping.py
+  seam_layers_to_update: 1
+    - scanner_extract/shared/platform_traversal.py (NEW - extract-owned)
+  affected_files_to_migrate: 5
+    - scanner_plugins/ansible/feature_detection.py (import from shared/extract_adapters)
+    - scanner_plugins/ansible/variable_discovery.py (import from shared/extract_adapters, shared/type_mapping)
+    - scanner_plugins/audit/dynamic_include_audit.py (import from shared/extract_adapters)
+    - scanner_plugins/ansible/readme_renderer.py (import from shared/extract_adapters)
+    - scanner_plugins/parsers/yaml/parsing_policy.py (import from parsers/shared/yaml_errors)
+  files_to_refactor: 2
+    - scanner_extract/task_file_traversal.py (Remove backward dependency)
+    - scanner_plugins/ansible/extract_utils.py (Deprecate or delete)
+
+closure_confidence:
+  root_cause_identification: 0.95
+  seam_design_validity: 0.92
+  implementation_risk: 0.87
+  test_coverage_feasibility: 0.91
+
+dependencies:
+  - W4 findings are independent but tightly coupled
+  - O01 (extract adapters) is prerequisite for O04/O09 refactoring
+  - O02 (YAML errors) can be done independently
+  - O03 (type mapping) can be done independently
+  - O04/O09 together form one large refactor (platform-agnostic traversal)
+
+recommended_implementation_order:
+  1. FIND-O02 (YAML errors seam) - independent, low risk
+  2. FIND-O03 (type mapping seam) - independent, low risk
+  3. FIND-O01 (extract adapters) - prerequisite for O04/O09
+  4. FIND-O04 + FIND-O09 together (platform traversal refactor) - high risk but unblocks K8s/Terraform
+
+risks_and_edges:
+  - O04/O09 high risk: Core traversal logic change; comprehensive regression test suite required
+  - O01 moderate risk: 15 functions means many import sites; must coordinate with all 4 consumers
+  - O02/O03 low risk but medium effort: Duplication of error/type logic from IO layer
+  - Missing blocker check: Verify no external consumers of extract_utils.py before deprecating
+  - Missing seam protocol: TaskTraversalPolicy not yet defined in interfaces.py; needs design
+
+probe_conclusion: |
+  **Ready for Implementation**: YES
+  
+  W4 wave addresses the critical plugin-extract boundary violation with 5 tightly coupled
+  findings across 3 seam layers (extract-owned, plugin-shared, parser-shared, ansible-shared).
+  
+  **Execution Strategy**:
+  - Implement FIND-O02 and O03 first (low risk, independent)
+  - Implement FIND-O01 (extract adapters facade) second (prerequisite for O04/O09)
+  - Implement FIND-O04 + O09 together (platform-agnostic traversal, high risk, high value for K8s/Terraform expansion)
+  
+  **Quality Gates**:
+  - All existing tests PASS (no regressions in traversal, variable discovery, YAML parsing)
+  - New seam layers have protocol definitions in scanner_plugins/interfaces.py
+  - Type safety verified: mypy clean on all modified files
+  - Import chain audit: No new scanner_plugins → scanner_io imports exist after O02/O03
+  
+  **Expansion Readiness** (Post-W4):
+  - After W4 closure, Kubernetes and Terraform platform expansion is unblocked
+  - New platforms can register their own TaskTraversalPolicy implementations
+  - Plugin↔Extract boundary is explicit and extensible
+
+agent_name: mutl3y-probe
+model_used: claude-haiku-4.5
+investigation_depth: DEEP

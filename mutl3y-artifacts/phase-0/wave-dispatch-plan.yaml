@@ -12,19 +12,19 @@ scouts_in_wave:
     artifact_path: mutl3y-artifacts/phase-0/scouts/Scout-Typing.yaml
     status: queued
     model_tier: low-cost
-    
+
   - name: Scout-Ownership
     category: ownership
     artifact_path: mutl3y-artifacts/phase-0/scouts/Scout-Ownership.yaml
     status: queued
     model_tier: low-cost
-    
+
   - name: Scout-ControlFlow
     category: control-flow
     artifact_path: mutl3y-artifacts/phase-0/scouts/Scout-ControlFlow.yaml
     status: queued
     model_tier: low-cost
-    
+
   - name: Scout-Graph
     category: graph
     artifact_path: mutl3y-artifacts/phase-0/scouts/Scout-Graph.yaml
@@ -36,7 +36,7 @@ wave_dispatch_details:
   expected_total_findings: 20-40
   timeout_per_scout: 600s
   barrier_check: "all 4 scouts complete + artifact verification"
-  
+
 execution_instructions: |
   All four scouts dispatched as parallel batch.
   Each scout writes raw YAML findings to owned artifact file.

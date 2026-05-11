@@ -1,0 +1,247 @@
+---
+scan_metadata:
+  mission: "Scout-Graph Phase 0 Discovery - Layer Boundaries"
+  plan_id: "mutl3y-review-20260507-g79"
+  focus_axis: "layer_boundaries"
+  target: "src/prism"
+  lane: "Graph"
+  timestamp: "2026-05-07"
+  agent: "mutl3y-scout"
+
+summary:
+  total_findings: 6
+  critical: 0
+  high: 0
+  medium: 4
+  low: 2
+
+findings:
+  - id: "G79-001-API-LAYER-BYPASS"
+    severity: "MEDIUM"
+    category: "layer_boundaries"
+    type: "Missing Abstraction Boundary"
+    title: "api.py bypasses api_layer facade for direct imports"
+    description: |
+      api.py imports 10 items directly from lower layers (scanner_config, scanner_io,
+      scanner_readme, scanner_reporting) instead of routing through api_layer as the
+      documented public facade. This violates the layering contract where api_layer
+      should be the single entrypoint to lower-layer capabilities.
+    severity_rationale: |
+      Medium priority: affects API stability and maintainability. Direct imports create
+      tight coupling to implementation details and make it harder to evolve layer boundaries.
+      However, no circular dependencies detected yet.
+    locations:
+      - file: "src/prism/api.py"
+        lines: [19, 20, 21, 28, 29, 32, 33]
+        examples:
+          - "from prism.scanner_config.audit_rules import AuditReport, AuditRule"
+          - "from prism.scanner_io.collection_plugins import scan_collection_plugins"
+          - "from prism.scanner_reporting.collection_dependencies import aggregate_collection_dependencies"
+    evidence: "api_layer package exists but is not used as entrypoint from api.py"
+    remediation: |
+      Refactor api.py to import from api_layer submodules or create a unified api_layer
+      __init__.py that re-exports all public interfaces. This consolidates the API contract
+      and makes future evolution easier.
+    urgency: "medium"
+
+  - id: "G79-002-SCANNER-IO-EVENT-COUPLING"
+    severity: "MEDIUM"
+    category: "layer_boundaries"
+    type: "Upward Layer Dependency"
+    title: "scanner_io imports phase constants from scanner_core.events"
+    description: |
+      scanner_io/output_orchestrator.py imports PHASE_OUTPUT_RENDER from scanner_core.events,
+      coupling the output emission layer to core event definitions. This is an upward dependency
+      where a lower layer (I/O) depends on a higher layer (core) implementation detail, creating
+      a hidden dependency pathway.
+    severity_rationale: |
+      Medium priority: Creates upward layer dependency. Output orchestration should emit events
+      through injected callbacks, not reach into scanner_core for event constants. May indicate
+      missing event abstraction boundary or incomplete DI contract.
+    locations:
+      - file: "src/prism/scanner_io/output_orchestrator.py"
+        line: 113
+        snippet: "from prism.scanner_core.events import PHASE_OUTPUT_RENDER"
+    evidence: |
+      Direct import from scanner_core module instead of through DI or event callback interface
+    context: |
+      The full flow: scanner_io tries to emit events to signal output phase, but rather than
+      receiving an event callback through DI, it directly imports the event constant from
+      scanner_core. This creates tight coupling and makes it harder to test scanner_io in
+      isolation.
+    remediation: |
+      1. Pass event phase callbacks through DI or constructor
+      2. Or create event abstraction in scanner_data/contracts_request
+      3. Consider if scanner_io should emit events at all (vs. receiving event callbacks)
+    urgency: "medium"
+
+  - id: "G79-004-CLI-LAYER-BYPASS"
+    severity: "MEDIUM"
+    category: "layer_boundaries"
+    type: "Missing Abstraction Boundary"
+    title: "cli.py imports directly from scanner_config and scanner_io"
+    description: |
+      cli.py (top-level entrypoint) imports directly from scanner_config.audit_rules
+      and scanner_io.output, bypassing the api_layer facade. The documented contract
+      is that cli.py should route all scanner operations through api.py or api_layer.
+    severity_rationale: |
+      Medium priority: CLI is a public entrypoint and should demonstrate best practices.
+      Direct imports to lower layers create maintenance burden and risk in the critical
+      path of the application.
+    locations:
+      - file: "src/prism/cli.py"
+        lines: [14, 15, 16]
+        imports:
+          - "from prism.scanner_config.audit_rules import AuditReport"
+          - "import prism.scanner_io as scanner_io"
+          - "from prism.scanner_io.output import write_role_scan_output"
+    evidence: "cli.py is in src/prism root (public entrypoint) but does not route through api"
+    remediation: |
+      Route all scanner access through prism.api facade. Expose needed functions from
+      api_layer or api.py so cli.py has clean dependency surface.
+    urgency: "medium"
+
+  - id: "G79-005-CLI-APP-LAYER-BYPASS"
+    severity: "MEDIUM"
+    category: "layer_boundaries"
+    type: "Missing Abstraction Boundary"
+    title: "cli_app imports directly from scanner_readme and scanner_config"
+    description: |
+      cli_app/shared.py imports directly from scanner_readme.style and scanner_config.section,
+      rather than routing through api_layer. This creates two separate import paths to the
+      same capabilities and violates the facade contract.
+    severity_rationale: |
+      Medium priority: Multiple import paths from CLI layer to lower layers create maintenance
+      burden and inconsistency. Makes it harder to evolve layer boundaries since changes
+      must be coordinated across multiple entrypoints.
+    locations:
+      - file: "src/prism/cli_app/shared.py"
+        lines: [15, 16]
+        imports:
+          - "from prism.scanner_config.section import SECTION_CONFIG_FILENAMES"
+          - "from prism.scanner_readme.style import parse_style_readme"
+    evidence: "cli_app is CLI layer but does not route through api_layer facade"
+    remediation: |
+      Create cli_api or cli_layer facade that wraps scanner_readme and scanner_config
+      functionality, or re-export from api_layer. Consolidate to single import path from CLI.
+    urgency: "medium"
+
+  - id: "G79-003-README-SEAMS-DEFAULTS-IMPORT"
+    severity: "LOW"
+    category: "layer_boundaries"
+    type: "Facade Boundary Leakage"
+    title: "scanner_readme.plugin_seams imports from scanner_plugins.defaults"
+    description: |
+      scanner_readme/plugin_seams.py is a seam/facade meant to isolate scanner_readme
+      from the plugin layer implementation details. However, it imports
+      `resolve_readme_renderer_plugin` directly from scanner_plugins.defaults, which
+      is an implementation module, not the interfaces module.
+    severity_rationale: |
+      Low priority: The seam still provides isolation for most of scanner_readme, and
+      this is a thin wrapper. However, it undermines the seam's design intent by
+      importing implementation module directly.
+    locations:
+      - file: "src/prism/scanner_readme/plugin_seams.py"
+        lines: [36, 37, 38]
+        snippet: |
+          from prism.scanner_plugins.defaults import (
+              resolve_readme_renderer_plugin as _resolve,
+          )
+    evidence: "Seam facade leaks implementation (defaults) instead of keeping only interface"
+    remediation: |
+      Consider if defaults resolver should be moved to a neutral layer (scanner_plugins/defaults.py
+      already exists). Alternatively, accept that plugin_seams is thin adapter and document
+      this as intentional pattern.
+    urgency: "low"
+
+  - id: "G79-006-SCANNER-CORE-EXTRACT-COUPLING"
+    severity: "LOW"
+    category: "layer_boundaries"
+    type: "High Coupling / Missing Abstraction"
+    title: "scanner_core.task_extract_adapters has tight coupling to scanner_extract"
+    description: |
+      scanner_core/task_extract_adapters.py imports from 13+ scanner_extract modules
+      (task_annotation_parsing, task_file_traversal, task_catalog_assembly, variable_helpers,
+      requirements). This suggests either missing abstraction boundary or expected tight
+      coupling. High coupling increases fragility when scanner_extract APIs change.
+    severity_rationale: |
+      Low priority: This coupling is likely intentional (scanner_core orchestrates extraction).
+      However, it may indicate an opportunity for an extraction service interface or facade
+      to reduce blast radius of scanner_extract internal refactoring.
+    locations:
+      - file: "src/prism/scanner_core/task_extract_adapters.py"
+        import_count: 13
+        modules_imported:
+          - "scanner_extract.task_annotation_parsing"
+          - "scanner_extract.task_file_traversal"
+          - "scanner_extract.task_catalog_assembly"
+          - "scanner_extract.variable_helpers"
+    evidence: "High breadth of imports across scanner_extract indicates orchestration pattern"
+    context: |
+      This is consistent with scanner_core being the orchestrator layer, but may benefit from
+      defining explicit TaskExtraction service interface to limit direct coupling to
+      implementation modules.
+    remediation: |
+      Consider creating TaskExtractorService interface or facade module that
+      task_extract_adapters depends on, with scanner_extract implementation hidden behind
+      the interface. This allows scanner_extract to evolve without affecting scanner_core's
+      core logic.
+    urgency: "low"
+
+top_findings:
+  - id: "G79-001-API-LAYER-BYPASS"
+    title: "api.py bypasses api_layer facade (10 direct imports)"
+    impact: "Affects API stability and maintainability"
+  - id: "G79-002-SCANNER-IO-EVENT-COUPLING"
+    title: "scanner_io depends upward on scanner_core.events"
+    impact: "Creates upward dependency path and test isolation issues"
+  - id: "G79-004-CLI-LAYER-BYPASS"
+    title: "cli.py imports directly from scanner_config and scanner_io"
+    impact: "CLI entrypoint violates facade contract, creates maintenance burden"
+  - id: "G79-005-CLI-APP-LAYER-BYPASS"
+    title: "cli_app bypasses api_layer to import from scanner_readme/config"
+    impact: "Multiple import paths create inconsistency and evolution burden"
+  - id: "G79-003-README-SEAMS-DEFAULTS-IMPORT"
+    title: "plugin_seams leaks scanner_plugins.defaults import"
+    impact: "Seam facade undermined but isolated impact"
+
+recommendations:
+  - priority: "HIGH"
+    category: "Facade Consolidation"
+    action: "Consolidate API entrypoints (api.py, cli.py, cli_app) to route through api_layer"
+    rationale: "Multiple bypasses create maintenance burden and inconsistent architecture"
+
+  - priority: "MEDIUM"
+    category: "Event Architecture"
+    action: "Extract event phase constants to scanner_data or inject through DI"
+    rationale: "scanner_io upward dependency on scanner_core.events violates layer contract"
+
+  - priority: "MEDIUM"
+    category: "Service Abstraction"
+    action: "Consider TaskExtractorService interface to encapsulate scanner_extract APIs"
+    rationale: "High coupling between scanner_core and scanner_extract implementation details"
+
+  - priority: "LOW"
+    category: "Seam Refinement"
+    action: "Document or refine plugin_seams pattern for importing from defaults"
+    rationale: "Seam leakage is contained but intent could be clearer"
+
+scan_statistics:
+  files_scanned: 147
+  import_statements_analyzed: 312
+  layer_hierarchy_depth: 11
+  layers_evaluated:
+    - scanner_data
+    - errors
+    - scanner_config
+    - scanner_io
+    - scanner_extract
+    - scanner_core
+    - scanner_plugins
+    - scanner_kernel
+    - scanner_readme
+    - scanner_reporting
+    - api_layer
+    - api
+    - cli_app
+    - cli

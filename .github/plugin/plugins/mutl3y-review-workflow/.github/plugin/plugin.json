@@ -1,0 +1,86 @@
+{
+  "name": "mutl3y-review-workflow",
+  "description": "Team-based code review workflow with distributed coordinator architecture. Orchestrates scouts, builders, gatekeepers, and probes through a 7-phase cycle (Discovery → Grade → Persist → Investigate → Decide → Implement → Validate → Close). Supports cost-optimized, balanced, and maximum-validation modes with automatic model tier escalation. Use /mutl3y-start for new cycles, /mutl3y-continue for resuming, /mutl3y-mode for cost/accuracy trade-offs.",
+  "version": "1.0.0",
+  "agents": [
+    "./agents/mutl3y-archivist.md",
+    "./agents/mutl3y-builder.md",
+    "./agents/mutl3y-gatekeeper.md",
+    "./agents/mutl3y-probe.md",
+    "./agents/mutl3y-scout.md",
+    "./agents/mutl3y-teams-foreman.md",
+    "./agents/mutl3y-workflow-monitor.md"
+  ],
+  "skills": [
+    "./skills/mutl3y-cluster-foreman/",
+    "./skills/mutl3y-foreman/",
+    "./skills/mutl3y-setup/"
+  ],
+  "commands": [
+    {
+      "name": "mutl3y-audit",
+      "description": "Manual workflow monitor audit — check barrier readiness, artifact presence, plan/trace drift. Use when suspecting stalled phase or missing evidence. Example: '/mutl3y-audit' to verify Phase 5 completion.",
+      "skill": "./skills/mutl3y-cluster-foreman/"
+    },
+    {
+      "name": "mutl3y-config",
+      "description": "Interactive configuration wizard — sets paths (plans, artifacts, logs), external agents (deep review, research, QA), and preferences (parallel execution, depth). Run once per workspace. Example: '/mutl3y-config' then follow prompts.",
+      "skill": "./skills/mutl3y-setup/"
+    },
+    {
+      "name": "mutl3y-continue",
+      "description": "Continue existing cycle from last checkpoint — resumes from execution-trace.yaml. Use after interruption or manual pause. Detects autopilot intent. Example: '/mutl3y-continue' or '/mutl3y-continue keep going until done'.",
+      "skill": "./skills/mutl3y-cluster-foreman/"
+    },
+    {
+      "name": "mutl3y-escalate",
+      "description": "Force escalation to strategy coordinator — bypasses tactical/execution layers for high-stakes decisions (closure, phase transition, expensive model approval). Example: '/mutl3y-escalate need to decide if we close or continue'.",
+      "skill": "./skills/mutl3y-cluster-foreman/"
+    },
+    {
+      "name": "mutl3y-mode",
+      "description": "Switch workflow mode — balanced (0.8-0.9x cost, smart escalation), cost-optimized (0.6-0.7x cost, free tier max), or maximum-validation (1.5-1.8x cost, thoroughness first). Takes effect next cycle. Example: '/mutl3y-mode cost-optimized'.",
+      "skill": "./skills/mutl3y-setup/"
+    },
+    {
+      "name": "mutl3y-mode-status",
+      "description": "Show current mode and cost estimate — displays coordinator tiers, Phase 1.5 settings, worker model assignments, estimated cost vs baseline, false negative risk. Example: '/mutl3y-mode-status'.",
+      "skill": "./skills/mutl3y-setup/"
+    },
+    {
+      "name": "mutl3y-mode-wizard",
+      "description": "Interactive mode selection with cost/accuracy explanations — shows detailed cost breakdown per coordinator/worker, risk levels, use case recommendations. Use for informed mode switching. Example: '/mutl3y-mode-wizard'.",
+      "skill": "./skills/mutl3y-setup/"
+    },
+    {
+      "name": "mutl3y-paths",
+      "description": "Configure paths only — sets plans directory, artifacts pattern, gate logs location. Quick setup without full wizard. Example: '/mutl3y-paths' to reconfigure after repo restructure.",
+      "skill": "./skills/mutl3y-setup/"
+    },
+    {
+      "name": "mutl3y-reload-config",
+      "description": "Reload configuration from .mutl3y-config.yaml — refreshes in-memory settings after manual YAML edits. Use after external config changes. Example: '/mutl3y-reload-config'.",
+      "skill": "./skills/mutl3y-setup/"
+    },
+    {
+      "name": "mutl3y-reset",
+      "description": "Reset to defaults — restores balanced mode, default paths (docs/plan/), clears custom agent assignments. Use to undo problematic configuration. Example: '/mutl3y-reset'.",
+      "skill": "./skills/mutl3y-setup/"
+    },
+    {
+      "name": "mutl3y-reviewers",
+      "description": "Select external reviewer agents — choose deep review (Gilfoyle/gem-reviewer/Principal), research (gem-researcher/Explore), and QA agents. Use after installing new agent plugins. Example: '/mutl3y-reviewers'.",
+      "skill": "./skills/mutl3y-setup/"
+    },
+    {
+      "name": "mutl3y-start",
+      "description": "Start new review cycle — initiates Phase 0 discovery with strategy coordinator. Detects autopilot intent ('keep going', 'iterate until done'). Creates plan under docs/plan/. Example: '/mutl3y-start target: scanner_core/' or '/mutl3y-start keep going until done'.",
+      "skill": "./skills/mutl3y-cluster-foreman/"
+    },
+    {
+      "name": "mutl3y-status",
+      "description": "Show current configuration and cluster state — displays mode, paths, agents, coordinator tiers, Phase 1.5 settings, active cycle (if any), last updated timestamp. Example: '/mutl3y-status'.",
+      "skill": "./skills/mutl3y-setup/"
+    }
+  ]
+}

@@ -1,0 +1,354 @@
+# Extraction Boundary Map (Method Classification)
+
+## Overview
+
+This document provides the definitive classification for extracting ServiceLocator and PluginResolver from DIContainer.
+
+---
+
+## Method Directory by Target Class
+
+### 1. STAYS IN DIContainer (Facade/Coordinator)
+
+| Method | Category | Lines | Reason | Dependency |
+| --- | --- | --- | --- | --- |
+| `__init__()` | Configuration | 30 | Orchestrates all initialization | None |
+| `scan_options` (property) | Getter | 3 | Public interface for read-only access | None |
+| `plugin_registry` (property) | Getter | 2 | Public interface; used by resolvers | None |
+| `scanner_context_wiring` (property) | Getter | 2 | Public interface | None |
+| `factory_overrides` (property) | Getter | 2 | Public interface | None |
+| `platform_key` (property) | Getter | 2 | Public interface | None |
+| `inherit_default_event_listeners` (property) | Getter | 2 | Public interface | None |
+| `replace_scan_options()` | State Mgmt | 5 | Coordinate cache invalidation | _invalidate_scan_option_dependent_cache_locked() |
+| `inject_mock()` | Test Seam | 2 | Test injection point | None |
+| `clear_mocks()` | Test Seam | 2 | Test cleanup | None |
+| `clear_cache()` | Cache Mgmt | 5 | Clear all caches | None |
+| `_snapshot_scan_options()` | Helper | 3 | Provide thread-safe snapshot | None |
+| `_invalidate_scan_option_dependent_cache_locked()` | Helper | 3 | Invalidate dependent caches | None |
+| `_call_factory_override()` | Helper | 17 | Orchestrate override invocation | None |
+
+**Subtotal**: 14 methods/properties staying in DIContainer
+
+---
+
+### 2. MOVE TO ServiceLocator (New Class)
+
+| Method | Current Lines | Category | Mock Support? | Override Support? | Cache? | Circular Dep? |
+| --- | --- | --- | --- | --- | --- | --- |
+| `factory_event_bus()` | 4 | Service Factory | ✅ | ✅ | ❌ (singleton) | ❌ |
+| `factory_scanner_context()` | 20 | Service Factory | ✅ | ✅ | ❌ (runtime) | ❌ |
+| `factory_variable_discovery()` | 20 | Service Factory | ✅ | ✅ | ✅ | ✅ (deferred) |
+| `factory_feature_detector()` | 20 | Service Factory | ✅ | ✅ | ✅ | ✅ (deferred) |
+| `factory_variable_row_builder()` | 6 | Service Factory | ❌ | ❌ | ✅ | ❌ |
+| `factory_blocker_fact_builder()` | 10 | Service Factory | ❌ | ✅ | ✅ | Partial (import guard) |
+
+**Subtotal**: 6 methods → ServiceLocator
+
+**Implementation Notes**:
+- ServiceLocator will be initialized in DIContainer.__init__()
+- ServiceLocator(di: DIContainer) → stores `self._di`
+- All 6 methods delegate mock/override checks to DIContainer first
+- ServiceLocator accesses shared state via DIContainer properties
+- Deferred imports stay in factory methods or module-level helpers
+
+**Threading**: ServiceLocator method calls are protected by DIContainer._cache_lock when accessing cached values
+
+---
+
+### 3. MOVE TO PluginResolver (New Class)
+
+| Method | Current Lines | Registry? | Platform Key? | Mock? | Override? | Optional? |
+| --- | --- | --- | --- | --- | --- | --- |
+| `factory_variable_discovery_plugin()` | 18 | ✅ | ✅ | ✅ | ✅ | ❌ Required |
+| `factory_feature_detection_plugin()` | 18 | ✅ | ✅ | ✅ | ✅ | ❌ Required |
+| `factory_comment_driven_doc_plugin()` | 9 | ❌ | ❌ | ✅ | ✅ | ✅ Optional |
+| `factory_task_annotation_policy_plugin()` | 9 | ❌ | ❌ | ✅ | ✅ | ✅ Optional |
+| `factory_task_line_parsing_policy_plugin()` | 9 | ❌ | ❌ | ✅ | ✅ | ✅ Optional |
+| `factory_task_traversal_policy_plugin()` | 9 | ❌ | ❌ | ✅ | ✅ | ✅ Optional |
+| `factory_variable_extractor_policy_plugin()` | 9 | ❌ | ❌ | ✅ | ✅ | ✅ Optional |
+| `factory_yaml_parsing_policy_plugin()` | 9 | ❌ | ❌ | ✅ | ✅ | ✅ Optional |
+| `factory_jinja_analysis_policy_plugin()` | 9 | ❌ | ❌ | ✅ | ✅ | ✅ Optional |
+| `factory_audit_plugin()` | 8 | ❌ | ❌ | ✅ | ✅ | ✅ Optional |
+
+**Subtotal**: 10 methods → PluginResolver
+
+**Extracted Helpers** (move with PluginResolver):
+| Helper | Current Lines | Used By | Visibility |
+| --- | --- | --- | --- |
+| `_get_registry()` | 4 | All registry-requiring plugins | Private |
+| `_resolve_platform_key()` | 4 | All registry-requiring plugins | Private |
+
+**Total**: 10 methods + 2 helpers → PluginResolver
+
+**Implementation Notes**:
+- PluginResolver(di: DIContainer) → stores `self._di`
+- All 10 methods delegate mock/override checks to DIContainer first
+- Registry-requiring methods (2) use `_resolve_platform_key()` to select platform
+- All methods return None for optional plugins if not wired
+- Module-level `_construct_runtime_plugin()` stays at module level (reusable)
+
+---
+
+### 4. MODULE-LEVEL HELPERS (No Change)
+
+| Function | Current Lines | Purpose | Used By | New Imports? |
+| --- | --- | --- | --- | --- |
+| `_clone_container_structure()` | 10 | Deep-clone container values | clone_scan_options() | ❌ |
+| `clone_scan_options()` | 8 | Snapshot options safely | DIContainer methods | ❌ |
+| `resolve_platform_key()` | 19 | Resolve platform key 3-way | _resolve_platform_key() method | ❌ |
+| `_construct_runtime_plugin()` | 25 | Construct plugin with validation | All plugin factories | ❌ |
+| `_create_variable_discovery()` | 6 | Deferred import wrapper | factory_variable_discovery() | ❌ |
+| `_create_feature_detector()` | 6 | Deferred import wrapper | factory_feature_detector() | ❌ |
+
+**Subtotal**: 6 module-level helpers (unchanged)
+
+**Note**: These remain at module level for reusability and import hygiene.
+
+---
+
+## Cross-Method Dependencies (Extraction Risk Map)
+
+### Service Factory Dependencies
+
+```
+ServiceLocator.factory_event_bus()
+  ├─ No internal dependencies
+  └─ Risk: LOW
+
+ServiceLocator.factory_scanner_context()
+  ├─ No internal dependencies
+  └─ Risk: LOW
+
+ServiceLocator.factory_variable_discovery()
+  ├─ _create_variable_discovery() [module-level]
+  ├─ Deferred import of VariableDiscovery
+  └─ Risk: MEDIUM (circular import, must preserve pattern)
+
+ServiceLocator.factory_feature_detector()
+  ├─ _create_feature_detector() [module-level]
+  ├─ Deferred import of FeatureDetector
+  └─ Risk: MEDIUM (circular import, must preserve pattern)
+
+ServiceLocator.factory_variable_row_builder()
+  ├─ Direct import of VariableRowBuilder
+  └─ Risk: LOW
+
+ServiceLocator.factory_blocker_fact_builder()
+  ├─ Fallback import from scanner_plugins.defaults
+  └─ Risk: LOW (import guard present)
+```
+
+### Plugin Resolution Dependencies
+
+```
+PluginResolver.factory_variable_discovery_plugin()
+  ├─ _resolve_platform_key()
+  ├─ _get_registry()
+  ├─ registry.get_variable_discovery_plugin(platform_key)
+  ├─ _construct_runtime_plugin() [module-level]
+  └─ Risk: LOW (standard pattern)
+
+PluginResolver.factory_feature_detection_plugin()
+  ├─ _resolve_platform_key()
+  ├─ _get_registry()
+  ├─ registry.get_feature_detection_plugin(platform_key)
+  ├─ _construct_runtime_plugin() [module-level]
+  └─ Risk: LOW (standard pattern)
+
+PluginResolver.factory_comment_driven_doc_plugin()
+  ├─ No registry access
+  ├─ Mock/override only
+  └─ Risk: NONE
+
+PluginResolver.factory_*_policy_plugin() [8 methods]
+  ├─ No registry access
+  ├─ Mock/override only
+  └─ Risk: NONE
+
+PluginResolver.factory_audit_plugin()
+  ├─ No registry access
+  ├─ Mock/override only
+  └─ Risk: NONE
+```
+
+### Shared State Dependencies
+
+```
+DIContainer → ServiceLocator
+  └─ Accessed via properties:
+     ├─ DIContainer.scan_options (thread-safe snapshot)
+     ├─ DIContainer.factory_overrides (read-only ref)
+     ├─ DIContainer._mocks (shared dict)
+     └─ DIContainer._cache_lock (for coordinated locking)
+
+DIContainer → PluginResolver
+  └─ Accessed via properties:
+     ├─ DIContainer.scan_options (thread-safe snapshot)
+     ├─ DIContainer.plugin_registry (read-only ref)
+     ├─ DIContainer.factory_overrides (read-only ref)
+     └─ DIContainer._mocks (shared dict)
+
+ServiceLocator ← DIContainer
+  └─ ServiceLocator receives DIContainer reference as constructor arg
+
+PluginResolver ← DIContainer
+  └─ PluginResolver receives DIContainer reference as constructor arg
+```
+
+---
+
+## Boundary Decision Matrix
+
+| Scenario | Classification | Stays/Moves | Reason |
+| --- | --- | --- | --- |
+| Public factory_*() method | SERVICE_LOCATION / PLUGIN_RESOLUTION | **Stays on DIContainer facade** | Backward compatibility; actual implementation moves |
+| Internal mock checking | N/A | **Stays in DIContainer** | Orchestration concern; happens before delegation |
+| Internal override checking | N/A | **Stays in DIContainer** | Orchestration concern; happens before delegation |
+| Cache invalidation | STATE_MANAGEMENT | **Stays in DIContainer** | Coordinates both ServiceLocator + PluginResolver |
+| Service creation (event bus) | FACTORY_ORCHESTRATION | **Move to ServiceLocator** | Clear service responsibility |
+| Service creation (variable discovery) | FACTORY_ORCHESTRATION | **Move to ServiceLocator** | Clear service responsibility + circular dep handling |
+| Plugin resolution via registry | PLUGIN_RESOLUTION | **Move to PluginResolver** | Clear plugin responsibility |
+| Optional plugin (comment doc) | PLUGIN_RESOLUTION | **Move to PluginResolver** | Clear plugin responsibility |
+| Platform key resolution | PLUGIN_RESOLUTION | **Extract to PluginResolver** | Helper method for plugin resolution |
+| Registry access | PLUGIN_RESOLUTION | **Extract to PluginResolver** | Helper method for plugin resolution |
+
+---
+
+## Method Ownership Checklist
+
+### ServiceLocator Ownership (6 methods)
+
+- [ ] `factory_event_bus()` — return EventBus
+- [ ] `factory_scanner_context()` — create ScannerContext
+- [ ] `factory_variable_discovery()` — create/cache VariableDiscovery
+- [ ] `factory_feature_detector()` — create/cache FeatureDetector
+- [ ] `factory_variable_row_builder()` — create/cache VariableRowBuilder
+- [ ] `factory_blocker_fact_builder()` — return/create blocker builder
+
+### PluginResolver Ownership (10 methods)
+
+- [ ] `factory_variable_discovery_plugin()` — resolve via registry
+- [ ] `factory_feature_detection_plugin()` — resolve via registry
+- [ ] `factory_comment_driven_doc_plugin()` — optional plugin
+- [ ] `factory_task_annotation_policy_plugin()` — optional plugin
+- [ ] `factory_task_line_parsing_policy_plugin()` — optional plugin
+- [ ] `factory_task_traversal_policy_plugin()` — optional plugin
+- [ ] `factory_variable_extractor_policy_plugin()` — optional plugin
+- [ ] `factory_yaml_parsing_policy_plugin()` — optional plugin
+- [ ] `factory_jinja_analysis_policy_plugin()` — optional plugin
+- [ ] `factory_audit_plugin()` — optional plugin
+
+### PluginResolver Helper Methods (2)
+
+- [ ] `_get_registry()` — return registry or raise
+- [ ] `_resolve_platform_key()` — resolve platform key 3-way
+
+### DIContainer Stays (14 methods/properties)
+
+- [ ] `__init__()` — constructor
+- [ ] `scan_options` (property) — snapshot getter
+- [ ] `plugin_registry` (property) — registry getter
+- [ ] `scanner_context_wiring` (property) — wiring getter
+- [ ] `factory_overrides` (property) — overrides getter
+- [ ] `platform_key` (property) — platform key getter
+- [ ] `inherit_default_event_listeners` (property) — flag getter
+- [ ] `replace_scan_options()` — update options + invalidate
+- [ ] `inject_mock()` — inject test mock
+- [ ] `clear_mocks()` — clear mocks
+- [ ] `clear_cache()` — clear caches
+- [ ] `_snapshot_scan_options()` — internal snapshot
+- [ ] `_invalidate_scan_option_dependent_cache_locked()` — internal invalidation
+- [ ] `_call_factory_override()` — internal override orchestration
+
+---
+
+## Extraction Sequence (Recommended Order)
+
+### Phase 1: Extract PluginResolver (lower risk)
+
+1. Create PluginResolver class
+2. Copy 10 plugin factory methods to PluginResolver
+3. Extract `_get_registry()` and `_resolve_platform_key()` helpers
+4. Update PluginResolver methods to access DIContainer via `self._di`
+5. Add delegation methods to DIContainer (keep public interface)
+6. Update tests for PluginResolver
+7. Verify no regressions
+
+### Phase 2: Extract ServiceLocator (medium risk)
+
+1. Create ServiceLocator class
+2. Copy 6 service factory methods to ServiceLocator
+3. Update ServiceLocator methods to access DIContainer via `self._di`
+4. Preserve deferred import patterns exactly
+5. Add delegation methods to DIContainer
+6. Update tests for ServiceLocator
+7. Verify cache coordination still works
+8. Verify deferred imports still work
+
+### Phase 3: Refactor DIContainer (facade pattern)
+
+1. Instantiate ServiceLocator and PluginResolver in DIContainer.__init__()
+2. Update all public factory_*() methods to delegate
+3. Keep all properties and state management in DIContainer
+4. Verify backward compatibility (public API unchanged)
+5. Run full test suite
+
+---
+
+## Risk Assessment by Extraction Type
+
+| Risk Factor | ServiceLocator | PluginResolver | Severity |
+| --- | --- | --- | --- |
+| **Circular imports** | MEDIUM (deferred import preservation) | NONE | Medium |
+| **Cache coordination** | MEDIUM (must respect invalidation) | NONE | Medium |
+| **Test mocking** | MEDIUM (6 factory methods mocked) | MEDIUM (10 plugin factories mocked) | Medium |
+| **Thread safety** | LOW (uses DIContainer lock) | LOW (stateless) | Low |
+| **Backward compatibility** | HIGH (facade maintains API) | HIGH (facade maintains API) | Low |
+| **Override orchestration** | LOW (handled by DIContainer) | LOW (handled by DIContainer) | Low |
+
+---
+
+## Extraction Completion Criteria
+
+### ServiceLocator Ready Criteria
+
+- [ ] All 6 service factory methods moved and tested
+- [ ] Mock injection works (inject_mock still works for all 6)
+- [ ] Override injection works (factory_overrides honored)
+- [ ] Cache behavior unchanged (variable_discovery, feature_detector cached)
+- [ ] Deferred imports still work (circular deps not re-introduced)
+- [ ] Cache invalidation works (replace_scan_options clears both)
+- [ ] Tests pass: `pytest tests/test_di_container.py -v`
+
+### PluginResolver Ready Criteria
+
+- [ ] All 10 plugin factory methods moved and tested
+- [ ] Mock injection works (all 10 plugin factories mocked)
+- [ ] Override injection works (factory_overrides honored)
+- [ ] Registry lookups work (variable_discovery_plugin, feature_detection_plugin)
+- [ ] Optional plugins return None when not wired
+- [ ] Platform key resolution works (3-way fallback preserved)
+- [ ] Tests pass: `pytest tests/test_di_container.py::test_plugin_resolution -v`
+
+### DIContainer Facade Ready Criteria
+
+- [ ] Public API unchanged (all factory_*() methods still exist)
+- [ ] All methods delegate correctly
+- [ ] Properties still work
+- [ ] State management (replace_scan_options, inject_mock, etc.) works
+- [ ] Backward compatibility maintained (no breaking changes)
+- [ ] Tests pass: full `pytest tests/test_di_container.py -v`
+
+---
+
+## Blockers & Uncertainties
+
+### None identified at Scout phase
+
+- Boundaries are clear
+- Dependencies are well-understood
+- Deferred import patterns are isolated
+- Module-level helpers are separable
+- Thread safety is centralized
+
+**Recommendation**: Proceed directly to Task 1.2 (Boundary Design)

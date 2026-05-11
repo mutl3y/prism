@@ -1,0 +1,81 @@
+model_used: Grok Code Fast 1
+findings:
+  - id: GILF-NODE3-01
+    severity: HIGH
+    category: cache-safety
+    location: "scan_cache.py:25-35"
+    issue: "Shallow copy vulnerability in cache value cloning"
+    root_cause: "_clone_container_structure returns mutable non-container objects unchanged, allowing cached values to share mutable state with original data"
+    impact: "Cache poisoning possible if cached scan results contain mutable objects that get modified externally, corrupting future cache hits"
+    confidence: 95
+    fix_suggestion: "Implement deep copy for all objects or use immutable data structures; add validation that cached values are truly immutable"
+
+  - id: GILF-NODE3-02
+    severity: MEDIUM
+    category: performance
+    location: "scan_cache.py:85-90"
+    issue: "Inefficient LRU eviction loop"
+    root_cause: "while len(self._store) > self._maxsize: self._store.popitem(last=False) evicts entries one-by-one instead of batching"
+    impact: "O(n) eviction cost when cache fills rapidly, degrading performance under high churn"
+    confidence: 90
+    fix_suggestion: "Calculate exact number of entries to evict and remove them in a single operation"
+
+  - id: GILF-NODE3-03
+    severity: CRITICAL
+    category: event-reliability
+    location: "events.py:120-135"
+    issue: "Silent event handler failures mask critical errors"
+    root_cause: "Listener exceptions caught with 'except Exception as exc' and only logged, allowing broken telemetry to continue silently"
+    impact: "Observability failures go undetected; one bad listener can silently break entire event monitoring without any indication"
+    confidence: 100
+    fix_suggestion: "Add configurable failure policy: either fail-fast in strict mode (already exists) or escalate to application error after N failures"
+
+  - id: GILF-NODE3-04
+    severity: HIGH
+    category: copy-semantics
+    location: "scan_request.py:75-77"
+    issue: "Shallow copy of prepared_policy_bundle risks mutation"
+    root_cause: "copy.copy(prepared_policy_bundle) creates shallow copy, allowing nested mutable objects to be shared and modified"
+    impact: "Policy bundle mutations can propagate across requests, causing inconsistent scanner behavior"
+    confidence: 95
+    fix_suggestion: "Use copy.deepcopy() or ensure prepared_policy_bundle contains only immutable types"
+
+  - id: GILF-NODE3-05
+    severity: MEDIUM
+    category: validation
+    location: "scan_request.py:30-35"
+    issue: "Weak request validation relies on external schema"
+    root_cause: "Only validates role_path as non-empty string; delegates all other validation to validate_scan_options() without local checks"
+    impact: "Invalid requests can reach scanner_core if schema validation fails or is bypassed, potentially causing runtime errors"
+    confidence: 85
+    fix_suggestion: "Add explicit validation for critical fields (e.g., paths exist, booleans are bools) before schema validation"
+
+  - id: GILF-NODE3-06
+    severity: LOW
+    category: error-handling
+    location: "events.py:125-135"
+    issue: "Missing exception chaining in event error logging"
+    root_cause: "logger.error() call doesn't include full traceback or chained exception context"
+    impact: "Debugging event failures is harder without complete error context"
+    confidence: 80
+    fix_suggestion: "Use logger.exception() or include traceback in log message for better diagnostics"
+
+  - id: GILF-NODE3-07
+    severity: MEDIUM
+    category: performance
+    location: "scan_cache.py:200-250"
+    issue: "Unbounded memory growth in cache values"
+    root_cause: "No size limits on individual cached values; large scan results can consume excessive memory"
+    impact: "Memory exhaustion possible if caching large role scans, especially with default maxsize=64"
+    confidence: 90
+    fix_suggestion: "Add value size limits or compression for large cached objects"
+
+  - id: GILF-NODE3-08
+    severity: HIGH
+    category: cache-safety
+    location: "scan_cache.py:160-180"
+    issue: "No TTL enforcement in cache invalidation"
+    root_cause: "Cache entries never expire automatically; stale results persist until manual invalidation or LRU eviction"
+    impact: "Outdated scan results served indefinitely if role content changes but cache key remains same"
+    confidence: 95
+    fix_suggestion: "Add TTL parameter to cache backend protocol and enforce expiration on get/set operations"

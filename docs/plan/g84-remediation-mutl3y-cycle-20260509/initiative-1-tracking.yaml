@@ -1,0 +1,230 @@
+plan_id: g84-remediation-mutl3y-cycle-20260509
+initiative: '1'
+name: DI Container God-Object Decomposition
+status: NOT_STARTED
+findings: 17
+weeks: 2
+tier: Tier 2
+cost:
+  estimate: 0.06
+  maximum: 0.12
+  actual: 0.0
+tasks:
+- id: '1.1'
+  name: Design Review & Scope Definition
+  owner: Lead Architect
+  days: 1
+  status: NOT_STARTED
+  week: 1
+  deliverables:
+  - Scope document
+  - Call site map
+  - Architecture sketch
+  checklist:
+  - Review existing DIContainer
+  - Identify all 17 factory methods
+  - Map dependencies between factories
+  - Document call sites
+  - Create architecture sketch
+- id: '1.2'
+  name: Create PluginResolver Interface & Protocol
+  owner: Type Safety Engineer
+  days: 2
+  status: NOT_STARTED
+  week: 1
+  deliverables:
+  - PluginResolutionProtocol definition
+  - plugin_resolver.py scaffold
+  - Type annotations
+  checklist:
+  - Define PluginResolutionProtocol
+  - Create plugin_resolver.py
+  - Add type annotations
+  - Mypy passes (strict mode)
+  - Identify call sites
+- id: '1.3'
+  name: Extract PluginResolver Implementation
+  owner: Refactoring Engineer
+  days: 2
+  status: NOT_STARTED
+  week: 1
+  deliverables:
+  - plugin_resolver.py (300+ lines)
+  - test_plugin_resolver.py (250+ lines)
+  - Registry implementation
+  checklist:
+  - Extract all plugin factory methods
+  - Implement registry-based lookup
+  - Add caching for resolved plugins
+  - Add validation
+  - Unit tests (80%+ coverage)
+- id: '1.4'
+  name: Create ServiceLocator Interface & Protocol
+  owner: Type Safety Engineer
+  days: 1
+  status: NOT_STARTED
+  week: 1
+  deliverables:
+  - ServiceLocationProtocol definition
+  - service_locator.py scaffold
+  checklist:
+  - Define ServiceLocationProtocol
+  - Create service_locator.py
+  - Add type annotations
+  - Document service resolution strategy
+- id: '2.1'
+  name: Extract ServiceLocator Implementation
+  owner: Refactoring Engineer
+  days: 2
+  status: NOT_STARTED
+  week: 2
+  deliverables:
+  - service_locator.py (300+ lines)
+  - test_service_locator.py (250+ lines)
+  checklist:
+  - Extract all factory methods
+  - Implement config-driven registration
+  - Support service composition
+  - Add factory validation
+  - Unit tests (80%+ coverage)
+- id: '2.2'
+  name: Slim DIContainer & Create Facade
+  owner: Integration Engineer
+  days: 2
+  status: NOT_STARTED
+  week: 2
+  deliverables:
+  - Slim di.py (~200 lines)
+  - Integration test suite
+  - Backward compatibility layer
+  checklist:
+  - Remove extracted methods
+  - Keep only orchestration logic
+  - Create facade methods
+  - Integration tests
+  - Verify all call sites work
+- id: '2.3'
+  name: Full Integration & Testing
+  owner: QA Engineer
+  days: 2
+  status: NOT_STARTED
+  week: 2
+  deliverables:
+  - Test report
+  - Performance baseline
+  - Type checking results
+  checklist:
+  - Run full pytest suite
+  - Verify 1150+ tests passing
+  - Type check (mypy)
+  - Lint (ruff, black)
+  - Performance benchmarks
+- id: '2.4'
+  name: Documentation & Handoff
+  owner: Technical Writer
+  days: 1
+  status: NOT_STARTED
+  week: 2
+  deliverables:
+  - Architecture documentation
+  - Migration guide
+  - API documentation
+  checklist:
+  - Update architecture docs
+  - Document PluginResolver patterns
+  - Document ServiceLocator usage
+  - Update DIContainer docstring
+  - Create migration guide
+checkpoints:
+- name: 'Checkpoint 1: Design Review'
+  date: '2026-05-14T00:00:00'
+  criteria:
+  - PluginResolver design reviewed
+  - Protocols approved
+  - Scope signed off
+  status: NOT_STARTED
+- name: 'Checkpoint 2: PluginResolver Done'
+  date: '2026-05-17T00:00:00'
+  criteria:
+  - PluginResolver implementation complete
+  - 80%+ unit tests passing
+  - No behavioral changes
+  status: NOT_STARTED
+- name: 'Checkpoint 3: ServiceLocator Done'
+  date: '2026-05-21T00:00:00'
+  criteria:
+  - ServiceLocator implementation complete
+  - Integration tests passing
+  - DIContainer facade working
+  status: NOT_STARTED
+- name: 'Checkpoint 4: Full Integration'
+  date: '2026-05-22T00:00:00'
+  criteria:
+  - 1150+ pytest tests passing
+  - Mypy clean
+  - Ruff clean
+  - Ready for production
+  status: NOT_STARTED
+success_criteria:
+  findings_resolved:
+    target: 17
+    actual: 0
+    unit: findings
+  di_container_lines:
+    target: 300
+    actual: 0
+    unit: lines
+    baseline: 1000
+  test_pass_rate:
+    target: 0.995
+    actual: 0.0
+    unit: rate
+  unit_test_coverage:
+    target: 0.8
+    actual: 0.0
+    unit: rate
+  mypy_errors:
+    target: 0
+    actual: 0
+    unit: errors
+  regressions:
+    target: 0
+    actual: 0
+    unit: tests
+deliverables:
+- name: plugin_resolver.py
+  status: NOT_STARTED
+  lines: 0
+  coverage: 0
+  owner: ''
+- name: service_locator.py
+  status: NOT_STARTED
+  lines: 0
+  coverage: 0
+  owner: ''
+- name: Slim di.py
+  status: NOT_STARTED
+  lines: 0
+  coverage: 0
+  owner: ''
+- name: test_plugin_resolver.py
+  status: NOT_STARTED
+  lines: 0
+  coverage: 0
+  owner: ''
+- name: test_service_locator.py
+  status: NOT_STARTED
+  lines: 0
+  coverage: 0
+  owner: ''
+- name: Integration tests
+  status: NOT_STARTED
+  count: 0
+  coverage: 0
+  owner: ''
+- name: Architecture documentation
+  status: NOT_STARTED
+  owner: ''
+- name: Migration guide
+  status: NOT_STARTED
+  owner: ''

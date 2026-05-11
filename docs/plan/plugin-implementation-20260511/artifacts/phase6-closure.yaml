@@ -1,0 +1,32 @@
+gates:
+  v1_parity:
+    result: 110 parity tests passed, 6 skipped
+    status: PASS
+    tests_checked:
+    - src/prism/tests/integration/test_api_cli_repo_parity.py
+    - src/prism/tests/integration/test_kubernetes_parity.py
+    - src/prism/tests/integration/test_terraform_parity.py
+    - src/prism/tests/integration/test_scanner_parity.py
+    - src/prism/tests/integration/test_readme_parity.py
+  v2_integration:
+    full_suite: 1443 passed, 7 skipped
+    markers:
+    - 'core: 613 passed, 1 skipped'
+    - 'plugins: 318 passed, 1 skipped'
+    - 'integration: 1017 passed, 7 skipped'
+    status: PASS
+    tox_results:
+    - test-core OK
+    - test-plugins OK
+    - test-integration OK
+  v3_closure:
+    artifacts_created:
+    - docs/plan/plugin-implementation-20260511/artifacts/phase6-closure.yaml
+    ready_for_phase_7: true
+    regressions_detected: false
+    status: PASS
+phase: 6
+summary: 'Wave 4 validation: parity and full integration suites pass; tox envs OK;
+  ready for Phase 7.'
+verdict: PASS
+wave: 4

@@ -1,0 +1,46 @@
+timestamp: "2026-05-11T17:55:00Z"
+phase: "phase_1"
+wave: 4
+validation_mode: "parallel + targeted-fix"
+lane_runs:
+  - lane: "core"
+    command: ".venv/bin/pytest -q -m core src/prism/tests"
+    result: "pass"
+    passed: 610
+    skipped: 1
+    deselected: 755
+    warnings: 6
+    runtime_seconds: 9.92
+  - lane: "plugins"
+    command: ".venv/bin/pytest -q -m plugins src/prism/tests"
+    result: "pass"
+    passed: 306
+    skipped: 1
+    deselected: 1059
+    warnings: 13
+    runtime_seconds: 9.02
+  - lane: "integration"
+    command: ".venv/bin/pytest -q -m integration src/prism/tests"
+    result: "pass_after_fix"
+    passed: 605
+    skipped: 7
+    deselected: 754
+    warnings: 4
+    runtime_seconds: 11.84
+blocker_and_fix:
+  blocker_test: "src/prism/tests/test_t2_04_stateless_marker.py::test_warning_prone_scan_pipeline_fixture_cluster_stays_warning_clean"
+  symptom: "hardcoded node IDs referenced pre-move test paths"
+  fix: "dynamic node-id resolution across root/core/plugins/integration"
+  targeted_validation: "1 passed"
+reconciliation:
+  duplicate_root_files_removed: 18
+  post_reconcile_duplicate_scan: "clean"
+remaining_root_test_files: 42
+rubric_metrics:
+  delegation_ratio: "3 delegated builders, 2 foreman reconciliation/fix actions"
+  lane_parallelism: 3
+  lane_success_rate: "3/3 after blocker fix"
+  model_tier_policy:
+    builders: "tier_0_free"
+    gatekeeper: "tier_0_free"
+    fixes: "foreman-local targeted patch"

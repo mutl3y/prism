@@ -20,7 +20,6 @@ from prism.scanner_io.collection_payload import (
     build_collection_identity,
     build_collection_failure_record,
     build_collection_role_entry,
-    build_collection_scan_result,
     render_collection_role_readme,
 )
 from prism.scanner_io.collection_plugins import scan_collection_plugins

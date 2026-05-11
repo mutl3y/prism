@@ -1,0 +1,479 @@
+plan_id: g84-remediation-mutl3y-cycle-20260509
+phase: phase-0-scout-policy-audit
+objective: Map policy dependencies, consumers, and cross-module relationships
+created_at: 2026-05-09
+
+# ============================================================================
+# POLICY DEPENDENCY GRAPH
+# ============================================================================
+
+# ---- DEPENDENCY TYPES ----
+# depends_on: A policy requires another policy (composition/delegation)
+# consumed_by: A consumer module uses a policy
+# implements: A plugin class implements a protocol/interface
+# registered_as: A plugin class registered with the plugin registry
+# created_by: A factory/seam creates or initializes a policy
+# reads_from: A loader reads configuration for a policy
+
+# ============================================================================
+# TIER 1: PROTOCOL/INTERFACE DEFINITIONS (independent, no dependencies)
+# ============================================================================
+
+protocols:
+  PreparedTaskLineParsingPolicy:
+    type: Protocol
+    definition_site: contracts_request.py:~200
+    depends_on: []
+    consumed_by:
+      - scanner_extract/task_line_parsing.py
+      - scanner_core/task_line_parsing.py
+      - Accessible via: prepared_policy_bundle['task_line_parsing']
+    implemented_by:
+      - AnsibleDefaultTaskLineParsingPolicyPlugin
+      - AnsibleTaskLineParsingPolicyPlugin (adapter)
+
+  PreparedJinjaAnalysisPolicy:
+    type: Protocol
+    definition_site: contracts_request.py:~218
+    depends_on: []
+    consumed_by:
+      - scanner_extract/variable_extractor.py
+      - scanner_core/variable_discovery.py
+      - Accessible via: prepared_policy_bundle['jinja_analysis']
+    implemented_by:
+      - DefaultJinjaAnalysisPolicyPlugin
+
+  PreparedTaskTraversalPolicy:
+    type: Protocol
+    definition_site: contracts_request.py:~224
+    depends_on: []
+    consumed_by:
+      - scanner_extract/task_traversal.py
+      - scanner_core/task_catalog.py
+      - Accessible via: prepared_policy_bundle['task_traversal'] (optional)
+    implemented_by:
+      - AnsibleDefaultTaskTraversalPolicyPlugin
+      - AnsibleTaskTraversalPolicyPlugin (adapter)
+
+  PreparedTaskAnnotationPolicy:
+    type: Protocol
+    definition_site: contracts_request.py:~254
+    depends_on: []
+    consumed_by:
+      - scanner_extract/task_extract_adapters.py
+      - scanner_core/task_annotation_parsing.py
+      - Accessible via: prepared_policy_bundle['task_annotation_parsing'] (optional)
+    implemented_by:
+      - AnsibleDefaultTaskAnnotationPolicyPlugin
+      - AnsibleTaskAnnotationPolicyPlugin (adapter)
+
+  PreparedYAMLParsingPolicy:
+    type: Protocol
+    definition_site: contracts_request.py:~270
+    depends_on: []
+    consumed_by:
+      - scanner_extract/task_catalog.py
+      - scanner_core/scanner_context.py
+      - Accessible via: prepared_policy_bundle['yaml_parsing'] (optional)
+    implemented_by:
+      - DefaultYAMLParsingPolicyPlugin
+
+  PreparedVariableExtractorPolicy:
+    type: Protocol
+    definition_site: contracts_request.py:~280
+    depends_on: []
+    consumed_by:
+      - scanner_extract/variable_extractor.py
+      - scanner_core/variable_discovery.py
+      - Accessible via: prepared_policy_bundle['variable_extractor'] (optional)
+    implemented_by:
+      - AnsibleDefaultVariableExtractorPolicyPlugin
+      - AnsibleVariableExtractorPolicyPlugin (adapter)
+
+# ============================================================================
+# TIER 2: POLICY BUNDLE & CONTEXTS (compose protocols + metadata)
+# ============================================================================
+
+typeddicts:
+  PreparedPolicyBundle:
+    type: TypedDict (carrier)
+    definition_site: contracts_request.py:305
+    depends_on:
+      - PreparedTaskLineParsingPolicy (required)
+      - PreparedJinjaAnalysisPolicy (required)
+      - PreparedTaskTraversalPolicy (optional)
+      - PreparedYAMLParsingPolicy (optional)
+      - PreparedVariableExtractorPolicy (optional)
+      - PreparedTaskAnnotationPolicy (optional)
+    created_by:
+      - scanner_core.scanner_context.prepare_scan_context() [ingress seam]
+    consumed_by:
+      - scanner_extract/task_extract_adapters.py [get via prepared_policy_bundle.get(name)]
+      - scanner_core/variable_discovery.py [get via prepared_policy_bundle.get(name)]
+      - scanner_core/task_catalog_assembly.py [get via prepared_policy_bundle.get(name)]
+    access_pattern:
+      - Policy retrieval: bundle.get('task_line_parsing') or via di_helpers.get_prepared_policy_or_none()
+      - Scope: Runtime-scoped (per scan_options snapshot)
+      - Immutability: Frozen at creation; no mutations after bundle construction
+
+  ScanPolicyContext:
+    type: TypedDict (configuration)
+    definition_site: contracts_request.py:310
+    depends_on:
+      - DynamicIncludesPolicyContext (optional nested)
+      - AnnotationsPolicyContext (optional nested)
+      - ReferencesPolicyContext (optional nested)
+      - PluginRuntimePolicyContext (optional nested)
+      - CommentDocPolicyContext (optional nested)
+      - SelectionPolicyContext (optional nested)
+    created_by:
+      - scanner_config.policy.load_*() functions read from .prism.yml
+      - Merged into scan_options by repo_services/api_layer
+    consumed_by:
+      - scanner_core.scanner_context.prepare_scan_context() [ingress seam]
+      - Used to configure policy behavior (fail_on_unconstrained, fail_on_yaml_like, etc.)
+    access_pattern:
+      - Resolved: scan_options.policy_context.{selection|annotations|dynamic_includes|...}
+      - Scope: Per-scan configuration; immutable after merge into scan_options
+      - Modification: Never mutated; only read during ingress
+
+# ============================================================================
+# TIER 3: ANSIBLE PLUGIN IMPLEMENTATIONS
+# ============================================================================
+
+ansible_plugins_dependency:
+  AnsibleDefaultTaskLineParsingPolicyPlugin:
+    type: Plugin class (Ansible default)
+    depends_on:
+      - task_line_parsing_module (via imports)
+      - task_traversal_bare (via imports)
+    implements: PreparedTaskLineParsingPolicy protocol
+    registered_as: ("extract_policy", "task_line_parsing", AnsibleDefaultTaskLineParsingPolicyPlugin)
+    resolution_chain: Di factory → Registry lookup → _TASK_LINE_PARSING_FALLBACK singleton
+    circular_deps: None (imports are non-circular)
+
+  AnsibleDefaultTaskTraversalPolicyPlugin:
+    type: Plugin class (Ansible default)
+    depends_on:
+      - task_traversal_bare (via imports, heavy lifting)
+      - task_line_parsing_module (for task vocabulary)
+    implements: PreparedTaskTraversalPolicy protocol
+    registered_as: ("extract_policy", "task_traversal", AnsibleDefaultTaskTraversalPolicyPlugin)
+    circular_deps: None
+
+  AnsibleDefaultTaskAnnotationPolicyPlugin:
+    type: Plugin class (Ansible default)
+    depends_on:
+      - task_annotation_strategy (via imports)
+      - task_annotation_parsing (via imports)
+      - NormalizesMarkerPrefix (base class)
+      - marker_utils (via imports)
+    implements: PreparedTaskAnnotationPolicy protocol
+    registered_as: ("extract_policy", "task_annotation_parsing", AnsibleDefaultTaskAnnotationPolicyPlugin)
+    circular_deps: None
+
+  AnsibleDefaultVariableExtractorPolicyPlugin:
+    type: Plugin class (Ansible default)
+    depends_on:
+      - variable_extractor_module (via imports)
+      - CollectsTaskFiles protocol (typing only)
+      - LoadsYamlFile protocol (typing only)
+    implements: PreparedVariableExtractorPolicy protocol
+    registered_as: ("extract_policy", "variable_extractor", AnsibleDefaultVariableExtractorPolicyPlugin)
+    circular_deps: None
+
+# ============================================================================
+# TIER 4: PARSER PLUGIN IMPLEMENTATIONS (platform-agnostic)
+# ============================================================================
+
+parser_plugins_dependency:
+  DefaultYAMLParsingPolicyPlugin:
+    type: Plugin class (platform-agnostic)
+    depends_on:
+      - yaml standard library (PyYAML)
+      - pathlib (stdlib)
+    implements: PreparedYAMLParsingPolicy protocol
+    registered_as: ("yaml_parsing_policy", "yaml_parsing", DefaultYAMLParsingPolicyPlugin)
+    resolution_chain: DI factory → Registry lookup → _YAML_PARSING_FALLBACK singleton
+    external_dependencies:
+      - PyYAML (required)
+    circular_deps: None
+
+  DefaultJinjaAnalysisPolicyPlugin:
+    type: Plugin class (platform-agnostic)
+    depends_on:
+      - jinja2 standard library
+      - jinja2.meta (introspection)
+    implements: PreparedJinjaAnalysisPolicy protocol
+    registered_as: ("jinja_analysis_policy", "jinja_analysis", DefaultJinjaAnalysisPolicyPlugin)
+    resolution_chain: DI factory → Registry lookup → _JINJA_ANALYSIS_FALLBACK singleton
+    external_dependencies:
+      - Jinja2 (required)
+    circular_deps: None
+
+# ============================================================================
+# TIER 5: EXTRACT ADAPTER POLICIES (dual-lane compat, deprecated)
+# ============================================================================
+
+extract_adapters_dependency:
+  AnsibleTaskLineParsingPolicyPlugin:
+    type: Adapter (delegating to default)
+    depends_on:
+      - AnsibleDefaultTaskLineParsingPolicyPlugin (via delegation)
+      - task_line_parsing_module (direct re-export)
+    implements: PreparedTaskLineParsingPolicy protocol (indirectly)
+    usage_site: extract_policies.py
+    status: DEPRECATED (fsrc→src migration complete)
+    cross_module_deps: Imports from task_line_parsing_module (side-by-side)
+    circular_deps: None (delegation is one-way)
+
+  AnsibleTaskTraversalPolicyPlugin:
+    type: Adapter
+    depends_on:
+      - AnsibleDefaultTaskTraversalPolicyPlugin (delegation)
+      - task_traversal_bare (direct re-export)
+    status: DEPRECATED
+
+  AnsibleTaskAnnotationPolicyPlugin:
+    type: Adapter
+    depends_on:
+      - AnsibleDefaultTaskAnnotationPolicyPlugin (delegation)
+      - task_annotation_strategy (direct re-export)
+    status: DEPRECATED
+
+  AnsibleVariableExtractorPolicyPlugin:
+    type: Adapter
+    depends_on:
+      - AnsibleDefaultVariableExtractorPolicyPlugin (delegation)
+      - variable_extractor_module (direct re-export)
+    status: DEPRECATED
+
+# ============================================================================
+# TIER 6: POLICY RESOLVERS (orchestrate resolution chain)
+# ============================================================================
+
+policy_resolvers_dependency:
+  resolve_task_line_parsing_policy_plugin:
+    type: Resolver factory
+    depends_on:
+      - _resolve_plugin_with_precedence (shared resolver)
+      - _TASK_LINE_PARSING_FALLBACK singleton
+      - PluginRegistry (for lookup)
+      - DIContainer (for factory override)
+    resolution_chain:
+      1. DI factory override (if present)
+      2. Plugin registry lookup
+      3. Ansible fallback singleton
+    returns: PreparedTaskLineParsingPolicy
+    called_by: scanner_core.scanner_context.prepare_scan_context() [ingress seam]
+    circular_deps: None (resolver is acyclic)
+
+  resolve_task_annotation_policy_plugin:
+    type: Resolver factory
+    depends_on:
+      - _resolve_plugin_with_precedence (shared resolver)
+      - _TASK_ANNOTATION_FALLBACK singleton
+    returns: PreparedTaskAnnotationPolicy
+
+  resolve_task_traversal_policy_plugin:
+    type: Resolver factory
+    depends_on:
+      - _resolve_plugin_with_precedence (shared resolver)
+      - _TASK_TRAVERSAL_FALLBACK singleton
+    returns: PreparedTaskTraversalPolicy
+
+  resolve_variable_extractor_policy_plugin:
+    type: Resolver factory
+    depends_on:
+      - _resolve_plugin_with_precedence (shared resolver)
+      - _VARIABLE_EXTRACTOR_FALLBACK singleton
+    returns: PreparedVariableExtractorPolicy
+
+  resolve_yaml_parsing_policy_plugin:
+    type: Resolver factory
+    depends_on:
+      - _resolve_plugin_with_precedence (shared resolver)
+      - _YAML_PARSING_FALLBACK singleton
+      - No platform-specific fallback (generic YAML)
+    returns: PreparedYAMLParsingPolicy
+
+  resolve_jinja_analysis_policy_plugin:
+    type: Resolver factory
+    depends_on:
+      - _resolve_plugin_with_precedence (shared resolver)
+      - _JINJA_ANALYSIS_FALLBACK singleton
+      - No platform-specific fallback (generic Jinja)
+    returns: PreparedJinjaAnalysisPolicy
+
+# ============================================================================
+# TIER 7: DI FACTORY METHODS
+# ============================================================================
+
+di_factory_dependency:
+  factory_task_line_parsing_policy_plugin:
+    type: DIContainer method
+    depends_on:
+      - resolve_task_line_parsing_policy_plugin (delegates to)
+      - _call_factory_override (for override injection)
+      - _plugin_resolver.factory_task_line_parsing_policy_plugin() (delegates)
+    returns: PreparedTaskLineParsingPolicy | None
+    caching: Per-container singleton (in _plugin_resolver)
+    called_by: scanner_core.scanner_context.prepare_scan_context()
+
+  factory_task_annotation_policy_plugin:
+    type: DIContainer method
+    depends_on:
+      - _plugin_resolver.factory_task_annotation_policy_plugin()
+
+  factory_task_traversal_policy_plugin:
+    type: DIContainer method
+    depends_on:
+      - _plugin_resolver.factory_task_traversal_policy_plugin()
+
+  factory_variable_extractor_policy_plugin:
+    type: DIContainer method
+    depends_on:
+      - _plugin_resolver.factory_variable_extractor_policy_plugin()
+
+  factory_yaml_parsing_policy_plugin:
+    type: DIContainer method
+    depends_on:
+      - _plugin_resolver.factory_yaml_parsing_policy_plugin()
+
+  factory_jinja_analysis_policy_plugin:
+    type: DIContainer method
+    depends_on:
+      - _plugin_resolver.factory_jinja_analysis_policy_plugin()
+
+# ============================================================================
+# TIER 8: CONFIG LOADERS (read from .prism.yml)
+# ============================================================================
+
+config_loader_dependency:
+  load_fail_on_unconstrained_dynamic_includes:
+    type: Config loader function
+    depends_on:
+      - _load_policy_config_dict (shared loader)
+      - yaml.safe_load (YAML parsing)
+    reads_from: .prism.yml[policy_context.dynamic_includes.fail_on_unconstrained]
+    called_by: repo_services / api_layer (before scanner execution)
+    written_to: ScanPolicyContext (merged into scan_options)
+
+  load_fail_on_yaml_like_task_annotations:
+    type: Config loader function
+    depends_on:
+      - _load_policy_config_dict
+    reads_from: .prism.yml[policy_context.annotations.fail_on_yaml_like]
+
+  load_ignore_unresolved_internal_underscore_references:
+    type: Config loader function
+    depends_on:
+      - _load_policy_config_dict
+    reads_from: .prism.yml[policy_context.references.include_underscore_prefixed]
+
+# ============================================================================
+# CROSS-MODULE DEPENDENCIES (which modules depend on which)
+# ============================================================================
+
+cross_module_flow:
+  ingress_seam:
+    location: scanner_core/scanner_context.py::prepare_scan_context()
+    responsibility: Orchestrate policy resolution and bundle creation
+    dependencies:
+      - Calls all 6 policy resolvers
+      - Reads ScanPolicyContext from scan_options
+      - Assembles PreparedPolicyBundle
+      - Snapshotted into scan_options
+    outputs:
+      - PreparedPolicyBundle (in scan_options)
+    downstream: All scanner_extract and scanner_core modules receive policies via prepared_policy_bundle
+
+  module_dependencies:
+    scanner_extract:
+      consumes:
+        - PreparedTaskLineParsingPolicy [task_line_parsing.py]
+        - PreparedJinjaAnalysisPolicy [variable_extractor.py]
+        - PreparedTaskTraversalPolicy [task_traversal.py]
+        - PreparedTaskAnnotationPolicy [task_extract_adapters.py]
+        - PreparedYAMLParsingPolicy [task_catalog.py]
+        - PreparedVariableExtractorPolicy [variable_extractor.py]
+      access_pattern: Via prepared_policy_bundle dict lookup or di_helpers
+      mutability: Read-only
+
+    scanner_core:
+      consumes:
+        - All 6 prepared policies (same as scanner_extract)
+      access_pattern: Via prepared_policy_bundle dict lookup or di_helpers
+      mutability: Read-only
+
+    scanner_plugins:
+      provides:
+        - Plugin implementations (Ansible, YAML, Jinja)
+        - Registry registration (bootstrap.py)
+        - Fallback singletons (defaults.py)
+      consumed_by: defaults.py resolvers + DI factories
+
+# ============================================================================
+# CIRCULAR DEPENDENCY ANALYSIS
+# ============================================================================
+
+circular_dependencies: NONE_DETECTED
+
+reasoning:
+  - Protocols in Tier 1 have no upward dependencies
+  - Plugin implementations depend only on domain logic (task_line_parsing, task_annotation_strategy, etc.)
+  - Domain logic does NOT import back from plugin layer
+  - Resolvers have downward-only dependency edges to plugins + fallback singletons
+  - DI factories have downward-only edges to resolvers
+  - Config loaders only read YAML and construct TypedDicts
+  - No module imports anything from modules below it in the chain
+
+acyclic_guarantee:
+  - Dependency graph forms a DAG (directed acyclic graph)
+  - All edges point downward (to more concrete/specialized layers)
+  - Ingress seam orchestrates top-level policy assembly
+  - No back-edges exist (e.g., plugin → protocol, or resolver → domain)
+
+# ============================================================================
+# HOT vs COLD ACCESS PATTERNS
+# ============================================================================
+
+access_frequency:
+  PreparedPolicyBundle:
+    frequency: HOT
+    rationale: Accessed in every scanner_extract and scanner_core callsite
+    call_sites: >
+      task_extract_adapters.py (annotation parsing, ~20 calls),
+      variable_discovery.py (extraction init, ~10 calls),
+      task_catalog_assembly.py (traversal, ~5 calls)
+    caching: Via prepared_policy_bundle.get() lookup (O(1) dict access)
+
+  Individual Prepared* Policies:
+    frequency: HOT (per task/variable extraction cycle)
+    rationale: Called for every task, variable, include file traversed
+    amortization: Bundle created once per scan; reused across entire scan
+    caching: Implicit (bundle is immutable singleton for scan duration)
+
+  Policy Resolvers:
+    frequency: COLD (per scan execution)
+    rationale: Called only at ingress seam (scanner_context initialization)
+    optimization: Registry caching (bootstrap singleton) amortizes lookup cost
+
+  Config Loaders:
+    frequency: COLD (pre-scan)
+    rationale: Called once per role scan (in repo_services / api_layer)
+    optimization: Results cached in ScanPolicyContext (immutable after merge)
+
+# ============================================================================
+# DEPENDENCY STATISTICS
+# ============================================================================
+
+statistics:
+  total_nodes: 28 (policies + protocols + bundles)
+  total_edges: ~45 (dependencies)
+  acyclic: Yes (confirmed DAG)
+  average_fan_out: 1.6 edges/node
+  max_depth: 8 tiers
+  hot_path_nodes: 7 (bundle + 6 prepared policies)
+  cold_path_nodes: 15 (resolvers, config loaders, DI factories)
+  external_dependencies: 3 (PyYAML, Jinja2, pathlib)

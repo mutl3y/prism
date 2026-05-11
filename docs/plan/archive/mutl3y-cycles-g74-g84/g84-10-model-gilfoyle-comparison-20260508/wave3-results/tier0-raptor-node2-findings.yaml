@@ -1,0 +1,71 @@
+model_used: Raptor mini (Preview)
+findings:
+  - id: GILF-NODE2-01
+    severity: HIGH
+    category: concurrency
+    location: "src/prism/scanner_core/task_extract_adapters.py:189-205"
+    issue: "Raw DI scan_options access breaks the clone snapshot contract"
+    root_cause: "task_extract_adapters reads prepared_policy_bundle directly from di.scan_options while VariableDiscovery and FeatureDetector clone scan options for plugin calls."
+    impact: "Concurrent callers can observe inconsistent marker-prefix policy state, leading to non-deterministic parsing results and hidden TOCTOU races if the DI container mutates scan_options."
+    confidence: 90
+    fix_suggestion: "Use a single explicit scan-options snapshot or pass prepared_policy_bundle through a canonical immutable request object instead of reading raw di.scan_options in task_extract_adapters."
+
+  - id: GILF-NODE2-02
+    severity: HIGH
+    category: data-flow
+    location: "src/prism/scanner_core/feature_detector.py:120-126, src/prism/scanner_core/task_extract_adapters.py:222-233"
+    issue: "FeatureDetector options and task-extraction marker resolution come from different sources"
+    root_cause: "FeatureDetector.collect_task_handler_catalog uses self._options, while collect_task_handler_catalog in task_extract_adapters resolves marker_prefix from live DI scan_options."
+    impact: "Marker-prefix policy can diverge from the feature-detection execution context, breaking invariant consistency between task catalog assembly and annotation extraction."
+    confidence: 88
+    fix_suggestion: "Make collect_task_handler_catalog consume the same cloned scan options used by FeatureDetector, and derive marker_prefix from that single options object rather than raw DI state."
+
+  - id: GILF-NODE2-03
+    severity: HIGH
+    category: policy
+    location: "src/prism/scanner_core/task_extract_adapters.py:189-233"
+    issue: "Hidden comment_doc_marker_prefix ownership seam"
+    root_cause: "Marker prefix is resolved indirectly from prepared_policy_bundle in DI, creating a hidden dependency instead of an explicit policy parameter."
+    impact: "Upstream callers must implicitly satisfy prepared_policy_bundle wiring or extraction fails with a generic ValueError, making the policy contract fragile and hard to reason about."
+    confidence: 92
+    fix_suggestion: "Make marker_prefix an explicit parameter in the task-extraction adapter API or centralize policy bundle ownership in a dedicated context object passed through the pipeline."
+
+  - id: GILF-NODE2-04
+    severity: MEDIUM
+    category: performance
+    location: "src/prism/scanner_core/variable_discovery.py:96-137"
+    issue: "Repeated discovery work on hot path"
+    root_cause: "discover(), discover_static(), discover_referenced(), and resolve_unresolved() each snapshot options and call plugins separately with no shared cache."
+    impact: "Scanning the same role repeatedly can incur duplicated I/O/parse work and excess object cloning, degrading scalability for large roles."
+    confidence: 85
+    fix_suggestion: "Cache discovery results per VariableDiscovery instance or introduce a shared memoized layer for static/referenced variable discovery when the same role/options are reused."
+
+  - id: GILF-NODE2-05
+    severity: MEDIUM
+    category: caching
+    location: "src/prism/scanner_core/feature_detector.py:65-83"
+    issue: "Plugin factory results are memoized but not validated or cached consistently"
+    root_cause: "FeatureDetector caches plugin resolution, but it still allows factory() to return None and leaves the plugin instance semantics opaque to callers."
+    impact: "A bad plugin factory can defer failure until detect() or analyze_task_catalog(), while repeated calls still rely on an unvalidated cached instance."
+    confidence: 80
+    fix_suggestion: "Validate the plugin type immediately during resolution, fail fast with a clear contract error, and consider caching a read-only wrapper if plugin instances are reusable across threads."
+
+  - id: GILF-NODE2-06
+    severity: MEDIUM
+    category: concurrency
+    location: "src/prism/scanner_core/variable_discovery.py:48-54, src/prism/scanner_core/feature_detector.py:57-63"
+    issue: "Scan options cloning semantics are inconsistent with raw DI state exposure"
+    root_cause: "VariableDiscovery and FeatureDetector clone options while task_extract_adapters uses raw DI state, creating a mixed immutability model."
+    impact: "This inconsistency raises the risk of stale or mutated policy metadata being used in one path and not another, which is especially dangerous under concurrent scan execution."
+    confidence: 86
+    fix_suggestion: "Standardize on a single options immutability policy across scanner_core: clone once at entry and propagate that snapshot throughout all downstream adapters."
+
+  - id: GILF-NODE2-07
+    severity: LOW
+    category: error-handling
+    location: "src/prism/scanner_core/task_extract_adapters.py:189-205"
+    issue: "Generic ValueError messages mask caller context"
+    root_cause: "Marker-prefix resolution raises the same generic error for missing scan_options, missing bundle, or missing prefix."
+    impact: "Debugging pipeline failures becomes harder because the error doesn't distinguish whether the DI contract, prepared_policy_bundle wiring, or policy value is wrong."
+    confidence: 75
+    fix_suggestion: "Split the validation into distinct errors for missing scan_options, missing prepared_policy_bundle, and missing comment_doc_marker_prefix so callers can pinpoint broken wiring quickly."

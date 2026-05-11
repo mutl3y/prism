@@ -1,0 +1,92 @@
+model_used: Claude Haiku 4.5
+
+findings:
+  - id: GILF-DI-01
+    severity: HIGH
+    category: type-safety
+    location: "di.py:78"
+    issue: "Blind TypedDict cast loses identity through dict comprehension"
+    root_cause: "clone_scan_options() uses cast(ScanOptionsDict, {...}) to force type after building dict via comprehension. TypedDict is nominal—this cast is purely aspirational and fails at runtime type checking."
+    impact: "Downstream code like scan_options_from_di() does isinstance(di, HasScanOptions) checks on the scan_options property, but mypy has no guarantee the cast actually produced a ScanOptionsDict. Type erasure creates contract violations."
+    confidence: 95
+    fix_suggestion: "Return ScanOptionsDict explicitly: `result: ScanOptionsDict = {}; result.update({...}); return result` or use TypedDict constructor if available."
+
+  - id: GILF-DI-02
+    severity: CRITICAL
+    category: architecture
+    location: "di.py:180-550"
+    issue: "DIContainer is a god-object factory bucket with 20+ copy-paste factory methods"
+    root_cause: "Every factory_* method duplicates the same pattern: check mocks dict → check overrides dict → construct/return. No abstraction. The container also manages caching, event bus, wiring config, platform key resolution, and registry lookup."
+    impact: "Impossible to test individual factories without coupling to the full DIContainer. Adding a new factory requires copy-pasting 5-7 lines. Maintenance burden explodes as factories grow. Single responsibility violated."
+    confidence: 99
+    fix_suggestion: "Extract a `_execute_factory_with_mocks_and_overrides()` helper that wraps the check-mock/check-override logic. Define factories as configuration (name → callable mapping) rather than explicit methods. This reduces boilerplate by 70%."
+
+  - id: GILF-DI-03
+    severity: HIGH
+    category: ownership
+    location: "di.py:85-110, di.py:283, di.py:228"
+    issue: "scan_options cloning scattered across multiple locations without clear ownership"
+    root_cause: "clone_scan_options() is called in: (1) __init__ to store, (2) replace_scan_options(), (3) _snapshot_scan_options(), (4) each factory_* method that needs current options. Cloning policy is distributed; no single source of truth."
+    impact: "If cloning logic needs to change (e.g., to handle new mutable types), you must hunt through 20+ call sites. Inconsistent snapshots could leak mutable state despite cloning intent. Expensive operation called repeatedly."
+    confidence: 92
+    fix_suggestion: "Make scan_options an immutable property: `@property scan_options(self) -> ScanOptionsDict` returns a fresh snapshot. Call site doesn't need to know cloning happens. Single source of truth for snapshot policy."
+
+  - id: GILF-DI-04
+    severity: MEDIUM
+    category: error-handling
+    location: "scanner_context.py:335-350, 370-385"
+    issue: "Broad exception catch tuple masks real errors; exception chaining omitted"
+    root_cause: "`except (PrismRuntimeError, ValueError, RuntimeError, TypeError) as error:` is too wide. If a TypeError occurs inside _di.factory_variable_discovery(), it's silently swallowed and downgraded to 'discovery failed' without root cause. Exception chaining `from error` is missing."
+    impact: "Production debugging nightmare. A typo in variable_discovery.py becomes a cryptic 'Variable discovery failed' error. User has no stack trace. The actual bug is hidden."
+    confidence: 94
+    fix_suggestion: "Catch only PrismRuntimeError and ValueError (contract violations). Let TypeError bubble up—it's a programming error, not a runtime policy violation. Add `from error` to all except clauses that re-raise."
+
+  - id: GILF-DI-05
+    severity: HIGH
+    category: testability
+    location: "di.py:134-176 (_construct_runtime_plugin)"
+    issue: "Plugin constructor validation uses signature inspection but doesn't validate plugin class shape at registration time"
+    root_cause: "DIContainer._construct_runtime_plugin() inspects the constructor signature at runtime to check if the plugin accepts `di=...`. This check should happen when the plugin is registered, not when it's instantiated."
+    impact: "Errors surface at scan runtime, not at plugin bootstrap. Bad plugins slip through initialization and fail deep in execution. No fail-fast validation."
+    confidence: 88
+    fix_suggestion: "Move signature validation to PluginRegistry.register_plugin(). Validate all plugins once at bootstrap. Store pre-validated plugin classes. Fail fast."
+
+  - id: GILF-DI-06
+    severity: MEDIUM
+    category: type-safety
+    location: "di_helpers.py:40-65"
+    issue: "Protocol isinstance() checks are verbose, fragile, and lack runtime_checkable verification"
+    root_cause: "scan_options_from_di() does three separate isinstance checks: HasScanOptions → dict check → logging. If the Protocol is not @runtime_checkable, isinstance() fails silently. Code is repetitive across 3 similar functions."
+    impact: "Hard to read; easy to break if a Protocol is removed. Each function reimplements the same safety checks. Difficult to extend (adding a new protocol requires copying this pattern again)."
+    confidence: 86
+    fix_suggestion: "Create a single helper: `_safe_get_protocol_attr(obj, protocol, attr_name: str)` that returns attr or None + logs. All three functions delegate to it."
+
+  - id: GILF-SC-01
+    severity: HIGH
+    category: ownership
+    location: "scanner_context.py:458-470"
+    issue: "_build_scan_policy_blocker_facts() splits ownership between scanner_context (caller) and di (factory lookup)"
+    root_cause: "Method takes scan_options and metadata but then delegates blocker fact building to a factory function obtained from DI. Caller prepares data, DI factory owns the builder. Unclear who owns the policy."
+    impact: "If blocker_fact_builder_fn is None, di falls back to lazy import from scanner_plugins.defaults (line 388-390 in di.py). This is an undocumented circular dependency workaround. Testability suffers because mocking requires both di.inject_mock() AND scanner_context setup."
+    confidence: 91
+    fix_suggestion: "Make scanner_context depend on the blocker builder directly (not via DI). Pass it in constructor or fetch it once during __init__. Remove the lazy import fallback in DI—builder registration should be mandatory at bootstrap."
+
+  - id: GILF-SC-02
+    severity: MEDIUM
+    category: error-handling
+    location: "scanner_context.py:380-393 (_build_output_payload)"
+    issue: "Missing exception chaining in ValueError wrapping"
+    root_cause: "`_require_prepared_policy_bundle()` raises ValueError if policies are missing. This error is caught in _discover_variables and _detect_features but converted to a generic 'discovery failed' message without `from error` chaining."
+    impact: "Stack trace is lost. Downstream debugger can't trace back to which specific policy was missing."
+    confidence: 85
+    fix_suggestion: "Add `from error` to all exception re-raises. Example: `raise ValueError(...) from exc`."
+
+  - id: GILF-SC-03
+    severity: MEDIUM
+    category: architecture
+    location: "scanner_context.py:302-310"
+    issue: "ScannerContext instance state is reset in orchestrate_scan(), implying container reuse pattern"
+    root_cause: "orchestrate_scan() calls `self._discovered_variables = ()` to reset state. This suggests the same ScannerContext instance is meant to be reused for multiple scans. This is non-obvious and dangerous—mutable state between invocations."
+    impact: "If a caller forgets to check the reset behavior, stale state from a previous scan bleeds into the next scan. Thread-safety issues if multiple threads reuse the same context."
+    confidence: 82
+    fix_suggestion: "Either: (1) Make ScannerContext single-use (no reset), or (2) explicitly document reuse semantics and provide a clear reset_state() method. Current implicit reset is too subtle."

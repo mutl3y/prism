@@ -1,0 +1,293 @@
+entries:
+  - timestamp: "2026-05-11T15:36:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_0"
+    worker: "Scout-Ownership"
+    task_id: "task_0_1"
+    requested_tier: "tier_2_balanced"
+    requested_model: "GPT-5.4"
+    actual_model: "GPT-5.4"
+    result: "success"
+    failure_type: "none"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase0-scout-spillage-inventory.yaml"
+    quality_score: 5
+    needed_reedit: false
+    recovery_action: "none"
+
+  - timestamp: "2026-05-11T15:36:36Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_0"
+    worker: "Archivist-Ledger"
+    task_id: "task_0_2"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success"
+    failure_type: "none"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase0-archive-manifest.yaml"
+    quality_score: 5
+    needed_reedit: false
+    recovery_action: "none"
+
+  - timestamp: "2026-05-11T16:18:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Scout-ControlFlow"
+    task_id: "task_1_2"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success"
+    failure_type: "none"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch1-move-plan.yaml"
+    quality_score: 4
+    needed_reedit: false
+    recovery_action: "none"
+
+  - timestamp: "2026-05-11T16:22:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Builder-Typing"
+    task_id: "task_1_2"
+    requested_tier: "tier_1_low_cost"
+    requested_model: "GPT-5.4 mini"
+    actual_model: "GPT-5.4 mini"
+    result: "success"
+    failure_type: "none"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch1-validation.yaml"
+    quality_score: 5
+    needed_reedit: false
+    recovery_action: "none"
+
+  - timestamp: "2026-05-11T16:30:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Gatekeeper"
+    task_id: "task_1_3"
+    requested_tier: "tier_0_free"
+    requested_model: "local-pytest"
+    actual_model: "local-pytest"
+    result: "success"
+    failure_type: "none"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-parallel-validation.yaml"
+    quality_score: 5
+    needed_reedit: false
+    recovery_action: "none"
+
+  - timestamp: "2026-05-11T16:40:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Builder-ControlFlow"
+    task_id: "task_1_2"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success_with_reconciliation"
+    failure_type: "copy_retain_drift"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch2-validation.yaml"
+    quality_score: 3
+    needed_reedit: true
+    recovery_action: "foreman_removed_root_duplicates"
+
+  - timestamp: "2026-05-11T16:40:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Builder-Abstraction"
+    task_id: "task_1_2"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success_with_reconciliation"
+    failure_type: "copy_retain_drift"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch2-validation.yaml"
+    quality_score: 3
+    needed_reedit: true
+    recovery_action: "foreman_removed_root_duplicates"
+
+  - timestamp: "2026-05-11T16:40:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Builder-Ownership"
+    task_id: "task_1_2"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success_with_reconciliation"
+    failure_type: "copy_retain_drift"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch2-validation.yaml"
+    quality_score: 3
+    needed_reedit: true
+    recovery_action: "foreman_removed_root_duplicates"
+
+  - timestamp: "2026-05-11T16:48:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Gatekeeper"
+    task_id: "task_1_3"
+    requested_tier: "tier_0_free"
+    requested_model: "local-pytest"
+    actual_model: "local-pytest"
+    result: "success"
+    failure_type: "none"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch2-validation.yaml"
+    quality_score: 5
+    needed_reedit: false
+    recovery_action: "none"
+
+  - timestamp: "2026-05-11T17:12:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Scout-ControlFlow"
+    task_id: "task_1_2"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success"
+    failure_type: "none"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch3-move-plan.yaml"
+    quality_score: 4
+    needed_reedit: false
+    recovery_action: "none"
+
+  - timestamp: "2026-05-11T17:18:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Builder-ControlFlow"
+    task_id: "task_1_2"
+    requested_tier: "tier_1_low_cost"
+    requested_model: "GPT-5.4 mini"
+    actual_model: "GPT-5.4 mini"
+    result: "success_with_reconciliation"
+    failure_type: "copy_retain_drift"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch3-validation.yaml"
+    quality_score: 3
+    needed_reedit: true
+    recovery_action: "foreman_removed_root_duplicates"
+
+  - timestamp: "2026-05-11T17:18:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Builder-Ownership"
+    task_id: "task_1_2"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success_with_reconciliation"
+    failure_type: "copy_retain_drift"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch3-validation.yaml"
+    quality_score: 3
+    needed_reedit: true
+    recovery_action: "foreman_removed_root_duplicates"
+
+  - timestamp: "2026-05-11T17:18:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Builder-Abstraction"
+    task_id: "task_1_2"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success_with_reconciliation"
+    failure_type: "copy_retain_drift"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch3-validation.yaml"
+    quality_score: 3
+    needed_reedit: true
+    recovery_action: "foreman_removed_root_duplicates"
+
+  - timestamp: "2026-05-11T17:24:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Gatekeeper"
+    task_id: "task_1_3"
+    requested_tier: "tier_0_free"
+    requested_model: "local-pytest"
+    actual_model: "local-pytest"
+    result: "success"
+    failure_type: "none"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch3-validation.yaml"
+    quality_score: 5
+    needed_reedit: false
+    recovery_action: "none"
+
+  - timestamp: "2026-05-11T17:42:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Builder-ControlFlow"
+    task_id: "task_1_2"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success_with_reconciliation"
+    failure_type: "copy_retain_drift"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch4-validation.yaml"
+    quality_score: 3
+    needed_reedit: true
+    recovery_action: "foreman_removed_root_duplicates"
+
+  - timestamp: "2026-05-11T17:42:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Builder-Ownership"
+    task_id: "task_1_2"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success_with_reconciliation"
+    failure_type: "copy_retain_drift"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch4-validation.yaml"
+    quality_score: 3
+    needed_reedit: true
+    recovery_action: "foreman_removed_root_duplicates"
+
+  - timestamp: "2026-05-11T17:42:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Builder-Abstraction"
+    task_id: "task_1_2"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success_with_reconciliation"
+    failure_type: "copy_retain_drift"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch4-validation.yaml"
+    quality_score: 3
+    needed_reedit: true
+    recovery_action: "foreman_removed_root_duplicates"
+
+  - timestamp: "2026-05-11T17:50:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Gatekeeper"
+    task_id: "task_1_3"
+    requested_tier: "tier_0_free"
+    requested_model: "local-pytest"
+    actual_model: "local-pytest"
+    result: "failure_then_recovered"
+    failure_type: "hardcoded_pre_move_test_paths"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch4-validation.yaml"
+    quality_score: 4
+    needed_reedit: true
+    recovery_action: "foreman_patched_path_resolution_and_reran_gate"
+
+  - timestamp: "2026-05-11T17:55:00Z"
+    cycle: "plugin-implementation-20260511"
+    phase: "phase_1"
+    worker: "Gatekeeper"
+    task_id: "task_1_3"
+    requested_tier: "tier_0_free"
+    requested_model: "local-pytest"
+    actual_model: "local-pytest"
+    result: "success"
+    failure_type: "none"
+    artifact_path: "docs/plan/plugin-implementation-20260511/artifacts/phase1-batch4-validation.yaml"
+    quality_score: 5
+    needed_reedit: false
+    recovery_action: "none"
+
+
+# Wave 5 Summary
+# - Scout: 42 files classified (4 core, 1 plugins, 37 integration)
+# - Builders: 42 files migrated + parents[3]→parents[4] fixes applied
+# - Drift reconciliation: 42 duplicates removed from root
+# - Validation gates: 1864 tests passed (613 core, 318 plugins, 933 integration)
+# - Status: COMPLETE

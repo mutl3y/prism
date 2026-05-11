@@ -1,0 +1,35 @@
+cycle: g84
+phase: P5
+wave: rem-2
+status: in_progress
+timestamp: 2026-05-11
+tier_strategy_source: memory-loaded:/memories/mutl3y-tier-strategy.md
+tier_strategy_lookup: attempted-direct-read:/memories/mutl3y-tier-strategy.md (not available in workspace FS)
+workers_expected:
+  - Builder-CollectionRunbook
+  - Builder-ScanOptionsContract
+  - Builder-ErrorEnvelopeBoundary
+owned_file_sets:
+  Builder-CollectionRunbook:
+    - src/prism/api.py
+    - src/prism/api_layer/collection.py
+  Builder-ScanOptionsContract:
+    - src/prism/scanner_core/di.py
+  Builder-ErrorEnvelopeBoundary:
+    - src/prism/scanner_core/scanner_context.py
+    - src/prism/scanner_core/marker_prefix_contract.py
+    - src/prism/scanner_core/marker_prefix_enforcer.py
+disjoint_scopes_verified: true
+routing:
+  Builder-CollectionRunbook:
+    tier_selected: FREE (0x)
+    tier_reason: Phase 5 default; focused seam restoration in API facade path with minimal architecture risk.
+    model: GPT-5 mini
+  Builder-ScanOptionsContract:
+    tier_selected: BALANCED (1x)
+    tier_reason: DI scan_options contract behavior changed; ownership/DI seam requires stronger reasoning.
+    model: GPT-5.4
+  Builder-ErrorEnvelopeBoundary:
+    tier_selected: LOW-COST (0.33x)
+    tier_reason: Boundary/error-envelope adjustments across known files; moderate complexity without broad architecture redesign.
+    model: Claude Haiku 4.5

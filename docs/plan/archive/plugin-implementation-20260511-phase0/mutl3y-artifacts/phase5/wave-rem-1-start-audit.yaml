@@ -1,0 +1,34 @@
+cycle: g84
+phase: P5
+wave: rem-1
+status: in_progress
+timestamp: 2026-05-11
+tier_strategy_source: memory-loaded:/memories/mutl3y-tier-strategy.md
+note: Direct file lookup unavailable in workspace; using persisted memory snapshot from user memory.
+workers_expected:
+  - Builder-PluginBoundary
+  - Builder-ScanIsolation
+  - Builder-ParityEnvelope
+owned_file_sets:
+  Builder-PluginBoundary:
+    - src/prism/scanner_plugins/ansible/extract_adapter.py
+    - src/prism/scanner_plugins/ansible/extract_utils.py
+  Builder-ScanIsolation:
+    - src/prism/scanner_core/di.py
+    - src/prism/scanner_core/scan_request.py
+  Builder-ParityEnvelope:
+    - src/prism/scanner_core/scanner_context.py
+disjoint_scopes_verified: true
+routing:
+  Builder-PluginBoundary:
+    tier_selected: FREE (0x)
+    tier_reason: Phase 5 default; no DI/ownership escalation criteria required for this first attempt.
+    model: GPT-5 mini
+  Builder-ScanIsolation:
+    tier_selected: BALANCED (1x)
+    tier_reason: DI/request-isolation seam touches ownership and mutable-state boundaries.
+    model: GPT-5.4
+  Builder-ParityEnvelope:
+    tier_selected: FREE (0x)
+    tier_reason: Payload-shape reconciliation in one file; low-risk first attempt.
+    model: GPT-5 mini

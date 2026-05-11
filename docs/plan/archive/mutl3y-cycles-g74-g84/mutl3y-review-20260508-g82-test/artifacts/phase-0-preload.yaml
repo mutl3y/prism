@@ -1,0 +1,19 @@
+expected_savings:
+  impact: All scouts use same cached architecture baseline
+  reason: Architecture discovery 1x instead of 4x in scouts
+  tokens: ~30K
+notes:
+- Run this BEFORE dispatching scouts in Phase 0
+- All 4 scouts pass --architecture-preload phase-0-preload.yaml
+- Reduces duplicate MCP queries + discovery overhead
+phase: 0
+plan_id: mutl3y-review-20260508-g82-test
+preload_type: architecture_discovery
+queries_to_run:
+- cost: LOW
+  name: get_architecture
+  purpose: Pre-load once so all 4 scouts reference same context
+  returns: technology_stack, packages, dependencies
+scout_reference: 'scouts should load from: phase-0-preload.yaml'
+status: READY_TO_QUERY
+timestamp: '2026-05-08T17:44:44.097655'

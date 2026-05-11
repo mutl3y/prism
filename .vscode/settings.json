@@ -3,7 +3,7 @@
         "prism/.vscode/mcp.json: io.github.upstash/context7": {
             "allowedModels": [
                 "copilot/auto",
-                "copilotcli/claude-sonnet-4.6"
+                "copilotcli/claude-sonnet-4.5"
             ]
         }
     },

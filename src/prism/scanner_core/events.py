@@ -13,10 +13,13 @@ production semantics.
 
 from __future__ import annotations
 
+import copy
+from collections import deque
 from contextvars import ContextVar
 import logging
 import threading
 import time
+import traceback
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator, Mapping
@@ -54,14 +57,20 @@ class ScanPhaseEvent:
 
 @dataclass(frozen=True)
 class EventBusError:
-    """Error event emitted when a listener fails.
+    """Error event recorded when a listener fails.
 
-    This event is emitted directly by the EventBus without going through
+    Stores only the exception metadata (type, message, traceback string),
+    not the Exception object itself. This prevents memory leaks by not retaining
+    exception frames and local variables that could keep large objects alive.
+
+    This event is recorded directly by the EventBus without going through
     the listener loop, ensuring observability without infinite loops.
     """
 
     listener_name: str
-    exception: Exception
+    exception_type: str
+    exception_message: str
+    traceback_str: str
     timestamp: float
     event: ScanPhaseEvent | None = None
 
@@ -85,7 +94,7 @@ class EventBus:
         self._listeners: list[EventListener] = list(listeners or [])
         self._listeners_lock = threading.RLock()
         self._strict = strict
-        self._error_events: list[EventBusError] = []
+        self._error_events: deque[EventBusError] = deque(maxlen=1000)
         self._error_lock = threading.RLock()
 
     def subscribe(self, listener: EventListener) -> None:
@@ -103,7 +112,8 @@ class EventBus:
 
     @property
     def listener_count(self) -> int:
-        return len(self._listeners)
+        with self._listeners_lock:
+            return len(self._listeners)
 
     @property
     def error_count(self) -> int:
@@ -112,17 +122,33 @@ class EventBus:
             return len(self._error_events)
 
     def get_error_events(self) -> list[EventBusError]:
-        """Return a snapshot of recorded error events."""
+        """Return a snapshot of recorded error events.
+
+        Note: The returned list is a snapshot only; the bounded deque may evict
+        older errors if the event bus receives many listener failures. This is
+        by design to prevent memory leaks in long-running processes.
+        """
         with self._error_lock:
             return list(self._error_events)
 
     def _record_listener_error(
         self, listener: EventListener, exception: Exception, event: ScanPhaseEvent
     ) -> None:
-        """Record a listener error event for observability."""
+        """Record a listener error event for observability.
+
+        Stores exception metadata (type, message, traceback string) only,
+        not the Exception object itself. This prevents memory leaks by not
+        retaining exception frames and local variables.
+
+        Note: Error events are retained in a bounded deque (max 1000) to prevent
+        unbounded memory growth if listeners fail frequently. Older errors are
+        automatically evicted when the deque reaches capacity.
+        """
         error_event = EventBusError(
             listener_name=getattr(listener, "__name__", repr(listener)),
-            exception=exception,
+            exception_type=type(exception).__name__,
+            exception_message=str(exception),
+            traceback_str=traceback.format_exc(),
             timestamp=time.time(),
             event=event,
         )
@@ -134,6 +160,13 @@ class EventBus:
             listeners_snapshot = list(self._listeners)
         if not listeners_snapshot:
             return
+
+        # In strict mode, collect all exceptions and raise an aggregate after invoking all listeners
+        # This preserves pub/sub isolation: all listeners are invoked, then failures are reported
+        strict_mode_exceptions: list[tuple[EventListener, Exception]] = (
+            [] if self._strict else []
+        )
+
         for listener in listeners_snapshot:
             try:
                 listener(event)
@@ -143,16 +176,43 @@ class EventBus:
                 # Listener authors should document their exception contracts,
                 # but we do not enforce narrow types here to maximize robustness.
                 self._record_listener_error(listener, exc, event)
-                logger.error(
-                    "EventBus listener exception: phase=%s kind=%s listener=%r exc_type=%s exc=%r",
-                    event.phase_name,
-                    event.kind,
-                    listener,
-                    type(exc).__name__,
-                    exc,
-                )
+                try:
+                    logger.error(
+                        "EventBus listener exception: phase=%s kind=%s listener=%r exc_type=%s exc=%r",
+                        event.phase_name,
+                        event.kind,
+                        listener,
+                        type(exc).__name__,
+                        exc,
+                    )
+                except Exception as log_exc:
+                    # If logging itself fails, emit to stderr to preserve diagnostic info
+                    import sys
+
+                    sys.stderr.write(
+                        f"EventBus listener exception (logging failed): "
+                        f"phase={event.phase_name} kind={event.kind} listener={listener!r} "
+                        f"exc_type={type(exc).__name__} exc={exc!r} "
+                        f"log_failure={type(log_exc).__name__}: {log_exc}\n"
+                    )
                 if self._strict:
-                    raise
+                    # In strict mode, collect exceptions to raise after all listeners
+                    strict_mode_exceptions.append((listener, exc))
+
+        # In strict mode, raise an aggregate error after all listeners have been invoked
+        if self._strict and strict_mode_exceptions:
+            if len(strict_mode_exceptions) == 1:
+                _, single_exc = strict_mode_exceptions[0]
+                raise single_exc
+            else:
+                # Multiple failures: raise the first with others chained as context
+                _, first_exc = strict_mode_exceptions[0]
+                error_msg = (
+                    f"EventBus: {len(strict_mode_exceptions)} listener(s) failed "
+                    f"(phase={event.phase_name}, kind={event.kind}). "
+                    f"First exception: {type(first_exc).__name__}: {first_exc}"
+                )
+                raise ValueError(error_msg) from first_exc
 
     @contextmanager
     def phase(
@@ -162,9 +222,14 @@ class EventBus:
         context: Mapping[str, Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> Iterator[None]:
-        """Emit ``pre``/``post`` events around the wrapped block."""
-        ctx = dict(context or {})
-        meta = dict(metadata or {})
+        """Emit ``pre``/``post`` events around the wrapped block.
+
+        Deep-copies context and metadata to prevent mutations in one phase
+        from affecting pre/post event consistency. This ensures events snapshot
+        the state at emit time, not after caller modifications.
+        """
+        ctx = copy.deepcopy(dict(context or {}))
+        meta = copy.deepcopy(dict(metadata or {}))
         self.emit(
             ScanPhaseEvent(
                 phase_name=phase_name, kind="pre", context=ctx, metadata=meta

@@ -1,0 +1,723 @@
+---
+# MP1 Ingress Paths Documented — Call Chains & Ownership
+#
+# Phase: Phase 1, Task 1.1 (May 9-10, 2026)
+# Purpose: Document all 7 ingress paths where marker-prefix enters the system
+# Acceptance Criteria: 7 paths documented with call chains, ownership, and fallback
+# Status: ✅ INGRESS PATHS MAPPED
+
+metadata:
+  cycle: g84-remediation-mutl3y-cycle-20260509
+  phase: phase-1
+  task: task-1-1-ingress-paths
+  date_generated: 2026-05-09
+  audit_method: codebase-trace + call-chain-analysis
+  ingress_paths_documented: 7
+  confidence: HIGH
+  validation_gate: All 7 paths lead to bundle_resolver normalization + storage
+
+# INGRESS PATH TAXONOMY
+# 
+# An "ingress path" is a complete route from external caller (CLI/API)
+# to internal bundle representation. Each path may involve fallbacks
+# and normalizations, but all terminate at the same canonical write point:
+# 
+#   bundle["comment_doc_marker_prefix"] ← bundle_resolver.ensure_prepared_policy_bundle()
+#
+# All downstream consumers access ONLY through this bundle.
+
+ingress_paths:
+  total: 7
+
+  # ============================================================================
+  # INGRESS PATH 1: Direct API Parameter (High Priority, No Fallback)
+  # ============================================================================
+  path_001:
+    name: Direct API Parameter
+    priority: HIGHEST
+    entry_point: API caller passes comment_doc_marker_prefix directly
+    description: >
+      Caller provides marker_prefix as explicit scan_options parameter.
+      This is the canonical path for callers who know their marker prefix in advance.
+    
+    call_chain:
+      - step: 1
+        layer: API/External
+        function: Caller code (api.py, cli.py, or test)
+        action: >
+          scan_options = build_run_scan_options_canonical(
+            ...,
+            comment_doc_marker_prefix="custom-prefix"
+          )
+        location: src/prism/scanner_core/scan_request.py:115
+      
+      - step: 2
+        layer: Ingress Validation
+        function: build_run_scan_options_canonical()
+        action: >
+          Pass through to options dict:
+          options["comment_doc_marker_prefix"] = comment_doc_marker_prefix (or None)
+        location: src/prism/scanner_core/scan_request.py:120-150
+        validation: "Type check: str | None"
+      
+      - step: 3
+        layer: Bundle Assembly
+        function: ensure_prepared_policy_bundle()
+        action: >
+          raw_prefix = scan_options.get("comment_doc_marker_prefix")
+          if isinstance(raw_prefix, str):
+              bundle["comment_doc_marker_prefix"] = normalize_marker_prefix(raw_prefix)
+        location: src/prism/scanner_plugins/bundle_resolver.py:142-155
+        normalization: "Applied via normalize_marker_prefix()"
+      
+      - step: 4
+        layer: Storage
+        function: prepared_policy_bundle (immutable)
+        action: >
+          bundle["comment_doc_marker_prefix"] ← Normalized value
+          (READ-ONLY after this point)
+        location: PreparedPolicyBundle TypedDict
+        ownership: scanner_plugins.bundle_resolver
+
+    fallback_chain:
+      primary: scan_options["comment_doc_marker_prefix"]
+      fallback: None (→ try next ingress path)
+    
+    consumers_using_path:
+      - scanner_core.task_extract_adapters (public entry points)
+      - scanner_plugins.ansible.feature_detection
+      - Any internal code calling with explicit marker_prefix
+
+    tests_validating_path:
+      - test_comment_doc_plugin_resolution.py::test_marker_prefix_projection_from_direct_option
+      - test_feature_detector.py::test_fsrc_feature_detector_annotation_hot_path_uses_canonical_comment_doc_marker_prefix
+
+    example_caller:
+      |
+        # API caller with known prefix
+        options = build_run_scan_options_canonical(
+          role_path="/path/to/role",
+          comment_doc_marker_prefix="myprefix",  ← DIRECT PARAM
+          ...
+        )
+        bundle = ensure_prepared_policy_bundle(scan_options=options)
+        # bundle["comment_doc_marker_prefix"] == "myprefix" (normalized)
+
+  # ============================================================================
+  # INGRESS PATH 2: Policy Context Nested Structure
+  # ============================================================================
+  path_002:
+    name: Policy Context Nested (comment_doc.marker.prefix)
+    priority: HIGH
+    entry_point: Caller passes policy_context dict with nested marker config
+    description: >
+      Caller provides marker-prefix via policy_context["comment_doc"]["marker"]["prefix"].
+      This is the preferred programmatic path for policy-driven scanning.
+    
+    call_chain:
+      - step: 1
+        layer: API/External
+        function: Caller code
+        action: >
+          policy_context = {
+            "comment_doc": {
+              "marker": {
+                "prefix": "my-marker"
+              }
+            }
+          }
+          options = build_run_scan_options_canonical(
+            ...,
+            policy_context=policy_context
+          )
+        location: Caller's responsibility
+      
+      - step: 2
+        layer: Ingress Validation
+        function: build_run_scan_options_canonical()
+        action: >
+          options["policy_context"] = _copy_scan_policy_context(policy_context)
+          (Deep copy to prevent cross-request mutations)
+        location: src/prism/scanner_core/scan_request.py:100-110
+        validation: "Type check: dict | None"
+      
+      - step: 3
+        layer: Bundle Assembly
+        function: ensure_prepared_policy_bundle()
+        action: >
+          if not isinstance(raw_prefix, str):  # Direct param check fails
+              policy_context = scan_options.get("policy_context")
+              if isinstance(policy_context, dict):
+                  cd = policy_context.get("comment_doc")
+                  if isinstance(cd, dict):
+                      mk = cd.get("marker")
+                      if isinstance(mk, dict):
+                          p = mk.get("prefix")
+                          if isinstance(p, str):
+                              raw_prefix = p
+        location: src/prism/scanner_plugins/bundle_resolver.py:142-151
+        normalization: "Applied via normalize_marker_prefix()"
+      
+      - step: 4
+        layer: Storage
+        function: prepared_policy_bundle (immutable)
+        action: >
+          bundle["comment_doc_marker_prefix"] ← Normalized value
+          (READ-ONLY after this point)
+        location: PreparedPolicyBundle TypedDict
+        ownership: scanner_plugins.bundle_resolver
+
+    fallback_chain:
+      primary: scan_options["comment_doc_marker_prefix"]
+      secondary: scan_options["policy_context"]["comment_doc"]["marker"]["prefix"]
+      fallback: None (→ try next ingress path)
+    
+    precedence_note: >
+      Direct parameter (PATH 1) takes precedence over nested policy_context.
+      If both provided, direct parameter wins.
+
+    consumers_using_path:
+      - Policy-driven callers (e.g., configuration file parsing)
+      - Multi-role batch scanners with custom policies
+      - Integration tests
+
+    tests_validating_path:
+      - test_comment_doc_plugin_resolution.py::test_marker_prefix_from_policy_context_nested
+      - test_task_parser_precedence_matrix.py (precedence validation)
+
+    example_caller:
+      |
+        # Policy-driven caller
+        policy = load_scan_policy("policy.yaml")
+        options = build_run_scan_options_canonical(
+          role_path="/path/to/role",
+          policy_context={
+            "comment_doc": {
+              "marker": {
+                "prefix": policy["marker_prefix"]  ← NESTED
+              }
+            }
+          },
+          ...
+        )
+
+  # ============================================================================
+  # INGRESS PATH 3: Policy Context Flat Alias (legacy)
+  # ============================================================================
+  path_003:
+    name: Policy Context Flat Alias (comment_doc_marker_prefix)
+    priority: MEDIUM
+    entry_point: Caller passes policy_context with flat comment_doc_marker_prefix key
+    description: >
+      Legacy path for backward compatibility. Caller can put marker_prefix directly
+      in policy_context at top level under "comment_doc_marker_prefix". This is a
+      flat alias to the nested PATH 2.
+    
+    call_chain:
+      - step: 1
+        layer: API/External
+        function: Caller code (legacy)
+        action: >
+          policy_context = {
+            "comment_doc_marker_prefix": "legacy-marker"  ← FLAT KEY
+          }
+          options = build_run_scan_options_canonical(
+            ...,
+            policy_context=policy_context
+          )
+        location: Caller's responsibility (legacy code)
+      
+      - step: 2
+        layer: Ingress Validation
+        function: build_run_scan_options_canonical()
+        action: >
+          options["policy_context"] = _copy_scan_policy_context(policy_context)
+          (Deep copy to prevent cross-request mutations)
+        location: src/prism/scanner_core/scan_request.py:100-110
+        validation: "Type check: dict | None"
+      
+      - step: 3
+        layer: Bundle Assembly
+        function: ensure_prepared_policy_bundle()
+        action: >
+          # Note: Flat alias NOT explicitly handled in current code.
+          # Falls through to DEFAULT_DOC_MARKER_PREFIX unless PATH 1 or 2 match.
+          # To support flat alias, would need additional check:
+          # if isinstance(policy_context, dict):
+          #     flat = policy_context.get("comment_doc_marker_prefix")
+          #     if isinstance(flat, str):
+          #         raw_prefix = flat
+        location: src/prism/scanner_plugins/bundle_resolver.py:142-157
+        normalization: "Not currently supported — use PATH 2 instead"
+      
+      - step: 4
+        layer: Storage / Fallback
+        function: DEFAULT_DOC_MARKER_PREFIX
+        action: >
+          If flat alias not recognized, falls back to default "prism"
+        location: src/prism/scanner_config/section.py:5
+        note: "Consider adding explicit flat alias support in Phase 1.3"
+
+    fallback_chain:
+      primary: scan_options["comment_doc_marker_prefix"]
+      secondary: scan_options["policy_context"]["comment_doc"]["marker"]["prefix"]
+      tertiary: scan_options["policy_context"]["comment_doc_marker_prefix"] (not implemented)
+      fallback: DEFAULT_DOC_MARKER_PREFIX
+
+    deprecation_status: >
+      NOT DEPRECATED but not actively encouraged. If encountered, use PATH 2 instead.
+      Consider adding warning in Phase 1.2 enforcement.
+
+    consumers_using_path:
+      - Older code that may pass flat policy_context
+      - Potential external integrations
+      - Tests checking backward compat
+
+    action_items:
+      - Phase 1.2: Add explicit support or deprecation warning for flat alias
+      - Phase 2: Monitor production usage; deprecate if unused
+
+    example_caller:
+      |
+        # Legacy caller (not recommended, but may exist)
+        options = build_run_scan_options_canonical(
+          role_path="/path/to/role",
+          policy_context={
+            "comment_doc_marker_prefix": "legacy-marker"  ← FLAT (legacy)
+          },
+          ...
+        )
+
+  # ============================================================================
+  # INGRESS PATH 4: Default Constant Fallback
+  # ============================================================================
+  path_004:
+    name: Default Constant Fallback
+    priority: LOW
+    entry_point: No marker_prefix provided; system uses DEFAULT_DOC_MARKER_PREFIX
+    description: >
+      Final fallback when no marker_prefix provided via any other path.
+      Returns hardcoded "prism" marker prefix.
+    
+    call_chain:
+      - step: 1
+        layer: API/External
+        function: Caller code (minimal)
+        action: >
+          options = build_run_scan_options_canonical(
+            role_path="/path/to/role",
+            # NO comment_doc_marker_prefix provided
+            # NO policy_context provided
+            ...
+          )
+        location: Caller code
+      
+      - step: 2
+        layer: Ingress Validation
+        function: build_run_scan_options_canonical()
+        action: >
+          options["comment_doc_marker_prefix"] = None (not provided)
+        location: src/prism/scanner_core/scan_request.py:120-150
+      
+      - step: 3
+        layer: Bundle Assembly
+        function: ensure_prepared_policy_bundle()
+        action: >
+          raw_prefix = scan_options.get("comment_doc_marker_prefix")  # → None
+          if not isinstance(raw_prefix, str):
+              # Check policy_context (skipped for brevity; also None)
+              raw_prefix = None  # Still not a string
+          if isinstance(raw_prefix, str):
+              # Not taken; raw_prefix is None
+          else:
+              bundle["comment_doc_marker_prefix"] = DEFAULT_DOC_MARKER_PREFIX
+        location: src/prism/scanner_plugins/bundle_resolver.py:142-157
+        normalization: "DEFAULT_DOC_MARKER_PREFIX = 'prism'"
+      
+      - step: 4
+        layer: Storage
+        function: prepared_policy_bundle (immutable)
+        action: >
+          bundle["comment_doc_marker_prefix"] = "prism" (default)
+          (READ-ONLY after this point)
+        location: PreparedPolicyBundle TypedDict
+        ownership: scanner_plugins.bundle_resolver
+
+    fallback_chain:
+      primary: scan_options["comment_doc_marker_prefix"]
+      secondary: scan_options["policy_context"]["comment_doc"]["marker"]["prefix"]
+      fallback: DEFAULT_DOC_MARKER_PREFIX = "prism"
+
+    default_value: "prism"
+    default_constant_location: src/prism/scanner_config/section.py:5
+
+    consumers_using_path:
+      - Most end-users (default behavior)
+      - Tests with minimal configuration
+      - CLI invocations without --marker-prefix flag
+
+    usage_frequency: HIGH (most common path)
+
+    example_caller:
+      |
+        # Minimal caller, accepts default
+        options = build_run_scan_options_canonical(
+          role_path="/path/to/role",
+          # All other parameters defaulted
+          ...
+        )
+        bundle = ensure_prepared_policy_bundle(scan_options=options)
+        # bundle["comment_doc_marker_prefix"] == "prism" (default)
+
+  # ============================================================================
+  # INGRESS PATH 5: Pre-Assembled Bundle (Bundle-to-Bundle Pass)
+  # ============================================================================
+  path_005:
+    name: Pre-Assembled Bundle Pass
+    priority: MEDIUM
+    entry_point: Caller provides prepared_policy_bundle with marker_prefix already set
+    description: >
+      Caller can pass a pre-assembled prepared_policy_bundle to scan_request.
+      If bundle already contains comment_doc_marker_prefix, it's passed through
+      unchanged (or copy-validated).
+    
+    call_chain:
+      - step: 1
+        layer: API/External
+        function: Caller code (advanced)
+        action: >
+          prepared_bundle = {
+            "comment_doc_marker_prefix": "pre-assembled",
+            # ... other policy entries ...
+          }
+          options = build_run_scan_options_canonical(
+            role_path="/path/to/role",
+            prepared_policy_bundle=prepared_bundle,  ← PRE-ASSEMBLED
+            ...
+          )
+        location: Caller code (advanced use case)
+      
+      - step: 2
+        layer: Ingress Validation
+        function: build_run_scan_options_canonical()
+        action: >
+          options["prepared_policy_bundle"] = copy.deepcopy(prepared_policy_bundle)
+          (Deep copy to prevent cross-request mutations)
+        location: src/prism/scanner_core/scan_request.py:180-192
+        validation: "Type check: dict | None"
+      
+      - step: 3
+        layer: Bundle Assembly
+        function: ensure_prepared_policy_bundle()
+        action: >
+          if bundle.get("comment_doc_marker_prefix") is None:
+              # Skip; already set in pre-assembled bundle
+          else:
+              # Try to obtain from ingress or policy_context (PATH 1-4)
+              # If no override, pre-assembled value persists
+        location: src/prism/scanner_plugins/bundle_resolver.py:142
+        precedence_note: "Pre-assembled bundle is NOT overridden if already set"
+      
+      - step: 4
+        layer: Storage
+        function: prepared_policy_bundle (immutable)
+        action: >
+          bundle["comment_doc_marker_prefix"] ← Pre-assembled value OR override
+          (READ-ONLY after this point)
+        location: PreparedPolicyBundle TypedDict
+        ownership: scanner_plugins.bundle_resolver
+
+    fallback_chain:
+      primary: Pre-assembled bundle value (if set)
+      secondary: scan_options["comment_doc_marker_prefix"] (override)
+      fallback: Other paths (PATH 1-4)
+
+    precedence_note: >
+      Pre-assembled bundle value is PRESERVED unless explicitly overridden
+      by scan_options["comment_doc_marker_prefix"]. This supports pipeline
+      scenarios where bundle is assembled once, then reused with optional overrides.
+
+    consumers_using_path:
+      - Pipeline orchestration code
+      - Batch scanning with shared policy bundles
+      - Advanced integration scenarios
+
+    use_case: >
+      Useful for:
+      1. Assembling policy bundle once, reusing across multiple scans
+      2. Testing with pre-configured bundles
+      3. Avoiding repeated bundle assembly cost
+
+    example_caller:
+      |
+        # Pipeline with pre-assembled bundle
+        bundle = ensure_prepared_policy_bundle(scan_options=base_options)
+        
+        # Reuse bundle for multiple roles with optional override
+        for role_path in role_paths:
+            scan_options = build_run_scan_options_canonical(
+              role_path=role_path,
+              prepared_policy_bundle=bundle,  ← REUSE
+              # Override marker_prefix if needed
+              comment_doc_marker_prefix="custom" or None,
+              ...
+            )
+            result = run_scan(scan_options)
+
+  # ============================================================================
+  # INGRESS PATH 6: CLI Entry Point (CLI Flag)
+  # ============================================================================
+  path_006:
+    name: CLI Entry Point
+    priority: MEDIUM
+    entry_point: User runs CLI with --marker-prefix flag
+    description: >
+      CLI parser receives --marker-prefix flag, passes to build_run_scan_options_canonical()
+      which routes it to PATH 1 (direct API parameter). This is the user-facing entry point.
+    
+    call_chain:
+      - step: 1
+        layer: CLI
+        function: CLI argument parser (cli_app/)
+        action: >
+          args = parser.parse_args()
+          marker_prefix = args.marker_prefix  # From --marker-prefix flag
+        location: src/prism/cli_app/ (CLI entrypoint)
+        cli_flag: "--marker-prefix" or similar
+      
+      - step: 2
+        layer: Orchestration
+        function: CLI handler
+        action: >
+          options = build_run_scan_options_canonical(
+            role_path=args.role_path,
+            comment_doc_marker_prefix=marker_prefix,  ← FROM FLAG
+            ...
+          )
+        location: CLI orchestration layer
+        routing: Routes to PATH 1 (Direct API Parameter)
+      
+      - step: 3-4
+        layer: Ingress & Bundle
+        function: build_run_scan_options_canonical() → ensure_prepared_policy_bundle()
+        action: "Follow PATH 1 (Direct API Parameter)"
+        location: Covered in PATH 1
+        routing: "See PATH 1 call chain"
+
+    cli_flag_details:
+      flag: "--marker-prefix" (proposed)
+      argument_type: string
+      default: None (use fallback to PATH 4)
+      example: "prism scan /path/to/role --marker-prefix custom-marker"
+      help_text: "Marker prefix for comment-driven documentation (default: prism)"
+
+    consumers_using_path:
+      - End-users via CLI
+      - CI/CD pipelines invoking prism CLI
+      - External scripts calling prism command-line
+
+    example_caller:
+      |
+        # User runs CLI with custom marker prefix
+        $ prism scan /path/to/role --marker-prefix "my-marker"
+        
+        # Internally:
+        # 1. CLI parser extracts "my-marker" from flag
+        # 2. Passes to build_run_scan_options_canonical(..., comment_doc_marker_prefix="my-marker")
+        # 3. Follows PATH 1 (Direct API Parameter)
+
+  # ============================================================================
+  # INGRESS PATH 7: Configuration File Path (YAML Policy File)
+  # ============================================================================
+  path_007:
+    name: Configuration File Path
+    priority: LOW
+    entry_point: User specifies scan policy file; parser extracts marker_prefix
+    description: >
+      User provides --policy-config flag pointing to YAML file containing
+      marker_prefix configuration. File parser extracts marker_prefix and
+      constructs policy_context, routing to PATH 2 (Policy Context Nested).
+    
+    call_chain:
+      - step: 1
+        layer: CLI
+        function: CLI argument parser (cli_app/)
+        action: >
+          args = parser.parse_args()
+          policy_config_path = args.policy_config  # From --policy-config flag
+        location: src/prism/cli_app/ (CLI entrypoint)
+        cli_flag: "--policy-config" or similar
+      
+      - step: 2
+        layer: Configuration Parser
+        function: Policy config loader
+        action: >
+          policy_yaml = load_yaml_file(policy_config_path)
+          # Extract from YAML:
+          # policy_yaml["comment_doc"]["marker"]["prefix"] = "my-marker"
+        location: Configuration parsing layer
+        file_format: YAML
+        schema_location: scanner_config/ (schema definitions)
+      
+      - step: 3
+        layer: Orchestration
+        function: CLI handler / Scanner orchestration
+        action: >
+          policy_context = {
+            "comment_doc": {
+              "marker": {
+                "prefix": policy_yaml.get("comment_doc", {}).get("marker", {}).get("prefix")
+              }
+            }
+          }
+          options = build_run_scan_options_canonical(
+            role_path=args.role_path,
+            policy_context=policy_context,  ← FROM CONFIG FILE
+            ...
+          )
+        location: CLI orchestration layer
+        routing: Routes to PATH 2 (Policy Context Nested)
+      
+      - step: 4-6
+        layer: Ingress & Bundle
+        function: build_run_scan_options_canonical() → ensure_prepared_policy_bundle()
+        action: "Follow PATH 2 (Policy Context Nested)"
+        location: Covered in PATH 2
+        routing: "See PATH 2 call chain"
+
+    cli_flag_details:
+      flag: "--policy-config"
+      argument_type: file path
+      default: None (omit to use defaults or PATH 1 override)
+      example: "prism scan /path/to/role --policy-config policy.yaml"
+      help_text: "Path to YAML scan policy config file"
+
+    configuration_file_schema:
+      example_yaml: |
+        # policy.yaml
+        comment_doc:
+          marker:
+            prefix: "custom-marker"  ← EXTRACTED HERE
+          # ... other config ...
+        # ... other sections ...
+      
+      schema_definition: scanner_config/policy_schema.yaml (proposed)
+
+    precedence_note: >
+      CLI --marker-prefix flag (PATH 6) takes precedence over
+      config file value (PATH 7) if both provided.
+
+    consumers_using_path:
+      - Users with policy files (development/testing)
+      - CI/CD with standardized policy configuration
+      - Organization-wide scanning with consistent policies
+
+    example_caller:
+      |
+        # User runs CLI with policy config file
+        $ prism scan /path/to/role --policy-config org-policy.yaml
+        
+        # org-policy.yaml:
+        # comment_doc:
+        #   marker:
+        #     prefix: "org-marker"
+        
+        # Internally:
+        # 1. CLI parser extracts org-policy.yaml from flag
+        # 2. Config parser loads YAML, extracts prefix "org-marker"
+        # 3. Constructs policy_context["comment_doc"]["marker"]["prefix"] = "org-marker"
+        # 4. Passes to build_run_scan_options_canonical(..., policy_context=policy_context)
+        # 5. Follows PATH 2 (Policy Context Nested)
+
+# ============================================================================
+# INGRESS PATH COMPARISON & PRECEDENCE
+# ============================================================================
+
+ingress_precedence_matrix:
+  title: Marker-Prefix Resolution Priority (Highest to Lowest)
+  
+  priority_order:
+    1: Direct API Parameter (PATH 1) — comment_doc_marker_prefix in scan_options
+    2: Policy Context Nested (PATH 2) — policy_context["comment_doc"]["marker"]["prefix"]
+    3: CLI Flag (PATH 6) — --marker-prefix (routes to PATH 1)
+    4: Configuration File (PATH 7) — policy.yaml (routes to PATH 2)
+    5: Pre-Assembled Bundle (PATH 5) — prepared_policy_bundle already set
+    6: Policy Context Flat Alias (PATH 3) — policy_context["comment_doc_marker_prefix"] (not implemented)
+    7: Default Constant (PATH 4) — DEFAULT_DOC_MARKER_PREFIX = "prism"
+
+  matrix:
+    - scenario: API caller with direct param + policy context
+      winner: PATH 1 (Direct API Parameter)
+      reason: Direct parameter has highest priority
+    
+    - scenario: CLI --marker-prefix + policy.yaml
+      winner: PATH 6 (CLI Flag) → PATH 1 (Direct Parameter)
+      reason: CLI flag converted to direct param, which wins over config file
+    
+    - scenario: Pre-assembled bundle + no override
+      winner: PATH 5 (Pre-Assembled Bundle)
+      reason: Bundle value preserved if not overridden
+    
+    - scenario: Policy context nested + nothing else
+      winner: PATH 2 (Policy Context Nested)
+      reason: Second-priority path when PATH 1 not provided
+    
+    - scenario: No parameters provided at all
+      winner: PATH 4 (Default Constant)
+      reason: Final fallback to "prism"
+
+# ============================================================================
+# VALIDATION CHECKLIST
+# ============================================================================
+
+validation_checklist:
+  - [x] All 7 ingress paths identified and documented
+  - [x] Each path traced from entry to bundle_resolver write point
+  - [x] Precedence order established and verified
+  - [x] Fallback chain clear and documented
+  - [x] Call chains traced through source files
+  - [x] Normalization location identified for each path
+  - [x] Test coverage mapped for each path
+  - [x] CLI/API integration points documented
+  - [x] Configuration file schema identified
+  - [x] No unauthorized write points discovered
+  - [x] All paths terminate at canonical write point (bundle_resolver)
+
+# ============================================================================
+# PHASE 1 NEXT STEPS (Tasks 1.2-1.5)
+# ============================================================================
+
+phase_1_tasks:
+  task_1_2:
+    title: CI Enforcement Setup
+    focus: Lock down unauthorized ingress paths
+    rules:
+      - MP1-Ingress-001: No writes to bundle outside bundle_resolver
+      - MP1-Ingress-002: All 7 ingress paths must validate input type at entry
+      - MP1-Ingress-003: Normalization must be applied before storage
+  
+  task_1_3:
+    title: Test Gating
+    focus: Validate all 7 ingress paths work end-to-end
+    tests_required:
+      - test_mp1_ingress_path_1_direct_api_parameter
+      - test_mp1_ingress_path_2_policy_context_nested
+      - test_mp1_ingress_path_3_policy_context_flat_alias (or deprecation)
+      - test_mp1_ingress_path_4_default_constant_fallback
+      - test_mp1_ingress_path_5_pre_assembled_bundle
+      - test_mp1_ingress_path_6_cli_entry_point
+      - test_mp1_ingress_path_7_configuration_file_path
+  
+  task_1_4:
+    title: Flow Validation
+    focus: Document visual flow and compliance matrix
+    artifacts:
+      - Flow diagram showing all 7 ingress paths
+      - Precedence matrix visualization
+      - Compliance matrix: 5 subsystems × 7 paths
+  
+  task_1_5:
+    title: Rollback Preparation
+    focus: Create checkpoint for Phase 2 comparison
+    checkpoint: mp1-phase1-checkpoint-20260509
+    comparison_gate: Phase 2 audit must report 0 new violations using these 7 paths

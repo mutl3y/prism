@@ -1,0 +1,343 @@
+plan_id: q3-init6-type-improvement-strategy
+created_at: "2026-05-09"
+created_by: Scout-Q3Init6TypeSafety
+objective: "Define 3 strategic approaches (A/B/C) for expanding type safety from Q2 baselines"
+status: in_progress
+
+strategic_options:
+  option_a:
+    name: "Aggressive Full-Coverage"
+    description: "Add types to ALL modules (including tests). Complete type safety across 253 files."
+    scope:
+      production_modules: 140
+      test_modules: 60
+      config_modules: 10
+      total_functions: 1200
+    effort_estimate:
+      weeks: "5-6"
+      sprints: 2
+      person_weeks: 10-12
+      estimated_cost: "$25k-30k"
+    phases:
+      phase_1_di_unblock:
+        description: "Fix DI container type erasure (decision blocker)"
+        files:
+          - src/prism/scanner_core/di.py
+          - src/prism/scanner_core/di_helpers.py
+        estimated_time: "0.5 week"
+        impact: "Unblocks 15+ dependent modules"
+      phase_2_extraction_layer:
+        description: "Typing for scanner_extract/* and feature_detection"
+        files:
+          - src/prism/scanner_extract/task_line_parsing.py
+          - src/prism/scanner_extract/task_file_traversal.py
+          - src/prism/scanner_extract/task_annotation_parsing.py
+          - src/prism/scanner_extract/variable_extractor.py
+          - src/prism/scanner_plugins/ansible/feature_detection.py
+        estimated_time: "2 weeks"
+        impact: "Reduces mypy errors from 80 → 30"
+      phase_3_plugin_suite:
+        description: "Complete typing for ansible plugins, YAML, Jinja, comment-doc parsers"
+        files:
+          - src/prism/scanner_plugins/ansible/*
+          - src/prism/scanner_plugins/parsers/*
+        estimated_time: "2 weeks"
+        impact: "Reduces mypy errors from 30 → 10"
+      phase_4_test_suite:
+        description: "Type test fixtures, parametrizations, assertions"
+        files:
+          - src/prism/tests/test_*.py (all 35+ test error files)
+        estimated_time: "1 week"
+        impact: "Reduces mypy errors from 10 → 0"
+      phase_5_api_cli_layer:
+        description: "Fix API/CLI boundary signature mismatches"
+        files:
+          - src/prism/api.py
+          - src/prism/cli.py
+          - src/prism/api_layer/*
+        estimated_time: "0.5 week"
+        impact: "Eliminates API signature errors"
+    pros:
+      - ✅ 100% mypy clean (zero errors)
+      - ✅ Strongest type safety guarantees
+      - ✅ IDE tooling fully enabled (autocomplete, refactoring)
+      - ✅ Future refactoring is low-risk
+      - ✅ Sets precedent for platform expansion (K8s, Terraform)
+    cons:
+      - ❌ Highest effort (5-6 weeks)
+      - ❌ Touches test layer (high change volume, lower ROI)
+      - ❌ May require test fixture redesign
+      - ❌ Requires sustained focus
+    risk_factors:
+      - Test suite typing is high-touch, low-payoff (test code is already validated by CI)
+      - Over-engineering test layer may introduce brittleness
+    decision_gates:
+      - DI type erasure resolution (architecture decision)
+      - API signature alignment (backward-compat check)
+      - Test fixture protocol design (test infra decision)
+    mypy_outcome: "Found 0 errors"
+    recommended_for: "Long-term platform stability; when test layer is ready for refactoring"
+
+  option_b:
+    name: "Targeted High-Value (RECOMMENDED)"
+    description: "Focus on top 10 high-impact production modules. 80% of benefit with 40% effort."
+    scope:
+      production_modules: 100 (top 10 + their consumers)
+      test_modules: 0 (excluded)
+      config_modules: 5
+      total_functions: 600
+      coverage_target: "90% return types, 85% arg types"
+    effort_estimate:
+      weeks: "2-3"
+      sprints: 1
+      person_weeks: 4-5
+      estimated_cost: "$10k-12k"
+    phases:
+      phase_1_di_unblock:
+        description: "Fix DI container type erasure (critical blocker)"
+        files:
+          - src/prism/scanner_core/di.py
+          - src/prism/scanner_core/di_helpers.py
+        estimated_time: "0.5 week"
+        impact: "Unblocks extraction layer, feature detection, plugin layer"
+      phase_2a_extraction_core:
+        description: "Type extraction layer modules (high call frequency)"
+        files:
+          - src/prism/scanner_extract/task_line_parsing.py
+          - src/prism/scanner_extract/task_file_traversal.py
+          - src/prism/scanner_extract/task_catalog_assembly.py
+          - src/prism/scanner_extract/task_annotation_parsing.py
+        estimated_time: "1 week"
+        impact: "9 errors → 0 in extraction layer"
+      phase_2b_feature_detection:
+        description: "Type feature_detection and variable discovery plugins"
+        files:
+          - src/prism/scanner_plugins/ansible/feature_detection.py
+          - src/prism/scanner_plugins/ansible/variable_discovery.py
+          - src/prism/scanner_plugins/ansible/variable_extractor.py
+          - src/prism/scanner_plugins/ansible/default_policies.py
+        estimated_time: "1 week"
+        impact: "12 errors → 0 in plugin suite"
+      phase_3_api_alignment:
+        description: "Fix API/CLI signature mismatches"
+        files:
+          - src/prism/api.py
+          - src/prism/cli.py
+        estimated_time: "0.5 week"
+        impact: "4 errors → 0 in API layer"
+      phase_4_deferred:
+        description: "Test suite typing deferred to Q3b"
+        files: []
+        estimated_time: "0 week (Q3b)"
+        impact: "35 test errors remain, revisited later"
+    pros:
+      - ✅ 40% less effort than Option A
+      - ✅ 70-80% reduction in mypy errors (80 → 15-20)
+      - ✅ Covers all high-frequency call paths
+      - ✅ Minimal test infrastructure changes
+      - ✅ Achieves 90%+ type safety in production code
+      - ✅ High ROI (effort vs. payoff)
+      - ✅ Leaves decision gates open for test layer strategy
+    cons:
+      - ⚠️ Test suite remains untyped (35 errors persist)
+      - ⚠️ Future test changes may miss type issues
+      - ⚠️ Not 100% clean mypy (pragmatic trade-off)
+    risk_factors:
+      - Test layer remains untyped; new tests must follow manual discipline
+      - Maintenance burden: test regressions won't be caught by type checker
+    decision_gates:
+      - DI type erasure resolution (critical)
+      - API signature alignment (critical)
+    mypy_outcome: "Found 15-20 errors (test suite only)"
+    coverage_metrics:
+      mypy_errors_reduced: "80 → 15-20 (75-81% reduction)"
+      production_return_types: "90%+"
+      production_arg_types: "85%+"
+      test_coverage: "excluded (defer to Q3b)"
+    recommended_for: "Q3 Initiative 6 Phase 0 (THIS PHASE). Best balance of effort vs. impact."
+
+  option_c:
+    name: "Incremental Plugin-First"
+    description: "Focus ONLY on plugin system. Prototyping approach; lowest effort, narrow scope."
+    scope:
+      production_modules: 40 (plugin layer only)
+      test_modules: 0
+      config_modules: 0
+      total_functions: 200
+      coverage_target: "80% return types"
+    effort_estimate:
+      weeks: "1-2"
+      sprints: 0.5
+      person_weeks: 2-3
+      estimated_cost: "$5k-7k"
+    phases:
+      phase_1_plugin_protocols:
+        description: "Verify Protocol definitions in scanner_plugins/interfaces.py (already 100%)"
+        files:
+          - src/prism/scanner_plugins/interfaces.py
+        estimated_time: "0.25 week (verification only)"
+        impact: "Establish plugin typing baselines"
+      phase_2_ansible_suite:
+        description: "Type Ansible plugin implementations"
+        files:
+          - src/prism/scanner_plugins/ansible/feature_detection.py
+          - src/prism/scanner_plugins/ansible/variable_discovery.py
+          - src/prism/scanner_plugins/ansible/default_policies.py
+        estimated_time: "1 week"
+        impact: "12 errors → 0 in feature_detection.py"
+      phase_3_defer_rest:
+        description: "Defer extraction layer, API layer, test layer to Q3b/Q3c"
+        files: []
+        estimated_time: "0 week"
+        impact: "50+ errors remain"
+    pros:
+      - ✅ Lowest effort (1-2 weeks)
+      - ✅ Prototyping approach: learn patterns before full commit
+      - ✅ Minimal risk to core execution paths
+      - ✅ Can be done by junior contributor
+      - ✅ Establishes plugin typing conventions for K8s/Terraform expansion
+    cons:
+      - ❌ Very narrow scope (plugin layer only, ~40 functions)
+      - ❌ Leaves extraction layer (high-frequency callers) untyped
+      - ❌ 80% of errors remain (50+ errors untouched)
+      - ❌ Low strategic impact for Q3 roadmap
+      - ❌ Requires follow-up Q3b initiative to be useful
+    risk_factors:
+      - Too limited to move the needle on overall type safety
+      - Extraction layer DI issue remains unresolved
+      - May feel like incomplete work
+    decision_gates: []
+    mypy_outcome: "Found 68+ errors (reduction negligible)"
+    coverage_metrics:
+      mypy_errors_reduced: "80 → 68 (15% reduction)"
+      production_return_types: "65%"
+      plugin_protocol_coverage: "100%"
+    recommended_for: "Learning/prototyping only. NOT RECOMMENDED for production Q3 initiative."
+
+strategic_decision_matrix:
+  criteria:
+    effort:
+      weight: 0.25
+      lower_is_better: true
+    coverage_gain:
+      weight: 0.35
+      lower_is_better: false
+    mypy_clean_lines:
+      weight: 0.20
+      lower_is_better: false
+    risk_level:
+      weight: 0.20
+      lower_is_better: true
+
+  scoring:
+    option_a:
+      effort_score: 1.0 (highest effort)
+      coverage_score: 1.0 (100% coverage)
+      mypy_clean_score: 1.0 (0 errors)
+      risk_score: 0.6 (test changes risky)
+      weighted_score: 0.89
+    option_b:
+      effort_score: 0.5 (medium effort)
+      coverage_score: 0.8 (90% production coverage)
+      mypy_clean_score: 0.7 (70-80% error reduction)
+      risk_score: 0.8 (low risk, stable)
+      weighted_score: 0.72  # ⭐ RECOMMENDED
+    option_c:
+      effort_score: 0.2 (lowest effort)
+      coverage_score: 0.3 (narrow plugin scope)
+      mypy_clean_score: 0.1 (15% error reduction)
+      risk_score: 1.0 (no risk but limited impact)
+      weighted_score: 0.35
+
+recommendation:
+  selected: option_b
+  rationale: |
+    Option B (Targeted High-Value) is the recommended path for Q3 Initiative 6.
+
+    **Why B over A?**
+    - A is over-engineered for current needs; test layer typing can wait for dedicated Q3b initiative
+    - B achieves 90%+ production code type safety with 40% less effort
+    - B focuses on high-frequency call paths (extraction, feature detection) → higher ROI
+    - Test suite remains validated by CI anyway; mypy on tests is secondary to integration tests
+
+    **Why B over C?**
+    - C is too narrow; leaves extraction layer (the heart of the scanner) untyped
+    - C only achieves 15% error reduction; not strategic for platform
+    - B addresses critical blocker (DI type erasure) that unblocks all downstream
+    - B establishes plugin typing as part of broader production coverage, not isolation
+
+    **Key Success Factors for Option B:**
+    1. DI type erasure resolution (Phase 1) is CRITICAL blocker
+    2. API/CLI alignment (Phase 3) is quick fix with high ROI
+    3. Extraction + feature detection (Phases 2a/2b) are the high-frequency paths
+    4. Test typing deferred to Q3b (separate initiative with its own scope)
+
+  estimated_timeline: |
+    - Week 1: DI blocker + Phase 2a extraction
+    - Week 2: Phase 2b feature detection + Phase 3 API alignment
+    - Week 3: Buffer + validation
+    Total: 2-3 weeks (1 sprint)
+
+  next_steps:
+    1. Schedule decision gate: "DI type erasure architecture review"
+    2. Draft Phase 1 implementation spec: DI factory overloads / generics / casting strategy
+    3. Start Phase 1 (DI) immediately after decision gate
+    4. Plan Q3b initiative: "Test Suite Type Safety" (separate)
+    5. Plan Q3c initiative: "100% Mypy Clean" (includes test layer + edge cases)
+
+critical_blockers:
+  blocker_1_di_type_erasure:
+    description: "DIContainer factories return `object`, preventing downstream typing"
+    files: [src/prism/scanner_core/di.py, src/prism/scanner_core/di_helpers.py]
+    affects: [feature_detection, task_line_parsing, variable_discovery]
+    decision_required: true
+    decision_options:
+      - "Add overloads to factory methods (highest type safety)"
+      - "Use TypeVar generics + bounds (medium complexity)"
+      - "Accept `cast()` at call sites (low effort, lower safety)"
+    estimated_resolution_effort: "0.5-1 week"
+    recommendation: "Overloads approach (highest safety with minimal complexity)"
+
+  blocker_2_api_signature_mismatch:
+    description: "write_role_scan_output() kwargs don't match call sites in cli.py"
+    files: [src/prism/api.py, src/prism/cli.py]
+    affects: [CLI layer]
+    decision_required: true
+    decision_options:
+      - "Fix API signature to match calls"
+      - "Fix CLI calls to match API"
+    estimated_resolution_effort: "0.5 week"
+    recommendation: "Audit intention, then align one direction (TBD in Phase 1)"
+
+open_decisions:
+  decision_1_test_layer_strategy:
+    question: "Should test suite typing be included in Q3 Initiative 6?"
+    current_state: "35 errors in test files"
+    option_b_approach: "Defer to Q3b (separate initiative)"
+    rationale: |
+      Tests are already validated by CI integration tests. Mypy on test layer:
+      - Provides secondary type safety (redundant vs. runtime validation)
+      - High effort (test fixture redesign)
+      - Lower ROI than production code typing
+      Recommendation: Defer to Q3b, focus Q3 on production code.
+
+  decision_2_di_architecture_pattern:
+    question: "How should DI factories express their return types?"
+    current_pattern: "Factory returns `object` (type erasure)"
+    options:
+      - Overloads: factory_task_line_policy() -> PreparedTaskLineParsingPolicy
+      - Generics: factory[T](policy_type: type[T]) -> T
+      - Casts: cast(PreparedTaskLineParsingPolicy, di.factory_task_line_policy())
+    decision_required: true
+    estimated_effort: "0.5-1 week"
+    recommendation: "Overloads (explicit, no runtime cast overhead)"
+
+  decision_3_protocol_vs_typeddict:
+    question: "For policy types, use Protocol (structural) or TypedDict (shape)?"
+    current_usage: |
+      - PreparedTaskLineParsingPolicy: Protocol
+      - PreparedPolicyBundle: TypedDict
+      - ScanOptionsDict: TypedDict
+    rationale_for_protocols: "Plugin implementations use duck typing; structural contract better"
+    rationale_for_typeddicts: "Data shapes need shape validation; TypedDict enforces keys"
+    recommendation: "Keep current split (Protocols for plugin contracts, TypedDict for data). Document in contracts_request.py."

@@ -5,9 +5,10 @@ from __future__ import annotations
 import re
 import sys
 from collections.abc import Collection
-from typing import Any, Iterator
+from typing import Any, Iterator, cast
 
 from prism.scanner_core.di_helpers import require_prepared_policy
+from prism.scanner_data.contracts_request import PreparedTaskAnnotationPolicy
 
 
 class _PolicyBackedCollectionProxy:
@@ -125,9 +126,11 @@ def _extract_constrained_when_values(
     *,
     di: object | None = None,
 ) -> list[str]:
-    return require_prepared_policy(
-        di, "task_line_parsing", "task_line_parsing"
-    ).extract_constrained_when_values(task, variable)
+    policy = cast(
+        Any,
+        require_prepared_policy(di, "task_line_parsing", "task_line_parsing"),
+    )
+    return policy.extract_constrained_when_values(task, variable)
 
 
 def _normalize_marker_prefix(
@@ -135,9 +138,13 @@ def _normalize_marker_prefix(
     *,
     di: object | None = None,
 ) -> str:
-    return require_prepared_policy(
-        di, "task_annotation_parsing", "task_annotation_parsing"
-    ).normalize_marker_prefix(marker_prefix)
+    policy = cast(
+        PreparedTaskAnnotationPolicy,
+        require_prepared_policy(
+            di, "task_annotation_parsing", "task_annotation_parsing"
+        ),
+    )
+    return policy.normalize_marker_prefix(marker_prefix)
 
 
 def _build_marker_line_re(
@@ -146,12 +153,16 @@ def _build_marker_line_re(
     di: object | None = None,
 ):
     normalized_prefix = _normalize_marker_prefix(marker_prefix, di=di)
-    return require_prepared_policy(
-        di, "task_annotation_parsing", "task_annotation_parsing"
-    ).get_marker_line_re(normalized_prefix)
+    policy = cast(
+        PreparedTaskAnnotationPolicy,
+        require_prepared_policy(
+            di, "task_annotation_parsing", "task_annotation_parsing"
+        ),
+    )
+    return policy.get_marker_line_re(normalized_prefix)
 
 
-def get_marker_line_re(marker_prefix, *, di: object | None = None):
+def get_marker_line_re(marker_prefix, *, di: object | None = None) -> "re.Pattern[str]":
     return _build_marker_line_re(marker_prefix, di=di)
 
 
@@ -166,8 +177,11 @@ class _PolicyBackedMarkerLineRegexProxy:
     """
 
     def _current_regex(self) -> re.Pattern[str]:
-        policy = require_prepared_policy(
-            None, "task_annotation_parsing", "task_annotation_parsing"
+        policy = cast(
+            PreparedTaskAnnotationPolicy,
+            require_prepared_policy(
+                None, "task_annotation_parsing", "task_annotation_parsing"
+            ),
         )
         regex = policy.get_marker_line_re(policy.normalize_marker_prefix(None))
         if isinstance(regex, re.Pattern):

@@ -1,0 +1,129 @@
+scout_id: scout-01-typing
+focus_axis: typing
+plan_id: mutl3y-review-20260508-g82-test
+timestamp: "2026-05-08T18:15:30.000000"
+summary:
+  total_findings: 11
+  high_severity: 4
+  medium_severity: 6
+  low_severity: 1
+  primary_focus: scanner_core, scanner_extract, scanner_io
+findings:
+  - id: FIND-TYPING-001
+    severity: HIGH
+    location: src/prism/scanner_core/di_helpers.py:L105
+    finding: "require_prepared_policy() returns `Any` instead of specific policy type"
+    rationale: "Callers lose type information; should return Protocol type or specific DI contract. Affects all 17+ policy accessor call sites."
+    fix_category: return_type_annotation
+    affected_files:
+      - src/prism/scanner_core/di_helpers.py
+      - src/prism/scanner_extract/task_line_parsing.py
+      - src/prism/scanner_extract/task_catalog_assembly.py
+    
+  - id: FIND-TYPING-002
+    severity: HIGH
+    location: src/prism/scanner_extract/task_line_parsing.py:L154
+    finding: "get_marker_line_re() missing return type annotation; signature ends without `->` clause"
+    rationale: "Untyped return breaks Protocol compliance for marker regex consumers; should return `re.Pattern[str]`."
+    fix_category: return_type_annotation
+    affected_files:
+      - src/prism/scanner_extract/task_line_parsing.py:L154
+    
+  - id: FIND-TYPING-003
+    severity: HIGH
+    location: src/prism/scanner_extract/task_line_parsing.py:L94-114
+    finding: "Policy getter functions return `-> object` when they should return specific types (frozenset[str], re.Pattern[str])"
+    rationale: "Functions get_task_include_keys, get_role_include_keys, get_include_vars_keys, get_set_fact_keys, get_task_block_keys, get_task_meta_keys all lose caller type safety."
+    fix_category: return_type_annotation
+    affected_files:
+      - src/prism/scanner_extract/task_line_parsing.py:L94
+      - src/prism/scanner_extract/task_line_parsing.py:L98
+      - src/prism/scanner_extract/task_line_parsing.py:L102
+      - src/prism/scanner_extract/task_line_parsing.py:L106
+      - src/prism/scanner_extract/task_line_parsing.py:L110
+      - src/prism/scanner_extract/task_line_parsing.py:L114
+    
+  - id: FIND-TYPING-004
+    severity: HIGH
+    location: src/prism/scanner_core/feature_detector.py:L53,95,99,111
+    finding: "Excessive cast(dict[str, Any], options) instead of using TypedDict narrowing"
+    rationale: "ScanOptionsDict is a TypedDict; casting hides type information. Should use issubclass checks or inline TypedDict protocol narrowing."
+    fix_category: protocol_violation
+    affected_files:
+      - src/prism/scanner_core/feature_detector.py:L53
+      - src/prism/scanner_core/feature_detector.py:L95
+      - src/prism/scanner_core/feature_detector.py:L99
+      - src/prism/scanner_core/feature_detector.py:L111
+    
+  - id: FIND-TYPING-005
+    severity: MEDIUM
+    location: src/prism/scanner_core/di.py:L59
+    finding: "_clone_container_structure() returns `object` instead of typed container"
+    rationale: "Mirrors scan_cache.py pattern; makes DI container structure cloning untyped. Should preserve container type shape."
+    fix_category: return_type_annotation
+    affected_files:
+      - src/prism/scanner_core/di.py:L59
+      - src/prism/scanner_core/scan_cache.py:L21
+      - src/prism/scanner_core/scan_cache.py:L212
+    
+  - id: FIND-TYPING-006
+    severity: MEDIUM
+    location: src/prism/scanner_core/events.py:L166-167
+    finding: "dict(context or {}) and dict(metadata or {}) lose TypedDict type identity"
+    rationale: "Calling dict() on TypedDict produces plain dict; breaks type narrowing for ScanPhaseEvent context/metadata fields."
+    fix_category: contract_violation
+    affected_files:
+      - src/prism/scanner_core/events.py:L166
+      - src/prism/scanner_core/events.py:L167
+    
+  - id: FIND-TYPING-007
+    severity: MEDIUM
+    location: src/prism/scanner_extract/task_line_parsing.py:L76,195,237
+    finding: "__getattr__ methods return `-> object`, losing regex pattern type info from _PolicyBackedMarkerLineRegexProxy"
+    rationale: "Proxy classes delegate to re.Pattern[str] but return object; callers cannot safely call regex methods without cast."
+    fix_category: protocol_violation
+    affected_files:
+      - src/prism/scanner_extract/task_line_parsing.py:L76
+      - src/prism/scanner_extract/task_line_parsing.py:L195
+      - src/prism/scanner_extract/task_line_parsing.py:L237
+    
+  - id: FIND-TYPING-008
+    severity: MEDIUM
+    location: src/prism/scanner_io/emit_output.py:L15,22,29
+    finding: "_coerce_* functions accept `value: Any` and return typed result; inputs should be constrained to object for clarity"
+    rationale: "Type guards accept broad Any but could accept `object` to make intent clearer (coercion, not polymorphism)."
+    fix_category: annotation
+    affected_files:
+      - src/prism/scanner_io/emit_output.py:L15
+      - src/prism/scanner_io/emit_output.py:L22
+      - src/prism/scanner_io/emit_output.py:L29
+    
+  - id: FIND-TYPING-009
+    severity: MEDIUM
+    location: src/prism/scanner_core/__init__.py:L41
+    finding: "__getattr__ module-level re-export returns `-> object`, bypassing all type checking for prism.scanner_core imports"
+    rationale: "Dynamic import fallback loses type safety; should use __all__ and explicit imports, or return properly typed Protocol."
+    fix_category: protocol_violation
+    affected_files:
+      - src/prism/scanner_core/__init__.py:L41
+    
+  - id: FIND-TYPING-010
+    severity: MEDIUM
+    location: src/prism/scanner_extract/task_catalog_assembly.py:L26,38,87
+    finding: "Multiple cast(DIContainer | None, di) instead of proper type narrowing"
+    rationale: "DIContainer protocol check exists; should use isinstance() first, then narrow type before requiring policy. Reduces cast() footprint."
+    fix_category: type_narrowing
+    affected_files:
+      - src/prism/scanner_extract/task_catalog_assembly.py:L26
+      - src/prism/scanner_extract/task_catalog_assembly.py:L38
+      - src/prism/scanner_extract/task_catalog_assembly.py:L87
+    
+  - id: FIND-TYPING-011
+    severity: LOW
+    location: src/prism/scanner_plugins/interfaces.py:L80
+    finding: "OutputOrchestrationPlugin.orchestrate() accepts metadata: dict[str, Any] instead of ScanMetadata TypedDict"
+    rationale: "Should use ScanMetadata contract; breaks payload type safety at plugin boundary."
+    fix_category: contract_gap
+    affected_files:
+      - src/prism/scanner_plugins/interfaces.py:L80
+...

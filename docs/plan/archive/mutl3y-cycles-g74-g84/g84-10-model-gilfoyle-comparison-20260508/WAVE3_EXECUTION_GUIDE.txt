@@ -1,0 +1,272 @@
+# Wave 3: Unified Tier 0 vs Tier 1 — Ready to Execute
+
+**Design:** Identical prompts, same modules, two tiers (Tier 0 + Tier 1)  
+**Cost:** ~$0.006 total ($0 Tier 0 + $0.003 Tier 1)  
+**Timeline:** 60 minutes total (30 min per tier, 3 nodes parallel each)  
+**Value:** True capability comparison → better decisions
+
+---
+
+## What You'll Know After
+
+✓ **Does Tier 1 beat Tier 0 on identical code?**  
+✓ **Which tier finds which types of issues?**  
+✓ **Is $0.003/cycle worth the improvement?**  
+✓ **Should we default to free or Tier 1?**
+
+---
+
+## The 3 Unified Prompts (Ready to Copy)
+
+See WAVE3_UNIFIED_TIER0_VS_TIER1_PLAN.md for full prompts. Below is the structure.
+
+### Prompt Template: Node 1 (DI & Context Layer)
+
+**Modules:** di.py, di_helpers.py, scanner_context.py (950 lines)
+
+**Key Analysis Points:**
+- Type safety & erasure (cast(Any), protocol enforcement)
+- DI god-object risks (coupling, cascading failures)
+- Lazy imports (race conditions)
+- Policy flow (where set vs checked)
+- Error handling contracts
+- Testability & mocking difficulty
+
+**Expected findings:** 5-15 per tier  
+**Output:** YAML with id, severity, category, location, issue, root_cause, impact, confidence, fix_suggestion
+
+---
+
+### Prompt Template: Node 2 (Extraction & Detection Layer)
+
+**Modules:** variable_discovery.py, feature_detector.py, task_extract_adapters.py (890 lines)
+
+**Key Analysis Points:**
+- Concurrency & thread safety (TOCTOU races, check-then-act)
+- Data flow consistency (state sharing, invariants)
+- Caching strategy (key collisions, TTL, invalidation)
+- Error handling & failures (exceptions, data loss)
+- Policy application in this layer
+- Performance & optimization
+
+**Expected findings:** 5-15 per tier  
+**Critical:** Flag TOCTOU races as CRITICAL if found
+
+---
+
+### Prompt Template: Node 3 (Cache, Events & Requests)
+
+**Modules:** scan_cache.py, events.py, scan_request.py (680 lines)
+
+**Key Analysis Points:**
+- Cache safety (keys, TTL, invalidation, state consistency)
+- Event bus reliability (listener failures, thread-safety)
+- Copy semantics (shallow vs deep, shared references)
+- Request validation & normalization
+- Exception handling & silent failures
+- Performance under load
+
+**Expected findings:** 5-15 per tier  
+**Critical:** Cache corruption and silent failures are high-priority
+
+---
+
+## Execution Sequence
+
+### PHASE 1: Tier 0 Baseline (30 minutes)
+
+**Launch all 3 nodes in parallel:**
+
+#### Node 1 Tier 0
+```
+runSubagent(
+  "Gilfoyle Code Review God Mode",
+  "Wave 3 Tier 0 Node 1: DI & Context Layer",
+  "[TIER0_MODEL_A]",  # GPT-4o, GPT-4.1, or GPT-5 mini
+  """
+  [COPY full Node 1 prompt from WAVE3_UNIFIED_TIER0_VS_TIER1_PLAN.md]
+  """
+)
+```
+
+#### Node 2 Tier 0
+```
+runSubagent(
+  "Gilfoyle Code Review God Mode",
+  "Wave 3 Tier 0 Node 2: Extraction & Detection",
+  "[TIER0_MODEL_B]",
+  """
+  [COPY full Node 2 prompt from WAVE3_UNIFIED_TIER0_VS_TIER1_PLAN.md]
+  """
+)
+```
+
+#### Node 3 Tier 0
+```
+runSubagent(
+  "Gilfoyle Code Review God Mode",
+  "Wave 3 Tier 0 Node 3: Cache, Events & Requests",
+  "[TIER0_MODEL_C]",
+  """
+  [COPY full Node 3 prompt from WAVE3_UNIFIED_TIER0_VS_TIER1_PLAN.md]
+  """
+)
+```
+
+**Wait 18 minutes for all 3 Tier 0 results**
+
+**Save YAML:**
+- tier0-node1-findings.yaml
+- tier0-node2-findings.yaml
+- tier0-node3-findings.yaml
+
+---
+
+### PHASE 2: Tier 1 Comparable (30 minutes)
+
+**Launch all 3 nodes in parallel (same prompts):**
+
+#### Node 1 Tier 1 (Claude Haiku 4.5)
+```
+runSubagent(
+  "Gilfoyle Code Review God Mode",
+  "Wave 3 Tier 1 Node 1: DI & Context Layer",
+  "Claude Haiku 4.5 (copilot)",
+  """
+  [COPY full Node 1 prompt from WAVE3_UNIFIED_TIER0_VS_TIER1_PLAN.md]
+  """
+)
+```
+
+#### Node 2 Tier 1 (Grok Code Fast 1)
+```
+runSubagent(
+  "Gilfoyle Code Review God Mode",
+  "Wave 3 Tier 1 Node 2: Extraction & Detection",
+  "Grok Code Fast 1 (copilot)",
+  """
+  [COPY full Node 2 prompt from WAVE3_UNIFIED_TIER0_VS_TIER1_PLAN.md]
+  """
+)
+```
+
+#### Node 3 Tier 1 (Grok Code Fast 1)
+```
+runSubagent(
+  "Gilfoyle Code Review God Mode",
+  "Wave 3 Tier 1 Node 3: Cache, Events & Requests",
+  "Grok Code Fast 1 (copilot)",
+  """
+  [COPY full Node 3 prompt from WAVE3_UNIFIED_TIER0_VS_TIER1_PLAN.md]
+  """
+)
+```
+
+**Wait 18 minutes for all 3 Tier 1 results**
+
+**Save YAML:**
+- tier1-node1-findings.yaml
+- tier1-node2-findings.yaml
+- tier1-node3-findings.yaml
+
+---
+
+### PHASE 3: Analysis (10 minutes)
+
+**Per Node Comparison:**
+
+| Node | Module Set | Tier 0 Findings | Tier 1 Findings | Quality Δ | Convergence |
+|------|-----------|-----------------|-----------------|-----------|-------------|
+| 1 | DI & Context | ? | ? | ? | ? |
+| 2 | Extraction & Detection | ? | ? | ? | ? |
+| 3 | Cache & Events | ? | ? | ? | ? |
+
+**Aggregate Metrics:**
+- Total Tier 0: ? findings, ?/100 quality
+- Total Tier 1: ? findings, ?/100 quality
+- Delta: +? findings, +? quality points
+- Convergence rate: ?% (same findings found by both)
+
+**Critical Issues:**
+- TOCTOU races: Found by Tier 0? Tier 1?
+- Cache collisions: Found by Tier 0? Tier 1?
+- Silent failures: Found by Tier 0? Tier 1?
+
+---
+
+## Expected Results
+
+### Quality Progression
+```
+Wave 2 Tier 0: 88.3/100 (GPT-4o, 4.1, Raptor)
+Wave 3 Tier 0: ~88-90/100 (fresh run, same approach)
+Wave 3 Tier 1: ~90-93/100 (Haiku, Grok, Grok)
+Delta: +1-5 quality points (Tier 1 over Tier 0)
+```
+
+### Finding Count (Identical 8 Modules)
+```
+Wave 2 Tier 0: 38 findings
+Wave 3 Tier 0: 35-45 findings (fresh run)
+Wave 3 Tier 1: 50-65 findings (expected)
+Delta: +15-20 findings from Tier 1 (same scope)
+```
+
+### Cost-Benefit
+```
+Tier 0: $0, ~40 findings = $0.00/finding
+Tier 1: $0.003, ~55 findings = $0.0000545/finding
+ROI: Worth $0.003? YES (cost negligible vs improvement)
+```
+
+---
+
+## Decision Gates (After Analysis)
+
+**Gate 1: Tier 1 Quality ≥ 90/100?**
+- Target: YES (Tier 1 should exceed 90)
+- Result: ?
+- Decision: Use Tier 1 for accuracy-critical work?
+
+**Gate 2: Tier 1 +15 Findings on Same Scope?**
+- Target: YES (Tier 1 finds more depth)
+- Result: ?
+- Decision: Worth $0.003/cycle for 15+ extra findings?
+
+**Gate 3: Both Tiers Find TOCTOU + Cache Issues?**
+- Target: YES (validates criticality)
+- Result: ?
+- Decision: Architecture is sound, issues are real?
+
+**Gate 4: Convergence ≥ 70%?**
+- Target: YES (both find same core issues)
+- Result: ?
+- Decision: Safe to trust either tier for baseline coverage?
+
+**All 4 Pass → Approve Hybrid Strategy:**
+- Tier 0: 90% of reviews ($0)
+- Tier 1: 10% of strategic/critical reviews ($0.003)
+- Annual savings: $1,403.76
+
+---
+
+## Pre-Execution Checklist
+
+- [ ] Read WAVE3_UNIFIED_TIER0_VS_TIER1_PLAN.md (prompts section)
+- [ ] Have full Node 1, 2, 3 prompts ready to copy
+- [ ] Know which Tier 0 models to use (GPT-4o, 4.1, mini)
+- [ ] Know Tier 1 models: Haiku 4.5 (Node 1), Grok 1 (Nodes 2, 3)
+- [ ] Set aside 60 minutes total (2 × 30 min phases)
+- [ ] Have YAML output folder ready
+
+---
+
+## Ready to Launch Wave 3?
+
+This gives us:
+✅ **True capability data** (same prompts, same files)  
+✅ **Clear signals** (know which tier finds what)  
+✅ **Decision clarity** (cost-benefit justified)  
+✅ **Low cost** ($0.006 total)  
+
+**Proceed with Tier 0 Phase (30 min)?** 🚀

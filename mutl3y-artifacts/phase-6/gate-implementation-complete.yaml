@@ -18,16 +18,16 @@ validation_gates:
   pytest_pass: false
   pytest_reason: "Test collection BLOCKED by import error: PluginRegistry not exported"
   pytest_error_log: ".gate/pytest-validation.log"
-  
+
   mypy_pass: false
   mypy_errors: 47
   mypy_reason: "Type validation BLOCKED by 3 categories of errors (imports, missing args, undefined functions)"
   mypy_error_log: ".gate/mypy-full-output.log"
-  
+
   ruff_pass: false
   ruff_warnings: 8
   ruff_reason: "Lint issues (unused imports) - secondary to critical blockers"
-  
+
   black_pass: unknown
   black_reason: "Not validated - blocked by syntax/import issues"
 
@@ -39,7 +39,7 @@ blockers:
     impact: "Prevents all test collection and module imports"
     severity: CRITICAL
     status: UNRESOLVED
-    
+
   - id: BLOCKER-2
     title: "Incomplete Function Implementations in extract_utils"
     location: "src/prism/scanner_plugins/ansible/extract_utils.py"
@@ -50,7 +50,7 @@ blockers:
     impact: "Runtime errors when called; incomplete implementation"
     severity: CRITICAL
     status: UNRESOLVED
-    
+
   - id: BLOCKER-3
     title: "Type Mismatches (15+ mypy errors)"
     location: "Multiple files: collection.py, feature_detection.py, variable_discovery.py, readme_renderer.py"

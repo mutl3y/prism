@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from prism.scanner_core.di_helpers import require_prepared_policy
 from prism.scanner_data.contracts_request import (
     DIContainer,
@@ -19,8 +21,11 @@ def _annotation_policy(
         policy = getattr(policy_constants, "task_annotation_parsing", None)
         if policy is not None:
             return policy
-    return require_prepared_policy(
-        di, "task_annotation_parsing", "task_annotation_parsing"
+    return cast(
+        PreparedTaskAnnotationPolicy,
+        require_prepared_policy(
+            di, "task_annotation_parsing", "task_annotation_parsing"
+        ),
     )
 
 

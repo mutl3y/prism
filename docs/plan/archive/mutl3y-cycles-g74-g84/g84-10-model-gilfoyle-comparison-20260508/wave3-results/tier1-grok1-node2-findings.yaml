@@ -1,0 +1,101 @@
+model_used: Grok Code Fast 1
+findings:
+  - id: GILF-NODE2-01
+    severity: HIGH
+    category: concurrency
+    location: "variable_discovery.py:47-75, feature_detector.py:47-65"
+    issue: "Double-checked locking pattern implemented with amateur-hour enthusiasm"
+    root_cause: "Lazy plugin resolution uses threading.Lock with double-checked locking, but the pattern is error-prone and could lead to subtle races if the lock isn't perfectly implemented—any competent developer would know this is begging for a TOCTOU bug in a concurrent environment."
+    impact: "Concurrent calls to _resolve_plugin could theoretically corrupt plugin state or cause exceptions, though the current implementation might hold up by sheer luck."
+    confidence: 85
+    fix_suggestion: "Replace with a proper singleton pattern or use concurrent.futures for plugin initialization. Or better yet, resolve plugins at construction time like a real architect would."
+
+  - id: GILF-NODE2-02
+    severity: MEDIUM
+    category: data-flow
+    location: "variable_discovery.py:150-170"
+    issue: "Redundant discovery calls in resolve_unresolved method"
+    root_cause: "The resolve_unresolved method calls self.discover_static() and self.discover_referenced() if parameters aren't provided, duplicating work already done in the discover() method—classic copy-paste laziness from someone who couldn't be bothered to refactor."
+    impact: "Unnecessary performance overhead and potential data inconsistency if the plugin's behavior changes between calls."
+    confidence: 95
+    fix_suggestion: "Cache the results of discover_static and discover_referenced in the instance, or restructure to avoid redundant calls. Basic software engineering, really."
+
+  - id: GILF-NODE2-03
+    severity: LOW
+    category: caching
+    location: "variable_discovery.py:40-45, feature_detector.py:40-45"
+    issue: "No cache invalidation strategy for plugin resolution"
+    root_cause: "Plugin is resolved once and cached forever with no mechanism to refresh or invalidate, assuming the plugin factory never changes—naive assumption that ignores dynamic configuration updates."
+    impact: "If scan options change in a way that affects plugin selection, the cached plugin could be stale, leading to incorrect behavior."
+    confidence: 70
+    fix_suggestion: "Add cache key based on relevant scan options and invalidate on option changes. Or just admit that caching here is premature optimization."
+
+  - id: GILF-NODE2-04
+    severity: HIGH
+    category: policy
+    location: "task_extract_adapters.py:150-170"
+    issue: "Marker prefix resolved on every function call without caching"
+    root_cause: "Each call to extract_task_annotations_for_file or collect_task_handler_catalog resolves the marker prefix from prepared_policy_bundle, duplicating work and risking inconsistent policy application if the bundle changes mid-scan."
+    impact: "Performance degradation on hot paths and potential policy drift if scan_options are mutated concurrently."
+    confidence: 90
+    fix_suggestion: "Cache the resolved marker prefix at the DI or instance level. Split ownership properly—don't make every adapter re-resolve the same policy data."
+
+  - id: GILF-NODE2-05
+    severity: MEDIUM
+    category: error-handling
+    location: "feature_detector.py:70-85"
+    issue: "Plugin resolution failure raises generic ValueError"
+    root_cause: "When plugin is None, it raises a ValueError with a message, but no logging or structured error handling—silent failure in logs, and callers get unhelpful exceptions."
+    impact: "Debugging becomes a nightmare; errors are swallowed or provide no context for recovery."
+    confidence: 80
+    fix_suggestion: "Add proper logging before raising, and consider a custom exception type. Or just fix the root cause: ensure plugins are always resolvable."
+
+  - id: GILF-NODE2-06
+    severity: LOW
+    category: performance
+    location: "variable_discovery.py:180-220"
+    issue: "Inefficient variable row building in discover method"
+    root_cause: "For each unresolved variable, it builds a VariableRow using the builder pattern with multiple chained calls, which is fine for small sets but scales poorly if there are many variables—O(n) with constant factors that add up."
+    impact: "Memory allocation overhead and slower execution for roles with many variables."
+    confidence: 60
+    fix_suggestion: "Batch the row building or optimize the builder. But honestly, if you have that many variables, your role design is probably the real problem."
+
+  - id: GILF-NODE2-07
+    severity: MEDIUM
+    category: data-flow
+    location: "task_extract_adapters.py:130-145"
+    issue: "Marker prefix resolution assumes prepared_policy_bundle exists"
+    root_cause: "The _resolve_marker_prefix function raises ValueError if prepared_policy_bundle is missing or malformed, but this assumption isn't validated at call sites—data flow inconsistency if bundle isn't prepared upstream."
+    impact: "Runtime failures when policy isn't applied correctly, breaking the extraction pipeline."
+    confidence: 85
+    fix_suggestion: "Validate policy preparation at ingress points, not deep in adapters. Fail fast with clear errors."
+
+  - id: GILF-NODE2-08
+    severity: HIGH
+    category: concurrency
+    location: "variable_discovery.py:90-130"
+    issue: "Event bus phase context shared across threads"
+    root_cause: "The event_bus.phase context dict is created per call but could be shared if the event bus is thread-local or not—potential for context pollution in concurrent scans."
+    impact: "Incorrect event logging or tracing in multi-threaded environments."
+    confidence: 75
+    fix_suggestion: "Ensure event bus contexts are isolated per thread or use thread-safe context management. Basic concurrency hygiene."
+
+  - id: GILF-NODE2-09
+    severity: LOW
+    category: caching
+    location: "feature_detector.py:30-40"
+    issue: "No caching for task catalog analysis"
+    root_cause: "analyze_task_catalog calls the plugin each time without caching results, assuming the catalog doesn't change—ignores that file system state could evolve."
+    impact: "Repeated expensive analysis for the same role."
+    confidence: 50
+    fix_suggestion: "Cache based on role_path and options hash. Or accept that analysis should be idempotent."
+
+  - id: GILF-NODE2-10
+    severity: MEDIUM
+    category: error-handling
+    location: "variable_discovery.py:50-60"
+    issue: "Overly verbose error messages in plugin resolution"
+    root_cause: "Raises ValueError with long, redundant messages for every possible failure case—error handling that's more verbose than helpful, cluttering logs."
+    impact: "Log noise and harder to parse errors programmatically."
+    confidence: 70
+    fix_suggestion: "Use structured logging with levels, and raise custom exceptions. Keep error messages concise."

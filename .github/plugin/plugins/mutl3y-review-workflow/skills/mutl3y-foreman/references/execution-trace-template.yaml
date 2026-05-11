@@ -1,0 +1,67 @@
+version: 1
+plan_id: "<plan-id>"
+cycle: "gNN"
+updated_at: "<ISO-8601>"
+authoritative_resume_anchor: "docs/plan/<plan-id>/plan.yaml"
+
+latest_checkpoint:
+  phase: "P0"
+  wave: null
+  status: "OK"
+  status_line: "[gNN | P0→P1 | OK — 4 scouts complete, 4 artifacts on disk]"
+  next_action: "Load Phase 1 grading manifest."
+  blocking_issues: []
+  plan_pointer_synced: true
+  receipt_proof:
+    - "Scout-Typing returned in this turn"
+    - "Scout-Ownership returned in this turn"
+    - "Scout-ControlFlow returned in this turn"
+    - "Scout-Graph returned in this turn"
+  artifact_proof:
+    - "docs/plan/<plan-id>/mutl3y-artifacts/phase0/Scout-Typing.yaml"
+    - "docs/plan/<plan-id>/mutl3y-artifacts/phase0/Scout-Ownership.yaml"
+    - "docs/plan/<plan-id>/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml"
+    - "docs/plan/<plan-id>/mutl3y-artifacts/phase0/Scout-Graph.yaml"
+  source_summary_artifact: "docs/plan/<plan-id>/mutl3y-artifacts/phase1/grading-summary.yaml"
+  failure_debug: null
+
+timeline:
+  - timestamp: "<ISO-8601>"
+    phase: "P0"
+    wave: null
+    status: "OK"
+    event: "phase_transition"
+    summary: "4 scouts complete, 4 artifacts on disk"
+    source_artifacts:
+      - "docs/plan/<plan-id>/mutl3y-artifacts/phase0/Scout-Typing.yaml"
+      - "docs/plan/<plan-id>/mutl3y-artifacts/phase0/Scout-Ownership.yaml"
+      - "docs/plan/<plan-id>/mutl3y-artifacts/phase0/Scout-ControlFlow.yaml"
+      - "docs/plan/<plan-id>/mutl3y-artifacts/phase0/Scout-Graph.yaml"
+    plan_pointer_synced: true
+    failure_debug: null
+
+# Example failure event:
+#  - timestamp: "<ISO-8601>"
+#    phase: "P5"
+#    wave: 1
+#    status: "STALL"
+#    event: "barrier_failure"
+#    summary: "Builder-Ownership missing summary artifact at wave barrier"
+#    source_artifacts:
+#      - "docs/plan/<plan-id>/mutl3y-artifacts/phase5/wave-1-plan.yaml"
+#    plan_pointer_synced: false
+#    failure_debug:
+#      failure_class: "missing_artifact"
+#      failing_workers: ["Builder-Ownership"]
+#      expected_workers: ["Builder-Typing", "Builder-Ownership"]
+#      returned_workers: ["Builder-Typing", "Builder-Ownership"]
+#      missing_artifacts:
+#        - "docs/plan/<plan-id>/mutl3y-artifacts/phase5/Builder-Ownership-summary.md"
+#      relevant_logs:
+#        - "docs/plan/<plan-id>/.mutl3y-gate/wave-1-barrier.log"
+#      route_failures: []
+#      last_successful_status_line: "[gNN | P5 wave 1 start | OK — audit written]"
+#      suspected_slice: "Phase 5 wave barrier"
+#      recovery_attempted:
+#        - "checked owned files"
+#      debug_hypothesis: "Worker returned without writing summary artifact."

@@ -1,0 +1,377 @@
+# DIContainer Data Flow Architecture Diagram
+
+## Current Architecture (Monolithic)
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                         DIContainer                              │
+│                     (God Object Pattern)                         │
+└──────────────────────────────────────────────────────────────────┘
+           │
+           ├─────────────────────────┬──────────────────────┐
+           │                         │                      │
+           ▼                         ▼                      ▼
+    ┌─────────────┐          ┌──────────────┐      ┌──────────────┐
+    │  PROPERTY   │          │    FACTORY   │      │   PLUGIN     │
+    │   GETTERS   │          │  ORCHESTR.   │      │ RESOLUTION   │
+    │             │          │              │      │              │
+    │ • scan_opts │          │ • event_bus  │      │ • registry   │
+    │ • registry  │          │ • context    │      │ • platform   │
+    │ • wiring    │          │ • discovery  │      │ • plg-var    │
+    │ • overrides │          │ • detector   │      │ • plg-feat   │
+    │ • platform  │          │ • builder    │      │ • plg-audit  │
+    └─────────────┘          │ • blocker    │      │ • plg-yaml   │
+                             │              │      │ • plg-jinja  │
+    Read-Only (6)            └──────────────┘      └──────────────┘
+    Public Interface          Service Creates       Plugin Loads
+                             (6 methods)            (10 methods)
+
+                                     │
+                                     ▼
+                        ┌──────────────────────┐
+                        │   SHARED STATE       │
+                        │                      │
+                        │ • _mocks dict        │
+                        │ • _cache dict        │
+                        │ • _factory_overrides │
+                        │ • _cache_lock (RLock)│
+                        │ • _registry          │
+                        │ • _scan_options      │
+                        │ • _role_path         │
+                        └──────────────────────┘
+
+                            State Management (5)
+```
+
+---
+
+## Target Architecture (Decomposed)
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    DIContainer (Facade)                          │
+│                   Configuration Coordinator                      │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  PUBLIC INTERFACE (unchanged, delegates to helpers):            │
+│  • scan_options, registry, wiring, overrides, platform_key      │
+│  • factory_*() methods all present (6+10 total)                │
+│                                                                  │
+│  STATE MANAGEMENT:                                             │
+│  • replace_scan_options() → invalidate both delegates' caches  │
+│  • inject_mock() → shared _mocks dict                          │
+│  • clear_cache() → wipe both delegates' caches                │
+│  • _call_factory_override() → orchestrate override invocation  │
+│                                                                  │
+│  DELEGATION:                                                    │
+│  • service_locator: ServiceLocator                             │
+│  • plugin_resolver: PluginResolver                             │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+           │                                    │
+           │                                    │
+    ┌──────▼──────────────┐          ┌──────────▼──────────┐
+    │  ServiceLocator     │          │   PluginResolver    │
+    │                     │          │                     │
+    │ SERVICE CREATION    │          │ PLUGIN RESOLUTION   │
+    │                     │          │                     │
+    │ • event_bus()       │          │ • var_discovery()   │
+    │ • context()         │          │ • feature_detect()  │
+    │ • discovery()       │          │ • comment_doc()     │
+    │ • detector()        │          │ • task_annot()      │
+    │ • builder()         │          │ • task_line_parse() │
+    │ • blocker()         │          │ • task_traversal()  │
+    │                     │          │ • var_extract()     │
+    │ (6 methods)         │          │ • yaml_parse()      │
+    │                     │          │ • jinja_analysis()  │
+    │ Uses:               │          │ • audit()           │
+    │ • cache + lock      │          │                     │
+    │ • mocks             │          │ (10 methods)        │
+    │ • overrides         │          │                     │
+    │ • snapshot_opts     │          │ Uses:               │
+    │                     │          │ • registry          │
+    │                     │          │ • mocks             │
+    │                     │          │ • overrides         │
+    │                     │          │ • snapshot_opts     │
+    └─────────────────────┘          │ • _get_registry()   │
+                                     │ • _resolve_platform │
+                                     │                     │
+                                     └─────────────────────┘
+```
+
+---
+
+## Data Flow: Service Creation (Unchanged After Decomposition)
+
+```
+Client Code
+    │
+    ▼
+DIContainer.factory_event_bus()
+    │
+    ├─ Check DIContainer._mocks["event_bus"]? ──→ return (mocked)
+    │
+    ├─ Check DIContainer._factory_overrides["event_bus_factory"]?
+    │       │
+    │       ▼ DIContainer._call_factory_override()
+    │       │
+    │       └─→ return (overridden)
+    │
+    └─ ServiceLocator.factory_event_bus()
+           │
+           ├─ DIContainer._event_bus (singleton from init)
+           │
+           └─→ return EventBus instance
+```
+
+**Key Flow Points**:
+1. DIContainer still acts as primary entry point (maintains backward compatibility)
+2. DIContainer delegates to ServiceLocator internally
+3. Mock and override checks happen in DIContainer before delegation
+4. ServiceLocator accesses shared state read-only via DIContainer interface
+
+---
+
+## Data Flow: Plugin Resolution (Unchanged After Decomposition)
+
+```
+Client Code
+    │
+    ▼
+DIContainer.factory_variable_discovery_plugin()
+    │
+    ├─ Check DIContainer._mocks["variable_discovery_plugin"]? ──→ return (mocked)
+    │
+    ├─ Check DIContainer._factory_overrides["variable_discovery_plugin_factory"]?
+    │       │
+    │       ▼ DIContainer._call_factory_override()
+    │       │
+    │       └─→ return (overridden)
+    │
+    └─ PluginResolver.factory_variable_discovery_plugin()
+           │
+           ├─ PluginResolver._resolve_platform_key()
+           │       │
+           │       ├─ DIContainer.scan_options property
+           │       ├─ DIContainer.plugin_registry property
+           │       │
+           │       └─→ return platform_key
+           │
+           ├─ PluginResolver._get_registry()
+           │       │
+           │       ├─ DIContainer.plugin_registry property
+           │       │
+           │       └─→ return PluginRegistry or raise
+           │
+           ├─ registry.get_variable_discovery_plugin(platform_key)
+           │       │
+           │       └─→ return plugin_class
+           │
+           ├─ _construct_runtime_plugin()
+           │       │
+           │       ├─ Validate plugin shape (di= parameter required)
+           │       ├─ plugin_class(di=self._di)
+           │       │
+           │       └─→ return plugin instance
+           │
+           └─→ return VariableDiscoveryPlugin
+```
+
+**Key Flow Points**:
+1. DIContainer orchestrates mock/override checks
+2. PluginResolver handles registry lookup and platform-key resolution
+3. PluginResolver accesses read-only properties from DIContainer
+4. Module-level `_construct_runtime_plugin()` stays at module level (reusable)
+
+---
+
+## Cache Invalidation Flow (Coordination)
+
+```
+Client Code
+    │
+    ▼
+DIContainer.replace_scan_options(new_options)
+    │
+    ├─ Update DIContainer._scan_options
+    │
+    ├─ DIContainer._invalidate_scan_option_dependent_cache_locked()
+    │       │
+    │       ├─ Remove "variable_discovery" from _cache
+    │       ├─ Remove "feature_detector" from _cache
+    │       │
+    │       └─ (PluginResolver has no cache, but Services might recalculate)
+    │
+    └─ Effect: Next calls to factory_variable_discovery() will recalculate
+                because cache entry was cleared
+```
+
+**Important**: Both ServiceLocator and PluginResolver rely on this invalidation. The `_cache_lock` and invalidation logic stay in DIContainer.
+
+---
+
+## Shared State Access Pattern (After Decomposition)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  DIContainer (owns shared state)                            │
+├─────────────────────────────────────────────────────────────┤
+│  State:                                                     │
+│  ├─ _mocks: dict[str, Any]                                 │
+│  ├─ _cache: dict[str, Any]                                 │
+│  ├─ _factory_overrides: dict[str, DIFactoryOverride]       │
+│  ├─ _cache_lock: RLock                                     │
+│  ├─ _registry: PluginRegistry | None                       │
+│  ├─ _scan_options: ScanOptionsDict                         │
+│  └─ _role_path: str                                        │
+│                                                             │
+│  Read-Only Properties (accessed by delegates):             │
+│  ├─ .scan_options: returns snapshot (via lock)            │
+│  ├─ .plugin_registry: returns _registry reference          │
+│  ├─ .factory_overrides: returns _factory_overrides ref     │
+│  └─ (other immutable properties)                           │
+└─────────────────────────────────────────────────────────────┘
+           ▲                                    ▲
+           │                                    │
+   ┌───────┴────────────┐            ┌─────────┴──────────┐
+   │ ServiceLocator     │            │ PluginResolver     │
+   │                    │            │                    │
+   │ Read-only access:  │            │ Read-only access:  │
+   │ • _mocks (ref)     │            │ • _mocks (ref)     │
+   │ • _cache (via lock)│            │ • _factory_overr.. │
+   │ • _factory_overr..│            │ • _registry (ref)  │
+   │ • _role_path (ref) │            │ • _scan_opts (snap)│
+   │ • _scan_opts (snap)│            │ • _role_path (ref) │
+   │                    │            │                    │
+   │ Own:               │            │ Own:               │
+   │ • factory logic    │            │ • plugin logic     │
+   │ • deferred imports │            │ • registry lookups │
+   └────────────────────┘            └────────────────────┘
+```
+
+**Key Principle**: Both delegates hold a reference to `_di` (the DIContainer) and call properties/methods to access shared state, rather than holding direct references to mutable state.
+
+---
+
+## Thread Safety Model (Unchanged)
+
+```
+Thread 1: factory_event_bus()        Thread 2: replace_scan_options()
+    │                                    │
+    ├─→ Get _cache_lock (RLock)         ├─→ Acquire _cache_lock
+    │   │                                │
+    │   ├─→ Check cache                 ├─→ Update _scan_options
+    │   │   (protected by lock)          │
+    │   │                                ├─→ _invalidate_scan_option_dependent
+    │   │                                │   (still protected by lock)
+    │   └─→ Release _cache_lock         │
+    │                                    ├─→ Release _cache_lock
+    └─→ Return result                    │
+                                         └─ Done
+
+
+IMPORTANT: _mocks dict is NOT thread-safe
+├─ Current code assumes test-time single-threaded injection
+├─ After decomposition: same assumption holds
+└─ Document this in both ServiceLocator and PluginResolver
+
+```
+
+---
+
+## Extraction Boundary Summary
+
+| Concern | Current (DIContainer) | After Extraction |
+| --- | --- | --- |
+| **Entry Point** | DIContainer | DIContainer (facade) |
+| **Public API** | All factory_*() on DIContainer | Same (delegated internally) |
+| **Service Creation** | 6 factory_*() methods | Moved to ServiceLocator |
+| **Plugin Resolution** | 10 factory_*_plugin() methods | Moved to PluginResolver |
+| **State Ownership** | DIContainer owns all | DIContainer still owns, delegates read via properties |
+| **Cache Management** | DIContainer._cache + lock | DIContainer owns; ServiceLocator reads via lock |
+| **Mock Injection** | DIContainer._mocks dict | DIContainer owns; both delegates read |
+| **Override Coordination** | DIContainer._call_factory_override() | DIContainer still orchestrates |
+| **Backward Compat** | N/A (monolithic) | All public methods preserved on facade |
+| **Test Impact** | No changes | Tests inject mocks same way (no API change) |
+
+---
+
+## Coupling Elimination (What Gets Separated)
+
+```
+BEFORE: All responsibilities tangled
+
+factory_event_bus()
+    ├─→ Check mocks ──────────────┐
+    └─→ Check overrides ──────────┤─→ Orchestration concerns
+    └─→ Return instance ──────────┘
+
+factory_variable_discovery_plugin()
+    ├─→ Check mocks ──────────────┐
+    ├─→ Check overrides ──────────├─→ Orchestration concerns
+    ├─→ Resolve platform key ─────┤
+    ├─→ Get registry ─────────────├─→ Plugin resolution concerns
+    └─→ Construct plugin ─────────┘
+
+
+AFTER: Concerns separated
+
+ServiceLocator.factory_event_bus()
+    ├─→ Check mocks ──────────────┐
+    ├─→ Check overrides ──────────├─→ Orchestration (delegated from DIContainer)
+    └─→ Return instance ──────────┘
+
+PluginResolver.factory_variable_discovery_plugin()
+    ├─→ Resolve platform key ─────┐
+    ├─→ Get registry ─────────────├─→ Plugin resolution concerns
+    └─→ Construct plugin ─────────┘
+
+DIContainer: Orchestrates mocks/overrides, then delegates
+```
+
+---
+
+## Network Diagram (Call Graph)
+
+```
+External Caller
+    │
+    ├──→ DIContainer.factory_event_bus()
+    │       │
+    │       └──→ DIContainer._call_factory_override("event_bus_factory")
+    │       └──→ ServiceLocator.factory_event_bus()
+    │               └──→ return EventBus
+    │
+    ├──→ DIContainer.factory_variable_discovery_plugin()
+    │       │
+    │       ├──→ DIContainer._call_factory_override(...)
+    │       └──→ PluginResolver.factory_variable_discovery_plugin()
+    │               │
+    │               ├──→ PluginResolver._resolve_platform_key()
+    │               │       └──→ resolve_platform_key() [module-level]
+    │               │
+    │               ├──→ PluginResolver._get_registry()
+    │               └──→ _construct_runtime_plugin() [module-level]
+    │
+    ├──→ DIContainer.replace_scan_options()
+    │       └──→ DIContainer._invalidate_scan_option_dependent_cache_locked()
+    │
+    └──→ DIContainer.inject_mock()
+            └──→ DIContainer._mocks[name] = mock
+```
+
+---
+
+## Implementation Notes for Task 1.2 (Boundary Design)
+
+1. **ServiceLocator initialization**: Pass DIContainer to constructor, store as `_di`
+2. **PluginResolver initialization**: Pass DIContainer to constructor, store as `_di`
+3. **DIContainer refactor**: Create both in __init__, add delegation methods
+4. **Backward compatibility**: All public factory_*() methods must remain on DIContainer
+5. **Internal delegation pattern**:
+   ```python
+   def factory_event_bus(self) -> EventBus:
+       return self._service_locator.factory_event_bus()
+   ```
+6. **Mock/Override checks**: Remain in DIContainer before delegation
+7. **Cache coordination**: DIContainer owns cache; delegates call _snapshot_scan_options() via property
