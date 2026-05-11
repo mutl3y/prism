@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from prism.scanner_plugins.terraform import (
     build_terraform_execution_bundle,
     TerraformScanPipelinePlugin,
 )
-from prism.scanner_plugins.interfaces import PlatformExecutionBundle
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
+TERRAFORM_FIXTURE_ROOT = PROJECT_ROOT / "src/prism/tests/fixtures/terraform"
 
 
 pytestmark = pytest.mark.terraform
@@ -73,29 +78,60 @@ class TestTerraformExecutionBundleMetadata:
     def test_terraform_scan_pipeline_plugin_emits_deterministic_metadata(self) -> None:
         """Verify scan pipeline plugin emits deterministic platform metadata."""
         plugin = TerraformScanPipelinePlugin()
-        
+
         payload = {
             "metadata": {},
         }
-        
+
         result = plugin.orchestrate_scan_payload(
             payload=payload,
             scan_options={"role_path": "/tmp/terraform-module"},
             strict_mode=False,
         )
-        
+
         metadata = result.get("metadata")
         assert metadata is not None
         assert metadata.get("plugin_platform") == "terraform"
         assert metadata.get("plugin_name") == "terraform"
         assert metadata.get("plugin_enabled") is True
 
+    def test_terraform_scan_pipeline_plugin_enriches_fixture_metadata(self) -> None:
+        """Verify scan pipeline plugin exposes renderer-ready metadata from fixture files."""
+        plugin = TerraformScanPipelinePlugin()
+
+        result = plugin.orchestrate_scan_payload(
+            payload={"metadata": {}},
+            scan_options={"role_path": str(TERRAFORM_FIXTURE_ROOT)},
+            strict_mode=False,
+        )
+
+        metadata = result.get("metadata")
+        assert isinstance(metadata, dict)
+        assert metadata.get("managed_resources") == [
+            "aws_instance.web",
+            "aws_security_group.app",
+            "aws_subnet.private",
+            "aws_vpc.main",
+        ]
+        assert metadata.get("provider_requirements") == [
+            "aws (hashicorp/aws) ~> 5.0",
+            "terraform >= 1.0",
+        ]
+        assert metadata.get("module_hints") == ["root_module"]
+        assert metadata.get("module_description") == (
+            "Example Terraform configuration for testing the Terraform scanner plugin."
+        )
+        assert metadata.get("operational_constraints") == [
+            "Static analysis only: Terraform execution capabilities remain fail-closed.",
+            "No explicit backend block detected in scanned root module.",
+        ]
+
     def test_terraform_execution_bundle_with_scan_options(self) -> None:
         """Verify execution bundle accepts scan_options parameter."""
         scan_options = {"role_path": "/tmp/terraform-module"}
-        
+
         bundle = build_terraform_execution_bundle(scan_options=scan_options)
-        
+
         assert isinstance(bundle, dict)
         assert "prepared_policy" in bundle
         assert "platform_participants" in bundle
