@@ -1,22 +1,20 @@
 authoritative_resume_anchor: docs/plan/plugin-implementation-20260511/plan.yaml
-current_phase: phase_1
-current_wave: wave_5
+current_phase: phase_7
+current_wave: wave_6
 cycle: plugin-implementation-20260511
 k8s_terraform_parity: ACHIEVED
 latest_checkpoint:
   artifact_proof: []
   blocking_issues: []
   failure_debug: null
-  next_action: Continue phase_1 migration from 42 remaining root tests, prioritizing
-    path-sensitive guardrail/parity suites.
-  phase: phase_1
+  next_action: Finalize closure artifacts and phase-7 decision log after wave-5 merges.
+  phase: phase_7
   plan_pointer_synced: true
   receipt_proof: []
-  source_summary_artifact: docs/plan/plugin-implementation-20260511/artifacts/phase1-batch4-validation.yaml
-  status: in_progress
-  status_line: 'Phase 1 wave 4 complete: delegated migration landed, duplicate root
-    copies reconciled, blocker test patched, and all marker lanes are green.'
-  wave: 4
+  source_summary_artifact: docs/plan/plugin-implementation-20260511/artifacts/terraform-lane-wave5.yaml
+  status: completed
+  status_line: 'Wave 5 complete: nested metadata traversal landed for kubernetes and terraform lanes, then core/plugins/integration markers revalidated green.'
+  wave: 6
 migration_status:
   core:
     files: 4
@@ -147,14 +145,26 @@ timeline:
     marker lanes successfully.
   timestamp: '2026-05-11T17:55:00+00:00'
   wave: 4
-timestamp: '2026-05-11T19:04:49.712266'
-total_tests_passing: 1443
-updated_at: '2026-05-11T17:55:00+00:00'
+- event: wave_barrier
+  failure_debug: null
+  phase: phase_6
+  plan_pointer_synced: true
+  source_artifacts:
+  - docs/plan/plugin-implementation-20260511/artifacts/k8s-lane-wave5.yaml
+  - docs/plan/plugin-implementation-20260511/artifacts/terraform-lane-wave5.yaml
+  - docs/plan/plugin-implementation-20260511/artifacts/model-usage-ledger.yaml
+  status: completed
+  summary: Completed Wave 5 in parallel lanes, merged both branches to free-tier-experiment, and revalidated focused plus marker gates (core/plugins/integration) with no regressions.
+  timestamp: '2026-05-11T21:48:27+00:00'
+  wave: 6
+timestamp: '2026-05-11T21:48:27+00:00'
+total_tests_passing: 2033
+updated_at: '2026-05-11T21:48:27+00:00'
 validation_gates:
   core: 613 passed, 1 skipped
-  integration: 933 passed, 7 skipped
-  plugins: 318 passed, 1 skipped
-  total: 1864 passed, 9 skipped
+  integration: 1097 passed, 7 skipped
+  plugins: 323 passed, 1 skipped
+  total: 2033 passed, 9 skipped
 version: 1
 wave_1_analysis: Stub audit + error category mapping documented
 wave_1_design: Error code specs + fixture/test design documented
@@ -163,7 +173,7 @@ wave_2_k8s: 42 tests passing, 257-line adapter, 6 fixture modules (27 scenarios)
 wave_2_status: COMPLETE
 wave_3_status: COMPLETE
 wave_3_terraform: 42 tests passing, 160-line adapter, 6 fixture modules (18 scenarios)
-wave_5_status: complete
+wave_5_status: COMPLETE
 phase_6_status: COMPLETE
 wave_4_status: COMPLETE
 v1_parity_tests: 110 passed, 6 skipped
