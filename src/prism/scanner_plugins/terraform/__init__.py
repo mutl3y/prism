@@ -1,9 +1,9 @@
-"""Terraform reserved target plugin ownership seam with error adapter support."""
+"""Terraform plugin package with kickoff execution-slice exports."""
 
 from __future__ import annotations
 
 import types
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 from prism.scanner_plugins.terraform.error_adapter import (
     build_terraform_error_detail,
@@ -23,6 +23,18 @@ from prism.scanner_plugins.terraform.error_codes import (
     TF_TRANSIENT_ERRORS,
     TF_VALIDATION_FAILED,
     TF_VERSION_FAILED,
+)
+from prism.scanner_data.contracts_request import PreparedPolicyBundle
+from prism.scanner_data.contracts_request import ScanMetadata, ScanOptionsDict
+from prism.scanner_plugins.interfaces import (
+    PlatformExecutionBundle,
+    PlatformParticipants,
+    ScanPipelinePayload,
+    ScanPipelinePreflightContext,
+)
+from prism.scanner_plugins.terraform.execution_bundle import build_fail_closed_participants
+from prism.scanner_plugins.terraform.readme_renderer import (
+    TerraformReadmeRendererPlugin,
 )
 
 PLUGIN_CONTRACT_VERSION: types.MappingProxyType[str, int] = types.MappingProxyType(
@@ -44,6 +56,71 @@ TERRAFORM_RESERVED_TARGET_PLUGIN_MANIFEST: dict[str, object] = {
     "support_state": TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY["support_state"],
     "contract_version": dict(PLUGIN_CONTRACT_VERSION),
 }
+
+
+class TerraformScanPipelinePlugin:
+    """Minimal Terraform scan-pipeline plugin for the first executable slice."""
+
+    PLUGIN_IS_STATELESS: ClassVar[bool] = True
+
+    def process_scan_pipeline(
+        self,
+        scan_options: ScanOptionsDict,
+        scan_context: ScanMetadata,
+    ) -> ScanPipelinePreflightContext:
+        context = cast(ScanPipelinePreflightContext, dict(scan_context))
+        context.setdefault("plugin_platform", "terraform")
+        context.setdefault("plugin_name", "terraform")
+        context["plugin_enabled"] = True
+        if "role_path" in scan_options and "role_path" not in context:
+            context["role_path"] = scan_options.get("role_path")
+        return context
+
+    def orchestrate_scan_payload(
+        self,
+        *,
+        payload: ScanPipelinePayload,
+        scan_options: ScanOptionsDict,
+        strict_mode: bool,
+        preflight_context: ScanMetadata | None = None,
+    ) -> ScanPipelinePayload:
+        del strict_mode
+        metadata = payload.get("metadata")
+        merged_metadata = dict(metadata) if isinstance(metadata, dict) else {}
+        if isinstance(preflight_context, dict):
+            merged_metadata.update(preflight_context)
+        else:
+            merged_metadata.update(
+                self.process_scan_pipeline(
+                    scan_options=scan_options,
+                    scan_context=cast(ScanMetadata, merged_metadata),
+                )
+            )
+        payload["metadata"] = merged_metadata
+        return payload
+
+
+def build_terraform_execution_bundle(
+    scan_options: ScanOptionsDict | None = None,
+) -> PlatformExecutionBundle:
+    del scan_options
+    participants_map = build_fail_closed_participants()
+    participants: PlatformParticipants = {
+        "task_line_parsing": participants_map["task_line_parsing"],
+        "jinja_analysis": participants_map["jinja_analysis"],
+    }
+    prepared_policy: PreparedPolicyBundle = {
+        "task_line_parsing": participants_map["task_line_parsing"],
+        "jinja_analysis": participants_map["jinja_analysis"],
+        "task_traversal": participants_map["task_traversal"],
+        "yaml_parsing": participants_map["yaml_parsing"],
+        "variable_extractor": participants_map["variable_extractor"],
+        "task_annotation_parsing": participants_map["task_annotation_parsing"],
+    }
+    return PlatformExecutionBundle(
+        prepared_policy=prepared_policy,
+        platform_participants=participants,
+    )
 
 
 def build_reserved_target_classifier_entry() -> dict[str, object]:
@@ -89,8 +166,11 @@ def build_unsupported_scan_pipeline_outcome() -> dict[str, object]:
 
 
 __all__ = [
+    "TerraformReadmeRendererPlugin",
+    "TerraformScanPipelinePlugin",
     "TERRAFORM_RESERVED_TARGET_CLASSIFIER_ENTRY",
     "TERRAFORM_RESERVED_TARGET_PLUGIN_MANIFEST",
+    "build_terraform_execution_bundle",
     "build_reserved_target_capability_response",
     "build_reserved_target_classifier_entry",
     "build_unsupported_scan_pipeline_outcome",
