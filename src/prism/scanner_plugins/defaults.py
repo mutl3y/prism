@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Callable, NoReturn, Protocol, cast
 from collections.abc import Mapping
 
 from prism.errors import PrismRuntimeError
+from prism.scanner_plugins.bootstrap import DEFAULT_SUPPORTED_PLATFORM_KEY
 from prism.scanner_plugins.ansible.default_policies import (
     AnsibleDefaultTaskAnnotationPolicyPlugin,
     AnsibleDefaultTaskLineParsingPolicyPlugin,
@@ -548,7 +549,7 @@ def resolve_task_line_parsing_policy_plugin(
         fallback_plugin=_TASK_LINE_PARSING_FALLBACK,
         strict_mode=strict_mode,
         registry=registry,
-        fallback_platform_key="ansible",
+        fallback_platform_key=DEFAULT_SUPPORTED_PLATFORM_KEY,
     )
 
 
@@ -569,7 +570,7 @@ def resolve_task_annotation_policy_plugin(
         fallback_plugin=_TASK_ANNOTATION_FALLBACK,
         strict_mode=strict_mode,
         registry=registry,
-        fallback_platform_key="ansible",
+        fallback_platform_key=DEFAULT_SUPPORTED_PLATFORM_KEY,
     )
 
 
@@ -598,7 +599,7 @@ def resolve_task_traversal_policy_plugin(
         fallback_plugin=_TASK_TRAVERSAL_FALLBACK,
         strict_mode=strict_mode,
         registry=registry,
-        fallback_platform_key="ansible",
+        fallback_platform_key=DEFAULT_SUPPORTED_PLATFORM_KEY,
     )
 
 
@@ -619,7 +620,7 @@ def resolve_variable_extractor_policy_plugin(
         fallback_plugin=_VARIABLE_EXTRACTOR_FALLBACK,
         strict_mode=strict_mode,
         registry=registry,
-        fallback_platform_key="ansible",
+        fallback_platform_key=DEFAULT_SUPPORTED_PLATFORM_KEY,
     )
 
 
