@@ -32,6 +32,7 @@ from prism.scanner_plugins.kubernetes.readme_renderer import (
 )
 from prism.scanner_plugins.kubernetes.feature_detection import (
     KubernetesFeatureDetectionPlugin,
+    collect_manifest_inventory,
 )
 from prism.scanner_plugins.kubernetes.variable_discovery import (
     KubernetesVariableDiscoveryPlugin,
@@ -238,12 +239,13 @@ class KubernetesScanPipelinePlugin:
         context["kubernetes_plugin_enabled"] = True
         if "role_path" in scan_options and "role_path" not in context:
             context["role_path"] = scan_options["role_path"]
-        
-        # Wave 3 enhancement: Populate metadata schema for renderer consumers
+
+        inventory = collect_manifest_inventory(str(scan_options.get("role_path", "")))
+
         if "resource_kinds" not in context:
-            context["resource_kinds"] = []
+            context["resource_kinds"] = list(inventory.resource_kinds)
         if "operational_notes" not in context:
-            context["operational_notes"] = []
+            context["operational_notes"] = list(inventory.operational_notes)
         
         return cast(ScanPipelinePreflightContext, context)
 
