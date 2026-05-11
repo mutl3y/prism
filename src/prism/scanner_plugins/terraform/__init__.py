@@ -32,7 +32,9 @@ from prism.scanner_plugins.interfaces import (
     ScanPipelinePayload,
     ScanPipelinePreflightContext,
 )
-from prism.scanner_plugins.terraform.execution_bundle import build_fail_closed_participants
+from prism.scanner_plugins.terraform.execution_bundle import build_fail_closed_participants, build_terraform_execution_bundle
+from prism.scanner_plugins.terraform.feature_detection import TerraformFeatureDetectionPlugin
+from prism.scanner_plugins.terraform.variable_discovery import TerraformVariableDiscoveryPlugin
 from prism.scanner_plugins.terraform.readme_renderer import (
     TerraformReadmeRendererPlugin,
 )
