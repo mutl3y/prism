@@ -60,24 +60,35 @@ class KubernetesReadmeRendererPlugin:
     ) -> str | None:
         del requirements, default_filters
         if section_id == "purpose":
+            # Purpose section: use description if available, fallback to role name
             return description or f"Kubernetes workload `{role_name}`"
+        
         if section_id == "resources":
+            # Resources section: format list of Kubernetes resource kinds from metadata
             resources = metadata.get("resource_kinds")
-            if not isinstance(resources, list) or not resources:
-                return "No Kubernetes resource inventory is available yet."
-            return "\n".join(f"- `{resource}`" for resource in resources)
+            if isinstance(resources, list) and resources:
+                formatted = "\n".join(f"- `{resource}`" for resource in resources)
+                return formatted
+            return "No Kubernetes resource inventory is available yet."
+        
         if section_id == "operational_notes":
+            # Operational notes section: list notes from metadata or bootstrap indicator
             notes = metadata.get("operational_notes")
             if isinstance(notes, list) and notes:
-                return "\n".join(f"- {note}" for note in notes)
+                formatted = "\n".join(f"- {note}" for note in notes)
+                return formatted
+            # Indicate bootstrap status if variables are present
             if variables:
                 return "Bootstrap slice only: variable-level operational guidance is not emitted yet."
             return "No operational notes detected."
+        
         if section_id == "scanner_report":
+            # Scanner report section: link to report path or indicate bootstrap status
             report_relpath = metadata.get("scanner_report_relpath")
             if isinstance(report_relpath, str) and report_relpath:
                 return self.scanner_report_blurb(report_relpath)
             return "Scanner report output is not wired for the Kubernetes bootstrap slice yet."
+        
         return None
 
     def render_identity_section(
@@ -91,15 +102,20 @@ class KubernetesReadmeRendererPlugin:
     ) -> str | None:
         del requirements, metadata
         if section_id == "purpose":
+            # Purpose: combine description with namespace if available
             namespace = identity_metadata.get("namespace")
             if isinstance(namespace, str) and namespace:
-                return f"{description or role_name}\n\nTarget namespace: `{namespace}`"
+                base_desc = description or role_name
+                return f"{base_desc}\n\nTarget namespace: `{namespace}`"
             return description or role_name
+        
         if section_id == "resources":
+            # Resources: show cluster target if available
             cluster = identity_metadata.get("cluster")
             if isinstance(cluster, str) and cluster:
                 return f"Cluster target: `{cluster}`"
             return "Cluster target is not declared."
+        
         return None
 
     def default_template_path(self) -> pathlib.Path | None:
