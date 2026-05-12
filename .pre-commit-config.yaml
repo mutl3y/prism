@@ -50,7 +50,8 @@ repos:
       # Layer Boundary Enforcement
       - id: layer-boundaries
         name: Layer Boundary Enforcement
-        entry: bash -c 'if grep -r "from prism.scanner_plugins" src/prism/scanner_core/; then echo "Layer violation: scanner_core cannot import scanner_plugins"; exit 1; fi'
+        entry: >-
+          bash -c 'if grep -r "from prism.scanner_plugins" src/prism/scanner_core/; then echo "Layer violation: scanner_core cannot import scanner_plugins"; exit 1; fi'
         language: system
         types: [python]
         stages: [commit]
