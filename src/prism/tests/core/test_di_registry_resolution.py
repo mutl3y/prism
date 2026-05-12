@@ -185,6 +185,46 @@ def test_di_factory_override_precedence_preserved_for_feature_detection_plugin()
         assert result.__class__.__name__ == "_CustomPlugin"
 
 
+def test_container_register_platform_plugin_bundle_updates_injected_registry() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        di_module = importlib.import_module("prism.scanner_core.di")
+        registry_module = importlib.import_module("prism.scanner_plugins.registry")
+
+        class _PlatformVariableDiscoveryPlugin:
+            def __init__(self, di: object | None = None) -> None:
+                self.di = di
+
+        class _PlatformFeatureDetectionPlugin:
+            def __init__(self, di: object | None = None) -> None:
+                self.di = di
+
+        registry = registry_module.PluginRegistry()
+        container = di_module.DIContainer(
+            role_path="/tmp/role",
+            scan_options={
+                "role_path": "/tmp/role",
+                "scan_pipeline_plugin": "terraform",
+            },
+            registry=registry,
+        )
+
+        container.register_platform_plugin_bundle(
+            platform_key="terraform",
+            support_state="supported",
+            variable_discovery_plugin=_PlatformVariableDiscoveryPlugin,
+            feature_detection_plugin=_PlatformFeatureDetectionPlugin,
+        )
+
+        assert (
+            container.factory_variable_discovery_plugin().__class__
+            is _PlatformVariableDiscoveryPlugin
+        )
+        assert (
+            container.factory_feature_detection_plugin().__class__
+            is _PlatformFeatureDetectionPlugin
+        )
+
+
 # --- GF2-W1-T01: _resolve_platform_key selection chain tests ---
 
 

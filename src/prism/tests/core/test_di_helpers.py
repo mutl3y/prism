@@ -6,6 +6,7 @@ import importlib
 import sys
 from contextlib import contextmanager
 from pathlib import Path
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 FSRC_SOURCE_ROOT = PROJECT_ROOT / "src"
@@ -112,3 +113,37 @@ def test_get_event_bus_or_none_returns_bus_when_factory_present() -> None:
             return fake_bus
 
     assert helper(_DI()) is fake_bus
+
+
+def test_factory_override_key_returns_canonical_suffix() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        module = importlib.import_module("prism.scanner_core.di_helpers")
+
+        assert (
+            module.factory_override_key("feature_detection_plugin")
+            == "feature_detection_plugin_factory"
+        )
+
+
+def test_factory_override_key_rejects_unknown_target() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        module = importlib.import_module("prism.scanner_core.di_helpers")
+        errors_module = importlib.import_module("prism.errors")
+
+        with pytest.raises(errors_module.PrismRuntimeError):
+            module.factory_override_key("unknown_target")
+
+
+def test_temporary_default_plugin_registry_restores_previous_registry() -> None:
+    with _prefer_fsrc_prism_on_sys_path():
+        helper_module = importlib.import_module("prism.scanner_core.di_helpers")
+        bootstrap_module = importlib.import_module("prism.scanner_plugins.bootstrap")
+        registry_module = importlib.import_module("prism.scanner_plugins.registry")
+
+        original_registry = bootstrap_module.get_default_plugin_registry()
+        staged_registry = registry_module.PluginRegistry()
+
+        with helper_module.temporary_default_plugin_registry(staged_registry):
+            assert bootstrap_module.get_default_plugin_registry() is staged_registry
+
+        assert bootstrap_module.get_default_plugin_registry() is original_registry

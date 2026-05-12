@@ -1,0 +1,29 @@
+plan_id: plugin-implementation-20260511
+cycle: plugin-implementation-20260511-c3
+phase: 3
+worker: foreman-recovery
+tier_selected: "FREE (0x)"
+tier_reason: "Phase 3 probe default tier; artifact recovered locally after missing materialized output."
+finding_id: C3-FIND-001
+verdict: confirmed
+confidence: medium
+key_evidence:
+  - path: src/prism/scanner_plugins/bundle_resolver.py
+    evidence: "ensure_prepared_policy_bundle populates prepared policy data on scan options but depends on call-site propagation and DI update behavior."
+  - path: src/prism/api_layer/non_collection.py
+    evidence: "non-collection path can operate on shallow-copied scan options and then propagate prepared policy results, creating ordering-sensitive state visibility."
+  - path: src/prism/scanner_core/task_extract_adapters.py
+    evidence: "marker-prefix resolution is fail-closed and assumes prepared bundle/marker fields are present when consumed."
+  - path: src/prism/scanner_core/scan_request.py
+    evidence: "canonicalization and policy bundle handling can alter when bundle fields become visible to downstream consumers."
+risky_paths:
+  - "scan options consumed by extraction adapters before prepared policy bundle propagation is complete"
+  - "DI implementations without explicit replace/update behavior observing stale scan_options view"
+implementation_risk: "medium"
+recommended_fix_slice: "Establish a single canonical propagation point for prepared_policy_bundle and marker prefix before any adapter hot-path execution; add guard tests for ordering and DI replacement variance."
+disjoint_file_scope:
+  - src/prism/api_layer/non_collection.py
+  - src/prism/scanner_core/scan_request.py
+  - src/prism/scanner_core/task_extract_adapters.py
+  - src/prism/scanner_plugins/bundle_resolver.py
+timestamp_utc: "2026-05-12T01:52:00Z"

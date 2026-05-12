@@ -1,0 +1,49 @@
+plan_id: plugin-implementation-20260511
+cycle: plugin-implementation-20260511-c2
+phase: 1
+worker: foreman-recovery
+tier_selected: "FREE (0x)"
+tier_reason: "Phase 1 grading default tier; artifact recovered locally after two no-artifact grader dispatches."
+graded_observations_count: 6
+promoted_findings:
+  - id: C2-FIND-01
+    severity_hint: HIGH
+    title: "Plugin registry interface contract enforcement risk"
+    rationale: "Registry and plugin seams show risk of accepting or routing plugin shapes without strict interface guarantees, raising runtime mismatch risk."
+    primary_files:
+      - src/prism/scanner_plugins/registry.py
+      - src/prism/scanner_plugins/defaults.py
+  - id: C2-FIND-02
+    severity_hint: HIGH
+    title: "DI composition lacks explicit platform registration hooks"
+    rationale: "DI and plugin bootstrap seams indicate brittle handoff across defaults/bootstrap/DI, which can break deterministic platform enablement and test injection."
+    primary_files:
+      - src/prism/scanner_core/di.py
+      - src/prism/scanner_core/di_helpers.py
+      - src/prism/scanner_plugins/bootstrap.py
+  - id: C2-FIND-03
+    severity_hint: MEDIUM
+    title: "Prepared policy bundle shape and cache marker fragility"
+    rationale: "Prepared-policy and cache marker interactions can create shape drift and hard-to-diagnose bypass behavior under alternate DI/runtime paths."
+    primary_files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_plugins/bundle_resolver.py
+suppressed_observations:
+  - observation: "Shell/plugin boundary import patterns already covered by active guardrail tests in current cycle scope"
+    rationale_code: duplicate_of
+  - observation: "Task extract adapter callsite breadth suggests additional medium seams"
+    rationale_code: deferred
+  - observation: "Facade complexity concerns without direct failing evidence"
+    rationale_code: false_positive
+decision_summary: "Promoted 3 findings (2 HIGH, 1 MEDIUM) to drive focused Phase 3 probes before implementation slicing."
+recommended_phase3_probe_targets:
+  - finding_id: C2-FIND-01
+    probe: "Probe-Ownership"
+    question: "Where does registry authority split across defaults/bootstrap/runtime resolution paths?"
+  - finding_id: C2-FIND-02
+    probe: "Probe-Imports"
+    question: "What deterministic DI hook points are missing for platform registration and test doubles?"
+  - finding_id: C2-FIND-03
+    probe: "Probe-ControlFlow"
+    question: "Which prepared-policy/cache paths allow shape drift or bypass markers?"
+timestamp_utc: "2026-05-12T01:12:30Z"

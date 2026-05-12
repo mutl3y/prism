@@ -44,6 +44,81 @@ entries:
     needed_reedit: false
     recovery_action: "none"
 
+  - timestamp: "2026-05-12T01:44:00Z"
+    cycle: "plugin-implementation-20260511-c3"
+    phase: "phase_1"
+    worker: "Mutl3y Grader"
+    task_id: "c3_phase1_grading"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "route_failure"
+    failure_type: "missing_artifact"
+    artifact_path: "docs/plan/plugin-implementation-20260511/mutl3y-artifacts/phase1/c3-grader-shortlist.yaml"
+    quality_score: 2
+    needed_reedit: true
+    recovery_action: "foreman_recovery"
+
+  - timestamp: "2026-05-12T01:46:00Z"
+    cycle: "plugin-implementation-20260511-c3"
+    phase: "phase_1"
+    worker: "foreman-recovery"
+    task_id: "c3_phase1_grading_recovery"
+    requested_tier: "tier_0_free"
+    requested_model: "none"
+    actual_model: "none"
+    result: "success_after_fix"
+    failure_type: "missing_artifact"
+    artifact_path: "docs/plan/plugin-implementation-20260511/mutl3y-artifacts/phase1/c3-grader-shortlist.yaml"
+    quality_score: 4
+    needed_reedit: true
+    recovery_action: "foreman_recovery"
+
+  - timestamp: "2026-05-12T01:50:09Z"
+    cycle: "plugin-implementation-20260511-c3"
+    phase: "phase_3"
+    worker: "Probe-Imports"
+    task_id: "c3_phase3_probe_C3_FIND_002"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success"
+    failure_type: "none"
+    artifact_path: "docs/plan/plugin-implementation-20260511/mutl3y-artifacts/phase3/c3-probe-imports-C3-FIND-002.yaml"
+    quality_score: 4
+    needed_reedit: false
+    recovery_action: "none"
+
+  - timestamp: "2026-05-12T01:49:00Z"
+    cycle: "plugin-implementation-20260511-c3"
+    phase: "phase_3"
+    worker: "Probe-ControlFlow"
+    task_id: "c3_phase3_probe_C3_FIND_001"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "route_failure"
+    failure_type: "missing_artifact"
+    artifact_path: "docs/plan/plugin-implementation-20260511/mutl3y-artifacts/phase3/c3-probe-controlflow-C3-FIND-001.yaml"
+    quality_score: 2
+    needed_reedit: true
+    recovery_action: "foreman_recovery"
+
+  - timestamp: "2026-05-12T01:52:00Z"
+    cycle: "plugin-implementation-20260511-c3"
+    phase: "phase_3"
+    worker: "foreman-recovery"
+    task_id: "c3_phase3_probe_recovery_C3_FIND_001"
+    requested_tier: "tier_0_free"
+    requested_model: "none"
+    actual_model: "none"
+    result: "success_after_fix"
+    failure_type: "missing_artifact"
+    artifact_path: "docs/plan/plugin-implementation-20260511/mutl3y-artifacts/phase3/c3-probe-controlflow-C3-FIND-001.yaml"
+    quality_score: 4
+    needed_reedit: true
+    recovery_action: "foreman_recovery"
+
   - timestamp: "2026-05-11T16:22:00Z"
     cycle: "plugin-implementation-20260511"
     phase: "phase_1"
@@ -358,6 +433,111 @@ entries:
     quality_score: 4
     needed_reedit: false
     recovery_action: "none"
+
+  - timestamp: "2026-05-12T01:10:00Z"
+    cycle: "plugin-implementation-20260511-c2"
+    phase: "phase_1"
+    worker: "Mutl3y Grader"
+    task_id: "c2_phase1_grading"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "route_failure"
+    failure_type: "empty_response"
+    artifact_path: "docs/plan/plugin-implementation-20260511/mutl3y-artifacts/phase1/c2-grader-shortlist.yaml"
+    quality_score: 2
+    needed_reedit: true
+    recovery_action: "reroute_same_tier"
+
+  - timestamp: "2026-05-12T01:11:00Z"
+    cycle: "plugin-implementation-20260511-c2"
+    phase: "phase_1"
+    worker: "Mutl3y Grader"
+    task_id: "c2_phase1_grading_retry"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-4.1"
+    actual_model: "GPT-4.1"
+    result: "route_failure"
+    failure_type: "empty_response"
+    artifact_path: "docs/plan/plugin-implementation-20260511/mutl3y-artifacts/phase1/c2-grader-shortlist.yaml"
+    quality_score: 2
+    needed_reedit: true
+    recovery_action: "foreman_recovery"
+
+  - timestamp: "2026-05-12T01:12:30Z"
+    cycle: "plugin-implementation-20260511-c2"
+    phase: "phase_1"
+    worker: "foreman-recovery"
+    task_id: "c2_phase1_grading_recovery"
+    requested_tier: "tier_0_free"
+    requested_model: "none"
+    actual_model: "none"
+    result: "success_after_fix"
+    failure_type: "missing_artifact"
+    artifact_path: "docs/plan/plugin-implementation-20260511/mutl3y-artifacts/phase1/c2-grader-shortlist.yaml"
+    quality_score: 4
+    needed_reedit: true
+    recovery_action: "foreman_recovery"
+
+  - timestamp: "2026-05-12T01:20:00Z"
+    cycle: "plugin-implementation-20260511-c2"
+    phase: "phase_3"
+    worker: "Probe-Ownership"
+    task_id: "c2_phase3_probe_C2_FIND_01"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success"
+    failure_type: "none"
+    artifact_path: "docs/plan/plugin-implementation-20260511/mutl3y-artifacts/phase3/c2-probe-ownership-C2-FIND-01.yaml"
+    quality_score: 4
+    needed_reedit: true
+    recovery_action: "normalized_artifact_path"
+
+  - timestamp: "2026-05-12T01:10:54Z"
+    cycle: "plugin-implementation-20260511-c2"
+    phase: "phase_3"
+    worker: "Probe-Imports"
+    task_id: "c2_phase3_probe_C2_FIND_02"
+    requested_tier: "tier_0_free"
+    requested_model: "GPT-5 mini"
+    actual_model: "GPT-5 mini"
+    result: "success"
+    failure_type: "none"
+    artifact_path: "docs/plan/plugin-implementation-20260511/mutl3y-artifacts/phase3/c2-probe-imports-C2-FIND-02.yaml"
+    quality_score: 4
+    needed_reedit: true
+    recovery_action: "normalized_artifact_path"
+
+  - timestamp: "2026-05-12T01:17:50Z"
+    cycle: "plugin-implementation-20260511-c2"
+    phase: "phase_5"
+    worker: "Builder-Abstraction"
+    task_id: "c2_phase5_wave9_di_registry"
+    requested_tier: "tier_2_balanced"
+    requested_model: "GPT-5.4"
+    actual_model: "GPT-5.4"
+    result: "success"
+    failure_type: "none"
+    artifact_path: "docs/plan/plugin-implementation-20260511/mutl3y-artifacts/phase5/c2-builder-wave9-di-registry.yaml"
+    quality_score: 3
+    needed_reedit: true
+    recovery_action: "foreman_regression_hotfix"
+
+  - timestamp: "2026-05-12T01:30:00Z"
+    cycle: "plugin-implementation-20260511-c2"
+    phase: "phase_5"
+    worker: "foreman-recovery"
+    task_id: "c2_phase5_post_builder_regression_fix"
+    requested_tier: "tier_0_free"
+    requested_model: "none"
+    actual_model: "none"
+    result: "success_after_fix"
+    failure_type: "compatibility_regression"
+    artifact_path: "docs/plan/plugin-implementation-20260511/mutl3y-artifacts/phase5/c2-foreman-regression-remediation.yaml"
+    quality_score: 4
+    needed_reedit: true
+    recovery_action: "guard_legacy_registry_interface_and_error_boundary_contract"
 
 
 # Wave 5 Summary

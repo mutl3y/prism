@@ -10,9 +10,10 @@ O010 (defaults conditional import authority), O015 (core/plugin interface coupli
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import logging
 import threading
-from typing import TYPE_CHECKING, Any, Callable, Literal, cast
+from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal, Mapping, cast
 
 if TYPE_CHECKING:
     from prism.scanner_plugins.registry import PluginRegistry
@@ -51,6 +52,23 @@ def get_default_plugin_registry() -> PluginRegistry:
 def is_registry_initialized() -> bool:
     """Check whether the default plugin registry has been initialized."""
     return _DEFAULT_REGISTRY is not None
+
+
+@contextmanager
+def temporary_default_plugin_registry(
+    registry: PluginRegistry,
+) -> Iterator[PluginRegistry]:
+    """Temporarily replace the canonical registry singleton for a test scope."""
+    global _DEFAULT_REGISTRY
+
+    with _DEFAULT_REGISTRY_INIT_LOCK:
+        previous_registry = _DEFAULT_REGISTRY
+        _DEFAULT_REGISTRY = registry
+    try:
+        yield registry
+    finally:
+        with _DEFAULT_REGISTRY_INIT_LOCK:
+            _DEFAULT_REGISTRY = previous_registry
 
 
 def _distinct_platform_names(
@@ -128,6 +146,7 @@ def register_platform_plugin_bundle(
     platform_key: str,
     support_state: PlatformSupportState,
     runtime_aliases: tuple[str, ...] = (),
+    default_providers: Mapping[str, Callable[[], Any]] | None = None,
     scan_pipeline_plugin: type[Any] | None = None,
     readme_renderer_plugin: type[Any] | None = None,
     variable_discovery_plugin: type[Any] | None = None,
@@ -154,6 +173,16 @@ def register_platform_plugin_bundle(
         )
 
     runtime_names = _distinct_platform_names(platform_key, runtime_aliases)
+
+    if default_providers is not None:
+        for name in runtime_names:
+            for plugin_kind, provider in default_providers.items():
+                if registry.get_platform_default_provider(name, plugin_kind) is None:
+                    registry.register_platform_default_provider(
+                        name,
+                        plugin_kind,
+                        provider,
+                    )
 
     if support_state != "supported":
         registry.register_reserved_unsupported_platform(platform_key)
@@ -229,7 +258,10 @@ def bootstrap_plugin_registry(
     )
     from prism.scanner_plugins.parsers.jinja import DefaultJinjaAnalysisPolicyPlugin
     from prism.scanner_plugins.parsers.yaml import DefaultYAMLParsingPolicyPlugin
-    from prism.scanner_plugins.defaults import _validate_singleton_invariants
+    from prism.scanner_plugins.defaults import (
+        _validate_singleton_invariants,
+        builtin_platform_default_providers,
+    )
 
     direct_registrations: tuple[tuple[str, str, type[Any]], ...] = (
         ("comment_driven_doc", "default", CommentDrivenDocumentationParser),
@@ -299,6 +331,7 @@ def bootstrap_plugin_registry(
         platform_key=DEFAULT_SUPPORTED_PLATFORM_KEY,
         support_state="supported",
         runtime_aliases=("default",),
+        default_providers=builtin_platform_default_providers(),
         scan_pipeline_plugin=cast(type[Any], AnsibleScanPipelinePlugin),
         readme_renderer_plugin=AnsibleReadmeRendererPlugin,
         variable_discovery_loader=(
@@ -385,4 +418,5 @@ __all__ = [
     "initialize_default_registry",
     "is_registry_initialized",
     "register_platform_plugin_bundle",
+    "temporary_default_plugin_registry",
 ]

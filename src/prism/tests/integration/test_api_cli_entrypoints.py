@@ -2176,6 +2176,7 @@ def test_fsrc_non_collection_run_scan_uses_canonical_policy_bundle_fn(
             scan_options: dict[str, object],
             di: object,
         ) -> dict[str, object]:
+            scan_options["ignore_unresolved_internal_underscore_references"] = True
             canonical_calls.append((scan_options, di))
             return {"prepared": True}
 
@@ -2247,8 +2248,22 @@ def test_fsrc_non_collection_run_scan_uses_canonical_policy_bundle_fn(
 
     forwarded_ensure_fn = captured["ensure_prepared_policy_bundle_fn"]
     assert callable(forwarded_ensure_fn)
-    forwarded_ensure_fn(scan_options={"role_path": str(role_path)}, di="di")
-    assert canonical_calls == [({"role_path": str(role_path)}, "di")]
+    forwarded_scan_options = {"role_path": str(role_path)}
+    forwarded_ensure_fn(scan_options=forwarded_scan_options, di="di")
+    assert canonical_calls == [
+        (
+            {
+                "role_path": str(role_path),
+                "ignore_unresolved_internal_underscore_references": True,
+            },
+            "di",
+        )
+    ]
+    assert forwarded_scan_options["prepared_policy_bundle"] == {"prepared": True}
+    assert (
+        forwarded_scan_options["ignore_unresolved_internal_underscore_references"]
+        is True
+    )
     assert payload["role_name"] == "tiny_role"
     assert payload["requirements"] == []
 

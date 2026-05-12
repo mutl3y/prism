@@ -70,6 +70,53 @@ def test_validate_shape_non_strict_mode_uses_fallback_for_malformed_di_plugin() 
     assert isinstance(plugin, AnsibleDefaultTaskLineParsingPolicyPlugin)
 
 
+def test_validate_shape_strict_mode_rejects_task_line_plugin_missing_task_meta_keys() -> (
+    None
+):
+    class _MissingTaskMetaKeysPlugin:
+        TASK_INCLUDE_KEYS = {"include_tasks"}
+        ROLE_INCLUDE_KEYS = {"include_role"}
+        INCLUDE_VARS_KEYS = {"include_vars"}
+        SET_FACT_KEYS = {"set_fact"}
+        TASK_BLOCK_KEYS = {"block"}
+
+        @staticmethod
+        def detect_task_module(_task: dict[str, Any]) -> str:
+            return "debug"
+
+    class _DI:
+        def factory_task_line_parsing_policy_plugin(self) -> _MissingTaskMetaKeysPlugin:
+            return _MissingTaskMetaKeysPlugin()
+
+    with pytest.raises(PrismRuntimeError) as exc_info:
+        resolve_task_line_parsing_policy_plugin(_DI(), strict_mode=True)
+
+    assert exc_info.value.code == "malformed_plugin_shape"
+
+
+def test_validate_shape_non_strict_mode_uses_fallback_for_missing_task_meta_keys() -> (
+    None
+):
+    class _MissingTaskMetaKeysPlugin:
+        TASK_INCLUDE_KEYS = {"include_tasks"}
+        ROLE_INCLUDE_KEYS = {"include_role"}
+        INCLUDE_VARS_KEYS = {"include_vars"}
+        SET_FACT_KEYS = {"set_fact"}
+        TASK_BLOCK_KEYS = {"block"}
+
+        @staticmethod
+        def detect_task_module(_task: dict[str, Any]) -> str:
+            return "debug"
+
+    class _DI:
+        def factory_task_line_parsing_policy_plugin(self) -> _MissingTaskMetaKeysPlugin:
+            return _MissingTaskMetaKeysPlugin()
+
+    plugin = resolve_task_line_parsing_policy_plugin(_DI(), strict_mode=False)
+
+    assert isinstance(plugin, AnsibleDefaultTaskLineParsingPolicyPlugin)
+
+
 def test_validate_shape_non_strict_mode_uses_fallback_when_registry_construction_fails(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -95,6 +142,41 @@ def test_validate_shape_non_strict_mode_uses_fallback_when_registry_construction
         "Failed to construct" in record.message and "falling back" in record.message
         for record in caplog.records
     )
+
+
+def test_registry_platform_default_provider_overrides_ansible_owned_fallback() -> None:
+    class _TerraformTaskLineFallback:
+        TASK_INCLUDE_KEYS = ()
+        ROLE_INCLUDE_KEYS = ()
+        INCLUDE_VARS_KEYS = ()
+        SET_FACT_KEYS = ()
+        TASK_BLOCK_KEYS = ()
+        TASK_META_KEYS = ()
+
+        def detect_task_module(self, _task: object) -> None:
+            return None
+
+    class _DI:
+        scan_options = {
+            "role_path": "/tmp/role",
+            "scan_pipeline_plugin": "terraform",
+        }
+
+    registry = PluginRegistry()
+    terraform_fallback = _TerraformTaskLineFallback()
+    registry.register_platform_default_provider(
+        "terraform",
+        "task_line_parsing_policy",
+        lambda: terraform_fallback,
+    )
+
+    plugin = resolve_task_line_parsing_policy_plugin(
+        di=_DI(),
+        strict_mode=False,
+        registry=registry,
+    )
+
+    assert plugin is terraform_fallback
 
 
 def test_blocker_fact_builder_resolver_exposes_runtime_protocol_contract() -> None:

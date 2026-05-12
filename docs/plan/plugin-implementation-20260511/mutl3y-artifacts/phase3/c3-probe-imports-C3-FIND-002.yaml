@@ -1,0 +1,26 @@
+plan_id: plugin-implementation-20260511
+cycle: plugin-implementation-20260511-c3
+phase: 3
+worker: Probe-Imports
+tier_selected: FREE (0x)
+tier_reason: Phase 3 probe default tier.
+finding_id: C3-FIND-002
+verdict: confirmed
+confidence: high
+key_evidence: |
+  - src/prism/api_layer/non_collection.py: _has_prepared_task_line_policy_shape requires attribute TASK_META_KEYS and treats Mapping values as invalid plugin objects.
+  - src/prism/scanner_plugins/bundle_resolver.py: _TASK_LINE_REQUIRED_ATTRIBUTES includes TASK_META_KEYS and _validate_task_line_policy enforces it during ensure_prepared_policy_bundle().
+  - src/prism/scanner_plugins/defaults.py: resolve_task_line_parsing_policy_plugin calls _resolve_plugin_with_precedence with required_attributes that omit TASK_META_KEYS (only 5 attributes), so resolver will accept plugins lacking TASK_META_KEYS.
+mismatch_points:
+  - "TASK_META_KEYS presence: cache/bundle validation requires TASK_META_KEYS, defaults resolver does not require it."
+  - "Attribute-set mismatch between defaults.resolve_task_line_parsing_policy_plugin and bundle_resolver/_has_* cache-shape checks."
+implementation_risk: |
+  If unaddressed, prepared_policy_bundle produced by defaults-backed resolvers may be accepted by plugin resolution but later rejected by bundle validation or treated as 'malformed' by cache-shape checks, causing runtime ValueError, cache skips, or unexpected fallback to platform defaults.
+recommended_fix_slice: |
+  - Align the required attribute sets for task-line parsing policies: add TASK_META_KEYS to the required_attributes passed by resolve_task_line_parsing_policy_plugin, and/or make TASK_META_KEYS optional in bundle_resolver._validate_task_line_policy and non_collection cache-shape checks with a clear compatibility migration note.
+  - Run unit tests that construct PreparedPolicyBundle variants (with/without TASK_META_KEYS) to assert consistent behavior.
+disjoint_file_scope:
+  - src/prism/scanner_plugins/defaults.py
+  - src/prism/scanner_plugins/bundle_resolver.py
+  - src/prism/api_layer/non_collection.py
+timestamp_utc: 2026-05-12T01:50:09Z

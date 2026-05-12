@@ -1,0 +1,48 @@
+plan_id: plugin-implementation-20260511
+cycle: plugin-implementation-20260511-c3
+phase: 1
+worker: foreman-recovery
+tier_selected: "FREE (0x)"
+tier_reason: "Phase 1 grading default tier; artifact recovered locally after grader returned a non-materialized path."
+graded_observations_count: 5
+promoted_findings:
+  - id: C3-FIND-001
+    severity_hint: HIGH
+    title: "Prepared policy bundle availability and DI replace ordering risk"
+    rationale: "DI scan_options replacement is conditional and can leave hot-path consumers without prepared_policy_bundle or marker prefix, triggering runtime failures on common flows."
+    primary_files:
+      - src/prism/scanner_plugins/bundle_resolver.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_core/task_extract_adapters.py
+      - src/prism/scanner_core/scan_request.py
+  - id: C3-FIND-002
+    severity_hint: HIGH
+    title: "PreparedPolicyBundle cache shape mismatch and malformed/uncacheable divergence"
+    rationale: "Cache marker and shape checks diverge for mapping-like plugin payloads, creating cache key variance and potential bypass/miss behavior under near-identical requests."
+    primary_files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_plugins/bundle_resolver.py
+  - id: C3-FIND-003
+    severity_hint: MEDIUM
+    title: "Deep-copy of prepared policy bundle may alter plugin identity"
+    rationale: "Deep-copying live plugin objects can break fingerprint stability and stateless assumptions for cache and compatibility paths."
+    primary_files:
+      - src/prism/scanner_core/scan_request.py
+      - src/prism/scanner_plugins/bundle_resolver.py
+suppressed_observations:
+  - observation: "Plugin contract omission for PLUGIN_IS_STATELESS already partially covered by existing stateless guardrails"
+    rationale_code: duplicate_of
+  - observation: "Strict-mode variance noted but currently low severity and deferred pending high-risk probe outcomes"
+    rationale_code: deferred
+decision_summary: "Promoted 3 findings (2 HIGH, 1 MEDIUM) for focused probe investigation before implementation slicing."
+recommended_phase3_probe_targets:
+  - finding_id: C3-FIND-001
+    probe: Probe-ControlFlow
+    question: "Which execution paths can consume scan_options before prepared bundle/marker propagation is guaranteed?"
+  - finding_id: C3-FIND-002
+    probe: Probe-Imports
+    question: "Where do cache-shape checks and resolver outputs disagree on expected plugin payload forms?"
+  - finding_id: C3-FIND-003
+    probe: Probe-Ownership
+    question: "Which consumers rely on plugin identity vs structural equivalence across request canonization?"
+timestamp_utc: "2026-05-12T01:46:00Z"

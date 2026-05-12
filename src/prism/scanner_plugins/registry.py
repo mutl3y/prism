@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import importlib
 import inspect
 import threading
-from typing import Any
+from typing import Any, Callable
 
 from prism.scanner_plugins.interfaces import CommentDrivenDocumentationPlugin
 from prism.scanner_plugins.interfaces import ExtractPolicyPlugin
@@ -59,6 +59,7 @@ class _PluginRegistryState:
     ]
     deferred_variable_discovery: dict[str, tuple[str, str]]
     deferred_feature_detection: dict[str, tuple[str, str]]
+    platform_default_providers: dict[tuple[str, str], Callable[[], Any]]
     default_platform_key: str | None
     revision: int
 
@@ -200,6 +201,7 @@ class PluginRegistry:
         self._loaded_plugins: dict[tuple[str, str], Any] = {}
         self._deferred_variable_discovery: dict[str, tuple[str, str]] = {}
         self._deferred_feature_detection: dict[str, tuple[str, str]] = {}
+        self._platform_default_providers: dict[tuple[str, str], Callable[[], Any]] = {}
         self._default_platform_key: str | None = None
         self._revision = 0
 
@@ -337,6 +339,24 @@ class PluginRegistry:
                 self._reserved_unsupported_platforms | {name}
             )
             self._bump_revision_locked()
+
+    def register_platform_default_provider(
+        self,
+        platform_key: str,
+        plugin_kind: str,
+        provider: Callable[[], Any],
+    ) -> None:
+        with self._lock:
+            self._platform_default_providers[(platform_key, plugin_kind)] = provider
+            self._bump_revision_locked()
+
+    def get_platform_default_provider(
+        self,
+        platform_key: str,
+        plugin_kind: str,
+    ) -> Callable[[], Any] | None:
+        with self._lock:
+            return self._platform_default_providers.get((platform_key, plugin_kind))
 
     def is_reserved_unsupported_platform(self, name: str) -> bool:
         with self._lock:
@@ -529,6 +549,7 @@ class PluginRegistry:
                 loaded_plugins=dict(self._loaded_plugins),
                 deferred_variable_discovery=dict(self._deferred_variable_discovery),
                 deferred_feature_detection=dict(self._deferred_feature_detection),
+                platform_default_providers=dict(self._platform_default_providers),
                 default_platform_key=self._default_platform_key,
                 revision=self._revision,
             )
@@ -555,6 +576,7 @@ class PluginRegistry:
             self._loaded_plugins = dict(state.loaded_plugins)
             self._deferred_variable_discovery = dict(state.deferred_variable_discovery)
             self._deferred_feature_detection = dict(state.deferred_feature_detection)
+            self._platform_default_providers = dict(state.platform_default_providers)
             self._default_platform_key = state.default_platform_key
             self._revision = state.revision
 

@@ -21,6 +21,7 @@ from inspect import Parameter, signature
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Protocol, cast
 
 from prism.scanner_core.events import EventBus, EventListener, get_default_listeners
+from prism.scanner_core.di_helpers import factory_override_key
 from prism.scanner_data.contracts_request import ScanOptionsDict
 from prism.scanner_data.builders import VariableRowBuilder
 from prism.errors import PrismRuntimeError
@@ -361,7 +362,9 @@ class DIContainer:
         if "variable_discovery" in self._mocks:
             return self._mocks["variable_discovery"]
 
-        override_result = self._call_factory_override("variable_discovery_factory")
+        override_result = self._call_factory_override(
+            factory_override_key("variable_discovery")
+        )
         if override_result is not None:
             return cast("VariableDiscovery", override_result)
 
@@ -386,7 +389,9 @@ class DIContainer:
         if "feature_detector" in self._mocks:
             return self._mocks["feature_detector"]
 
-        override_result = self._call_factory_override("feature_detector_factory")
+        override_result = self._call_factory_override(
+            factory_override_key("feature_detector")
+        )
         if override_result is not None:
             return cast("FeatureDetector", override_result)
 
@@ -440,7 +445,7 @@ class DIContainer:
         if "variable_discovery_plugin" in self._mocks:
             return self._mocks["variable_discovery_plugin"]
         override_result = self._call_factory_override(
-            "variable_discovery_plugin_factory"
+            factory_override_key("variable_discovery_plugin")
         )
         if override_result is not None:
             return cast("VariableDiscoveryPlugin", override_result)
@@ -450,11 +455,41 @@ class DIContainer:
         if "feature_detection_plugin" in self._mocks:
             return self._mocks["feature_detection_plugin"]
         override_result = self._call_factory_override(
-            "feature_detection_plugin_factory"
+            factory_override_key("feature_detection_plugin")
         )
         if override_result is not None:
             return cast("FeatureDetectionPlugin", override_result)
         return self._plugin_resolver.factory_feature_detection_plugin()
+
+    def register_platform_plugin_bundle(
+        self,
+        *,
+        platform_key: str,
+        support_state: str,
+        runtime_aliases: tuple[str, ...] = (),
+        default_providers: Mapping[str, Callable[[], Any]] | None = None,
+        scan_pipeline_plugin: type[Any] | None = None,
+        readme_renderer_plugin: type[Any] | None = None,
+        variable_discovery_plugin: type[Any] | None = None,
+        variable_discovery_loader: tuple[str, str] | None = None,
+        feature_detection_plugin: type[Any] | None = None,
+        feature_detection_loader: tuple[str, str] | None = None,
+    ) -> None:
+        from prism.scanner_plugins.bootstrap import register_platform_plugin_bundle
+
+        register_platform_plugin_bundle(
+            self._get_registry(),
+            platform_key=platform_key,
+            support_state=cast(Any, support_state),
+            runtime_aliases=runtime_aliases,
+            default_providers=default_providers,
+            scan_pipeline_plugin=scan_pipeline_plugin,
+            readme_renderer_plugin=readme_renderer_plugin,
+            variable_discovery_plugin=variable_discovery_plugin,
+            variable_discovery_loader=variable_discovery_loader,
+            feature_detection_plugin=feature_detection_plugin,
+            feature_detection_loader=feature_detection_loader,
+        )
 
     def factory_comment_driven_doc_plugin(
         self,
