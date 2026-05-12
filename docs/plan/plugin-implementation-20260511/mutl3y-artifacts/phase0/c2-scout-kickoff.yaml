@@ -1,0 +1,23 @@
+plan_id: plugin-implementation-20260511
+cycle: plugin-implementation-20260511-c2
+phase: 0
+worker: mutl3y-scout
+tier_selected: "FREE (0x)"
+tier_reason: "Phase 0 scout kickoff per tier strategy default for discovery."
+scope:
+  - src/prism/scanner_plugins
+  - src/prism/api_layer
+  - src/prism/scanner_core
+observations:
+  - "src/prism/api_layer/non_collection.py: prepared_policy_bundle caching and default_plugin_registry usage — risk: cache markers ('__prepared_policy_bundle_state__') and uncacheable bundle values can skip scan cache and cause inconsistent runtime behavior. [src/prism/api_layer/non_collection.py](src/prism/api_layer/non_collection.py#L498-L517)"
+  - "src/prism/api_layer/plugin_facade.py: pass-throughs to scanner_plugins.bundle_resolver and defaults; default registry is cached globally — risk: implicit global state and isolation wrapper complexity. [src/prism/api_layer/plugin_facade.py](src/prism/api_layer/plugin_facade.py#L222-L240)"
+  - "src/prism/scanner_plugins/bundle_resolver.py: central prepared-policy assembly and marker-prefix projection — risk: policy resolution complexity and underscore-prefixed reference handling may surface unexpected bundle shapes. [src/prism/scanner_plugins/bundle_resolver.py](src/prism/scanner_plugins/bundle_resolver.py#L1-L40)"
+  - "src/prism/scanner_plugins/defaults.py: plugin resolution helpers and DI/registry seams; many defaults defer to bootstrap — risk: import-time vs runtime initialization order and singleton invariant validations. [src/prism/scanner_plugins/defaults.py](src/prism/scanner_plugins/defaults.py#L1-L120)"
+  - "src/prism/scanner_plugins/bootstrap.py & src/prism/scanner_plugins/registry.py: registry bootstrap and default plugin registration logic — risk: bootstrap idempotence, platform-reserved bundles, and tests indicate heavy reliance on correct bootstrap sequencing. [src/prism/scanner_plugins/bootstrap.py](src/prism/scanner_plugins/bootstrap.py#L1-L80), [src/prism/scanner_plugins/registry.py](src/prism/scanner_plugins/registry.py#L1-L80)"
+  - "src/prism/scanner_core/plugin_resolver.py and src/prism/scanner_core/task_extract_adapters.py: callers that assume bootstrap has run — risk: callsites assuming bootstrap completed can fail in alternate DI contexts. [src/prism/scanner_core/plugin_resolver.py](src/prism/scanner_core/plugin_resolver.py#L1-L140), [src/prism/scanner_core/task_extract_adapters.py](src/prism/scanner_core/task_extract_adapters.py#L1-L120)"
+candidate_focus_axis:
+  - ownership
+  - registry_authority
+  - prepared_policy_bundle_shape
+recommended_next_phase_action: "Phase 1 grading: cluster these findings and run focused Phase 3 probes on prepared_policy_bundle mutation paths and bootstrap idempotence."
+timestamp_utc: "2026-05-12T01:06:15Z"
