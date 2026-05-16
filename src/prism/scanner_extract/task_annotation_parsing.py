@@ -2,31 +2,8 @@
 
 from __future__ import annotations
 
-from typing import cast
-
-from prism.scanner_core.di_helpers import require_prepared_policy
-from prism.scanner_data.contracts_request import (
-    DIContainer,
-    PreparedTaskAnnotationPolicy,
-    TaskAnnotation,
-)
-from prism.scanner_data.policy_constants import PolicyConstants
-
-
-def _annotation_policy(
-    di: DIContainer | None,
-    policy_constants: PolicyConstants | None,
-) -> PreparedTaskAnnotationPolicy:
-    if policy_constants is not None:
-        policy = getattr(policy_constants, "task_annotation_parsing", None)
-        if policy is not None:
-            return policy
-    return cast(
-        PreparedTaskAnnotationPolicy,
-        require_prepared_policy(
-            di, "task_annotation_parsing", "task_annotation_parsing"
-        ),
-    )
+from prism.scanner_core.di_helpers import get_prepared_policy_attr
+from prism.scanner_data.contracts_request import TaskAnnotation
 
 
 def _split_task_annotation_label(
@@ -35,7 +12,13 @@ def _split_task_annotation_label(
     di: DIContainer | None = None,
     policy_constants: PolicyConstants | None = None,
 ) -> tuple[str, str]:
+<<<<<<< HEAD
     return _annotation_policy(di, policy_constants).split_task_annotation_label(text)
+=======
+    return get_prepared_policy_attr(
+        di, "task_annotation_parsing", "split_task_annotation_label"
+    )(text)
+>>>>>>> 8797de2c (Wave 2a: Consolidate require_prepared_policy calls (FIND-04) and extract IGNORED_IDENTIFIERS (FIND-06))
 
 
 def _split_task_target_payload(
@@ -44,7 +27,13 @@ def _split_task_target_payload(
     di: DIContainer | None = None,
     policy_constants: PolicyConstants | None = None,
 ) -> tuple[str, str]:
+<<<<<<< HEAD
     return _annotation_policy(di, policy_constants).split_task_target_payload(text)
+=======
+    return get_prepared_policy_attr(
+        di, "task_annotation_parsing", "split_task_target_payload"
+    )(text)
+>>>>>>> 8797de2c (Wave 2a: Consolidate require_prepared_policy calls (FIND-04) and extract IGNORED_IDENTIFIERS (FIND-06))
 
 
 def _annotation_payload_looks_yaml(
@@ -53,9 +42,15 @@ def _annotation_payload_looks_yaml(
     di: DIContainer | None = None,
     policy_constants: PolicyConstants | None = None,
 ) -> bool:
+<<<<<<< HEAD
     return _annotation_policy(di, policy_constants).annotation_payload_looks_yaml(
         payload
     )
+=======
+    return get_prepared_policy_attr(
+        di, "task_annotation_parsing", "annotation_payload_looks_yaml"
+    )(payload)
+>>>>>>> 8797de2c (Wave 2a: Consolidate require_prepared_policy calls (FIND-04) and extract IGNORED_IDENTIFIERS (FIND-06))
 
 
 def _extract_task_annotations_for_file(
@@ -66,7 +61,13 @@ def _extract_task_annotations_for_file(
     di: DIContainer | None = None,
     policy_constants: PolicyConstants | None = None,
 ) -> tuple[list[TaskAnnotation], dict[str, list[TaskAnnotation]]]:
+<<<<<<< HEAD
     return _annotation_policy(di, policy_constants).extract_task_annotations_for_file(
+=======
+    return get_prepared_policy_attr(
+        di, "task_annotation_parsing", "extract_task_annotations_for_file"
+    )(
+>>>>>>> 8797de2c (Wave 2a: Consolidate require_prepared_policy calls (FIND-04) and extract IGNORED_IDENTIFIERS (FIND-06))
         lines=lines,
         marker_prefix=marker_prefix,
         include_task_index=include_task_index,
@@ -81,7 +82,11 @@ def _task_anchor(
     di: DIContainer | None = None,
     policy_constants: PolicyConstants | None = None,
 ) -> str:
+<<<<<<< HEAD
     return _annotation_policy(di, policy_constants).task_anchor(
+=======
+    return get_prepared_policy_attr(di, "task_annotation_parsing", "task_anchor")(
+>>>>>>> 8797de2c (Wave 2a: Consolidate require_prepared_policy calls (FIND-04) and extract IGNORED_IDENTIFIERS (FIND-06))
         file_path=file_path,
         task_name=task_name,
         index=index,

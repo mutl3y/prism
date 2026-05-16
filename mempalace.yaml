@@ -1,0 +1,60 @@
+wing: prism
+rooms:
+- name: scripts
+  description: Files from scripts/
+  keywords:
+  - scripts
+  - scripts
+- name: plugins
+  description: Files from plugins/
+  keywords:
+  - plugins
+  - plugins
+- name: tasks
+  description: Files from tasks/
+  keywords:
+  - tasks
+  - tasks
+- name: demos
+  description: Files from demos/
+  keywords:
+  - demos
+  - demos
+- name: mutl3y_artifacts
+  description: Files from mutl3y-artifacts/
+  keywords:
+  - mutl3y_artifacts
+  - mutl3y-artifacts
+- name: roles
+  description: Files from roles/
+  keywords:
+  - roles
+  - roles
+- name: src
+  description: Files from src/
+  keywords:
+  - src
+  - src
+- name: debug_readmes
+  description: Files from debug_readmes/
+  keywords:
+  - debug_readmes
+  - debug_readmes
+- name: missing_role
+  description: Files from missing-role/
+  keywords:
+  - missing_role
+  - missing-role
+- name: prd
+  description: Files from prd/
+  keywords:
+  - prd
+  - prd
+- name: documentation
+  description: Files from docs/
+  keywords:
+  - documentation
+  - docs
+- name: general
+  description: Files that don't fit other rooms
+  keywords: []

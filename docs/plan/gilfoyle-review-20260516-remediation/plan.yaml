@@ -1,0 +1,190 @@
+plan_id: gilfoyle-review-20260516-remediation
+title: "Gilfoyle Code Review Remediation Plan"
+created: "2026-05-16"
+status: "PLANNING"
+reviewer: "Gilfoyle (Code Review Mode)"
+source_review: "docs/reviews/Gilfoyle-code-review-20260516.md"
+
+summary: |
+  Remediation plan for 11 findings from the 2026-05-16 Gilfoyle code review of the Prism scanner codebase.
+  Focus areas: runtime performance (HIGH), architectural debt (MEDIUM), and consistency (LOW).
+
+findings:
+  - id: "FIND-01"
+    severity: "MEDIUM"
+    title: "Empty Subclass Facades in api.py"
+    file: "src/prism/api.py"
+    wave: 2
+    estimated_effort: "1h"
+
+  - id: "FIND-02"
+    severity: "HIGH"
+    title: "Policy-Backed Proxy Pattern on Hot Paths"
+    file: "src/prism/scanner_extract/task_line_parsing.py"
+    wave: 1
+    estimated_effort: "4h"
+
+  - id: "FIND-03"
+    severity: "MEDIUM"
+    title: "Hand-Rolled Deep Clone"
+    file: "src/prism/scanner_core/di.py"
+    wave: 2
+    estimated_effort: "2h"
+
+  - id: "FIND-04"
+    severity: "MEDIUM"
+    title: "Repeated require_prepared_policy Call Sites"
+    files:
+      - "src/prism/scanner_extract/task_line_parsing.py"
+      - "src/prism/scanner_extract/task_annotation_parsing.py"
+      - "src/prism/scanner_extract/task_file_traversal.py"
+      - "src/prism/scanner_extract/yaml_parsing.py"
+    wave: 2
+    estimated_effort: "3h"
+
+  - id: "FIND-05"
+    severity: "LOW"
+    title: "CacheKeyProtocol Convention Mismatch"
+    file: "src/prism/scanner_data/contracts_request.py"
+    wave: 3
+    estimated_effort: "1h"
+
+  - id: "FIND-06"
+    severity: "MEDIUM"
+    title: "Hardcoded IGNORED_IDENTIFIERS"
+    file: "src/prism/scanner_plugins/ansible/variable_discovery.py"
+    wave: 2
+    estimated_effort: "3h"
+
+  - id: "FIND-07"
+    severity: "LOW"
+    title: "Redundant Locking in Event Bus"
+    file: "src/prism/scanner_core/events.py"
+    wave: 3
+    estimated_effort: "1h"
+
+  - id: "FIND-08"
+    severity: "MEDIUM"
+    title: "Overly Permissive Type Alias"
+    file: "src/prism/repo_services.py"
+    wave: 2
+    estimated_effort: "1h"
+
+  - id: "FIND-09"
+    severity: "LOW"
+    title: "Inconsistent Naming Conventions"
+    file: "src/prism/cli.py"
+    wave: 3
+    estimated_effort: "30m"
+
+  - id: "FIND-10"
+    severity: "MEDIUM"
+    title: "Runtime Protocol Validation"
+    file: "src/prism/scanner_kernel/orchestrator.py"
+    wave: 2
+    estimated_effort: "2h"
+
+  - id: "FIND-11"
+    severity: "MEDIUM"
+    title: "Test Coverage Gaps"
+    files:
+      - "src/prism/tests/core/test_task_line_parsing.py"
+      - "src/prism/tests/core/test_scanner_context.py"
+      - "src/prism/tests/core/test_execution_request_builder.py"
+      - "src/prism/tests/core/test_output_orchestrator.py"
+    wave: 2
+    estimated_effort: "4h"
+
+waves:
+  wave_1:
+    name: "Critical Performance Remediation"
+    priority: "HIGH"
+    findings: ["FIND-02"]
+    description: "Address runtime overhead from policy-backed proxy pattern on hot paths"
+    gate_criteria:
+      - "pytest -q src/prism/tests/core/test_task_line_parsing.py"
+      - "python3 -m mypy src/prism/scanner_extract/task_line_parsing.py"
+      - "python3 -m ruff check src/prism/scanner_extract/task_line_parsing.py"
+      - "python3 -m black --check src/prism/scanner_extract/task_line_parsing.py"
+
+  wave_2:
+    name: "Architectural Debt Cleanup"
+    priority: "MEDIUM"
+    findings: ["FIND-01", "FIND-03", "FIND-04", "FIND-06", "FIND-08", "FIND-10", "FIND-11"]
+    description: "Remove unnecessary indirection, consolidate repeated patterns, improve type safety"
+    gate_criteria:
+      - "pytest -q src/prism"
+      - "python3 -m mypy src/prism"
+      - "python3 -m ruff check src/prism"
+      - "python3 -m black --check src/prism"
+
+  wave_3:
+    name: "Consistency and Polish"
+    priority: "LOW"
+    findings: ["FIND-05", "FIND-07", "FIND-09"]
+    description: "Minor design improvements and naming consistency"
+    gate_criteria:
+      - "pytest -q src/prism"
+      - "python3 -m ruff check src/prism"
+      - "python3 -m black --check src/prism"
+
+phases:
+  phase_0:
+    name: "Discovery"
+    status: "COMPLETE"
+    artifacts:
+      - "docs/reviews/Gilfoyle-code-review-20260516.md"
+
+  phase_1:
+    name: "Grading"
+    status: "IN_PROGRESS"
+    artifacts:
+      - "docs/plan/gilfoyle-review-20260516-remediation/plan.yaml"
+
+  phase_3:
+    name: "Investigation"
+    status: "PENDING"
+    tasks:
+      - "Probe FIND-02 root cause and measure baseline performance"
+      - "Audit all require_prepared_policy call sites for consolidation opportunities"
+      - "Validate test coverage gaps with actual missing test scenarios"
+
+  phase_5:
+    name: "Implementation"
+    status: "PENDING"
+    waves: ["wave_1", "wave_2", "wave_3"]
+
+  phase_6:
+    name: "Validation"
+    status: "PENDING"
+    gates:
+      - "Full pytest suite (1171+ tests)"
+      - "mypy typecheck (48 pre-existing errors acceptable)"
+      - "ruff lint clean"
+      - "black formatting clean"
+
+  phase_7:
+    name: "Closure"
+    status: "PENDING"
+    deliverables:
+      - "All findings closed with evidence"
+      - "Lessons promoted to mutl3y-lessons/"
+      - "YAML artifacts normalized"
+
+closure_control_gate:
+  cadence_review_required: true
+  god_mode_review_required: true
+  continuation_decision: "PENDING"
+  commit_decision: "PENDING"
+  pause_decision: "PENDING"
+
+model_usage_ledger:
+  - timestamp: "2026-05-16T00:00:00Z"
+    phase: "phase_1"
+    worker: "foreman"
+    task_id: "plan-creation"
+    requested_tier: "LOW-COST (0.33x)"
+    requested_model: "Claude Haiku 4.5"
+    actual_model: "Claude Haiku 4.5"
+    result: "SUCCESS"
+    artifact_path: "docs/plan/gilfoyle-review-20260516-remediation/plan.yaml"

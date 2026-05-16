@@ -191,6 +191,18 @@ def get_event_bus_or_none(di: object) -> EventBusProtocol | None:
     return factory_event_bus()
 
 
+def get_prepared_policy_attr(
+    di: object | None, policy_name: str, attr_name: str
+) -> Any:
+    """Retrieve a specific attribute from a prepared policy.
+
+    Consolidates the repeated pattern:
+        require_prepared_policy(di, policy_name, policy_name).attr_name
+    """
+    policy = require_prepared_policy(di, policy_name, policy_name)
+    return getattr(policy, attr_name)
+
+
 def get_variable_discovery_plugin_factory_or_none(
     di: object,
 ) -> Callable[[], VariableDiscoveryPlugin] | None:
