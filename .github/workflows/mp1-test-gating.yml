@@ -77,10 +77,7 @@ jobs:
       - name: Report MP1 Test Results
         if: always()
         run: |
-          echo "## MP1 Test Gating Results 🔒" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Phase 1 Acceptance Gate**: MP1 Boundary Enforcement" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          summary_file="$GITHUB_STEP_SUMMARY"
 
           eval "$(python3 - <<'PY'
           import xml.etree.ElementTree as ET
@@ -105,18 +102,24 @@ jobs:
           PY
           )"
 
-          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Total Tests | $TOTAL |" >> $GITHUB_STEP_SUMMARY
-          echo "| Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
-          echo "| Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## MP1 Test Gating Results 🔒"
+            echo ""
+            echo "**Phase 1 Acceptance Gate**: MP1 Boundary Enforcement"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| Total Tests | $TOTAL |"
+            echo "| Passed | $PASSED |"
+            echo "| Failed | $FAILED |"
+            echo ""
 
-          if [ "$FAILED" -eq "0" ]; then
-            echo "✅ **Phase 1 Gate: PASS** — All MP1 tests passing" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Phase 1 Gate: FAIL** — MP1 tests failed (blocking merge)" >> $GITHUB_STEP_SUMMARY
-          fi
+            if [ "$FAILED" -eq "0" ]; then
+              echo "✅ **Phase 1 Gate: PASS** — All MP1 tests passing"
+            else
+              echo "❌ **Phase 1 Gate: FAIL** — MP1 tests failed (blocking merge)"
+            fi
+          } >> "$summary_file"
 
   nightly-full-suite:
     name: Nightly Full MP1 Suite
@@ -182,31 +185,35 @@ jobs:
     steps:
       - name: Generate Phase 1 Summary
         run: |
-          echo "## Phase 1 Acceptance Gate Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Cycle**: g84-remediation-mutl3y-cycle-20260509" >> $GITHUB_STEP_SUMMARY
-          echo "**Phase**: Phase 1, Task 1.3" >> $GITHUB_STEP_SUMMARY
-          echo "**Builder**: Builder-TestGating" >> $GITHUB_STEP_SUMMARY
-          echo "**Date**: $(date -u +'%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          summary_file="$GITHUB_STEP_SUMMARY"
 
-          if [ "${{ needs.mp1-blocking-tests.result }}" == "success" ]; then
-            echo "✅ **GATE STATUS: PASS**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "All MP1 blocking tests passed. PR is eligible for merge." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **GATE STATUS: FAIL**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "MP1 tests failed. Fix violations before retry." >> $GITHUB_STEP_SUMMARY
-          fi
+          {
+            echo "## Phase 1 Acceptance Gate Summary"
+            echo ""
+            echo "**Cycle**: g84-remediation-mutl3y-cycle-20260509"
+            echo "**Phase**: Phase 1, Task 1.3"
+            echo "**Builder**: Builder-TestGating"
+            echo "**Date**: $(date -u +'%Y-%m-%d %H:%M UTC')"
+            echo ""
 
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Coverage Requirements" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Suite 1: Boundary Tests (5 tests)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Suite 2: Violation Detection (3 tests)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Suite 3: Integration Tests (2+ tests)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Total**: 10+ tests covering 7 ingress paths" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ needs.mp1-blocking-tests.result }}" = "success" ]; then
+              echo "✅ **GATE STATUS: PASS**"
+              echo ""
+              echo "All MP1 blocking tests passed. PR is eligible for merge."
+            else
+              echo "❌ **GATE STATUS: FAIL**"
+              echo ""
+              echo "MP1 tests failed. Fix violations before retry."
+            fi
+
+            echo ""
+            echo "### Coverage Requirements"
+            echo "- ✅ Suite 1: Boundary Tests (5 tests)"
+            echo "- ✅ Suite 2: Violation Detection (3 tests)"
+            echo "- ✅ Suite 3: Integration Tests (2+ tests)"
+            echo ""
+            echo "**Total**: 10+ tests covering 7 ingress paths"
+          } >> "$summary_file"
 
       - name: Enforce gate status
         if: failure()
