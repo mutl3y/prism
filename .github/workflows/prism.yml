@@ -343,7 +343,14 @@ jobs:
           pre-commit run --files "${repo_files[@]}" --show-diff-on-failure
 
       - name: TRIVY
-        run: trivy fs --exit-code 1 --no-progress --scanners vuln,misconfig,secret .
+        run: |
+          trivy fs \
+            --exit-code 1 \
+            --no-progress \
+            --scanners vuln,misconfig,secret \
+            --skip-dirs src/prism/tests/fixtures \
+            --skip-dirs src/prism/tests/roles \
+            .
 
   plugin-comment-highlighter:
     name: Plugin Comment Highlighter
