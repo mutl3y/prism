@@ -83,6 +83,9 @@ findings:
     file: "src/prism/scanner_kernel/orchestrator.py"
     wave: 2
     estimated_effort: "2h"
+    status: "CLOSED"
+    resolution: "ACCEPTED_AS_DESIGNED"
+    notes: "Runtime validation is intentional defensive pattern for plugin-based system. Type guards provide contract safety for external plugins."
 
   - id: "FIND-11"
     severity: "MEDIUM"
