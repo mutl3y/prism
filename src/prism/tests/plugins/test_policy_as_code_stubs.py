@@ -233,6 +233,6 @@ class TestCLIAuditFlags:
         assert args.fail_on_audit_violations is False
 
     def test_exit_code_audit_violations_constant(self) -> None:
-        from prism.cli import EXIT_CODE_AUDIT_VIOLATIONS
+        from prism.cli import _EXIT_CODE_AUDIT_VIOLATIONS
 
-        assert isinstance(EXIT_CODE_AUDIT_VIOLATIONS, int)
+        assert isinstance(_EXIT_CODE_AUDIT_VIOLATIONS, int)

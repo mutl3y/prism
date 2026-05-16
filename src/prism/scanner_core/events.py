@@ -83,6 +83,10 @@ class EventBus:
     manager to emit a matched ``pre``/``post`` pair around a block of
     work.
 
+    Listener list is append-only after module load.
+    No runtime registration supported; lock protects against
+    concurrent test fixture modifications only.
+
     When a listener raises an exception, an :class:`EventBusError` is
     recorded for observability. Error events are emitted directly without
     triggering the listener loop to avoid recursion.

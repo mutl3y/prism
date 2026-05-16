@@ -22,7 +22,7 @@ _logger = logging.getLogger(__name__)
 
 _EXIT_CODE_GENERIC_ERROR = 2
 _EXIT_CODE_NOT_FOUND = 3
-EXIT_CODE_AUDIT_VIOLATIONS = 8
+_EXIT_CODE_AUDIT_VIOLATIONS = 8
 _EXIT_CODE_PERMISSION_DENIED = 4
 _EXIT_CODE_JSON_PAYLOAD_ERROR = 5
 _EXIT_CODE_NETWORK_ERROR = 6
@@ -178,7 +178,7 @@ def _add_shared_scan_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--fail-on-audit-violations",
         action="store_true",
-        help=f"Exit with code {EXIT_CODE_AUDIT_VIOLATIONS} if audit policy violations are found.",
+        help=f"Exit with code {_EXIT_CODE_AUDIT_VIOLATIONS} if audit policy violations are found.",
     )
     parser.add_argument(
         "--progress",
@@ -340,7 +340,7 @@ def _maybe_run_audit(args: argparse.Namespace, payload: dict) -> int:
     if getattr(args, "fail_on_audit_violations", False) and any(
         v.severity == "error" for v in report.violations
     ):
-        return EXIT_CODE_AUDIT_VIOLATIONS
+        return _EXIT_CODE_AUDIT_VIOLATIONS
     return 0
 
 
