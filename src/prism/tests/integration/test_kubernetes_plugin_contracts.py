@@ -38,14 +38,8 @@ def test_kubernetes_execution_bundle_returns_fail_closed_contract_stubs() -> Non
     bundle = build_kubernetes_execution_bundle(build_kubernetes_scan_options())
 
     assert set(bundle) == {"prepared_policy", "platform_participants"}
-    assert (
-        bundle["platform_participants"]["task_line_parsing"]
-        is bundle["prepared_policy"]["task_line_parsing"]
-    )
-    assert (
-        bundle["platform_participants"]["jinja_analysis"]
-        is bundle["prepared_policy"]["jinja_analysis"]
-    )
+    assert bundle["platform_participants"]["task_line_parsing"] is bundle["prepared_policy"]["task_line_parsing"]
+    assert bundle["platform_participants"]["jinja_analysis"] is bundle["prepared_policy"]["jinja_analysis"]
 
     task_line = bundle["prepared_policy"]["task_line_parsing"]
     assert task_line.TASK_INCLUDE_KEYS == frozenset()
@@ -63,9 +57,6 @@ def test_kubernetes_readme_renderer_is_runtime_compatible() -> None:
     plugin = KubernetesReadmeRendererPlugin()
 
     assert isinstance(plugin, ReadmeRendererPlugin)
-    assert plugin.default_section_specs()[0] == (
-        "purpose",
-        "Workload purpose and capabilities",
-    )
+    assert plugin.default_section_specs()[0] == ("purpose", "Workload purpose and capabilities")
     assert plugin.legacy_merge_marker_prefixes() == ("prism", "kubernetes-doc")
     assert "scanner_report" in plugin.extra_section_ids()

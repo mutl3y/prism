@@ -13,6 +13,7 @@ from prism.tests.fixtures.fixtures_terraform_modules import (
     build_nested_terraform_module_fixture,
 )
 
+
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 TERRAFORM_FIXTURE_ROOT = PROJECT_ROOT / "src/prism/tests/fixtures/terraform"
 

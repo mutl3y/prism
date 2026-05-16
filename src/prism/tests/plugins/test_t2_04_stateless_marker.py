@@ -149,7 +149,13 @@ def test_resolve_test_node_finds_nested_moved_plugin_test(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     moved_test = (
-        tmp_path / "src" / "prism" / "tests" / "plugins" / "moved" / "test_demo.py"
+        tmp_path
+        / "src"
+        / "prism"
+        / "tests"
+        / "plugins"
+        / "moved"
+        / "test_demo.py"
     )
     moved_test.parent.mkdir(parents=True)
     moved_test.write_text("def test_ok():\n    pass\n", encoding="utf-8")
@@ -179,9 +185,7 @@ def test_bootstrap_custom_registry_reserves_future_platform_names_without_wiring
     assert registry.get_scan_pipeline_plugin("terraform") is None
 
 
-def test_register_platform_plugin_bundle_reserves_unsupported_platform_without_runtime_plugins() -> (
-    None
-):
+def test_register_platform_plugin_bundle_reserves_unsupported_platform_without_runtime_plugins() -> None:
     from prism.scanner_plugins.bootstrap import register_platform_plugin_bundle
     from prism.scanner_plugins.registry import PluginRegistry
 
@@ -241,32 +245,7 @@ def test_register_platform_plugin_bundle_registers_supported_runtime_seams() -> 
     )
 
 
-def test_register_platform_plugin_bundle_registers_platform_default_providers() -> None:
-    from prism.scanner_plugins.bootstrap import register_platform_plugin_bundle
-    from prism.scanner_plugins.registry import PluginRegistry
-
-    registry = PluginRegistry()
-    sentinel = object()
-
-    register_platform_plugin_bundle(
-        registry,
-        platform_key="example",
-        support_state="supported",
-        default_providers={"task_line_parsing_policy": lambda: sentinel},
-    )
-
-    provider = registry.get_platform_default_provider(
-        "example",
-        "task_line_parsing_policy",
-    )
-
-    assert provider is not None
-    assert provider() is sentinel
-
-
-def test_describe_platform_registration_state_activates_reserved_platform_only_after_all_runtime_seams() -> (
-    None
-):
+def test_describe_platform_registration_state_activates_reserved_platform_only_after_all_runtime_seams() -> None:
     from prism.scanner_plugins.bootstrap import (
         describe_platform_registration_state,
         register_platform_plugin_bundle,

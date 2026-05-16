@@ -5,6 +5,8 @@ error detection and provenance extraction.
 """
 
 from __future__ import annotations
+
+import pytest
 from typing import Any
 
 from prism.scanner_plugins.kubernetes.error_adapter import (
@@ -33,7 +35,7 @@ class TestK8sPodFixtures:
         self, k8s_pod_not_found_context: dict[str, Any]
     ) -> None:
         exception = RuntimeError(k8s_pod_not_found_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_pod_not_found_context, exception)
         error_code, category, recoverable = classify_k8s_error(exception)
 
@@ -45,7 +47,7 @@ class TestK8sPodFixtures:
 
     def test_pod_failed_fixture(self, k8s_pod_failed_context: dict[str, Any]) -> None:
         exception = RuntimeError(k8s_pod_failed_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_pod_failed_context, exception)
         error_code, category, recoverable = classify_k8s_error(exception)
 
@@ -54,9 +56,11 @@ class TestK8sPodFixtures:
         assert category == "runtime"
         assert recoverable is False
 
-    def test_pod_pending_fixture(self, k8s_pod_pending_context: dict[str, Any]) -> None:
+    def test_pod_pending_fixture(
+        self, k8s_pod_pending_context: dict[str, Any]
+    ) -> None:
         exception = RuntimeError(k8s_pod_pending_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_pod_pending_context, exception)
         error_code, category, recoverable = classify_k8s_error(exception)
 
@@ -69,18 +73,20 @@ class TestK8sPodFixtures:
         self, k8s_pod_oom_killed_context: dict[str, Any]
     ) -> None:
         exception = RuntimeError(k8s_pod_oom_killed_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_pod_oom_killed_context, exception)
         error_code, category, _ = classify_k8s_error(exception)
 
         assert detail["pod_name"] == "memory-intensive-pod"
         assert error_code == K8S_POD_FAILED
 
-    def test_pod_evicted_fixture(self, k8s_pod_evicted_context: dict[str, Any]) -> None:
+    def test_pod_evicted_fixture(
+        self, k8s_pod_evicted_context: dict[str, Any]
+    ) -> None:
         exception = RuntimeError(k8s_pod_evicted_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_pod_evicted_context, exception)
-
+        
         assert detail["pod_name"] == "batch-job-123"
         assert detail["cluster"] == "prod-us-east"
 
@@ -92,7 +98,7 @@ class TestK8sDeploymentFixtures:
         self, k8s_deployment_failed_context: dict[str, Any]
     ) -> None:
         exception = RuntimeError(k8s_deployment_failed_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_deployment_failed_context, exception)
         error_code, category, recoverable = classify_k8s_error(exception)
 
@@ -105,7 +111,7 @@ class TestK8sDeploymentFixtures:
         self, k8s_replicas_not_ready_context: dict[str, Any]
     ) -> None:
         exception = RuntimeError(k8s_replicas_not_ready_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_replicas_not_ready_context, exception)
         error_code, category, recoverable = classify_k8s_error(exception)
 
@@ -118,7 +124,7 @@ class TestK8sDeploymentFixtures:
         self, k8s_deployment_timeout_context: dict[str, Any]
     ) -> None:
         exception = RuntimeError(k8s_deployment_timeout_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_deployment_timeout_context, exception)
         error_code, _, _ = classify_k8s_error(exception)
 
@@ -133,7 +139,7 @@ class TestK8sServiceFixtures:
         self, k8s_service_not_found_context: dict[str, Any]
     ) -> None:
         exception = RuntimeError(k8s_service_not_found_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_service_not_found_context, exception)
         error_code, category, recoverable = classify_k8s_error(exception)
 
@@ -146,7 +152,7 @@ class TestK8sServiceFixtures:
         self, k8s_service_endpoint_empty_context: dict[str, Any]
     ) -> None:
         exception = RuntimeError(k8s_service_endpoint_empty_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_service_endpoint_empty_context, exception)
         error_code, category, recoverable = classify_k8s_error(exception)
 
@@ -158,11 +164,11 @@ class TestK8sServiceFixtures:
     def test_service_selector_mismatch_fixture(
         self, k8s_service_selector_mismatch_context: dict[str, Any]
     ) -> None:
-        exception = RuntimeError(k8s_service_selector_mismatch_context["error_message"])
-
-        detail = build_k8s_error_detail(
-            k8s_service_selector_mismatch_context, exception
+        exception = RuntimeError(
+            k8s_service_selector_mismatch_context["error_message"]
         )
+        
+        detail = build_k8s_error_detail(k8s_service_selector_mismatch_context, exception)
         error_code, _, _ = classify_k8s_error(exception)
 
         assert detail["service_name"] == "worker-service"
@@ -176,7 +182,7 @@ class TestK8sConfigFixtures:
         self, k8s_config_missing_context: dict[str, Any]
     ) -> None:
         exception = FileNotFoundError(k8s_config_missing_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_config_missing_context, exception)
         error_code, category, recoverable = classify_k8s_error(exception)
 
@@ -189,7 +195,7 @@ class TestK8sConfigFixtures:
         self, k8s_secret_not_found_context: dict[str, Any]
     ) -> None:
         exception = RuntimeError(k8s_secret_not_found_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_secret_not_found_context, exception)
         error_code, category, recoverable = classify_k8s_error(exception)
 
@@ -206,7 +212,7 @@ class TestK8sResourceFixtures:
         self, k8s_quota_exceeded_context: dict[str, Any]
     ) -> None:
         exception = RuntimeError(k8s_quota_exceeded_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_quota_exceeded_context, exception)
         error_code, category, recoverable = classify_k8s_error(exception)
 
@@ -215,9 +221,11 @@ class TestK8sResourceFixtures:
         assert category == "api"
         assert recoverable is False
 
-    def test_rbac_denied_fixture(self, k8s_rbac_denied_context: dict[str, Any]) -> None:
+    def test_rbac_denied_fixture(
+        self, k8s_rbac_denied_context: dict[str, Any]
+    ) -> None:
         exception = PermissionError(k8s_rbac_denied_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_rbac_denied_context, exception)
         error_code, category, recoverable = classify_k8s_error(exception)
 
@@ -230,7 +238,7 @@ class TestK8sResourceFixtures:
         self, k8s_cpu_quota_exceeded_context: dict[str, Any]
     ) -> None:
         exception = RuntimeError(k8s_cpu_quota_exceeded_context["error_message"])
-
+        
         detail = build_k8s_error_detail(k8s_cpu_quota_exceeded_context, exception)
         error_code, _, _ = classify_k8s_error(exception)
 

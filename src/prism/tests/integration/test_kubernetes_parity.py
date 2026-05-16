@@ -5,6 +5,8 @@ adapter for consistency across platforms.
 """
 
 from __future__ import annotations
+
+import pytest
 from typing import Any
 
 from prism.scanner_plugins.kubernetes.error_adapter import (
@@ -25,9 +27,9 @@ class TestK8sAdapterParity:
         """Error detail builder returns dict like Ansible adapter."""
         context: dict[str, Any] = {"pod_name": "test"}
         exception = RuntimeError("test")
-
+        
         detail = build_k8s_error_detail(context, exception)
-
+        
         assert isinstance(detail, dict)
 
     def test_error_detail_preserves_context_fields(self) -> None:
@@ -38,18 +40,18 @@ class TestK8sAdapterParity:
             "cluster": "test-cluster",
         }
         exception = RuntimeError("test")
-
+        
         detail = build_k8s_error_detail(context, exception)
-
+        
         for key, value in context.items():
             assert detail[key] == value
 
     def test_classify_error_returns_three_tuple(self) -> None:
         """Classifier returns (code, category, recoverable) like Ansible."""
         exception = RuntimeError("test error")
-
+        
         result = classify_k8s_error(exception)
-
+        
         assert isinstance(result, tuple)
         assert len(result) == 3
         code, category, recoverable = result
@@ -78,18 +80,18 @@ class TestK8sAdapterParity:
     def test_classifier_handles_runtime_error(self) -> None:
         """Classifier handles RuntimeError like Ansible."""
         exception = RuntimeError("Generic error")
-
+        
         code, category, recoverable = classify_k8s_error(exception)
-
+        
         assert code in K8S_ERROR_CODES
         assert category in K8S_ERROR_CATEGORY_MAP.values()
 
     def test_classifier_handles_permission_error(self) -> None:
         """Classifier handles PermissionError like Ansible."""
         exception = PermissionError("Access denied")
-
+        
         code, category, recoverable = classify_k8s_error(exception)
-
+        
         assert code in K8S_ERROR_CODES
         assert category in {"auth", "api"}
         assert recoverable is False
@@ -97,9 +99,9 @@ class TestK8sAdapterParity:
     def test_classifier_handles_file_not_found_error(self) -> None:
         """Classifier handles FileNotFoundError like Ansible."""
         exception = FileNotFoundError("Config not found")
-
+        
         code, category, recoverable = classify_k8s_error(exception)
-
+        
         assert code in K8S_ERROR_CODES
         assert category == "io"
         assert recoverable is False
@@ -108,8 +110,8 @@ class TestK8sAdapterParity:
         """Empty context handled safely like Ansible."""
         context: dict[str, Any] = {}
         exception = RuntimeError("test")
-
+        
         detail = build_k8s_error_detail(context, exception)
-
+        
         assert isinstance(detail, dict)
         assert len(detail) == 0

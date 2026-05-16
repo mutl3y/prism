@@ -37,7 +37,7 @@ class KubernetesVariableDiscoveryPlugin:
             Empty tuple (no static variables for Kubernetes)
         """
         del role_path, options  # Unused in bootstrap
-
+        
         return ()
 
     def discover_referenced_variables(
@@ -60,7 +60,7 @@ class KubernetesVariableDiscoveryPlugin:
             Empty frozenset (no referenced variables for Kubernetes)
         """
         del role_path, options, readme_content  # Unused in bootstrap
-
+        
         return frozenset()
 
     def resolve_unresolved_variables(
@@ -83,5 +83,5 @@ class KubernetesVariableDiscoveryPlugin:
             Empty dict (no resolutions for Kubernetes)
         """
         del static_names, referenced, options  # Unused in bootstrap
-
+        
         return {}

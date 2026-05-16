@@ -156,3 +156,4 @@ def classify_k8s_error(
 
     # Default: generic pod failure (recoverable)
     return K8S_POD_FAILED, "runtime", True
+

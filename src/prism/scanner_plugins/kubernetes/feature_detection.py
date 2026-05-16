@@ -74,7 +74,7 @@ def _iter_mapping_documents(path: Path) -> tuple[dict[str, object], ...]:
     try:
         content = path.read_text(encoding="utf-8", errors="replace")
         loaded = tuple(yaml.safe_load_all(content))
-    except OSError, yaml.YAMLError:
+    except (OSError, yaml.YAMLError):
         return ()
     return tuple(item for item in loaded if isinstance(item, dict))
 

@@ -12,6 +12,7 @@ from prism.scanner_plugins.terraform.error_adapter import (
     build_terraform_error_detail,
 )
 
+
 pytestmark = pytest.mark.terraform
 
 

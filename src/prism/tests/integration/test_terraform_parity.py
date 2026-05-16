@@ -15,7 +15,9 @@ from prism.scanner_plugins.terraform.error_adapter import (
 from prism.scanner_plugins.terraform.error_codes import (
     TF_ERROR_CATEGORY_MAP,
     TF_ERROR_CODES,
+    TF_TRANSIENT_ERRORS,
 )
+
 
 pytestmark = pytest.mark.terraform
 
@@ -34,7 +36,9 @@ class TestCategoryParity:
         """Verify categories match allowed taxonomy."""
         allowed_categories = {"runtime", "io", "parser", "api", "auth"}
         for category in TF_ERROR_CATEGORY_MAP.values():
-            assert category in allowed_categories, f"Invalid category: {category}"
+            assert (
+                category in allowed_categories
+            ), f"Invalid category: {category}"
 
 
 class TestRecoverabilityParity:

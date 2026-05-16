@@ -6,6 +6,8 @@ and identity sections.
 """
 
 from __future__ import annotations
+
+import pytest
 from typing import Any
 
 from prism.scanner_plugins.kubernetes.readme_renderer import (
@@ -19,7 +21,7 @@ class TestKubernetesRendererSectionBodyContracts:
     def test_render_purpose_section_with_metadata(self) -> None:
         """Purpose section should use description or role name."""
         renderer = KubernetesReadmeRendererPlugin()
-
+        
         # Test with description
         body = renderer.render_section_body(
             section_id="purpose",
@@ -30,14 +32,14 @@ class TestKubernetesRendererSectionBodyContracts:
             default_filters=[],
             metadata={},
         )
-
+        
         assert body is not None
         assert "Production nginx reverse proxy" in body
 
     def test_render_purpose_section_fallback_to_role_name(self) -> None:
         """Purpose section should fallback to role name if no description."""
         renderer = KubernetesReadmeRendererPlugin()
-
+        
         body = renderer.render_section_body(
             section_id="purpose",
             role_name="nginx-deployment",
@@ -47,7 +49,7 @@ class TestKubernetesRendererSectionBodyContracts:
             default_filters=[],
             metadata={},
         )
-
+        
         assert body is not None
         assert "nginx-deployment" in body
 
@@ -57,7 +59,7 @@ class TestKubernetesRendererSectionBodyContracts:
         metadata: dict[str, Any] = {
             "resource_kinds": ["Deployment", "Service", "ConfigMap", "Secret"]
         }
-
+        
         body = renderer.render_section_body(
             section_id="resources",
             role_name="app",
@@ -67,7 +69,7 @@ class TestKubernetesRendererSectionBodyContracts:
             default_filters=[],
             metadata=metadata,
         )
-
+        
         assert body is not None
         assert "Deployment" in body
         assert "Service" in body
@@ -79,7 +81,7 @@ class TestKubernetesRendererSectionBodyContracts:
     def test_render_resources_section_empty_metadata(self) -> None:
         """Resources section should report unavailable for empty metadata."""
         renderer = KubernetesReadmeRendererPlugin()
-
+        
         body = renderer.render_section_body(
             section_id="resources",
             role_name="app",
@@ -89,7 +91,7 @@ class TestKubernetesRendererSectionBodyContracts:
             default_filters=[],
             metadata={},
         )
-
+        
         assert body is not None
         assert "available" in body.lower() or "inventory" in body.lower()
 
@@ -103,7 +105,7 @@ class TestKubernetesRendererSectionBodyContracts:
                 "Pod security policy required",
             ]
         }
-
+        
         body = renderer.render_section_body(
             section_id="operational_notes",
             role_name="app",
@@ -113,7 +115,7 @@ class TestKubernetesRendererSectionBodyContracts:
             default_filters=[],
             metadata=metadata,
         )
-
+        
         assert body is not None
         assert "Requires network policy" in body
         assert "Must run in dedicated" in body
@@ -124,7 +126,7 @@ class TestKubernetesRendererSectionBodyContracts:
     def test_render_operational_notes_with_variables(self) -> None:
         """Operational notes should indicate bootstrap status when variables present."""
         renderer = KubernetesReadmeRendererPlugin()
-
+        
         body = renderer.render_section_body(
             section_id="operational_notes",
             role_name="app",
@@ -134,15 +136,17 @@ class TestKubernetesRendererSectionBodyContracts:
             default_filters=[],
             metadata={},
         )
-
+        
         assert body is not None
         assert "Bootstrap" in body or "not emitted yet" in body
 
     def test_render_scanner_report_with_path(self) -> None:
         """Scanner report section should link to report when available."""
         renderer = KubernetesReadmeRendererPlugin()
-        metadata: dict[str, Any] = {"scanner_report_relpath": "reports/k8s-scan.md"}
-
+        metadata: dict[str, Any] = {
+            "scanner_report_relpath": "reports/k8s-scan.md"
+        }
+        
         body = renderer.render_section_body(
             section_id="scanner_report",
             role_name="app",
@@ -152,7 +156,7 @@ class TestKubernetesRendererSectionBodyContracts:
             default_filters=[],
             metadata=metadata,
         )
-
+        
         assert body is not None
         assert "reports/k8s-scan.md" in body
         assert "Detailed scanner output" in body
@@ -160,7 +164,7 @@ class TestKubernetesRendererSectionBodyContracts:
     def test_render_scanner_report_unavailable(self) -> None:
         """Scanner report section should report unavailable when no path."""
         renderer = KubernetesReadmeRendererPlugin()
-
+        
         body = renderer.render_section_body(
             section_id="scanner_report",
             role_name="app",
@@ -170,14 +174,14 @@ class TestKubernetesRendererSectionBodyContracts:
             default_filters=[],
             metadata={},
         )
-
+        
         assert body is not None
         assert "bootstrap" in body.lower() or "not wired" in body.lower()
 
     def test_render_unknown_section_returns_none(self) -> None:
         """Unknown section IDs should return None."""
         renderer = KubernetesReadmeRendererPlugin()
-
+        
         body = renderer.render_section_body(
             section_id="unknown_section",
             role_name="app",
@@ -187,7 +191,7 @@ class TestKubernetesRendererSectionBodyContracts:
             default_filters=[],
             metadata={},
         )
-
+        
         assert body is None
 
 
@@ -197,8 +201,10 @@ class TestKubernetesRendererIdentitySectionContracts:
     def test_render_identity_purpose_with_namespace(self) -> None:
         """Identity purpose should include namespace from identity_metadata."""
         renderer = KubernetesReadmeRendererPlugin()
-        identity_metadata: dict[str, Any] = {"namespace": "production"}
-
+        identity_metadata: dict[str, Any] = {
+            "namespace": "production"
+        }
+        
         body = renderer.render_identity_section(
             section_id="purpose",
             role_name="app",
@@ -207,7 +213,7 @@ class TestKubernetesRendererIdentitySectionContracts:
             identity_metadata=identity_metadata,
             metadata={},
         )
-
+        
         assert body is not None
         assert "Main application" in body
         assert "production" in body
@@ -216,7 +222,7 @@ class TestKubernetesRendererIdentitySectionContracts:
     def test_render_identity_purpose_without_namespace(self) -> None:
         """Identity purpose should fallback to description without namespace."""
         renderer = KubernetesReadmeRendererPlugin()
-
+        
         body = renderer.render_identity_section(
             section_id="purpose",
             role_name="app",
@@ -225,7 +231,7 @@ class TestKubernetesRendererIdentitySectionContracts:
             identity_metadata={},
             metadata={},
         )
-
+        
         assert body is not None
         assert "Main application" in body
         assert "namespace" not in body.lower()
@@ -233,8 +239,10 @@ class TestKubernetesRendererIdentitySectionContracts:
     def test_render_identity_resources_with_cluster(self) -> None:
         """Identity resources should include cluster info from identity_metadata."""
         renderer = KubernetesReadmeRendererPlugin()
-        identity_metadata: dict[str, Any] = {"cluster": "us-west-2-prod"}
-
+        identity_metadata: dict[str, Any] = {
+            "cluster": "us-west-2-prod"
+        }
+        
         body = renderer.render_identity_section(
             section_id="resources",
             role_name="app",
@@ -243,7 +251,7 @@ class TestKubernetesRendererIdentitySectionContracts:
             identity_metadata=identity_metadata,
             metadata={},
         )
-
+        
         assert body is not None
         assert "us-west-2-prod" in body
         assert "Cluster" in body
@@ -251,7 +259,7 @@ class TestKubernetesRendererIdentitySectionContracts:
     def test_render_identity_resources_without_cluster(self) -> None:
         """Identity resources should report undeclared when no cluster."""
         renderer = KubernetesReadmeRendererPlugin()
-
+        
         body = renderer.render_identity_section(
             section_id="resources",
             role_name="app",
@@ -260,14 +268,14 @@ class TestKubernetesRendererIdentitySectionContracts:
             identity_metadata={},
             metadata={},
         )
-
+        
         assert body is not None
         assert "not declared" in body.lower()
 
     def test_render_identity_unknown_section_returns_none(self) -> None:
         """Unknown identity section IDs should return None."""
         renderer = KubernetesReadmeRendererPlugin()
-
+        
         body = renderer.render_identity_section(
             section_id="unknown",
             role_name="app",
@@ -276,7 +284,7 @@ class TestKubernetesRendererIdentitySectionContracts:
             identity_metadata={},
             metadata={},
         )
-
+        
         assert body is None
 
 
@@ -298,12 +306,12 @@ class TestKubernetesRendererStatelessContract:
         """Stateless renderer instances should produce identical output."""
         renderer1 = KubernetesReadmeRendererPlugin()
         renderer2 = KubernetesReadmeRendererPlugin()
-
+        
         metadata: dict[str, Any] = {
             "resource_kinds": ["Pod", "Service"],
             "operational_notes": ["Note 1", "Note 2"],
         }
-
+        
         output1 = renderer1.render_section_body(
             section_id="resources",
             role_name="test",
@@ -313,7 +321,7 @@ class TestKubernetesRendererStatelessContract:
             default_filters=[],
             metadata=metadata,
         )
-
+        
         output2 = renderer2.render_section_body(
             section_id="resources",
             role_name="test",
@@ -323,5 +331,5 @@ class TestKubernetesRendererStatelessContract:
             default_filters=[],
             metadata=metadata,
         )
-
+        
         assert output1 == output2

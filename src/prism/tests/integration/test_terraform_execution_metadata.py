@@ -14,6 +14,7 @@ from prism.tests.fixtures.fixtures_terraform_modules import (
     build_nested_terraform_module_fixture,
 )
 
+
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 TERRAFORM_FIXTURE_ROOT = PROJECT_ROOT / "src/prism/tests/fixtures/terraform"
 
@@ -37,7 +38,7 @@ class TestTerraformExecutionBundleMetadata:
     def test_terraform_execution_bundle_participants_contain_key_policies(self) -> None:
         """Verify platform_participants contain required policy instances."""
         bundle = build_terraform_execution_bundle()
-
+        
         participants = bundle["platform_participants"]
         assert "task_line_parsing" in participants
         assert "jinja_analysis" in participants
@@ -45,7 +46,7 @@ class TestTerraformExecutionBundleMetadata:
     def test_terraform_execution_bundle_prepared_policy_full_coverage(self) -> None:
         """Verify prepared_policy covers all policy participant types."""
         bundle = build_terraform_execution_bundle()
-
+        
         prepared_policy = bundle["prepared_policy"]
         required_keys = {
             "task_line_parsing",
@@ -55,7 +56,7 @@ class TestTerraformExecutionBundleMetadata:
             "variable_extractor",
             "task_annotation_parsing",
         }
-
+        
         for key in required_keys:
             assert key in prepared_policy, f"Missing {key} in prepared_policy"
 
@@ -64,12 +65,18 @@ class TestTerraformExecutionBundleMetadata:
     ) -> None:
         """Verify platform_participants reference same objects in prepared_policy."""
         bundle = build_terraform_execution_bundle()
-
+        
         participants = bundle["platform_participants"]
         prepared_policy = bundle["prepared_policy"]
-
-        assert participants["task_line_parsing"] is prepared_policy["task_line_parsing"]
-        assert participants["jinja_analysis"] is prepared_policy["jinja_analysis"]
+        
+        assert (
+            participants["task_line_parsing"]
+            is prepared_policy["task_line_parsing"]
+        )
+        assert (
+            participants["jinja_analysis"]
+            is prepared_policy["jinja_analysis"]
+        )
 
     def test_terraform_scan_pipeline_plugin_emits_deterministic_metadata(self) -> None:
         """Verify scan pipeline plugin emits deterministic platform metadata."""
