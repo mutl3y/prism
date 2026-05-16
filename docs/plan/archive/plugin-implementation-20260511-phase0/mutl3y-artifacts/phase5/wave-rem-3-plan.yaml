@@ -1,0 +1,27 @@
+wave: rem-3
+objective: Resolve regressions introduced after wave-rem-2 and restore full-suite green.
+findings_targeted:
+  - MP1 enforcer TypeError regressions in marker_prefix_enforcer/contract
+  - real_world_scans scan_options role_path isolation regression
+  - policy_integration role_path expectation drift
+  - scanner_parity envelope key mismatch after traceback addition
+workers:
+  - name: Builder-MarkerBoundary
+    owned_files:
+      - src/prism/scanner_core/marker_prefix_enforcer.py
+      - src/prism/scanner_core/marker_prefix_contract.py
+      - docs/dev_docs/error-boundary-audit-baseline.json
+    narrow_gate: >-
+      PYTHONPATH=src .venv/bin/python -m pytest src/prism/tests/test_mp1_enforcement.py::TestMP1RuntimeEnforcer::test_enforce_marker_prefix_available_missing_key src/prism/tests/test_mp1_enforcement.py::TestMP1RuntimeEnforcer::test_enforce_marker_prefix_available_none_bundle src/prism/tests/test_mp1_compatibility.py::TestMP1EndToEndFlow::test_mp1_enforce_marker_prefix_available_validates_bundle src/prism/tests/test_t3_04_error_boundary_audit.py::test_no_new_raw_raises_at_module_boundaries -q
+  - name: Builder-ScanOptionsSemantics
+    owned_files:
+      - src/prism/scanner_core/di.py
+      - src/prism/tests/test_policy_integration.py
+    narrow_gate: >-
+      PYTHONPATH=src .venv/bin/python -m pytest src/prism/tests/test_policy_integration.py::TestFullScanWithAllPolicies::test_container_exposes_scan_options src/prism/tests/test_real_world_scans.py::TestConcurrentMultiRoleScan::test_multiple_roles_sequential_scans -q
+  - name: Builder-TracebackParity
+    owned_files:
+      - src/prism/tests/test_scanner_parity.py
+    narrow_gate: >-
+      PYTHONPATH=src .venv/bin/python -m pytest src/prism/tests/test_scanner_context.py::test_fsrc_scanner_context_best_effort_records_error_envelope src/prism/tests/test_scanner_parity.py::test_w2_t05_scanner_context_error_envelope_parity -q
+parallel_safe: true

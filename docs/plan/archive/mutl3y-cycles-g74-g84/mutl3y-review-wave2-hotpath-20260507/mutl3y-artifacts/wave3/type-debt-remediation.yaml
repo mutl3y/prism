@@ -1,0 +1,14 @@
+artifact: type-debt-remediation
+wave: 3
+status: PASS
+completion_date: 2026-05-07
+fixed_error_count: 14
+final_error_count: 38
+validation:
+  task_catalog_assembly: pass
+  tests_slice: pass
+  full_tests_package: pass
+notes:
+  - Fixed DIContainer Protocol shape in scanner_data/contracts_request.py to match read-only properties on the concrete container.
+  - Narrowed DI usage in scanner_extract/task_catalog_assembly.py so prepared-policy and anchor calls receive DIContainer | None.
+  - Remaining mypy errors are baseline items outside the hotpath regression set.

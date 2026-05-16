@@ -7,6 +7,8 @@ from pathlib import Path
 
 import yaml
 
+from prism.errors import ERROR_CATEGORY_CONFIG, PrismRuntimeError
+
 
 def default_style_guide_user_paths(
     xdg_data_home_env: str = "XDG_DATA_HOME",
@@ -103,15 +105,23 @@ def load_section_display_titles(
     io_error_code: str = "README_SECTION_DISPLAY_TITLES_IO_ERROR",
     shape_invalid_code: str = "README_SECTION_DISPLAY_TITLES_SHAPE_INVALID",
 ) -> dict[str, str]:
-    """Load optional section display-title overrides from bundled data YAML."""
+    """Load optional section display-title overrides from bundled data YAML.
+
+    Raises PrismRuntimeError with layer='config' when strict=True and parsing fails.
+    Internal functions raise ValueError for validation; layer boundary wraps as PrismRuntimeError.
+    """
     if not display_titles_path.is_file():
         return {}
     try:
         raw = yaml.safe_load(display_titles_path.read_text(encoding="utf-8")) or {}
     except yaml.YAMLError as exc:
         if strict:
-            raise RuntimeError(
-                f"{yaml_invalid_code}: {display_titles_path}: {exc}"
+            raise PrismRuntimeError(
+                code=yaml_invalid_code,
+                category=ERROR_CATEGORY_CONFIG,
+                message=f"{display_titles_path}: {exc}",
+                layer="config",
+                recoverable=False,
             ) from exc
         _record_display_titles_warning(
             warning_collector,
@@ -122,8 +132,12 @@ def load_section_display_titles(
         return {}
     except (OSError, UnicodeDecodeError) as exc:
         if strict:
-            raise RuntimeError(
-                f"{io_error_code}: {display_titles_path}: {exc}"
+            raise PrismRuntimeError(
+                code=io_error_code,
+                category=ERROR_CATEGORY_CONFIG,
+                message=f"{display_titles_path}: {exc}",
+                layer="config",
+                recoverable=False,
             ) from exc
         _record_display_titles_warning(
             warning_collector,

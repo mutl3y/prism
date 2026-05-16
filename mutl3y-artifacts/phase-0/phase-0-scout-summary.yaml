@@ -1,0 +1,42 @@
+scouts_summary:
+- scout: Scout-Typing
+  artifact_path: prism/mutl3y-artifacts/phase-0/scouts/Scout-Typing.yaml
+  findings_count: 10
+  severity_breakdown:
+    critical: 0
+    high: 0
+    medium: 10
+    low: 0
+  top_fix_groups:
+  - typing_loose_annotations
+- scout: Scout-Ownership
+  artifact_path: prism/mutl3y-artifacts/phase-0/scouts/Scout-Ownership.yaml
+  findings_count: 8
+  severity_breakdown:
+    critical: 0
+    high: 0
+    medium: 8
+    low: 0
+  top_fix_groups:
+  - ownership_layer_violations
+- scout: Scout-ControlFlow
+  artifact_path: prism/mutl3y-artifacts/phase-0/scouts/Scout-ControlFlow.yaml
+  findings_count: 8
+  severity_breakdown:
+    critical: 0
+    high: 0
+    medium: 8
+    low: 0
+  top_fix_groups:
+  - error_handling_broad_except
+- scout: Scout-Graph
+  artifact_path: prism/mutl3y-artifacts/phase-0/scouts/Scout-Graph.yaml
+  findings_count: 4
+  severity_breakdown:
+    critical: 0
+    high: 0
+    medium: 0
+    low: 4
+  top_fix_groups:
+  - graph_dependency_review
+total_findings: 30

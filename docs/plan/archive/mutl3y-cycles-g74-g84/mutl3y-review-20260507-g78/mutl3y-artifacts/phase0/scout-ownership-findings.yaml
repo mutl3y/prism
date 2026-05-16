@@ -1,0 +1,360 @@
+---
+scout_id: "Scout-Ownership"
+plan_id: "mutl3y-review-20260507-g78"
+phase: "Phase 0"
+discovery_date: "2026-05-07"
+focus_axis: "error_handling"
+target_codebase: "src/prism"
+
+summary:
+  ownership_findings_written: 18
+  critical: 4
+  high: 7
+  medium: 5
+  low: 2
+
+findings:
+  - id: "OWN-001"
+    severity: "CRITICAL"
+    title: "Python 2 Exception Syntax in filter_scanner.py"
+    description: |
+      Multiple exception handlers use comma-separated exceptions (Python 2 syntax) instead of
+      tuple syntax (Python 3). This is a syntax error that will fail at runtime.
+    layer: "scanner_extract"
+    module: "filter_scanner.py"
+    location: |
+      Lines 186, 243: except UnicodeDecodeError, PermissionError, OSError:
+    violation_type: "CROSS_LAYER_PROTOCOL_VIOLATION"
+    ownership: "scanner_extract owns file I/O error handling, but uses invalid Python syntax"
+    impact: |
+      Exception handler will not work in Python 3. Any unicode decode, permission, or OS
+      errors in filter scanning will cause the entire scan to fail instead of being caught.
+    remediation: "Change to: except (UnicodeDecodeError, PermissionError, OSError):"
+
+  - id: "OWN-002"
+    severity: "CRITICAL"
+    title: "Inconsistent Error Type Usage Across Layers"
+    description: |
+      Error handling uses multiple exception types without clear ownership boundaries:
+      - scanner_config, scanner_data: Raise ValueError/RuntimeError without PrismRuntimeError
+      - scanner_core, scanner_plugins: Mix bare exceptions with PrismRuntimeError
+      - api_layer, scanner_io: Use both patterns
+      This creates confusion about which layer owns which error types.
+    layer: "CROSS_LAYER"
+    modules: ["scanner_config", "scanner_data", "scanner_core", "scanner_extract", "scanner_io"]
+    violation_type: "MISSING_ERROR_OWNERSHIP_CONTRACT"
+    ownership: "No clear contract for when to use PrismRuntimeError vs ValueError/RuntimeError"
+    impact: |
+      Callers cannot reliably distinguish between public API errors (PrismRuntimeError)
+      and internal implementation errors (ValueError/RuntimeError). Makes error handling
+      inconsistent across layers and complicates error propagation.
+    findings: |
+      - api_layer: Has 4 RuntimeError and 4 ValueError (no transformation to PrismRuntimeError)
+      - scanner_config: Has 18 RuntimeError (all bare, no PrismRuntimeError)
+      - scanner_data: Has 34 ValueError (all bare, no PrismRuntimeError)
+      - scanner_core: Has 62 ValueError mixed with PrismRuntimeError
+      - scanner_extract: Has 10 RuntimeError + 4 ValueError
+
+  - id: "OWN-003"
+    severity: "HIGH"
+    title: "Silent Error Context Loss in task_file_traversal.py"
+    description: |
+      Multiple helper functions silently swallow exceptions by returning None or False
+      instead of propagating error context or metadata.
+    layer: "scanner_extract"
+    module: "task_file_traversal.py"
+    location: |
+      _is_path_excluded() [line 56]: except ValueError: return False
+      _stat_yaml_file() [line 64]: except OSError: return None
+      _load_yaml_file() [line 72]: exception handling not shown but implied
+    violation_type: "ERROR_CONTEXT_LOSS"
+    ownership: "scanner_extract owns file operations but loses error context"
+    impact: |
+      When files cannot be accessed or relative paths fail, the caller receives
+      a silent None/False with no indication of the underlying cause.
+      Makes debugging difficult and hides file I/O issues.
+    examples: |
+      def _is_path_excluded(path, role_root, exclude_paths):
+          try:
+              relpath = str(path.resolve().relative_to(role_root.resolve()))
+          except ValueError:  # <-- path not relative to role_root
+              return False  # <-- silently lose this information
+    remediation: |
+      Log the exception before returning, or propagate error metadata to caller:
+      Option A: logger.debug("path %s not under role_root %s", path, role_root)
+      Option B: return (None, error_info) tuple
+
+  - id: "OWN-004"
+    severity: "HIGH"
+    title: "Missing Exception Chaining in repo_services.py"
+    description: |
+      Some exception transformations in repo_services.py don't preserve the original
+      exception chain, making root cause analysis difficult.
+    layer: "repo_services"
+    module: "repo_services.py"
+    location: |
+      Lines 308, 317, 328, 337: RuntimeError raised for payload validation
+      These re-raise as RuntimeError without 'from exc' chaining
+    violation_type: "MISSING_EXCEPTION_CHAIN"
+    ownership: "repo_services owns payload validation errors"
+    impact: |
+      When JSON parsing fails, the original exception chain is lost.
+      Error logs will not show the root cause (e.g., specific JSON parsing error).
+    examples: |
+      except json.JSONDecodeError as exc:
+          raise RuntimeError(REPO_SCAN_PAYLOAD_JSON_INVALID) from exc  # <-- GOOD
+
+      BUT line 317:
+          raise RuntimeError(REPO_SCAN_PAYLOAD_TYPE_INVALID)  # <-- NO 'from exc'
+
+  - id: "OWN-005"
+    severity: "HIGH"
+    title: "Scanner Config Layer Raises RuntimeError Without Public Contract"
+    description: |
+      scanner_config layer raises 18 RuntimeError instances for configuration failures
+      (patterns, style, policy, readme) but doesn't transform these to PrismRuntimeError.
+      Creates ambiguity about error ownership: are these public API errors or internal?
+    layer: "scanner_config"
+    modules: ["patterns.py", "style.py", "policy.py", "readme.py"]
+    violation_type: "UNCLEAR_ERROR_OWNERSHIP"
+    ownership: "scanner_config should clearly own configuration errors as public failures"
+    impact: |
+      API callers don't know if RuntimeError from config means "public failure" or
+      "internal implementation problem". Makes error handling in api_layer inconsistent.
+    examples: |
+      scanner_config/patterns.py line 249-332: 11 RuntimeError for various config failures
+      scanner_config/style.py line 113, 125: 2 RuntimeError for style config
+      scanner_config/policy.py line 39: 1 RuntimeError for policy config
+      scanner_config/readme.py line 59, 69, 143, 155: 4 RuntimeError for readme config
+
+  - id: "OWN-006"
+    severity: "HIGH"
+    title: "Scanner Data Layer Raises 34 ValueError Without Error Category"
+    description: |
+      scanner_data/contracts_*.py modules raise 34 ValueError instances for validation
+      but don't attach error category or code metadata. Makes it impossible to
+      categorize these errors in error reporting.
+    layer: "scanner_data"
+    modules: ["contracts_output.py", "contracts_request.py", "builders.py"]
+    violation_type: "MISSING_ERROR_METADATA"
+    ownership: "scanner_data owns data contract validation but lacks error taxonomy"
+    impact: |
+      Error reporting and CLI error messages cannot categorize validation failures.
+      All validation errors appear as generic "ValueError" with no categorization
+      for user-facing error messages (CONFIG vs VALIDATION vs RUNTIME).
+    count: 34
+    location: "contracts_output.py (13), contracts_request.py (19), builders.py (2)"
+
+  - id: "OWN-007"
+    severity: "HIGH"
+    title: "Scanner Core Mixes ValueError and PrismRuntimeError Without Clear Boundary"
+    description: |
+      scanner_core raises 62 ValueError for various failures (DI validation, scan
+      request validation, event bus setup) but also uses PrismRuntimeError. No clear
+      pattern distinguishes when to use each type.
+    layer: "scanner_core"
+    modules: ["scanner_context.py", "di.py", "events.py", "execution_request_builder.py"]
+    violation_type: "MIXED_ERROR_TYPES_NO_BOUNDARY"
+    ownership: "scanner_core owns execution orchestration, should have single error type"
+    impact: |
+      Callers of scanner_core functions get unpredictable exception types for similar
+      error conditions. Makes error handling code more complex and error-prone.
+    examples: |
+      scanner_context.py: 24+ ValueError for context validation
+      di.py: 8+ ValueError for DI setup, 1 RuntimeError
+      events.py: 2+ ValueError, 2 TypeError
+      execution_request_builder.py: 14+ ValueError
+
+  - id: "OWN-008"
+    severity: "MEDIUM"
+    title: "scanner_io/loader.py Catches But Doesn't Re-raise File Errors"
+    description: |
+      In parse_yaml_candidate(), exceptions are caught and converted to structured
+      dicts instead of being re-raised. While this is intentional at I/O boundary,
+      it obscures which layer owns YAML parsing failures.
+    layer: "scanner_io"
+    module: "loader.py"
+    location: |
+      Lines 230, 243, 272: except blocks log and return dict instead of raising
+    violation_type: "ERROR_TRANSFORMATION_WITHOUT_OWNERSHIP_CLARITY"
+    ownership: "Unclear: is scanner_io or scanner_extract responsible for YAML parsing?"
+    impact: |
+      Callers of parse_yaml_candidate() get a dict with error details instead of
+      exceptions. Makes it unclear if YAML parsing belongs to scanner_io or a plugin layer.
+
+  - id: "OWN-009"
+    severity: "MEDIUM"
+    title: "Scanner Kernel Raises TypeError Without Context"
+    description: |
+      scanner_kernel/orchestrator.py raises 5 TypeError for plugin contract violations
+      but without structured error codes or categories. Type errors are harder to
+      distinguish from validation errors.
+    layer: "scanner_kernel"
+    module: "orchestrator.py"
+    location: |
+      Lines 77, 97, 120, 139, 179: TypeError for plugin contract violations
+    violation_type: "MISSING_ERROR_CONTEXT"
+    ownership: "scanner_kernel owns plugin execution contract enforcement"
+    impact: |
+      TypeError for "plugin not callable" is harder to distinguish from Python's
+      built-in TypeError for actual type mismatches. Should use ValueError or
+      PrismRuntimeError with explicit "plugin_contract_violation" code.
+
+  - id: "OWN-010"
+    severity: "MEDIUM"
+    title: "AttributeError Raised in Multiple __getattr__ Implementations"
+    description: |
+      Multiple module __init__.py files raise AttributeError in __getattr__ for
+      legacy compatibility (scanner_core, scanner_data, scanner_extract, scanner_io,
+      scanner_readme, scanner_reporting). Creates boilerplate and ownership confusion.
+    layer: "CROSS_LAYER"
+    modules: ["scanner_core/__init__.py", "scanner_data/__init__.py", "scanner_extract/__init__.py",
+               "scanner_io/__init__.py", "scanner_readme/__init__.py", "scanner_reporting/__init__.py"]
+    violation_type: "REPEATED_ERROR_PATTERN"
+    impact: |
+      Each module owns its own __getattr__ implementation for legacy imports.
+      This is boilerplate that could be centralized or eliminated with proper deprecation.
+    count: "6 modules with 12 total AttributeError raises"
+
+  - id: "OWN-011"
+    severity: "MEDIUM"
+    title: "Missing Error Transformation Boundary Between API and Core"
+    description: |
+      api_layer doesn't consistently transform exceptions from scanner_core.
+      Some calls let RuntimeError/ValueError propagate directly (e.g., api_layer/non_collection.py line 401-405).
+    layer: "api_layer"
+    module: "non_collection.py, collection.py"
+    location: |
+      non_collection.py lines 401-405: Raise ValueError directly for validated results
+      collection.py lines 115, 164, 169: FileNotFoundError for paths
+    violation_type: "MISSING_ERROR_BOUNDARY_TRANSFORMATION"
+    ownership: "API layer should transform core exceptions to public errors"
+    impact: |
+      Callers of api.py get mix of ValueError, RuntimeError, FileNotFoundError.
+      No consistent public error contract. Should all be caught and transformed
+      to PrismRuntimeError with appropriate error codes.
+
+  - id: "OWN-012"
+    severity: "MEDIUM"
+    title: "CLI Layer Inconsistently Handles Exception Types"
+    description: |
+      cli.py and cli_app modules check for PrismRuntimeError but let other exceptions
+      propagate as generic exceptions. Means non-PrismRuntimeError exceptions skip
+      error categorization and mapping logic.
+    layer: "cli_app"
+    modules: ["cli.py", "cli_app/runtime.py"]
+    location: |
+      cli.py line 518, 538: isinstance(exc, PrismRuntimeError) checks
+      But ValueError, TypeError, RuntimeError from core bypass these checks
+    violation_type: "INCOMPLETE_ERROR_HANDLING_STRATEGY"
+    ownership: "CLI should own top-level error handling for all exception types"
+    impact: |
+      Non-PrismRuntimeError exceptions are not mapped to exit codes or formatted
+      consistently. User sees different error messages depending on exception type.
+
+  - id: "OWN-013"
+    severity: "MEDIUM"
+    title: "Scanner Plugins Don't Define Custom Exception Types"
+    description: |
+      scanner_plugins/ansible, kubernetes, terraform don't define platform-specific
+      exception types. All errors are ValueError/RuntimeError, making it impossible
+      to catch plugin-specific errors at plugin layer boundaries.
+    layer: "scanner_plugins"
+    modules: ["ansible/feature_detection.py", "ansible/variable_discovery.py"]
+    violation_type: "MISSING_PLATFORM_ERROR_TAXONOMY"
+    ownership: "Each platform plugin should own platform-specific error types"
+    impact: |
+      If Kubernetes plugin is added, its errors will be indistinguishable from Ansible errors.
+      Makes multi-platform error handling difficult. No way to catch "ansible_parse_error"
+      separately from "kubernetes_parse_error".
+
+  - id: "OWN-014"
+    severity: "LOW"
+    title: "FileNotFoundError Used in Multiple Layers Without Normalization"
+    description: |
+      FileNotFoundError is raised in api_layer, cli_app, scanner_config, scanner_extract
+      without normalization. Should be transformed to PrismRuntimeError at API boundary
+      or caught and wrapped at layer boundaries.
+    layer: "CROSS_LAYER"
+    modules: ["api_layer/collection.py", "cli_app/presenters.py", "scanner_config/style.py",
+              "scanner_extract/discovery.py"]
+    count: "4 modules"
+    violation_type: "MISSING_NORMALIZATION"
+    ownership: "Public APIs should not raise FileNotFoundError directly"
+
+  - id: "OWN-015"
+    severity: "LOW"
+    title: "KeyError Raised in scanner_plugins/registry.py"
+    description: |
+      scanner_plugins/registry.py raises KeyError for missing plugins (line 459).
+      Should use ValueError or custom PluginNotFound exception for clarity.
+    layer: "scanner_plugins"
+    module: "registry.py"
+    location: "Line 459"
+    violation_type: "SEMANTIC_MISMATCH"
+    impact: "KeyError normally means dict access failed, not 'plugin not found'"
+    remediation: "Raise ValueError or custom exception instead"
+
+  - id: "OWN-016"
+    severity: "LOW"
+    title: "Exception Bus Loses Context in scanner_core/events.py"
+    description: |
+      EventBus.emit() catches all exceptions but logs with no specific type name.
+      Could improve by logging exception type explicitly.
+    layer: "scanner_core"
+    module: "events.py"
+    location: "Line 95: except Exception as exc:"
+    violation_type: "LOST_ERROR_METADATA"
+    note: "Already has exc_info=True, but could add type(exc).__name__ to message"
+    remediation: |
+      logger.exception("EventBus emit failed: %s: %s", type(exc).__name__, exc)
+
+  - id: "OWN-017"
+    severity: "LOW"
+    title: "Inconsistent Error Messages in scanner_extract/discovery.py"
+    description: |
+      discovery.py raises 10 RuntimeError with messages like "REQUIREMENTS_IO_ERROR"
+      but mixes string constants with f-strings. Should standardize error message format.
+    layer: "scanner_extract"
+    module: "discovery.py"
+    location: |
+      Lines 94, 106, 127, 146: string constants
+      Lines 193, 208, 225: f-strings with context
+    violation_type: "INCONSISTENT_ERROR_MESSAGE_FORMAT"
+
+  - id: "OWN-018"
+    severity: "LOW"
+    title: "path_safety.py Re-raises ValueError and OSError Without Transformation"
+    description: |
+      path_safety.py raises PrismRuntimeError but inner except blocks don't all chain
+      properly. Line 84, 93 have `except ... as exc:` but may not chain with `from exc`.
+    layer: "path_safety"
+    module: "path_safety.py"
+    location: "Lines 84, 93"
+    violation_type: "INCOMPLETE_EXCEPTION_CHAINING"
+
+# Top 3-5 priority findings
+top_findings:
+  - id: "OWN-001"
+    priority: 1
+    title: "Python 2 Exception Syntax - Critical Syntax Error"
+    action: "Fix immediately - code won't work in Python 3"
+
+  - id: "OWN-002"
+    priority: 2
+    title: "Inconsistent Error Type Usage Across Layers"
+    action: "Define error ownership contract across all layers"
+
+  - id: "OWN-003"
+    priority: 3
+    title: "Silent Error Context Loss in task_file_traversal.py"
+    action: "Add logging/error propagation for file operation failures"
+
+discovery_metrics:
+  total_scanned_modules: 25
+  modules_with_ownership_issues: 16
+  exception_types_found: 10
+  distinct_error_codes: 40
+  files_with_bare_exceptions: 33
+  files_with_prism_exceptions: 15
+  cross_layer_violations: 7

@@ -1,0 +1,155 @@
+# Wave 3: Tier 1 Comparable Cluster — Quick Launch
+
+**Status:** Ready for parallel execution  
+**Scope:** Same 3 nodes, same 8 modules as Wave 2 (2,230 lines)  
+**Timeline:** 30 minutes total (20 min execution + 10 min merge)  
+**Cost:** $0.003/cycle (vs $0 Wave 2, vs $27 Tier 4)
+
+---
+
+## The 3 Nodes (Launch in Parallel)
+
+### Node 1: Claude Haiku 4.5 (Architecture & DI)
+- **Scope:** di.py, scanner_context.py, di_helpers.py (950 lines)
+- **Wave 2 Result:** 5 findings, 88/100
+- **Expected:** 8-12 findings, 90-92/100
+- **Copy prompt from:** WAVE3_TIER1_COMPARABLE_PLAN.md → "Node 1: Claude Haiku 4.5"
+- **Send to:** `runSubagent("Gilfoyle Code Review God Mode", "Wave 3 Node 1: Architecture & DI", "Claude Haiku 4.5 (copilot)", [PROMPT])`
+
+### Node 2: Grok Code Fast 1 (Concurrency)
+- **Scope:** variable_discovery.py, feature_detector.py (600 lines)
+- **Wave 2 Result:** 11 findings, 89/100, TOCTOU CRITICAL found
+- **Expected:** 12-16 findings, 91-93/100
+- **Copy prompt from:** WAVE3_TIER1_COMPARABLE_PLAN.md → "Node 2: Grok Code Fast 1"
+- **Send to:** `runSubagent("Gilfoyle Code Review God Mode", "Wave 3 Node 2: Concurrency", "Grok Code Fast 1 (copilot)", [PROMPT])`
+
+### Node 3B: Grok Code Fast 1 (Cache & Performance)
+- **Scope:** scan_cache.py, events.py, scan_request.py (680 lines)
+- **Wave 2 Result:** 12 findings, 87/100, 2 CRITICAL cache issues
+- **Expected:** 14-18 findings, 89-91/100
+- **Copy prompt from:** WAVE3_TIER1_COMPARABLE_PLAN.md → "Node 3B: Grok Code Fast 1"
+- **Send to:** `runSubagent("Gilfoyle Code Review God Mode", "Wave 3 Node 3B: Cache & Performance", "Grok Code Fast 1 (copilot)", [PROMPT])`
+
+---
+
+## Launch Sequence (5 minutes to queue)
+
+```
+Minute 0: Launch Node 1 (Haiku)
+Minute 1: Launch Node 2 (Grok)  
+Minute 2: Launch Node 3B (Grok)
+```
+
+**All 3 running in parallel by minute 2.**
+
+---
+
+## Wait for Results (18 minutes)
+
+All 3 nodes will complete by t=0:20
+
+---
+
+## Merge & Analysis (10 minutes)
+
+```
+t=0:20: All YAML results available
+t=0:20-0:25: Save 3 YAML files
+  - node1-haiku-wave3-findings.yaml
+  - node2-grok-concurrency-wave3-findings.yaml
+  - node3b-grok-cache-wave3-findings.yaml
+
+t=0:25-0:30: Calculate metrics
+  - Total quality score (target: 90-92/100)
+  - Total findings (target: 34-46, vs Wave 2's 38)
+  - Convergence rate (target: ≥70% with Wave 2)
+  - Cost-benefit ratio (target: <$0.0001/finding)
+```
+
+---
+
+## Decision Gates (After Analysis)
+
+✓ **Gate 1: Quality Improvement**
+- Wave 2: 88.3/100
+- Wave 3 target: ≥90/100
+- Status: PASS if Tier 1 ≥ free tier + improvement
+
+✓ **Gate 2: Finding Depth (Same Scope)**
+- Wave 2: 38 findings (8 modules)
+- Wave 3 target: ≥45 findings (same 8 modules)
+- Status: PASS if Tier 1 finds 45+ on identical scope
+
+✓ **Gate 3: Convergence**
+- Both find TOCTOU race?
+- Both find cache collision?
+- Status: PASS if YES (architecture validated)
+
+✓ **Gate 4: Cost-Benefit**
+- Cost: $0.003
+- Findings: 45+
+- Cost per finding: <$0.0001
+- Status: PASS (cost negligible vs improvement)
+
+---
+
+## Success Criteria
+
+**All 3 must execute successfully:**
+- Node 1: 8-12 findings, quality ≥90/100
+- Node 2: 12-16 findings, quality ≥91/100, TOCTOU found
+- Node 3B: 14-18 findings, quality ≥89/100, CRITICAL issues found
+
+**All 4 gates must pass:**
+- Quality improvement ≥1.7 points
+- Same-scope findings ≥45
+- Convergence ≥70% with Wave 2
+- Cost-benefit <$0.0001/finding
+
+If all pass → Tier 1 justified, approve for strategic use
+
+---
+
+## What You'll Know After Wave 3
+
+**Question 1:** Does Tier 1 beat free tier on identical scope?
+- Wave 2 free: 88.3/100, 38 findings
+- Wave 3 Tier 1: 90-92/100, 45-52 findings
+- **Answer:** Yes (expected), Tier 1 adds quality + depth
+
+**Question 2:** Is the cost improvement ($0.003/cycle) worth it?
+- Annual cost: $0.16 (52 cycles)
+- Annual findings improvement: +364-728 additional findings
+- Cost per extra finding: $0.00022
+- **Answer:** Yes, negligible cost for quality boost
+
+**Question 3:** Should we use hybrid strategy?
+- Free tier: 90% of work, $0
+- Tier 1: 10% of strategic work, $0.16/year
+- Tier 4: Reserve for edge cases
+- Annual cost: $0.16 vs $1,404 (99.99% savings)
+- **Answer:** Yes, hybrid is optimal
+
+---
+
+## Ready to Launch?
+
+**Checklist:**
+- [ ] Read WAVE3_TIER1_COMPARABLE_PLAN.md
+- [ ] Have all 3 node prompts ready to copy
+- [ ] Verify you can access runSubagent with Gilfoyle agent
+- [ ] Set aside 30 minutes (mostly waiting)
+
+**Launch command sequence:**
+1. Copy Node 1 prompt
+2. `runSubagent("Gilfoyle Code Review God Mode", "Wave 3 Node 1: Architecture & DI", "Claude Haiku 4.5 (copilot)", [NODE1_PROMPT])`
+3. Copy Node 2 prompt
+4. `runSubagent("Gilfoyle Code Review God Mode", "Wave 3 Node 2: Concurrency", "Grok Code Fast 1 (copilot)", [NODE2_PROMPT])`
+5. Copy Node 3B prompt
+6. `runSubagent("Gilfoyle Code Review God Mode", "Wave 3 Node 3B: Cache & Performance", "Grok Code Fast 1 (copilot)", [NODE3B_PROMPT])`
+7. Wait 20 minutes
+8. Save YAML files + analyze
+
+**Expected completion:** 30 minutes from now
+
+Shall we launch? 🚀

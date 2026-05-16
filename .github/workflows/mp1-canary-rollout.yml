@@ -1,0 +1,572 @@
+# MP1 Canary Rollout Workflow - Phased Enforcement Deployment
+#
+# Implements 4-stage phased deployment (25% → 50% → 75% → 100%) for MP1
+# marker-prefix enforcement. Each stage is operator-controlled with:
+# - 2-hour test gate before advancement
+# - Monitoring and alerting
+# - Stage-by-stage rollback capability
+#
+# Phase: Q2 Initiative 3, Phase 2, Task 2.4 (May 14-15, 2026)
+# Builder: Builder-DistributionLead
+# Workflow Type: Manual dispatch with rollback support
+# Duration: 2-4 days (May 14-17, 2026)
+
+name: MP1 Canary Rollout - Phased Enforcement
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Canary Stage'
+        required: true
+        default: 'stage-1'
+        type: choice
+        options:
+          - 'stage-1'      # 25% - Internal canary
+          - 'stage-2'      # 50% - Extended canary
+          - 'stage-3'      # 75% - Pre-production
+          - 'stage-4'      # 100% - Production full release
+          - 'rollback-1'   # Rollback to pre-stage-1
+          - 'rollback-2'   # Rollback to pre-stage-2
+          - 'rollback-3'   # Rollback to pre-stage-3
+          - 'rollback-4'   # Full rollback to checkpoint
+      
+      approval_token:
+        description: 'Operator approval token (format: CANARY-[STAGE]-[DATE])'
+        required: true
+        type: string
+      
+      monitoring_duration_minutes:
+        description: 'Post-deployment monitoring duration (default: 120 for 2 hours)'
+        required: false
+        default: '120'
+        type: string
+
+env:
+  MP1_CHECKPOINT_TAG: 'mp1-phase1-checkpoint-20260512'
+  MP1_STAGE_1_REPOS: 'prism-internal,prism-core-team'
+  MP1_STAGE_2_REPOS: 'prism-internal,prism-core-team,prism-staging'
+  MP1_STAGE_3_REPOS: 'prism-internal,prism-core-team,prism-staging,prism-preprod'
+  MP1_STAGE_4_REPOS: 'all-public-repos'
+  ALERT_THRESHOLD_VIOLATIONS: '5'
+  ALERT_THRESHOLD_TIMEWINDOW_MINUTES: '60'
+
+concurrency:
+  group: mp1-canary-rollout
+  cancel-in-progress: false  # Prevent concurrent stage deployments
+
+jobs:
+  # ============================================================================
+  # Validation: Verify operator approval and stage preconditions
+  # ============================================================================
+  validate-stage:
+    name: Validate Stage & Approval
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      stage_number: ${{ steps.parse.outputs.stage_number }}
+      is_rollback: ${{ steps.parse.outputs.is_rollback }}
+      previous_tag: ${{ steps.parse.outputs.previous_tag }}
+      deployment_scope: ${{ steps.parse.outputs.deployment_scope }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Parse stage input
+        id: parse
+        shell: bash
+        run: |
+          set -e
+          STAGE_INPUT="${{ github.event.inputs.stage }}"
+          
+          echo "::group::Stage Parsing"
+          echo "Input stage: $STAGE_INPUT"
+          
+          case "$STAGE_INPUT" in
+            stage-1)
+              echo "stage_number=1" >> $GITHUB_OUTPUT
+              echo "is_rollback=false" >> $GITHUB_OUTPUT
+              echo "deployment_scope=internal" >> $GITHUB_OUTPUT
+              echo "previous_tag=none" >> $GITHUB_OUTPUT
+              ;;
+            stage-2)
+              echo "stage_number=2" >> $GITHUB_OUTPUT
+              echo "is_rollback=false" >> $GITHUB_OUTPUT
+              echo "deployment_scope=extended" >> $GITHUB_OUTPUT
+              echo "previous_tag=mp1-stage-1-20260514" >> $GITHUB_OUTPUT
+              ;;
+            stage-3)
+              echo "stage_number=3" >> $GITHUB_OUTPUT
+              echo "is_rollback=false" >> $GITHUB_OUTPUT
+              echo "deployment_scope=preprod" >> $GITHUB_OUTPUT
+              echo "previous_tag=mp1-stage-2-20260515" >> $GITHUB_OUTPUT
+              ;;
+            stage-4)
+              echo "stage_number=4" >> $GITHUB_OUTPUT
+              echo "is_rollback=false" >> $GITHUB_OUTPUT
+              echo "deployment_scope=production" >> $GITHUB_OUTPUT
+              echo "previous_tag=mp1-stage-3-20260516" >> $GITHUB_OUTPUT
+              ;;
+            rollback-1)
+              echo "stage_number=1" >> $GITHUB_OUTPUT
+              echo "is_rollback=true" >> $GITHUB_OUTPUT
+              echo "deployment_scope=internal-rollback" >> $GITHUB_OUTPUT
+              echo "previous_tag=${{ env.MP1_CHECKPOINT_TAG }}" >> $GITHUB_OUTPUT
+              ;;
+            rollback-2)
+              echo "stage_number=2" >> $GITHUB_OUTPUT
+              echo "is_rollback=true" >> $GITHUB_OUTPUT
+              echo "deployment_scope=extended-rollback" >> $GITHUB_OUTPUT
+              echo "previous_tag=mp1-stage-1-20260514" >> $GITHUB_OUTPUT
+              ;;
+            rollback-3)
+              echo "stage_number=3" >> $GITHUB_OUTPUT
+              echo "is_rollback=true" >> $GITHUB_OUTPUT
+              echo "deployment_scope=preprod-rollback" >> $GITHUB_OUTPUT
+              echo "previous_tag=mp1-stage-2-20260515" >> $GITHUB_OUTPUT
+              ;;
+            rollback-4)
+              echo "stage_number=0" >> $GITHUB_OUTPUT
+              echo "is_rollback=true" >> $GITHUB_OUTPUT
+              echo "deployment_scope=full-rollback" >> $GITHUB_OUTPUT
+              echo "previous_tag=${{ env.MP1_CHECKPOINT_TAG }}" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "❌ ERROR: Unknown stage $STAGE_INPUT"
+              exit 1
+              ;;
+          esac
+          echo "::endgroup::"
+      
+      - name: Validate approval token
+        id: validate-token
+        shell: bash
+        run: |
+          set -e
+          TOKEN="${{ github.event.inputs.approval_token }}"
+          STAGE_NUMBER="${{ steps.parse.outputs.stage_number }}"
+          IS_ROLLBACK="${{ steps.parse.outputs.is_rollback }}"
+          
+          echo "::group::Approval Token Validation"
+          echo "Token: $TOKEN"
+          echo "Stage: $STAGE_NUMBER"
+          echo "Is rollback: $IS_ROLLBACK"
+          
+          # Validate token format: CANARY-[STAGE|ROLLBACK]-[DATE]
+          if [[ ! $TOKEN =~ ^CANARY-(STAGE|ROLLBACK)-[0-9]{8}$ ]]; then
+            echo "❌ ERROR: Invalid approval token format"
+            echo "Expected format: CANARY-[STAGE|ROLLBACK]-YYYYMMDD"
+            echo "Example: CANARY-STAGE-20260514 or CANARY-ROLLBACK-20260514"
+            exit 1
+          fi
+          
+          echo "✅ Token format valid"
+          echo "::endgroup::"
+      
+      - name: Verify git tag exists
+        id: verify-tag
+        shell: bash
+        run: |
+          set -e
+          PREVIOUS_TAG="${{ steps.parse.outputs.previous_tag }}"
+          
+          if [ "$PREVIOUS_TAG" == "none" ]; then
+            echo "ℹ️ Stage 1 deployment (no prerequisite tag check needed)"
+            exit 0
+          fi
+          
+          echo "::group::Verifying prerequisite tag: $PREVIOUS_TAG"
+          
+          if git rev-list --all | grep -q "^$(git rev-list -n 1 $PREVIOUS_TAG 2>/dev/null || echo '')$"; then
+            echo "✅ Tag $PREVIOUS_TAG exists"
+          else
+            echo "❌ ERROR: Prerequisite tag $PREVIOUS_TAG not found"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+  # ============================================================================
+  # Stage 1 Deployment: 25% - Internal Canary
+  # Scope: Private repos + core team repos only
+  # ============================================================================
+  deploy-stage-1:
+    name: 'Stage 1 Deploy (25% Internal)'
+    needs: validate-stage
+    if: needs.validate-stage.outputs.stage_number == '1' && needs.validate-stage.outputs.is_rollback == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Create deployment tag
+        id: tag
+        shell: bash
+        run: |
+          TAG="mp1-stage-1-$(date +%Y%m%d)"
+          echo "deployment_tag=$TAG" >> $GITHUB_OUTPUT
+          git tag "$TAG" HEAD
+          git push origin "$TAG"
+          echo "✅ Created deployment tag: $TAG"
+      
+      - name: Deploy to internal canary repos
+        id: deploy
+        shell: bash
+        run: |
+          echo "::group::Stage 1 Deployment (25% - Internal Canary)"
+          echo "Scope: ${{ env.MP1_STAGE_1_REPOS }}"
+          echo "Deployment mode: WARNINGS-ONLY (non-blocking)"
+          echo "Target repos: prism-internal, prism-core-team"
+          echo ""
+          
+          # Simulate deployment to internal repos
+          echo "ℹ️ Stage 1 deployment instructions:"
+          echo "1. Checkout tag: ${{ steps.tag.outputs.deployment_tag }}"
+          echo "2. Pull latest marker_prefix_enforcer.py from src/prism/scanner_core/"
+          echo "3. Deploy marker-prefix enforcement in WARNINGS-ONLY mode to:"
+          echo "   - prism-internal repository"
+          echo "   - prism-core-team repository"
+          echo "4. Monitor for errors via violation tracking"
+          echo ""
+          echo "Deployment status: ready"
+          echo "::endgroup::"
+      
+      - name: Configure monitoring
+        id: monitor
+        shell: bash
+        run: |
+          echo "::group::Monitoring Configuration (Stage 1)"
+          echo "Alert threshold: ${{ env.ALERT_THRESHOLD_VIOLATIONS }} violations"
+          echo "Time window: ${{ env.ALERT_THRESHOLD_TIMEWINDOW_MINUTES }} minutes"
+          echo "Monitoring duration: ${{ github.event.inputs.monitoring_duration_minutes }} minutes"
+          echo "::endgroup::"
+
+  # ============================================================================
+  # Stage 2 Deployment: 50% - Extended Canary
+  # Scope: Stage 1 repos + staging environments
+  # ============================================================================
+  deploy-stage-2:
+    name: 'Stage 2 Deploy (50% Extended)'
+    needs: validate-stage
+    if: needs.validate-stage.outputs.stage_number == '2' && needs.validate-stage.outputs.is_rollback == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Verify stage 1 completion
+        id: verify-1
+        shell: bash
+        run: |
+          echo "::group::Stage 1 Verification"
+          echo "Checking for: mp1-stage-1-20260514 tag"
+          
+          if git rev-list --all | grep -q "^$(git rev-list -n 1 mp1-stage-1-20260514 2>/dev/null || echo '')$"; then
+            echo "✅ Stage 1 deployment tag found"
+            echo "stage_1_complete=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ ERROR: Stage 1 deployment tag not found"
+            echo "Cannot advance to Stage 2 without Stage 1 completion"
+            exit 1
+          fi
+          echo "::endgroup::"
+      
+      - name: Create deployment tag
+        id: tag
+        shell: bash
+        run: |
+          TAG="mp1-stage-2-$(date +%Y%m%d)"
+          echo "deployment_tag=$TAG" >> $GITHUB_OUTPUT
+          git tag "$TAG" HEAD
+          git push origin "$TAG"
+          echo "✅ Created deployment tag: $TAG"
+      
+      - name: Deploy to extended canary repos
+        id: deploy
+        shell: bash
+        run: |
+          echo "::group::Stage 2 Deployment (50% - Extended Canary)"
+          echo "Scope: ${{ env.MP1_STAGE_2_REPOS }}"
+          echo "Deployment mode: WARNINGS-ONLY (non-blocking)"
+          echo "Target repos: Stage 1 repos + prism-staging"
+          echo ""
+          
+          echo "ℹ️ Stage 2 deployment instructions:"
+          echo "1. Verify Stage 1 success (2-hour monitoring gate passed)"
+          echo "2. Checkout tag: ${{ steps.tag.outputs.deployment_tag }}"
+          echo "3. Deploy to:"
+          echo "   - prism-internal (continue from Stage 1)"
+          echo "   - prism-core-team (continue from Stage 1)"
+          echo "   - prism-staging (new in Stage 2)"
+          echo "4. Monitor for errors (2-hour gate)"
+          echo ""
+          echo "Deployment status: ready"
+          echo "::endgroup::"
+
+  # ============================================================================
+  # Stage 3 Deployment: 75% - Pre-Production Rollout
+  # Scope: Stage 2 repos + pre-production environments
+  # ============================================================================
+  deploy-stage-3:
+    name: 'Stage 3 Deploy (75% Pre-Prod)'
+    needs: validate-stage
+    if: needs.validate-stage.outputs.stage_number == '3' && needs.validate-stage.outputs.is_rollback == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Verify stage 2 completion
+        id: verify-2
+        shell: bash
+        run: |
+          echo "::group::Stage 2 Verification"
+          echo "Checking for: mp1-stage-2-20260515 tag"
+          
+          if git rev-list --all | grep -q "^$(git rev-list -n 1 mp1-stage-2-20260515 2>/dev/null || echo '')$"; then
+            echo "✅ Stage 2 deployment tag found"
+            echo "stage_2_complete=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ ERROR: Stage 2 deployment tag not found"
+            echo "Cannot advance to Stage 3 without Stage 2 completion"
+            exit 1
+          fi
+          echo "::endgroup::"
+      
+      - name: Create deployment tag
+        id: tag
+        shell: bash
+        run: |
+          TAG="mp1-stage-3-$(date +%Y%m%d)"
+          echo "deployment_tag=$TAG" >> $GITHUB_OUTPUT
+          git tag "$TAG" HEAD
+          git push origin "$TAG"
+          echo "✅ Created deployment tag: $TAG"
+      
+      - name: Deploy to pre-production
+        id: deploy
+        shell: bash
+        run: |
+          echo "::group::Stage 3 Deployment (75% - Pre-Production)"
+          echo "Scope: ${{ env.MP1_STAGE_3_REPOS }}"
+          echo "Deployment mode: WARNINGS-ONLY (non-blocking)"
+          echo "Target repos: Stage 2 repos + prism-preprod"
+          echo ""
+          
+          echo "ℹ️ Stage 3 deployment instructions:"
+          echo "1. Verify Stage 2 success (2-hour monitoring gate passed)"
+          echo "2. Checkout tag: ${{ steps.tag.outputs.deployment_tag }}"
+          echo "3. Deploy to:"
+          echo "   - prism-internal (continue)"
+          echo "   - prism-core-team (continue)"
+          echo "   - prism-staging (continue)"
+          echo "   - prism-preprod (new in Stage 3)"
+          echo "4. Monitor for errors (2-hour gate)"
+          echo ""
+          echo "Deployment status: ready"
+          echo "::endgroup::"
+
+  # ============================================================================
+  # Stage 4 Deployment: 100% - Production Full Release
+  # Scope: All public repositories
+  # ============================================================================
+  deploy-stage-4:
+    name: 'Stage 4 Deploy (100% Production)'
+    needs: validate-stage
+    if: needs.validate-stage.outputs.stage_number == '4' && needs.validate-stage.outputs.is_rollback == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Verify stage 3 completion
+        id: verify-3
+        shell: bash
+        run: |
+          echo "::group::Stage 3 Verification"
+          echo "Checking for: mp1-stage-3-20260516 tag"
+          
+          if git rev-list --all | grep -q "^$(git rev-list -n 1 mp1-stage-3-20260516 2>/dev/null || echo '')$"; then
+            echo "✅ Stage 3 deployment tag found"
+            echo "stage_3_complete=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ ERROR: Stage 3 deployment tag not found"
+            echo "Cannot advance to Stage 4 without Stage 3 completion"
+            exit 1
+          fi
+          echo "::endgroup::"
+      
+      - name: Create production release tag
+        id: tag
+        shell: bash
+        run: |
+          TAG="mp1-production-$(date +%Y%m%d)"
+          echo "deployment_tag=$TAG" >> $GITHUB_OUTPUT
+          git tag "$TAG" HEAD
+          git push origin "$TAG"
+          echo "✅ Created production tag: $TAG"
+      
+      - name: Deploy to production
+        id: deploy
+        shell: bash
+        run: |
+          echo "::group::Stage 4 Deployment (100% - Production Full Release)"
+          echo "Scope: ${{ env.MP1_STAGE_4_REPOS }}"
+          echo "Deployment mode: STRICT (blocking violations)"
+          echo "Target: All public repositories"
+          echo ""
+          
+          echo "ℹ️ Stage 4 deployment instructions:"
+          echo "1. Verify Stage 3 success (2-hour monitoring gate passed)"
+          echo "2. Checkout tag: ${{ steps.tag.outputs.deployment_tag }}"
+          echo "3. Deploy marker-prefix enforcement in STRICT mode:"
+          echo "   - Enforcement enabled across all-public-repos"
+          echo "   - Violations will block deployments"
+          echo "   - Monitor closely for regressions"
+          echo ""
+          echo "⚠️ IMPORTANT: This is production full release"
+          echo "Ensure all prior stages completed successfully with 0 violations"
+          echo ""
+          echo "Deployment status: ready"
+          echo "::endgroup::"
+
+  # ============================================================================
+  # Rollback Jobs
+  # ============================================================================
+  rollback-to-checkpoint:
+    name: 'Rollback to Checkpoint'
+    needs: validate-stage
+    if: needs.validate-stage.outputs.is_rollback == 'true' && needs.validate-stage.outputs.stage_number == '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Execute full rollback
+        id: rollback
+        shell: bash
+        run: |
+          echo "::group::Full Rollback to Checkpoint"
+          echo "Rolling back to: ${{ env.MP1_CHECKPOINT_TAG }}"
+          echo ""
+          
+          CHECKPOINT_SHA=$(git rev-list -n 1 ${{ env.MP1_CHECKPOINT_TAG }})
+          echo "Checkpoint SHA: $CHECKPOINT_SHA"
+          
+          echo ""
+          echo "⚠️ ROLLBACK INSTRUCTIONS:"
+          echo "1. All stages reverted to checkpoint: ${{ env.MP1_CHECKPOINT_TAG }}"
+          echo "2. Actions required:"
+          echo "   - Revert marker_prefix_enforcer.py to checkpoint version"
+          echo "   - Restore all MP1 rules to pre-deployment state"
+          echo "   - Clear all stage deployment tags"
+          echo "3. Investigation:"
+          echo "   - Review deployment logs for root cause"
+          echo "   - Analyze violation patterns"
+          echo "   - Document findings for remediation"
+          echo ""
+          echo "Rollback status: initiated"
+          echo "::endgroup::"
+
+  rollback-single-stage:
+    name: 'Rollback Single Stage'
+    needs: validate-stage
+    if: needs.validate-stage.outputs.is_rollback == 'true' && needs.validate-stage.outputs.stage_number != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Execute stage rollback
+        id: rollback
+        shell: bash
+        run: |
+          STAGE_NUM="${{ needs.validate-stage.outputs.stage_number }}"
+          PREVIOUS_TAG="${{ needs.validate-stage.outputs.previous_tag }}"
+          
+          echo "::group::Stage $STAGE_NUM Rollback"
+          echo "Rolling back to: $PREVIOUS_TAG"
+          echo ""
+          
+          if git rev-list --all | grep -q "^$(git rev-list -n 1 $PREVIOUS_TAG 2>/dev/null || echo '')$"; then
+            CHECKPOINT_SHA=$(git rev-list -n 1 $PREVIOUS_TAG)
+            echo "✅ Found previous tag: $PREVIOUS_TAG"
+            echo "SHA: $CHECKPOINT_SHA"
+          else
+            echo "❌ ERROR: Previous tag $PREVIOUS_TAG not found"
+            exit 1
+          fi
+          
+          echo ""
+          echo "ℹ️ Stage $STAGE_NUM rollback instructions:"
+          echo "1. Revert marker_prefix_enforcer.py to: $PREVIOUS_TAG"
+          echo "2. Restore MP1 rules to previous stage state"
+          echo "3. Verify no violations in previous scope"
+          echo ""
+          echo "Rollback status: initiated"
+          echo "::endgroup::"
+
+  # ============================================================================
+  # Post-Deployment Summary
+  # ============================================================================
+  deployment-summary:
+    name: 'Deployment Summary'
+    runs-on: ubuntu-latest
+    needs: [validate-stage]
+    if: always()
+    timeout-minutes: 5
+    
+    steps:
+      - name: Generate deployment report
+        shell: bash
+        run: |
+          echo "## MP1 Canary Rollout Report 📊" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment Stage**: ${{ github.event.inputs.stage }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Operator**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Approval Token**: ${{ github.event.inputs.approval_token }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Monitoring Duration**: ${{ github.event.inputs.monitoring_duration_minutes }} minutes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Stage Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage Number | ${{ needs.validate-stage.outputs.stage_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Is Rollback | ${{ needs.validate-stage.outputs.is_rollback }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment Scope | ${{ needs.validate-stage.outputs.deployment_scope }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Checkpoint Tag | ${{ needs.validate-stage.outputs.previous_tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. ✅ **Validate**: Approval token accepted" >> $GITHUB_STEP_SUMMARY
+          echo "2. 🚀 **Deploy**: Execute deployment to target repos" >> $GITHUB_STEP_SUMMARY
+          echo "3. 🔍 **Monitor**: Track violations for configured duration" >> $GITHUB_STEP_SUMMARY
+          echo "4. ⛩️ **Gate**: Pass 2-hour test before next stage" >> $GITHUB_STEP_SUMMARY

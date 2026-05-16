@@ -1,0 +1,21 @@
+waves:
+  - wave_id: "Wave-1-Protocol-Validation"
+    tier: "BALANCED"
+    findings:
+      - FIND-G83-LOOP-01
+      - FIND-G83-LOOP-03
+    owned_files:
+      - "src/prism/scanner_core/validation.py"
+      - "src/prism/scanner_core/type_guard.py"
+    est_hours: 3
+
+  - wave_id: "Wave-2-Architecture-Naming"
+    tier: "LOW-COST"
+    findings:
+      - FIND-G83-LOOP-02
+      - FIND-G83-LOOP-04
+      - FIND-G83-LOOP-05
+    owned_files:
+      - "src/prism/scanner_core/imports.py"
+      - "src/prism/scanner_core/naming.py"
+    est_hours: 4

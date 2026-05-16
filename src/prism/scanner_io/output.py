@@ -32,8 +32,22 @@ def build_final_output_payload(
     }
 
 
-def resolve_output_path(output: str, output_format: str) -> Path:
-    """Return normalized output path for the requested format."""
+def resolve_output_path(output: str | None, output_format: str) -> Path:
+    """Return normalized output path for the requested format.
+
+    Args:
+        output: Output path as string, or None to generate a default.
+        output_format: Output format (html, json, pdf, etc.)
+
+    Returns:
+        Path object with appropriate suffix for the format.
+        When output is None, returns Path("output.<format>").
+    """
+    # Generate default filename if output is None
+    if output is None:
+        format_lower = output_format.lower() if output_format else "md"
+        output = f"output.{format_lower}"
+
     out_path = Path(output)
     if output_format == "html" and out_path.suffix.lower() not in (".html", ".htm"):
         return out_path.with_suffix(".html")
@@ -175,7 +189,7 @@ def render_role_scan_markdown(payload: dict[str, Any]) -> str:
 def write_role_scan_output(
     payload: dict[str, Any],
     *,
-    output: str,
+    output: str | None,
     output_format: str,
     dry_run: bool = False,
 ) -> str | None:

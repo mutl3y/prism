@@ -1,0 +1,121 @@
+findings:
+  - id: N001
+    severity: CRITICAL
+    category: concurrency
+    location: "variable_discovery.py:~110"
+    issue: "TOCTOU race in _get_prepared_policy_bundle"
+    root_cause: |
+      The method checks if a prepared_policy_bundle exists, and if not, backfills it by calling ensure_prepared_policy_bundle. In a multi-threaded context, two threads can both see the bundle as missing, then both create and set it, leading to inconsistent or duplicated state. This is the classic check-then-act race condition.
+    impact: |
+      In concurrent runs, variable extraction can operate on inconsistent policy bundles, causing subtle, hard-to-reproduce bugs. This is the exact kind of race condition that makes debugging a living hell.
+    confidence: 95
+
+  - id: N002
+    severity: HIGH
+    category: concurrency
+    location: "feature_detector.py:~70"
+    issue: "Check-then-use pattern in feature cache"
+    root_cause: |
+      The feature detection cache is checked for a key, and if not present, the code computes and inserts a value. Without a lock or atomic operation, two threads can both miss the key and compute the same feature, leading to wasted work or, worse, inconsistent cache state if the computation is not idempotent.
+    impact: |
+      Threaded scans can result in duplicate computation, cache pollution, or even silent overwrites. If the feature computation has side effects, you're in for a world of pain.
+    confidence: 90
+
+  - id: N003
+    severity: HIGH
+    category: concurrency
+    location: "feature_detector.py:~150"
+    issue: "Event bus factory lazy initialization is not thread-safe"
+    root_cause: |
+      The event bus is lazily initialized via a factory function, but there's no synchronization. Multiple threads can race to create the event bus, resulting in multiple instances or lost events.
+    impact: |
+      Event delivery can be lost, duplicated, or misrouted. In a distributed scan, this means missing critical events or double-processing, which is catastrophic for reliability.
+    confidence: 85
+
+  - id: N004
+    severity: MEDIUM
+    category: type-safety
+    location: "variable_discovery.py:~50"
+    issue: "Type erasure via cast(Any) in return"
+    root_cause: |
+      The function returns a value cast to Any, hiding the true type from the type checker. Downstream consumers lose all type guarantees, making static analysis and refactoring hazardous.
+    impact: |
+      Type errors can propagate undetected, leading to runtime failures that mypy or Pyright would have caught.
+    confidence: 90
+
+  - id: N005
+    severity: MEDIUM
+    category: type-safety
+    location: "feature_detector.py:~60"
+    issue: "Type erasure in feature cache values"
+    root_cause: |
+      Features are cached as Any, with no type enforcement. This means the cache can silently store and return the wrong type, and the type checker is powerless to help.
+    impact: |
+      Downstream code can receive unexpected types, causing subtle bugs and making the codebase a nightmare to maintain.
+    confidence: 85
+
+  - id: N006
+    severity: HIGH
+    category: validation
+    location: "feature_detector.py:~90"
+    issue: "Cache key collision risk due to naive key construction"
+    root_cause: |
+      The cache key is built from a tuple of input parameters, but if those parameters are not uniquely identifying (e.g., mutable objects), two different logical requests can map to the same key.
+    impact: |
+      Features for one input can be returned for another, leading to incorrect scan results.
+    confidence: 90
+
+  - id: N007
+    severity: MEDIUM
+    category: validation
+    location: "feature_detector.py:~95"
+    issue: "Silent cache poisoning via mutable key"
+    root_cause: |
+      If any part of the cache key is a mutable object (e.g., a dict or list), its hash can change after insertion, making the cache entry unreachable or colliding with other entries.
+    impact: |
+      Cache entries can become inaccessible or overwrite each other, causing unpredictable feature detection results.
+    confidence: 80
+
+  - id: N008
+    severity: MEDIUM
+    category: validation
+    location: "feature_detector.py:~100"
+    issue: "Cache key collision example: different scan option orders"
+    root_cause: |
+      If scan options are represented as dicts with the same items in different orders, their tuple representation can hash to the same value.
+    impact: |
+      Different scan configurations can return the same cached feature, leading to incorrect or stale results.
+    confidence: 80
+
+  - id: N009
+    severity: LOW
+    category: architecture
+    location: "variable_discovery.py:~200"
+    issue: "copy.copy() vs dict() vs assignment confusion"
+    root_cause: |
+      The code uses copy.copy(), dict(), and direct assignment interchangeably when handling scan metadata. Only copy.copy() creates a shallow copy; dict() creates a new dict but not for nested objects.
+    impact: |
+      Mutations in one part of the code can unexpectedly affect others, especially in threaded contexts.
+    confidence: 75
+
+  - id: N010
+    severity: LOW
+    category: concurrency
+    location: "feature_detector.py:~180"
+    issue: "Direct assignment of shared state in threaded context"
+    root_cause: |
+      Shared state is assigned directly between threads without any locking or copy, leading to possible race conditions and data corruption.
+    impact: |
+      Data can be corrupted or lost, and the resulting bugs will be nearly impossible to reproduce.
+    confidence: 70
+
+  - id: N011
+    severity: LOW
+    category: validation
+    location: "feature_detector.py:~210"
+    issue: "Validation function proliferation"
+    root_cause: |
+      Multiple validation functions are scattered throughout the module, each with slightly different logic, leading to inconsistent validation.
+    impact: |
+      Inconsistent validation can allow bad data through or block valid data, undermining reliability.
+    confidence: 65

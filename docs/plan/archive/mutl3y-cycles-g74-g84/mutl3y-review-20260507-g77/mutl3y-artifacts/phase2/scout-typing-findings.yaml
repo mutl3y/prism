@@ -1,0 +1,119 @@
+---
+wave_id: scout-typing
+findings:
+  - finding_id: "ST-001"
+    severity: high
+    category: typing_gaps
+    location: src/prism/scanner_data/contracts_request.py:476
+    description: "DI container parameter typed as Any instead of protocol/specific type"
+    code_sample: |
+      def validate_feature_detector_inputs(
+          *,
+          di: Any,  # Should be DIContainer | None or protocol type
+          role_path: str,
+          options: dict[str, Any],
+      ) -> None:
+
+  - finding_id: "ST-002"
+    severity: high
+    category: Any_typing
+    location: src/prism/scanner_data/contracts_variables.py:21
+    description: "ReferenceContext TypedDict uses dict[str, Any] for seed_values, allowing untyped variable payloads"
+    code_sample: |
+      class ReferenceContext(TypedDict):
+          seed_values: dict[str, Any]  # HIGH: Should be dict[str, str | bool | int | None]
+          seed_secrets: set[str]
+          seed_sources: dict[str, str]
+
+  - finding_id: "ST-003"
+    severity: high
+    category: typing_gaps
+    location: src/prism/scanner_core/task_extract_adapters.py:15
+    description: "Multiple adapter functions accept di: object | None as generic pass-through; lacks protocol specificity"
+    code_sample: |
+      def _extract_task_annotations_for_file(
+          raw_lines: list[str],
+          *,
+          marker_prefix: str = "prism",
+          include_task_index: bool = False,
+          di: object | None = None,  # Should constrain to HasPreparedPolicy protocol
+      ) -> tuple[list[TaskAnnotation], dict[str, list[TaskAnnotation]]]:
+
+  - finding_id: "ST-004"
+    severity: medium
+    category: type_ignore_suppression
+    location: src/prism/scanner_extract/task_line_parsing.py:71-76
+    description: "# type: ignore[assignment] comments on proxy Collection assignments; proxy pattern prevents strict typing"
+    code_sample: |
+      TASK_INCLUDE_KEYS: Collection[str] = _PolicyBackedCollectionProxy("TASK_INCLUDE_KEYS")  # type: ignore[assignment]
+      ROLE_INCLUDE_KEYS: Collection[str] = _PolicyBackedCollectionProxy("ROLE_INCLUDE_KEYS")  # type: ignore[assignment]
+      TASK_BLOCK_KEYS: Collection[str] = _PolicyBackedCollectionProxy("TASK_BLOCK_KEYS")  # type: ignore[assignment]
+
+  - finding_id: "ST-005"
+    severity: high
+    category: Any_typing
+    location: src/prism/scanner_plugins/interfaces.py:26,32,40,64,70,80
+    description: "VariableDiscoveryPlugin and FeatureDetectionPlugin protocols use dict[str, Any] in plugin contracts; weakens type safety across plugin boundary"
+    code_sample: |
+      class VariableDiscoveryPlugin(Protocol):
+          def discover_static_variables(
+              self,
+              role_path: str,
+              options: dict[str, Any],  # Should be ScanOptionsDict
+          ) -> tuple[VariableRow, ...]: ...
+
+  - finding_id: "ST-006"
+    severity: high
+    category: Any_typing
+    location: src/prism/scanner_plugins/registry.py:48,68,111,142,189,479
+    description: "PluginRegistry uses type[Any] for plugin_class and dict[tuple[str, str], Any] for loaded_plugins; prevents type-safe plugin instantiation checks"
+    code_sample: |
+      class PluginRegistry:
+          loaded_plugins: dict[tuple[str, str], Any]  # Should use TypedDict
+          def load_plugin_from_module(self, module_name: str, class_name: str) -> type[Any]:
+              pass  # Should return typed plugin class
+
+  - finding_id: "ST-007"
+    severity: medium
+    category: dict_object_placeholder
+    location: src/prism/scanner_core/feature_detector.py:27,114
+    description: "Return type tuple[list[dict[str, object]], ...] uses object placeholder; should use TaskCatalogEntry TypedDict"
+    code_sample: |
+      def _collect_task_handler_catalog(
+          role_path: str,
+      ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+          pass  # Should use typed TaskCatalogEntry
+
+  - finding_id: "ST-008"
+    severity: medium
+    category: Any_typing
+    location: src/prism/scanner_plugins/ansible/variable_discovery.py:125-141,204,269,311,313
+    description: "Variable discovery plugin returns dict[str, Any] and Any types; lacks structure specification for variable payloads"
+    code_sample: |
+      def resolve_unresolved_variables(
+          options: dict[str, Any] | None = None,
+      ) -> Any:  # Should return dict[str, str] or TypedDict
+          pass
+
+  - finding_id: "ST-009"
+    severity: medium
+    category: protocol_weakening
+    location: src/prism/scanner_core/di_helpers.py:14
+    description: "HasScanOptions protocol types scan_options as dict[str, Any]; allows untyped option values at protocol boundary"
+    code_sample: |
+      @runtime_checkable
+      class HasScanOptions(Protocol):
+          scan_options: dict[str, Any]  # Should be ScanOptionsDict
+
+  - finding_id: "ST-010"
+    severity: low
+    category: cast_suppression
+    location: src/prism/scanner_core/feature_detector.py:51,110
+    description: "Multiple cast(dict[str, Any], ...) calls used to suppress type checker; suggests API contract mismatch"
+    code_sample: |
+      cast(dict[str, Any], options)  # Line 51: type suppression indicates weak contract
+
+count_high: 4
+count_medium: 5
+count_low: 1
+status: complete

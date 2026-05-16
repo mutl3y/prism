@@ -1,0 +1,147 @@
+plan_id: g84-remediation-mutl3y-cycle-20260509
+quarter: Q2 2026
+start_date: '2026-05-12T00:00:00'
+end_date: '2026-07-31T00:00:00'
+tier: Tier 1 Planning + Tier 2 Execution
+total_findings: 30
+total_cost_est: 0.15
+total_cost_max: 0.22
+status: PLANNING
+initiatives:
+  init_1:
+    id: '1'
+    name: DI Container God-Object Decomposition
+    status: NOT_STARTED
+    findings: 17
+    start_date: '2026-05-12T00:00:00'
+    target_date: '2026-05-26T00:00:00'
+    weeks: 2
+    cost:
+      estimate: 0.08
+      maximum: 0.12
+    dependencies: []
+    description: Extract PluginResolver + ServiceLocator from 1000+ line god-object
+    success_metrics:
+      findings_resolved: 17
+      lines_of_code_di: 300
+      test_pass_rate: 0.995
+      unit_test_coverage: 0.8
+      mypy_errors: 0
+  init_2:
+    id: '2'
+    name: PolicyManager Extraction
+    status: NOT_STARTED
+    findings: 8
+    start_date: '2026-05-26T00:00:00'
+    target_date: '2026-06-02T00:00:00'
+    weeks: 1
+    cost:
+      estimate: 0.05
+      maximum: 0.07
+    dependencies:
+    - '1'
+    description: Consolidate policy ownership across 4 modules to single PolicyManager
+    success_metrics:
+      findings_resolved: 8
+      duplicate_validation: 0
+      test_pass_rate: 0.995
+      unit_test_coverage: 0.8
+  init_3:
+    id: '3'
+    name: Marker-Prefix Boundary Enforcement
+    status: NOT_STARTED
+    findings: 5
+    start_date: '2026-05-26T00:00:00'
+    target_date: '2026-06-02T00:00:00'
+    weeks: 1
+    cost:
+      estimate: 0.02
+      maximum: 0.03
+    dependencies:
+    - '1'
+    - '2'
+    description: 'Complete MP1 contract: enforce ingress-only marker-prefix ownership'
+    success_metrics:
+      findings_resolved: 5
+      nested_policy_reads: 0
+      test_pass_rate: 0.995
+timeline:
+  week_1:
+    start: '2026-05-12T00:00:00'
+    end: '2026-05-19T00:00:00'
+    initiatives:
+    - '1'
+    status: NOT_STARTED
+  week_2:
+    start: '2026-05-19T00:00:00'
+    end: '2026-05-26T00:00:00'
+    initiatives: []
+    status: NOT_STARTED
+  week_3:
+    start: '2026-05-26T00:00:00'
+    end: '2026-06-02T00:00:00'
+    initiatives:
+    - '1'
+    - '2'
+    - '3'
+    status: NOT_STARTED
+  week_4:
+    start: '2026-06-02T00:00:00'
+    end: '2026-06-09T00:00:00'
+    initiatives:
+    - '2'
+    - '3'
+    status: NOT_STARTED
+  week_5:
+    start: '2026-06-09T00:00:00'
+    end: '2026-06-16T00:00:00'
+    initiatives: []
+    status: NOT_STARTED
+  week_6:
+    start: '2026-06-16T00:00:00'
+    end: '2026-06-23T00:00:00'
+    initiatives: []
+    status: NOT_STARTED
+  week_7:
+    start: '2026-06-23T00:00:00'
+    end: '2026-06-30T00:00:00'
+    initiatives: []
+    status: NOT_STARTED
+  week_8:
+    start: '2026-06-30T00:00:00'
+    end: '2026-07-07T00:00:00'
+    initiatives: []
+    status: NOT_STARTED
+  week_9:
+    start: '2026-07-07T00:00:00'
+    end: '2026-07-14T00:00:00'
+    initiatives: []
+    status: NOT_STARTED
+  week_10:
+    start: '2026-07-14T00:00:00'
+    end: '2026-07-21T00:00:00'
+    initiatives: []
+    status: NOT_STARTED
+  week_11:
+    start: '2026-07-21T00:00:00'
+    end: '2026-07-28T00:00:00'
+    initiatives: []
+    status: NOT_STARTED
+  week_12:
+    start: '2026-07-28T00:00:00'
+    end: '2026-08-04T00:00:00'
+    initiatives: []
+    status: NOT_STARTED
+risks:
+- risk: Breaking changes in DIContainer
+  probability: MEDIUM
+  impact: HIGH
+  mitigation: Backward compatibility layer, extensive testing
+- risk: Performance regression
+  probability: LOW
+  impact: MEDIUM
+  mitigation: Benchmark suite, before/after comparison
+- risk: Type system issues
+  probability: LOW
+  impact: HIGH
+  mitigation: Mypy strict mode, protocol validation

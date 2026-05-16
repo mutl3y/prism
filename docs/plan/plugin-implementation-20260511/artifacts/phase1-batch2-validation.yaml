@@ -1,0 +1,50 @@
+timestamp: "2026-05-11T16:48:00Z"
+phase: "phase_1"
+wave: 2
+validation_mode: "parallel + reconciliation"
+builder_targeted_runs:
+  - worker: "Builder-ControlFlow"
+    result: "pass"
+    passed: 49
+    failed: 0
+  - worker: "Builder-Abstraction"
+    result: "pass"
+    passed: 32
+    failed: 0
+  - worker: "Builder-Ownership"
+    result: "pass"
+    passed: 32
+    failed: 0
+reconciliation:
+  duplicate_root_files_removed: 12
+  reason: "Prevent double collection after copy+retain drift."
+parallel_lane_gates:
+  - lane: "core"
+    command: ".venv/bin/pytest -q -m core src/prism/tests"
+    result: "pass"
+    passed: 513
+    skipped: 1
+    deselected: 862
+    warnings: 3
+    runtime_seconds: 9.10
+  - lane: "plugins"
+    command: ".venv/bin/pytest -q -m plugins src/prism/tests"
+    result: "pass"
+    passed: 196
+    skipped: 1
+    deselected: 1179
+    warnings: 13
+    runtime_seconds: 6.55
+  - lane: "integration"
+    command: ".venv/bin/pytest -q -m integration src/prism/tests"
+    result: "pass"
+    passed: 522
+    skipped: 7
+    deselected: 847
+    warnings: 4
+    runtime_seconds: 11.45
+rubric_metrics:
+  delegation_ratio: "3 of 3 build scopes delegated"
+  parallel_worker_count: 3
+  lane_parallelism: 3
+  reliability_note: "Needed reconciliation after delegated move semantics drift"

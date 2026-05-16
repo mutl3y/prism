@@ -1,0 +1,20 @@
+{
+  "name": "awesome-copilot",
+  "metadata": {
+    "description": "Community-driven collection of GitHub Copilot plugins, agents, prompts, and skills",
+    "version": "1.0.0",
+    "pluginRoot": "./plugins"
+  },
+  "owner": {
+    "name": "GitHub",
+    "email": "copilot@github.com"
+  },
+  "plugins": [
+    {
+      "name": "mutl3y-review-workflow",
+      "source": "mutl3y-review-workflow",
+      "description": "Plugin for the Mutl3y review workflow, providing a team-based, file-backed code review and fix cycle with three-node cluster architecture.",
+      "version": "1.0.0"
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+---
+plan_id: mutl3y-review-20260507-g78
+phase: "Phase 2 - Plan Persistence"
+persistence_date: "2026-05-07"
+
+findings:
+  - id: FIND-G78-001
+    severity: CRITICAL
+    status: open
+    title: "Python 2 Exception Syntax in 5 files"
+    description: "Uses comma-separated exception syntax (Python 2 style) instead of tuple syntax."
+    files:
+      - src/prism/scanner_plugins/registry.py:158
+      - src/prism/scanner_extract/filter_scanner.py:186
+      - src/prism/scanner_extract/filter_scanner.py:243
+      - src/prism/scanner_extract/variable_extractor.py:92
+      - src/prism/scanner_io/output.py:57
+    remediation: "Change all to: except (ExceptionType1, ExceptionType2):"
+    effort: LOW
+    tags: [syntax, error_handling, critical_fix]
+
+  - id: FIND-G78-002
+    severity: CRITICAL
+    status: open
+    title: "Inconsistent Error Type Usage Across Layers (Missing Error Ownership Contract)"
+    description: "No clear contract for error types. Layers use bare ValueError/RuntimeError inconsistently."
+    layers:
+      - scanner_config
+      - scanner_data
+      - scanner_core
+      - scanner_extract
+      - api_layer
+    remediation: "Define error ownership contract; use PrismRuntimeError consistently for public API"
+    effort: MEDIUM
+    tags: [architecture, error_handling, contract]
+
+  - id: FIND-G78-003
+    severity: CRITICAL
+    status: open
+    title: "Silent Error Context Loss in File Operations"
+    description: "Functions silently swallow exceptions (return None/False) instead of propagating context."
+    files:
+      - src/prism/scanner_extract/task_file_traversal.py:56
+      - src/prism/scanner_extract/task_file_traversal.py:64
+      - src/prism/scanner_extract/task_catalog_assembly.py:79
+    remediation: "Add logging before returning None/False, or return error metadata"
+    effort: LOW
+    tags: [logging, error_handling, observability]
+
+  - id: FIND-G78-004
+    severity: CRITICAL
+    status: open
+    title: "Exception Returned as Data Object Instead of Raised"
+    description: "Exceptions are caught and returned as objects, breaking type propagation."
+    files:
+      - src/prism/scanner_extract/discovery.py:274-281
+    remediation: "Raise exceptions directly; use Result type pattern if needed"
+    effort: MEDIUM
+    tags: [error_handling, type_safety, pattern]
+
+  - id: FIND-G78-005
+    severity: CRITICAL
+    status: open
+    title: "Bare Exception Catching Without Type Narrowing"
+    description: "Catch `except Exception as exc:` in 8+ locations without type narrowing."
+    files:
+      - src/prism/scanner_core/events.py:95
+      - src/prism/scanner_core/execution_request_builder.py:186
+      - src/prism/scanner_core/execution_request_builder.py:201
+      - src/prism/scanner_kernel/kernel_plugin_runner.py:150
+      - src/prism/scanner_extract/discovery.py:125
+      - src/prism/scanner_extract/discovery.py:223
+      - src/prism/scanner_extract/discovery.py:280
+    remediation: "Narrow exception types; add typed error envelopes"
+    effort: MEDIUM
+    tags: [type_safety, error_handling, contracts]
+
+  - id: FIND-G78-006
+    severity: CRITICAL
+    status: open
+    title: "EventBus Listener Exceptions Silently Suppressed"
+    description: "Listener exceptions logged but never propagated in non-strict mode."
+    files:
+      - src/prism/scanner_core/events.py:87-102
+    remediation: "Add callback pattern or document behavior"
+    effort: MEDIUM
+    tags: [observability, error_handling, telemetry]
+
+  - id: FIND-G78-007
+    severity: HIGH
+    status: open
+    title: "Missing Exception Chaining in Error Transformations"
+    description: "Exceptions raised without `from exc` chaining; loses root cause info."
+    files:
+      - src/prism/repo_services.py:308
+      - src/prism/repo_services.py:317
+      - src/prism/repo_services.py:328
+      - src/prism/repo_services.py:337
+    remediation: "Add `from exc` to all exception re-raises"
+    effort: LOW
+    tags: [debugging, error_handling, mechanical]
+
+  - id: FIND-G78-008
+    severity: HIGH
+    status: open
+    title: "Silent Error in Listener Unregistration"
+    description: "unregister_default_listener() returns silently on missing listener."
+    files:
+      - src/prism/scanner_core/events.py:172-175
+    remediation: "Return bool or raise error on not-found"
+    effort: LOW
+    tags: [api_clarity, error_handling]
+
+  - id: FIND-G78-009
+    severity: HIGH
+    status: open
+    title: "EventBus Listener Exception Type Not Preserved"
+    description: "Exceptions logged as strings; structured type info lost."
+    files:
+      - src/prism/scanner_core/events.py
+    remediation: "Preserve exception type in event or error object"
+    effort: LOW
+    tags: [type_safety, observability]
+
+critical_count: 6
+high_count: 3
+total: 9

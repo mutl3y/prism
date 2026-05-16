@@ -1,0 +1,71 @@
+model_used: Gemini 3 Flash (Preview)
+findings:
+  - id: GILF-DI-01
+    severity: CRITICAL
+    category: type-safety
+    location: "src/prism/scanner_core/di.py:73-81"
+    issue: "Blind TypedDict Cast during shallow clone"
+    root_cause: "The `clone_scan_options` function uses `cast(ScanOptionsDict, ...)` on the result of a generic recursive shallow clone that lacks any schema validation."
+    impact: "Complete type erasure at the DI boundary. If `_clone_container_structure` mangles a key or drops a required field, the rest of the system operates on a lie until a runtime `KeyError` or `AttributeError` occurs deep in the call stack."
+    confidence: 100
+    fix_suggestion: "Replace the blind `cast` with a proper Pydantic validator or a strict TypedDict type guard that verifies the presence of required keys after cloning."
+
+  - id: GILF-DI-02
+    severity: HIGH
+    category: architecture
+    location: "src/prism/scanner_core/di.py:115-163"
+    issue: "Constructor-shape checking via introspection"
+    root_cause: "The `_construct_runtime_plugin` function uses `inspect.signature` to verify if a plugin class accepts `di=...`, essentially reinventing building-block DI at runtime."
+    impact: "Performance tax on every plugin instantiation and a brittle dependency on constructor naming conventions. It bypasses the Protocol-based safety that static analysis should provide."
+    confidence: 90
+    fix_suggestion: "Enforce a uniform base class or a stricter Protocol for plugins that the Registry validates *before* handing them to the DI container, eliminating the need for runtime signature sniffing."
+
+  - id: GILF-DI-03
+    severity: HIGH
+    category: ownership
+    location: "src/prism/scanner_core/di.py:205-209"
+    issue: "Split ownership of ScanOptions snapshots"
+    root_cause: "The container clones `scan_options` in `__init__`, but provides `replace_scan_options` and `_snapshot_scan_options` methods that allow external mutation of the container's core state."
+    impact: "Inconsistent state across the system. If one part of the code calls `replace_scan_options`, already-instantiated objects like `ScannerContext` may still hold references to the old snapshot, leading to 'split-brain' scanning results."
+    confidence: 85
+    fix_suggestion: "Make `ScanOptions` immutable within the DI container's lifecycle. If options must change, a new Container instance should be spawned to ensure all child objects see the same worldview."
+
+  - id: GILF-CONTEXT-01
+    severity: MEDIUM
+    category: error-handling
+    location: "src/prism/scanner_core/scanner_context.py:300-330"
+    issue: "Indiscriminate Exception swallowing in orchestrator"
+    root_cause: "The `_discover_variables` and `_detect_features` methods catch a broad tuple of exceptions (`PrismRuntimeError, ValueError, RuntimeError, TypeError`) to provide 'best-effort' mode."
+    impact: "Masks genuine logic bugs (TypeErrors) and configuration issues as transient 'phase errors'. This makes debugging a nightmare because the system 'succeeds' while producing garbage output."
+    confidence: 95
+    fix_suggestion: "Restrict the catch block to `PrismRuntimeError`. Re-raise `TypeError` and `ValueError` immediately; those are developer errors, not operational failures that deserve best-effort fallback."
+
+  - id: GILF-HELP-01
+    severity: MEDIUM
+    category: architecture
+    location: "src/prism/scanner_core/di_helpers.py:53-70"
+    issue: "Protocol dilution via hasattr checking"
+    root_cause: "The `scan_options_from_di` helper uses `isinstance(di, HasScanOptions)` followed by manual `isinstance(scan_options, dict)` checks, undermining the purpose of the Protocol."
+    impact: "If `HasScanOptions` defines `scan_options` as a `dict`, the additional check is redundant. If it doesn't, the Protocol is too weak."
+    confidence: 80
+    fix_suggestion: "Tighten `HasScanOptions` to explicitly require `ScanOptionsDict`. Trust the Protocol or don't use it at all; these middle-ground checks are just visual noise for incompetent developers."
+
+  - id: GILF-CONTEXT-02
+    severity: HIGH
+    category: architecture
+    location: "src/prism/scanner_core/scanner_context.py:192-230"
+    issue: "Hidden Policy Fallback in Context Registry"
+    root_cause: "The `ScannerContext` constructor accepts an optional `prepared_policy_bundle` but allows it to be `None`, deferring policy initialization to a later state."
+    impact: "Split-phase initialization risk. Methods like `orchestrate_scan` require the bundle but don't enforce its presence at the constructor level, leading to potential `AttributeError` when accessing `policy_constants` if the lifecycle is mismanaged."
+    confidence: 88
+    fix_suggestion: "Make `prepared_policy_bundle` mandatory in the constructor. If you don't have policies, you don't have a ScannerContext. Stop supporting 'half-baked' objects."
+
+  - id: GILF-DI-04
+    severity: LOW
+    category: performance
+    location: "src/prism/scanner_core/di.py:90-109"
+    issue: "Heuristic platform key resolution"
+    root_cause: "The `resolve_platform_key` function wanders through three nested dictionary lookups before falling back to the registry."
+    impact: "Unnecessary O(N) traversal of options for a value that should be stabilized at the entry point of the pipeline."
+    confidence: 85
+    fix_suggestion: "Resolve and flatten the platform key during ingress normalization, storing it as a top-level immutable field in the DI container."

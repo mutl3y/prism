@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from prism.scanner_data.contracts_request import FeaturesContext
+from prism.scanner_data.contracts_request import DIContainer, FeaturesContext
 from prism.scanner_plugins.ansible.extract_utils import (
     extract_task_annotations_for_file,
 )
@@ -36,7 +36,7 @@ class AnsibleFeatureDetectionPlugin:
     PLUGIN_IS_STATELESS = True
 
     def __init__(self, di: object | None = None) -> None:
-        self._di = di
+        self._di = di if isinstance(di, DIContainer) else None
 
     @staticmethod
     def _resolve_marker_prefix(options: dict[str, object]) -> str:

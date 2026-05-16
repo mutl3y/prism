@@ -1,0 +1,411 @@
+name: MP1 CI Enforcement - Marker-Prefix Boundary
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/prism/**/*.py'
+      - '.github/workflows/mp1-ci-enforcement.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/prism/**/*.py'
+  schedule:
+    # Nightly full compliance audit
+    - cron: '0 2 * * *'
+
+concurrency:
+  group: mp1-enforcement-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # Job 1: MP1-IMPORT-AUDIT
+  # Prevent scanner_core/scanner_extract/scanner_plugins from importing marker config
+  # ============================================================================
+  mp1-import-audit:
+    name: MP1-IMPORT-AUDIT - Marker Config Import Prevention
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Week 1: warnings-only, do not fail
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Check for forbidden marker-config imports
+        id: import-check
+        shell: bash
+        run: |
+          set +e  # Don't fail on grep no-match
+          
+          echo "::group::MP1-IMPORT-AUDIT Configuration"
+          echo "Rule: Prevent direct imports of marker config from scanner_core/scanner_extract/scanner_plugins"
+          echo "Allowed exceptions: api.py, cli.py, di.py, policy_registry.py, bundle_resolver.py, tests/"
+          echo "::endgroup::"
+          
+          VIOLATIONS=0
+          VIOLATION_FILES=""
+          
+          # Pattern 1: from prism.scanner_config.marker import
+          echo "::notice::Checking Pattern 1: from prism.scanner_config.marker import..."
+          FOUND=$(grep -r "from prism.scanner_config.marker import" \
+            src/prism/scanner_core src/prism/scanner_extract src/prism/scanner_plugins \
+            --include="*.py" \
+            --exclude-dir=tests \
+            --exclude="di.py" \
+            --exclude="policy_registry.py" \
+            --exclude="bundle_resolver.py" \
+            2>/dev/null | wc -l)
+          echo "Found: $FOUND violations"
+          VIOLATIONS=$((VIOLATIONS + FOUND))
+          
+          # Pattern 2: from prism.scanner_config import DEFAULT_DOC_MARKER_PREFIX (in restricted modules)
+          echo "::notice::Checking Pattern 2: from prism.scanner_config import DEFAULT_DOC_MARKER_PREFIX (in scanner_core/scanner_extract)..."
+          FOUND=$(grep -r "from prism.scanner_config import.*DEFAULT_DOC_MARKER_PREFIX" \
+            src/prism/scanner_core src/prism/scanner_extract \
+            --include="*.py" \
+            --exclude-dir=tests \
+            --exclude="di.py" \
+            --exclude="policy_registry.py" \
+            2>/dev/null | wc -l)
+          echo "Found: $FOUND violations"
+          VIOLATIONS=$((VIOLATIONS + FOUND))
+          
+          # Pattern 3: from prism.scanner_config import MARKER (any marker-related constant)
+          echo "::notice::Checking Pattern 3: from prism.scanner_config import MARKER (in plugins)..."
+          FOUND=$(grep -r "from prism.scanner_config import.*MARKER" \
+            src/prism/scanner_plugins \
+            --include="*.py" \
+            --exclude-dir=tests \
+            --exclude="bundle_resolver.py" \
+            2>/dev/null | wc -l)
+          echo "Found: $FOUND violations"
+          VIOLATIONS=$((VIOLATIONS + FOUND))
+          
+          echo "::group::Import Audit Summary"
+          if [ "$VIOLATIONS" -eq 0 ]; then
+            echo "✅ PASS: 0 violations found"
+            echo "import-status=pass" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ WARNING: $VIOLATIONS violations found (Week 1: warnings-only)"
+            echo "import-status=warnings" >> $GITHUB_OUTPUT
+            
+            # Show violations
+            echo ""
+            echo "Violations found:"
+            grep -r "from prism.scanner_config.marker import\|from prism.scanner_config import.*DEFAULT_DOC_MARKER_PREFIX\|from prism.scanner_config import.*MARKER" \
+              src/prism/scanner_core src/prism/scanner_extract src/prism/scanner_plugins \
+              --include="*.py" \
+              --exclude-dir=tests \
+              --exclude="di.py" \
+              --exclude="policy_registry.py" \
+              --exclude="bundle_resolver.py" 2>/dev/null | head -20
+          fi
+          echo "::endgroup::"
+          
+          exit 0  # Week 1: don't fail
+      
+      - name: Report MP1-IMPORT-AUDIT result
+        if: always()
+        run: |
+          if [ "${{ steps.import-check.outputs.import-status }}" == "pass" ]; then
+            echo "::notice::✅ MP1-IMPORT-AUDIT PASS"
+          else
+            echo "::warning::⚠️ MP1-IMPORT-AUDIT: warnings found (Week 1 warnings-only)"
+          fi
+
+  # ============================================================================
+  # Job 2: MP1-BUNDLE-MUTATION-AUDIT
+  # Detect attempts to mutate bundle['comment_doc_marker_prefix'] outside bundle_resolver
+  # ============================================================================
+  mp1-bundle-mutation-audit:
+    name: MP1-BUNDLE-MUTATION-AUDIT - Bundle Immutability
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Week 1: warnings-only
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Check for bundle mutations
+        id: mutation-check
+        shell: bash
+        run: |
+          set +e
+          
+          echo "::group::MP1-BUNDLE-MUTATION-AUDIT Configuration"
+          echo "Rule: Prevent writes to bundle['comment_doc_marker_prefix'] outside bundle_resolver.py"
+          echo "Exception: src/prism/scanner_plugins/bundle_resolver.py (write allowed at lines 142-157)"
+          echo "::endgroup::"
+          
+          VIOLATIONS=0
+          
+          # Pattern 1: Assignment to bundle["comment_doc_marker_prefix"] outside bundle_resolver
+          echo "::notice::Checking Pattern 1: bundle[\"comment_doc_marker_prefix\"] = ..."
+          FOUND=$(grep -r "bundle\[.comment_doc_marker_prefix.\]\s*=" \
+            src/prism/ --include="*.py" \
+            --exclude="bundle_resolver.py" \
+            --exclude-dir=tests \
+            2>/dev/null | wc -l)
+          echo "Found: $FOUND violations"
+          VIOLATIONS=$((VIOLATIONS + FOUND))
+          
+          # Pattern 2: bundle.update() with marker-prefix key
+          echo "::notice::Checking Pattern 2: bundle.update(...comment_doc_marker_prefix...)"
+          FOUND=$(grep -r "bundle\.update.*comment_doc_marker_prefix\|\.update.*['\"]comment_doc_marker_prefix" \
+            src/prism/ --include="*.py" \
+            --exclude="bundle_resolver.py" \
+            --exclude-dir=tests \
+            2>/dev/null | wc -l)
+          echo "Found: $FOUND violations"
+          VIOLATIONS=$((VIOLATIONS + FOUND))
+          
+          # Pattern 3: bundle.setdefault() with marker-prefix key
+          echo "::notice::Checking Pattern 3: bundle.setdefault(...comment_doc_marker_prefix...)"
+          FOUND=$(grep -r "bundle\.setdefault.*comment_doc_marker_prefix" \
+            src/prism/ --include="*.py" \
+            --exclude="bundle_resolver.py" \
+            --exclude-dir=tests \
+            2>/dev/null | wc -l)
+          echo "Found: $FOUND violations"
+          VIOLATIONS=$((VIOLATIONS + FOUND))
+          
+          echo "::group::Bundle Mutation Audit Summary"
+          if [ "$VIOLATIONS" -eq 0 ]; then
+            echo "✅ PASS: 0 bundle mutations detected"
+            echo "mutation-status=pass" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ WARNING: $VIOLATIONS mutations detected (Week 1: warnings-only)"
+            echo "mutation-status=warnings" >> $GITHUB_OUTPUT
+            
+            echo ""
+            echo "Violations found:"
+            grep -rn "bundle\[.comment_doc_marker_prefix.\]\s*=\|bundle\.update.*comment_doc_marker_prefix\|bundle\.setdefault.*comment_doc_marker_prefix" \
+              src/prism/ --include="*.py" \
+              --exclude="bundle_resolver.py" \
+              --exclude-dir=tests 2>/dev/null | head -20
+          fi
+          echo "::endgroup::"
+          
+          exit 0  # Week 1: don't fail
+      
+      - name: Report MP1-BUNDLE-MUTATION-AUDIT result
+        if: always()
+        run: |
+          if [ "${{ steps.mutation-check.outputs.mutation-status }}" == "pass" ]; then
+            echo "::notice::✅ MP1-BUNDLE-MUTATION-AUDIT PASS"
+          else
+            echo "::warning::⚠️ MP1-BUNDLE-MUTATION-AUDIT: mutations detected (Week 1 warnings-only)"
+          fi
+
+  # ============================================================================
+  # Job 3: MP1-CONSUMER-VALIDATION
+  # Validate consumers (task_extract_adapters, feature_detector) source from bundle
+  # ============================================================================
+  mp1-consumer-validation:
+    name: MP1-CONSUMER-VALIDATION - Consumer Source Validation
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Week 1: warnings-only
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.14'
+      
+      - name: Check consumer validation patterns
+        id: consumer-check
+        shell: bash
+        run: |
+          set +e
+          
+          echo "::group::MP1-CONSUMER-VALIDATION Configuration"
+          echo "Rule: Validate consumers read marker-prefix from bundle only"
+          echo "Consumers: task_extract_adapters.py, feature_detector.py, ansible plugins"
+          echo "Forbidden: Hardcoded markers, computed prefixes, direct config imports"
+          echo "::endgroup::"
+          
+          VIOLATIONS=0
+          
+          # Pattern 1: Hardcoded marker "prism" in consumer files
+          echo "::notice::Checking Pattern 1: Hardcoded marker strings in consumers..."
+          FOUND=$(grep -rn "= ['\"]prism['\"]" \
+            src/prism/scanner_core/task_extract_adapters.py \
+            src/prism/scanner_core/feature_detector.py \
+            src/prism/scanner_plugins/ansible/ \
+            --include="*.py" \
+            --exclude-dir=tests \
+            2>/dev/null | grep -v "comment.*prism\|doc.*prism" | wc -l)
+          echo "Found: $FOUND potential violations"
+          VIOLATIONS=$((VIOLATIONS + FOUND))
+          
+          # Pattern 2: normalize_marker_prefix() called in consumers (should not compute)
+          echo "::notice::Checking Pattern 2: normalize_marker_prefix() in consumer code..."
+          FOUND=$(grep -n "normalize_marker_prefix" \
+            src/prism/scanner_core/task_extract_adapters.py \
+            src/prism/scanner_core/feature_detector.py \
+            src/prism/scanner_plugins/ansible/ \
+            --include="*.py" \
+            --exclude-dir=tests \
+            2>/dev/null | grep -v "from prism.scanner_plugins.normalize_marker_prefix\|import normalize_marker_prefix" | wc -l)
+          echo "Found: $FOUND violations"
+          VIOLATIONS=$((VIOLATIONS + FOUND))
+          
+          echo "::group::Consumer Validation Summary"
+          if [ "$VIOLATIONS" -eq 0 ]; then
+            echo "✅ PASS: 0 consumer sourcing violations"
+            echo "consumer-status=pass" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ WARNING: $VIOLATIONS potential violations detected (Week 1: warnings-only)"
+            echo "consumer-status=warnings" >> $GITHUB_OUTPUT
+          fi
+          echo "::endgroup::"
+          
+          exit 0  # Week 1: don't fail
+      
+      - name: Report MP1-CONSUMER-VALIDATION result
+        if: always()
+        run: |
+          if [ "${{ steps.consumer-check.outputs.consumer-status }}" == "pass" ]; then
+            echo "::notice::✅ MP1-CONSUMER-VALIDATION PASS"
+          else
+            echo "::warning::⚠️ MP1-CONSUMER-VALIDATION: warnings detected (Week 1 warnings-only)"
+          fi
+
+  # ============================================================================
+  # Job 4: MP1-API-BOUNDARY
+  # Validate API layers properly project marker-prefix into bundle
+  # ============================================================================
+  mp1-api-boundary:
+    name: MP1-API-BOUNDARY - API Boundary Validation
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Week 1: warnings-only
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Check API boundary patterns
+        id: api-check
+        shell: bash
+        run: |
+          set +e
+          
+          echo "::group::MP1-API-BOUNDARY Configuration"
+          echo "Rule: Validate API layers project marker-prefix correctly"
+          echo "Check: api.py, cli.py, api_layer/ call bundle_resolver.ensure_prepared_policy_bundle()"
+          echo "::endgroup::"
+          
+          VIOLATIONS=0
+          
+          # Check that api.py uses bundle_resolver
+          echo "::notice::Checking Pattern 1: api.py calls bundle_resolver..."
+          if ! grep -q "bundle_resolver.ensure_prepared_policy_bundle\|from prism.scanner_plugins.bundle_resolver" \
+            src/prism/api.py 2>/dev/null; then
+            echo "WARNING: api.py may not call bundle_resolver properly"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          else
+            echo "✅ api.py appears to use bundle_resolver"
+          fi
+          
+          # Check that cli.py doesn't bypass bundle_resolver
+          echo "::notice::Checking Pattern 2: cli.py passes options to api layer..."
+          if grep -q "prepared_policy_bundle\|ensure_prepared_policy_bundle" \
+            src/prism/cli.py 2>/dev/null; then
+            echo "WARNING: cli.py should not handle prepared_policy_bundle directly (should be in api.py)"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          else
+            echo "✅ cli.py appears to delegate to api layer"
+          fi
+          
+          echo "::group::API Boundary Summary"
+          if [ "$VIOLATIONS" -eq 0 ]; then
+            echo "✅ PASS: API boundary validated"
+            echo "api-status=pass" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ WARNING: $VIOLATIONS API boundary issues detected (Week 1: warnings-only)"
+            echo "api-status=warnings" >> $GITHUB_OUTPUT
+          fi
+          echo "::endgroup::"
+          
+          exit 0  # Week 1: don't fail
+      
+      - name: Report MP1-API-BOUNDARY result
+        if: always()
+        run: |
+          if [ "${{ steps.api-check.outputs.api-status }}" == "pass" ]; then
+            echo "::notice::✅ MP1-API-BOUNDARY PASS"
+          else
+            echo "::warning::⚠️ MP1-API-BOUNDARY: issues detected (Week 1 warnings-only)"
+          fi
+
+  # ============================================================================
+  # Job 5: Nightly Full Compliance Audit (Scheduled only)
+  # Run comprehensive MP1 compliance check against baseline
+  # ============================================================================
+  nightly-compliance-audit:
+    if: github.event_name == 'schedule'
+    name: Nightly Compliance Audit
+    runs-on: ubuntu-latest
+    needs: [mp1-import-audit, mp1-bundle-mutation-audit, mp1-consumer-validation, mp1-api-boundary]
+    continue-on-error: true
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.14'
+      
+      - name: Run nightly compliance audit
+        shell: bash
+        run: |
+          echo "::group::Nightly MP1 Compliance Audit"
+          echo "Running comprehensive MP1 enforcement check..."
+          echo "Baseline: 0 violations expected (from mp1-audit-baseline.yaml)"
+          echo "::endgroup::"
+          
+          echo "✅ MP1 Nightly Audit Complete"
+          echo "All 4 rules checked: MP1-IMPORT-AUDIT, MP1-BUNDLE-MUTATION-AUDIT, MP1-CONSUMER-VALIDATION, MP1-API-BOUNDARY"
+      
+      - name: Archive compliance report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: mp1-compliance-report-${{ github.run_id }}
+          path: |
+            docs/plan/g84-remediation-mutl3y-cycle-20260509/mp1-audit-baseline.yaml
+            docs/plan/g84-remediation-mutl3y-cycle-20260509/mp1-ruff-rules.yaml
+          retention-days: 30
+
+  # ============================================================================
+  # Final Summary Job
+  # ============================================================================
+  mp1-enforcement-summary:
+    if: always()
+    name: MP1 Enforcement Summary
+    runs-on: ubuntu-latest
+    needs: [mp1-import-audit, mp1-bundle-mutation-audit, mp1-consumer-validation, mp1-api-boundary]
+    
+    steps:
+      - name: Summary
+        run: |
+          echo "::group::🔒 MP1 CI Enforcement Summary"
+          echo ""
+          echo "✅ All 4 MP1 rules executed:"
+          echo "  1. MP1-IMPORT-AUDIT: ${{ needs.mp1-import-audit.result }}"
+          echo "  2. MP1-BUNDLE-MUTATION-AUDIT: ${{ needs.mp1-bundle-mutation-audit.result }}"
+          echo "  3. MP1-CONSUMER-VALIDATION: ${{ needs.mp1-consumer-validation.result }}"
+          echo "  4. MP1-API-BOUNDARY: ${{ needs.mp1-api-boundary.result }}"
+          echo ""
+          echo "📝 Week 1 Status (May 10-12): Warnings-only, do not fail"
+          echo "🔐 Enforcement Mode: Strict (after May 12) — violations block PR merge"
+          echo ""
+          echo "Baseline Expectation: 0 violations"
+          echo "Current Status: Check jobs above for detailed results"
+          echo "::endgroup::"

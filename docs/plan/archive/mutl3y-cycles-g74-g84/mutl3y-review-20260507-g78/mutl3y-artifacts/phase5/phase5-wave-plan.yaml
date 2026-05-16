@@ -1,0 +1,50 @@
+---
+plan_id: mutl3y-review-20260507-g78
+phase: "Phase 5 Implementation"
+phase_start: "2026-05-07"
+status: in_progress
+
+waves:
+  wave_1:
+    name: "Low-Effort Syntax & Logging Fixes"
+    status: dispatched
+    findings_addressed: [FIND-G78-001, FIND-G78-003, FIND-G78-007, FIND-G78-008, FIND-G78-009]
+    builders:
+      - Builder-Syntax-Fixes
+      - Builder-Logging-ObservabilityFixes
+    owned_files:
+      Builder-Syntax-Fixes:
+        - src/prism/scanner_plugins/registry.py
+        - src/prism/scanner_extract/filter_scanner.py
+        - src/prism/scanner_extract/variable_extractor.py
+        - src/prism/scanner_io/output.py
+      Builder-Logging-ObservabilityFixes:
+        - src/prism/scanner_extract/task_file_traversal.py
+        - src/prism/scanner_extract/task_catalog_assembly.py
+        - src/prism/repo_services.py
+        - src/prism/scanner_core/events.py
+
+  wave_2:
+    name: "Medium-Effort Pattern & Contract Fixes"
+    status: pending
+    findings_addressed: [FIND-G78-002, FIND-G78-004, FIND-G78-005, FIND-G78-006]
+    builders:
+      - Builder-ErrorOwnershipContract
+      - Builder-ExceptionPatterns
+    owned_files:
+      Builder-ErrorOwnershipContract:
+        - src/prism/scanner_data/contracts_request.py
+        - src/prism/scanner_config/
+        - src/prism/scanner_core/
+        - src/prism/api_layer/
+      Builder-ExceptionPatterns:
+        - src/prism/scanner_extract/discovery.py
+        - src/prism/scanner_core/events.py
+        - src/prism/scanner_core/execution_request_builder.py
+
+model_preference: "Claude Haiku 4.5 (free-tier)"
+wave_barrier_checks:
+  - all_builder_artifacts_exist
+  - no_overlapping_file_ownership
+  - syntax_check_on_modified_files
+  - mypy_delta_check

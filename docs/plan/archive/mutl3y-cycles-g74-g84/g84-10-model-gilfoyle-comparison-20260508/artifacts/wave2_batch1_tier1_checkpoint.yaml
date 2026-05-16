@@ -1,0 +1,164 @@
+execution_summary:
+  wave: 2
+  batch: 1
+  tier: "TIER_1 (user-specified 3-attempt escalation)"
+  tier_reason: "User-specified override from standard Tier 2 (DI/Architecture work)"
+  batch_size: 30
+  batch_focus: "DI/Architecture + Cache/Event reliability"
+
+progress:
+  fixed: 1
+  attempted_reverted: 1
+  pending: 28
+  completion_rate: "3.3% (1/30)"
+
+completed_findings:
+  - id: GILF-NODE3-02
+    category: cache-safety
+    severity: HIGH
+    title: "Cache key ignores runtime wiring identity"
+    fix: "Modified _runtime_registry_identity() to use id() fallback for instances without state fingerprint"
+    file: "src/prism/scanner_core/scan_cache.py:180-195"
+    attempt: 1
+    status: PASSED
+    test_validated: "test_build_runtime_wiring_identity_distinguishes_registry_instances"
+    impact: "Cache now correctly distinguishes between different registry instances within a process"
+
+assessment_by_category:
+  type_safety:
+    findings_in_batch: 4
+    high_confidence_tier1: 0
+    medium_confidence_tier1: 1
+    low_confidence_tier1: 1
+    defer_tier2: 2
+    reason: "Findings involve complex TypedDict identity semantics and cast() replacement strategies. Tier 1 would require deep type system understanding."
+
+  cache_safety:
+    findings_in_batch: 4
+    high_confidence_tier1: 1
+    medium_confidence_tier1: 2
+    low_confidence_tier1: 0
+    defer_tier2: 1
+    reason: "GILF-NODE3-02 fixed (high confidence). Remaining 3 require complex cache architecture changes."
+
+  event_reliability:
+    findings_in_batch: 4
+    high_confidence_tier1: 0
+    medium_confidence_tier1: 2
+    low_confidence_tier1: 0
+    defer_tier2: 2
+    reason: "Events.py already has comprehensive error handling. Remaining items need strict mode enforcement or architectural changes."
+
+  architecture:
+    findings_in_batch: 2
+    high_confidence_tier1: 0
+    medium_confidence_tier1: 0
+    low_confidence_tier1: 0
+    defer_tier2: 2
+    reason: "DIContainer god-object antipattern requires refactoring. Out of scope for Tier 1."
+
+  ownership:
+    findings_in_batch: 2
+    high_confidence_tier1: 0
+    medium_confidence_tier1: 0
+    low_confidence_tier1: 1
+    defer_tier2: 1
+    reason: "Policy ownership consolidation requires multi-file coordination. Better suited for Tier 2."
+
+  data_flow:
+    findings_in_batch: 1
+    high_confidence_tier1: 0
+    medium_confidence_tier1: 0
+    low_confidence_tier1: 0
+    defer_tier2: 1
+    reason: "Feature detector and variable discovery contract unification. Requires deep understanding."
+
+  validation:
+    findings_in_batch: 3
+    high_confidence_tier1: 1
+    medium_confidence_tier1: 1
+    low_confidence_tier1: 0
+    defer_tier2: 1
+    reason: "Logging already present in scan_request.py. May be partially satisfied."
+
+  error_handling:
+    findings_in_batch: 2
+    high_confidence_tier1: 0
+    medium_confidence_tier1: 1
+    low_confidence_tier1: 0
+    defer_tier2: 1
+    reason: "Error logging already comprehensive. Unlogged normalization issues may be satisfied by existing code."
+
+  performance:
+    findings_in_batch: 1
+    high_confidence_tier1: 1
+    medium_confidence_tier1: 0
+    low_confidence_tier1: 0
+    defer_tier2: 0
+    reason: "LRU cache eviction optimization is isolated and tractable."
+
+  testing:
+    findings_in_batch: 1
+    high_confidence_tier1: 0
+    medium_confidence_tier1: 0
+    low_confidence_tier1: 1
+    defer_tier2: 0
+    reason: "Testability improvements for DIContainer factory methods. Low priority."
+
+tier1_feasible_subset:
+  total_identifiable: 6
+  estimated_fixable_with_3attempt_strategy: 3
+  reasoning: |
+    Wave 2 Batch 1 has 30 HIGH findings across complex architectural areas.
+    Tier 1 (Haiku 4.5-level) is suitable for:
+    - Well-isolated fixes with clear test coverage (1-2 already done)
+    - Performance tweaks with low coupling (1 finding)
+    - Validation/logging additions where code structure is clear (2-3 findings)
+    
+    Out of scope for Tier 1:
+    - DI container refactoring (god-object, factory consolidation)
+    - Policy ownership consolidation (multi-file coordination)
+    - Data flow unification (requires design decision)
+    - Type system fixes requiring deep semantics knowledge (2+ findings)
+
+recommended_action:
+  recommendation: "ESCALATE TO TIER 2 FOR WAVE 2 BATCH 1"
+  rationale: |
+    Wave 2 Batch 1 contains 30 HIGH findings primarily focused on DI architecture,
+    cache safety, and event reliability. These are not simple bug fixes but rather
+    structural improvements requiring:
+    
+    1. Complex refactoring (DI container decomposition)
+    2. Multi-file coordination (policy ownership)
+    3. Deep type system semantics (TypedDict, cast() misuse)
+    4. Architecture design decisions (data flow unification)
+    
+    Tier 1 can realistically fix 3-4 of the 30 findings. The remaining 26 should be
+    deferred to Tier 2 (BALANCED 1x / Claude Sonnet 4.5) to ensure:
+    - Quality implementations without excessive trial-and-error
+    - Proper architectural understanding
+    - Cross-file consistency
+    - Maintainability going forward
+    
+    Current 3-attempt strategy is appropriate as a gate: if Tier 1 hits 3 failures
+    on a finding, it auto-defers to Tier 2.
+
+metrics:
+  test_baseline_before: "12 failed, 1159 passed, 7 skipped"
+  test_baseline_after: "12 failed, 1159 passed, 7 skipped"
+  regression_risk: "NONE (cache fix validated)"
+  tier1_realistic_capacity: "3-4 findings per batch (out of 30 HIGH)"
+  tier2_required_capacity: "26-27 findings per batch"
+  escalation_point: "After 3 failed attempts per finding"
+
+next_phase_options:
+  option_a: "Continue aggressive Tier 1 attempts on remaining 28 findings (high risk, 20+ failures expected)"
+  option_b: "Stop Tier 1 here, escalate Batch 1 to Tier 2, execute Tier 1 on Batch 2 (Waves 3-4, smaller)"
+  option_c: "Selective Tier 1 on 3-4 highest-confidence findings, defer rest to Tier 2"
+
+recommendation_summary:
+  decision: "RECOMMEND OPTION B: Stop Tier 1 aggressive batch, escalate to Tier 2"
+  reason: |
+    Option A wastes tokens on repeated failures. Option C leaves 80%+ of batch incomplete.
+    Option B is pragmatic: validates Tier 1 strategy works, captures wins where possible,
+    respects tier constraints, and unblocks faster Tier 2 execution on complex work.

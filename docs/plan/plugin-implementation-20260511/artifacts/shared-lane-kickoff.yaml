@@ -1,0 +1,25 @@
+status: completed
+files_changed:
+  - src/prism/scanner_plugins/__init__.py
+  - src/prism/scanner_plugins/bootstrap.py
+  - src/prism/scanner_plugins/defaults.py
+  - src/prism/tests/plugins/test_t2_04_stateless_marker.py
+tests_run:
+  - command: >-
+      /raid5/source/test/prism/.venv/bin/pytest -q
+      src/prism/tests/plugins/test_t2_04_stateless_marker.py
+    result: pass
+  - command: >-
+      /raid5/source/test/prism/.venv/bin/pytest -q
+      src/prism/tests/plugins/test_t2_04_stateless_marker.py
+      src/prism/tests/plugins/test_t2_03_entry_point_discovery.py
+      src/prism/tests/plugins/test_t2_01_plugin_api_version.py
+      src/prism/tests/core/test_di_registry_resolution.py
+      src/prism/tests/integration/test_platform_routing_fail_closed.py
+    result: pass
+next_slice: >-
+  Add concrete platform plugin registrations only when Kubernetes or Terraform
+  scan pipeline and discovery implementations exist, keeping reserved names
+  fail-closed until those plugins are wired.
+tier_selected: BALANCED (1x)
+tier_reason: cross-layer integration and bootstrap seam work

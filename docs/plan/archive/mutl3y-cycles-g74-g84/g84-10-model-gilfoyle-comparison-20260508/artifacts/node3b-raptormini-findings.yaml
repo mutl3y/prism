@@ -1,0 +1,108 @@
+findings:
+  - id: N001
+    severity: CRITICAL
+    category: cache
+    location: "scan_cache.py:14"
+    issue: "In-memory cache has no TTL or age-based eviction"
+    root_cause: "InMemoryLRUScanCache only evicts by entry count and never expires data by age. Cache entries can remain indefinitely valid even after external state changes, meaning stale scan results can be reused indefinitely."
+    impact: "Stale scan results may be returned for changed roles or environment conditions, breaking correctness and causing hard-to-diagnose scan drift."
+    confidence: 92
+
+  - id: N002
+    severity: CRITICAL
+    category: cache
+    location: "scan_cache.py:235"
+    issue: "Opaque types collapse distinct scan options into same cache key"
+    root_cause: "compute_scan_cache_key maps unknown object values to a tag containing only module and qualname, ignoring internal state. Two different stateful objects of same class hash identically."
+    impact: "Different scan request semantics treated as identical, causing incorrect cache hits and semantically wrong scan results."
+    confidence: 90
+
+  - id: N003
+    severity: HIGH
+    category: cache
+    location: "scan_cache.py:215"
+    issue: "Dict key stringification creates collision risk"
+    root_cause: "Cache key canonicalizer converts dict keys with str(key), so keys 1 and '1' become identical."
+    impact: "Different scan option maps may collapse to same cache key, producing incorrect cache hits."
+    confidence: 88
+
+  - id: N004
+    severity: HIGH
+    category: cache
+    location: "scan_cache.py:21"
+    issue: "Cache defensive copy is shallow for custom objects"
+    root_cause: "_clone_container_structure only recursively clones built-in containers, returns original object for unknown types. Mutable custom objects remain shared."
+    impact: "Caller-side mutations can corrupt cached results, causing subsequent cache hits to return mutated inconsistent payloads."
+    confidence: 85
+
+  - id: N005
+    severity: MEDIUM
+    category: exception-handling
+    location: "scan_cache.py:261"
+    issue: "compute_path_content_hash swallows file read errors"
+    root_cause: "OSError during file read caught and converted to UNREADABLE marker with no log or error propagation."
+    impact: "Permission problems or transient filesystem errors silently change hash behavior and hide real failure mode."
+    confidence: 82
+
+  - id: N006
+    severity: MEDIUM
+    category: cache
+    location: "scan_cache.py:268"
+    issue: "Missing file paths share single cache hash value"
+    root_cause: "compute_path_content_hash returns same hash for any non-existent path using MISSING sentinel."
+    impact: "Different missing paths can collide in cache, causing unrelated failed requests to reuse same cached result."
+    confidence: 78
+
+  - id: N007
+    severity: MEDIUM
+    category: performance
+    location: "scan_cache.py:221"
+    issue: "Set/frozenset canonicalization reserializes repeatedly"
+    root_cause: "Canonicalizing unordered collections sorts items using json.dumps for every compare, expensive for large nested sets."
+    impact: "Cache key generation can degrade to costly serialization, especially with large sets in scan options."
+    confidence: 84
+
+  - id: N008
+    severity: MEDIUM
+    category: performance
+    location: "scan_cache.py:248"
+    issue: "Path hash always recomputes entire directory tree"
+    root_cause: "compute_path_content_hash traverses full directory and reads every file on each invocation, no metadata or incremental hashing."
+    impact: "Large role directories can cause significant CPU and IO overhead, slowing scan startup."
+    confidence: 80
+
+  - id: N009
+    severity: MEDIUM
+    category: exception-handling
+    location: "events.py:97"
+    issue: "EventBus.unsubscribe silently ignores invalid removals"
+    root_cause: "ValueError from removing non-existent listener caught and discarded without logging."
+    impact: "Caller code may believe unsubscribe succeeded when it had no effect, hiding listener lifecycle bugs."
+    confidence: 78
+
+  - id: N010
+    severity: MEDIUM
+    category: exception-handling
+    location: "events.py:132"
+    issue: "Listener failures swallowed in non-strict mode"
+    root_cause: "EventBus.emit catches all listener exceptions, does not surface beyond logging, scan continues even when listeners fail."
+    impact: "Critical telemetry listeners can fail silently, making debugging difficult."
+    confidence: 86
+
+  - id: N011
+    severity: LOW
+    category: dead-code
+    location: "scan_request.py:26"
+    issue: "policy_warnings path is effectively dead code"
+    root_cause: "_normalize_policy_context always returns empty warning list, branch is never exercised."
+    impact: "Scan options builder contains no-op path and may mask missing validation behavior."
+    confidence: 72
+
+  - id: N012
+    severity: LOW
+    category: dead-code
+    location: "scan_cache.py:125"
+    issue: "__len__ exposes unsynchronized cache size"
+    root_cause: "InMemoryLRUScanCache.__len__ returns size without acquiring internal lock."
+    impact: "Test code relying on cache length observes inconsistent results under concurrency."
+    confidence: 75

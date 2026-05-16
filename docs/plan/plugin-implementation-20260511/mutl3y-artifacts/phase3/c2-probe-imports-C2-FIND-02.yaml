@@ -1,0 +1,45 @@
+plan_id: plugin-implementation-20260511
+cycle: plugin-implementation-20260511-c2
+phase: phase_3
+worker: Probe-Imports
+tier_selected: FREE (0x)
+tier_reason: Phase 3 probe default tier.
+finding_id: C2-FIND-02
+verdict: confirmed
+confidence: high
+key_evidence:
+  - path: src/prism/scanner_core/di.py
+    evidence: "DIContainer accepts a PluginRegistry but has no helper to register platform bundles per-container; relies on external registry or bootstrap singleton. factory_overrides/_mocks exist but keys are implicit."
+  - path: src/prism/scanner_core/di_helpers.py
+    evidence: "No context-manager to swap bootstrap singleton registry or helper to resolve per-test registry; helpers only obtain factories if present."
+  - path: src/prism/scanner_plugins/bootstrap.py
+    evidence: "Bootstrap exposes a global singleton and `initialize_default_registry` but no deterministic test-scoped registry context manager. register_platform_plugin_bundle exists but is registry-level, not per-container."
+  - path: src/prism/scanner_plugins/defaults.py
+    evidence: "Module-level Ansible fallback singletons are hardcoded; comment notes missing platform-declared default-provider seam."
+missing_hook_points:
+  - name: per-container_platform_bundle_registration
+    description: "A DIContainer-level API to register platform plugin bundles deterministically at composition time (instead of mutating global registry or requiring preconfigured PluginRegistry)."
+  - name: test_scoped_registry_context_manager
+    description: "A context-manager/helper to temporarily replace or stage the bootstrap singleton registry for tests, ensuring deterministic registry state and safe restoration."
+  - name: platform_default_provider_seam
+    description: "Registry or DI hook to supply platform-specific fallback provider factories (so defaults.py need not hardcode Ansible singletons)."
+  - name: documented_factory_override_keys_and_helpers
+    description: "Canonical constants and helper functions for factory_overrides and inject_mock keys (so tests can inject doubles without relying on private _mocks names)."
+  - name: registry_level_test_double_helpers
+    description: "Convenience helpers to register test-double plugin classes or deferred loaders into a per-container registry, without needing to mutate global canonical registry."
+implementation_risk: "medium — changes touch DI composition and bootstrap ordering; must preserve fail-closed semantics and singleton-invariant checks. Risk mitigations: add feature gates, unit tests, and test-only helpers under a clear API."
+recommended_fix_slice:
+  - files:
+    - src/prism/scanner_core/di.py
+    - src/prism/scanner_core/di_helpers.py
+    - src/prism/scanner_plugins/bootstrap.py
+    - src/prism/scanner_plugins/defaults.py
+    - src/prism/scanner_plugins/registry.py
+    description: "Add DIContainer APIs for platform bundle registration, a test-scoped registry context manager, move fallback singletons to registry-resolved provider factories, and expose documented factory-override keys and mock-injection helpers."
+disjoint_file_scope:
+  - src/prism/scanner_core/di.py
+  - src/prism/scanner_core/di_helpers.py
+  - src/prism/scanner_plugins/bootstrap.py
+  - src/prism/scanner_plugins/defaults.py
+  - src/prism/scanner_plugins/registry.py
+timestamp_utc: "2026-05-12T01:10:54Z"

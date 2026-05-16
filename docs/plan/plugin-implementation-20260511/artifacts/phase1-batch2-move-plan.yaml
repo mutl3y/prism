@@ -1,0 +1,31 @@
+timestamp: "2026-05-11T16:40:00Z"
+phase: "phase_1"
+wave: 2
+strategy: "parallel-disjoint-builders"
+workers:
+  - name: "Builder-ControlFlow"
+    tier_selected: "tier_0_free"
+    model_selected: "GPT-5 mini"
+    scope:
+      - "src/prism/tests/test_filter_scanner.py -> src/prism/tests/core/test_filter_scanner.py"
+      - "src/prism/tests/test_kernel.py -> src/prism/tests/core/test_kernel.py"
+      - "src/prism/tests/test_scan_cache_determinism.py -> src/prism/tests/core/test_scan_cache_determinism.py"
+      - "src/prism/tests/test_task_line_parsing.py -> src/prism/tests/core/test_task_line_parsing.py"
+  - name: "Builder-Abstraction"
+    tier_selected: "tier_0_free"
+    model_selected: "GPT-5 mini"
+    scope:
+      - "src/prism/tests/test_readme_renderer_plugin_protocol.py -> src/prism/tests/plugins/test_readme_renderer_plugin_protocol.py"
+      - "src/prism/tests/test_readme_renderer_registry_wiring.py -> src/prism/tests/plugins/test_readme_renderer_registry_wiring.py"
+      - "src/prism/tests/test_registry_reserved_platforms.py -> src/prism/tests/plugins/test_registry_reserved_platforms.py"
+      - "src/prism/tests/test_plugin_name_resolver.py -> src/prism/tests/plugins/test_plugin_name_resolver.py"
+  - name: "Builder-Ownership"
+    tier_selected: "tier_0_free"
+    model_selected: "GPT-5 mini"
+    scope:
+      - "src/prism/tests/test_g03_scan_cache_integration.py -> src/prism/tests/integration/test_g03_scan_cache_integration.py"
+      - "src/prism/tests/test_gf2_collection_namespace_filtering.py -> src/prism/tests/integration/test_gf2_collection_namespace_filtering.py"
+      - "src/prism/tests/test_mp1_plugin_hardening.py -> src/prism/tests/integration/test_mp1_plugin_hardening.py"
+      - "src/prism/tests/test_test_output_safety_guard.py -> src/prism/tests/integration/test_test_output_safety_guard.py"
+known_drift:
+  - "Builders produced copy+retain behavior for 12 files; foreman reconciled by removing root duplicates."

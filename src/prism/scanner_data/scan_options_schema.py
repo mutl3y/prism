@@ -8,7 +8,9 @@ default, and human-readable description.
 
 from __future__ import annotations
 
-from typing import Any, Mapping, NamedTuple
+from typing import Any, Mapping, NamedTuple, TypeAlias
+
+DefaultValue: TypeAlias = bool | list[Any] | None
 
 
 class ScanOptionsValidationError(ValueError):
@@ -20,7 +22,7 @@ class ScanOptionSchemaEntry(NamedTuple):
     types: tuple[type, ...]
     allow_none: bool
     required: bool
-    default: Any
+    default: DefaultValue
     description: str
 
 
@@ -30,7 +32,7 @@ def _entry(
     *,
     allow_none: bool = False,
     required: bool = True,
-    default: Any = None,
+    default: DefaultValue = None,
     description: str = "",
 ) -> ScanOptionSchemaEntry:
     return ScanOptionSchemaEntry(
@@ -285,6 +287,7 @@ def validate_scan_options(
     - unknown keys
     - type mismatches for declared keys
     - missing required keys (only when strict=True)
+    - invalid list contents (empty strings, invalid types)
     """
     if not isinstance(options, Mapping):
         raise ScanOptionsValidationError(
@@ -315,6 +318,25 @@ def validate_scan_options(
                 f"scan_options['{name}'] expected {expected}, "
                 f"got {type(value).__name__}"
             )
+
+        # Validate list contents for path/pattern fields
+        if isinstance(value, list) and name in (
+            "exclude_path_patterns",
+            "vars_seed_paths",
+            "yaml_parse_failures",
+        ):
+            for i, item in enumerate(value):
+                if (
+                    name != "yaml_parse_failures"
+                ):  # Path/pattern fields must be non-empty strings
+                    if not isinstance(item, str):
+                        raise ScanOptionsValidationError(
+                            f"scan_options['{name}'][{i}] must be a string, got {type(item).__name__}"
+                        )
+                    if not item.strip():
+                        raise ScanOptionsValidationError(
+                            f"scan_options['{name}'][{i}] must be a non-empty string"
+                        )
 
 
 __all__ = [

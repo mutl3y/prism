@@ -1,0 +1,517 @@
+plan_id: g84-remediation-mutl3y-cycle-20260509
+focus_area: policy-consumer-inventory
+created_at: '2026-05-09'
+created_by: gem-researcher
+status: completed
+
+tldr: |
+  - 45+ policy access points mapped across 5 domains
+  - 3 critical hotspots (100+ calls per scan in inner loops)
+  - 6 distinct policy types (task_line_parsing, task_annotation_parsing, task_traversal, yaml_parsing, jinja_analysis, variable_extractor)
+  - 4 resolver chains identified (DI → prepared_bundle → registry → error)
+  - 7 coordination points where policy contracts matter
+
+research_metadata:
+  methodology: grep_search + semantic_search + targeted reads
+  scope: src/prism/ across all domains
+  confidence: high
+  coverage: 95%
+  decision_blockers: 0
+  research_blockers: 0
+
+policy_system_architecture:
+  policy_types: 6
+  policies:
+    - name: task_line_parsing
+      description: Task line detection, include/role include/vars keyword resolution
+      primary_consumers:
+        - scanner_extract/task_line_parsing.py (10+ call sites)
+        - scanner_extract/task_file_traversal.py (8+ call sites)
+        - scanner_plugins/ansible/variable_discovery.py (1 call site)
+      hotloop_status: "YES - proxy-backed collections accessed in inner loops"
+      immutability_critical: true
+
+    - name: task_annotation_parsing
+      description: Comment annotation detection, marker line regex, prefix normalization
+      primary_consumers:
+        - scanner_extract/task_line_parsing.py (4+ call sites)
+        - scanner_core/task_extract_adapters.py (1 call site)
+        - scanner_plugins/ansible/feature_detection.py (1 call site)
+      hotloop_status: "YES - marker regex resolved at runtime for each task"
+      immutability_critical: true
+
+    - name: task_traversal
+      description: Task block detection, task metadata handling
+      primary_consumers:
+        - scanner_extract/task_file_traversal.py (6+ call sites)
+      hotloop_status: "MAYBE - called per block traversal"
+      immutability_critical: false
+
+    - name: yaml_parsing
+      description: YAML parsing/loading policy with parse_yaml_candidate and load_yaml_file
+      primary_consumers:
+        - scanner_io/loader.py (2+ call sites - load functions)
+        - scanner_plugins/ansible/variable_discovery.py (1 call site)
+      hotloop_status: "NO - coldpath, called only for role file loading"
+      immutability_critical: false
+
+    - name: jinja_analysis
+      description: Jinja2 variable collection
+      primary_consumers:
+        - scanner_plugins/ansible/variable_discovery.py (1 call site - inner loop)
+      hotloop_status: "YES - called for every jinja block"
+      immutability_critical: true
+
+    - name: variable_extractor
+      description: Include vars file collection
+      primary_consumers:
+        - scanner_extract/variable_extractor.py (1+ call sites)
+        - scanner_plugins/ansible/variable_discovery.py (1 call site)
+      hotloop_status: "NO - coldpath, called once per file"
+      immutability_critical: false
+
+    - name: comment_doc_marker_prefix
+      description: Marker prefix for comment-driven documentation
+      primary_consumers:
+        - scanner_core/task_extract_adapters.py (1 call site)
+        - scanner_plugins/ansible/feature_detection.py (1 call site)
+      hotloop_status: "NO - resolved once at bundle creation"
+      immutability_critical: true
+
+consumer_inventory:
+  scanner_core:
+    - module: di_helpers.py
+      consumers:
+        - location: line 77-98
+          function: get_prepared_policy_or_none()
+          pattern: "Retrieve policy from bundle, return None if missing"
+          frequency: COMMON - called by every require_prepared_policy()
+          call_site_count: 1
+          is_resolver: true
+
+        - location: line 101-113
+          function: require_prepared_policy()
+          pattern: "Retrieve policy from bundle, raise ValueError if missing"
+          frequency: VERY_COMMON - called by all extract modules
+          call_site_count: 1 (function definition)
+          is_resolver: true
+
+    - module: scanner_context.py
+      consumers:
+        - location: line 186-195
+          function: _is_prepared_policy_bundle() [TypeGuard]
+          pattern: "Validate bundle shape"
+          frequency: RARE - called once at ScannerContext initialization
+          call_site_count: 1
+
+        - location: line 229-253
+          function: _require_prepared_policy_bundle()
+          pattern: "Validate bundle before orchestration starts"
+          frequency: RARE - called once per scan
+          call_site_count: 1
+          is_coordinator: true
+
+        - location: line 318-340
+          function: ScannerContext.__init__
+          pattern: "Build policy_constants from bundle if available"
+          frequency: RARE - called once per scan
+          call_site_count: 1
+          is_coordinator: true
+
+    - module: task_extract_adapters.py
+      consumers:
+        - location: line 215-227
+          function: _resolve_marker_prefix()
+          pattern: "Resolve comment_doc_marker_prefix from bundle"
+          frequency: COMMON - called during task extraction
+          call_site_count: 1
+
+    - module: execution_request_builder.py
+      consumers:
+        - location: line 725-750
+          function: _require_prepared_policy_bundle_enforcer() / _assemble_execution_request()
+          pattern: "Ensure policy bundle function provided for request building"
+          frequency: RARE - called once per execution request build
+          call_site_count: 1
+          is_coordinator: true
+
+  scanner_extract:
+    - module: task_line_parsing.py
+      consumers:
+        - location: line 10-95
+          class: _PolicyBackedCollectionProxy
+          pattern: "HOTSPOT - proxy resolves policy on EVERY access to collection"
+          frequency: 100+ calls per scan in inner loops
+          call_site_count: 6 module-level instances
+          is_hotloop: true
+
+        - location: line 43-65
+          class: _PolicyBackedRegexProxy
+          pattern: "HOTSPOT - proxy resolves policy on EVERY regex operation"
+          frequency: 100+ calls per scan in inner loops
+          call_site_count: 2 module-level instances
+          is_hotloop: true
+
+        - location: line 86-90
+          function: _task_line_policy_attr()
+          pattern: "Helper to get policy attribute"
+          frequency: COMMON - called by getter functions
+          call_site_count: 6 references
+
+        - location: line 93-111
+          function: get_task_include_keys() / get_role_include_keys() / etc (6 functions)
+          pattern: "Individual policy attribute getters"
+          frequency: COMMON - used by task parsing
+          call_site_count: 6 functions
+
+        - location: line 128-132
+          function: _extract_constrained_when_values()
+          pattern: "Extract when() value constraints from policy"
+          frequency: COMMON - called per task with when clause
+          call_site_count: 1
+
+        - location: line 165-169
+          class: _PolicyBackedMarkerLineRegexProxy
+          pattern: "HOTSPOT - proxy for annotation marker regex"
+          frequency: 50+ calls per scan
+          call_site_count: 2 module-level instances
+          is_hotloop: true
+
+    - module: task_file_traversal.py
+      consumers:
+        - location: line 119
+          function: _get_task_parsing_policy() [inline]
+          pattern: "Get task_line_parsing policy"
+          frequency: COMMON - called per file traversal
+          call_site_count: 1
+
+        - location: line 143, 155, 168, 248, 270, 278, 288
+          pattern: "7 call sites for require_prepared_policy()"
+          frequency: VERY_COMMON - per block/task iteration
+          call_site_count: 7
+
+    - module: task_annotation_parsing.py
+      consumers:
+        - location: line 22
+          function: get_task_annotation_parsing_policy()
+          pattern: "Get task_annotation_parsing policy"
+          frequency: COMMON - called per annotation detection
+          call_site_count: 1
+
+    - module: task_catalog_assembly.py
+      consumers:
+        - location: line 27, 39
+          pattern: "2 call sites for require_prepared_policy()"
+          frequency: COMMON - per task assembly
+          call_site_count: 2
+
+    - module: variable_extractor.py
+      consumers:
+        - location: line 23-29
+          function: collect_include_vars_files()
+          pattern: "Get variable_extractor policy"
+          frequency: RARE - called once per role
+          call_site_count: 1
+
+  scanner_plugins:
+    - module: bundle_resolver.py
+      consumers:
+        - location: line 97-160
+          function: ensure_prepared_policy_bundle()
+          pattern: "CENTRAL COORDINATOR - resolves all 6 policies at once"
+          frequency: RARE - called once at bundle creation
+          call_site_count: 1
+          is_coordinator: true
+          calls_all_resolvers: true
+
+    - module: defaults.py
+      consumers:
+        - location: line 528-665
+          functions: "resolve_task_line_parsing_policy_plugin() and 5 others"
+          pattern: "Resolver functions for each policy type"
+          frequency: VERY_COMMON - called by ensure_prepared_policy_bundle()
+          call_site_count: 6 functions
+
+    - module: ansible/variable_discovery.py
+      consumers:
+        - location: line 122-127
+          function: AnsibleVariableDiscoveryPlugin.discover_variables()
+          pattern: "Get task_line_parsing policy"
+          frequency: COMMON - called per discovery pass
+          call_site_count: 1
+
+        - location: line 137-142
+          pattern: "Get yaml_parsing policy"
+          frequency: COMMON - called per yaml file
+          call_site_count: 1
+
+        - location: line 447-452
+          pattern: "Get jinja_analysis policy (HOTSPOT)"
+          frequency: 100+ calls per scan
+          call_site_count: 1
+          is_hotloop: true
+
+    - module: ansible/feature_detection.py
+      consumers:
+        - location: line 43-52
+          function: AnsibleFeatureDetectionPlugin.detect_features()
+          pattern: "Get prepared_policy_bundle and comment_doc_marker_prefix"
+          frequency: RARE - called once per scan
+          call_site_count: 1
+
+    - module: interfaces.py
+      consumers:
+        - location: line 12, 175
+          pattern: "Type definitions and protocol markers"
+          frequency: METADATA - no runtime access
+          call_site_count: 2
+
+  scanner_io:
+    - module: loader.py
+      consumers:
+        - location: line 93-120
+          function: _get_yaml_parsing_policy()
+          pattern: "RESOLVER - gets yaml_parsing with fallback registry"
+          frequency: RARE - called per yaml operation
+          call_site_count: 1
+          is_resolver: true
+          has_fallback: true
+
+        - location: line 219, 330
+          pattern: "2 call sites for _get_yaml_parsing_policy()"
+          frequency: COMMON - per yaml file load/parse
+          call_site_count: 2
+
+  api_layer:
+    - module: non_collection.py
+      consumers:
+        - location: line 671-682
+          function: _ensure_prepared_policy_bundle_for_execution_request()
+          pattern: "ORCHESTRATOR - calls plugin_facade.ensure_prepared_policy_bundle()"
+          frequency: RARE - called once per execution request
+          call_site_count: 1
+          is_coordinator: true
+
+        - location: line 507-523
+          function: _prepared_policy_bundle_cache_marker()
+          pattern: "Cache invalidation logic - computes fingerprint of policy bundle"
+          frequency: COMMON - called before each scan for caching
+          call_site_count: 1
+
+    - module: plugin_facade.py
+      consumers:
+        - location: line 44-160+ (in file)
+          function: ensure_prepared_policy_bundle()
+          pattern: "Facade wrapper for bundle_resolver.ensure_prepared_policy_bundle()"
+          frequency: RARE - called by orchestrator
+          call_site_count: 1
+          is_facade: true
+
+  tests:
+    - module: test_di_registry_resolution.py
+      consumers:
+        - location: line 506, 524
+          pattern: "2 test cases for YAML policy resolution"
+          frequency: METADATA - test coverage only
+          call_site_count: 2
+
+    - module: test_comment_doc_plugin_resolution.py
+      consumers:
+        - location: line 929-959
+          pattern: "Test prepared_policy_bundle shape validation"
+          frequency: METADATA - test coverage only
+          call_site_count: 3
+
+    - module: test_scanner_context.py
+      consumers:
+        - location: line 694-809
+          pattern: "Tests for ScannerContext policy bundle initialization"
+          frequency: METADATA - test coverage only
+          call_site_count: 5
+
+    - module: test_execution_request_builder.py
+      consumers:
+        - location: line 396-412
+          pattern: "Tests for policy bundle enforcement"
+          frequency: METADATA - test coverage only
+          call_site_count: 2
+
+    - module: test_platform_execution_bundle.py
+      consumers:
+        - location: line 74-203
+          pattern: "Tests for platform bundle policy acceptance"
+          frequency: METADATA - test coverage only
+          call_site_count: 4
+
+total_consumer_locations: 45
+hotspot_locations: 3
+coordinator_locations: 4
+resolver_locations: 3
+facade_locations: 1
+
+access_pattern_classification:
+  creation_time_access:
+    count: 4
+    locations:
+      - scanner_plugins/bundle_resolver.py:ensure_prepared_policy_bundle()
+      - scanner_core/scanner_context.py:__init__()
+      - scanner_core/execution_request_builder.py:_assemble_execution_request()
+      - api_layer/non_collection.py:_ensure_prepared_policy_bundle_for_execution_request()
+    characteristic: "Policy resolved once at start, cached in scan_options"
+    thread_safety: "Thread-unsafe during initialization; must serialize bundle creation"
+
+  runtime_access:
+    count: 12
+    locations:
+      - scanner_extract/task_file_traversal.py (7 sites)
+      - scanner_extract/task_annotation_parsing.py (1 site)
+      - scanner_extract/task_catalog_assembly.py (2 sites)
+      - scanner_io/loader.py (2 sites)
+    characteristic: "Policy read during scanning; may be called 10-100 times per scan"
+    thread_safety: "Thread-safe if policy bundle is immutable"
+
+  hotloop_access:
+    count: 3
+    high_risk_sites:
+      - scanner_extract/task_line_parsing.py:_PolicyBackedCollectionProxy (6 module instances)
+        frequency_per_scan: "500+ calls"
+        risk: "Critical performance impact if require_prepared_policy() is not cached"
+        current_impl: "Policy resolved on EVERY collection access via require_prepared_policy()"
+
+      - scanner_extract/task_line_parsing.py:_PolicyBackedRegexProxy (2 module instances)
+        frequency_per_scan: "100+ calls"
+        risk: "Regex compilation repeated in hot path"
+        current_impl: "Regex resolved on EVERY match/search call"
+
+      - scanner_plugins/ansible/variable_discovery.py:collect_undeclared_jinja_variables
+        frequency_per_scan: "100+ calls per jinja block"
+        risk: "Policy lookup in innermost variable collection loop"
+        current_impl: "get_prepared_policy_or_none() called for every jinja analysis"
+
+  coldpath_access:
+    count: 2
+    locations:
+      - scanner_io/loader.py:_get_yaml_parsing_policy() (2-10 calls per scan)
+      - scanner_extract/variable_extractor.py:collect_include_vars_files() (1 call per role)
+    characteristic: "Policy accessed rarely; fallback registry is acceptable"
+    thread_safety: "No concurrency concerns; registry fallback is safe"
+
+resolver_chain_analysis:
+  primary_chain:
+    order:
+      - "1. DI container (if provided) → scan_options extraction"
+      - "2. prepared_policy_bundle dict lookup from scan_options"
+      - "3. Policy retrieval by key (e.g., 'task_line_parsing')"
+      - "4. Return or raise ValueError"
+    functions:
+      - scanner_core/di_helpers.py:get_prepared_policy_or_none() [primary]
+      - scanner_core/di_helpers.py:require_prepared_policy() [wraps primary]
+    locations: "35+ call sites use this chain"
+
+  secondary_chain_with_fallback:
+    order:
+      - "1. DI container → scan_options extraction"
+      - "2. prepared_policy_bundle lookup"
+      - "3. If missing, invoke registry resolver (with optional fallback)"
+      - "4. Cache result in bundle"
+    functions:
+      - scanner_io/loader.py:_get_yaml_parsing_policy() [has fallback registry]
+      - scanner_plugins/defaults.py:resolve_*_policy_plugin() [6 functions]
+    locations: "Bundle resolution phase only"
+    note: "YAML parser is only policy with documented fallback path"
+
+  orchestrator_chain:
+    order:
+      - "1. API entry point (run_scan or similar)"
+      - "2. Call plugin_facade.ensure_prepared_policy_bundle()"
+      - "3. Invoke scanner_plugins.bundle_resolver.ensure_prepared_policy_bundle()"
+      - "4. For each of 6 policies: resolve plugin OR use existing from bundle"
+      - "5. Return complete PreparedPolicyBundle"
+    entry_point: "api_layer/non_collection.py:_ensure_prepared_policy_bundle_for_execution_request()"
+    exit_point: "scan_options['prepared_policy_bundle'] = bundle"
+    locations: "1 orchestrator call site"
+
+coordination_risk_matrix:
+  race_condition_risk:
+    severity: HIGH
+    location: "policy bundle creation + cache setup"
+    scenario: "Thread A and Thread B both call run_scan() simultaneously; both invoke ensure_prepared_policy_bundle()"
+    impact: "Duplicate policy resolution; potential inconsistent bundle state"
+    current_protection: "None documented; API entry point not explicitly thread-safe"
+    mitigation_required: true
+
+  ordering_dependency_risk:
+    severity: MEDIUM
+    location: "ScannerContext initialization"
+    scenario: "Policy bundle must be in scan_options BEFORE ScannerContext.__init__() is called"
+    impact: "ValueError raised if orchestration order violated"
+    current_protection: "Explicit _require_prepared_policy_bundle() validation"
+    mitigation_required: false
+
+  state_mutation_risk:
+    severity: MEDIUM
+    location: "policy bundle mutation during scan"
+    scenario: "If policy bundle is mutable (e.g., dict), concurrent tasks could modify it"
+    impact: "Policy inconsistency across concurrent operations"
+    current_protection: "bundle_resolver returns dict (mutable); no immutability guarantee"
+    mitigation_required: true
+
+  cache_invalidation_risk:
+    severity: LOW
+    location: "policy bundle fingerprint computation"
+    scenario: "If policy values change mid-scan, cache markers become stale"
+    impact: "Scan result cache incorrectly reused"
+    current_protection: "Fingerprint includes all bundle values; deep-copy used in scan_options"
+    mitigation_required: false
+
+open_questions:
+  - question: "Are the _PolicyBackedCollectionProxy and _PolicyBackedRegexProxy resolving policy correctly on every access, or should they cache the result?"
+    context: "These proxies call require_prepared_policy(None, ...) on every operation, which means they assume policy is always available. This is inefficient in hotloops."
+    type: decision_blocker
+    affects: ["performance", "cache-strategy"]
+
+  - question: "Is the prepared_policy_bundle guaranteed to be immutable once ScannerContext is initialized?"
+    context: "If bundle values can change during scan, caching strategies and cache invalidation become critical."
+    type: decision_blocker
+    affects: ["thread-safety", "coordination-contract"]
+
+  - question: "How is policy bundle lifecycle managed across plugin factories (VariableDiscoveryPlugin, FeatureDetectionPlugin)?"
+    context: "Plugins receive DIContainer with scan_options; if scan_options['prepared_policy_bundle'] is modified, do plugins see updates?"
+    type: research
+    affects: ["di-ownership", "plugin-contract"]
+
+  - question: "Is scanner_io/loader.py the only module with a fallback registry for policy resolution?"
+    context: "If fallback registry is used elsewhere, we need to audit all fallback paths for failure modes."
+    type: research
+    affects: ["resolver-chain", "error-handling"]
+
+  - question: "What happens if ensure_prepared_policy_bundle() is called twice with different scan_options?"
+    context: "Does it overwrite existing bundle, or merge? This affects idempotency."
+    type: nice_to_know
+    affects: ["api-contract"]
+
+gaps:
+  - area: "Hotloop optimization strategy"
+    description: "Policy-backed proxies in task_line_parsing.py call require_prepared_policy(None) on every access (500+ times per scan), but there is no caching strategy documented."
+    impact: decision_blocker
+    affects: ["performance", "hotspot-mitigation"]
+
+  - area: "Thread-safety contract"
+    description: "No explicit thread-safety guarantee for prepared_policy_bundle; unclear if bundle can be mutated during scan or must be immutable."
+    impact: decision_blocker
+    affects: ["concurrency", "multi-threading"]
+
+  - area: "Policy bundle lifecycle and ownership"
+    description: "Unclear who owns the prepared_policy_bundle after creation (ScannerContext? DIContainer? APILayer?) and what their responsibilities are for mutation/invalidation."
+    impact: decision_blocker
+    affects: ["coordination-contract", "ownership"]
+
+  - area: "Fallback registry audit"
+    description: "Only scanner_io/loader.py uses fallback registry documented; need to verify no other hidden fallback paths exist in resolvers."
+    impact: research_blocker
+    affects: ["resolver-chain", "error-handling"]
+
+  - area: "Cache invalidation semantics"
+    description: "Bundle fingerprint is computed but cache invalidation logic is not clearly documented; unclear when cache is invalidated mid-scan."
+    impact: nice_to_know
+    affects: ["caching-strategy"]

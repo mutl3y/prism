@@ -1,0 +1,16 @@
+status: completed
+files_changed:
+  - src/prism/scanner_plugins/bootstrap.py
+  - src/prism/scanner_plugins/__init__.py
+  - src/prism/scanner_plugins/defaults.py
+  - src/prism/tests/plugins/test_t2_04_stateless_marker.py
+tests:
+  - command: /raid5/source/test/prism/.venv/bin/pytest -q src/prism/tests/plugins/test_t2_04_stateless_marker.py -k 'register_platform_plugin_bundle or warning_prone_scan_pipeline_fixture_cluster_stays_warning_clean or bootstrap_custom_registry_reserves_future_platform_names_without_wiring_plugins'
+    passed: 4
+    failed: 0
+  - command: /raid5/source/test/prism/.venv/bin/pytest -q src/prism/tests/plugins/test_t2_03_entry_point_discovery.py src/prism/tests/plugins/test_registry_reserved_platforms.py src/prism/tests/plugins/test_t2_04_stateless_marker.py src/prism/tests/integration/test_platform_routing_fail_closed.py
+    passed: 37
+    failed: 0
+next_slice: Wire concrete Kubernetes or Terraform runtime bundles through register_platform_plugin_bundle only when their executable scan and DI seams are ready; until then keep those platform keys reserved and fail-closed.
+tier_selected: BALANCED (1x)
+tier_reason: cross-layer bootstrap/registry integration and fail-closed platform routing decisions.

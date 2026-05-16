@@ -1,0 +1,305 @@
+---
+# MP1 Audit Baseline — Marker-Prefix Ownership Violations Registry
+#
+# Phase: Phase 1, Task 1.1 (May 9-10, 2026)
+# Purpose: Lock baseline for Phase 1 enforcement setup (Tasks 1.2-1.5)
+# Acceptance Criteria: violations_total = 0, format locked for Phase 2 comparison
+# Status: ✅ BASELINE LOCKED
+
+metadata:
+  cycle: g84-remediation-mutl3y-cycle-20260509
+  phase: phase-1
+  task: task-1-1-audit-baseline
+  date_generated: 2026-05-09
+  audit_method: codebase-scan + contract-validation
+  baseline_locked: true
+  baseline_comparison_gate: Phase 2 must report 0 new violations
+  confidence: HIGH
+
+# VIOLATIONS REGISTRY
+# Format: one entry per violation with ownership, severity, remediation
+# Phase 1 expectation: violations_total = 0 (matches Phase 0 audit)
+
+violations:
+  total: 0
+  critical: 0
+  high: 0
+  medium: 0
+  low: 0
+  entries: []
+
+# EXPLANATION: Zero violations baseline
+# 
+# Phase 0 audit completed comprehensive ownership analysis:
+# 
+# - Single write point: bundle_resolver.ensure_prepared_policy_bundle() ✅
+# - All consumers use standardized _resolve_marker_prefix(di) ✅
+# - No unauthorized writes after bundle assembly ✅
+# - Plugin isolation verified ✅
+# - Scanner-readme isolation verified ✅
+# - Normalization applied deterministically, stored immutably ✅
+# - No cache/override patterns violating ownership ✅
+# 
+# Result: Clean ownership, ready for Phase 1 enforcement.
+
+# VIOLATIONS CLASSIFICATION TAXONOMY
+# (For future use in Phase 2 and beyond)
+
+violation_types:
+  - code: MP1_WRITE_UNAUTHORIZED
+    name: Unauthorized Write to Marker-Prefix
+    severity: CRITICAL
+    category: ownership-violation
+    description: >
+      Code modifies prepared_policy_bundle["comment_doc_marker_prefix"]
+      outside of bundle_resolver.ensure_prepared_policy_bundle().
+    remediation: Refactor to use bundle_resolver for all prefix updates.
+    examples: []
+
+  - code: MP1_READ_FALLBACK
+    name: Fallback Read Without Bundle
+    severity: HIGH
+    category: boundary-violation
+    description: >
+      Code reads marker_prefix without first ensuring prepared_policy_bundle
+      is available in DI/options.
+    remediation: Always call _resolve_marker_prefix(di) or validate bundle first.
+    examples: []
+
+  - code: MP1_INGRESS_BYPASS
+    name: Ingress Entry Bypass
+    severity: HIGH
+    category: ingress-violation
+    description: >
+      Code accepts marker_prefix from caller without routing through
+      bundle_resolver normalization.
+    remediation: Pass marker_prefix through bundle_resolver before use.
+    examples: []
+
+  - code: MP1_PLUGIN_INJECTION
+    name: Plugin-Injected Override
+    severity: MEDIUM
+    category: plugin-violation
+    description: >
+      Plugin attempts to override or inject custom marker-prefix resolution
+      logic outside standardized patterns.
+    remediation: Use _resolve_marker_prefix(di) or explicit parameter passing.
+    examples: []
+
+  - code: MP1_CACHE_POISONING
+    name: Cache State Mutation
+    severity: MEDIUM
+    category: state-violation
+    description: >
+      Marker-prefix caching logic allows cross-request state pollution
+      or cache invalidation issues.
+    remediation: Ensure cache key includes scan-id or request-id.
+    examples: []
+
+# COMPLIANCE METRICS (LOCKED BASELINE)
+
+compliance:
+  audit_scope: src/prism/scanner_core + src/prism/scanner_extract + src/prism/scanner_plugins
+  violations_baseline: 0
+  write_points_total: 1
+  write_points_canonical: bundle_resolver.ensure_prepared_policy_bundle
+  read_only_consumers: 12
+  plugin_access_patterns: 3 (DI-based, Options-based, Direct-param)
+  cache_violations: 0
+  fallback_chain_violations: 0
+  normalization_violations: 0
+
+# WRITE POINT CANONICAL AUTHORITY
+
+write_point:
+  canonical_location: src/prism/scanner_plugins/bundle_resolver.py
+  function_name: ensure_prepared_policy_bundle
+  lines: 142-157
+  bundle_key: comment_doc_marker_prefix
+  ownership_assigned_at: Line 155 or 157 (depending on fallback path)
+  immutability: POST-WRITE (read-only after bundle assembly)
+  fail_closed_behavior: true
+  details:
+    - phase: Check if bundle.get("comment_doc_marker_prefix") already set
+      line: 142
+    - phase: Retrieve raw_prefix from scan_options or policy_context
+      lines: 143-151
+    - phase: Apply normalize_marker_prefix() normalization
+      line: 155
+    - phase: Fallback to DEFAULT_DOC_MARKER_PREFIX if needed
+      line: 157
+    - phase: Store immutably in bundle
+      lines: 155-157
+
+# READ-ONLY CONSUMER PATTERNS (12 TOTAL)
+
+read_only_consumers:
+  total: 12
+  by_layer:
+    scanner_core: 3
+    scanner_extract: 2
+    scanner_plugins: 4
+    tests: 3
+
+  consumers:
+    - id: consumer_001
+      module: scanner_core.task_extract_adapters
+      function: _resolve_marker_prefix
+      pattern: DI-based resolution
+      access_method: bundle.get("comment_doc_marker_prefix")
+      fail_closed: true
+      line: 211-226
+
+    - id: consumer_002
+      module: scanner_core.task_extract_adapters
+      function: extract_task_annotations_for_file
+      pattern: Public adapter, calls _resolve_marker_prefix
+      access_method: _resolve_marker_prefix(di)
+      fail_closed: true
+      line: 231-238
+
+    - id: consumer_003
+      module: scanner_core.task_extract_adapters
+      function: collect_task_handler_catalog
+      pattern: Public adapter, calls _resolve_marker_prefix
+      access_method: _resolve_marker_prefix(di)
+      fail_closed: true
+      line: 240-253
+
+    - id: consumer_004
+      module: scanner_extract.task_annotation_parsing
+      function: extract_task_annotations_for_file
+      pattern: Explicit parameter passing
+      access_method: marker_prefix parameter
+      fail_closed: false  # Default param provided
+      line: 58+
+
+    - id: consumer_005
+      module: scanner_extract.task_catalog_assembly
+      function: collect_task_handler_catalog
+      pattern: Explicit parameter passing
+      access_method: marker_prefix parameter
+      fail_closed: false  # Default param provided
+      line: 81+
+
+    - id: consumer_006
+      module: scanner_plugins.ansible.feature_detection
+      function: _resolve_marker_prefix
+      pattern: Options-based resolution
+      access_method: options.get("prepared_policy_bundle").get("comment_doc_marker_prefix")
+      fail_closed: true
+      line: 42-52
+
+    - id: consumer_007
+      module: scanner_plugins.ansible.feature_detection
+      function: AnsibleFeatureDetector.collect_task_handler_catalog
+      pattern: Plugin wrapper, calls _resolve_marker_prefix
+      access_method: self._resolve_marker_prefix(options)
+      fail_closed: true
+      line: 129+
+
+    - id: consumer_008
+      module: scanner_plugins.parsers.comment_doc.marker_utils
+      function: normalize_marker_prefix
+      pattern: Normalization utility
+      access_method: Input validation only (no bundle read)
+      fail_closed: false  # Utility function
+      line: 18-23
+
+    - id: consumer_009
+      module: scanner_plugins.parsers.comment_doc.annotation_parsing
+      function: parse_comment_doc_annotations
+      pattern: Explicit parameter passing
+      access_method: marker_prefix parameter
+      fail_closed: false  # Default param provided
+      line: 74+
+
+    - id: consumer_010
+      module: scanner_core.feature_detector
+      function: _collect_task_handler_catalog
+      pattern: Wrapper, delegates to task_extract_adapters
+      access_method: Delegated to adapter
+      fail_closed: true
+      line: 26+
+
+    - id: consumer_011
+      module: tests.test_comment_doc_plugin_resolution
+      function: test_resolve_marker_prefix_reads_from_prepared_policy_bundle
+      pattern: Unit test, validates _resolve_marker_prefix contract
+      access_method: Direct DI injection
+      fail_closed: true
+      line: 1544+
+
+    - id: consumer_012
+      module: tests.test_scanner_core_small_surfaces
+      function: test_resolve_marker_prefix_requires_scan_options
+      pattern: Unit test, validates fail-closed behavior
+      access_method: Direct DI injection
+      fail_closed: true
+      line: 271+
+
+# PLUGIN ISOLATION STATUS (VERIFIED CLEAN)
+
+plugin_isolation:
+  status: ✅ VERIFIED
+  total_plugins_audited: 2 (Ansible, Comment-Doc)
+  violations_found: 0
+  isolation_patterns:
+    - Plugin accesses via _resolve_marker_prefix(di) or _resolve_marker_prefix(options)
+    - No direct bundle writes from plugins
+    - All marker_prefix logic delegated to scanner_core or utilities
+    - Plugin parameter passing is read-only
+
+# SCANNER-README ISOLATION STATUS (VERIFIED CLEAN)
+
+scanner_readme_isolation:
+  status: ✅ VERIFIED
+  module: scanner_readme
+  accesses_comment_doc_marker_prefix: false
+  uses_legacy_merge_marker_prefixes: true
+  notes: >
+    scanner_readme does not access comment_doc_marker_prefix. It uses
+    legacy_merge_marker_prefixes() for README merge markers, which is
+    a separate concern. No isolation violation.
+
+# BOUNDARY VIOLATIONS (NONE FOUND)
+
+boundary_violations:
+  total: 0
+  categories:
+    unauthorized_writes: 0
+    read_fallback_bypass: 0
+    ingress_bypass: 0
+    plugin_injection: 0
+    cache_poisoning: 0
+
+# PHASE 2 COMPARISON GATE
+
+phase_2_gate:
+  baseline_violations: 0
+  comparison_method: Diff against mp1-audit-baseline.yaml violations
+  failure_criteria:
+    - violations_total > 0
+    - write_points_total != 1
+    - read_only_consumers < 12
+  escalation_policy: If any failure criteria met, escalate to Tier 1 for decision
+
+# NOTES FOR PHASE 1 IMPLEMENTATION (Tasks 1.2-1.5)
+
+phase_1_next_steps:
+  task_1_2: CI Enforcement Setup
+    rules:
+      - Ruff rule MP1-001: No writes to bundle outside bundle_resolver
+      - Ruff rule MP1-002: All _resolve_marker_prefix calls must fail-closed
+      - Ruff rule MP1-003: No fallback reads without bundle validation
+  task_1_3: Test Gating
+    tests:
+      - test_mp1_marker_prefix_ingress_ownership (5 cases)
+      - test_mp1_bundle_resolver_single_write_point
+      - test_mp1_resolve_marker_prefix_fail_closed
+  task_1_4: Flow Validation
+    artifacts:
+      - Visual flow diagram (CLI → scan_request → bundle → scanners)
+      - Compliance matrix (5 subsystems vs. 7 ingress paths)
+  task_1_5: Rollback Preparation
+    checkpoint: mp1-phase1-checkpoint-20260509

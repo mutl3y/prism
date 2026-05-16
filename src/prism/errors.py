@@ -86,15 +86,23 @@ class FailurePolicy:
 
 @dataclass
 class PrismRuntimeError(RuntimeError):
-    """Runtime exception with stable error code and category metadata."""
+    """Runtime exception with stable error code, category, and layer metadata.
+
+    Error Ownership Contract:
+    - Internal functions raise ValueError for data validation, RuntimeError for system issues.
+    - Layer boundaries wrap these as PrismRuntimeError with code/category/layer/recoverable.
+    - Public APIs always raise PrismRuntimeError or typed subclasses; never ValueError/RuntimeError.
+    """
 
     code: str
     category: str
     message: str
+    layer: str = "core"  # "config", "core", "plugins", "io"
+    recoverable: bool = False
     detail: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
-        super().__init__(f"{self.code}: {self.message}")
+        super().__init__(f"[{self.layer}] {self.code}: {self.message}")
 
 
 def category_for_code(code: str, default: str = ERROR_CATEGORY_RUNTIME) -> str:

@@ -1,0 +1,184 @@
+fix_group: graph_dependency_review
+findings_count: 4
+investigation_date: 2026-05-07
+analysis_scope: |
+  Comprehensive investigation of 4 high-import-count files from Scout-Graph artifact.
+  Analysis examined: (1) circular dependency patterns, (2) TYPE_CHECKING candidates,
+  (3) coupling risk via lazy imports, (4) redundant re-exports, (5) shared contract
+  opportunities.
+decisions:
+  - finding_id: Scout-Graph-01
+    path: src/prism/api.py
+    imports_count: 25
+    proposed_fix_class: type_only_import
+    decision: ACCEPT_PATTERN
+    reason: |
+      api.py is a top-level API facade designed to aggregate and re-export public
+      entrypoints. High import count is intentional and necessary. Each import is
+      used directly in function implementations (scan_collection, scan_repo, scan_role).
+      Only 1 TYPE_CHECKING import (ScanCacheBackend) exists; remaining 24 imports
+      are all runtime-critical for the public API contract. No circular dependencies.
+      No redundant re-exports. This pattern is correct for a facade module.
+    coupling_risk: LOW
+    blocking_factors: []
+    implementation_readiness: ready
+    notes: |
+      - No changes needed
+      - This is the correct import footprint for a public API facade
+      - Minimal TYPE_CHECKING expansion opportunity (only ScanCacheBackend)
+      - No inter-module coupling issues observed
+
+  - finding_id: Scout-Graph-02
+    path: src/prism/scanner_plugins/ansible/__init__.py
+    imports_count: 20
+    proposed_fix_class: type_only_import
+    decision: ACCEPT_PATTERN
+    reason: |
+      ansible/__init__.py is a plugin package namespace that re-exports all plugin
+      types (AnsibleBaselineKernelPlugin, AnsibleVariableDiscoveryPlugin, etc.)
+      and contracts (PreparedPolicyBundle, ScanMetadata, ScanOptionsDict) for use
+      by the DI registry and scanner_plugins.interfaces. High import count is by
+      design and necessary for plugin discovery/registration. All imports are
+      internal to scanner_plugins ecosystem. No circular dependencies detected.
+      No TYPE_CHECKING blocks needed since these are re-exports, not type-only.
+    coupling_risk: LOW
+    blocking_factors: []
+    implementation_readiness: ready
+    notes: |
+      - No changes needed
+      - This is correct plugin package namespace pattern
+      - Re-exports are consumed by DI factory and registry during runtime
+      - No TYPE_CHECKING expansion possible (re-exports must be available at runtime)
+
+  - finding_id: Scout-Graph-03
+    path: src/prism/scanner_plugins/ansible/extract_utils.py
+    imports_count: 21
+    proposed_fix_class: type_only_import
+    decision: LAZY_IMPORT + ADD_SEAM
+    reason: |
+      extract_utils.py is a transitional wrapper around scanner_extract functions
+      (note in docstring confirms this is intentional). It imports 15+ functions
+      from scanner_extract and re-exports them as Ansible-specific aliases.
+      Coupling risk is HIGH because: (1) extract_utils → scanner_extract dependency
+      chain, (2) scanner_extract.task_file_traversal has lazy imports back to
+      scanner_plugins.ansible.task_traversal_bare (circular at lazy-load time),
+      (3) all 21 imports are pure re-export delegation with no local logic.
+      Solution: (1) Extract constant re-exports (JINJA_IDENTIFIER_RE, etc.) to
+      scanner_plugins/ansible/constants.py, (2) move 15+ function imports to
+      lazy imports at delegation call sites to break circular load pattern,
+      (3) retain only essential top-level imports for __all__ visibility.
+    coupling_risk: HIGH
+    blocking_factors:
+      - contracts_extraction: JINJA_IDENTIFIER_RE and other constants should be
+        extracted to shared constants module before lazy import refactoring
+      - lazy_import_boundary: Need to identify call sites where functions are
+        delegated and move imports there
+    implementation_readiness: needs_contract_design
+    notes: |
+      - File is purely re-export delegation (no original logic)
+      - Lazy imports needed to break scanner_extract ↔ scanner_plugins circular pattern
+      - Docstring confirms this is transitional (eventual delegation back to plugins)
+      - Current state: 134 lines with 21 imports (100% re-export ratio)
+      - Target state: 50-60 lines with 3-5 core imports + lazy imports at call sites
+
+  - finding_id: Scout-Graph-04
+    path: src/prism/scanner_plugins/ansible/variable_discovery.py
+    imports_count: 20
+    proposed_fix_class: type_only_import
+    decision: LAZY_IMPORT + MOVE_TO_CONTRACT
+    reason: |
+      variable_discovery.py has 5 duplicate imports from extract_utils
+      (format_inline_yaml, find_variable_line_in_yaml, infer_variable_type,
+      is_sensitive_variable, JINJA_IDENTIFIER_RE) that are heavily used
+      throughout the file (10+ usages per function). Additionally, two imports
+      (map_argument_spec_type, variable_extractor_module) are used in only
+      1-2 specific code paths (e.g., line 357) and can be lazy imported.
+      Coupling risk is MEDIUM: (1) duplication of extract_utils re-exports,
+      (2) single late-binding to variable_extractor via module alias,
+      (3) opportunity to consolidate variable-related helpers into shared contract.
+      Solution: (1) Move frequently-used helpers (format_inline_yaml,
+      infer_variable_type, is_sensitive_variable) to
+      scanner_plugins/ansible/constants.py or scanner_data contracts,
+      (2) lazy import map_argument_spec_type and variable_extractor at call site,
+      (3) retain JINJA_IDENTIFIER_RE as core import (used in regex patterns).
+    coupling_risk: MEDIUM
+    blocking_factors:
+      - contracts_extraction: Helpers currently in extract_utils should be
+        moved to shared contracts before variable_discovery import cleanup
+      - lazy_load_audit: Verify variable_extractor_module.collect_include_vars_files
+        is the only call site before lazy import decision
+    implementation_readiness: needs_contract_design
+    notes: |
+      - File is 764 lines with 20 imports (2.6% import-to-line ratio)
+      - 5 duplicate imports from extract_utils (duplication opportunity)
+      - map_argument_spec_type used only ~1 time (lazy import candidate)
+      - variable_extractor_module used only 1 time at line 357 (lazy import candidate)
+      - Core helpers (infer_variable_type, is_sensitive_variable) used 10+ times
+        in multiple methods (must remain top-level if not moved to contract)
+
+seam_removal_opportunities:
+  - module: extract_utils
+    seam_type: re_export_delegation
+    current_pattern: pure re-export of scanner_extract functions
+    recommended_action: lazy imports at call sites + constants extraction
+    risk_level: HIGH
+    effort: MEDIUM
+
+  - module: variable_discovery
+    seam_type: shared_contract_duplication
+    current_pattern: duplicate helpers from extract_utils
+    recommended_action: move to shared constants/contract + lazy late-binders
+    risk_level: MEDIUM
+    effort: MEDIUM
+
+contract_design_requirements:
+  - name: scanner_plugins/ansible/constants.py
+    scope: Extract re-exported constants (JINJA_IDENTIFIER_RE, etc.)
+    usage_sites:
+      - extract_utils.py (re-export)
+      - variable_discovery.py (import + heavy usage)
+    blocking_reason: Both files need consolidated constant ownership
+
+shared_contract_candidates:
+  - name: VariableHelpers
+    functions:
+      - format_inline_yaml (used in variable_discovery + task extraction)
+      - infer_variable_type (used in variable_discovery + default value inference)
+      - is_sensitive_variable (used in variable_discovery + secret detection)
+      - find_variable_line_in_yaml (used in variable_discovery + provenance tracking)
+    location: scanner_data/contracts_variables.py or new scanner_plugins/ansible/variable_helpers.py
+    risk_mitigation: Centralizes re-export pattern from extract_utils → variable_discovery
+
+implementation_sequencing:
+  - phase: 1_contracts
+    description: Extract shared constants and helpers
+    tasks:
+      - create scanner_plugins/ansible/constants.py (JINJA_IDENTIFIER_RE, etc.)
+      - move variable helper functions to shared location
+    gate: imports resolve without duplication, mypy passes
+
+  - phase: 2_lazy_imports
+    description: Lazy import late-binders and delegation functions
+    tasks:
+      - lazy import map_argument_spec_type in variable_discovery.py (line 24)
+      - lazy import variable_extractor_module in variable_discovery.py (line 357)
+      - lazy import extract_utils helpers at call sites in extract_utils.py
+    gate: circular import detection passes, pytest passes
+
+  - phase: 3_verify
+    description: Validate coupling reduction and import graph
+    tasks:
+      - re-run Scout-Graph detection on modified files
+      - verify no new circular dependencies introduced
+      - measure import reduction in api.py, ansible/__init__.py (baseline)
+    gate: import counts stable, no new coupling detected
+
+summary:
+  total_findings: 4
+  accept_pattern: 2
+  lazy_import_seams: 2
+  high_risk_items: 1 (extract_utils circular with scanner_extract)
+  medium_risk_items: 1 (variable_discovery duplication)
+  contract_design_blockers: 1 (constants.py creation required before lazy imports)
+  estimated_effort: 2-3 days (contracts + lazy imports + validation)
+  priority: MEDIUM (low runtime impact, medium code clarity improvement)

@@ -1,0 +1,802 @@
+---
+# MP1 Implementation Timeline: 2-Week Execution Plan
+# Initiative: Q2 Initiative 3
+# Scope: Marker-Prefix Ingress Ownership Enforcement
+# Timeline: May 9-22, 2026
+# Model: Tier 0 (Scout planning task)
+
+initiative: "Q2 Initiative 3"
+name: "MP1 Marker-Prefix Enforcement: 2-Week Rollout"
+start_date: "2026-05-09"
+end_date: "2026-05-22"
+duration_days: 14
+phases: 2
+
+---
+
+## PHASE 1: AUDIT, CI SETUP & VALIDATION (Days 1-5, May 9-15)
+
+phase_1:
+  name: "Audit, CI Setup & Validation"
+  duration: "5 days"
+  start_date: "2026-05-09"
+  end_date: "2026-05-15"
+  tier: "Tier 0 (FREE)"
+  
+  day_1_2:
+    title: "Audit Baseline"
+    dates: "May 9-10 (Thu-Fri)"
+    duration: "2 days"
+    tasks:
+      - id: "1.1.1"
+        task: "Full marker-prefix audit (rgrep DEFAULT_DOC_MARKER_PREFIX, fallback patterns)"
+        owner: "Scout"
+        duration: "4 hours"
+        status: "pending"
+        checkpoint: "audit_baseline_mp1_20260509.json"
+        
+      - id: "1.1.2"
+        task: "Verify scanner_core has NO hardcoded marker defaults"
+        owner: "Scout"
+        duration: "2 hours"
+        status: "pending"
+        expected: "frozenset() or explicit prepared_policy_bundle only"
+        
+      - id: "1.1.3"
+        task: "Verify scanner_extract delegates to scan_request → prepared_policy_bundle"
+        owner: "Scout"
+        duration: "2 hours"
+        status: "pending"
+        
+      - id: "1.1.4"
+        task: "Check scanner_io output module for marker-prefix resolution"
+        owner: "Scout"
+        duration: "2 hours"
+        status: "pending"
+        expected: "No resolution outside prepared_policy"
+        
+      - id: "1.1.5"
+        task: "Verify plugin layer accesses marker-prefix only via prepared_policy_bundle"
+        owner: "Scout"
+        duration: "2 hours"
+        status: "pending"
+        
+      - id: "1.1.6"
+        task: "Document all 7 canonical ingress paths"
+        owner: "Scout"
+        duration: "3 hours"
+        status: "pending"
+        deliverable: "ingress_paths_doc.md"
+        
+      - id: "1.1.7"
+        task: "Baseline metrics: late-resolver code line count, fallback invocations (target: 0)"
+        owner: "Scout"
+        duration: "2 hours"
+        status: "pending"
+        checkpoint: "audit_baseline_metrics.json"
+    
+    gate:
+      checkpoint: "mp1-audit-baseline"
+      criteria: "Violations count documented, audit clean or remediation list created"
+      sign_off: false
+  
+  day_2_3:
+    title: "CI Enforcement Setup"
+    dates: "May 12-13 (Mon-Tue)"
+    duration: "2 days"
+    tasks:
+      - id: "1.2.1"
+        task: "Add ruff rule: no bare DEFAULT_DOC_MARKER_PREFIX in scanner_core, scanner_extract"
+        owner: "Scout/Coder"
+        duration: "3 hours"
+        status: "pending"
+        deliverable: ".ruff.toml rules added"
+        
+      - id: "1.2.2"
+        task: "Add ruff rule: no getattr late resolution outside allowlist"
+        owner: "Scout/Coder"
+        duration: "2 hours"
+        status: "pending"
+        
+      - id: "1.2.3"
+        task: "Add ruff rule: all marker-prefix functions use prepared_policy_bundle types only"
+        owner: "Scout/Coder"
+        duration: "2 hours"
+        status: "pending"
+        
+      - id: "1.2.4"
+        task: "Create .pre-commit-hook.yaml for ruff MP1 rules"
+        owner: "Scout/Coder"
+        duration: "2 hours"
+        status: "pending"
+        deliverable: ".pre-commit-hook.yaml (MP1 section)"
+        
+      - id: "1.2.5"
+        task: "Create GitHub Actions job: lint-mp1-marker-ownership"
+        owner: "Scout/Coder"
+        duration: "3 hours"
+        status: "pending"
+        deliverable: ".github/workflows/lint-mp1-marker-ownership.yml"
+        
+      - id: "1.2.6"
+        task: "Verify tox lint pipeline includes MP1 rules"
+        owner: "Scout/Coder"
+        duration: "1 hour"
+        status: "pending"
+        checkpoint: "tox.ini updated"
+        
+      - id: "1.2.7"
+        task: "Test CI enforcement: seed violation in scanner_core, confirm ruff catch"
+        owner: "Scout/Coder"
+        duration: "2 hours"
+        status: "pending"
+        validation: "False violation detected and blocked by ruff"
+    
+    gate:
+      checkpoint: "mp1-ci-setup"
+      criteria: "All ruff rules passing on clean code, catch violations on seeded test"
+      sign_off: false
+  
+  day_3_4:
+    title: "Test Gating"
+    dates: "May 14-15 (Wed-Thu)"
+    duration: "2 days"
+    tasks:
+      - id: "1.3.1"
+        task: "Create test_mp1_marker_prefix_ingress_ownership.py"
+        owner: "Tester/Coder"
+        duration: "3 hours"
+        status: "pending"
+        deliverable: "test_mp1_marker_prefix_ingress_ownership.py"
+        
+      - id: "1.3.2"
+        task: "Test A: scanner_core only accesses via prepared_policy_bundle"
+        owner: "Tester"
+        duration: "2 hours"
+        status: "pending"
+        expected: "PASS"
+        
+      - id: "1.3.3"
+        task: "Test B: scanner_extract delegates to scan_request"
+        owner: "Tester"
+        duration: "2 hours"
+        status: "pending"
+        expected: "PASS"
+        
+      - id: "1.3.4"
+        task: "Test C: scanner_io does not define/resolve marker-prefix"
+        owner: "Tester"
+        duration: "2 hours"
+        status: "pending"
+        expected: "PASS"
+        
+      - id: "1.3.5"
+        task: "Test D: API and CLI project marker-prefix into prepared_policy_bundle"
+        owner: "Tester"
+        duration: "2 hours"
+        status: "pending"
+        expected: "PASS"
+        
+      - id: "1.3.6"
+        task: "Test E: plugin layer cannot override marker-prefix ownership"
+        owner: "Tester"
+        duration: "2 hours"
+        status: "pending"
+        expected: "PASS"
+        
+      - id: "1.3.7"
+        task: "Add negative test: inject late-resolver call, confirm test catches"
+        owner: "Tester"
+        duration: "2 hours"
+        status: "pending"
+        expected: "FAIL (caught by test)"
+        
+      - id: "1.3.8"
+        task: "Add test run to tox with pytest.mark.mp1_blocking"
+        owner: "Scout/Coder"
+        duration: "2 hours"
+        status: "pending"
+        checkpoint: "tox updated, tests blocking in CI"
+        
+      - id: "1.3.9"
+        task: "Run full test suite, confirm baseline PASS"
+        owner: "Scout/Tester"
+        duration: "2 hours"
+        status: "pending"
+        validation: "All 5 tests PASS + negative test FAIL (expected)"
+    
+    gate:
+      checkpoint: "mp1-test-gating"
+      criteria: "5 positive tests PASS, negative test FAIL, tox integration complete"
+      sign_off: false
+  
+  day_4_5:
+    title: "Flow Validation & Rollback Prep"
+    dates: "May 15 (Thu) - May 16 (Fri early)"
+    duration: "1.5 days"
+    tasks:
+      - id: "1.4.1"
+        task: "Create visual flow diagram: CLI → scan_request → prepared_policy_bundle → scanner_core/extract/io"
+        owner: "Scout"
+        duration: "2 hours"
+        status: "pending"
+        deliverable: "MP1_ingress_flow_diagram.md (with ASCII art)"
+        
+      - id: "1.4.2"
+        task: "Create compliance matrix: subsystems vs marker-prefix access patterns"
+        owner: "Scout"
+        duration: "2 hours"
+        status: "pending"
+        deliverable: "compliance_matrix.yaml"
+        expected: "All subsystems read-only from prepared_policy_bundle"
+        
+      - id: "1.4.3"
+        task: "Verify all 7 ingress paths route through scan_request or prepared_policy_bundle"
+        owner: "Scout"
+        duration: "2 hours"
+        status: "pending"
+        validation: "No backdoors found"
+        
+      - id: "1.4.4"
+        task: "Run audit trace: follow marker-prefix CLI → output, confirm no uncontrolled resolution"
+        owner: "Scout"
+        duration: "2 hours"
+        status: "pending"
+        deliverable: "audit_trace_log.md"
+        
+      - id: "1.4.5"
+        task: "Document gray zones (test fixtures, mocks) in allowlist"
+        owner: "Scout"
+        duration: "1 hour"
+        status: "pending"
+        
+      - id: "1.5.1"
+        task: "Document Phase 1 state: audit clean, CI enforced, tests gating, ingress flow validated"
+        owner: "Scout"
+        duration: "2 hours"
+        status: "pending"
+        deliverable: "Phase1_completion_summary.md"
+        
+      - id: "1.5.2"
+        task: "Create git tag: mp1-phase1-checkpoint-20260509"
+        owner: "Scout"
+        duration: "0.5 hours"
+        status: "pending"
+        checkpoint: "git tag created"
+        
+      - id: "1.5.3"
+        task: "Create rollback procedure document"
+        owner: "Scout"
+        duration: "1 hour"
+        status: "pending"
+        deliverable: "rollback_procedure_phase1.md"
+        
+      - id: "1.5.4"
+        task: "Create Phase 1 sign-off checklist (5 items)"
+        owner: "Scout"
+        duration: "1 hour"
+        status: "pending"
+        deliverable: "phase1_signoff_checklist.md"
+        
+      - id: "1.5.5"
+        task: "Confirm all Phase 1 items complete and signed off"
+        owner: "Scout"
+        duration: "1 hour"
+        status: "pending"
+        validation: "All 5 checklist items ✅"
+    
+    gate:
+      checkpoint: "mp1-phase1-complete"
+      criteria: "All Phase 1 tasks done, rollback plan ready, tag created"
+      sign_off: true
+
+  phase_1_gate:
+    name: "Phase 1 Completion Gate (EOD May 15)"
+    criteria:
+      - "Audit baseline: violations documented or clean"
+      - "CI enforcement: ruff rules active, GitHub Actions passing"
+      - "Test gating: 5 MP1 tests passing, negative tests working"
+      - "Flow validation: no backdoors, 7 ingress paths verified"
+      - "Rollback: tag created, procedure documented"
+    escalation: "If any criterion fails, escalate to Tier 1, pause Phase 2 start"
+    status: "pending"
+
+---
+
+## PHASE 2: PLUGIN HARDENING & ROLLOUT (Days 6-10, May 16-22)
+
+phase_2:
+  name: "Plugin Hardening & Distribution Rollout"
+  duration: "5 days"
+  start_date: "2026-05-16"
+  end_date: "2026-05-22"
+  tier: "Tier 0 (FREE) with Tier 1 escalation if injection vectors found"
+  dependency: "Phase 1 complete and signed off"
+  
+  day_6_7:
+    title: "Plugin Layer Hardening"
+    dates: "May 16-17 (Fri-Sat)"
+    duration: "2 days"
+    tasks:
+      - id: "2.1.1"
+        task: "Audit scanner_plugins/defaults.py for marker-prefix access"
+        owner: "Scout/Coder"
+        duration: "2 hours"
+        status: "pending"
+        
+      - id: "2.1.2"
+        task: "Add @requires_prepared_policy_bundle decorator to plugin factories"
+        owner: "Coder"
+        duration: "3 hours"
+        status: "pending"
+        deliverable: "Plugin factories decorated"
+        
+      - id: "2.1.3"
+        task: "Remove or inline marker-prefix injection kwargs from plugin factories"
+        owner: "Coder"
+        duration: "2 hours"
+        status: "pending"
+        
+      - id: "2.1.4"
+        task: "Create scanner_plugins/marker_prefix_policy.py (single getter)"
+        owner: "Coder"
+        duration: "2 hours"
+        status: "pending"
+        deliverable: "get_marker_prefix_from_policy(di) → str"
+        
+      - id: "2.1.5"
+        task: "Update all plugin init code (Ansible, K8s, Terraform) to use canonical getter"
+        owner: "Coder"
+        duration: "3 hours"
+        status: "pending"
+        
+      - id: "2.1.6"
+        task: "Add test: mock prepared_policy_bundle removal, confirm plugin init fails loudly"
+        owner: "Tester"
+        duration: "2 hours"
+        status: "pending"
+        expected: "No silent fallback"
+        
+      - id: "2.1.7"
+        task: "Verify no plugin can initialize without prepared_policy_bundle"
+        owner: "Scout/Tester"
+        duration: "2 hours"
+        status: "pending"
+        validation: "All plugins require bundle, fail if missing"
+    
+    gate:
+      checkpoint: "mp1-plugin-hardening"
+      criteria: "No injection vectors found, all plugin init requires prepared_policy_bundle"
+      sign_off: false
+      escalation: "If >5 injection vectors found, escalate to Tier 2, re-design plugin layer"
+  
+  day_7_8:
+    title: "Runtime Enforcement & Compatibility Validation"
+    dates: "May 17-19 (Sat-Mon)"
+    duration: "2 days"
+    tasks:
+      - id: "2.2.1"
+        task: "Add runtime assertion in scanner_core hot path"
+        owner: "Coder"
+        duration: "2 hours"
+        status: "pending"
+        deliverable: "Assertion: prepared_policy_bundle.marker_prefix == scan_request.marker_prefix"
+        
+      - id: "2.2.2"
+        task: "Add CRITICAL log + fail-closed if assertion fails"
+        owner: "Coder"
+        duration: "1 hour"
+        status: "pending"
+        
+      - id: "2.2.3"
+        task: "Add counter metric: assertion failures (expect 0)"
+        owner: "Coder"
+        duration: "1 hour"
+        status: "pending"
+        
+      - id: "2.2.4"
+        task: "Add test: inject different marker-prefix in bundle vs scan_request, confirm caught"
+        owner: "Tester"
+        duration: "2 hours"
+        status: "pending"
+        expected: "Assertion failure caught, error logged"
+        
+      - id: "2.2.5"
+        task: "Add test: mock plugin override attempt at runtime, confirm rejected"
+        owner: "Tester"
+        duration: "2 hours"
+        status: "pending"
+        expected: "Plugin rejected with error"
+        
+      - id: "2.2.6"
+        task: "Document assertion in scanner_core docstring (why, what prevents)"
+        owner: "Coder"
+        duration: "1 hour"
+        status: "pending"
+        
+      - id: "2.3.1"
+        task: "Test api.py marker-prefix flow: CLI → API → scan_request"
+        owner: "Tester"
+        duration: "2 hours"
+        status: "pending"
+        expected: "No override from API layer"
+        
+      - id: "2.3.2"
+        task: "Test cli.py marker-prefix flow: CLI args → scan_request normalization"
+        owner: "Tester"
+        duration: "2 hours"
+        status: "pending"
+        expected: "Validation (not None, valid format, max length)"
+        
+      - id: "2.3.3"
+        task: "Test repo_services.py flow: orchestration → prepared_policy_bundle pass-through"
+        owner: "Tester"
+        duration: "2 hours"
+        status: "pending"
+        expected: "No injection"
+        
+      - id: "2.3.4"
+        task: "Create end-to-end integration test: CLI → scanner_core → output"
+        owner: "Tester"
+        duration: "2 hours"
+        status: "pending"
+        deliverable: "test_mp1_e2e_integration.py"
+        
+      - id: "2.3.5"
+        task: "Run full integration test suite, confirm all passing"
+        owner: "Scout/Tester"
+        duration: "2 hours"
+        status: "pending"
+        validation: "All integration tests PASS"
+    
+    gate:
+      checkpoint: "mp1-phase2-tech-complete"
+      criteria: "Assertions in place, all runtime tests passing, compatibility layer validated"
+      sign_off: false
+  
+  day_9:
+    title: "Smoke Tests & Canary Rollout"
+    dates: "May 19 (Mon)"
+    duration: "1 day"
+    tasks:
+      - id: "2.4.1"
+        task: "Create rollout checklist: Phase 1 passing? Phase 2 tests passing? Hardening complete?"
+        owner: "Scout"
+        duration: "1 hour"
+        status: "pending"
+        
+      - id: "2.4.2"
+        task: "Deploy to internal instances (prism-learn, development)"
+        owner: "DevOps"
+        duration: "2 hours"
+        status: "pending"
+        checkpoint: "Internal instances updated"
+        
+      - id: "2.4.3"
+        task: "Smoke test: scan known repo, verify marker-prefix ingress-owned"
+        owner: "Scout/Tester"
+        duration: "2 hours"
+        status: "pending"
+        validation: "0 assertions failures, 0 late-resolver invocations"
+        
+      - id: "2.4.4"
+        task: "Check logs: no CRITICAL errors, no fallback warnings"
+        owner: "Scout"
+        duration: "1 hour"
+        status: "pending"
+        
+      - id: "2.4.5"
+        task: "If smoke PASS: deploy to staging (25% canary)"
+        owner: "DevOps"
+        duration: "2 hours"
+        status: "pending"
+        checkpoint: "Staging 25% deployed"
+        
+      - id: "2.4.6"
+        task: "Staging smoke test, monitor 1 hour for regressions"
+        owner: "Scout/Tester"
+        duration: "1.5 hours"
+        status: "pending"
+        validation: "0 errors, metrics stable"
+        
+      - id: "2.4.7"
+        task: "If staging PASS: increase canary to 50%, then 75%, then 100% (phased over 2 hours)"
+        owner: "DevOps"
+        duration: "2 hours"
+        status: "pending"
+        checkpoint: "Production 100% deployed"
+        
+      - id: "2.4.8"
+        task: "Monitor production: error rate, marker-prefix metrics"
+        owner: "Scout/SRE"
+        duration: "2 hours"
+        status: "pending"
+        validation: "0 override attempts, metrics stable"
+    
+    gate:
+      checkpoint: "mp1-canary-complete"
+      criteria: "100% production deployment, 0 regressions, metrics stable"
+      rollback: "If any tier shows override attempts, immediate rollback to mp1-phase1-checkpoint"
+      sign_off: false
+  
+  day_9_10:
+    title: "Monitoring, Final Validation & Release"
+    dates: "May 19-20 (Mon-Tue)"
+    duration: "2 days"
+    tasks:
+      - id: "2.5.1"
+        task: "Configure production monitoring: daily marker-prefix override count"
+        owner: "DevOps/SRE"
+        duration: "2 hours"
+        status: "pending"
+        deliverable: "Monitoring alerts configured"
+        
+      - id: "2.5.2"
+        task: "Set alert: marker-prefix override > 0 in 24h → page on-call"
+        owner: "DevOps/SRE"
+        duration: "1 hour"
+        status: "pending"
+        
+      - id: "2.5.3"
+        task: "Create dashboard: assertion passes, late-resolver calls, ingress paths used"
+        owner: "DevOps"
+        duration: "2 hours"
+        status: "pending"
+        deliverable: "Grafana dashboard: MP1 metrics"
+        
+      - id: "2.5.4"
+        task: "Run final audit: confirm 0 violations across all scanner_* subsystems"
+        owner: "Scout"
+        duration: "2 hours"
+        status: "pending"
+        validation: "0 violations found"
+        
+      - id: "2.5.5"
+        task: "Document lessons learned: what worked, what risky, how to avoid future"
+        owner: "Scout"
+        duration: "2 hours"
+        status: "pending"
+        deliverable: "lessons_learned.md"
+        
+      - id: "2.5.6"
+        task: "Update MP1 specification: 100% ingress-owned, no exceptions"
+        owner: "Scout"
+        duration: "1 hour"
+        status: "pending"
+        
+      - id: "2.5.7"
+        task: "Create follow-up plan: K8s/Terraform expansion unblocked"
+        owner: "Scout"
+        duration: "1 hour"
+        status: "pending"
+        
+      - id: "2.6.1"
+        task: "Create git tag: mp1-phase2-final-20260520"
+        owner: "Scout"
+        duration: "0.5 hours"
+        status: "pending"
+        
+      - id: "2.6.2"
+        task: "Create release notes: MP1 enforcement complete, marker-prefix ingress-owned"
+        owner: "Scout"
+        duration: "1 hour"
+        status: "pending"
+        deliverable: "RELEASE_NOTES_MP1.md"
+        
+      - id: "2.6.3"
+        task: "Update AGENTS.md: MP1 closure with final date and metrics"
+        owner: "Scout"
+        duration: "1 hour"
+        status: "pending"
+        
+      - id: "2.6.4"
+        task: "Update README: marker-prefix ownership contract for future devs"
+        owner: "Scout"
+        duration: "1 hour"
+        status: "pending"
+        
+      - id: "2.6.5"
+        task: "Create rollback runbook: if production issue → revert to phase1"
+        owner: "Scout/SRE"
+        duration: "1 hour"
+        status: "pending"
+        deliverable: "ROLLBACK_RUNBOOK.md"
+        
+      - id: "2.6.6"
+        task: "Schedule post-mortem if issues found; otherwise mark initiative complete"
+        owner: "Scout"
+        duration: "0.5 hours"
+        status: "pending"
+    
+    gate:
+      checkpoint: "mp1-phase2-complete"
+      criteria: "Monitoring live, final audit 0 violations, release notes published, runbook ready"
+      sign_off: true
+
+  phase_2_gate:
+    name: "Phase 2 Completion Gate (EOD May 20)"
+    criteria:
+      - "Plugin hardening: no injection vectors, all plugins require bundle"
+      - "Runtime enforcement: assertions in place, tests passing"
+      - "Compatibility layer: API/CLI/repo_services validated"
+      - "Canary rollout: 100% production, 0 regressions"
+      - "Monitoring: alerts configured, dashboard live"
+      - "Final audit: 0 violations"
+      - "Release: notes published, runbook ready"
+    escalation: "If any criterion fails, escalate to Tier 1, trigger post-mortem"
+    status: "pending"
+
+---
+
+## TIMELINE SUMMARY
+
+weeks:
+  week_1_phase_1:
+    label: "Week 1: Audit, CI, Tests, Validation"
+    dates: "May 9-15"
+    days:
+      - day: 1
+        date: "2026-05-09"
+        tasks: "1.1 Audit baseline (Day 1-2)"
+        checkpoint: "Violations documented"
+        
+      - day: 2
+        date: "2026-05-10"
+        tasks: "1.1 Audit baseline (Day 1-2)"
+        checkpoint: ""
+        
+      - day: 3
+        date: "2026-05-12"
+        tasks: "1.2 CI setup (Day 2-3)"
+        checkpoint: "Ruff rules active"
+        
+      - day: 4
+        date: "2026-05-14"
+        tasks: "1.3 Test gating (Day 3-4)"
+        checkpoint: "5 MP1 tests PASS"
+        
+      - day: 5
+        date: "2026-05-15"
+        tasks: "1.4-1.5 Flow validation & rollback prep"
+        checkpoint: "Phase 1 tag created"
+        gate: "Phase 1 COMPLETE ✅"
+  
+  week_2_phase_2:
+    label: "Week 2: Plugin Hardening, Rollout, Monitoring"
+    dates: "May 16-22"
+    days:
+      - day: 6
+        date: "2026-05-16"
+        tasks: "2.1 Plugin hardening (Day 6-7)"
+        checkpoint: "Plugin decorator added"
+        
+      - day: 7
+        date: "2026-05-17"
+        tasks: "2.1 Plugin hardening (Day 6-7) + 2.2 Runtime enforcement (Day 7-8)"
+        checkpoint: "Plugin hardening complete"
+        
+      - day: 8
+        date: "2026-05-19"
+        tasks: "2.2-2.3 Runtime + compatibility (Day 7-8)"
+        checkpoint: "Compatibility layer validated"
+        
+      - day: 9
+        date: "2026-05-19"
+        tasks: "2.4 Canary rollout (Day 9)"
+        checkpoint: "100% production deployed"
+        
+      - day: 10
+        date: "2026-05-20"
+        tasks: "2.5-2.6 Monitoring, release, runbook (Day 9-10)"
+        checkpoint: "Phase 2 tag created"
+        gate: "Phase 2 COMPLETE ✅ — MP1 LIVE"
+
+---
+
+## CRITICAL DATES
+
+milestones:
+  - name: "Phase 1 Start"
+    date: "2026-05-09"
+    status: "scheduled"
+    
+  - name: "Phase 1 Gate Review"
+    date: "2026-05-15"
+    status: "scheduled"
+    criteria: "All Phase 1 checks PASS"
+    escalation: "If FAIL, escalate to Tier 1"
+    
+  - name: "Phase 2 Start"
+    date: "2026-05-16"
+    status: "dependent on Phase 1 PASS"
+    
+  - name: "Canary Rollout Start"
+    date: "2026-05-19"
+    status: "dependent on Phase 2 tech complete"
+    
+  - name: "MP1 Live (100% Production)"
+    date: "2026-05-20"
+    status: "target completion"
+    gate: "Phase 2 COMPLETE"
+    
+  - name: "Final Monitoring (24-72h)"
+    date: "2026-05-20 to 2026-05-22"
+    status: "post-deploy validation"
+
+---
+
+## RISK & CONTINGENCY
+
+contingency:
+  timeline_slip:
+    trigger: "Any day overruns 8-hour budget"
+    action: "Escalate to Tier 1, replan remaining phase"
+    impact: "May extend to 3 weeks if major refactoring needed"
+    
+  phase_1_violations_high:
+    trigger: ">10 violations found in audit"
+    action: "Pause Phase 2, refactor code, restart from Phase 1"
+    impact: "Add 3-5 days to timeline"
+    
+  phase_2_injection_vectors:
+    trigger: ">5 injection vectors found"
+    action: "Escalate to Tier 2, re-design plugin layer"
+    impact: "Add 5-7 days, redesign phase needed"
+    
+  production_rollback:
+    trigger: "Any canary tier shows override attempts or errors"
+    action: "Immediate rollback to mp1-phase1-checkpoint"
+    impact: "Investigation + replan, MP1 target shifted"
+
+---
+
+## SIGN-OFF CHECKLIST
+
+sign_off_phase_1:
+  - name: "Audit baseline clean (0-5 violations documented)"
+    owner: "Scout"
+    status: "pending"
+    
+  - name: "CI enforcement active (ruff rules, GitHub Actions)"
+    owner: "Coder"
+    status: "pending"
+    
+  - name: "5 MP1 tests passing, negative tests passing"
+    owner: "Tester"
+    status: "pending"
+    
+  - name: "Ingress flow audit complete, no backdoors"
+    owner: "Scout"
+    status: "pending"
+    
+  - name: "Phase 1 checkpoint tag created"
+    owner: "Scout"
+    status: "pending"
+
+sign_off_phase_2:
+  - name: "Plugin hardening complete, no injection vectors"
+    owner: "Coder"
+    status: "pending"
+    
+  - name: "Runtime assertions in place, edge tests passing"
+    owner: "Coder/Tester"
+    status: "pending"
+    
+  - name: "Compatibility layer tests passing"
+    owner: "Tester"
+    status: "pending"
+    
+  - name: "Canary rollout complete (100% production)"
+    owner: "DevOps"
+    status: "pending"
+    
+  - name: "0 violations in production, alerts configured"
+    owner: "SRE"
+    status: "pending"
+    
+  - name: "Phase 2 final tag created, release notes published"
+    owner: "Scout"
+    status: "pending"
+
+overall_status: "pending"
+initiative_complete: false

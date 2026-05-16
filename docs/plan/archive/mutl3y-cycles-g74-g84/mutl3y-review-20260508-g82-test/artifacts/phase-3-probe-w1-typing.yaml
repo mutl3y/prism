@@ -1,0 +1,193 @@
+probe_id: probe-w1-typing
+wave_id: W1
+focus_axis: typing
+focus_theme: Return Type Annotations
+findings_investigated:
+  - FIND-TYPING-001
+  - FIND-TYPING-002
+  - FIND-TYPING-003
+investigation_timestamp: "2026-05-08T18:30:00Z"
+
+findings_ready_to_implement:
+  - finding_id: FIND-TYPING-001
+    severity: HIGH
+    fix_type: return_type_annotation
+    function: require_prepared_policy()
+    location: src/prism/scanner_core/di_helpers.py:L105
+    current_signature: |-
+      def require_prepared_policy(
+          di: object | None,
+          policy_name: str,
+          context_label: str,
+      ) -> Any:
+    required_type: |
+      Union type: PreparedTaskLineParsingPolicy | PreparedTaskAnnotationPolicy | PreparedTaskTraversalPolicy | PreparedYAMLParsingPolicy | PreparedVariableExtractorPolicy | PreparedJinjaAnalysisPolicy
+      RECOMMENDATION: Since policy_name is runtime-determined, use `object` as safe upper bound OR use generics. Conservative choice: `object` (caller must know policy type).
+    affected_call_count: 17+
+    call_locations:
+      - src/prism/scanner_extract/task_line_parsing.py (6 calls)
+      - src/prism/scanner_extract/task_catalog_assembly.py (2 calls)
+      - src/prism/scanner_extract/task_annotation_parsing.py (1 call)
+      - src/prism/scanner_extract/task_file_traversal.py (4+ calls)
+    import_risk: NONE
+    import_reason: |
+      Contracts are in scanner_data.contracts_request (no imports of scanner_core/extract).
+      Adding TYPE_CHECKING import of Protocol types is safe.
+    complexity: MEDIUM
+    rationale: |
+      This is foundational: all downstream policy-accessor calls depend on require_prepared_policy()
+      having a proper return type. Current `-> Any` forces all callers to be untyped.
+      Fixing this unblocks FIND-TYPING-003 policy getter type safety.
+    recommended_action: |
+      1. Add TYPE_CHECKING import: from prism.scanner_data.contracts_request import Prepared*Policy types
+      2. Change return annotation to: -> object (conservative, runtime-determined policy)
+         OR use overloads if we want policy_name-specific typing
+      3. Update 17+ call sites to remove type: ignore comments if any exist
+    dependencies: []
+    blocks: [FIND-TYPING-003]
+    status: READY
+
+  - finding_id: FIND-TYPING-002
+    severity: HIGH
+    fix_type: return_type_annotation
+    function: get_marker_line_re()
+    location: src/prism/scanner_extract/task_line_parsing.py:L154
+    current_signature: |-
+      def get_marker_line_re(marker_prefix, *, di: object | None = None):
+          return _build_marker_line_re(marker_prefix, di=di)
+    required_type: "re.Pattern[str]"
+    affected_call_count: 3+
+    call_locations:
+      - Internal use in _PolicyBackedMarkerLineRegexProxy._current_regex() (L169)
+      - External imports (module-level usage)
+    import_risk: NONE
+    import_reason: |
+      re module is already imported at top of file. No new imports needed.
+    complexity: LOW
+    rationale: |
+      Direct single-function fix with clear type. The function always returns
+      re.Pattern[str] from _build_marker_line_re which chains through policy.get_marker_line_re().
+      This function is independent of other findings.
+    recommended_action: |
+      1. Add return annotation: -> re.Pattern[str]
+      2. Verify _build_marker_line_re also has proper typing (L149)
+      3. No changes needed to call sites (consumers can now use re.Pattern methods safely)
+    dependencies: []
+    blocks: []
+    status: READY
+
+  - finding_id: FIND-TYPING-003
+    severity: HIGH
+    fix_type: return_type_annotation
+    function_count: 6 functions (policy getter wrappers)
+    functions:
+      - get_task_include_keys() L94
+      - get_role_include_keys() L98
+      - get_include_vars_keys() L102
+      - get_set_fact_keys() L106
+      - get_task_block_keys() L110
+      - get_task_meta_keys() L114
+    current_signature_pattern: "def get_*_keys(di: object | None = None) -> object:"
+    required_type: "Collection[str] | frozenset[str]"
+    affected_call_count: 8+ call sites
+    call_locations:
+      - Internal policy consumption across scanner_extract module
+      - Multiple test files
+    import_risk: NONE
+    import_reason: |
+      Collection imported at top of task_line_parsing.py.
+      PreparedTaskLineParsingPolicy is already visible in TYPE_CHECKING scope.
+    complexity: MEDIUM
+    rationale: |
+      All 6 functions delegate to _task_line_policy_attr() which accesses attributes on
+      PreparedTaskLineParsingPolicy (e.g., TASK_INCLUDE_KEYS). The policy defines these as
+      Collection[str], so return type should be Collection[str].
+      BLOCKED until FIND-TYPING-001 (require_prepared_policy) is typed.
+    recommended_action: |
+      1. First: Fix FIND-TYPING-001 (unblock this finding)
+      2. Change all 6 function signatures: -> Collection[str]
+      3. Consider also typing _task_line_policy_attr(di, attr) -> Collection[str]
+         to make the pattern explicit for future similar functions
+      4. Verify callers can handle Collection[str] vs frozenset[str] (likely yes)
+    dependencies: [FIND-TYPING-001]
+    blocks: []
+    status: BLOCKED_BY_TYPING_001
+
+implementation_order:
+  - wave_priority: 1
+    implementation_sequence:
+      - step: 1
+        finding_id: FIND-TYPING-001
+        task: Type require_prepared_policy() return as object
+        effort_minutes: 15
+        files_affected: 1 (di_helpers.py)
+      - step: 2
+        finding_id: FIND-TYPING-002
+        task: Type get_marker_line_re() return as re.Pattern[str]
+        effort_minutes: 5
+        files_affected: 1 (task_line_parsing.py)
+        can_run_parallel: true
+      - step: 3
+        finding_id: FIND-TYPING-003
+        task: Type 6 policy getter functions as Collection[str]
+        effort_minutes: 15
+        files_affected: 1 (task_line_parsing.py)
+        requires_completed: [FIND-TYPING-001]
+
+independence_analysis:
+  FIND-TYPING-001: Independent (foundational)
+  FIND-TYPING-002: Independent (can run in parallel with 001/003)
+  FIND-TYPING-003: Depends on FIND-TYPING-001 (conceptual clarity, not strict technical blocker)
+  
+  parallelizable_pairs:
+    - [FIND-TYPING-001, FIND-TYPING-002]
+  
+  strict_sequence_required: false
+  recommendation: |
+    Can fix FIND-TYPING-001 and FIND-TYPING-002 in parallel (disjoint files/concerns).
+    FIND-TYPING-003 should follow FIND-TYPING-001 for clarity (same file, related pattern).
+
+circular_import_risk_assessment:
+  verdict: NONE
+  reasoning: |
+    - contracts_request.py has ZERO imports from scanner_core, scanner_extract, scanner_io, scanner_plugins
+    - Adding TYPE_CHECKING imports of Protocol types to di_helpers.py is safe
+    - Adding re.Pattern import to task_line_parsing.py is safe (re already imported)
+  evidence:
+    - grep: contracts_request.py contains no "from prism.scanner_*" imports
+    - grep: di_helpers.py only imports from typing, contextlib, logging (no scanner_data yet)
+    - grep: task_line_parsing.py only imports re, sys, collections.abc, typing, di_helpers
+
+test_coverage_impact:
+  existing_tests: |
+    - test_comment_doc_plugin_resolution.py:L828 (test_task_line_parsing_constants_require_prepared_policy)
+    - test_t1_02_coverage_lift.py:L251,253 (require_prepared_policy tests with sentinel)
+  annotation_impact: Type annotations improve type-checker coverage but do not change test behavior
+  mypy_impact: Will reduce mypy errors related to untyped returns from these functions
+  recommended_additions: |
+    No new tests strictly required (adding types does not change behavior).
+    Existing tests should pass unchanged.
+
+risks_and_mitigation:
+  risk_1:
+    title: require_prepared_policy() typing could be too broad (object)
+    severity: LOW
+    mitigation: |
+      Consider adding overloads for common policy_name values (task_line_parsing, task_annotation_parsing)
+      to provide caller-specific type hints. Deferred to future wave if needed.
+  risk_2:
+    title: Collection[str] vs frozenset[str] type variance
+    severity: LOW
+    mitigation: |
+      Collection[str] is safe (supertype). All PreparedTaskLineParsingPolicy attributes
+      are actually frozenset[str] at runtime, but Collection[str] is correct supertype.
+
+summary:
+  wave_w1_ready_for_implementation: true
+  total_functions_to_annotate: 9
+  total_files_to_modify: 2
+  estimated_total_effort_hours: 0.75
+  complexity_assessment: MEDIUM
+  confidence_level: HIGH
+  blocked_findings: [FIND-TYPING-003 temporarily until FIND-TYPING-001 done]
+  can_proceed_to_phase_5_after_w1: true

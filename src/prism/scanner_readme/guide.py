@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from prism.scanner_plugins.defaults import resolve_readme_renderer_plugin
+from prism.scanner_readme.plugin_seams import resolve_readme_renderer_plugin
 
 logger = logging.getLogger(__name__)
 

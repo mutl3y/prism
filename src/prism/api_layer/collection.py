@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, cast
 
 from prism.errors import PrismRuntimeError
 from prism.scanner_data import (
@@ -15,6 +15,17 @@ from prism.scanner_data import (
     CollectionScanResult,
     RunScanOutputPayload,
     ScanMetadata,
+)
+from prism.scanner_io.collection_payload import (
+    build_collection_identity,
+    build_collection_failure_record,
+    build_collection_role_entry,
+    render_collection_role_readme,
+)
+from prism.scanner_io.collection_plugins import scan_collection_plugins
+from prism.scanner_io.collection_renderer import write_collection_runbook_artifacts
+from prism.scanner_reporting.collection_dependencies import (
+    aggregate_collection_dependencies,
 )
 
 
@@ -107,6 +118,91 @@ class BuildCollectionScanResultFn(Protocol):
         roles: list[CollectionRoleEntry],
         failures: list[CollectionFailureRecord],
     ) -> CollectionScanResult: ...
+
+
+def _build_collection_identity_facade(collection_root: Path) -> CollectionIdentity:
+    """Facade for scanner_io.collection_payload.build_collection_identity."""
+    return cast(CollectionIdentity, build_collection_identity(collection_root))
+
+
+def _aggregate_collection_dependencies_facade(
+    collection_root: Path,
+) -> CollectionDependencies:
+    """Facade for scanner_reporting.collection_dependencies.aggregate_collection_dependencies."""
+    return cast(
+        CollectionDependencies,
+        aggregate_collection_dependencies(collection_root),
+    )
+
+
+def _scan_collection_plugins_facade(collection_root: Path) -> CollectionPluginCatalog:
+    """Facade for scanner_io.collection_plugins.scan_collection_plugins."""
+    return cast(CollectionPluginCatalog, scan_collection_plugins(collection_root))
+
+
+def _build_collection_role_entry_facade(
+    *,
+    role_dir: Path,
+    payload: RunScanOutputPayload,
+    rendered_readme: str | None,
+) -> CollectionRoleEntry:
+    """Facade for scanner_io.collection_payload.build_collection_role_entry."""
+    return cast(
+        CollectionRoleEntry,
+        build_collection_role_entry(
+            role_dir=role_dir,
+            payload=payload,
+            rendered_readme=rendered_readme,
+        ),
+    )
+
+
+def _build_collection_failure_record_facade(
+    *,
+    role_dir: Path,
+    exc: Exception,
+    include_traceback: bool,
+) -> CollectionFailureRecord:
+    """Facade for scanner_io.collection_payload.build_collection_failure_record."""
+    return cast(
+        CollectionFailureRecord,
+        build_collection_failure_record(
+            role_dir=role_dir,
+            exc=exc,
+            include_traceback=include_traceback,
+        ),
+    )
+
+
+def render_collection_role_readme_facade(
+    *, role_name: str, payload: RunScanOutputPayload, render_readme_fn: object
+) -> str:
+    """Facade for scanner_io.collection_payload.render_collection_role_readme."""
+    return render_collection_role_readme(
+        role_name=role_name,
+        payload=payload,
+        render_readme_fn=render_readme_fn,
+    )
+
+
+def write_collection_runbook_artifacts_facade(
+    *,
+    role_name: str,
+    metadata: ScanMetadata,
+    runbook_output_dir: str | None,
+    runbook_csv_output_dir: str | None,
+    render_runbook_fn: object,
+    render_runbook_csv_fn: object,
+) -> None:
+    """Facade for scanner_io.collection_renderer.write_collection_runbook_artifacts."""
+    return write_collection_runbook_artifacts(
+        role_name=role_name,
+        metadata=cast(dict, metadata),
+        runbook_output_dir=runbook_output_dir,
+        runbook_csv_output_dir=runbook_csv_output_dir,
+        render_runbook_fn=render_runbook_fn,
+        render_runbook_csv_fn=render_runbook_csv_fn,
+    )
 
 
 def _payload_metadata(payload: RunScanOutputPayload) -> ScanMetadata:

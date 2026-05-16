@@ -1,0 +1,11 @@
+{
+  "plan_id": "mutl3y-review-20260505-g75",
+  "agent": "Scout-ControlFlow",
+  "focus_axis": "issue_discovery",
+  "candidate_files": [
+    "src/prism/scanner_core/events.py",
+    "src/prism/scanner_kernel/orchestrator.py",
+    "src/prism/scanner_io"
+  ],
+  "notes": "Routing aid for error channel, silent fallback, and guard review."
+}

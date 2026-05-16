@@ -1,0 +1,81 @@
+model_used: GPT-5.4
+findings:
+  - id: GILF-NODE1-01
+    severity: HIGH
+    category: architecture
+    location: "src/prism/scanner_core/di.py:200-309"
+    issue: "The container's extensibility seams are stringly typed. `scanner_context_wiring` is a raw `dict[str, object]`, factory overrides are selected by magic string keys, and `factory_scanner_context()` relies on a `cast()` instead of a validated constructor contract."
+    root_cause: "The DI composition root was made flexible through unstructured dictionaries rather than typed seam objects or Protocol-backed adapters."
+    impact: "Miswired runtime seams fail late, only when a factory is invoked, and the failure shape depends on whatever object happened to be stuffed into the dict. Tests also inherit this mess and end up casting plain dicts into override types instead of getting compile-time enforcement."
+    confidence: 97
+    fix_suggestion: "Replace `scanner_context_wiring` and string-keyed factory override maps with typed dataclasses or dedicated Protocol interfaces, and validate them once in `DIContainer.__init__`. Effort: medium. Impact: high for testability and runtime diagnostics."
+
+  - id: GILF-NODE1-02
+    severity: HIGH
+    category: type-safety
+    location: "src/prism/scanner_core/di.py:140-186"
+    issue: "Runtime plugin validation checks only whether the constructor accepts `di`, not whether the instantiated object actually satisfies the expected plugin protocol."
+    root_cause: "The registry hands back `type[Any]`, and `_construct_runtime_plugin()` enforces constructor shape instead of behavioral shape."
+    impact: "A plugin class with a `di` parameter but missing required methods will be accepted at composition time and fail later inside discovery or feature detection. That pushes the real fault away from the DI boundary and turns a clean configuration error into downstream runtime noise."
+    confidence: 95
+    fix_suggestion: "Have registry methods return Protocol-constrained plugin classes, or validate the constructed instance against a `@runtime_checkable` protocol with explicit required callables. Effort: medium. Impact: high for fail-fast behavior."
+
+  - id: GILF-NODE1-03
+    severity: HIGH
+    category: testability
+    location: "src/prism/scanner_core/di.py:190-221,540-558"
+    issue: "The DI container is doing five jobs at once: composition root, plugin resolver, cache owner, event-bus owner, and mutable test harness via `inject_mock()`/`clear_mocks()`."
+    root_cause: "Test seams were embedded directly into the production container instead of being isolated in a builder, fixture adapter, or test-only wrapper."
+    impact: "Mocking requires magic names that mirror factory keys, container state becomes mutable in ways production code should never need, and tests are coupled to internal resolution order instead of behavior. That is classic god-object drift, just with more ceremony."
+    confidence: 93
+    fix_suggestion: "Split test override support out of `DIContainer` into a dedicated test harness or container builder, and move plugin resolution/cache concerns behind narrower collaborators. Effort: medium-high. Impact: high for maintainability and isolation."
+
+  - id: GILF-NODE1-04
+    severity: MEDIUM
+    category: performance
+    location: "src/prism/scanner_core/di.py:46-76,238-249; src/prism/scanner_core/di_helpers.py:58-74"
+    issue: "Every `scan_options` property access deep-clones the entire container structure, and the helper layer reads that property opportunistically instead of carrying a single prepared snapshot."
+    root_cause: "Snapshot immutability was implemented as repeated recursive copying on access, not as an explicit ingress-owned immutable object."
+    impact: "Hot-path consumers pay hidden copy costs proportional to scan option size, and callers can observe subtly different snapshots depending on when they ask. That is unnecessary overhead in the request lifecycle and makes test behavior more timing-sensitive than it needs to be."
+    confidence: 88
+    fix_suggestion: "Create one immutable `ScanOptionsDict` snapshot per execution boundary and pass it explicitly, or expose a read-only typed mapping view instead of cloning on every access. Effort: medium. Impact: medium-high for runtime predictability."
+
+  - id: GILF-NODE1-05
+    severity: MEDIUM
+    category: type-safety
+    location: "src/prism/scanner_core/di_helpers.py:14-23,58-111"
+    issue: "The helper layer redefines weaker ad-hoc protocols and returns prepared policies as `object`, which erases the stronger contracts already defined elsewhere."
+    root_cause: "Instead of reusing the canonical request/DI Protocols, `di_helpers.py` introduces its own permissive `HasScanOptions` shape with `dict[str, Any]` and generic `object` policy returns."
+    impact: "Consumers lose static guarantees and either cast downstream or rely on attribute probing. The same access pattern is also duplicated in `scanner_plugins.defaults`, so policy ownership is already split across modules."
+    confidence: 94
+    fix_suggestion: "Make `di_helpers.py` depend on the canonical Protocols from `contracts_request.py`, and return precise prepared-policy Protocol types instead of `object`. Effort: medium. Impact: high for type safety and ownership clarity."
+
+  - id: GILF-NODE1-06
+    severity: MEDIUM
+    category: ownership
+    location: "src/prism/scanner_core/scanner_context.py:286-330"
+    issue: "ScannerContext has two policy authorities: the constructor accepts `prepared_policy_bundle` to build `policy_constants`, but orchestration actually validates and reads `self._scan_options['prepared_policy_bundle']`."
+    root_cause: "Policy state was partially moved to canonical scan options, but the older constructor seam was left behind as a second source of truth."
+    impact: "The context lifecycle now permits drift between constructor-time policy data and execution-time policy data. Even when it does not explode today, it creates a latent inconsistency that makes future changes and tests harder to reason about."
+    confidence: 92
+    fix_suggestion: "Remove the constructor-level `prepared_policy_bundle` seam or store one typed bundle field and derive everything from that single source. Effort: low-medium. Impact: high for ownership clarity."
+
+  - id: GILF-NODE1-07
+    severity: HIGH
+    category: error-handling
+    location: "src/prism/scanner_core/scanner_context.py:350-389"
+    issue: "Non-strict execution treats broad `TypeError` and `RuntimeError` failures from discovery and feature detection as recoverable degradation instead of distinguishing configuration bugs from domain failures."
+    root_cause: "Best-effort mode is keyed off phase strictness, but the catch clauses are broader than the actual recoverable contract."
+    impact: "A bad plugin shape, wrong mock object, or DI wiring bug can be silently converted into partial scan output with warning metadata. That makes broken composition look like degraded analysis rather than a hard failure, which is precisely how systems rot without anyone noticing."
+    confidence: 96
+    fix_suggestion: "Only degrade explicitly recoverable domain exceptions, such as `PrismRuntimeError` variants marked recoverable. Let programmer errors and unexpected `TypeError`/`RuntimeError` fail closed with phase context. Effort: low-medium. Impact: high for correctness."
+
+  - id: GILF-NODE1-08
+    severity: MEDIUM
+    category: testability
+    location: "src/prism/scanner_core/scanner_context.py:18-19,289-305"
+    issue: "ScannerContext is typed against the concrete `DIContainer` class even though it only needs a narrow factory surface."
+    root_cause: "The orchestration layer imports the implementation type directly instead of depending on a minimal Protocol for the factories it consumes."
+    impact: "Unit tests are pushed toward real container construction plus `inject_mock()`/`factory_overrides` gymnastics, rather than using tiny fakes that expose only the needed behavior. That increases setup noise and couples tests to container internals."
+    confidence: 90
+    fix_suggestion: "Introduce a minimal `ScannerContextDI` Protocol containing only the required factory methods and accept that instead of the concrete container class. Effort: low. Impact: medium-high for isolation and mocking simplicity."

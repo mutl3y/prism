@@ -1,0 +1,482 @@
+batch: wave_2_batch_1
+total: 30
+tier: TIER_1
+tier_reason: User-specified 3-attempt escalation strategy
+strategy: "3-attempt (Tier 1) \u2192 Rollback on failure \u2192 Defer to Tier 2 after\
+  \ 3 failures"
+findings:
+- id: GILF-NODE1-02
+  severity: HIGH
+  category: type-safety
+  location: '[di_helpers.py:various, scanner_context.py:various]'
+  issue: TypedDict Identity Loss via dict() and cast()
+  root_cause: Frequent use of dict() on TypedDicts and cast() to silence type checkers,
+    especially when copying or passing metadata.
+  impact: Type safety is a lie; runtime errors slip through, and mypy is rendered
+    useless. Downstream consumers get plain dicts, not TypedDicts.
+  confidence: 95
+  fix_suggestion: Use copy.copy() for shallow copies, preserve TypedDict identity,
+    and eliminate cast() in favor of real type enforcement.
+  source_file: tier0-gpt41-node1-findings.yaml
+- id: GILF-NODE1-04
+  severity: HIGH
+  category: error-handling
+  location: '[di_helpers.py:various, scanner_context.py:various]'
+  issue: Silent Failures and Exception Swallowing
+  root_cause: try/except blocks that log or pass on Exception, sometimes without chaining
+    or diagnostics. Some error paths just return None or default.
+  impact: Failures are hidden, debugging is a nightmare, and root causes are lost.
+    System can fail open in production.
+  confidence: 95
+  fix_suggestion: Always raise with context (from exc), log with full trace, and never
+    fail open. Use explicit error contracts.
+  source_file: tier0-gpt41-node1-findings.yaml
+- id: GILF-NODE3-04
+  severity: HIGH
+  category: event-reliability
+  location: '[events.py:120-140]'
+  issue: Unbounded growth of error event list
+  root_cause: Error events are appended to a list without any retention policy or
+    size limit.
+  impact: Memory usage can grow unbounded in long-running processes with frequent
+    listener failures.
+  confidence: 95
+  fix_suggestion: Implement a retention policy (e.g., fixed-size ring buffer) for
+    error events.
+  source_file: tier0-gpt4o-node3-findings.yaml
+- id: GILF-NODE2-02
+  severity: HIGH
+  category: data-flow
+  location: '[feature_detector.py:1-320]'
+  issue: Inconsistent data flow between variable discovery and feature detection
+  root_cause: "Feature detection appears to consume outputs from variable discovery,\
+    \ but the contract is not enforced\u2014types are loose, and there are no invariant\
+    \ checks or schema validation."
+  impact: Garbage in, garbage out. Downstream consumers may receive partial or malformed
+    data, causing subtle bugs that only surface in production. But hey, who needs
+    type safety?
+  confidence: 90
+  fix_suggestion: Define and enforce strict TypedDict or dataclass contracts for all
+    data passed between layers. Add runtime validation if you insist on being dynamically
+    typed.
+  source_file: tier0-gpt41-node2-findings.yaml
+- id: GILF-NODE3-08
+  severity: HIGH
+  category: performance
+  location: '[scan_cache.py:100-120]'
+  issue: Inefficient LRU cache eviction
+  root_cause: Eviction uses `popitem(last=False)` in a loop, which is suboptimal for
+    large caches.
+  impact: Performance degradation during high cache churn.
+  confidence: 90
+  fix_suggestion: Use a more efficient eviction strategy, such as a priority queue
+    or deque.
+  source_file: tier0-gpt4o-node3-findings.yaml
+- id: GILF-NODE3-10
+  severity: HIGH
+  category: cache-safety
+  location: '[scan_cache.py:140-160]'
+  issue: No TTL enforcement for cached entries
+  root_cause: Cache entries persist indefinitely unless explicitly invalidated.
+  impact: Stale data may accumulate, leading to incorrect results and unbounded memory
+    growth.
+  confidence: 95
+  fix_suggestion: Add TTL support to automatically evict stale entries.
+  source_file: tier0-gpt4o-node3-findings.yaml
+- id: GILF-NODE3-01
+  severity: HIGH
+  category: cache-safety
+  location: '[scan_cache.py:60-80]'
+  issue: Cache key collision risk due to lack of namespace isolation
+  root_cause: Cache keys are simple strings without enforced uniqueness across different
+    scan contexts.
+  impact: Potential for overwriting unrelated cache entries, leading to incorrect
+    scan results.
+  confidence: 95
+  fix_suggestion: Prefix cache keys with a namespace derived from scan context or
+    role path.
+  source_file: tier0-gpt4o-node3-findings.yaml
+- id: GILF-NODE3-05
+  severity: HIGH
+  category: validation
+  location: '[scan_request.py:40-60]'
+  issue: Weak validation of required fields in scan options
+  root_cause: Validation only checks for non-empty strings but does not enforce semantic
+    correctness.
+  impact: Invalid or nonsensical scan options may propagate, causing runtime errors
+    or undefined behavior.
+  confidence: 90
+  fix_suggestion: Enhance validation to include semantic checks (e.g., valid paths,
+    logical consistency).
+  source_file: tier0-gpt4o-node3-findings.yaml
+- id: GILF-NODE1-03
+  severity: HIGH
+  category: ownership
+  location: '[scanner_context.py:various, di.py:various]'
+  issue: Policy Ownership Split and Fallbacks
+  root_cause: Policies are set in one place (scan_request, ingress) and read or normalized
+    in others (scanner_context, adapters), with fallback logic scattered everywhere.
+  impact: Impossible to trace policy flow. Fallbacks create hidden state and normalization
+    bugs. Ownership is ambiguous.
+  confidence: 90
+  fix_suggestion: "Enforce single-point policy preparation at ingress. All consumers\
+    \ must require explicit, pre-normalized policy bundles\u2014no fallback, no local\
+    \ normalization."
+  source_file: tier0-gpt41-node1-findings.yaml
+- id: GILF-NODE1-01
+  severity: HIGH
+  category: type-safety
+  location: '[src/prism/scanner_core/di.py:1-120]'
+  issue: Unchecked cast() and TypedDict identity loss when cloning scan options
+  root_cause: '`clone_scan_options` builds a plain dict and uses `cast(ScanOptionsDict,
+    ...)` to declare typed identity; many factories then consume that dict assuming
+    TypedDict contracts without runtime validation.'
+  impact: "Silent type contract violations, loss of TypedDict shape guarantees, and\
+    \ downstream code may rely on TypedDict identity (or typed keys) which can be\
+    \ lost \u2014 leads to runtime KeyError/ValueError and brittle checks."
+  confidence: 95
+  fix_suggestion: Avoid broad `cast(...)` shortcuts. Validate/construct a `ScanOptionsDict`
+    explicitly (schema-check or dataclass factory) or create helper that performs
+    runtime validation when cloning; preserve TypedDict-like construction instead
+    of blind cast.
+  source_file: tier0-gpt5m-node1-findings.yaml
+- id: GILF-NODE1-03
+  severity: HIGH
+  category: lazy-imports|circular-deps
+  location: '[src/prism/scanner_core/di.py:1-240]'
+  issue: Widespread deferred imports to hide circular dependencies
+  root_cause: Factory helpers defer imports (e.g., FeatureDetector, VariableDiscovery)
+    to runtime to avoid import-time cycles instead of resolving architectural layering.
+  impact: "Load-order coupling is masked rather than solved \u2014 can produce surprising\
+    \ runtime errors, hides real layering violations, and complicates static analysis\
+    \ and type-checking."
+  confidence: 96
+  fix_suggestion: Introduce clearer module boundaries / interface modules (protocols)
+    so concrete implementations can live in plugin modules. Prefer inversion-of-control
+    at module import time (small registry or entrypoint) instead of ad-hoc deferred
+    imports.
+  source_file: tier0-gpt5m-node1-findings.yaml
+- id: GILF-NODE1-02
+  severity: HIGH
+  category: architecture
+  location: '[src/prism/scanner_core/di.py:120-320]'
+  issue: DIContainer is a god-object with mixed responsibilities
+  root_cause: "DIContainer owns platform resolution, caching, mock injection, event\
+    \ bus wiring, plugin construction, blocker building and scanner-context wiring\
+    \ \u2014 many cross-cutting concerns concentrated in one mutable instance."
+  impact: High coupling, hard-to-test surface, hidden runtime side effects (cache/mocks),
+    and composes circular-dependency workarounds into runtime factory code; makes
+    refactors risky and review-intensive.
+  confidence: 98
+  fix_suggestion: 'Split responsibilities: separate a thin immutable composition root
+    (registrations, wiring) from run-time instance-holder (caches, mocks). Expose
+    small Protocols for consumers; move platform-key resolution and blocker-factory
+    resolution to separate helper/service classes.'
+  source_file: tier0-gpt5m-node1-findings.yaml
+- id: GILF-NODE3-03
+  severity: HIGH
+  category: event-reliability
+  location: '[src/prism/scanner_core/events.py:1-140]'
+  issue: Silent event handler failures swallow exceptions
+  root_cause: Event bus dispatch wraps handler calls in bare except blocks or logs
+    only the exception type, discarding stack traces and context. Other handlers may
+    or may not run depending on the implementation.
+  impact: Lost diagnostics, undetected bugs, and handlers failing without any trace.
+    Amateur hour.
+  confidence: 98
+  fix_suggestion: Log full exception details with stack traces, always chain exceptions,
+    and ensure all handlers run even if one fails. Consider using a robust pub/sub
+    library.
+  source_file: tier0-gpt41-node3-findings.yaml
+- id: GILF-NODE3-02
+  severity: HIGH
+  category: cache-safety
+  location: '[src/prism/scanner_core/scan_cache.py:1-160]'
+  issue: No explicit cache invalidation or TTL enforcement
+  root_cause: Cache entries are stored indefinitely with no time-to-live, eviction,
+    or invalidation logic. The code assumes the world is static and memory is infinite.
+  impact: Unbounded memory growth, stale data, and eventual OOM crashes. The only
+    thing getting evicted is your uptime.
+  confidence: 90
+  fix_suggestion: Implement TTLs for cache entries, periodic, and explicit invalidation
+    hooks. Use an LRU or time-based eviction policy.
+  source_file: tier0-gpt41-node3-findings.yaml
+- id: GILF-NODE3-03
+  severity: HIGH
+  category: copy-semantics
+  location: '[src/prism/scanner_core/scan_cache.py:1-40] & [src/prism/scanner_core/scan_request.py:1-80]'
+  issue: Shallow or incomplete cloning leads to shared mutable state
+  root_cause: _clone_container_structure clones basic containers but returns original
+    for non-container objects; `build_run_scan_options_canonical` uses `copy.copy`
+    for `prepared_policy_bundle` and leaves other lists/maps as-is.
+  impact: Mutable objects inside cached values or returned scan options can be mutated
+    by callers or consumers after caching, breaking immutability assumptions and causing
+    hard-to-debug state corruption or cross-request leakage.
+  confidence: 95
+  fix_suggestion: 'Use a robust defensive copy strategy: either `copy.deepcopy` (with
+    care for performance) or a serialization round-trip (JSON/MessagePack) for cache
+    boundaries. For non-serializable domain objects, require a `get_state_fingerprint()`
+    or provide explicit serializer hooks. In `build_run_scan_options_canonical`, deep-copy
+    incoming lists/dicts (or freeze them) before placing into the returned options.'
+  source_file: tier0-gpt5m-node3-findings.yaml
+- id: GILF-NODE3-01
+  severity: HIGH
+  category: cache-safety
+  location: '[src/prism/scanner_core/scan_cache.py:30-110]'
+  issue: "No TTL or byte-size eviction \u2014 only entry-count LRU"
+  root_cause: InMemoryLRUScanCache only limits entries by count (`maxsize`) and never
+    evicts based on age or value size.
+  impact: Large scan results (or many large entries) can exhaust process memory despite
+    LRU count limits; long-lived stale entries remain until evicted by count pressure.
+  confidence: 95
+  fix_suggestion: Add optional TTL per-entry and/or a byte-size budget. Implement
+    time-based expiry and an LRU that accounts for value size (bytes). Consider background
+    maintenance thread or lazy expiry on access to avoid long pause events.
+  source_file: tier0-gpt5m-node3-findings.yaml
+- id: GILF-NODE3-07
+  severity: HIGH
+  category: validation
+  location: '[src/prism/scanner_core/scan_request.py:1-120]'
+  issue: Weak/late validation and fragile `prepared_policy_bundle` handling
+  root_cause: Only `role_path` is validated early; `prepared_policy_bundle` is copied
+    only when it's a plain `dict` (`isinstance(dict)`), otherwise ignored. Many inputs
+    are accepted without type checks until `validate_scan_options` is invoked late.
+  impact: Invalid or unexpected types can be embedded into the options and later cause
+    runtime errors, silent skips, or inadvertent cache key collisions (if callers
+    assume shapes). Prepared bundles that are valid but not `dict` (e.g., TypedDict,
+    Mapping, or a plugin-provided object) will be ignored leading to incorrect scan
+    behavior.
+  confidence: 95
+  fix_suggestion: 'Validate inputs early: use `collections.abc.Mapping` / explicit
+    TypedDict checks for `prepared_policy_bundle` and copy/normalize accordingly.
+    Perform defensive deep-copying of lists/maps passed in. Fail-fast with clear,
+    chained exceptions that include the offending key name and expected type.'
+  source_file: tier0-gpt5m-node3-findings.yaml
+- id: GILF-NODE3-05
+  severity: HIGH
+  category: validation
+  location: '[src/prism/scanner_core/scan_request.py:1-380]'
+  issue: Request objects lack strict field validation
+  root_cause: Required fields are not consistently validated at construction or ingestion.
+    Optional fields default to None or empty, but downstream code assumes presence.
+  impact: Invalid requests propagate through scanner_core, causing downstream errors,
+    silent failures, or security issues.
+  confidence: 92
+  fix_suggestion: Enforce strict validation of all required fields at object creation.
+    Use pydantic or dataclasses with type enforcement and validation hooks.
+  source_file: tier0-gpt41-node3-findings.yaml
+- id: GILF-NODE3-07
+  severity: HIGH
+  category: error-handling
+  location: '[src/prism/scanner_core/scan_request.py:1-380], [src/prism/scanner_core/events.py:1-140]'
+  issue: Error messages lack context and exception chaining
+  root_cause: Exceptions are raised with generic messages, missing contextual data
+    (e.g., request IDs, cache keys). Exception chaining is not used, so root causes
+    are lost.
+  impact: Impossible-to-debug errors, lost root cause, and a support queue full of
+    angry users.
+  confidence: 90
+  fix_suggestion: Always include contextual data in error messages, and use 'raise
+    ... from exc' to chain exceptions. Log all errors with full context.
+  source_file: tier0-gpt41-node3-findings.yaml
+- id: GILF-NODE2-03
+  severity: HIGH
+  category: caching
+  location: '[task_extract_adapters.py:1-290]'
+  issue: Cache key canonicalization is weak, leading to collision risk
+  root_cause: Cache keys are likely constructed from stringified arguments or partial
+    object IDs, without normalization or hashing. This is a textbook way to poison
+    your own cache.
+  impact: Unrelated requests can overwrite each other's cache entries, causing data
+    leaks, incorrect results, and delightful debugging sessions at 3am.
+  confidence: 85
+  fix_suggestion: Use a canonical serialization (e.g., tuple of sorted, hashable arguments)
+    for cache keys. Consider using hashlib for complex keys.
+  source_file: tier0-gpt41-node2-findings.yaml
+- id: GILF-NODE2-04
+  severity: HIGH
+  category: policy
+  location: '[task_extract_adapters.py:1-290]'
+  issue: Marker-prefix policy ownership is split and duplicated
+  root_cause: Both the extraction and detection layers attempt to apply or normalize
+    marker-prefix policy, leading to re-application and inconsistent state.
+  impact: Policy drift, double-normalization, and marker-prefix bugs that are impossible
+    to trace. The kind of thing that makes junior devs cry.
+  confidence: 90
+  fix_suggestion: Centralize marker-prefix policy application at ingress. Downstream
+    layers should consume, not re-apply, policy.
+  source_file: tier0-gpt41-node2-findings.yaml
+- id: GILF-DI-05
+  severity: HIGH
+  category: testability
+  location: di.py:134-176 (_construct_runtime_plugin)
+  issue: Plugin constructor validation uses signature inspection but doesn't validate
+    plugin class shape at registration time
+  root_cause: DIContainer._construct_runtime_plugin() inspects the constructor signature
+    at runtime to check if the plugin accepts `di=...`. This check should happen when
+    the plugin is registered, not when it's instantiated.
+  impact: Errors surface at scan runtime, not at plugin bootstrap. Bad plugins slip
+    through initialization and fail deep in execution. No fail-fast validation.
+  confidence: 88
+  fix_suggestion: Move signature validation to PluginRegistry.register_plugin(). Validate
+    all plugins once at bootstrap. Store pre-validated plugin classes. Fail fast.
+  source_file: tier1-haiku45-node1-findings.yaml
+- id: GILF-NODE1-02
+  severity: HIGH
+  category: architecture
+  location: di.py:188-561 (entire DIContainer class)
+  issue: God-object antipattern - DIContainer has 17 factory methods and manages caching,
+    locking, mocking, platform resolution, and event bus lifecycle
+  root_cause: 'Classic ''throw everything in one class'' design. Started as lightweight
+    DI, accumulated responsibilities. Now manages: plugin resolution (7 types), service
+    creation (variable_discovery, feature_detector), cache lifecycle, mock injection,
+    threading locks, platform key resolution, event bus, scanner context wiring. Single
+    class knows about scanner_core, scanner_extract, scanner_plugins, scanner_data.'
+  impact: "Testing nightmare - must understand 3-level override hierarchy (mocks \u2192\
+    \ factory_overrides \u2192 actual). Changing any plugin registration requires\
+    \ understanding entire DI contract. 561 lines in single class. Circular dependency\
+    \ workarounds everywhere. Every new capability adds another factory method. Class\
+    \ will grow indefinitely."
+  confidence: 100
+  fix_suggestion: 'Split into: (1) PluginResolver (platform key + registry queries),
+    (2) ServiceLocator (caching + lifecycle), (3) TestDoubleInjector (mocking). Estimated
+    1-2 weeks refactoring + full test coverage rewrite. But you won''t do it because
+    ''it works'' and ''we don''t have time''. Classic.'
+  source_file: tier2-sonnet45-node1-findings.yaml
+- id: GILF-NODE2-02
+  severity: HIGH
+  category: caching
+  location: di.py:228-235
+  issue: Anemic Cache Invalidation for Options Mutation
+  root_cause: replace_scan_options only invalidates 'feature_detector' and 'variable_discovery'.
+    It completely ignores the fact that nearly every other factory in this container
+    (like scanner_context) also captures scan_options in its closure or constructor.
+  impact: Stale scan options persist in the ScannerContext or any other long-lived
+    DI-provided component after an options update. You're effectively running a scan
+    with two different realities at once.
+  confidence: 95
+  fix_suggestion: Invalidate the entire _cache on replace_scan_options, or use a proper
+    property-dependency graph if you're actually pretending to be a systems architect.
+  source_file: tier1-gemini3f-node2-findings.yaml
+- id: GILF-NODE1-04
+  severity: HIGH
+  category: architecture
+  location: di.py:24-54 (TYPE_CHECKING block), di.py:103-113 (deferred imports)
+  issue: Circular dependency architecture smell - 30 lines of TYPE_CHECKING imports
+    and deferred factory imports indicate wrong module boundaries
+  root_cause: scanner_core imports from scanner_extract, scanner_plugins. Those modules
+    import di_helpers from scanner_core. Broke import cycle by deferring imports to
+    factory call sites. Symptom treatment instead of fixing module dependency graph.
+    Every future scanner_core addition risks new circular dependency.
+  impact: Cognitive load - developers must understand when imports happen vs when
+    types are available. Refactoring paralyzed - moving code between modules requires
+    checking TYPE_CHECKING blocks. Import order bugs hide until runtime. Adding new
+    scanner_extract dependency requires another deferred import pattern. Architecture
+    fighting itself.
+  confidence: 95
+  fix_suggestion: 'Invert dependency: extract scanner_core interfaces to scanner_data/protocols.
+    scanner_extract and scanner_plugins depend only on protocols, not concrete scanner_core.
+    DI wires implementations. Cost: 1 week architectural refactoring. Alternative:
+    accept technical debt and watch it compound. You probably already have.'
+  source_file: tier2-sonnet45-node1-findings.yaml
+- id: GILF-NODE1-01
+  severity: HIGH
+  category: type-safety
+  location: di.py:76-80, di.py:321, di.py:346, di.py:403, di.py:429, plus 8 more
+  issue: Type erasure epidemic through blind cast() on factory override results
+  root_cause: Factory override pattern trusts caller-provided objects without validation.
+    Every factory method does `cast(ReturnType, override_result)` after calling `_call_factory_override()`,
+    which returns `object | None`. Zero runtime validation that override actually
+    conforms to expected protocol.
+  impact: Type checker believes contracts are enforced when they're completely optional
+    at runtime. Test doubles or malicious overrides can inject arbitrary objects.
+    Runtime failure occurs deep in call stack with cryptic AttributeError instead
+    of at DI boundary with clear contract violation. Mystery why anyone bothered with
+    type hints if you're just going to lie to mypy.
+  confidence: 98
+  fix_suggestion: 'Replace blind cast() with runtime Protocol validation using isinstance()
+    checks. For override results, verify required methods exist before casting. Cost:
+    2-3h to add validation helpers. Alternative: remove override mechanism entirely
+    if you can''t be bothered to validate contracts. That''s what adults do.'
+  source_file: tier2-sonnet45-node1-findings.yaml
+- id: GILF-DI-01
+  severity: HIGH
+  category: type-safety
+  location: di.py:78
+  issue: Blind TypedDict cast loses identity through dict comprehension
+  root_cause: "clone_scan_options() uses cast(ScanOptionsDict, {...}) to force type\
+    \ after building dict via comprehension. TypedDict is nominal\u2014this cast is\
+    \ purely aspirational and fails at runtime type checking."
+  impact: Downstream code like scan_options_from_di() does isinstance(di, HasScanOptions)
+    checks on the scan_options property, but mypy has no guarantee the cast actually
+    produced a ScanOptionsDict. Type erasure creates contract violations.
+  confidence: 95
+  fix_suggestion: 'Return ScanOptionsDict explicitly: `result: ScanOptionsDict = {};
+    result.update({...}); return result` or use TypedDict constructor if available.'
+  source_file: tier1-haiku45-node1-findings.yaml
+- id: GILF-DI-03
+  severity: HIGH
+  category: ownership
+  location: di.py:85-110, di.py:283, di.py:228
+  issue: scan_options cloning scattered across multiple locations without clear ownership
+  root_cause: 'clone_scan_options() is called in: (1) __init__ to store, (2) replace_scan_options(),
+    (3) _snapshot_scan_options(), (4) each factory_* method that needs current options.
+    Cloning policy is distributed; no single source of truth.'
+  impact: If cloning logic needs to change (e.g., to handle new mutable types), you
+    must hunt through 20+ call sites. Inconsistent snapshots could leak mutable state
+    despite cloning intent. Expensive operation called repeatedly.
+  confidence: 92
+  fix_suggestion: 'Make scan_options an immutable property: `@property scan_options(self)
+    -> ScanOptionsDict` returns a fresh snapshot. Call site doesn''t need to know
+    cloning happens. Single source of truth for snapshot policy.'
+  source_file: tier1-haiku45-node1-findings.yaml
+- id: GILF-NODE3-04
+  severity: HIGH
+  category: event-reliability
+  location: events.py:109-128 (emit method, strict mode)
+  issue: EventBus strict mode breaks event delivery contract. When strict=True and
+    listener N fails, listeners N+1 onward never receive the event. Partial delivery
+    violates pub/sub semantics.
+  root_cause: 'Line 119-128: The listener loop catches exceptions, logs, records,
+    and then `if self._strict: raise`. Re-raising stops the loop. Subsequent listeners
+    in `listeners_snapshot` are never invoked.'
+  impact: 'Observability loss. If listener A logs metrics, listener B records diagnostics,
+    listener C updates state, and listener B fails in strict mode, listener C never
+    runs. The failure of one observer breaks all downstream observers. Violates the
+    isolation guarantee of pub/sub: observers should be independent. Strict mode makes
+    observers non-independent.'
+  confidence: 100
+  fix_suggestion: "HIGH-PRIORITY FIX (30 min): Strict mode should collect all exceptions\
+    \ and raise an aggregate exception after all listeners run, not stop the loop\
+    \ early. Or document that strict mode breaks delivery and is only for testing.\
+    \ Or remove strict mode entirely\u2014event buses should be fail-safe, not fail-fast.\
+    \ The current behavior is a reliability landmine."
+  source_file: tier2-sonnet45-node3-findings.yaml
+- id: GILF-NODE3-05
+  severity: HIGH
+  category: event-reliability
+  location: events.py:128-135
+  issue: Error event list grows unbounded; no eviction policy or memory limit
+  root_cause: '`_error_events` accumulates errors forever. If a listener repeatedly
+    fails (even transiently),
+
+    the list grows without bound. No API to clear it except `clear()` which wipes
+    stats too.
+
+    Long-running scanners will accumulate MB of error objects.
+
+    '
+  impact: '- Memory leak in production: OOM after 10k-100k errors
+
+    - Error observability becomes noisy (can''t find signal in growing noise)
+
+    - No way to access errors without resetting counters
+
+    '
+  confidence: 99
+  fix_suggestion: 'Implement circular buffer (max 1000 errors). Add `purge_old_errors(max_age_seconds)`.
+
+    Document the eviction policy so operators know what they''re getting.
+
+    '
+  source_file: tier1-haiku45-node3-findings.yaml

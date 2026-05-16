@@ -1,0 +1,48 @@
+plan_id: mutl3y-review-wave2-hotpath-20260507
+cycle: wave2
+date: '2026-05-07'
+status: phase2_active
+phase: 2
+title: 'Wave 2 Phase 2: Hotpath Migration (PolicyConstants Integration)'
+objective: Replace 150-300 require_prepared_policy() calls per scan with pre-resolved
+  PolicyConstants
+phase_gate:
+  entry: PolicyConstants factory complete + 1171 tests passing
+  exit: Dual-signature migration complete + regression tests passing
+tasks:
+  phase2a:
+    title: task_extract_adapters dual signatures
+    status: ready
+    owned_files:
+    - src/prism/scanner_core/task_extract_adapters.py
+    builder: Builder-Hotpath-Extract
+  phase2b:
+    title: task_catalog_assembly hotpath
+    status: ready
+    owned_files:
+    - src/prism/scanner_core/task_catalog_assembly.py
+    builder: Builder-Hotpath-Catalog
+  phase2c:
+    title: task_file_traversal dual params
+    status: ready
+    owned_files:
+    - src/prism/scanner_extract/task_file_traversal.py
+    builder: Builder-Hotpath-Traversal
+  phase2d:
+    title: task_annotation_parsing dual sigs
+    status: ready
+    owned_files:
+    - src/prism/scanner_extract/task_annotation_parsing.py
+    builder: Builder-Hotpath-Annotation
+  phase2e:
+    title: feature_detector integration
+    status: ready
+    owned_files:
+    - src/prism/scanner_core/feature_detector.py
+    builder: Builder-Hotpath-Features
+validation:
+  pytest_baseline: 1171
+  pytest_target: 1171
+  ruff_required: true
+  black_required: true
+  mypy_delta: 0

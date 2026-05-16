@@ -1,0 +1,763 @@
+plan_id: q3-initiative-4-phase0-20260509
+grader: Grader-Q3Init4
+phase: "Phase 1: Grading & Recommendation"
+created_at: "2026-05-09T19:30:00Z"
+tier: "Tier 0 (FREE)"
+model: "GPT-4o"
+status: completed
+confidence: 0.90
+
+tldr: |
+  Phase 1 (@property read-only access) is LOW RISK with HIGH value-for-effort.
+  Proceed immediately (confidence ≥ 0.90). Phase 2 (frozen dataclass) justified
+  but requires Phase 1 to pass before proceeding. Test strategy must prove
+  backward compatibility + immutability enforcement.
+
+---
+
+# Grading Report: Q3 Initiative 4, Phase 1
+
+## Executive Summary
+
+**RECOMMENDATION**: ✅ PROCEED with Phase 1  
+**Confidence**: 0.90 (HIGH)  
+**Risk Level**: LOW  
+**Blocking Issues**: NONE  
+
+Phase 0 provides strong evidence:
+- 0 external mutation sites (grep verified)
+- 0.92 confidence in current state audit
+- Single-use design pattern established
+- Defensive copies already protect callers
+- Follows Q2 precedents (PolicyManager, MP1)
+
+Phase 1 converts internal field access to read-only properties (name mangling + @property). This is a **low-risk refactor** that:
+1. Prevents accidental external mutations
+2. Clarifies state lifecycle
+3. Enables Phase 2 (frozen dataclass) with minimal rework
+4. Maintains full backward compatibility with public API
+
+**Phase 2 (frozen dataclass) justified but should not start until Phase 1 passes.**
+
+---
+
+## Severity Assessment: Field Categories
+
+### CATEGORY A: Immutable Input Fields (5 fields)
+
+```yaml
+fields:
+  - _di
+  - _role_path
+  - _scan_options
+  - _prepare_scan_context_fn
+  - _strict_phase_failures
+
+severity: LOW
+rationale: |
+  These fields are already immutable in practice (0 mutation sites found).
+  Converting to @property + __ prefix is formalization only, not runtime safety.
+  Value is primarily documentation (signals intent to maintainers).
+
+risk_if_not_immutable:
+  data_corruption: "❌ NONE — not being mutated"
+  maintainer_confusion: "⚠️ MEDIUM — could be unclear which fields are input vs state"
+  external_vulnerability: "❌ NONE — passed by caller, not modified"
+  severity: "LOW"
+
+effort_to_immutabilize:
+  phase_1_cost: "TRIVIAL (2-3 hours)"
+  rationale: "Rename to __, add @property; no logic changes"
+  test_burden: "MINIMAL (already proven immutable via grep)"
+  severity: "TRIVIAL"
+
+value_delivered:
+  clarity: "✅ MEDIUM (documents input contract)"
+  safety: "❌ LOW (already safe, not gaining runtime protection)"
+  maintainability: "✅ MEDIUM (signals intent; prevents future mutations)"
+  thread_safety: "❌ LOW (inputs don't need locking; already immutable)"
+  overall: "MEDIUM (nice-to-have, not critical)"
+
+recommendation: "INCLUDE in Phase 1 for completeness; not a blocker on its own"
+```
+
+### CATEGORY B: Mutable Orchestration Fields (5 fields)
+
+#### B1: `_discovered_variables` (tuple)
+```yaml
+field: "_discovered_variables"
+type: "tuple[Any, ...]"
+
+severity: "LOW"
+rationale: |
+  Already immutable by Python type (tuple is immutable). Mutations are only
+  reassignments (empty → populated), not in-place mutations. No risk from
+  external code.
+
+risk_if_not_immutable:
+  data_corruption: "❌ NONE — tuple immutable once assigned"
+  maintainer_confusion: "❌ MINIMAL — type signature clear"
+  external_vulnerability: "❌ NONE — returned as tuple, not mutable list"
+  severity: "NONE"
+
+effort_to_immutabilize:
+  phase_1_cost: "TRIVIAL (rename + @property pass-through)"
+  rationale: "No logic change; tuple already immutable"
+  severity: "TRIVIAL"
+
+value_delivered:
+  clarity: "✅ LOW (already clear via type hint: tuple)"
+  safety: "❌ NONE (already immutable by type)"
+  maintainability: "✅ LOW (consistency with other fields)"
+  overall: "LOW (nice-to-have consistency)"
+
+recommendation: "INCLUDE in Phase 1 for consistency; not urgent on its own"
+```
+
+#### B2: `_detected_features` (FeaturesContext dict)
+```yaml
+field: "_detected_features"
+type: "FeaturesContext (dict/TypedDict)"
+
+severity: "MEDIUM"
+rationale: |
+  Mutable dict reassigned during orchestrate_scan(). However, defensive
+  deepcopy already protects external callers. Main risk is internal state
+  confusion if orchestrate_scan() is reused (explicitly not recommended).
+
+risk_if_not_immutable:
+  data_corruption: "⚠️ MEDIUM — if orchestrate_scan() called twice, state could merge"
+  maintainer_confusion: "⚠️ MEDIUM — unclear when features are 'final'"
+  external_vulnerability: "❌ NONE — deepcopy protects callers"
+  lifecycle_clarity: "⚠️ MEDIUM — when are features readable? after detection phase only"
+  severity: "MEDIUM"
+
+effort_to_immutabilize:
+  phase_1_cost: "LOW (4-5 days total with other 5 fields)"
+  rationale: "Rename + @property; deepcopy continues; no logic change"
+  phase_2_cost: "MEDIUM (5-6 days; convert FeaturesContext to frozen structure)"
+  severity: "LOW for Phase 1, MEDIUM for Phase 2"
+
+value_delivered:
+  clarity: "✅ MEDIUM (signals 'detected features are final once set')"
+  safety: "✅ MEDIUM (prevents accidental in-place mutations during orchestration)"
+  maintainability: "✅ MEDIUM (enforces single-use semantics)"
+  lifecycle: "✅ HIGH (clear when features are readable)"
+  overall: "MEDIUM-HIGH (important for clarity)"
+
+recommendation: "INCLUDE in Phase 1; justify in PR description"
+```
+
+#### B3: `_scan_metadata` (ScanMetadata TypedDict)
+```yaml
+field: "_scan_metadata"
+type: "ScanMetadata (TypedDict, dict)"
+
+severity: "HIGH"
+rationale: |
+  Most complex field: reassigned 5 times (init, reset, error handler, payload assembly x2).
+  Progressive mutation pattern is fragile. Lifecycle not obvious.
+  High risk of state corruption if orchestrate_scan() reused.
+  This is the PRIMARY target for Phase 2 (frozen dataclass).
+
+risk_if_not_immutable:
+  data_corruption: "🔴 HIGH — 5 reassignments, error path mutations, state confusion"
+  maintainer_confusion: "🔴 HIGH — unclear which fields are 'final' after each phase"
+  external_vulnerability: "⚠️ MEDIUM — deepcopy protects now, but Phase 2 removes deepcopy cost"
+  state_lifecycle: "🔴 HIGH — when is metadata 'complete'? After what phase?"
+  regressions: "⚠️ MEDIUM — future developers might add mutation, break invariant"
+  severity: "HIGH"
+
+effort_to_immutabilize:
+  phase_1_cost: "TRIVIAL (rename + @property; deepcopy continues)"
+  rationale: "Same pattern as other fields"
+  phase_2_cost: "HIGH (8-10 days; frozen dataclass + builder pattern + compat wrapper)"
+  rationale: "Requires builder redesign, backward-compat layer, test updates"
+  severity: "TRIVIAL for Phase 1, HIGH for Phase 2"
+
+value_delivered:
+  clarity: "✅ VERY HIGH (frozen dataclass makes lifecycle explicit)"
+  safety: "✅ VERY HIGH (FrozenInstanceError prevents mutations)"
+  maintainability: "✅ HIGH (builder pattern clarifies assembly flow)"
+  performance: "✅ MEDIUM (eliminates deepcopy overhead in production)"
+  testability: "✅ HIGH (easier to test immutable vs mutable state)"
+  overall: "VERY HIGH (this is the most valuable field to immutabilize)"
+
+recommendation: |
+  INCLUDE in Phase 1 (read-only via @property).
+  PRIORITIZE Phase 2 (frozen dataclass) for this field specifically.
+  This is the 'value driver' for the entire initiative.
+```
+
+#### B4: `_scan_errors` (list[ScanErrorEntry])
+```yaml
+field: "_scan_errors"
+type: "list[ScanErrorEntry]"
+
+severity: "MEDIUM"
+rationale: |
+  Collected via append(), then exposed via scan_metadata property (not directly).
+  Defensive deepcopy protects external callers. Risk is internal: if
+  orchestrate_scan() reused, errors from prior run could leak into new run.
+
+risk_if_not_immutable:
+  data_corruption: "⚠️ MEDIUM — append accumulates if orchestrate_scan() reused"
+  maintainer_confusion: "⚠️ MEDIUM — unclear if errors are cleared between runs"
+  external_vulnerability: "❌ NONE — exposed via immutable metadata deepcopy"
+  state_lifecycle: "⚠️ MEDIUM — when are errors 'finalized'?"
+  severity: "MEDIUM"
+
+effort_to_immutabilize:
+  phase_1_cost: "TRIVIAL (rename + @property reset to [])"
+  rationale: "Already reset in orchestrate_scan(); just formalize as @property"
+  phase_2_cost: "LOW (convert to tuple of ScanErrorEntry, immutable by type)"
+  rationale: "Simple conversion; no builder complexity"
+  severity: "TRIVIAL for Phase 1, LOW for Phase 2"
+
+value_delivered:
+  clarity: "✅ MEDIUM (tuple signals 'errors are final')"
+  safety: "✅ MEDIUM (prevents append() during orchestration phases)"
+  maintainability: "✅ LOW (already reset in orchestrate_scan())"
+  overall: "MEDIUM (secondary to metadata immutability)"
+
+recommendation: "INCLUDE in Phase 1; pair with scan_metadata for clarity"
+```
+
+#### B5: `policy_constants` (PolicyConstants | None)
+```yaml
+field: "policy_constants"
+type: "PolicyConstants | None"
+
+severity: "MEDIUM"
+rationale: |
+  Assigned once in __init__ if prepared_policy_bundle present.
+  Currently public class attribute (not __ prefixed). Exposed as mutable;
+  external code could theoretically mutate it. This is the PRIMARY RISK in
+  current implementation.
+
+risk_if_not_immutable:
+  data_corruption: "🔴 HIGH — directly mutable by external code (no @property protection)"
+  maintainer_confusion: "⚠️ MEDIUM — unclear if constants should be frozen"
+  external_vulnerability: "🔴 HIGH — caller could mutate constants, affecting all uses"
+  state_lifecycle: "❌ ACCEPTABLE — assigned once in __init__, lifecycle clear"
+  severity: "HIGH (currently the most exposed mutable field)"
+
+effort_to_immutabilize:
+  phase_1_cost: "LOW (rename to __, add @property read-only)"
+  rationale: "Assigned once; just need read-only wrapper"
+  phase_2_cost: "NONE (already immutable once assigned; @property sufficient)"
+  rationale: "PolicyConstants is already a frozen/immutable object (verify this)"
+  severity: "LOW for Phase 1, TRIVIAL for Phase 2"
+
+value_delivered:
+  clarity: "✅ MEDIUM (signals 'constants are read-only')"
+  safety: "✅ HIGH (prevents external mutation of constants)"
+  maintainability: "✅ MEDIUM (clarifies policy constant lifecycle)"
+  security: "✅ HIGH (security-relevant: prevents tampering with policy constants)"
+  overall: "HIGH (this is an actual vulnerability if not protected)"
+
+recommendation: |
+  PRIORITIZE this field in Phase 1.
+  This is currently the RISKIEST field (unprotected public attribute).
+  Converting to @property is security-relevant, not just a nice-to-have.
+```
+
+### Category B Summary Table
+
+| Field | Phase 1 Risk | Phase 1 Effort | Phase 2 Value | Priority |
+|-------|--------------|----------------|---------------|----------|
+| discovered_variables | ✅ NONE | TRIVIAL | LOW | MEDIUM |
+| detected_features | ⚠️ MEDIUM | TRIVIAL | MEDIUM-HIGH | HIGH |
+| scan_metadata | 🔴 HIGH | TRIVIAL | VERY HIGH | **CRITICAL** |
+| scan_errors | ⚠️ MEDIUM | TRIVIAL | MEDIUM | MEDIUM |
+| policy_constants | 🔴 HIGH | LOW | MEDIUM | **CRITICAL** |
+
+**Overall B Severity**: **MEDIUM-HIGH**
+- Phase 1: LOW RISK (all are @property + rename; no logic changes)
+- Phase 2: HIGH VALUE (frozen dataclass + builder clarifies state lifecycle)
+
+### CATEGORY C: External Exposure Points (3 methods)
+
+```yaml
+status: "ALREADY SOLVED — no changes recommended"
+
+points:
+  - name: "discovered_variables property"
+    return_type: "tuple[Any, ...]"
+    current_protection: "✅ Tuple immutable by type; no copy needed"
+    recommendation: "KEEP AS-IS (no change)"
+    
+  - name: "detected_features property"
+    return_type: "FeaturesContext (dict)"
+    current_protection: "✅ copy.deepcopy() protects caller"
+    recommendation: "KEEP AS-IS; Phase 2 may optimize (no deepcopy if frozen)"
+    
+  - name: "scan_metadata property"
+    return_type: "ScanMetadata (dict)"
+    current_protection: "✅ copy.deepcopy() protects caller"
+    recommendation: "KEEP AS-IS; Phase 2 may optimize (no deepcopy if frozen)"
+
+overall: "CATEGORY C is NOT BLOCKED; already well-protected"
+```
+
+---
+
+## Phase 1 Recommendation Priority Matrix
+
+### MUST DO (Phase 1)
+
+| Field | Effort | Value | Reason |
+|-------|--------|-------|--------|
+| policy_constants | LOW | HIGH | Currently unprotected mutable field (security risk) |
+| scan_metadata | TRIVIAL | HIGH | Highest value driver; foundation for Phase 2 |
+| detected_features | TRIVIAL | MEDIUM-HIGH | Clarifies state lifecycle |
+| scan_errors | TRIVIAL | MEDIUM | Completes consistency |
+
+**Total Phase 1 Effort**: 4-5 days (estimate unchanged; all trivial)  
+**Value**: HIGH (prevents external mutations, clarifies lifecycle, enables Phase 2)
+
+### SHOULD DO (Phase 1)
+
+| Field | Effort | Value | Reason |
+|-------|--------|-------|--------|
+| _di, _role_path, _scan_options, etc. | TRIVIAL | LOW | Documentation only; already safe |
+
+### DEFER (Phase 2+)
+
+| Category | Effort | Value | Reason |
+|----------|--------|-------|--------|
+| Frozen dataclass (scan_metadata, scan_errors) | 8-10 days | VERY HIGH | Removes deepcopy overhead, enforces immutability at runtime |
+| Extended immutability (DIContainer, EventBus) | 15-20 days | MEDIUM | Long-term architectural consistency |
+
+---
+
+## Phase 1 vs. Phase 2: Parallel Execution Analysis
+
+### CAN THEY RUN IN PARALLEL?
+
+**ANSWER**: ❌ NO (implicit sequential dependency)
+
+**RATIONALE**:
+1. Phase 1 changes internals (rename fields, add @property)
+2. Phase 2 assumes Phase 1 succeeded (tests pass, no field access breakage)
+3. If Phase 1 tests fail, Phase 2 design must change (e.g., different builder API)
+4. Better approach: Phase 1 → Review → Merge → Phase 2 starts design
+
+**HOWEVER**: Phase 2 DESIGN can start now (parallel to Phase 1 execution):
+- Frozen dataclass structure
+- Builder API design
+- Backward-compat wrapper prototype
+- Test strategy
+
+**TIMELINE RECOMMENDATION**:
+```
+Week 1-2 (NOW):
+  ├─ Phase 1 implementation (4-5 days)
+  ├─ Phase 1 testing (1 day)
+  ├─ Phase 1 PR review (1 day)
+  └─ [PARALLEL] Phase 2 design + prototype (concurrent, non-blocking)
+
+Week 3-6:
+  ├─ Phase 1 merged ✅
+  ├─ Phase 2 implementation (8-10 days)
+  └─ Phase 2 testing (2 days)
+```
+
+**KEY**: Do not merge Phase 2 until Phase 1 is stable in production (1-2 release cycles).
+
+---
+
+## Test Strategy: What Must Pass
+
+### Phase 1 Test Scope
+
+#### 1.1: Backward Compatibility (MUST PASS)
+
+```yaml
+test_category: "Backward Compatibility"
+description: "Prove Phase 1 doesn't break public API"
+
+test_cases:
+  - name: "test_scanner_context_public_properties_accessible"
+    scope: "Verify @property interface works"
+    example: |
+      context = ScannerContext(...)
+      assert hasattr(context, 'discovered_variables')
+      assert hasattr(context, 'detected_features')
+      assert hasattr(context, 'scan_metadata')
+    expected_result: "✅ All properties accessible"
+
+  - name: "test_scanner_context_returned_values_correct_type"
+    scope: "Verify types match prior expectations"
+    example: |
+      context.orchestrate_scan()
+      assert isinstance(context.discovered_variables, tuple)
+      assert isinstance(context.detected_features, dict)
+      assert isinstance(context.scan_metadata, dict)
+    expected_result: "✅ Types unchanged"
+
+  - name: "test_scanner_context_no_direct_field_access_possible"
+    scope: "Verify name mangling prevents external access"
+    example: |
+      context = ScannerContext(...)
+      with pytest.raises(AttributeError):
+          _ = context._discovered_variables
+      # Note: context._ScannerContext__discovered_variables COULD work,
+      # but signals violation of convention; test allows it but documents
+    expected_result: "✅ Name mangling enforced; convention clear"
+
+measurement: "0% API breakage (existing tests pass)"
+pass_threshold: "✅ MUST be 100% (all existing tests pass)"
+```
+
+#### 1.2: Immutability Enforcement (MUST PASS)
+
+```yaml
+test_category: "Immutability Enforcement"
+description: "Prove Phase 1 prevents external mutations"
+
+test_cases:
+  - name: "test_scanner_context_fields_read_only"
+    scope: "Verify cannot assign to properties"
+    example: |
+      context = ScannerContext(...)
+      with pytest.raises(AttributeError):
+          context.discovered_variables = ()
+      with pytest.raises(AttributeError):
+          context.scan_metadata = {}
+    expected_result: "✅ @property blocks assignment"
+
+  - name: "test_scanner_context_defensive_copies_prevent_mutation"
+    scope: "Verify returned data can't mutate internal state"
+    example: |
+      context = ScannerContext(...)
+      context.orchestrate_scan()
+      
+      # Mutate returned metadata
+      metadata = context.scan_metadata
+      metadata["scan_degraded"] = True
+      
+      # Internal state unchanged
+      fresh = context.scan_metadata
+      assert fresh.get("scan_degraded") == False (original value)
+    expected_result: "✅ Deepcopy protects internal state"
+
+  - name: "test_scanner_context_policy_constants_read_only"
+    scope: "Verify policy_constants cannot be reassigned"
+    example: |
+      # Build context with policy bundle
+      context = ScannerContext(..., scan_options={"prepared_policy_bundle": ...})
+      original = context.policy_constants
+      
+      with pytest.raises(AttributeError):
+          context.policy_constants = different_constants
+    expected_result: "✅ policy_constants read-only"
+
+measurement: "0 mutations succeed; all attempts blocked"
+pass_threshold: "✅ MUST be 100% (no external mutations possible)"
+```
+
+#### 1.3: Internal Consistency (MUST PASS)
+
+```yaml
+test_category: "Internal Consistency"
+description: "Prove Phase 1 doesn't break orchestrate_scan() flow"
+
+test_cases:
+  - name: "test_orchestrate_scan_internal_state_transitions"
+    scope: "Verify field assignments still work internally"
+    example: |
+      context = ScannerContext(...)
+      
+      # orchestrate_scan() should:
+      # 1. Reset fields to empty
+      # 2. Run discovery → populate discovered_variables
+      # 3. Run detection → populate detected_features
+      # 4. Build metadata → assign scan_metadata
+      
+      result = context.orchestrate_scan()
+      
+      assert context.discovered_variables != ()  # populated
+      assert context.detected_features != {}     # populated
+      assert context.scan_metadata is not None   # complete
+    expected_result: "✅ orchestrate_scan() flow unchanged"
+
+  - name: "test_orchestrate_scan_error_handling_still_works"
+    scope: "Verify error recording doesn't break"
+    example: |
+      # Inject a phase failure
+      context = ScannerContext(...with error)
+      result = context.orchestrate_scan()
+      
+      metadata = context.scan_metadata
+      assert metadata.get("scan_degraded") == True
+      assert len(metadata.get("scan_errors", [])) > 0
+    expected_result: "✅ Error tracking unchanged"
+
+measurement: "All orchestrate_scan() phases complete successfully"
+pass_threshold: "✅ MUST be 100% (no regressions)"
+```
+
+#### 1.4: Performance (SHOULD PASS)
+
+```yaml
+test_category: "Performance"
+description: "Verify Phase 1 doesn't degrade performance"
+
+test_cases:
+  - name: "test_scanner_context_property_access_overhead"
+    scope: "Measure deepcopy overhead of returned dicts"
+    example: |
+      context = ScannerContext(...).orchestrate_scan()
+      
+      # Baseline: direct dict access (Phase 0)
+      import timeit
+      old_time = timeit.timeit(lambda: context._scan_metadata, number=10000)
+      
+      # Phase 1: property + deepcopy
+      new_time = timeit.timeit(lambda: context.scan_metadata, number=10000)
+      
+      # Overhead should be <10% (deepcopy is slow but acceptable)
+      overhead_pct = (new_time - old_time) / old_time * 100
+      assert overhead_pct < 10.0  # Allow 10% overhead
+    expected_result: "✅ <10% performance impact"
+
+pass_threshold: "⚠️ SHOULD be <10% overhead; warn if 10-20%, fail if >20%"
+```
+
+### Phase 2 Test Scope (PREPARATORY)
+
+```yaml
+note: "Phase 2 tests NOT required for Phase 1 closure, but should be designed now"
+
+test_cases:
+  - name: "test_frozen_scan_metadata_immutable_at_runtime"
+    description: "Verify frozen dataclass raises FrozenInstanceError"
+    future_phase: "Phase 2"
+
+  - name: "test_scan_metadata_builder_chain_correctness"
+    description: "Verify builder accumulates values correctly"
+    future_phase: "Phase 2"
+
+  - name: "test_compat_wrapper_supports_legacy_code"
+    description: "Verify legacy dict-style access works via wrapper"
+    future_phase: "Phase 2"
+```
+
+### Test Execution Plan
+
+```yaml
+phase_1_test_execution:
+  step_1: "Run existing test suite (regression baseline)"
+  step_2: "Add Phase 1 immutability tests (16+ new tests)"
+  step_3: "Run full test suite + Phase 1 tests together"
+  step_4: "Measure coverage (should be ≥95% for scanner_context.py)"
+  step_5: "Performance benchmark (property access overhead)"
+  step_6: "Code review + lint check"
+
+success_criteria:
+  - "✅ 100% existing tests pass (zero regressions)"
+  - "✅ All 16+ Phase 1 immutability tests pass"
+  - "✅ Coverage ≥95% for scanner_context.py"
+  - "✅ Performance overhead <10%"
+  - "✅ Linter clean (ruff, black, mypy)"
+
+failure_criteria:
+  - "❌ Any existing test fails (regression)"
+  - "❌ Any Phase 1 test fails (immutability not enforced)"
+  - "❌ Coverage drops below 90%"
+  - "❌ Performance overhead >20%"
+```
+
+---
+
+## Phase 1: Go/No-Go Decision Tree
+
+```
+┌─ Is Phase 1 scope clear?
+│  ├─ YES → Continue
+│  └─ NO → HOLD (clarify with team)
+│
+├─ Is risk acceptable (≥0.90 confidence)?
+│  ├─ YES (0.92 confidence) → Continue
+│  └─ NO → RECONSIDER (gather more data)
+│
+├─ Can we execute in 4-5 days?
+│  ├─ YES → Continue
+│  └─ NO → HOLD (schedule for next sprint)
+│
+├─ Do we have test coverage strategy?
+│  ├─ YES (3 test categories defined) → Continue
+│  └─ NO → HOLD (design tests first)
+│
+├─ Phase 0 blockers resolved?
+│  ├─ NO BLOCKERS FOUND → ✅ PROCEED
+│  └─ BLOCKERS FOUND → HOLD (list blockers)
+│
+└─ DECISION: ✅ PROCEED WITH PHASE 1
+```
+
+---
+
+## Final Verdict
+
+### RECOMMENDATION: ✅ PROCEED WITH PHASE 1
+
+| Criterion | Assessment | Confidence |
+|-----------|-----------|-----------|
+| **Severity Assessment** | MEDIUM-HIGH (policy_constants & scan_metadata are risky) | 0.92 |
+| **Effort Estimate** | LOW (4-5 days, all trivial changes) | 0.88 |
+| **Value Delivered** | HIGH (prevents external mutations, clarifies lifecycle) | 0.90 |
+| **Risk if we don't do it** | MEDIUM (state corruption possible if orchestrate_scan() reused) | 0.85 |
+| **Risk of Phase 1 itself** | LOW (no logic changes, defensive copies unchanged) | 0.92 |
+| **Test Strategy** | ADEQUATE (3 test categories cover backward compat + immutability) | 0.88 |
+| **Integration Impact** | MINIMAL (refactor only; public API unchanged) | 0.95 |
+| **Overall Go/No-Go** | ✅ PROCEED | **0.90** |
+
+### BLOCKING ISSUES
+
+**COUNT**: 0  
+**STATUS**: ✅ CLEAR TO PROCEED
+
+### WARNINGS (Non-Blocking)
+
+| Warning | Severity | Mitigation |
+|---------|----------|-----------|
+| Test breakage on `._field` access | ⚠️ MEDIUM | Run grep search for test fixtures; update as needed (estimate: 2-4 hours) |
+| policy_constants currently unprotected | ⚠️ MEDIUM | Phase 1 fixes this; prioritize in PR |
+| Phase 2 requires backward-compat wrapper | ℹ️ LOW | Design now (parallel to Phase 1) to avoid surprises |
+| Performance impact from deepcopy | ℹ️ LOW | Benchmark Phase 1; Phase 2 may optimize by removing deepcopy |
+
+### SUCCESS CRITERIA FOR PHASE 1 CLOSURE
+
+- [ ] All 5 internal fields renamed to `__` prefix
+- [ ] All 5 fields exposed via @property read-only access
+- [ ] Zero direct `._field` access remaining in codebase (linter enforced)
+- [ ] ✅ 100% existing tests pass (zero regressions)
+- [ ] ✅ 16+ Phase 1 immutability tests added and passing
+- [ ] ✅ Coverage ≥95% for scanner_context.py
+- [ ] ✅ Performance overhead <10%
+- [ ] ✅ Docstrings updated (mention name mangling, @property interface)
+- [ ] ✅ PR merged with code review sign-off
+
+---
+
+## Phase 2 Recommendation
+
+**STATUS**: APPROVED FOR DESIGN, BLOCKED ON PHASE 1 SUCCESS
+
+```yaml
+phase_2_status: "APPROVED FOR DESIGN (now), BLOCKED ON IMPLEMENTATION (after Phase 1 stable)"
+
+approval:
+  - "Phase 2 scope is justified (frozen dataclass for scan_metadata)"
+  - "Effort estimate is realistic (8-10 days)"
+  - "Backward-compat strategy is sound (wrapper + deprecation period)"
+  - "Value is high (eliminates deepcopy overhead, enforces immutability at runtime)"
+
+execution_gate:
+  - Phase 1 must be merged and stable in main branch
+  - Phase 1 must have 1-2 release cycles in production (no regressions reported)
+  - Phase 2 design review and stakeholder sign-off required
+
+design_tasks_for_now:
+  - [ ] Finalize frozen dataclass structure (TypedDict → @dataclass(frozen=True))
+  - [ ] Design ScanMetadataBuilder API (finalize method signatures)
+  - [ ] Build backward-compat wrapper prototype
+  - [ ] Plan deprecation communication (release notes, migration guide)
+  - [ ] Estimate Phase 2 test coverage (frozen enforcement + builder chains)
+```
+
+---
+
+## Recommendations Summary
+
+### ✅ DO NOW (Phase 1)
+
+1. **Rename 5 internal fields to `__` prefix** (4-5 days)
+   - `_discovered_variables` → `__discovered_variables`
+   - `_detected_features` → `__detected_features`
+   - `_scan_metadata` → `__scan_metadata`
+   - `_scan_errors` → `__scan_errors`
+   - `policy_constants` → `__policy_constants` (FIX THIS IMMEDIATELY — currently unprotected)
+
+2. **Add @property read-only accessors** (1-2 hours)
+   - All 5 properties return same types as before
+   - Deepcopy continues for dict-based properties
+   - Tuple return unchanged
+
+3. **Add immutability enforcement tests** (1 day)
+   - 16+ tests covering backward compatibility, immutability, error handling
+
+4. **Run full regression test suite** (1 day)
+   - Measure coverage, performance, linter compliance
+
+### 🔄 DO NEXT (Parallel to Phase 1 execution)
+
+1. **Design Phase 2: Frozen Dataclass** (2-3 days design)
+   - Frozen @dataclass(ScanMetadata) structure
+   - Builder API finalization
+   - Backward-compat wrapper prototype
+
+### ⏳ DO LATER (After Phase 1 stable)
+
+1. **Implement Phase 2: Frozen Dataclass** (8-10 days, post Phase 1 production validation)
+2. **Extend to DIContainer, EventBus** (Phase 3+, Q3/Q4 2026)
+
+---
+
+## Confidence Assessment
+
+```
+Confidence in Phase 1 Proceeding: 0.90 (HIGH)
+
+Basis:
+  - 0.92 confidence in Phase 0 findings (strong)
+  - 0 external mutation sites found (strong)
+  - Single-use design verified (strong)
+  - Defensive copies already in place (strong)
+  - Q2 precedents established (MP1 pattern, PolicyManager) (strong)
+  - Risk mitigation strategy sound (moderate)
+  - Test strategy adequate (moderate)
+  - Effort estimate realistic (moderate)
+  
+Uncertainty Factors:
+  - Grep search could miss edge cases (-5% confidence)
+  - Test fixture updates could be larger than estimated (-3% confidence)
+  - Integration with other Q3 initiatives unclear (-2% confidence)
+  
+Final Score: 0.90 (HIGH CONFIDENCE → PROCEED)
+```
+
+---
+
+## Report Metadata
+
+- **Grader**: Grader-Q3Init4
+- **Model**: GPT-4o (Tier 0 FREE)
+- **Analysis Duration**: ~2 hours
+- **Files Reviewed**: 8 (scanner_context.py, tests, DIContainer, MP1 reference, etc.)
+- **Confidence Score**: 0.90
+- **Status**: ✅ COMPLETE — READY FOR PHASE 1 EXECUTION
+- **Next Step**: Assign implementation to developer; begin Phase 2 design in parallel
+
+---
+
+## Appendix: Key Assumptions Validated
+
+| Assumption | Status | Evidence |
+|-----------|--------|----------|
+| "0 external mutation sites exist" | ✅ VALIDATED | Grep search returned 0 matches for `context\._` outside scanner_context.py |
+| "Single-use design prevents reuse bugs" | ✅ VALIDATED | Docstring explicitly discourages reuse; no production reuse found |
+| "Defensive copies protect callers" | ✅ VALIDATED | deepcopy() applied to detected_features and scan_metadata |
+| "DIContainer isolation prevents leaks" | ✅ VALIDATED | clone_scan_options() ensures snapshot semantics |
+| "Phase 1 is low-risk refactor" | ✅ VALIDATED | Only renaming + @property; no logic changes |
+| "Phase 2 depends on Phase 1 success" | ✅ VALIDATED | Frozen dataclass assumes Phase 1 tests pass first |
+| "MP1 pattern sets precedent" | ✅ VALIDATED | marker-prefix immutability enforced; similar pattern applies |
+
+---
+
+**GRADER SIGN-OFF**: Grader-Q3Init4  
+**DATE**: May 9, 2026 19:30 UTC  
+**VERDICT**: ✅ **PROCEED WITH PHASE 1**  
+**CONFIDENCE**: 0.90 (HIGH)

@@ -1,0 +1,44 @@
+plan_id: plugin-implementation-20260511
+cycle: plugin-implementation-20260511-c2
+phase: 5
+worker: Builder-Abstraction
+tier_selected: BALANCED (1x)
+tier_reason: Phase 5 builder escalation criteria met (DI + ownership + cross-layer seam changes).
+findings_closed:
+  - id: C2-FIND-01
+    status: closed
+    note: Registry-owned platform default providers now supply fallback policy instances, so defaults no longer owns a hardcoded Ansible fallback selection path.
+  - id: C2-FIND-02
+    status: closed
+    note: DI now exposes deterministic platform-bundle registration and helper-backed test hooks for canonical override keys and test-scoped default-registry replacement.
+files_changed:
+  - src/prism/scanner_plugins/registry.py
+  - src/prism/scanner_plugins/bootstrap.py
+  - src/prism/scanner_plugins/defaults.py
+  - src/prism/scanner_core/di.py
+  - src/prism/scanner_core/di_helpers.py
+  - src/prism/tests/core/test_defaults.py
+  - src/prism/tests/core/test_di_helpers.py
+  - src/prism/tests/core/test_di_registry_resolution.py
+  - src/prism/tests/plugins/test_t2_04_stateless_marker.py
+test_commands:
+  - pytest -q src/prism/tests/core/test_defaults.py src/prism/tests/core/test_di_helpers.py src/prism/tests/core/test_di_registry_resolution.py src/prism/tests/plugins/test_t2_04_stateless_marker.py
+  - ruff check src/prism
+  - black --check src/prism
+  - tox -e typecheck
+test_results:
+  - command: pytest -q src/prism/tests/core/test_defaults.py src/prism/tests/core/test_di_helpers.py src/prism/tests/core/test_di_registry_resolution.py src/prism/tests/plugins/test_t2_04_stateless_marker.py
+    result: pass
+    detail: 66 passed
+lint_type_results:
+  - command: ruff check src/prism
+    result: pass
+  - command: black --check src/prism
+    result: pass
+  - command: tox -e typecheck
+    result: pass
+rollback_boundary: Revert the registry default-provider map, bootstrap registration hook, DI helper surfaces, and the four focused test additions together; no runtime call sites outside the owned file set were changed.
+residual_risks:
+  - Platform-specific default providers are registered only for the built-in supported platform path today; future non-Ansible platforms still need their own provider registrations when executable defaults are introduced.
+  - Existing direct string-key uses of DI mock and factory override names remain supported for backward compatibility; the new helpers document the canonical keys without rewriting every consumer.
+timestamp_utc: 2026-05-12T01:17:50Z

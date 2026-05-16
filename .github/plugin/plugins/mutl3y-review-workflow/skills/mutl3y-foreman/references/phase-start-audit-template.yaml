@@ -1,0 +1,47 @@
+# Phase-start audit template
+# Save to one of:
+# - docs/plan/<plan-id>/mutl3y-artifacts/phase0/phase-start-audit.yaml
+# - docs/plan/<plan-id>/mutl3y-artifacts/phase5/wave-<N>-start-audit.yaml
+
+status: ok # ok | stall
+phase: P0 # P0 | P5
+cycle: gNN
+wave: null # null for P0, integer for P5
+expected_artifacts:
+  - docs/plan/<plan-id>/mutl3y-artifacts/phase0/learning-context.yaml
+present_artifacts: []
+missing_artifacts: []
+plan_pointer_matches_artifacts: true
+next_dispatch_targets:
+  - Scout-Typing
+  - Scout-Ownership
+  - Scout-ControlFlow
+  - Scout-Graph
+owned_file_sets: []
+notes: >-
+  Record why phase entry is valid, or why it is stalled.
+
+# P5 example:
+# status: ok
+# phase: P5
+# cycle: gNN
+# wave: 3
+# expected_artifacts:
+#   - docs/plan/<plan-id>/mutl3y-artifacts/phase5/wave-3-plan.yaml
+# present_artifacts:
+#   - docs/plan/<plan-id>/mutl3y-artifacts/phase5/wave-3-plan.yaml
+# missing_artifacts: []
+# plan_pointer_matches_artifacts: true
+# next_dispatch_targets:
+#   - Builder-ControlFlow
+#   - Builder-Ownership
+# owned_file_sets:
+#   - agent_name: Builder-ControlFlow
+#     files:
+#       - src/prism/scanner_kernel/orchestrator.py
+#       - src/prism/api_layer/collection.py
+#   - agent_name: Builder-Ownership
+#     files:
+#       - src/prism/scanner_plugins/defaults.py
+#       - src/prism/scanner_io/loader.py
+# notes: "Wave plan is present, ownership is disjoint, and the plan pointer matches repo state."

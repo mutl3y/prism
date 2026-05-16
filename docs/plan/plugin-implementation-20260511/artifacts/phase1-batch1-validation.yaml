@@ -1,0 +1,16 @@
+timestamp: "2026-05-11T16:22:00Z"
+phase: "phase_1"
+wave: 1
+worker: "Builder-Typing"
+tier_selected: "tier_1_low_cost"
+model_selected: "GPT-5.4 mini"
+validation:
+  command: ".venv/bin/pytest -q <16 moved file paths>"
+  result: "pass"
+  passed: 213
+  failed: 0
+  skipped: 0
+  runtime_seconds: 0.64
+summary:
+  - "Moved 16 files into core/plugins/ansible/integration targets."
+  - "No test body edits required for this batch."

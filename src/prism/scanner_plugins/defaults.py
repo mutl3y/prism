@@ -7,6 +7,10 @@ from typing import TYPE_CHECKING, Any, Callable, NoReturn, Protocol, cast
 from collections.abc import Mapping
 
 from prism.errors import PrismRuntimeError
+from prism.scanner_plugins.bootstrap import (
+    DEFAULT_SUPPORTED_PLATFORM_KEY,
+    describe_platform_registration_state,
+)
 from prism.scanner_plugins.ansible.default_policies import (
     AnsibleDefaultTaskAnnotationPolicyPlugin,
     AnsibleDefaultTaskLineParsingPolicyPlugin,
@@ -138,17 +142,27 @@ def _guard_platform_specific_non_strict_fallback(
     selected_platform_key = _resolve_selected_platform_key(di=di, registry=registry)
     if selected_platform_key in (None, fallback_platform_key):
         return
+    assert selected_platform_key is not None
+
+    platform_registration_state = "unregistered"
+    if registry is not None:
+        platform_registration_state = describe_platform_registration_state(
+            registry,
+            platform_key=selected_platform_key,
+        )
 
     raise PrismRuntimeError(
         code="malformed_plugin_shape",
         category="runtime",
         message=(
             f"Non-strict {plugin_kind} fallback would substitute "
-            f"{fallback_platform_key} defaults for platform {selected_platform_key}."
+            f"{fallback_platform_key} defaults for platform {selected_platform_key}. "
+            f"Platform registration state is {platform_registration_state}."
         ),
         detail={
             "plugin_kind": plugin_kind,
             "selected_platform_key": selected_platform_key,
+            "platform_registration_state": platform_registration_state,
             "fallback_platform_key": fallback_platform_key,
             "fallback_plugin_type": type(fallback_plugin).__name__,
         },
@@ -205,6 +219,18 @@ _TASK_ANNOTATION_REQUIRED_CALLABLES = (
 _singleton_invariants_validated = False
 
 
+def builtin_platform_default_providers() -> dict[str, Callable[[], Any]]:
+    """Return registry-owned default-provider factories for built-in platforms."""
+    return {
+        "task_line_parsing_policy": lambda: _TASK_LINE_PARSING_FALLBACK,
+        "task_annotation_policy": lambda: _TASK_ANNOTATION_FALLBACK,
+        "task_traversal_policy": lambda: _TASK_TRAVERSAL_FALLBACK,
+        "variable_extractor_policy": lambda: _VARIABLE_EXTRACTOR_FALLBACK,
+        "yaml_parsing_policy": lambda: _YAML_PARSING_FALLBACK,
+        "jinja_analysis_policy": lambda: _JINJA_ANALYSIS_FALLBACK,
+    }
+
+
 def _validate_singleton_invariants() -> None:
     """Validate PLUGIN_IS_STATELESS invariant for module-level fallback singletons.
 
@@ -233,6 +259,34 @@ def _validate_singleton_invariants() -> None:
         "Singleton invariants validated for %d fallback plugins",
         len(_FALLBACK_SINGLETONS),
     )
+
+
+def _resolve_platform_default_plugin(
+    *,
+    plugin_kind: str,
+    default_plugin: Any,
+    default_platform_key: str | None,
+    di: object | None,
+    registry: "PluginRegistry | None",
+) -> tuple[str | None, Any]:
+    candidate_platform_keys: list[str] = []
+    selected_platform_key = _resolve_selected_platform_key(di=di, registry=registry)
+    if selected_platform_key is not None:
+        candidate_platform_keys.append(selected_platform_key)
+    if (
+        default_platform_key is not None
+        and default_platform_key not in candidate_platform_keys
+    ):
+        candidate_platform_keys.append(default_platform_key)
+
+    get_default_provider = getattr(registry, "get_platform_default_provider", None)
+    if registry is not None and callable(get_default_provider):
+        for platform_key in candidate_platform_keys:
+            provider = get_default_provider(platform_key, plugin_kind)
+            if provider is not None:
+                return platform_key, provider()
+
+    return default_platform_key, default_plugin
 
 
 def _raise_malformed_plugin_shape_error(
@@ -319,10 +373,12 @@ def _fallback_or_raise_plugin_construction_error(
             registry=registry,
         )
         logger.warning(
-            "Failed to construct %s plugin in non-strict mode; falling back to %s. %s",
+            "Failed to construct %s plugin in non-strict mode; falling back to %s. "
+            "Exception: %s (from %s)",
             plugin_kind,
             type(fallback_plugin).__name__,
-            exc,
+            type(exc).__name__,
+            type(exc).__module__,
         )
         return fallback_plugin
 
@@ -529,6 +585,14 @@ def resolve_task_line_parsing_policy_plugin(
     strict_mode: bool = True,
     registry: "PluginRegistry | None" = None,
 ) -> PreparedTaskLineParsingPolicy:
+    registry_obj = _resolve_registry(di, registry)
+    fallback_platform_key, fallback_plugin = _resolve_platform_default_plugin(
+        plugin_kind="task_line_parsing_policy",
+        default_plugin=_TASK_LINE_PARSING_FALLBACK,
+        default_platform_key=DEFAULT_SUPPORTED_PLATFORM_KEY,
+        di=di,
+        registry=registry_obj,
+    )
     return _resolve_plugin_with_precedence(
         di=di,
         di_factory_name="factory_task_line_parsing_policy_plugin",
@@ -542,11 +606,12 @@ def resolve_task_line_parsing_policy_plugin(
             "INCLUDE_VARS_KEYS",
             "SET_FACT_KEYS",
             "TASK_BLOCK_KEYS",
+            "TASK_META_KEYS",
         ),
-        fallback_plugin=_TASK_LINE_PARSING_FALLBACK,
+        fallback_plugin=fallback_plugin,
         strict_mode=strict_mode,
-        registry=registry,
-        fallback_platform_key="ansible",
+        registry=registry_obj,
+        fallback_platform_key=fallback_platform_key,
     )
 
 
@@ -556,6 +621,14 @@ def resolve_task_annotation_policy_plugin(
     strict_mode: bool = True,
     registry: "PluginRegistry | None" = None,
 ) -> PreparedTaskAnnotationPolicy:
+    registry_obj = _resolve_registry(di, registry)
+    fallback_platform_key, fallback_plugin = _resolve_platform_default_plugin(
+        plugin_kind="task_annotation_policy",
+        default_plugin=_TASK_ANNOTATION_FALLBACK,
+        default_platform_key=DEFAULT_SUPPORTED_PLATFORM_KEY,
+        di=di,
+        registry=registry_obj,
+    )
     return _resolve_plugin_with_precedence(
         di=di,
         di_factory_name="factory_task_annotation_policy_plugin",
@@ -564,10 +637,10 @@ def resolve_task_annotation_policy_plugin(
         required_callables=_TASK_ANNOTATION_REQUIRED_CALLABLES,
         any_of_callables=(),
         required_attributes=(),
-        fallback_plugin=_TASK_ANNOTATION_FALLBACK,
+        fallback_plugin=fallback_plugin,
         strict_mode=strict_mode,
-        registry=registry,
-        fallback_platform_key="ansible",
+        registry=registry_obj,
+        fallback_platform_key=fallback_platform_key,
     )
 
 
@@ -577,6 +650,14 @@ def resolve_task_traversal_policy_plugin(
     strict_mode: bool = True,
     registry: "PluginRegistry | None" = None,
 ) -> PreparedTaskTraversalPolicy:
+    registry_obj = _resolve_registry(di, registry)
+    fallback_platform_key, fallback_plugin = _resolve_platform_default_plugin(
+        plugin_kind="task_traversal_policy",
+        default_plugin=_TASK_TRAVERSAL_FALLBACK,
+        default_platform_key=DEFAULT_SUPPORTED_PLATFORM_KEY,
+        di=di,
+        registry=registry_obj,
+    )
     return _resolve_plugin_with_precedence(
         di=di,
         di_factory_name="factory_task_traversal_policy_plugin",
@@ -593,10 +674,10 @@ def resolve_task_traversal_policy_plugin(
         ),
         any_of_callables=(),
         required_attributes=(),
-        fallback_plugin=_TASK_TRAVERSAL_FALLBACK,
+        fallback_plugin=fallback_plugin,
         strict_mode=strict_mode,
-        registry=registry,
-        fallback_platform_key="ansible",
+        registry=registry_obj,
+        fallback_platform_key=fallback_platform_key,
     )
 
 
@@ -606,6 +687,14 @@ def resolve_variable_extractor_policy_plugin(
     strict_mode: bool = True,
     registry: "PluginRegistry | None" = None,
 ) -> PreparedVariableExtractorPolicy:
+    registry_obj = _resolve_registry(di, registry)
+    fallback_platform_key, fallback_plugin = _resolve_platform_default_plugin(
+        plugin_kind="variable_extractor_policy",
+        default_plugin=_VARIABLE_EXTRACTOR_FALLBACK,
+        default_platform_key=DEFAULT_SUPPORTED_PLATFORM_KEY,
+        di=di,
+        registry=registry_obj,
+    )
     return _resolve_plugin_with_precedence(
         di=di,
         di_factory_name="factory_variable_extractor_policy_plugin",
@@ -614,10 +703,10 @@ def resolve_variable_extractor_policy_plugin(
         required_callables=("collect_include_vars_files",),
         any_of_callables=(),
         required_attributes=(),
-        fallback_plugin=_VARIABLE_EXTRACTOR_FALLBACK,
+        fallback_plugin=fallback_plugin,
         strict_mode=strict_mode,
-        registry=registry,
-        fallback_platform_key="ansible",
+        registry=registry_obj,
+        fallback_platform_key=fallback_platform_key,
     )
 
 

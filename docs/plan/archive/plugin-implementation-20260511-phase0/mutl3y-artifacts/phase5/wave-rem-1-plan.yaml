@@ -1,0 +1,31 @@
+cycle: g84
+phase: P5
+wave: rem-1
+objective: Close waves 5, 7, and 8 via delegated disjoint builders.
+builders:
+  - name: Builder-PluginBoundary
+    agent: mutl3y-builder
+    scope:
+      - src/prism/scanner_plugins/ansible/extract_adapter.py
+      - src/prism/scanner_plugins/ansible/extract_utils.py
+    target_tests:
+      - src/prism/tests/test_plugin_extract_boundary.py
+  - name: Builder-ScanIsolation
+    agent: mutl3y-builder
+    scope:
+      - src/prism/scanner_core/di.py
+      - src/prism/scanner_core/scan_request.py
+    target_tests:
+      - src/prism/tests/test_real_world_scans.py::TestConcurrentMultiRoleScan::test_multiple_roles_sequential_scans
+  - name: Builder-ParityEnvelope
+    agent: mutl3y-builder
+    scope:
+      - src/prism/scanner_core/scanner_context.py
+    target_tests:
+      - src/prism/tests/test_scanner_parity.py::test_w2_t05_scanner_context_error_envelope_parity
+barrier:
+  required_summary_artifacts:
+    - docs/plan/g84-remediation-mutl3y-cycle-20260509/mutl3y-artifacts/phase5/Builder-PluginBoundary-summary.md
+    - docs/plan/g84-remediation-mutl3y-cycle-20260509/mutl3y-artifacts/phase5/Builder-ScanIsolation-summary.md
+    - docs/plan/g84-remediation-mutl3y-cycle-20260509/mutl3y-artifacts/phase5/Builder-ParityEnvelope-summary.md
+  next_phase_on_green: P6

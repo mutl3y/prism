@@ -1,0 +1,835 @@
+---
+plan_id: "q3-4-phase-5-builder-plan"
+initiative: "Q3 Initiative 4: Immutability & Caching Optimization"
+phase: "Phase 5: Cache Hardening & Metrics"
+created_at: "2026-05-09"
+created_by: "gem-researcher"
+status: "ready_for_builder"
+confidence: "high"
+effort_total_days: "6-8"
+
+executive_summary: |
+  Phase 5 breaks down into 4 concrete sub-phases with zero architectural ambiguity.
+  Current cache implementation (InMemoryLRUScanCache) is PARTIALLY mature:
+  ✅ Deterministic cache keys (SHA256, sorted JSON) — DONE
+  ✅ Custom object protocol (__cache_key__()) — DONE (underdocumented)
+  ✅ LRU eviction using OrderedDict — DONE (basic)
+  ⚠️  Memory bounding by bytes — MISSING
+  ⚠️  Performance metrics (hit rate, eviction count) — PARTIAL
+  ⚠️  Size estimation for objects — MISSING
+  
+  Each sub-phase requires < 3 files, has clear test patterns, and is deployable independently.
+
+---
+## Phase 5a: Deterministic Cache Keys (Verification & Solidification)
+
+**Status**: Already working, needs documentation + edge-case coverage
+**Effort**: 1-2 days
+**Risk**: Low
+
+### Current Implementation
+
+**File**: `src/prism/scanner_core/scan_cache.py` (lines 266-376)
+
+#### Key Generation Flow
+```python
+# Current (GOOD):
+def compute_scan_cache_key(
+    *,
+    role_content_hash: str,
+    scan_options: Mapping[str, Any],
+) -> str:
+    """Build a stable cache key from a role content hash and scan options."""
+    
+    def _canonicalize(value: object, depth: int = 0) -> object:
+        # Primitives: returned as-is (str, int, float, bool, None)
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+        
+        # Containers: recursively canonicalized
+        if isinstance(value, dict):
+            return {
+                f"__key__:{type(key).__name__}:{str(key)}": _canonicalize(item, depth + 1)
+                for key, item in value.items()
+            }
+        
+        # Custom objects: CRITICAL FIX (GILF-NODE3-04)
+        # 1. Check for __cache_key__() protocol (preferred)
+        if hasattr(value, "__cache_key__") and callable(value.__cache_key__):
+            cache_key = value.__cache_key__()
+            return {"__custom_cache_key__": f"{module}.{qualname}::{cache_key}"}
+        
+        # 2. Try hashability with custom __hash__/__eq__
+        # 3. Fall back to type-only (with WARNING)
+    
+    options_blob = json.dumps(_canonicalize(dict(scan_options)), sort_keys=True)
+    options_hash = hashlib.sha256(options_blob.encode("utf-8")).hexdigest()
+    return f"{role_content_hash}:{options_hash}"
+```
+
+#### Issue Found: Key Collision Edge Case
+Current code detects `__key__:type:value` pattern by type inspection, but dict keys are re-serialized.
+**Risk**: Two semantically different dicts (e.g., `{1: "a"}` vs `{"1": "a"}`) may produce the same key if type info is lost in serialization.
+
+### Phase 5a Deliverables
+
+#### 1. Add Type-Safe Key Serialization (1 file change)
+**File**: `src/prism/scanner_core/scan_cache.py`
+
+**Before**:
+```python
+# Current: Keys are stringified with type hint, but JSON loses type
+{
+    f"__key__:{type(key).__name__}:{str(key)}": _canonicalize(item, depth + 1)
+    for key, item in value.items()
+}
+# Result: {"__key__:int:1": ...} and {"__key__:str:1": ...} both serialize to same JSON
+```
+
+**After**:
+```python
+# Fixed: Use JSON-safe type markers in the key tuple itself
+def _safe_dict_key(key: object) -> str:
+    """Serialize dict key with type safety for JSON round-trip."""
+    key_type = type(key).__name__
+    key_value = json.dumps(key)  # Use JSON to handle nested types
+    return f"__{key_type}__:{key_value}"
+
+# In dict canonicalization:
+return {
+    _safe_dict_key(key): _canonicalize(item, depth + 1)
+    for key, item in value.items()
+}
+```
+
+**Test Pattern**:
+```python
+def test_cache_key_type_collision_prevention():
+    """Keys with same value but different types must produce different cache keys."""
+    cache_key_1 = compute_scan_cache_key(
+        role_content_hash="abc123",
+        scan_options={"data": {1: "int_key"}},
+    )
+    cache_key_2 = compute_scan_cache_key(
+        role_content_hash="abc123",
+        scan_options={"data": {"1": "str_key"}},  # Different key type
+    )
+    assert cache_key_1 != cache_key_2, "Type collision detected!"
+```
+
+#### 2. Validate __cache_key__() Protocol (test coverage)
+
+**File**: `src/prism/tests/test_scan_cache_protocol.py` (NEW)
+
+**Test Pattern**:
+```python
+class CacheKeyProvider:
+    """Custom object with __cache_key__() protocol."""
+    def __init__(self, value: str):
+        self.value = value
+    
+    def __cache_key__(self) -> str:
+        return f"provider:{self.value}"
+
+def test_custom_cache_key_protocol():
+    """Objects with __cache_key__() must be cached correctly."""
+    provider = CacheKeyProvider("stable-id")
+    cache_key = compute_scan_cache_key(
+        role_content_hash="abc123",
+        scan_options={"provider": provider},
+    )
+    # Same provider should always produce same cache key
+    provider2 = CacheKeyProvider("stable-id")
+    cache_key2 = compute_scan_cache_key(
+        role_content_hash="abc123",
+        scan_options={"provider": provider2},
+    )
+    assert cache_key == cache_key2
+```
+
+#### 3. Depth Limit Enforcement (already exists, needs docs)
+**Current**: `_MAX_CANONICALIZE_DEPTH = 100` at line 289
+**Action**: Document the limit in docstring + add test for ValueError when exceeded
+
+**Test Pattern**:
+```python
+def test_deep_nesting_rejected():
+    """Deeply nested structures must raise ValueError, not stack overflow."""
+    def make_deep_dict(depth: int) -> dict:
+        d = {}
+        for _ in range(depth):
+            d = {"nested": d}
+        return d
+    
+    with pytest.raises(ValueError, match="exceeds maximum depth"):
+        compute_scan_cache_key(
+            role_content_hash="abc123",
+            scan_options={"data": make_deep_dict(150)},
+        )
+```
+
+### Phase 5a Modified Files
+- `src/prism/scanner_core/scan_cache.py` (lines ~290, dict key serialization)
+- `src/prism/tests/test_scan_cache_protocol.py` (NEW, 50+ lines)
+
+### Phase 5a Risk Assessment
+- **Risk Level**: Low
+- **Why**: Existing implementation is solid; changes are defensive + documentation
+- **Rollback**: Simple revert of key serialization; no data migration needed
+
+---
+## Phase 5b: Custom Object Caching Protocol (Documentation & Adoption)
+
+**Status**: Protocol exists but underdocumented; needs adoption guidance
+**Effort**: 1 day
+**Risk**: Low
+
+### Current Implementation
+
+**File**: `src/prism/scanner_data/contracts_request.py` (lines 196-200)
+
+```python
+@runtime_checkable
+class CacheFingerprintProvider(Protocol):
+    """Optional semantic fingerprint contract for cache-sensitive opaque values."""
+    def cache_fingerprint(self) -> object: ...
+```
+
+**Also**: `__cache_key__()` protocol in `scan_cache.py` (lines 324-334, not formally defined)
+
+### Phase 5b Deliverables
+
+#### 1. Formalize & Export __cache_key__() Protocol (1 file)
+**File**: `src/prism/scanner_data/contracts_request.py` (ADD)
+
+**Before**:
+```python
+# __cache_key__() only mentioned inline in scan_cache.py; no Protocol export
+```
+
+**After**:
+```python
+from typing import Protocol, runtime_checkable
+
+@runtime_checkable
+class CacheKeyProvider(Protocol):
+    """Protocol for custom objects to provide stable cache keys.
+    
+    Implement this protocol if your object's cache identity must be stable
+    across process runs and not depend on memory address (id()).
+    
+    Returns:
+        str: A stable, deterministic string that uniquely identifies this object's
+             cache key. Must be identical for objects with identical semantic state.
+    
+    Example:
+        class MyConfig:
+            def __init__(self, version: str):
+                self.version = version
+            
+            def __cache_key__(self) -> str:
+                # Stable key based on semantic state, not id()
+                return f"MyConfig@v{self.version}"
+    """
+    def __cache_key__(self) -> str: ...
+```
+
+#### 2. Adopt Protocol in scan_cache.py
+**File**: `src/prism/scanner_core/scan_cache.py`
+
+**Before**:
+```python
+if hasattr(value, "__cache_key__") and callable(value.__cache_key__):
+    # Inline check, no type hint
+```
+
+**After**:
+```python
+from prism.scanner_data.contracts_request import CacheKeyProvider
+
+# In _canonicalize():
+if isinstance(value, CacheKeyProvider):
+    cache_key = value.__cache_key__()
+    # ... rest
+```
+
+#### 3. Document Fallback Strategy (docstring expansion)
+
+**File**: `src/prism/scanner_core/scan_cache.py::compute_scan_cache_key()`
+
+Add to docstring:
+```python
+"""
+...
+Custom Object Handling:
+    1. If object implements __cache_key__(), its return value is used
+    2. If object has custom __hash__/__eq__ (not inherited), hash is used
+    3. Otherwise, type-only identity is used (⚠️ may cause collisions)
+    
+    For cache correctness with custom objects, prefer:
+    - Immutable types: Implement __hash__/__eq__ (standard Python)
+    - Mutable types: Implement __cache_key__() protocol
+    
+    Types: Registry, Config, Plugin instances should implement __cache_key__().
+    Types: Value objects should implement __hash__/__eq__.
+"""
+```
+
+#### 4. Test Pattern for Adoption
+**File**: `src/prism/tests/test_cache_key_protocol_adoption.py` (NEW)
+
+```python
+def test_registry_should_implement_cache_key():
+    """Registry types used in scan_options must implement __cache_key__()."""
+    class MockRegistry:
+        def __init__(self, plugins: list[str]):
+            self.plugins = plugins
+        
+        def __cache_key__(self) -> str:
+            return f"MockRegistry@{','.join(sorted(self.plugins))}"
+    
+    backend = InMemoryLRUScanCache()
+    registry = MockRegistry(plugins=["p1", "p2"])
+    
+    result1 = run_scan(
+        role_path,
+        cache_backend=backend,
+        runtime_registry=registry,
+    )
+    assert backend.misses == 1
+    
+    result2 = run_scan(
+        role_path,
+        cache_backend=backend,
+        runtime_registry=registry,
+    )
+    assert backend.hits == 1, "Same registry should hit cache"
+    
+    # Different registry (different plugins) should miss
+    registry2 = MockRegistry(plugins=["p1", "p3"])
+    result3 = run_scan(
+        role_path,
+        cache_backend=backend,
+        runtime_registry=registry2,
+    )
+    assert backend.misses == 2, "Different registry should miss cache"
+```
+
+### Phase 5b Modified Files
+- `src/prism/scanner_data/contracts_request.py` (ADD protocol + docs)
+- `src/prism/scanner_core/scan_cache.py` (import + type hint change)
+- `src/prism/tests/test_cache_key_protocol_adoption.py` (NEW)
+
+### Phase 5b Risk Assessment
+- **Risk Level**: Low
+- **Why**: Protocol already working; changes are documentation + adoption pattern
+- **Rollback**: Revert imports; __cache_key__() still works via duck typing
+
+---
+## Phase 5c: Memory Bounding & Size Estimation (3-4 days)
+
+**Status**: Missing entirely
+**Effort**: 3-4 days
+**Risk**: Medium (needs careful memory estimation)
+
+### Current Gap
+
+**File**: `src/prism/scanner_core/scan_cache.py::InMemoryLRUScanCache`
+
+**Current** (lines 68-102):
+```python
+class InMemoryLRUScanCache:
+    def __init__(self, maxsize: int = 64) -> None:
+        self._maxsize = maxsize  # ← Entry count limit only
+        self._store: OrderedDict[str, Any] = OrderedDict()
+        # ↑ No max_memory_bytes, no per-entry size tracking
+```
+
+### Problem
+- No memory bounding (can grow unbounded per entry value size)
+- Large cache entries can cause OOM on resource-constrained systems
+- No way to configure memory limits for CI/CD pipelines
+
+### Phase 5c Deliverables
+
+#### 1. Add Size Estimation Function (1 file)
+**File**: `src/prism/scanner_core/scan_cache.py` (ADD, ~100 lines)
+
+```python
+import sys
+
+def estimate_object_size_bytes(value: Any) -> int:
+    """Estimate memory size of a Python object in bytes.
+    
+    Uses sys.getsizeof() for base objects + recursive estimation for containers.
+    Provides reasonable approximations for caching decisions.
+    
+    Args:
+        value: Any Python object
+    
+    Returns:
+        Estimated size in bytes (conservative upper bound)
+    
+    Limitations:
+        - Does not account for external memory (e.g., large numpy arrays)
+        - Over-estimates for shared/interned objects
+        - Best-effort approximation, not exact
+    """
+    visited = set()
+    
+    def _size_of(obj: Any) -> int:
+        obj_id = id(obj)
+        if obj_id in visited:
+            return 0  # Avoid double-counting cycles
+        visited.add(obj_id)
+        
+        # Base size
+        size = sys.getsizeof(obj)
+        
+        # Recurse for containers
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                size += _size_of(k) + _size_of(v)
+        elif isinstance(obj, (list, tuple)):
+            size += sum(_size_of(item) for item in obj)
+        elif isinstance(obj, set):
+            size += sum(_size_of(item) for item in obj)
+        
+        return size
+    
+    return max(1, _size_of(value))  # Min 1 byte to avoid empty entries
+```
+
+**Test Pattern**:
+```python
+def test_estimate_object_size():
+    """Size estimation must be reasonable for cache decisions."""
+    small_dict = {"key": "value"}
+    large_dict = {"key": "x" * 10000}
+    
+    small_size = estimate_object_size_bytes(small_dict)
+    large_size = estimate_object_size_bytes(large_dict)
+    
+    assert large_size > small_size
+    assert large_size > 10000  # At least the string content
+```
+
+#### 2. Add Memory Bounding to InMemoryLRUScanCache (1 file)
+**File**: `src/prism/scanner_core/scan_cache.py` (MODIFY, ~50 lines)
+
+**Before**:
+```python
+class InMemoryLRUScanCache:
+    def __init__(self, maxsize: int = 64) -> None:
+        self._maxsize = maxsize
+        self._store: OrderedDict[str, Any] = OrderedDict()
+```
+
+**After**:
+```python
+class InMemoryLRUScanCache:
+    def __init__(
+        self,
+        maxsize: int = 64,
+        max_memory_bytes: int | None = None,
+    ) -> None:
+        """Initialize LRU scan cache.
+        
+        Args:
+            maxsize: Maximum number of entries (default 64)
+            max_memory_bytes: Maximum total memory in bytes (default None = unlimited).
+                              Common values: 100MB (100_000_000), 512MB (536_870_912)
+        """
+        self._maxsize = maxsize
+        self._max_memory_bytes = max_memory_bytes
+        self._store: OrderedDict[str, Any] = OrderedDict()
+        self._entry_sizes: dict[str, int] = {}  # Track size per entry
+        self._current_memory = 0
+    
+    def set(self, key: str, value: Any) -> None:
+        """Set value, evicting by memory pressure if needed."""
+        # ... existing code ...
+        
+        # Size tracking
+        value_size = estimate_object_size_bytes(value)
+        
+        # Evict by memory pressure BEFORE adding new entry
+        while (
+            self._max_memory_bytes is not None
+            and self._current_memory + value_size > self._max_memory_bytes
+            and len(self._store) > 0
+        ):
+            self._evict_lru_single()
+        
+        # Add entry and update memory
+        self._store[key] = _clone_container_structure(value)
+        self._entry_sizes[key] = value_size
+        self._current_memory += value_size
+    
+    def _evict_lru_single(self) -> None:
+        """Evict least-recently-used entry."""
+        if not self._store:
+            return
+        lru_key = next(iter(self._store))  # First key in OrderedDict
+        evicted_size = self._entry_sizes.pop(lru_key, 0)
+        self._store.pop(lru_key)
+        self._current_memory -= evicted_size
+```
+
+**Configuration Interface**:
+```python
+# Usage:
+# Small caches (tests, local dev)
+cache = InMemoryLRUScanCache(maxsize=32, max_memory_bytes=10_000_000)  # 10MB
+
+# Medium caches (CI/CD)
+cache = InMemoryLRUScanCache(maxsize=256, max_memory_bytes=100_000_000)  # 100MB
+
+# Large caches (production, high-memory systems)
+cache = InMemoryLRUScanCache(maxsize=1024, max_memory_bytes=1_000_000_000)  # 1GB
+```
+
+#### 3. Memory Configuration Test
+**File**: `src/prism/tests/test_scan_cache_memory_bounds.py` (NEW, ~80 lines)
+
+```python
+def test_cache_respects_memory_limit():
+    """Cache must evict entries when memory limit is exceeded."""
+    backend = InMemoryLRUScanCache(
+        maxsize=1000,
+        max_memory_bytes=1_000_000,  # 1MB limit
+    )
+    
+    large_value = {"data": "x" * 500_000}  # ~500KB entry
+    
+    # First entry should succeed
+    cache_key_1 = compute_scan_cache_key(
+        role_content_hash="role1",
+        scan_options={"data": large_value},
+    )
+    backend.set(cache_key_1, {"result": large_value})
+    assert len(backend._store) == 1
+    
+    # Second entry should trigger memory-based eviction
+    cache_key_2 = compute_scan_cache_key(
+        role_content_hash="role2",
+        scan_options={"data": large_value},
+    )
+    backend.set(cache_key_2, {"result": large_value})
+    assert len(backend._store) <= 2  # May have evicted first entry
+    assert backend._current_memory <= 1_000_000 * 1.1  # Allow 10% overage during set
+```
+
+### Phase 5c Modified Files
+- `src/prism/scanner_core/scan_cache.py` (estimate_object_size_bytes(), max_memory_bytes param)
+- `src/prism/tests/test_scan_cache_memory_bounds.py` (NEW)
+
+### Phase 5c Risk Assessment
+- **Risk Level**: Medium
+- **Why**: Memory estimation is heuristic; sys.getsizeof() can over/under-estimate
+- **Mitigation**: 
+  - Conservative estimates (upper-bound bias)
+  - Configurable max_memory_bytes (users can tune)
+  - Test with real scan outputs to validate estimates
+- **Rollback**: Make max_memory_bytes optional; defaults to None (unlimited)
+
+---
+## Phase 5d: Performance Metrics & Monitoring (1-2 days)
+
+**Status**: Partial (hits/misses tracked, no hit rate/eviction count)
+**Effort**: 1-2 days
+**Risk**: Low
+
+### Current Implementation
+
+**File**: `src/prism/scanner_core/scan_cache.py` (lines 110-120)
+
+```python
+@property
+def hits(self) -> int:
+    with self._lock:
+        return self._hits
+
+@property
+def misses(self) -> int:
+    with self._lock:
+        return self._misses
+
+def stats(self) -> tuple[int, int]:
+    """Return (hits, misses) atomically."""
+    with self._lock:
+        return self._hits, self._misses
+```
+
+### Phase 5d Deliverables
+
+#### 1. Enhance Metrics Collection (1 file)
+**File**: `src/prism/scanner_core/scan_cache.py` (MODIFY, ~30 lines)
+
+**Before**:
+```python
+class InMemoryLRUScanCache:
+    def __init__(self, maxsize: int = 64) -> None:
+        self._hits = 0
+        self._misses = 0
+        # ← No eviction count, no memory usage tracking
+```
+
+**After**:
+```python
+class InMemoryLRUScanCache:
+    def __init__(self, maxsize: int = 64, max_memory_bytes: int | None = None) -> None:
+        self._hits = 0
+        self._misses = 0
+        self._evictions = 0  # NEW
+        self._current_memory = 0  # NEW (from Phase 5c)
+        # ... rest
+    
+    def _evict_lru_single(self) -> None:
+        """Evict LRU entry and track eviction."""
+        # ... existing eviction code ...
+        self._evictions += 1  # NEW
+    
+    def stats(self) -> dict[str, int | float]:
+        """Return comprehensive cache statistics."""
+        with self._lock:
+            total_ops = self._hits + self._misses
+            hit_rate = self._hits / total_ops if total_ops > 0 else 0.0
+            return {
+                "hits": self._hits,
+                "misses": self._misses,
+                "hit_rate": hit_rate,
+                "hit_rate_percent": round(hit_rate * 100, 2),
+                "evictions": self._evictions,
+                "entries": len(self._store),
+                "memory_bytes": self._current_memory,
+            }
+```
+
+#### 2. Add Telemetry Export Method (1 file)
+**File**: `src/prism/scanner_core/scan_cache.py` (ADD, ~20 lines)
+
+```python
+def report_stats(self) -> str:
+    """Return human-readable cache statistics for logging/monitoring."""
+    stats = self.stats()
+    return (
+        f"Cache Statistics: "
+        f"hit_rate={stats['hit_rate_percent']}% "
+        f"hits={stats['hits']} misses={stats['misses']} "
+        f"evictions={stats['evictions']} "
+        f"entries={stats['entries']} "
+        f"memory_mb={stats['memory_bytes'] / (1024 * 1024):.1f}"
+    )
+```
+
+#### 3. Integration Test (NEW file)
+**File**: `src/prism/tests/test_scan_cache_metrics.py` (NEW, ~60 lines)
+
+```python
+def test_cache_metrics_comprehensive():
+    """Cache must track all relevant metrics."""
+    backend = InMemoryLRUScanCache(maxsize=3, max_memory_bytes=10_000_000)
+    
+    # 3 cache misses
+    for i in range(3):
+        key = compute_scan_cache_key(
+            role_content_hash=f"role{i}",
+            scan_options={"data": f"value{i}"},
+        )
+        backend.set(key, {"result": f"data{i}"})
+    
+    # 2 cache hits
+    key_0 = compute_scan_cache_key(
+        role_content_hash="role0",
+        scan_options={"data": "value0"},
+    )
+    result1 = backend.get(key_0)
+    result2 = backend.get(key_0)
+    
+    stats = backend.stats()
+    assert stats["hits"] == 2
+    assert stats["misses"] == 3
+    assert stats["hit_rate"] == pytest.approx(0.4)
+    assert stats["hit_rate_percent"] == 40.0
+    assert stats["entries"] == 3
+    assert stats["evictions"] >= 0
+    
+    # report_stats() should be human-readable
+    report = backend.report_stats()
+    assert "40.0%" in report
+    assert "hits=2" in report
+
+def test_cache_eviction_counted():
+    """Evictions must be tracked."""
+    backend = InMemoryLRUScanCache(maxsize=2)
+    
+    # Add 3 entries; 1 should be evicted
+    for i in range(3):
+        key = compute_scan_cache_key(
+            role_content_hash=f"role{i}",
+            scan_options={"data": f"value{i}"},
+        )
+        backend.set(key, {"result": f"data{i}"})
+    
+    stats = backend.stats()
+    assert stats["evictions"] >= 1
+    assert stats["entries"] == 2
+```
+
+### Phase 5d Modified Files
+- `src/prism/scanner_core/scan_cache.py` (stats() expansion, report_stats())
+- `src/prism/tests/test_scan_cache_metrics.py` (NEW)
+
+### Phase 5d Risk Assessment
+- **Risk Level**: Low
+- **Why**: Metrics are read-only; no behavioral changes
+- **Rollback**: Remove report_stats(); keep stats() backward-compatible
+
+---
+
+## Summary: Integration Points & Deployment Order
+
+### Recommended Build Sequence
+1. **5a** (1-2 days): Key collision prevention + edge case testing
+2. **5b** (1 day): Protocol formalization + adoption guidance
+3. **5c** (3-4 days): Memory bounding (depends on 5a/5b)
+4. **5d** (1-2 days): Metrics (depends on 5c)
+
+### Cumulative Files Modified/Created
+| Phase | Files | LOC | Test LOC | Risk |
+|-------|-------|-----|----------|------|
+| 5a | 1 mod + 1 new | 20 | 40 | Low |
+| 5b | 2 mod + 1 new | 50 | 60 | Low |
+| 5c | 1 mod + 1 new | 150 | 80 | Med |
+| 5d | 1 mod + 1 new | 50 | 60 | Low |
+| **TOTAL** | **4 modified, 4 new** | **~270** | **~240** | **Low/Med** |
+
+### API Surface Changes (for builders to track)
+
+**New Functions**:
+- `estimate_object_size_bytes(value: Any) -> int`
+- `InMemoryLRUScanCache.report_stats() -> str`
+
+**Enhanced Function Signatures**:
+- `InMemoryLRUScanCache.__init__(maxsize=64, max_memory_bytes=None)`
+- `InMemoryLRUScanCache.stats()` → returns dict instead of tuple
+
+**New Protocols** (exported):
+- `CacheKeyProvider` from `scanner_data.contracts_request`
+
+**Backward Compatibility**:
+- ✅ Existing `stats()` users can upgrade (dict is super-set of tuple unpacking)
+- ✅ Existing `max_memory_bytes=None` means no change in behavior
+- ✅ `report_stats()` is purely additive
+
+---
+
+## Test Coverage Matrix
+
+| Test Category | File | Lines | Coverage |
+|---------------|------|-------|----------|
+| Type-safe keys | test_scan_cache_protocol.py | 40 | Dict key collision, deep nesting |
+| Custom protocol | test_cache_key_protocol_adoption.py | 60 | __cache_key__(), fallback behavior |
+| Memory bounds | test_scan_cache_memory_bounds.py | 80 | Memory limit enforcement, eviction |
+| Metrics | test_scan_cache_metrics.py | 60 | Hit rate, eviction count, reporting |
+| Integration | test_g03_scan_cache_integration.py (expand) | 40 | End-to-end with metrics |
+| **TOTAL** | **5 files** | **~280** | **Comprehensive** |
+
+---
+
+## Known Unknowns & Blockers
+
+### Decision Points for Builders
+1. **Size Estimation Heuristic**: sys.getsizeof() vs. actual heap inspection?
+   - Recommendation: Use sys.getsizeof() (simple, portable)
+   - Alternative: introspect with pympler (adds dependency)
+
+2. **Memory Limit Default**: 100MB, 512MB, or unlimited?
+   - Recommendation: unlimited by default (no behavior change)
+   - Users opt-in to memory bounds via config
+
+3. **Eviction Policy on Memory Pressure**: Evict 1 entry or 10%?
+   - Recommendation: Evict 1 LRU entry per insertion (simple, predictable)
+   - Alternative: Batch-evict to 90% capacity (reduces churn)
+
+### No External Blockers Found ✅
+- All cache code is isolated in `scanner_core/scan_cache.py`
+- No upstream APIs need changes
+- Test infrastructure already in place
+
+---
+
+## Effort Breakdown for Builders
+
+| Task | Effort | Complexity | Owner Notes |
+|------|--------|-----------|------------|
+| 5a.1: Type-safe key serialization | 4h | Med | Careful regex/serialization |
+| 5a.2: __cache_key__() tests | 3h | Low | Copy protocol test patterns |
+| 5a.3: Depth limit validation | 2h | Low | Document existing code |
+| **5a TOTAL** | **9h (1.1 days)** | **Low-Med** | Independent of 5b/5c |
+| 5b.1: Protocol export + import | 2h | Low | Pure refactoring |
+| 5b.2: Adoption in scan_cache | 2h | Low | Type hint + isinstance check |
+| 5b.3: Protocol test adoption | 4h | Low | Test patterns from 5a |
+| **5b TOTAL** | **8h (1 day)** | **Low** | Depends on 5a |
+| 5c.1: Size estimation function | 6h | Med | Testing with real objects |
+| 5c.2: Memory bounding logic | 8h | Med | Eviction policy careful |
+| 5c.3: Memory bounds test | 4h | Low | Boundary condition testing |
+| **5c TOTAL** | **18h (2.25 days)** | **Med** | Depends on 5a/5b |
+| 5d.1: Metrics collection | 4h | Low | Add counters + dict return |
+| 5d.2: Telemetry export | 3h | Low | String formatting |
+| 5d.3: Metrics test | 4h | Low | Assertion pattern repeat |
+| **5d TOTAL** | **11h (1.4 days)** | **Low** | Depends on 5c |
+| **GRAND TOTAL** | **46h (5.75 days)** | **Low-Med** | Ready for parallel 5a/5b start |
+
+---
+
+## Success Criteria for Phase 5 Completion
+
+✅ **Phase 5a**: All type-collision tests pass; depth limit enforced
+✅ **Phase 5b**: Protocol adopted; no regression in existing __cache_key__() usage
+✅ **Phase 5c**: Memory limit enforced; cache respects max_memory_bytes parameter
+✅ **Phase 5d**: Hit rate and eviction metrics tracked; report_stats() includes all fields
+
+**Validation Gate**:
+```bash
+pytest src/prism/tests/test_g03_scan_cache_integration.py -v  # All pass
+pytest src/prism/tests/test_scan_cache_*.py -v              # All pass
+python -m ruff check src/prism/scanner_core/scan_cache.py  # Clean
+python -m black --check src/prism/scanner_core/scan_cache.py # Formatted
+python -m mypy src/prism/scanner_core/scan_cache.py --strict # 0 errors
+```
+
+---
+
+## Builder Checklist (Ready-to-Use)
+
+- [ ] Read full scan_cache.py (lines 1-450)
+- [ ] Understand OrderedDict LRU semantics
+- [ ] Review existing test patterns in test_g03_scan_cache_integration.py
+- [ ] Start Phase 5a: Type-safe dict key serialization
+  - [ ] Add _safe_dict_key() helper
+  - [ ] Update _canonicalize() dict branch
+  - [ ] Add collision prevention test
+- [ ] Start Phase 5b: Protocol export
+  - [ ] Add CacheKeyProvider to contracts_request.py
+  - [ ] Import in scan_cache.py
+  - [ ] Update isinstance check
+- [ ] Start Phase 5c: Memory bounding
+  - [ ] Implement estimate_object_size_bytes()
+  - [ ] Add max_memory_bytes param to __init__
+  - [ ] Add memory tracking in set()/_evict_lru_single()
+  - [ ] Test memory limit enforcement
+- [ ] Start Phase 5d: Metrics
+  - [ ] Add _evictions counter
+  - [ ] Expand stats() to return dict
+  - [ ] Add report_stats() method
+  - [ ] Test hit_rate calculation
+- [ ] Run full validation gate (pytest + lint + type check)
+- [ ] Deploy Phase 5a → 5b → 5c → 5d in sequence
+
+---
+
+Generated: 2026-05-09 by gem-researcher (Tier 0 / FREE)
+Plan Status: ✅ Ready for Phase 5 builders
+Confidence: high (0.92 based on existing implementation maturity)

@@ -1,0 +1,48 @@
+---
+plan_id: mutl3y-review-20260507-g78
+phase: "Phase 6 Validation"
+validation_date: "2026-05-07"
+status: gate_failed
+
+gate_results:
+  pytest_total: 1171
+  pytest_passed: 1167
+  pytest_failed: 4
+  pytest_skipped: 7
+  pytest_status: FAILED
+
+failed_tests:
+  - test: test_fsrc_api_scan_collection_demotes_role_content_runtime_failure
+    file: src/prism/tests/test_collection_contract.py
+    reason: "Error message format changed due to PrismRuntimeError layer field"
+    finding: FIND-G78-002
+    blocker: true
+
+  - test: test_fsrc_errors_prism_runtime_error_contract_compatibility
+    file: src/prism/tests/test_errors.py
+    reason: "PrismRuntimeError contract extended with layer/recoverable fields"
+    finding: FIND-G78-002
+    blocker: true
+
+  - test: test_load_yaml_file_never_raises_on_arbitrary_content
+    file: src/prism/tests/test_hypothesis_yaml_parser.py
+    reason: "yaml_load_error exception wrapping changed in error contract"
+    finding: FIND-G78-002
+    blocker: true
+
+  - test: test_fsrc_scanner_context_best_effort_records_error_envelope
+    file: src/prism/tests/test_scanner_context.py
+    reason: "Error envelope payload format changed with [core] layer prefix"
+    finding: FIND-G78-002
+    blocker: true
+
+lint_checks:
+  ruff: PASS
+  black: PASS
+
+type_checks:
+  mypy: PASS
+
+gate_status: RED
+blocker_count: 4
+recommendation: "Return to Phase 5 Wave 2 for test fixup"

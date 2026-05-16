@@ -1,0 +1,236 @@
+execution_metadata:
+  wave: wave_2_batch_1
+  tier_selected: "TIER_1 (user-specified with escalation)"
+  tier_reason: "User-specified 3-attempt strategy: Tier 1 fix attempt → Rollback on failure → Retry up to 3 times → Defer to Tier 2"
+  total_findings: 30
+  batch_start: "2026-05-09T14:00:00Z"
+  attempt_strategy: "3-retry-per-finding"
+  rollback_command: "git checkout -- [files]"
+  
+findings_execution:
+  # === QUICK WINS (Type Safety + Validation Logging) ===
+  
+  - id: GILF-NODE3-07
+    category: error-handling
+    priority: 1
+    issue: "Unlogged exceptions in scan option normalization"
+    location: "src/prism/scanner_core/scan_request.py:200-220"
+    complexity: LOW
+    attempts:
+      - attempt: 1
+        status: PENDING
+        timestamp: null
+        result: null
+    cumulative_status: PENDING
+    notes: "Add logger.exception() wrapping"
+
+  - id: GILF-NODE3-05
+    category: validation
+    priority: 2
+    issue: "Weak validation of required fields in scan options"
+    location: "src/prism/scanner_core/scan_request.py:40-60"
+    complexity: LOW
+    attempts:
+      - attempt: 1
+        status: PENDING
+        timestamp: null
+        result: null
+    cumulative_status: PENDING
+    notes: "Add schema validation"
+
+  # === MEDIUM EFFORT (Event Handler Fixes) ===
+  
+  - id: GILF-NODE3-03
+    category: event-reliability
+    priority: 3
+    issue: "Silent event handler failures swallow exceptions"
+    location: "src/prism/scanner_core/events.py:80-100"
+    complexity: MEDIUM
+    attempts:
+      - attempt: 1
+        status: PENDING
+        timestamp: null
+        result: null
+    cumulative_status: PENDING
+    notes: "Implement strict mode with exception propagation"
+
+  - id: GILF-NODE3-04
+    category: event-reliability
+    priority: 4
+    issue: "Unbounded growth of error event list"
+    location: "src/prism/scanner_core/events.py:120-140"
+    complexity: MEDIUM
+    attempts:
+      - attempt: 1
+        status: PENDING
+        timestamp: null
+        result: null
+    cumulative_status: PENDING
+    notes: "Add event list bounds checking"
+
+  # === TYPE SAFETY FIXES ===
+  
+  - id: GILF-NODE1-01
+    category: type-safety
+    priority: 5
+    issue: "Unchecked cast() and TypedDict identity loss when cloning scan options"
+    location: "src/prism/scanner_core/di.py:76-80"
+    complexity: MEDIUM
+    attempts:
+      - attempt: 1
+        status: PENDING
+        timestamp: null
+        result: null
+    cumulative_status: PENDING
+    notes: "Replace cast() with proper TypedDict copy"
+
+  - id: GILF-NODE1-02
+    category: type-safety
+    priority: 6
+    issue: "TypedDict Identity Loss via dict() and cast()"
+    location: "src/prism/scanner_core/di_helpers.py:various"
+    complexity: MEDIUM
+    attempts:
+      - attempt: 1
+        status: PENDING
+        timestamp: null
+        result: null
+    cumulative_status: PENDING
+    notes: "Fix dict() comprehension to preserve TypedDict"
+
+  - id: GILF-DI-01
+    category: type-safety
+    priority: 7
+    issue: "Blind TypedDict cast loses identity through dict comprehension"
+    location: "src/prism/scanner_core/di.py:78"
+    complexity: MEDIUM
+    attempts:
+      - attempt: 1
+        status: PENDING
+        timestamp: null
+        result: null
+    cumulative_status: PENDING
+    notes: "Use copy.copy() instead of dict() + cast()"
+
+  # === CACHE SAFETY FIXES ===
+  
+  - id: GILF-NODE3-01
+    category: cache-safety
+    priority: 8
+    issue: "Cache key collision risk due to lack of namespace isolation"
+    location: "src/prism/scanner_core/scan_cache.py:60-80"
+    complexity: MEDIUM
+    attempts:
+      - attempt: 1
+        status: PENDING
+        timestamp: null
+        result: null
+    cumulative_status: PENDING
+    notes: "Add namespace prefix to cache keys"
+
+  - id: GILF-NODE3-02
+    category: cache-safety
+    priority: 9
+    issue: "Cache key ignores runtime wiring identity; callable identity uses process id()"
+    location: "src/prism/scanner_core/scan_cache.py:120-200"
+    complexity: HIGH
+    attempts:
+      - attempt: 1
+        status: PENDING
+        timestamp: null
+        result: null
+    cumulative_status: PENDING
+    notes: "Compose build_runtime_wiring_identity into cache key"
+
+  - id: GILF-NODE3-10
+    category: cache-safety
+    priority: 10
+    issue: "No TTL enforcement for cached entries"
+    location: "src/prism/scanner_core/scan_cache.py:140-160"
+    complexity: MEDIUM
+    attempts:
+      - attempt: 1
+        status: PENDING
+        timestamp: null
+        result: null
+    cumulative_status: PENDING
+    notes: "Add TTL timestamp validation on cache hits"
+
+  # === ARCHITECTURE/OWNERSHIP FIXES ===
+  
+  - id: GILF-NODE1-03
+    category: ownership
+    priority: 11
+    issue: "Policy Ownership Split and Fallbacks"
+    location: "src/prism/scanner_core/scanner_context.py:various"
+    complexity: HIGH
+    attempts:
+      - attempt: 1
+        status: PENDING
+        timestamp: null
+        result: null
+    cumulative_status: PENDING
+    notes: "Consolidate policy ownership to single path"
+
+  - id: GILF-DI-03
+    category: ownership
+    priority: 12
+    issue: "scan_options cloning scattered across multiple locations with inconsistent semantics"
+    location: "src/prism/scanner_core/di.py:85-110"
+    complexity: HIGH
+    attempts:
+      - attempt: 1
+        status: PENDING
+        timestamp: null
+        result: null
+    cumulative_status: PENDING
+    notes: "Extract canonical clone_scan_options() function"
+
+  # === DATA FLOW FIXES ===
+  
+  - id: GILF-NODE2-02
+    category: data-flow
+    priority: 13
+    issue: "Inconsistent data flow between variable discovery and feature detection"
+    location: "src/prism/scanner_core/feature_detector.py:1-320"
+    complexity: HIGH
+    attempts:
+      - attempt: 1
+        status: PENDING
+        timestamp: null
+        result: null
+    cumulative_status: PENDING
+    notes: "Unify feature detection and variable discovery contract"
+
+  # === PLACEHOLDER FOR REMAINING 17 FINDINGS ===
+  
+  - id: GILF-NODE1-04
+    category: architecture
+    priority: 14
+    issue: "Additional architecture fix"
+    location: "src/prism/scanner_core/di.py:24-54"
+    complexity: MEDIUM
+    attempts:
+      - attempt: 1
+        status: PENDING
+        timestamp: null
+        result: null
+    cumulative_status: PENDING
+    notes: "Pending implementation"
+
+summary:
+  total_identified: 30
+  batch_1_detailed: 14
+  batch_1_remaining_placeholder: 16
+  estimated_completion: "Phase checkpoint after first 10-14 fixes"
+  
+gates:
+  pre_batch:
+    pytest_baseline: PENDING
+    current_branch: main
+    clean_state: true
+  post_batch:
+    pytest_required: ">=70% pass rate"
+    mypy_required: "no new errors"
+    ruff_required: "clean"
+    black_required: "clean"

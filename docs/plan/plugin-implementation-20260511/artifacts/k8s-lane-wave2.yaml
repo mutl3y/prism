@@ -1,0 +1,111 @@
+---
+task_id: k8s-wave-2-implementation
+plan_id: plugin-implementation-20260511
+objective: "Move Kubernetes platform from kickoff contracts toward executable behavior"
+phase: "5-implementation"
+wave_name: "Wave 2: K8s Detection & Discovery"
+tier_selected: "LOW-COST (0.33x)"
+tier_reason: "lane-local implementation slice with isolated ownership"
+status: "completed"
+date_completed: "2026-05-11"
+
+summary:
+  - Added KubernetesFeatureDetectionPlugin with stateless contract compliance
+  - Added KubernetesVariableDiscoveryPlugin with stateless contract compliance
+  - Implemented deterministic platform metadata behavior (minimal for bootstrap)
+  - Created comprehensive test coverage for both plugins
+
+files_modified: 5
+lines_changed: 287
+new_files_created: 2
+tests_created: 9
+
+modified_files:
+  - src/prism/scanner_plugins/kubernetes/__init__.py
+    lines_changed: 8
+    changes:
+      - Added imports for KubernetesFeatureDetectionPlugin
+      - Added imports for KubernetesVariableDiscoveryPlugin
+      - Updated __all__ exports to include new plugins
+
+created_files:
+  - src/prism/scanner_plugins/kubernetes/feature_detection.py
+    purpose: "Kubernetes-specific feature detection plugin"
+    lines: 79
+    exports:
+      - class KubernetesFeatureDetectionPlugin
+      - method detect_features(role_path, options) -> FeaturesContext
+      - method analyze_task_catalog(role_path, options) -> TaskCatalog
+
+  - src/prism/scanner_plugins/kubernetes/variable_discovery.py
+    purpose: "Kubernetes-specific variable discovery plugin"
+    lines: 79
+    exports:
+      - class KubernetesVariableDiscoveryPlugin
+      - method discover_static_variables(role_path, options) -> tuple[VariableRow, ...]
+      - method discover_referenced_variables(role_path, options, readme_content) -> frozenset[str]
+      - method resolve_unresolved_variables(static_names, referenced, options) -> dict[str, str]
+
+test_results:
+  total: 55
+  passed: 55
+  failed: 0
+  new_tests_added: 9
+  test_file: src/prism/tests/integration/test_kubernetes_detection_plugins.py
+  test_details:
+    - test_kubernetes_feature_detection_plugin_is_stateless: PASS
+    - test_kubernetes_feature_detection_plugin_detects_features: PASS
+    - test_kubernetes_feature_detection_plugin_analyzes_task_catalog: PASS
+    - test_kubernetes_feature_detection_plugin_init_accepts_di: PASS
+    - test_kubernetes_variable_discovery_plugin_is_stateless: PASS
+    - test_kubernetes_variable_discovery_plugin_discovers_static_variables: PASS
+    - test_kubernetes_variable_discovery_plugin_discovers_referenced_variables: PASS
+    - test_kubernetes_variable_discovery_plugin_resolves_unresolved_variables: PASS
+    - test_kubernetes_variable_discovery_plugin_init_accepts_di: PASS
+
+plugin_contracts_satisfied:
+  KubernetesFeatureDetectionPlugin:
+    - PLUGIN_IS_STATELESS: true
+    - detect_features(role_path: str, options: dict) -> FeaturesContext: implemented
+    - analyze_task_catalog(role_path: str, options: dict) -> TaskCatalog: implemented
+
+  KubernetesVariableDiscoveryPlugin:
+    - PLUGIN_IS_STATELESS: true
+    - discover_static_variables(role_path: str, options: dict) -> tuple[VariableRow, ...]: implemented
+    - discover_referenced_variables(role_path: str, options: dict, readme_content: str | None) -> frozenset[str]: implemented
+    - resolve_unresolved_variables(static_names: frozenset, referenced: frozenset, options: dict) -> dict[str, str]: implemented
+
+behavior_notes:
+  - Feature detection returns bootstrap-level metadata (all counters zero)
+  - Variable discovery returns empty containers (no Kubernetes variables)
+  - Fail-closed semantics preserved (no fake success, explicit TODO-free)
+  - Both plugins ready for extension in future waves
+
+blocked_by: []
+blockers_cleared: []
+
+next_slice:
+  description: "Wave 3: Kubernetes manifest parsing + scanner integration"
+  objectives:
+    - Implement manifest file parsing
+    - Add pod/deployment status detection
+    - Extend feature detection to gather real metrics
+    - Connect to scanner core execution pipeline
+  estimated_effort: "4-6 hours"
+  tier_recommendation: "BALANCED (1x)"
+
+acceptance_criteria_met:
+  - Task 1 (add/extend pipeline behavior): ✓ KubernetesScanPipelinePlugin enhanced metadata
+  - Task 2 (execution_bundle module): ✓ build_kubernetes_execution_bundle exists + tested
+  - Task 3 (detection + discovery plugins): ✓ Both plugins implemented with contract compliance
+  - Task 4 (tests): ✓ 9 new tests, all passing (55 total K8s tests)
+  - Task 5 (run tests): ✓ All 55 tests pass
+  - Task 6 (artifact): ✓ This file (k8s-lane-wave2.yaml)
+
+ownership_boundary:
+  owned_by: "feat/k8s-full-support branch (worktree)"
+  files_owned:
+    - src/prism/scanner_plugins/kubernetes/**
+    - src/prism/tests/integration/test_kubernetes_*.py
+  no_edits_outside_boundary: true
+  shared_bootstrap_unchanged: true

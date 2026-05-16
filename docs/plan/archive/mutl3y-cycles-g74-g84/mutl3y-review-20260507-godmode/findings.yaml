@@ -1,0 +1,139 @@
+- title: Overuse of Protocols for DI Contracts
+  location: scanner_core/di_helpers.py
+  severity: MEDIUM
+  description: |
+    The file defines multiple `Protocol` classes (`HasScanOptions`, `EventBusProtocol`, etc.) for dependency injection (DI) contracts. While this approach ensures type safety, it introduces unnecessary complexity and verbosity. Many of these protocols could be replaced with simpler interfaces or direct type annotations.
+  evidence: |
+    @runtime_checkable
+    class HasScanOptions(Protocol):
+        scan_options: dict[str, Any]
+  recommendation: |
+    Consolidate protocols where possible and evaluate whether simpler type hints or abstract base classes (ABCs) could achieve the same goals with less overhead.
+
+- title: Redundant Policy Normalization
+  location: scanner_core/scan_request.py, lines 33-41
+  severity: HIGH
+  description: |
+    The `_normalize_policy_context` function redundantly validates and copies `ScanPolicyContext`. This logic is repeated in other modules, leading to potential inconsistencies and maintenance overhead.
+  evidence: |
+    def _normalize_policy_context(
+        policy_context: ScanPolicyContext | None,
+    ) -> tuple[ScanPolicyContext | None, list[ScanPolicyWarning]]:
+        if not _is_scan_policy_context(policy_context):
+            return None, []
+        return _copy_scan_policy_context(policy_context), []
+  recommendation: |
+    Centralize policy normalization logic in a shared utility module to ensure consistency and reduce duplication.
+
+- title: Lazy Import Coupling
+  location: scanner_core/task_extract_adapters.py, lines 15-35
+  severity: MEDIUM
+  description: |
+    The use of lazy imports (`from prism.scanner_extract...`) to avoid bootstrap coupling introduces runtime risks and complicates debugging.
+  evidence: |
+    def _extract_task_annotations_for_file(
+        raw_lines: list[str],
+        *,
+        marker_prefix: str = "prism",
+        include_task_index: bool = False,
+        di: object | None = None,
+    ) -> tuple[list[TaskAnnotation], dict[str, list[TaskAnnotation]]]:
+        from prism.scanner_extract.task_annotation_parsing import (
+            extract_task_annotations_for_file,
+        )
+  recommendation: |
+    Refactor to resolve import dependencies at the module level, leveraging dependency injection to manage coupling.
+
+- title: Error Contract Inconsistencies
+  location: scanner_data/contracts_request.py, lines 18-43
+  severity: HIGH
+  description: |
+    The `ErrorContract` and `ScanErrorEntry` TypedDicts define overlapping but inconsistent fields for error handling. This redundancy increases the risk of mismatched error handling across layers.
+  evidence: |
+    class ErrorContract(TypedDict, total=False):
+        error_type: str
+        message: str
+        layer: str
+        recoverable: bool
+
+    class ScanErrorEntry(TypedDict):
+        phase: str
+        error_type: str
+        message: str
+  recommendation: |
+    Consolidate error contracts into a single, well-defined structure to ensure consistency.
+
+- title: Misuse of Policy-Backed Proxies
+  location: scanner_extract/task_line_parsing.py, lines 13-41
+  severity: CRITICAL
+  description: |
+    The `_PolicyBackedCollectionProxy` and `_PolicyBackedRegexProxy` classes dynamically resolve policy attributes at runtime, introducing significant performance overhead and runtime risks.
+  evidence: |
+    class _PolicyBackedCollectionProxy:
+        def __init__(self, policy_attr_name: str) -> None:
+            self._policy_attr_name = policy_attr_name
+
+        def _current_value(self) -> object:
+            return getattr(
+                require_prepared_policy(None, "task_line_parsing", "task_line_parsing"),
+                self._policy_attr_name,
+            )
+  recommendation: |
+    Replace dynamic proxies with static, pre-resolved policy objects to improve performance and reliability.
+
+- title: Lack of Validation for Dynamic Includes
+  location: scanner_data/contracts_request.py, lines 59-84
+  severity: HIGH
+  description: |
+    The `ScanPolicyDynamicIncludeFacts` and `ScanPolicyBlockerFacts` TypedDicts lack validation logic, allowing invalid or incomplete data to propagate through the system.
+  evidence: |
+    class ScanPolicyDynamicIncludeFacts(TypedDict):
+        enabled: bool
+        task_count: int
+        role_count: int
+        total_count: int
+  recommendation: |
+    Introduce validation methods to enforce data integrity at the point of creation.
+
+- title: Overly Verbose Task Line Parsing
+  location: scanner_extract/task_line_parsing.py, lines 82-108
+  severity: MEDIUM
+  description: |
+    The `get_task_include_keys` and similar functions are overly verbose and rely on dynamic attribute resolution, which complicates debugging and maintenance.
+  evidence: |
+    def get_task_include_keys(di: object | None = None) -> Collection[str]:
+        return _task_line_policy_attr(di, "TASK_INCLUDE_KEYS")
+  recommendation: |
+    Replace dynamic attribute resolution with explicit, statically defined mappings.
+
+- title: Missing Test Coverage for Edge Cases
+  location: scanner_core/di_helpers.py, scanner_extract/task_line_parsing.py
+  severity: HIGH
+  description: |
+    Critical utility functions like `scan_options_from_di` and `_task_line_policy_attr` lack comprehensive test coverage for edge cases, such as invalid DI containers or malformed policies.
+  evidence: |
+    No direct evidence in code; inferred from lack of test references.
+  recommendation: |
+    Add unit tests to cover edge cases and ensure robust error handling.
+
+- title: Inefficient Marker Prefix Resolution
+  location: scanner_core/task_extract_adapters.py, lines 189-208
+  severity: MEDIUM
+  description: |
+    The `_resolve_marker_prefix` function redundantly resolves marker prefixes at runtime, introducing unnecessary overhead.
+  evidence: |
+    def _resolve_marker_prefix(di: object | None) -> str:
+        scan_options = scan_options_from_di(di)
+        return scan_options.get("marker_prefix", "prism")
+  recommendation: |
+    Cache marker prefixes at the DI layer to avoid redundant resolution.
+
+- title: Lack of Consistent Logging
+  location: Multiple files (di_helpers.py, scan_request.py, task_line_parsing.py)
+  severity: LOW
+  description: |
+    Logging is inconsistent across modules, with some functions logging debug information while others remain silent.
+  evidence: |
+    _logger.debug("scan_options_from_di: di is None; returning None")
+  recommendation: |
+    Standardize logging practices across the codebase to ensure consistent observability.

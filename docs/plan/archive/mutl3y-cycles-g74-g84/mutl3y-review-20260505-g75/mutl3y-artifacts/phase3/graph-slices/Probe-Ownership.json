@@ -1,0 +1,11 @@
+{
+  "plan_id": "mutl3y-review-20260505-g75",
+  "agent": "Probe-Ownership",
+  "focus": "registry_authority",
+  "candidate_files": [
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_core/di_helpers.py",
+    "src/prism/tests/test_scanner_core_di.py"
+  ],
+  "question": "Is the DIContainer._get_registry seam intentional, or is it split registry authority that still needs closure?"
+}

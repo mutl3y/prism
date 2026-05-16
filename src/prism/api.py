@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Callable, cast
 
 import yaml
 
+from prism.api_layer import cli_io as _api_cli_io
 from prism.api_layer import collection as api_collection
 from prism.api_layer import non_collection as api_non_collection
 from prism.api_layer import plugin_facade
@@ -17,34 +18,18 @@ from prism.errors import PrismRuntimeError
 from prism.errors import FailurePolicy
 from prism.path_safety import assert_safe_role_path
 from prism.scanner_config.audit_rules import AuditReport, AuditRule
-from prism.scanner_io.collection_plugins import scan_collection_plugins
-from prism.scanner_io.collection_payload import (
-    build_collection_identity,
-    build_collection_failure_record,
-    build_collection_role_entry,
-    build_collection_scan_result,
-    render_collection_role_readme,
-)
-from prism.scanner_io.collection_renderer import write_collection_runbook_artifacts
-from prism.scanner_reporting.collection_dependencies import (
-    aggregate_collection_dependencies,
-)
+from prism.scanner_io.collection_payload import build_collection_scan_result
 from prism.scanner_readme import render_readme
 from prism.scanner_reporting import render_runbook, render_runbook_csv
 from prism.scanner_core import DIContainer as _BaseDIContainer
 from prism.scanner_core import FeatureDetector as _BaseFeatureDetector
 from prism.scanner_core import ScannerContext as _BaseScannerContext
 from prism.scanner_data import (
-    CollectionDependencies,
-    CollectionFailureRecord,
-    CollectionIdentity,
-    CollectionPluginCatalog,
-    CollectionRoleEntry,
     CollectionScanResult,
     RepoScanResult,
     RunScanOutputPayload,
 )
-from prism.scanner_data.contracts_request import ScanPolicyContext
+from prism.scanner_data.contracts_request import ScanMetadata, ScanPolicyContext
 
 if TYPE_CHECKING:
     from prism.scanner_core import ScanCacheBackend
@@ -165,55 +150,6 @@ def _scan_collection_role_payload(
         include_task_parameters=include_task_parameters,
         include_task_runbooks=include_task_runbooks,
         inline_task_runbooks=inline_task_runbooks,
-    )
-
-
-def _build_collection_identity_typed(collection_root: Path) -> CollectionIdentity:
-    return cast(CollectionIdentity, build_collection_identity(collection_root))
-
-
-def _aggregate_collection_dependencies_typed(
-    collection_root: Path,
-) -> CollectionDependencies:
-    return cast(
-        CollectionDependencies,
-        aggregate_collection_dependencies(collection_root),
-    )
-
-
-def _scan_collection_plugins_typed(collection_root: Path) -> CollectionPluginCatalog:
-    return cast(CollectionPluginCatalog, scan_collection_plugins(collection_root))
-
-
-def _build_collection_role_entry_typed(
-    *,
-    role_dir: Path,
-    payload: RunScanOutputPayload,
-    rendered_readme: str | None,
-) -> CollectionRoleEntry:
-    return cast(
-        CollectionRoleEntry,
-        build_collection_role_entry(
-            role_dir=role_dir,
-            payload=payload,
-            rendered_readme=rendered_readme,
-        ),
-    )
-
-
-def _build_collection_failure_record_typed(
-    *,
-    role_dir: Path,
-    exc: Exception,
-    include_traceback: bool,
-) -> CollectionFailureRecord:
-    return cast(
-        CollectionFailureRecord,
-        build_collection_failure_record(
-            role_dir=role_dir,
-            exc=exc,
-            include_traceback=include_traceback,
-        ),
     )
 
 
@@ -471,21 +407,17 @@ def scan_collection(
         runbook_csv_output_dir=runbook_csv_output_dir,
         include_traceback=include_traceback,
         scan_role_fn=_scan_collection_role_payload,
-        build_collection_identity_fn=_build_collection_identity_typed,
-        aggregate_collection_dependencies_fn=_aggregate_collection_dependencies_typed,
-        scan_collection_plugins_fn=_scan_collection_plugins_typed,
-        render_collection_role_readme_fn=lambda *, role_name, payload: render_collection_role_readme(
+        build_collection_identity_fn=api_collection._build_collection_identity_facade,
+        aggregate_collection_dependencies_fn=api_collection._aggregate_collection_dependencies_facade,
+        scan_collection_plugins_fn=api_collection._scan_collection_plugins_facade,
+        render_collection_role_readme_fn=lambda *, role_name, payload: api_collection.render_collection_role_readme_facade(
             role_name=role_name,
             payload=payload,
             render_readme_fn=render_readme,
         ),
-        write_collection_runbook_artifacts_fn=lambda **kwargs: write_collection_runbook_artifacts(
-            **kwargs,
-            render_runbook_fn=render_runbook,
-            render_runbook_csv_fn=render_runbook_csv,
-        ),
-        build_collection_role_entry_fn=_build_collection_role_entry_typed,
-        build_collection_failure_record_fn=_build_collection_failure_record_typed,
+        write_collection_runbook_artifacts_fn=write_collection_runbook_artifacts,
+        build_collection_role_entry_fn=api_collection._build_collection_role_entry_facade,
+        build_collection_failure_record_fn=api_collection._build_collection_failure_record_facade,
         build_collection_scan_result_fn=build_collection_scan_result,
         collection_role_content_recoverable_errors=(
             _COLLECTION_ROLE_CONTENT_RECOVERABLE_ERRORS
@@ -493,6 +425,27 @@ def scan_collection(
         collection_role_runtime_recoverable_errors=(
             _COLLECTION_ROLE_RUNTIME_RECOVERABLE_ERRORS
         ),
+    )
+
+
+def write_collection_runbook_artifacts(
+    *,
+    role_name: str,
+    metadata: ScanMetadata,
+    runbook_output_dir: str | None,
+    runbook_csv_output_dir: str | None,
+) -> None:
+    """Write runbook artifacts for a collection role.
+
+    Compatibility wrapper for test monkey-patching support.
+    """
+    return api_collection.write_collection_runbook_artifacts_facade(
+        role_name=role_name,
+        metadata=metadata,
+        runbook_output_dir=runbook_output_dir,
+        runbook_csv_output_dir=runbook_csv_output_dir,
+        render_runbook_fn=render_runbook,
+        render_runbook_csv_fn=render_runbook_csv,
     )
 
 
@@ -839,3 +792,40 @@ def build_comparison_report(
         exclude_paths=exclude_paths,
         compute_quality_metrics=_metrics,
     )
+
+
+# Re-export CLI IO functions through package-owned API seam
+# (for use by prism.cli module to avoid direct api_layer imports)
+def write_role_scan_output(
+    payload: dict,
+    output: str | None,
+    output_format: str = "markdown",
+    dry_run: bool = False,
+) -> str | None:
+    """Write role scan output through the API seam."""
+    return _api_cli_io.write_role_scan_output(
+        payload,
+        output=cast(str, output),
+        output_format=output_format,
+        dry_run=dry_run,
+    )
+
+
+def render_collection_markdown(payload: dict) -> str:
+    """Render collection markdown through the API seam."""
+    return _api_cli_io.render_collection_markdown(payload)
+
+
+def resolve_output_path(output: str | None, format_: str) -> Path:
+    """Resolve output path through the API seam."""
+    return _api_cli_io.resolve_output_path(output, format_)
+
+
+def write_output(output_path: Path, rendered: str) -> str:
+    """Write output through the API seam."""
+    return _api_cli_io.write_output(output_path, rendered)
+
+
+def format_collection_summary(payload: dict) -> str:
+    """Format collection summary through the API seam."""
+    return _api_cli_io.format_collection_summary(payload)

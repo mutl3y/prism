@@ -1,0 +1,31 @@
+---
+plan_id: mutl3y-review-20260507-g78
+created: 2026-05-07T00:00:00Z
+memory_source: docs/plan/.mutl3y-lessons
+active_lessons: 17
+do_not_re_flag_count: 4
+focus_axis: error_handling
+cycle_mode: free_tier_workflow_test
+focus_axis_due_next: error_handling
+
+readiness_check:
+  status: pass
+  note: "Dirty tracked .py files cleared for discovery; files are in-scope for error_handling axis"
+  dirty_files:
+    - src/prism/scanner_core/di.py
+    - src/prism/scanner_data/contracts_request.py
+    - src/prism/scanner_kernel/kernel_plugin_runner.py
+    - src/prism/scanner_kernel/orchestrator.py
+    - src/prism/scanner_plugins/ansible/extract_utils.py
+    - src/prism/scanner_plugins/defaults.py
+    - src/prism/scanner_plugins/interfaces.py
+    - src/prism/scanner_plugins/registry.py
+    - src/prism/scanner_readme/guide.py
+    - src/prism/scanner_readme/render.py
+
+model_route_notes:
+  - "FREE-TIER TESTING MODE: Prefer Claude Haiku 4.5 (healthy, 4/4 success rate)"
+  - "Fallback: GPT-5.4 mini or GPT-4.1 (both on watch but acceptable for testing)"
+  - "Do not escalate to Claude Sonnet or premium tiers for this cycle"
+
+stale_or_missing_memory: []

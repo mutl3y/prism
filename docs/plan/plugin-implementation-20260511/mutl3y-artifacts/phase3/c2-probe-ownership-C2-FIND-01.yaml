@@ -1,0 +1,32 @@
+plan_id: plugin-implementation-20260511
+cycle: plugin-implementation-20260511-c2
+phase: phase_3
+worker: Probe-Ownership
+tier_selected: "FREE (0x)"
+tier_reason: "Phase 3 probe default tier."
+finding_id: C2-FIND-01
+verdict: confirmed
+confidence: high
+key_evidence:
+  - path: src/prism/scanner_plugins/registry.py
+    evidence: "Defines plugin_registry singleton, registration APIs, deferred loaders, get_* methods and default_platform_key management."
+  - path: src/prism/scanner_plugins/bootstrap.py
+    evidence: "bootstrap_plugin_registry initializes canonical registry, registers Ansible platform, reserved platforms, and sets DEFAULT_SUPPORTED_PLATFORM_KEY."
+  - path: src/prism/scanner_plugins/defaults.py
+    evidence: "Resolution precedence implemented: DI factories > registry > bootstrap singleton; provides Ansible-first fallback singletons and enforces singleton invariants."
+ownership_map:
+  registry_owner: prism.scanner_plugins.registry
+  bootstrap_owner: prism.scanner_plugins.bootstrap
+  runtime_owner:
+    - prism.scanner_core.di (per-scan DI container exposing factory overrides and injected registry)
+    - prism.scanner_core.plugin_resolver (resolves registry classes and constructs runtime plugin instances)
+    - prism.scanner_plugins.defaults (runtime precedence logic and fallback singletons)
+implementation_risk: medium
+recommended_fix_slice: "Introduce a registry-driven platform-default-provider seam to avoid Ansible-hardcoded fallbacks; update defaults to consult registry for platform-specific fallback providers and adjust bootstrap to register platform-default-provider mappings."
+disjoint_file_scope:
+  - src/prism/scanner_plugins/defaults.py
+  - src/prism/scanner_plugins/bootstrap.py
+  - src/prism/scanner_plugins/registry.py
+  - src/prism/scanner_core/di.py
+  - src/prism/scanner_core/plugin_resolver.py
+timestamp_utc: "2026-05-12T01:20:00Z"

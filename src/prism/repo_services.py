@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 import json
+import logging
 import os
 from pathlib import Path
 import subprocess
@@ -20,6 +21,8 @@ from prism.errors import (
     PrismRuntimeError,
 )
 from prism.scanner_data.contracts_output import RunScanOutputPayload
+
+logger = logging.getLogger(__name__)
 
 REPO_SERVICE_CANONICAL_SURFACE: tuple[str, ...] = (
     "build_repo_intake_components",
@@ -314,7 +317,9 @@ def normalize_repo_scan_payload(
         return json.dumps(normalized, indent=2, sort_keys=True)
 
     if not isinstance(payload, dict):
-        raise RuntimeError(REPO_SCAN_PAYLOAD_TYPE_INVALID)
+        raise RuntimeError(REPO_SCAN_PAYLOAD_TYPE_INVALID) from TypeError(
+            f"Expected dict, got {type(payload).__name__}"
+        )
 
     payload_dict = cast(dict[str, Any], payload)
 
@@ -325,7 +330,9 @@ def normalize_repo_scan_payload(
     elif isinstance(metadata_value, dict):
         metadata_dict = metadata_value
     else:
-        raise RuntimeError(REPO_SCAN_PAYLOAD_SHAPE_INVALID)
+        raise RuntimeError(REPO_SCAN_PAYLOAD_SHAPE_INVALID) from TypeError(
+            f"Expected dict for metadata, got {type(metadata_value).__name__}"
+        )
 
     style_guide_value = metadata_dict.get("style_guide")
     if style_guide_value is None:
@@ -334,7 +341,9 @@ def normalize_repo_scan_payload(
     elif isinstance(style_guide_value, dict):
         style_guide_dict = style_guide_value
     else:
-        raise RuntimeError(REPO_SCAN_PAYLOAD_SHAPE_INVALID)
+        raise RuntimeError(REPO_SCAN_PAYLOAD_SHAPE_INVALID) from TypeError(
+            f"Expected dict for style_guide, got {type(style_guide_value).__name__}"
+        )
 
     if repo_style_readme_path:
         style_guide_dict["path"] = repo_style_readme_path

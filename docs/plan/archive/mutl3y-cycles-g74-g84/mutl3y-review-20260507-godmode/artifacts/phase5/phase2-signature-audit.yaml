@@ -1,0 +1,436 @@
+investigation_date: "2026-05-07"
+builder: "Builder-Phase2Outline"
+repository: "/raid5/source/test/prism"
+
+scope:
+  analysis_targets:
+    - src/prism/scanner_extract/task_catalog_assembly.py
+    - src/prism/scanner_extract/task_file_traversal.py
+    - src/prism/scanner_extract/task_annotation_parsing.py
+    - src/prism/scanner_core/task_extract_adapters.py
+    - src/prism/scanner_core/feature_detector.py
+  affected_by_migration: 5 modules
+  estimated_cascade_updates: 19+ functions
+
+call_site_analysis:
+  entry_point: feature_detector.py::FeatureDetector.collect_task_handler_catalog
+    callsites: 1 (line 121 in feature_detector.py)
+    parameter_source: self._di (DIContainer instance)
+    context_available: YES (self._di contains scanner_context or policy_constants)
+    notes: |
+      FeatureDetector.__init__ stores self._di.
+      collect_task_handler_catalog() method calls _collect_task_handler_catalog(di=self._di).
+      Can easily convert to pass scanner_context or policy_constants via self._di.
+
+  intermediate_adapters: task_extract_adapters.py
+    functions: 9 wrapper functions
+    pattern: All are thin re-export facades with lazy imports
+    di_parameter_flow: Uniformly threaded through all wrappers
+    conversion_effort: LOW (simple pass-through update)
+    notes: |
+      All functions in task_extract_adapters.py are trivial re-exports.
+      No business logic; all just forward di= to task_catalog_assembly or task_file_traversal.
+      Update strategy: Rename di= param OR add dual sig, consistent across all 9.
+
+  terminal_consumers: task_catalog_assembly, task_file_traversal, task_annotation_parsing
+    hotpath_functions: 19 (per Scout analysis)
+    require_prepared_policy_calls: 13 direct calls
+    conversion_effort: MEDIUM-HIGH (depends on signature choice)
+
+signature_migration_options:
+
+  OPTION_A_DUAL_SIGNATURES:
+    description: |
+      Add scanner_context= parameter alongside di=.
+      Use one or the other; internal logic selects which.
+      Callers can opt-in incrementally.
+      Backward compat preserved until di= deprecated.
+
+    implementation_strategy: |
+      1. Update task_catalog_assembly.py:_collect_task_handler_catalog
+         Signature: (role_path, exclude_paths, marker_prefix, *, di=None, scanner_context=None)
+         Logic: Extract policy_constants from scanner_context if provided, else via require_prepared_policy(di, ...)
+
+      2. Update all 6 wrapper functions in task_extract_adapters.py
+         Pattern: (arg1, arg2, *, di=None, scanner_context=None)
+
+      3. Update 5 wrapper functions in task_annotation_parsing.py
+         Pattern: (args, *, di=None, scanner_context=None)
+
+      4. Update 8 wrapper functions in task_file_traversal.py
+         Pattern: (args, *, di=None, scanner_context=None)
+
+    implementation_phases:
+      phase2a_adapter_update:
+        files: task_extract_adapters.py
+        changes: Add scanner_context= param to all 9 wrappers
+        effort: "30 mins"
+        risk: LOW
+        sequence: FIRST (base layer)
+
+      phase2b_assembly_update:
+        files: task_catalog_assembly.py
+        changes: Update 2 main functions + 1 public wrapper
+        effort: "1 hour"
+        risk: LOW-MEDIUM
+        sequence: SECOND
+        special_handling: |
+          _collect_task_handler_catalog needs to extract policy_constants from scanner_context.
+          If scanner_context provided, extract via: policy_const = scanner_context.policy_constants
+          If di provided, extract via: require_prepared_policy(di, 'task_line_parsing', ...)
+          Must validate mutual exclusivity or conversion path.
+
+      phase2c_traversal_update:
+        files: task_file_traversal.py
+        changes: Update 8+ wrapper functions
+        effort: "1.5 hours"
+        risk: LOW
+        sequence: THIRD (can run in parallel with 2b)
+
+      phase2d_annotation_update:
+        files: task_annotation_parsing.py
+        changes: Update 5 wrapper functions
+        effort: "45 mins"
+        risk: LOW
+        sequence: FOURTH (can run in parallel with 2b, 2c)
+
+    total_effort: "3-3.5 hours"
+    total_risk: LOW
+    breaking_changes: NONE (di= remains supported)
+
+    pros:
+      - Backward compatible (no existing callers break)
+      - Incremental opt-in possible
+      - Safe to land Phase 1 (PolicyConstants factory) before Phase 2
+      - Can test new scanner_context path in parallel with old di= path
+
+    cons:
+      - Code duplication (2 paths through hotpath)
+      - Maintenance burden (both paths must stay working)
+      - Policy extraction logic must handle both sources
+      - Eventually need deprecation + cleanup pass
+
+  OPTION_B_SINGLE_SIGNATURE_REWRITE_POLICY_CONSTANTS:
+    description: |
+      Replace di= with policy_constants= parameter.
+      Callers extract policy_constants from scanner_context or DI and pass it.
+      Simplest for hotpath (only one code path).
+      Requires callers to do extraction.
+
+    implementation_strategy: |
+      1. Update task_catalog_assembly.py
+         Signature: (role_path, exclude_paths, marker_prefix, *, policy_constants=None)
+         Logic: Use policy_constants directly (fail if None)
+
+      2. Update task_extract_adapters.py
+         Signature: (args, *, policy_constants=None)
+         Logic: Extract from di if not provided (temporary fallback)
+         OR require callers provide policy_constants
+
+      3. Update task_file_traversal.py, task_annotation_parsing.py
+         Same pattern: (args, *, policy_constants=None)
+
+    implementation_phases:
+      phase2a_assembly_update:
+        files: task_catalog_assembly.py
+        changes: Replace di= with policy_constants= param
+        effort: "1 hour"
+        risk: MEDIUM (hotpath change)
+        sequence: FIRST
+
+      phase2b_adapter_update:
+        files: task_extract_adapters.py
+        changes: Update all 9 wrappers to accept policy_constants=
+        effort: "45 mins"
+        risk: MEDIUM
+        sequence: SECOND (dependent on 2a)
+
+      phase2c_callers_update:
+        files: feature_detector.py + other callers
+        changes: Extract policy_constants from DI/context before calling
+        effort: "1 hour"
+        risk: MEDIUM
+        sequence: THIRD (dependent on 2a, 2b)
+        validation_blocker: Must verify all external callers found + updated
+
+      phase2d_traversal_annotation_update:
+        files: task_file_traversal.py, task_annotation_parsing.py
+        changes: Update all wrapper functions
+        effort: "1.5 hours"
+        risk: LOW
+        sequence: FOURTH (can be parallel with 2c once 2a done)
+
+    total_effort: "4-4.5 hours"
+    total_risk: MEDIUM
+    breaking_changes: YES (di= parameter removed; all callers must update)
+
+    validation_requirements:
+      - All external callers to public APIs must be found and updated atomically
+      - Test suite must verify no di= references remain in hotpath
+      - Extraction of policy_constants from feature_detector must be verified
+
+    pros:
+      - Single code path through hotpath (no duplication)
+      - Cleaner API (explicit policy_constants param)
+      - Easier to reason about policy resolution
+      - Reduced maintenance burden
+
+    cons:
+      - Breaking change to public APIs
+      - All callers must update atomically
+      - Risk of missing external callers
+      - Requires complete scanner_context available at all entry points
+
+  OPTION_C_SINGLE_SIGNATURE_REWRITE_SCANNER_CONTEXT:
+    description: |
+      Replace di= with scanner_context= parameter.
+      Aligns with pure-execution strategy (scanner_context is canonical runtime state).
+      Callers pass full scanner_context (or subset proxy).
+      Requires scanner_context available at all entry points.
+
+    implementation_strategy: |
+      1. Update task_catalog_assembly.py
+         Signature: (role_path, exclude_paths, marker_prefix, *, scanner_context=None)
+         Logic: Extract policy_constants from scanner_context.policy_constants
+
+      2. Update task_extract_adapters.py
+         Signature: (args, *, scanner_context=None)
+         Logic: Accept scanner_context from callers OR construct from DI
+
+      3. Update task_file_traversal.py, task_annotation_parsing.py
+         Signature: (args, *, scanner_context=None)
+
+    implementation_phases:
+      phase2a_assembly_update:
+        files: task_catalog_assembly.py
+        changes: Replace di= with scanner_context=
+        effort: "1 hour"
+        risk: MEDIUM
+        sequence: FIRST
+
+      phase2b_adapters_update:
+        files: task_extract_adapters.py
+        changes: Replace di= with scanner_context=
+        effort: "45 mins"
+        risk: MEDIUM
+        sequence: SECOND
+
+      phase2c_callers_update:
+        files: feature_detector.py + others
+        changes: Pass scanner_context instead of di
+        effort: "45 mins"
+        risk: MEDIUM
+        sequence: THIRD
+        notes: |
+          feature_detector has self._di but may not have direct scanner_context access.
+          May need to extract from DI or reconstruct.
+
+      phase2d_traversal_annotation_update:
+        files: task_file_traversal.py, task_annotation_parsing.py
+        changes: Replace di= with scanner_context=
+        effort: "1.5 hours"
+        risk: LOW
+        sequence: FOURTH
+
+    total_effort: "4-4.5 hours"
+    total_risk: MEDIUM
+    breaking_changes: YES (di= parameter removed)
+
+    architectural_alignment: |
+      Strongest alignment with prism architecture goals:
+      - scanner_context is the canonical execution state container
+      - Reduces DI container usage in hotpath
+      - Explicit context threading improves testability
+      - Aligns with pure-execution vision (NCK1/SCB1/MP1 closure goals)
+
+    pros:
+      - Single code path (no duplication)
+      - Strong architectural alignment
+      - Reduces DI container coupling in hotpath
+      - Enables better concurrent multi-scan isolation
+      - scanner_context can carry per-scan metadata
+
+    cons:
+      - Breaking change to public APIs
+      - All callers must update atomically
+      - feature_detector needs scanner_context (may not have it currently)
+      - Highest effort if feature_detector refactor needed
+
+recommended_migration_path:
+
+  RECOMMENDED: OPTION_A_DUAL_SIGNATURES
+    rationale: |
+      1. Phase 1 (PolicyConstants factory) is already COMPLETE and TESTED.
+      2. Wave 2 Phase 2 migration can start immediately without breaking anything.
+      3. Dual signatures provide lowest risk + fastest time-to-value.
+      4. Callers can opt-in incrementally; no atomic update required.
+      5. feature_detector.py can be updated to use scanner_context path.
+      6. Old di= path remains for backward compat until explicit deprecation wave.
+
+    implementation_priority:
+      1. Update task_extract_adapters.py adapters first (2a, 30 mins)
+         - Low risk; simple pass-through update
+         - Provides base layer for downstream functions
+
+      2. Update task_catalog_assembly.py main functions (2b, 1 hour)
+         - Medium risk; hotpath changes
+         - Implement mutual-exclusivity logic (di= vs scanner_context=)
+
+      3. Parallel update task_file_traversal.py (2c, 1.5 hours)
+      4. Parallel update task_annotation_parsing.py (2d, 45 mins)
+
+      5. Update feature_detector.py to use new scanner_context= param
+         - Extract policy_constants OR scanner_context from self._di
+         - Pass to collect_task_handler_catalog
+
+      6. Add tests for new scanner_context= path
+         - Verify policy_constants extracted correctly
+         - Verify both di= and scanner_context= paths produce identical results
+
+    total_timeline: "4-5 hours implementation + 2-3 hours testing"
+
+    risk_mitigation:
+      - Implement both paths independently (no cross-contamination)
+      - Test both paths produce identical output
+      - Keep di= path alive during entire Wave 2-3
+      - Only deprecate di= after Phase 3 testing complete + feedback collected
+
+deferred_considerations:
+
+  OPTION_B_AND_OPTION_C_TIMING: |
+    Defer Option B or Option C as a PHASE 4 or Wave 3 effort:
+    - Run Wave 2-3 with Option A (dual sigs)
+    - Collect feedback on scanner_context threading
+    - Plan Phase 4 cleanup wave to consolidate to single signature
+    - By then, scanner_context will be more stable/proven in hotpath
+
+  CONCURRENT_MULTI_SCAN_ISOLATION: |
+    scanner_context threading via Option C enables future work:
+    - Per-scan policy_constants isolation (no shared DI state)
+    - Concurrent scan execution (separate scanner_context per thread)
+    - Easier testing of policy combinations
+    Consider this as a strategic goal for Option C evaluation in Wave 3+.
+
+module_by_module_breakdown:
+
+  task_catalog_assembly.py:
+    functions_to_update: 3
+      - _detect_task_module (line 19)
+      - _collect_task_handler_catalog (line 54)
+      - collect_task_handler_catalog public wrapper (line 302)
+    effort_estimate: 1 hour
+    risk: MEDIUM (hotpath; recursive _collect_tasks_recursive uses di=)
+
+  task_file_traversal.py:
+    functions_to_update: 8+
+      - _load_yaml_file
+      - _load_yaml_file_with_metadata
+      - _iter_task_mappings
+      - _iter_task_include_targets
+      - _iter_task_include_edges
+      - _expand_include_target_candidates
+      - _iter_role_include_targets
+      - _iter_dynamic_role_include_targets
+      - _collect_task_files
+      - _collect_task_files_with_unresolved_includes
+      - _collect_unconstrained_dynamic_task_includes
+    effort_estimate: 1.5 hours
+    risk: LOW-MEDIUM (mostly delegation functions)
+
+  task_annotation_parsing.py:
+    functions_to_update: 5
+      - _split_task_annotation_label (line 9)
+      - _split_task_target_payload (line 18)
+      - _annotation_payload_looks_yaml (line 27)
+      - _extract_task_annotations_for_file (line 39)
+      - _task_anchor (line 51)
+    effort_estimate: 45 mins
+    risk: LOW (simple delegation functions)
+
+  task_extract_adapters.py:
+    functions_to_update: 9
+      - _extract_task_annotations_for_file
+      - _collect_task_handler_catalog
+      - detect_task_module
+      - extract_collection_from_module_name (no di= currently)
+      - collect_task_files
+      - collect_unconstrained_dynamic_role_includes
+      - (+ 3 more public re-exports)
+    effort_estimate: 30-45 mins
+    risk: LOW (thin facade layer)
+    sequence: UPDATE FIRST (base layer)
+
+  feature_detector.py:
+    functions_to_update: 2
+      - _collect_task_handler_catalog wrapper (line 25)
+      - FeatureDetector.collect_task_handler_catalog (line 118)
+    effort_estimate: 30 mins
+    risk: LOW (extraction + parameter pass-through)
+    sequence: UPDATE AFTER task_extract_adapters
+
+implementation_blockers:
+
+  blocker_01_policy_constants_extraction:
+    issue: Must extract policy_constants from scanner_context safely
+    mitigation: |
+      Implement accessor method in scanner_context or use .get() with fallback.
+      Validate field exists before using.
+
+  blocker_02_dual_signature_mutual_exclusivity:
+    issue: Must enforce exactly one of (di=, scanner_context=) is provided
+    mitigation: |
+      Add explicit validation at function entry:
+      if (di is None) == (scanner_context is None):
+          raise ValueError("Specify exactly one of: di= or scanner_context=")
+
+  blocker_03_recursive_inline_function:
+    issue: _collect_tasks_recursive is nested inline function; can't refactor separately
+    mitigation: |
+      Keep nested function as-is; just thread new parameter through outer function signature.
+      Nested function will receive parameter via closure.
+
+  blocker_04_test_parity_verification:
+    issue: Must verify both di= and scanner_context= paths produce identical results
+    mitigation: |
+      Phase 3 testing must include parity tests for both code paths.
+      Run same test with di= vs scanner_context=; assert equal output.
+
+  blocker_05_external_callers_discovery:
+    issue: Must find all external callers to public API functions
+    mitigation: |
+      Run grep for: collect_task_handler_catalog|collect_task_files|extract_task_annotations_for_file
+      Scan entire src/ and test/ directories.
+      Document all callsites in Phase 2 analysis before implementation.
+
+summary_recommendation:
+
+  OPTION_A: IMPLEMENT DUAL SIGNATURES NOW
+
+  Timeline:
+    - Phase 2a (adapters): ~30 mins
+    - Phase 2b (assembly): ~1 hour
+    - Phase 2c (traversal): ~1.5 hours
+    - Phase 2d (annotation): ~45 mins
+    - Phase 2e (feature_detector + other callers): ~45 mins
+
+    TOTAL: ~4-4.5 hours implementation
+
+  Phase 3 Testing:
+    - Parity tests for di= vs scanner_context= paths: ~2 hours
+    - Per-scan isolation tests: ~2 hours
+    - Concurrent multi-scan tests: ~1.5 hours
+
+    TOTAL: ~5.5 hours testing
+
+  Risk Profile: LOW
+    - No breaking changes
+    - Both paths co-exist
+    - Backward compat preserved
+    - Can defer consolidation to Wave 3+
+
+  Success Criteria:
+    - All 3 YAML artifacts produced
+    - Dual signatures implemented across all 5 modules
+    - Phase 3 parity tests all passing
+    - 0 new test failures from Phase 1 baseline (1171 tests)
+    - Both di= and scanner_context= paths execute identically

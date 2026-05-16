@@ -1,0 +1,175 @@
+---
+investigation_id: phase3-critical-policy-proxy-overhead
+finding_ref: "mutl3y-review-20260507-godmode: CRITICAL Finding"
+location: "src/prism/scanner_extract/task_line_parsing.py (lines 12-62, 74-111)"
+probe_name: "Probe-PolicyProxyOverhead"
+investigation_date: "2026-05-07"
+
+# EXECUTIVE SUMMARY
+executive_summary: |
+  Policy-backed proxy pattern in task_line_parsing.py introduces runtime overhead
+  and failure-mode complexity: each access to 13 proxy instances triggers
+  require_prepared_policy() which performs dict lookups + type checks. Fix is
+  scoped, single-wave viable, and recommended as medium-priority improvement.
+
+# PROXY INVENTORY
+proxy_classes:
+  - name: "_PolicyBackedCollectionProxy"
+    methods: ["__iter__", "__contains__", "__len__", "__repr__"]
+    instances: 6
+  - name: "_PolicyBackedRegexProxy"
+    methods: ["match", "search", "fullmatch", "__getattr__"]
+    instances: 1
+  - name: "_PolicyBackedMarkerLineRegexProxy"
+    methods: ["match", "search", "fullmatch", "__getattr__"]
+    instances: 2
+  - name: "_PolicyBackedAnnotationRegexProxy"
+    methods: ["match", "search", "fullmatch", "__getattr__"]
+    instances: 4
+
+proxy_instances_total: 13
+proxy_classes_total: 4
+
+# PROXY INSTANCES DETAIL
+proxy_instances:
+  collection:
+    - TASK_INCLUDE_KEYS
+    - ROLE_INCLUDE_KEYS
+    - INCLUDE_VARS_KEYS
+    - SET_FACT_KEYS
+    - TASK_BLOCK_KEYS
+    - TASK_META_KEYS
+  marker_line_regex:
+    - ROLE_NOTES_RE
+    - TASK_NOTES_LONG_RE
+  annotation_regex:
+    - COMMENT_CONTINUATION_RE
+    - TASK_ENTRY_RE
+    - YAML_LIKE_KEY_VALUE_RE
+    - YAML_LIKE_LIST_ITEM_RE
+  regex:
+    - TEMPLATED_INCLUDE_RE
+
+# CALLSITE ANALYSIS
+callsite_count: 7  # Actual runtime method calls on proxies
+callsite_details:
+  - file: "scanner_plugins/parsers/comment_doc/annotation_parsing.py"
+    methods: ["match", "match"]  # 5 total invocations
+    description: "Regex proxies used for line pattern matching during annotation parsing"
+    call_frequency: "high (per-line in annotation extraction)"
+  - file: "scanner_plugins/parsers/comment_doc/role_notes_parser.py"
+    methods: ["match"]  # 1 invocation
+    description: "Regex proxy for continuation line detection"
+    call_frequency: "medium (per-annotation block)"
+  - file: "scanner_plugins/ansible/task_traversal_bare.py"
+    methods: ["match"]  # 1 invocation
+    description: "Regex proxy for templated-include detection"
+    call_frequency: "medium (per-task in role)"
+
+# OVERHEAD ANALYSIS
+overhead_mechanism: |
+  Each proxy access (iter, contains, len, match, search) calls:
+  1. _current_value() or _current_regex()
+  2. require_prepared_policy(None, policy_name, context)
+  3. get_prepared_policy_or_none(di, policy_name)
+  4. scan_options_from_di(di)
+  5. Multiple dict.get() lookups on scan_options and prepared_policy_bundle
+  6. Type checks for each step
+
+  Net: 5-10 method calls + 3-5 dict lookups per proxy access.
+
+overhead_impact: "high"
+overhead_justification: |
+  Collection proxy access is typically in tight loops (e.g., iterating include_keys
+  for each task). At ~15-30 tasks per role scan and ~4-8 includes per task,
+  single scan could invoke proxies 60-240+ times. With 10x overhead per call,
+  this adds meaningful latency.
+
+# FILES AFFECTED (22 total)
+files_affected_count: 22
+files_affected:
+  - api_layer/non_collection.py  # re-export only
+  - scanner_core/scanner_context.py  # type annotation only
+  - scanner_data/contracts_request.py  # type annotation only
+  - scanner_extract/__init__.py  # re-export only
+  - scanner_extract/task_catalog_assembly.py  # direct access (1 site)
+  - scanner_extract/task_line_parsing.py  # definition + helpers
+  - scanner_plugins/ansible/default_policies.py  # policy assignment
+  - scanner_plugins/ansible/extract_policies.py  # policy assignment
+  - scanner_plugins/ansible/task_annotation_strategy.py  # re-export
+  - scanner_plugins/ansible/task_keywords.py  # re-export
+  - scanner_plugins/ansible/task_line_parsing.py  # re-export
+  - scanner_plugins/ansible/task_regex.py  # re-export
+  - scanner_plugins/ansible/task_traversal_bare.py  # 1 runtime call
+  - scanner_plugins/ansible/task_vocabulary.py  # re-export
+  - scanner_plugins/ansible/variable_discovery.py  # policy delegation
+  - scanner_plugins/ansible/variable_extractor.py  # re-export
+  - scanner_plugins/bundle_resolver.py  # re-export
+  - scanner_plugins/defaults.py  # re-export
+  - scanner_plugins/parsers/comment_doc/annotation_parsing.py  # 5 runtime calls
+  - scanner_plugins/parsers/comment_doc/marker_utils.py  # re-export
+  - scanner_plugins/parsers/comment_doc/role_notes_parser.py  # 1 runtime call
+  - scanner_plugins/parsers/yaml/line_shape.py  # re-export
+
+# FIX COMPLEXITY ASSESSMENT
+fix_complexity: "moderate"
+fix_complexity_breakdown:
+  - "Remove proxy class definitions: ~50 lines of code removed"
+  - "Replace module-level proxy instances with direct getters: ~10 lines"
+  - "Update 22 import sites: mostly straightforward, but some are deep in plugin layers"
+  - "Update 7 runtime callsites to call getter functions instead: trivial replacements"
+  - "Caching layer optional: could add LRU or context-local cache in require_prepared_policy"
+
+# ONE-WAVE VIABILITY ASSESSMENT
+can_do_one_wave: yes
+one_wave_rationale: |
+  1. Scope is contained: all proxies defined in single file (task_line_parsing.py)
+  2. All consumers are internal (no external API surface using proxies)
+  3. 22 files affected is manageable for atomic refactoring
+  4. No circular dependencies detected
+  5. Getter function pattern already used in codebase (get_task_include_keys, etc.)
+  6. Tests already validate both proxy and getter paths separately
+
+# RISK ASSESSMENT
+risks:
+  - risk_id: "RISK-001"
+    title: "Dynamic policy resolution failure mode"
+    severity: "medium"
+    description: |
+      Proxies mask policy unavailability until access time. Direct callers will
+      fail at call site rather than at policy assembly time. Could make debugging
+      harder if prepared_policy_bundle is malformed.
+    mitigation: "Validation layer in require_prepared_policy can log earlier failures"
+
+  - risk_id: "RISK-002"
+    title: "Undocumented call frequency"
+    severity: "low"
+    description: |
+      Exact runtime call count for proxies is difficult to measure without
+      instrumentation. Overhead estimate (high) is based on pattern analysis,
+      not profiling. Actual impact may be lower if calls are less frequent than estimated.
+    mitigation: "Profile run_scan with instrumentation before committing to fix priority"
+
+# RECOMMENDATION
+recommended_action: "fix_architectural"
+priority: "medium"
+rationale: |
+  This is a reliability and performance improvement that should be scheduled in
+  next wave of scanner_core hardening. Not blocking for Kubernetes/Terraform
+  expansion, but should be addressed before multi-platform stress testing.
+  Fix is low-risk, single-wave viable, and removes unnecessary indirection from
+  hot path.
+
+# NEXT STEPS IF APPROVED
+next_steps_if_approved:
+  - Step 1: Create implementation plan (1h)
+  - Step 2: Implement getter functions to replace proxies (2h)
+  - Step 3: Update import statements across 22 files (2h)
+  - Step 4: Add caching layer to require_prepared_policy (optional, 1h)
+  - Step 5: Run full test suite + smoke lanes (1h)
+  - Step 6: Profile before/after on sample scan (1h)
+  - Total: ~8h one-wave execution window
+
+profiling_recommendation: |
+  Before fixing, instrument require_prepared_policy calls to measure actual
+  overhead on real scans. If profiling shows <5% impact, defer to lower priority.

@@ -1,0 +1,160 @@
+---
+wave_id: scout-controlflow
+scan_target: src/prism
+category: control_flow_issues
+scan_date: "2026-05-07"
+findings:
+  - finding_id: "SC-001"
+    severity: high
+    category: control_flow_issue
+    location: src/prism/scanner_plugins/defaults.py:382
+    description: |
+      _construct_registry_plugin broad exception handling masks plugin construction
+      defects. Any exception from third-party plugin __init__ is caught and
+      delegated to fallback logic without logging root cause.
+    issue_type: error_handling
+    detail: |
+      Lines 382-408: plugin_class() construction wrapped in bare except block
+      that routes to _fallback_or_raise_plugin_construction_error. Defects in
+      plugin __init__ are silent in fallback path.
+
+  - finding_id: "SC-002"
+    severity: high
+    category: control_flow_issue
+    location: src/prism/scanner_plugins/defaults.py:126
+    description: |
+      _guard_platform_specific_non_strict_fallback implements ambiguous decision
+      boundary: three sequential isinstance checks with implicit precedence. Conditions
+      can be satisfied in multiple orderings with unclear fail-closed semantics.
+    issue_type: complexity
+    detail: |
+      Lines 126-157: strict_mode, fallback_platform_key, selected_platform_key
+      checks form nested condition tree with implicit AND/OR precedence. Silent
+      return vs raise pattern difficult to trace.
+
+  - finding_id: "SC-003"
+    severity: medium
+    category: control_flow_issue
+    location: src/prism/scanner_core/variable_discovery.py:57
+    description: |
+      _resolve_plugin method contains duplicate error throws at different branch
+      points. Same ValueError raised with identical message at lines 62, 67, 79, 85, 92.
+      Code paths may terminate early but throw appears unreachable on line 92.
+    issue_type: unreachable
+    detail: |
+      Lines 57-92: if self._plugin_resolved returns early at line 59, but
+      ValueError also thrown at line 92 after the lock. The lock block returns
+      plugin only if resolved, making line 92 logically unreachable in happy path.
+
+  - finding_id: "SC-004"
+    severity: high
+    category: control_flow_issue
+    location: src/prism/scanner_kernel/kernel_plugin_runner.py:108
+    description: |
+      Phase handler execution uses upstream_phase_failed flag with two different
+      continuation paths: continue on skip vs continue on failure. Control flow
+      through both paths unclear; downstream phases silently skipped without
+      distinct failure vs skip metadata.
+    issue_type: complexity
+    detail: |
+      Lines 108-180: upstream_phase_failed flag checked at line 126, but both
+      skip-due-to-upstream (line 131) and upstream-failure-detected (line 153)
+      paths call continue. Ambiguous which recovery action applies.
+
+  - finding_id: "SC-005"
+    severity: medium
+    category: control_flow_issue
+    location: src/prism/scanner_core/feature_detector.py:73
+    description: |
+      _resolve_plugin method throws identical error message at three separate
+      locations (lines 103, 115 unreachable from detect/analyze_task_catalog).
+      Error thrown before plugin is resolved suggests contract boundary confused.
+    issue_type: unreachable
+    detail: |
+      Lines 73-115: _resolve_plugin checks _plugin_resolved at line 84 and
+      returns early. But lines 103, 115 throw identical ValueError "FeatureDetector
+      requires a plugin via DI factory_feature_detection_plugin". If plugin is
+      resolved, return happens at line 86; if None, line 103 throws. Line 115
+      is unreachable because plugin must either be non-None or exception thrown.
+
+  - finding_id: "SC-006"
+    severity: high
+    category: control_flow_issue
+    location: src/prism/scanner_kernel/plugin_name_resolver.py:130
+    description: |
+      resolve_scan_pipeline_plugin_name implements four-layer fallback chain with
+      implicit ordering: explicit config > policy_context > platform > default.
+      Multiple fallback exits without clear precedence when multiple layers
+      have values.
+    issue_type: complexity
+    detail: |
+      Lines 130-154: Fallback precedence is implicit in if-elif-elif-else chain.
+      If scan_pipeline_plugin AND platform both set, scan_pipeline_plugin wins
+      (line 133). If policy_context AND platform both set, behavior undefined
+      (line 140 returns policy, but platform checked at line 148 in fallback).
+
+  - finding_id: "SC-007"
+    severity: medium
+    category: control_flow_issue
+    location: src/prism/scanner_plugins/defaults.py:463
+    description: |
+      _resolve_plugin_with_precedence implements multi-layer plugin resolution
+      with nested ternary and implicit fallback. DI override > registry > fallback
+      precedence spans 40+ lines with complex isinstance guards.
+    issue_type: complexity
+    detail: |
+      Lines 463-505: Precedence chain checks DI factory, then registry class,
+      then fallback with guard conditions. Each branch has _validate_plugin_shape
+      call with different fallback_plugin argument. Precedence ordering not
+      documented; complex to trace all paths.
+
+  - finding_id: "SC-008"
+    severity: high
+    category: control_flow_issue
+    location: src/prism/scanner_kernel/orchestrator.py:54
+    description: |
+      _is_process_scan_pipeline_plugin uses isinstance(value, _ProcessScanPipelinePlugin)
+      Protocol check. Protocol checks may silently pass/fail based on runtime
+      method presence, not explicit interface contract. No fallback validation.
+    issue_type: error_handling
+    detail: |
+      Lines 54-56: isinstance check on @runtime_checkable Protocol will duck-type
+      based on method presence. If process_scan_pipeline exists but has wrong
+      signature, check passes but execution will fail. No recovery from protocol
+      mismatch caught until orchestration time.
+
+  - finding_id: "SC-009"
+    severity: high
+    category: control_flow_issue
+    location: src/prism/scanner_core/scanner_context.py:330
+    description: |
+      _discover_variables and _detect_features implement recoverable error handling
+      with implicit strict_phase_failures flag controlling error propagation.
+      Multiple error types silently downgraded to best-effort without explicit
+      severity classification.
+    issue_type: error_handling
+    detail: |
+      Lines 330-360: _RECOVERABLE_PHASE_ERRORS tuple determines if error is
+      silently caught. If isinstance(error, _RECOVERABLE_PHASE_ERRORS) is False,
+      error is raised regardless of strict_phase_failures. Decision logic unclear.
+
+  - finding_id: "SC-010"
+    severity: medium
+    category: control_flow_issue
+    location: src/prism/scanner_core/di.py:395
+    description: |
+      factory_variable_discovery_plugin contains nested type-check guards that
+      can cascade to ValueError. Three sequential None checks before returning
+      plugin (lines 409, 416). Final return path unreachable if plugin_cls is
+      None at line 409.
+    issue_type: unreachable
+    detail: |
+      Lines 395-427: plugin_cls retrieved from registry at line 408. If None,
+      ValueError raised at line 409. Subsequent code at line 416 is unreachable
+      if that exception path taken. Logic flow unclear.
+
+count_high: 6
+count_medium: 4
+count_low: 0
+status: complete
+artifact_version: "1.0"

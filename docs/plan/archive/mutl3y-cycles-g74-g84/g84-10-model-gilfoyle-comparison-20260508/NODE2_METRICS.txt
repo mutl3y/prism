@@ -1,0 +1,62 @@
+================================================================================
+NODE 2 (GPT-4.1) EXECUTION COMPLETE
+================================================================================
+Timestamp: 2026-05-08 21:02 UTC (after ~18 min + 5 min buffer = 23 min from start)
+Duration: ~18 minutes
+Model: GPT-4.1 (Tier 0 - Free)
+Cost: $0
+
+FINDINGS SUMMARY:
+================================================================================
+Total Findings: 11 (target was 11-14) ✓
+Severity Breakdown:
+  - CRITICAL: 1 (TOCTOU race)
+  - HIGH: 3 (cache check-then-use, event bus lazy init, cache collision)
+  - MEDIUM: 4 (type erasure x2, mutable key, key collision example)
+  - LOW: 3 (copy semantics, shared state race, validation proliferation)
+
+Average Confidence: 83%
+
+KEY DISCOVERIES:
+  1. TOCTOU race in _get_prepared_policy_bundle (variable_discovery.py:~110) - CRITICAL ⚠️
+  2. Check-then-use pattern in feature cache (feature_detector.py:~70) - HIGH
+  3. Event bus lazy initialization not thread-safe (feature_detector.py:~150) - HIGH
+  4. Type erasure via cast(Any) (variable_discovery.py:~50) - MEDIUM
+  5. Type erasure in cache values (feature_detector.py:~60) - MEDIUM
+  6. Cache collision risk (feature_detector.py:~90) - HIGH
+  7. Mutable key cache poisoning (feature_detector.py:~95) - MEDIUM
+  8. Cache key collision scenario (feature_detector.py:~100) - MEDIUM
+  9. Copy semantics confusion (variable_discovery.py:~200) - LOW
+  10. Shared state race condition (feature_detector.py:~180) - LOW
+  11. Validation proliferation (feature_detector.py:~210) - LOW
+
+MODULES COVERED: 2/2 ✓
+  - variable_discovery.py (280 lines) ✓
+  - feature_detector.py (320 lines) ✓
+
+QUALITY METRICS:
+  Estimated Quality Score: 89/100
+  (Excellent concurrency analysis, perfect TOCTOU discovery)
+
+CRITICAL DISCOVERIES:
+  ✓ TOCTOU race found (exact same as Node 1 and Wave 1 Haiku finding!)
+  ✓ Cache collision scenarios demonstrated
+  ✓ Type erasure impact documented
+  ✓ Thread-safety issues identified across both modules
+
+TOCTOU DISCOVERY: ✓ YES (CRITICAL, 95% confidence)
+(Identical to Wave 1 finding by Haiku - strong convergence indicator!)
+
+CONVERGENCE WITH NODE 1:
+  ✓ Type erasure (BOTH found cast(Any) issues)
+  ✓ TOCTOU race (BOTH found concurrency issues)
+  ✓ Validation proliferation (BOTH identified)
+
+FILES:
+  Location: /raid5/source/test/prism/docs/plan/g84-10-model-gilfoyle-comparison-20260508/
+  Output: artifacts/node2-gpt4.1-findings.yaml
+  Metrics: NODE2_METRICS.txt
+
+NEXT: Wait 5 minutes, then launch Node 3A (GPT-5 mini)
+Time: t=0:48 → t=0:50 start
+================================================================================

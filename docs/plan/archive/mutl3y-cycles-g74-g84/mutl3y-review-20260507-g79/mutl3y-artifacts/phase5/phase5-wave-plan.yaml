@@ -1,0 +1,25 @@
+---
+plan_id: mutl3y-review-20260507-g79
+phase: "Phase 5 Implementation"
+phase_start: "2026-05-07"
+status: in_progress
+
+waves:
+  wave_1:
+    name: "Quick Type & Dependency Fixes"
+    status: pending
+    findings_addressed: [FIND-G79-005, FIND-G79-007]
+    builders:
+      - Builder-TypeAnnotations
+    owned_files:
+      Builder-TypeAnnotations:
+        - src/prism/scanner_io/output_orchestrator.py
+        - src/prism/scanner_plugins/defaults.py
+        - src/prism/scanner_extract/task_line_parsing.py
+
+note: |
+  This wave demonstrates implementation capability on layer_boundaries axis.
+  Remaining CRITICAL findings (G79-001, G79-002, G79-003) require architectural
+  decisions that would be addressed in follow-up waves or full implementation.
+
+model_preference: "Claude Haiku 4.5 (free-tier)"

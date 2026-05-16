@@ -15,12 +15,83 @@ from typing import (
 )
 
 
+class ErrorContract(TypedDict, total=False):
+    """Typed error ownership contract for layer-aware exception handling.
+
+    Defines error classification across scanner layers:
+    - error_type: "validation" (data check), "system" (resource/state),
+                  "config" (configuration), "plugin" (plugin load/exec)
+    - layer: "config" (config parsing), "core" (scan orchestration),
+             "plugins" (plugin execution), "io" (file/network)
+    - recoverable: True if scan can continue despite this error
+    """
+
+    error_type: str
+    message: str
+    layer: str
+    recoverable: bool
+
+
+@runtime_checkable
+class DIContainer(Protocol):
+    """Minimal DI container interface for validation and runtime access."""
+
+    @property
+    def scan_options(self) -> "ScanOptionsDict": ...
+
+    @property
+    def plugin_registry(self) -> object | None: ...
+
+
+@runtime_checkable
+class CacheKeyProtocol(Protocol):
+    """Protocol for objects that support stable cache key generation.
+
+    Objects implementing this protocol can be safely included in cache keys
+    by providing a stable, deterministic string representation.
+
+    Example:
+        >>> class MyObject:
+        ...     def __init__(self, value: str):
+        ...         self.value = value
+        ...     def __cache_key__(self) -> str:
+        ...         return f"MyObject:{self.value}"
+    """
+
+    def __cache_key__(self) -> str:
+        """Generate a stable, deterministic cache key.
+
+        Must return a string that is:
+        - Deterministic (same object → same key)
+        - Unique across different objects (different objects → different keys)
+        - Serializable (no special characters that break JSON)
+
+        Raises:
+            ValueError: If key generation fails or conditions violated
+        """
+        ...
+
+
 class ScanErrorEntry(TypedDict):
-    """Structured scan-phase error emitted during best-effort execution."""
+    """Structured scan-phase error emitted during best-effort execution.
+
+    Core fields (phase, error_type, message) are always present for backward
+    compatibility with Ansible-only scans. Platform extensions (error_code,
+    category, recoverable, resource_id, detail, cause_type) are optional
+    and available for Kubernetes and Terraform plugins.
+    """
 
     phase: str
     error_type: str
     message: str
+    traceback: NotRequired[str]
+    cause: NotRequired[str]
+    error_code: NotRequired[str]
+    category: NotRequired[str]
+    recoverable: NotRequired[bool]
+    resource_id: NotRequired[str]
+    detail: NotRequired[dict[str, Any]]
+    cause_type: NotRequired[str]
 
 
 class ScanPolicyWarning(TypedDict, total=False):
@@ -473,7 +544,7 @@ def validate_variable_discovery_inputs(
 
 def validate_feature_detector_inputs(
     *,
-    di: Any,
+    di: DIContainer | None,
     role_path: str,
     options: dict[str, Any],
 ) -> None:

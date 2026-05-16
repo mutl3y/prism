@@ -1,0 +1,71 @@
+model_used: Raptor mini (Preview)
+findings:
+  - id: GILF-NODE1-01
+    severity: HIGH
+    category: type-safety
+    location: "src/prism/scanner_core/di.py:74-82"
+    issue: "TypedDict contract erased by generic clone + cast"
+    root_cause: "clone_scan_options deep-clones scan_options into a plain dict and then uses cast(ScanOptionsDict, ...), which preserves no runtime TypedDict invariants."
+    impact: "Invalid or incomplete ScanOptionsDict values can propagate silently until later orchestration steps, making failures harder to diagnose and weakening static type guarantees."
+    confidence: 92
+    fix_suggestion: "Use a stricter runtime validation path for ScanOptionsDict or construct the cloned object via explicit TypedDict-aware helpers instead of raw cast."
+
+  - id: GILF-NODE1-02
+    severity: MEDIUM
+    category: architecture
+    location: "src/prism/scanner_core/di.py:285-306"
+    issue: "Untyped scanner_context_wiring seam"
+    root_cause: "factory_scanner_context depends on a generic dict[str, object] wiring bundle and casts scanner_context_cls to Callable[..., ScannerContext] at runtime."
+    impact: "Runtime contract violations are only discovered when ScannerContext is created, which masks DI boundary errors and creates a brittle plugin wiring surface."
+    confidence: 88
+    fix_suggestion: "Replace scanner_context_wiring with a typed protocol or dataclass that exposes explicit callable fields and validate the seam shape before use."
+
+  - id: GILF-NODE1-03
+    severity: HIGH
+    category: error-handling
+    location: "src/prism/scanner_core/scanner_context.py:350-370"
+    issue: "Broad fail-open error swallowing in core orchestration"
+    root_cause: "Variable discovery and feature detection catch wide exception sets (PrismRuntimeError, ValueError, RuntimeError, TypeError) and continue in best-effort mode unless strict failures are enabled."
+    impact: "Critical scan orchestration failures can degrade silently into incomplete payloads while callers only see warnings and metadata flags, increasing the chance of undetected broken scans."
+    confidence: 94
+    fix_suggestion: "Narrow exception handling, require explicit configuration for fail-open behavior, and ensure failures surface as structured errors rather than only log warnings."
+
+  - id: GILF-NODE1-04
+    severity: MEDIUM
+    category: testability
+    location: "src/prism/scanner_core/di.py:540-547"
+    issue: "Magic string mock injection undermines DI contract"
+    root_cause: "inject_mock accepts any name and Any value, creating an untyped test seam that bypasses formal factory contracts."
+    impact: "Tests can pass invalid mocks without compile-time checks, and production code is left with a hidden ad hoc override mechanism."
+    confidence: 90
+    fix_suggestion: "Consolidate testing seams around typed DIFactoryOverride entries or explicit factory methods rather than a generic string-keyed mock registry."
+
+  - id: GILF-NODE1-05
+    severity: MEDIUM
+    category: architecture
+    location: "src/prism/scanner_core/di.py:140-176"
+    issue: "Brittle runtime plugin shape validation"
+    root_cause: "_construct_runtime_plugin inspects constructor signatures manually and then uses cast on override results without interface validation."
+    impact: "Plugin mis-shapes may raise generic runtime errors or permit invalid plugin objects to circulate, weakening DI/plugin contract safety."
+    confidence: 85
+    fix_suggestion: "Use explicit runtime-checkable Protocols or ABC-based plugin factories and validate plugin instances against those interfaces instead of relying on signature inspection alone."
+
+  - id: GILF-NODE1-06
+    severity: MEDIUM
+    category: ownership
+    location: "src/prism/scanner_core/scanner_context.py:228-246"
+    issue: "Split policy ownership between constructor and orchestrate_scan"
+    root_cause: "ScannerContext.__init__ accepts optional prepared_policy_bundle but does not enforce policy bundle presence until orchestrate_scan."
+    impact: "ScannerContext objects can be built in an invalid state, making the prepared-policy ownership contract harder to reason about and increasing the chance of late failures."
+    confidence: 87
+    fix_suggestion: "Validate required prepared_policy_bundle invariants in the constructor or separate incomplete/complete context creation paths explicitly."
+
+  - id: GILF-NODE1-07
+    severity: LOW
+    category: type-safety
+    location: "src/prism/scanner_core/di_helpers.py:19-27"
+    issue: "Coarse HasScanOptions protocol weakens scan_options typing"
+    root_cause: "HasScanOptions declares scan_options as dict[str, Any] instead of the more precise ScanOptionsDict shape."
+    impact: "Objects implementing the protocol may appear valid while lacking the canonical scan options structure required by scanner_core consumers."
+    confidence: 78
+    fix_suggestion: "Tighten the protocol to use ScanOptionsDict or a dedicated interface so callers can rely on the intended scan option contract."

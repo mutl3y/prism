@@ -1,0 +1,306 @@
+plan_id: mutl3y-review-20260508-g82-test
+phase: 1
+timestamp: '2026-05-08T18:15:33.024891'
+grading_summary:
+  total_findings: 22
+  findings_by_wave:
+    W1: 3
+    W2: 3
+    W3: 5
+    W4: 3
+    W5: 5
+    W6: 3
+  typing_findings: 11
+  ownership_findings: 11
+
+waves:
+  W1:
+    wave_id: W1
+    theme: Return Type Annotations
+    category: typing
+    severity_distribution:
+      HIGH: 3
+      MEDIUM: 0
+      LOW: 0
+    findings:
+    - FIND-TYPING-001
+    - FIND-TYPING-002
+    - FIND-TYPING-003
+    description: |-
+      Establish foundational type contracts for policy accessors and marker regex functions.
+      All affected return types currently lose caller type information (return Any or object).
+      HIGH-impact blocker for downstream Protocol compliance fixes.
+    scope:
+      files:
+      - src/prism/scanner_core/di_helpers.py
+      - src/prism/scanner_extract/task_line_parsing.py
+      file_count: 2
+      location_count: 8
+    complexity: MEDIUM
+    estimated_hours: 6
+    rationale: |-
+      Return type annotations are foundational; they enable all downstream Protocol compliance
+      and type narrowing work. All 3 findings affect the critical path for policy access.
+      W1 MUST complete before W2, W3, and W5.
+    blockers: []
+    dependencies: []
+    status: READY_FOR_INVESTIGATION
+    priority: 1
+
+  W2:
+    wave_id: W2
+    theme: TypedDict Safety & Protocol Proxies
+    category: typing
+    severity_distribution:
+      HIGH: 1
+      MEDIUM: 2
+      LOW: 0
+    findings:
+    - FIND-TYPING-004
+    - FIND-TYPING-006
+    - FIND-TYPING-007
+    description: |-
+      Fix excessive cast() usage in feature_detector.py, dict() conversion in events.py,
+      and __getattr__ proxy return types in task_line_parsing.py.
+      Restores TypedDict and Protocol type narrowing safety.
+    scope:
+      files:
+      - src/prism/scanner_core/feature_detector.py
+      - src/prism/scanner_core/events.py
+      - src/prism/scanner_extract/task_line_parsing.py
+      file_count: 3
+      location_count: 10
+    complexity: MEDIUM
+    estimated_hours: 5
+    rationale: |-
+      TypedDict and Protocol violations must be fixed before W5 implementation wave.
+      These are closely related type safety issues affecting core modules.
+      W2 partially depends on W1 (return type contracts enable safer narrowing).
+    blockers:
+    - W1
+    dependencies:
+    - W1
+    status: READY_FOR_INVESTIGATION
+    priority: 2
+
+  W3:
+    wave_id: W3
+    theme: Type Narrowing & Module-Level Exports
+    category: typing
+    severity_distribution:
+      HIGH: 0
+      MEDIUM: 4
+      LOW: 1
+    findings:
+    - FIND-TYPING-005
+    - FIND-TYPING-008
+    - FIND-TYPING-009
+    - FIND-TYPING-010
+    - FIND-TYPING-011
+    description: |-
+      Fix type narrowing patterns (cast() → isinstance checks), improve type guards in emit_output.py,
+      fix module-level __getattr__ exports, and resolve plugin boundary contract gaps.
+      Lower-severity but necessary for overall type safety completeness.
+    scope:
+      files:
+      - src/prism/scanner_core/di.py
+      - src/prism/scanner_core/scan_cache.py
+      - src/prism/scanner_io/emit_output.py
+      - src/prism/scanner_core/__init__.py
+      - src/prism/scanner_extract/task_catalog_assembly.py
+      - src/prism/scanner_plugins/interfaces.py
+      file_count: 6
+      location_count: 15
+    complexity: MEDIUM
+    estimated_hours: 7
+    rationale: |-
+      These are medium-priority type fixes that improve overall type safety
+      but do not block critical ownership or return-type work.
+      W3 depends on W1 (foundational type contracts).
+    blockers:
+    - W1
+    dependencies:
+    - W1
+    status: READY_FOR_INVESTIGATION
+    priority: 3
+
+  W4:
+    wave_id: W4
+    theme: Plugin-Extract Boundary Facade
+    category: ownership
+    severity_distribution:
+      HIGH: 3
+      MEDIUM: 0
+      LOW: 0
+    findings:
+    - FIND-O01
+    - FIND-O04
+    - FIND-O09
+    description: |-
+      Establish plugin-to-extract seam layer to eliminate reverse dependencies.
+      FIND-O01: Scanner_plugins/ansible imports 15+ functions from scanner_extract (reverse dep).
+      FIND-O04: Scanner_extract backward import from plugin/ansible.
+      FIND-O09: Extract missing abstraction for platform-specific traversal.
+      CRITICAL: Must be completed before W5 (sets pattern for all seam fixes).
+    scope:
+      modules:
+      - scanner_plugins.ansible
+      - scanner_extract
+      - scanner_plugins.interfaces (new seam protocol)
+      file_count: 4
+      affected_functions: 20+
+    complexity: HIGH
+    estimated_hours: 12
+    rationale: |-
+      W4 establishes the canonical plugin-extract boundary and seam pattern
+      that all subsequent ownership waves (W5, W6) will follow.
+      This is HIGH-impact and must complete before W5.
+      W4 depends on W1 (type contracts for seam interfaces).
+    blockers:
+    - W1
+    dependencies:
+    - W1
+    status: READY_FOR_INVESTIGATION
+    priority: 4
+
+  W5:
+    wave_id: W5
+    theme: IO Layer Encapsulation & Seams
+    category: ownership
+    severity_distribution:
+      HIGH: 2
+      MEDIUM: 3
+      LOW: 0
+    findings:
+    - FIND-O02
+    - FIND-O03
+    - FIND-O05
+    - FIND-O06
+    - FIND-O11
+    description: |-
+      Fix IO layer cross-layer imports and encapsulation violations.
+      FIND-O02: Plugin/yaml imports from scanner_io (cross-layer).
+      FIND-O03: Plugin/ansible imports from scanner_io (cross-layer).
+      FIND-O05: Scanner_io imports from scanner_plugins.defaults (IO should be independent).
+      FIND-O06: Scanner_io imports from scanner_core internals (encapsulation).
+      FIND-O11: Scanner_io getattr patterns are fragile (convert to explicit seams).
+      Requires W4 seam pattern to be established.
+    scope:
+      modules:
+      - scanner_io.loader
+      - scanner_io.output_orchestrator
+      - scanner_plugins.parsers.yaml
+      - scanner_plugins.ansible
+      file_count: 4
+      affected_functions: 8+
+    complexity: HIGH
+    estimated_hours: 10
+    rationale: |-
+      W5 applies the seam pattern established in W4 to the IO layer.
+      These fixes depend on W4 completing the plugin-extract facade.
+      IO layer independence is critical for maintainability.
+    blockers:
+    - W4
+    dependencies:
+    - W4
+    status: READY_FOR_INVESTIGATION
+    priority: 5
+
+  W6:
+    wave_id: W6
+    theme: Core & README Layer Encapsulation
+    category: ownership
+    severity_distribution:
+      HIGH: 0
+      MEDIUM: 3
+      LOW: 0
+    findings:
+    - FIND-O07
+    - FIND-O08
+    - FIND-O10
+    description: |-
+      Fix core and README layer plugin imports.
+      FIND-O07: Scanner_core imports from scanner_plugins.interfaces (use Protocol instead).
+      FIND-O08: Scanner_core imports plugin protocol types (move to core/scanner_data).
+      FIND-O10: Scanner_readme imports from plugin layer (encapsulate in seam).
+      Lowest priority; completes the full layer boundary audit.
+    scope:
+      modules:
+      - scanner_core.di_helpers
+      - scanner_core.feature_detector
+      - scanner_core.variable_discovery
+      - scanner_readme.plugin_seams
+      file_count: 4
+      affected_functions: 4+
+    complexity: MEDIUM
+    estimated_hours: 6
+    rationale: |-
+      W6 completes the ownership audit by establishing clean boundaries for core and README layers.
+      These are medium-priority; the critical path is W4+W5 (plugin-extract and IO fixes).
+      W6 depends on W4, W5 (seam patterns established).
+    blockers:
+    - W4
+    - W5
+    dependencies:
+    - W4
+    - W5
+    status: READY_FOR_INVESTIGATION
+    priority: 6
+
+iteration: 2
+phase: 1
+model: GPT-4o
+tier: "Tier 0 (FREE 0x)"
+
+waves:
+  - wave_id: WAVE-I2-TYPING
+    tier: Tier 0
+    findings:
+      - FIND-TYPING-001
+      - FIND-TYPING-002
+      - FIND-TYPING-003
+    owned_files:
+      - src/prism/scanner_core/di_helpers.py
+      - src/prism/scanner_extract/task_line_parsing.py
+      - src/prism/scanner_extract/task_catalog_assembly.py
+    est_hours: 3
+
+  - wave_id: WAVE-I2-OWNERSHIP
+    tier: Tier 0
+    findings:
+      - FIND-O01
+      - FIND-O02
+      - FIND-O03
+    owned_files:
+      - src/prism/scanner_plugins/ansible/extract_utils.py
+      - src/prism/scanner_plugins/parsers/yaml/parsing_policy.py
+      - src/prism/scanner_plugins/ansible/variable_discovery.py
+    est_hours: 4
+
+execution_plan:
+  wave_sequence:
+  - W1
+  - W2
+  - W3
+  - W4
+  - W5
+  - W6
+  parallelization_notes: |-
+    W1, W2, W3 can run in parallel AFTER W1 completes (W2 and W3 both depend on W1).
+    W4 must complete before W5 and W6 start (seam pattern blocker).
+    Recommended execution order for maximum parallelism:
+    1. W1 (6h) → blocks W2, W3, W4
+    2. W2 (5h) | W3 (7h) | W4 (12h) in parallel → W2+W3 complete first, then W4 blocks W5+W6
+    3. W5 (10h) | W6 (6h) in parallel → final compliance wave
+    Total critical path: 6 + 12 + 10 = 28 hours
+    Total with parallelism: ~6 + 12 + 10 = 28 hours (W4 is critical path blocker)
+  total_estimated_hours: 46
+  critical_path_hours: 28
+
+validation_gates:
+  - pytest -q (all tests pass)
+  - mypy src/prism (zero delta or reduction)
+  - ruff check src/prism (clean)
+  - black --check src/prism (formatted)
+
+next_phase: Phase 3 Investigation - Deep-dive on ambiguous findings (1 probe per HIGH finding)

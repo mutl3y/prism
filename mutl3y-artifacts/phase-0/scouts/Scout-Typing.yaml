@@ -1,0 +1,171 @@
+- id: Scout-Typing-01
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_config/patterns.py_103
+  file: src/prism/scanner_config/patterns.py
+  line: 103
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def _normalise_token_collection(raw: Any) -> set[str]:'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_config/patterns.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-02
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_core/di.py_549
+  file: src/prism/scanner_core/di.py
+  line: 549
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def inject_mock(self, name: str, mock: Any) -> None:'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_core/di.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-03
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_core/protocols_runtime.py_3
+  file: src/prism/scanner_core/protocols_runtime.py
+  line: 3
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: Replaces weak `Callable[..., Any]` aliases at the scanner_core
+    ↔ scanner_kernel
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_core/protocols_runtime.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-04
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_core/scan_cache.py_41
+  file: src/prism/scanner_core/scan_cache.py
+  line: 41
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def set(self, key: str, value: Any) -> None: ...'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_core/scan_cache.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-05
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_core/scan_cache.py_90
+  file: src/prism/scanner_core/scan_cache.py
+  line: 90
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def set(self, key: str, value: Any) -> None:'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_core/scan_cache.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-06
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_data/scan_options_schema.py_23
+  file: src/prism/scanner_data/scan_options_schema.py
+  line: 23
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'default: Any'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_data/scan_options_schema.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-07
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_data/scan_options_schema.py_33
+  file: src/prism/scanner_data/scan_options_schema.py
+  line: 33
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'default: Any = None,'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_data/scan_options_schema.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-08
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_extract/task_line_parsing.py_61
+  file: src/prism/scanner_extract/task_line_parsing.py
+  line: 61
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def match(self, *args: Any, **kwargs: Any):'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_extract/task_line_parsing.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-09
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_extract/task_line_parsing.py_64
+  file: src/prism/scanner_extract/task_line_parsing.py
+  line: 64
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def search(self, *args: Any, **kwargs: Any):'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_extract/task_line_parsing.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism
+- id: Scout-Typing-10
+  category: typing
+  fingerprint: typing_any_annotation_src/prism/scanner_extract/task_line_parsing.py_67
+  file: src/prism/scanner_extract/task_line_parsing.py
+  line: 67
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'def fullmatch(self, *args: Any, **kwargs: Any):'
+  evidence_command: 'grep -n '': Any'' src/prism/scanner_extract/task_line_parsing.py'
+  related_symbols: []
+  fix_group_key: typing_loose_annotations
+  proposed_fix_class: add_type
+  blocking_preconditions: []
+  suggested_narrow_gate: mypy src/prism

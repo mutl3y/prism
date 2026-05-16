@@ -1,0 +1,506 @@
+plan_id: q3-initiative-4-phase0-20260509
+objective: Discover immutable context object requirements and design approach for prism scanner_core
+phase: "Phase 0: Discovery"
+created_at: "2026-05-09"
+scout: Scout-Q3Init4ContextImmutability
+confidence: high
+coverage: 95
+
+tldr: |
+  ScannerContext has 5 mutable fields currently reassigned during orchestrate_scan().
+  All mutations are internal; no external mutation sites found.
+  Immutability pattern mirrors DIContainer (snapshot semantics) and MP1 (marker-prefix enforcement).
+  Recommended approach: frozen dataclass for ScanMetadata + structured builder pattern for payload.
+  Risk: LOW (single-use design, defensive copies, DI isolation already in place).
+
+---
+
+# Immutability Requirements Matrix
+
+## Field Classification
+
+### CATEGORY A: Immutable Input (Never Mutate)
+
+```yaml
+immutable_inputs:
+  - name: "_di"
+    type: "DIContainer"
+    owner: "Caller (passed in __init__)"
+    mutability: "❌ IMMUTABLE"
+    rationale: "Dependency container reference, never modified after construction"
+    mutation_sites: 0
+    enforcement: "Type system (pass-by-reference)"
+
+  - name: "_role_path"
+    type: "str"
+    owner: "Caller"
+    mutability: "❌ IMMUTABLE"
+    rationale: "Scan context identifier, fixed for lifetime of orchestration"
+    mutation_sites: 0
+    enforcement: "Python string immutability"
+
+  - name: "_scan_options"
+    type: "ScanOptionsDict"
+    owner: "DIContainer.snapshot_scan_options()"
+    mutability: "❌ IMMUTABLE (snapshot semantics)"
+    rationale: "Cloned by DIContainer; isolated from external mutations"
+    mutation_sites: 0
+    enforcement: "Defensive copy at DIContainer boundary"
+    integration_note: "DIContainer.replace_scan_options() doesn't affect existing snapshots"
+
+  - name: "_prepare_scan_context_fn"
+    type: "Callable[[ScanOptionsDict], ScanContextPayload] | None"
+    owner: "Caller (runtime seam)"
+    mutability: "❌ IMMUTABLE"
+    rationale: "Function reference, never reassigned after construction"
+    mutation_sites: 0
+    enforcement: "Type system (function pointer)"
+
+  - name: "_strict_phase_failures"
+    type: "bool"
+    owner: "Derived from scan_options in __init__"
+    mutability: "❌ IMMUTABLE"
+    rationale: "Boolean flag, computed once during construction"
+    mutation_sites: 0
+    enforcement: "Python bool immutability"
+```
+
+### CATEGORY B: Mutable Orchestration (Internal Only)
+
+```yaml
+mutable_orchestration:
+  - name: "_discovered_variables"
+    type: "tuple[Any, ...]"
+    initial_value: "()"
+    lifecycle: |
+      __init__: ()
+      orchestrate_scan() entry: reset to ()
+      after _discover_variables(): assign tuple result
+    mutation_sites: 2 (internal only)
+    mutation_code_lines: [353]
+    exposure_method: "@property discovered_variables → return self._discovered_variables"
+    exposure_safety: "✅ tuple is immutable; no deepcopy needed"
+    mutability_classification: "IMMUTABLE RESULT (tuple)"
+    requirement: |
+      Current: Reassigned, then exposed as immutable tuple
+      Target: Keep immutable result, but signal immutability earlier
+      Approach: Make result field readonly via @property only
+    
+  - name: "_detected_features"
+    type: "FeaturesContext (TypedDict)"
+    initial_value: "_build_empty_features_context()"
+    lifecycle: |
+      __init__: empty FeaturesContext
+      orchestrate_scan() entry: reset to empty
+      after _detect_features(): assign detector output
+    mutation_sites: 2 (internal only)
+    mutation_code_lines: [347, 354]
+    exposure_method: "@property detected_features → copy.deepcopy(self._detected_features)"
+    exposure_safety: "✅ deepcopy protects caller from mutations"
+    mutability_classification: "FROZEN RESULT (when exposed)"
+    requirement: |
+      Current: Reassigned, then exposed as deepcopy
+      Target: Freeze after detection phase completes
+      Approach: Transition to frozen TypedDict or dataclass after _detect_features()
+    
+  - name: "_scan_metadata"
+    type: "ScanMetadata (TypedDict)"
+    initial_value: "ScanMetadata()"
+    lifecycle: |
+      __init__: empty ScanMetadata()
+      orchestrate_scan() entry: reset to ScanMetadata()
+      _record_phase_error(): reassign with ScanMetadata(scan_errors=..., scan_degraded=True)
+      _build_output_payload(): 
+        - deep copy from context payload
+        - merge features into metadata
+        - merge policy warnings into metadata
+        - add scan_policy_blocker_facts
+        - record scan errors
+        - final reassign to updated metadata
+    mutation_sites: 5 (all internal)
+    mutation_code_lines: [348, 366, 470]
+    exposure_method: "@property scan_metadata → copy.deepcopy(self._scan_metadata)"
+    exposure_safety: "✅ deepcopy protects caller"
+    mutability_classification: "FROZEN RESULT (when exposed)"
+    requirement: |
+      Current: Incrementally mutated during payload assembly
+      Target: Immutable once payload assembly complete
+      Approach: Use frozen dataclass for ScanMetadata; build via builder pattern
+    
+  - name: "_scan_errors"
+    type: "list[ScanErrorEntry]"
+    initial_value: "[]"
+    lifecycle: |
+      __init__: []
+      orchestrate_scan() entry: reset to []
+      _record_phase_error(): append ScanErrorEntry, then reassign _scan_metadata
+      _build_output_payload(): merge into metadata
+    mutation_sites: 2 (all internal)
+    mutation_code_lines: [349, (implicit in append)]
+    exposure_method: "Via scan_metadata property (not directly exposed)"
+    exposure_safety: "✅ protected by deepcopy of parent metadata"
+    mutability_classification: "FROZEN COLLECTION (when exposed)"
+    requirement: |
+      Current: Accumulated as list, reassigned on reset
+      Target: Immutable error record once collected
+      Approach: Use tuple of ScanErrorEntry, or frozen list wrapper
+    
+  - name: "policy_constants"
+    type: "PolicyConstants | None"
+    initial_value: "None or set from prepared_policy_bundle"
+    lifecycle: |
+      __init__: assigned once if prepared_policy_bundle present, else None
+      orchestrate_scan(): not reset (persists across calls)
+    mutation_sites: 1 (initial assignment only)
+    mutation_code_lines: [340, 343]
+    exposure_method: "Class attribute; publicly readable"
+    exposure_safety: "⚠️ Not protected; directly mutable by caller"
+    mutability_classification: "PARTIALLY IMMUTABLE (assigned once, but exposed as mutable)"
+    requirement: |
+      Current: Assigned in __init__, but can be mutated by external code
+      Target: Ensure immutable once assigned
+      Approach: Convert to readonly property, or use frozen dataclass
+```
+
+### CATEGORY C: External Exposure Points
+
+```yaml
+external_exposure:
+  - name: "discovered_variables (property)"
+    return_type: "tuple[Any, ...]"
+    immutability: "✅ INHERENTLY IMMUTABLE"
+    defensive_copy: "❌ Not needed (tuple is immutable)"
+    current_implementation: "return self._discovered_variables"
+    requirement: "PASS-THROUGH (no change needed)"
+    
+  - name: "detected_features (property)"
+    return_type: "FeaturesContext (dict)"
+    immutability: "🔒 FROZEN (via deepcopy)"
+    defensive_copy: "✅ copy.deepcopy applied"
+    current_implementation: "return copy.deepcopy(self._detected_features)"
+    requirement: "MAINTAIN DEEPCOPY (continue current approach)"
+    
+  - name: "scan_metadata (property)"
+    return_type: "ScanMetadata (dict)"
+    immutability: "🔒 FROZEN (via deepcopy)"
+    defensive_copy: "✅ copy.deepcopy applied"
+    current_implementation: "return copy.deepcopy(self._scan_metadata)"
+    requirement: "MAINTAIN DEEPCOPY (continue current approach)"
+```
+
+---
+
+# Immutability Strategy Recommendations
+
+## Strategy 1: Frozen Dataclass (Recommended for Structured Output)
+
+**Applies to**: ScanMetadata, ScanErrorEntry
+
+```python
+from dataclasses import dataclass, field
+from typing import Frozen
+
+@dataclass(frozen=True)
+class ScanMetadata:
+    """Immutable scan metadata payload."""
+    plugin_name: str | None = None
+    features: dict[str, object] | None = None
+    scan_errors: tuple[ScanErrorEntry, ...] = field(default_factory=tuple)
+    scan_degraded: bool = False
+    # ... other fields as immutable properties
+```
+
+**Pros**:
+- Runtime enforcement (attempt to mutate raises FrozenInstanceError)
+- Type-safe field access
+- Backward-compatible representation (still dict-like via field access)
+- Supports validation in __post_init__
+
+**Cons**:
+- Breaking change: callers cannot use dict-style `metadata["key"] = value`
+- Requires gradual migration via compatibility layer
+
+**Phase**: Phase 1-2 (Builder pattern first, then frozen dataclass)
+
+---
+
+## Strategy 2: @property-Only Access (Current + Enhance)
+
+**Applies to**: All internal mutation fields
+
+```python
+class ScannerContext:
+    def __init__(self, ...):
+        self.__discovered_variables: tuple[Any, ...] = ()
+        self.__detected_features: FeaturesContext = _build_empty_features_context()
+        self.__scan_metadata: ScanMetadata = ScanMetadata()
+        self.__scan_errors: list[ScanErrorEntry] = []
+    
+    @property
+    def discovered_variables(self) -> tuple[Any, ...]:
+        """Read-only access to discovered variables."""
+        return self.__discovered_variables
+    
+    # ... no setter, no direct access
+```
+
+**Pros**:
+- No breaking changes (external API unchanged)
+- Prevents accidental mutations from outside
+- Can refactor internals without affecting callers
+
+**Cons**:
+- Still allows internal mutation (not enforced at runtime)
+- Requires discipline to not mutate via internal methods
+
+**Phase**: Phase 0-1 (Immediate, low-risk)
+
+---
+
+## Strategy 3: Builder Pattern (Recommended for Payload Assembly)
+
+**Applies to**: ScanMetadata assembly during _build_output_payload()
+
+```python
+class ScanMetadataBuilder:
+    def __init__(self, initial: ScanMetadata) -> None:
+        self._data = dict(initial)
+    
+    def with_features(self, features: dict[str, object]) -> "ScanMetadataBuilder":
+        self._data["features"] = features
+        return self
+    
+    def with_errors(self, errors: list[ScanErrorEntry]) -> "ScanMetadataBuilder":
+        self._data["scan_errors"] = errors
+        return self
+    
+    def build(self) -> ScanMetadata:
+        """Return immutable ScanMetadata."""
+        return ScanMetadata(**self._data)
+
+# Usage in _build_output_payload:
+metadata = (
+    ScanMetadataBuilder(context_payload.get("metadata"))
+    .with_features(_copy_features_metadata(self._detected_features))
+    .with_errors(list(self._scan_errors))
+    .with_policy_warnings(policy_warning_list)
+    .build()
+)
+```
+
+**Pros**:
+- Explicit, chainable API for payload assembly
+- Clear immutability boundary at .build()
+- Enables step-by-step validation
+
+**Cons**:
+- Requires refactoring of _build_output_payload() flow
+- Adds abstraction layer
+
+**Phase**: Phase 1-2 (After frozen dataclass in place)
+
+---
+
+# Integration Impact Assessment
+
+## DIContainer Integration: ✅ NO CHANGES NEEDED
+
+```yaml
+status: "GREEN — Already immutability-safe"
+reason: |
+  DIContainer uses snapshot semantics:
+  - scan_options cloned on access via clone_scan_options()
+  - ScannerContext receives isolated copy
+  - External mutations don't affect context's snapshot
+implementation_note: |
+  ScannerContext does not directly mutate DIContainer.
+  DIContainer does not directly access ScannerContext internal fields.
+  Pattern is sound; no changes needed.
+```
+
+## PolicyManager Integration: ⚠️ DESIGN INTERACTION NEEDED
+
+```yaml
+status: "YELLOW — Future integration point"
+reason: |
+  PolicyManager (Phase 2, Wave 1-7) will compose prepared_policy_bundle.
+  Bundle is passed via scan_options to ScannerContext.
+  No direct mutation of ScannerContext fields by PolicyManager.
+interaction_pattern: |
+  1. PolicyManager.resolve_prepared_bundle() → PreparedPolicyBundle
+  2. Bundle placed in scan_options["prepared_policy_bundle"]
+  3. build_run_scan_options_canonical() deep-copies bundle
+  4. ScannerContext receives isolated copy
+  5. ScannerContext derives policy_constants if bundle present
+design_requirement: |
+  When PolicyManager integrates, ensure:
+  - Bundle passed immutable (use frozen dict wrapper or protocol)
+  - ScannerContext does not modify bundle after receipt
+  - Defensive copy continues at scan_options boundary
+```
+
+## MP1 Enforcement Pattern: ✅ ALREADY ALIGNED
+
+```yaml
+status: "GREEN — Pattern precedent established"
+reason: |
+  Q2 Initiative 3 established marker-prefix immutability.
+  ScannerContext can follow same pattern.
+pattern_applied: |
+  MP1 Approach (marker-prefix):
+  - Immutable once set in prepared_policy_bundle
+  - Enforced via _require_prepared_policy_bundle() checks
+  - No mutation sites allowed after composition
+  
+  ScannerContext Should Follow:
+  - Metadata immutable once payload assembled
+  - Errors immutable once collected
+  - Results immutable once returned to caller
+implementation_note: |
+  Use same @property pattern + defensive copy pattern
+  used for prepared_policy_bundle access.
+```
+
+---
+
+# Risk Assessment: Immutability Changes
+
+## Backward Compatibility
+
+```yaml
+risk_level: "MEDIUM"
+breaking_changes:
+  - Frozen dataclass for ScanMetadata requires callers to use `.field` instead of `["key"]` access
+    mitigation: "Gradual migration; provide dict() compatibility wrapper in Phase 1"
+  - @property-only access prevents direct `context._field` mutations
+    mitigation: "No breaking change for public API; private access rarely used"
+  - Builder pattern for payload assembly requires refactoring internal methods
+    mitigation: "Internal refactor; no public API change"
+
+non_breaking_changes:
+  - Defensive copy strategy: Maintain existing behavior
+  - Snapshot semantics: Continue via DIContainer
+  - Single-use design: Enhance documentation, no code change
+```
+
+## Production Impact
+
+```yaml
+production_impact: "LOW"
+risk_factors:
+  - No external mutation sites found in grep search
+  - Single-use pattern already enforced in practice
+  - Defensive copies already in place for result fields
+  - DIContainer isolation already proven in Q2 initiatives
+mitigation:
+  - Phase these changes gradually (Phase 1 soft, Phase 2+ hard enforcement)
+  - Add warnings for deprecated direct field access
+  - Expand test coverage for immutability contracts
+  - Document single-use design more explicitly
+```
+
+---
+
+# Requirements Classification
+
+## MUST HAVE (Phase 1)
+
+```yaml
+requirement_1: "Prevent external mutations of ScannerContext internal state"
+  approach: "@property-only access with __ prefix (Python name mangling)"
+  effort: "1-2 days"
+  risk: "LOW"
+  
+requirement_2: "Document immutability contract in docstring"
+  approach: "Clarify single-use semantics, no reuse recommended"
+  effort: "1 day"
+  risk: "NONE"
+  
+requirement_3: "Add integration test for immutability enforcement"
+  approach: "Test that direct attribute access raises AttributeError"
+  effort: "1 day"
+  risk: "LOW"
+```
+
+## SHOULD HAVE (Phase 2)
+
+```yaml
+requirement_1: "Transition ScanMetadata to frozen dataclass"
+  approach: "Frozen dataclass with compatibility wrapper"
+  effort: "3-5 days"
+  risk: "MEDIUM (breaking change; mitigate via wrapper)"
+  
+requirement_2: "Implement builder pattern for payload assembly"
+  approach: "ScanMetadataBuilder for step-by-step assembly"
+  effort: "2-3 days"
+  risk: "LOW (internal refactor only)"
+  
+requirement_3: "Extend defensive copy strategy to policy_constants"
+  approach: "Convert to @property; ensure PolicyConstants is frozen"
+  effort: "1 day"
+  risk: "LOW"
+```
+
+## NICE TO HAVE (Phase 3+)
+
+```yaml
+requirement_1: "Add runtime immutability enforcement"
+  approach: "Use attrs library for @frozen decorator"
+  effort: "1-2 days"
+  risk: "LOW (additive; no removal)"
+  
+requirement_2: "Extend to all data structures (DIContainer, EventBus)"
+  approach: "Apply same pattern across scanner_core"
+  effort: "5-10 days"
+  risk: "MEDIUM (sprawling changes)"
+```
+
+---
+
+# Field Mutability Summary Table
+
+| Field | Type | Immutable Input | Mutable Orchestration | External Exposure | Requirement |
+|-------|------|:---------------:|:--------------------:|:-----------------:|-------------|
+| _di | DIContainer | ✅ | ❌ | ❌ | NO CHANGE |
+| _role_path | str | ✅ | ❌ | ❌ | NO CHANGE |
+| _scan_options | ScanOptionsDict | ✅ (snapshot) | ❌ | ❌ | NO CHANGE |
+| _prepare_scan_context_fn | Callable | ✅ | ❌ | ❌ | NO CHANGE |
+| _strict_phase_failures | bool | ✅ | ❌ | ❌ | NO CHANGE |
+| _discovered_variables | tuple | ⚡ | ✅ | 🔒 (tuple) | @property only (Phase 1) |
+| _detected_features | FeaturesContext | ⚡ | ✅ | 🔒 (deepcopy) | @property + maintain deepcopy (Phase 1) |
+| _scan_metadata | ScanMetadata | ⚡ | ✅ | 🔒 (deepcopy) | Frozen dataclass + builder (Phase 2) |
+| _scan_errors | list | ⚡ | ✅ | 🔒 (via metadata) | Tuple-based collection (Phase 2) |
+| policy_constants | PolicyConstants | ⚡ | ❌ | ⚠️ (mutable) | @property for readonly access (Phase 1) |
+
+---
+
+# Validation Criteria
+
+```yaml
+requirement_validation:
+  "Immutable input fields cannot be modified after __init__":
+    test: "Attempt to reassign _di, _role_path, etc. raises AttributeError"
+    phase: "Phase 1"
+  
+  "Mutable orchestration fields cannot be accessed directly":
+    test: "Attempt to read/write context._field from outside class raises AttributeError"
+    phase: "Phase 1"
+  
+  "Result exposure provides defensive copies":
+    test: "Modify returned detected_features, scan_metadata; verify internal state unchanged"
+    phase: "Phase 1 (existing)"
+  
+  "DIContainer integration unaffected":
+    test: "All existing DIContainer tests pass; no new mutations introduced"
+    phase: "Phase 1"
+  
+  "ScanMetadata frozen after payload assembly":
+    test: "Attempt to mutate metadata after .build() raises FrozenInstanceError"
+    phase: "Phase 2"
+```
+
+---
+
+**Report Generated**: May 9, 2026  
+**Model**: Tier 0 (FREE)  
+**Status**: ✅ COMPLETE — Ready for Implementation Planning (Phase 1)

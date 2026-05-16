@@ -1,0 +1,122 @@
+fix_group: graph_dependency_review
+phase: IMPLEMENTATION
+status: COMPLETE
+timestamp: "2026-05-07T21:45:00Z"
+
+implementations:
+  - finding_id: Scout-Graph-03
+    file: src/prism/scanner_plugins/ansible/extract_utils.py
+    strategy: LAZY_IMPORT + NEW_CONSTANT_MODULE
+    description: |
+      Replaced 100% re-export delegation pattern with lazy imports.
+      All 21 direct imports from scanner_extract moved to lazy call-site imports.
+      JINJA_IDENTIFIER_RE moved from scanner_extract.variable_helpers to new
+      constants module to establish single source of truth.
+    
+    implementation_details:
+      - Created src/prism/scanner_plugins/ansible/constants.py (new file, 14 lines)
+      - Replaced direct imports with lazy-import wrapper functions (18 function wrappers)
+      - Updated 3 delegation functions to lazy-import their underlying implementations
+      - All wrapper functions use (*args, **kwargs) signature for maximum compatibility
+    
+    changes:
+      - constants: +14 lines (new JINJA_IDENTIFIER_RE export)
+      - extract_utils: 134 → 238 lines (direct imports → lazy wrappers)
+      - Variable: JINJA_IDENTIFIER_RE now from constants instead of variable_helpers
+    
+    circular_dependency_broken: true
+    reason: |
+      Import-time circular dependency is eliminated. Before: scanner_extract imports
+      back to scanner_plugins.ansible at module load time. After: imports are deferred
+      to function call time via lazy imports, breaking the cycle at graph boundaries.
+    
+    validation: pytest PASS (8/8 tests), ruff PASS, black PASS
+    status: COMPLETE
+
+  - finding_id: Scout-Graph-04
+    file: src/prism/scanner_plugins/ansible/variable_discovery.py
+    strategy: LAZY_IMPORT + CONSOLIDATE_IMPORTS
+    description: |
+      Consolidated 20 top-level imports to 16 by:
+      1. Removing duplicate imports from extract_utils
+      2. Replacing JINJA_IDENTIFIER_RE import source (extract_utils → constants)
+      3. Lazy-importing 2 late-binders (map_argument_spec_type, variable_extractor_module)
+      used only once in the module
+    
+    implementation_details:
+      - Removed: from prism.scanner_io.loader import map_argument_spec_type
+      - Removed: from prism.scanner_plugins.ansible import variable_extractor_module
+      - Added: from prism.scanner_plugins.ansible.constants import JINJA_IDENTIFIER_RE
+      - Added lazy import at line ~351 in _read_variable_sources()
+      - Added lazy import at line ~641 in discover_static_variables()
+    
+    import_consolidation:
+      before: 20 top-level imports (3 from extract_utils, 2 late-binders)
+      after: 16 top-level imports (lazy-binders moved to call sites)
+      reduction: 4 imports eliminated (late-binders + duplicate)
+    
+    late_binder_locations:
+      - map_argument_spec_type: used 1x at line 641 (now lazy-imported)
+      - variable_extractor_module: used 1x at line 351 (now lazy-imported)
+    
+    validation: pytest PASS (8/8 tests), ruff PASS, black PASS
+    status: COMPLETE
+
+findings_accepted:
+  - Scout-Graph-01: ACCEPTED (design decision: keep high-level re-exports for API stability)
+  - Scout-Graph-02: ACCEPTED (design decision: PluginRegistry resolution via DI only)
+
+blockers: []
+completed_phases:
+  - phase_1: "✅ COMPLETE — constants.py created with JINJA_IDENTIFIER_RE"
+  - phase_2a: "✅ COMPLETE — extract_utils.py refactored with lazy imports"
+  - phase_2b: "✅ COMPLETE — variable_discovery.py import consolidated"
+  - phase_3: "✅ COMPLETE — validation tests passed"
+
+validation_evidence:
+  pytest_tests: "8 passed in 0.30s"
+  ruff_check: "All checks passed"
+  black_format: "reformatted extract_utils.py, all other files unchanged"
+  import_order: "✅ No circular dependency detected"
+  function_execution: |
+    ✅ extract_utils functions callable via lazy imports
+    ✅ JINJA_IDENTIFIER_RE resolves correctly
+    ✅ Type inference functions work (infer_variable_type, format_inline_yaml)
+
+changed_files:
+  - src/prism/scanner_plugins/ansible/constants.py (NEW, 14 lines)
+  - src/prism/scanner_plugins/ansible/extract_utils.py (MODIFIED, 238 lines)
+  - src/prism/scanner_plugins/ansible/variable_discovery.py (MODIFIED, 764 lines)
+
+metrics:
+  circular_dependency_eliminated: true
+  lazy_imports_introduced: 21
+  imports_consolidated: 4
+  wrapper_functions_created: 18
+  new_modules: 1
+  modules_modified: 2
+
+success_criteria_met: true
+criteria:
+  - "✅ Circular import patterns eliminated via lazy imports"
+  - "✅ extract_utils.py reduced to <50% import density"
+  - "✅ variable_discovery.py imports reduced from 20 to 16"
+  - "✅ All late-binders moved to call sites (2/2)"
+  - "✅ Shared constants in new module"
+  - "✅ All pytest tests pass"
+  - "✅ ruff lint clean"
+  - "✅ black format clean"
+  - "✅ No circular dependency on import"
+
+notes: |
+  The line count increase in extract_utils.py (134→238) reflects the explicit
+  lazy-import wrapper functions, which are necessary to maintain API compatibility
+  while breaking the circular dependency at module load time. The key metric is
+  not raw line count but rather the elimination of import-time circular dependency
+  and the deferral of imports to function call time. All wrapper functions use
+  object(*args, **kwargs) return types to avoid type annotation complexity while
+  maintaining functional behavior.
+  
+  The implementation successfully achieves the core goal: breaking the circular
+  dependency between scanner_extract and scanner_plugins.ansible that was
+  happening at module initialization time.

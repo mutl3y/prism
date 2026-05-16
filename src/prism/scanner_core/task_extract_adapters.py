@@ -7,8 +7,10 @@ marker-prefix injection adapters for annotation/catalog extraction.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
-from prism.scanner_core.di_helpers import scan_options_from_di
+from prism.scanner_core.di import DIContainer
+from prism.scanner_core.marker_prefix_contract import MarkerPrefixContract
 from prism.scanner_data.contracts_request import TaskAnnotation, YamlParseFailure
 
 
@@ -18,13 +20,48 @@ def _extract_task_annotations_for_file(
     marker_prefix: str = "prism",
     include_task_index: bool = False,
     di: object | None = None,
+    policy_constants: object | None = None,
 ) -> tuple[list[TaskAnnotation], dict[str, list[TaskAnnotation]]]:
-    """Resolve the annotation parser lazily to avoid bootstrap import coupling."""
+    """Internal implementation that can be monkeypatched by tests.
+
+    Validates marker_prefix at entry per MP1 contract.
+    """
     from prism.scanner_extract.task_annotation_parsing import (
-        extract_task_annotations_for_file,
+        extract_task_annotations_for_file as _impl,
     )
 
-    return extract_task_annotations_for_file(
+    # MP1 validation: marker_prefix must not be empty
+    if not marker_prefix:
+        raise ValueError("marker_prefix must not be empty")
+
+    return _impl(
+        raw_lines,
+        marker_prefix=marker_prefix,
+        include_task_index=include_task_index,
+        di=cast(DIContainer | None, di),
+    )
+
+
+def extract_task_annotations_for_file(
+    raw_lines: list[str],
+    *,
+    marker_prefix: str = "prism",
+    include_task_index: bool = False,
+    di: object | None = None,
+) -> tuple[list[TaskAnnotation], dict[str, list[TaskAnnotation]]]:
+    """Resolve the annotation parser lazily to avoid bootstrap import coupling.
+
+    CRITICAL: marker_prefix must be passed explicitly from scan ingress,
+    not resolved at hot paths. This enforces the MP1 ownership contract.
+    """
+    # Resolve marker_prefix from bundle if di is present
+    if di is not None:
+        marker_prefix = _resolve_marker_prefix(di)
+
+    # Validate marker_prefix using MarkerPrefixContract
+    MarkerPrefixContract.enforce_marker_prefix_available(marker_prefix)
+
+    return _extract_task_annotations_for_file(
         raw_lines,
         marker_prefix=marker_prefix,
         include_task_index=include_task_index,
@@ -38,11 +75,41 @@ def _collect_task_handler_catalog(
     *,
     marker_prefix: str = "prism",
     di: object | None = None,
+    policy_constants: object | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
-    """Resolve the catalog assembler lazily to avoid bootstrap import coupling."""
-    from prism.scanner_extract.task_catalog_assembly import collect_task_handler_catalog
+    """Internal implementation that can be monkeypatched by tests."""
+    from prism.scanner_extract.task_catalog_assembly import (
+        collect_task_handler_catalog as _impl,
+    )
 
-    return collect_task_handler_catalog(
+    return _impl(
+        role_path,
+        exclude_paths=exclude_paths,
+        marker_prefix=marker_prefix,
+        di=cast(DIContainer | None, di),
+    )
+
+
+def collect_task_handler_catalog(
+    role_path: str,
+    exclude_paths: list[str] | None = None,
+    *,
+    marker_prefix: str = "prism",
+    di: object | None = None,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """Resolve the catalog assembler lazily to avoid bootstrap import coupling.
+
+    CRITICAL: marker_prefix must be passed explicitly from scan ingress,
+    not resolved at hot paths. This enforces the MP1 ownership contract.
+    """
+    # Resolve marker_prefix from bundle if di is present
+    if di is not None:
+        marker_prefix = _resolve_marker_prefix(di)
+
+    # Validate marker_prefix using MarkerPrefixContract
+    MarkerPrefixContract.enforce_marker_prefix_available(marker_prefix)
+
+    return _collect_task_handler_catalog(
         role_path,
         exclude_paths=exclude_paths,
         marker_prefix=marker_prefix,
@@ -55,7 +122,7 @@ def detect_task_module(
 ) -> str | None:
     from prism.scanner_extract.task_catalog_assembly import detect_task_module
 
-    return detect_task_module(task, di=di)
+    return detect_task_module(task, di=cast(DIContainer | None, di))
 
 
 def extract_collection_from_module_name(
@@ -187,47 +254,29 @@ def load_task_yaml_file(
 
 
 def _resolve_marker_prefix(di: object | None) -> str:
-    scan_options = scan_options_from_di(di)
+    """Resolve marker prefix from prepared_policy_bundle, fail-closed if missing.
+
+    This is an internal helper used by tests and policy enforcement.
+    Consumers should use MarkerPrefixContract.enforce_marker_prefix_available() instead.
+    """
+    if di is None:
+        raise ValueError("prepared_policy_bundle must be available in DI context")
+
+    if not hasattr(di, "scan_options"):
+        raise ValueError("prepared_policy_bundle must be available in DI context")
+
+    scan_options = getattr(di, "scan_options")
     if not isinstance(scan_options, dict):
-        raise ValueError(
-            "prepared_policy_bundle must be available in scan_options to resolve marker prefix"
-        )
+        raise ValueError("prepared_policy_bundle must be available in DI context")
+
     bundle = scan_options.get("prepared_policy_bundle")
     if not isinstance(bundle, dict):
+        raise ValueError("prepared_policy_bundle must be available in DI context")
+
+    marker_prefix = bundle.get("comment_doc_marker_prefix")
+    if not marker_prefix:
         raise ValueError(
-            "prepared_policy_bundle must be available in scan_options to resolve marker prefix"
+            "comment_doc_marker_prefix must be available in prepared_policy_bundle"
         )
-    bundle_prefix = bundle.get("comment_doc_marker_prefix")
-    if not isinstance(bundle_prefix, str):
-        raise ValueError(
-            "prepared_policy_bundle must provide comment_doc_marker_prefix to resolve marker prefix"
-        )
-    return bundle_prefix
 
-
-def extract_task_annotations_for_file(
-    raw_lines: list[str],
-    *,
-    include_task_index: bool = False,
-    di: object | None = None,
-) -> tuple[list[TaskAnnotation], dict[str, list[TaskAnnotation]]]:
-    return _extract_task_annotations_for_file(
-        raw_lines,
-        marker_prefix=_resolve_marker_prefix(di),
-        include_task_index=include_task_index,
-        di=di,
-    )
-
-
-def collect_task_handler_catalog(
-    role_path: str,
-    exclude_paths: list[str] | None = None,
-    *,
-    di: object | None = None,
-) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
-    return _collect_task_handler_catalog(
-        role_path,
-        exclude_paths=exclude_paths,
-        marker_prefix=_resolve_marker_prefix(di),
-        di=di,
-    )
+    return marker_prefix

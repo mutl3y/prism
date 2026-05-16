@@ -44,7 +44,9 @@ _UNCACHEABLE_BUNDLE_VALUE = object()
 class _ExecutionRequestEnsurePreparedPolicyBundleFn(Protocol):
     """Execution-request contract for policy bundle preparation."""
 
-    def __call__(self, *, scan_options: ScanOptionsDict, di: object) -> None: ...
+    def __call__(
+        self, *, scan_options: ScanOptionsDict, di: object
+    ) -> PreparedPolicyBundle: ...
 
 
 class _BuildRunScanOptionsCanonicalFn(Protocol):
@@ -668,18 +670,26 @@ def run_scan(
     if default_plugin_registry is None:
         default_plugin_registry = plugin_facade.get_default_scan_pipeline_registry()
 
-    _resolved_ensure_fn = plugin_facade.ensure_prepared_policy_bundle
-
     def _ensure_prepared_policy_bundle_for_execution_request(
         *,
         scan_options: ScanOptionsDict,
         di: object,
     ) -> None:
-        prepared_policy_bundle = _resolved_ensure_fn(
-            scan_options=_copy_object_mapping(scan_options),
+        resolved_scan_options = _copy_object_mapping(scan_options)
+        prepared_policy_bundle = plugin_facade.ensure_prepared_policy_bundle(
+            scan_options=resolved_scan_options,
             di=di,
         )
         scan_options["prepared_policy_bundle"] = prepared_policy_bundle
+        ignore_underscore_references = resolved_scan_options.get(
+            "ignore_unresolved_internal_underscore_references"
+        )
+        if ignore_underscore_references is None or isinstance(
+            ignore_underscore_references, bool
+        ):
+            scan_options["ignore_unresolved_internal_underscore_references"] = (
+                ignore_underscore_references
+            )
 
     execution_request = build_non_collection_run_scan_execution_request(
         role_path=role_path,

@@ -1,0 +1,55 @@
+---
+phase: 1
+coordinator: tactical
+wave: micro-swarm-high-severity
+status: wave_planned
+timestamp: 2026-05-07T14:00:20Z
+
+objective: |
+  Investigation of 3 high-severity error handling findings to determine:
+  - Whether broad except handlers mask specific exception types that should be caught
+  - Whether silent exception absorption without logging is a pattern or isolated issue
+  - Whether failures should be typed errors or have diagnostic emission
+
+high_severity_candidates:
+  - id: Scout-ControlFlow-01
+    file: src/prism/scanner_extract/variable_extractor.py
+    severity: high
+    category: error_channel
+    issue: "Broad exception handler with silent fallback"
+    investigation_focus: "What exceptions are possible here? Should any be re-raised?"
+
+  - id: Scout-ControlFlow-02
+    file: src/prism/scanner_core/events.py
+    severity: high
+    category: error_channel
+    issue: "Silent event bus failure masking"
+    investigation_focus: "What happens when event handlers fail? Retry? Ignore? Log?"
+
+  - id: Scout-ControlFlow-03
+    file: src/prism/scanner_readme/guide.py
+    severity: high
+    category: error_channel
+    issue: "Silent platform default assumption"
+    investigation_focus: "Is assuming Ansible as default the right behavior? Should it error?"
+
+microswarm_probes:
+  - probe_agent: Probe-Imports
+    focus: "Import chains around error handler sites"
+    output: "mutl3y-artifacts/phase-1/probe-imports-phase1.yaml"
+
+  - probe_agent: Probe-Tests
+    focus: "Test coverage for error paths in identified files"
+    output: "mutl3y-artifacts/phase-1/probe-tests-phase1.yaml"
+
+  - probe_agent: Probe-Ownership
+    focus: "Module ownership and error handling policy authority"
+    output: "mutl3y-artifacts/phase-1/probe-ownership-phase1.yaml"
+
+expected_probes: 3
+timeout_per_probe: 300s
+
+outcomes:
+  - investigation_complete_issues_clear: "Proceed to Phase 5 builders"
+  - ambiguous_finding_found: "Escalate to balanced-tier deep review"
+  - false_positive_detected: "Mark as do_not_re_flag, continue builders"

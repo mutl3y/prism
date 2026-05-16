@@ -1,0 +1,7 @@
+plan_id: mutl3y-review-20260507-g76
+phase: 5
+status: in_progress
+started_at: "2026-05-07T01:20:00Z"
+description: "Phase 5: Validation and regression sweep - continuing autopilot after the green Phase 4 gate"
+model_tier: low-cost
+requested_model: GPT-5 mini (copilot)

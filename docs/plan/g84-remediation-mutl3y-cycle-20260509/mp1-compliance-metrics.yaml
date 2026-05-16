@@ -1,0 +1,619 @@
+---
+# MP1 Compliance Metrics — Baseline Locked
+#
+# Phase: Phase 1, Task 1.1 (May 9-10, 2026)
+# Purpose: Lock baseline metrics for Phase 2 enforcement comparison
+# Acceptance Criteria: All metrics match Phase 0 audit; no changes allowed in Phase 1
+# Status: ✅ BASELINE METRICS LOCKED
+
+metadata:
+  cycle: g84-remediation-mutl3y-cycle-20260509
+  phase: phase-1
+  task: task-1-1-compliance-metrics
+  date_generated: 2026-05-09
+  audit_method: codebase-static-analysis + contract-validation
+  baseline_locked: true
+  lock_expiration: After Phase 2 completion
+  confidence: HIGH
+  locked_by: Audit Tool
+  lock_timestamp: 2026-05-09T00:00:00Z
+
+# ============================================================================
+# EXECUTIVE SUMMARY: BASELINE COMPLIANCE STATUS
+# ============================================================================
+
+summary:
+  status: ✅ COMPLIANT
+  violations_total: 0
+  write_points: 1
+  read_only_consumers: 12
+  unauthorized_writes: 0
+  plugin_overrides: 0
+  cache_violations: 0
+  boundary_violations: 0
+  
+  conclusion: >
+    MP1 baseline is clean and ready for Phase 1 enforcement.
+    All metrics locked. No changes allowed in Phase 1.
+    Phase 2 will compare against these baselines.
+
+# ============================================================================
+# CORE METRICS: WRITE & READ PATTERNS
+# ============================================================================
+
+core_metrics:
+  write_points:
+    total: 1
+    canonical_location: src/prism/scanner_plugins/bundle_resolver.py
+    canonical_function: ensure_prepared_policy_bundle
+    canonical_lines: "142-157"
+    bundle_key: comment_doc_marker_prefix
+    unauthorized_writes: 0
+    
+    details:
+      - function_name: ensure_prepared_policy_bundle
+        module: scanner_plugins.bundle_resolver
+        file: src/prism/scanner_plugins/bundle_resolver.py
+        lines: 142-157
+        ownership: WRITE POINT (single canonical authority)
+        immutability: Enforced post-assignment
+        normalization: Applied via normalize_marker_prefix()
+        fallback_chain: Ingress → Policy Context → Default
+        status: ✅ VERIFIED
+
+  read_only_consumers:
+    total: 12
+    types:
+      scanner_core: 3
+      scanner_extract: 2
+      scanner_plugins: 4
+      tests_validation: 3
+    
+    by_module:
+      scanner_core.task_extract_adapters:
+        count: 3
+        functions:
+          - _resolve_marker_prefix (reads from bundle)
+          - extract_task_annotations_for_file (calls _resolve_marker_prefix)
+          - collect_task_handler_catalog (calls _resolve_marker_prefix)
+        access_pattern: DI-based resolution
+        fail_closed: true
+      
+      scanner_extract.task_annotation_parsing:
+        count: 1
+        functions:
+          - extract_task_annotations_for_file (receives marker_prefix param)
+        access_pattern: Explicit parameter passing
+        fail_closed: false (default param provided)
+      
+      scanner_extract.task_catalog_assembly:
+        count: 1
+        functions:
+          - collect_task_handler_catalog (receives marker_prefix param)
+        access_pattern: Explicit parameter passing
+        fail_closed: false (default param provided)
+      
+      scanner_plugins.ansible.feature_detection:
+        count: 2
+        functions:
+          - _resolve_marker_prefix (reads from options["prepared_policy_bundle"])
+          - AnsibleFeatureDetector.collect_task_handler_catalog (calls _resolve_marker_prefix)
+        access_pattern: Options-based resolution
+        fail_closed: true
+      
+      scanner_plugins.parsers.comment_doc.marker_utils:
+        count: 1
+        functions:
+          - normalize_marker_prefix (utility, normalizes input)
+        access_pattern: Input validation only
+        fail_closed: false (utility function)
+      
+      scanner_plugins.parsers.comment_doc.annotation_parsing:
+        count: 1
+        functions:
+          - parse_comment_doc_annotations (receives marker_prefix param)
+        access_pattern: Explicit parameter passing
+        fail_closed: false (default param provided)
+      
+      tests.test_comment_doc_plugin_resolution:
+        count: 1
+        functions:
+          - test_resolve_marker_prefix_reads_from_prepared_policy_bundle (validation)
+        access_pattern: Unit test validation
+        fail_closed: true
+      
+      tests.test_scanner_core_small_surfaces:
+        count: 1
+        functions:
+          - test_resolve_marker_prefix_requires_scan_options (validation)
+        access_pattern: Unit test validation
+        fail_closed: true
+
+# ============================================================================
+# DETAILED COMPLIANCE BREAKDOWN
+# ============================================================================
+
+compliance_categories:
+  
+  # ========================================================================
+  # 1. WRITE AUTHORIZATION
+  # ========================================================================
+  write_authorization:
+    category: Write Point Control
+    description: Ensures only bundle_resolver writes to marker_prefix
+    
+    metrics:
+      unauthorized_writes: 0
+      write_point_count: 1
+      
+      audit_findings:
+        - file: src/prism/scanner_plugins/bundle_resolver.py
+          function: ensure_prepared_policy_bundle
+          lines: 142-157
+          verdict: ✅ AUTHORIZED (canonical write point)
+          evidence: Direct assignment to bundle["comment_doc_marker_prefix"]
+          
+        - search_scope: src/prism/scanner_core/**
+          verdict: ✅ CLEAN (no unauthorized writes detected)
+          evidence: All references are reads or parameter passes
+          
+        - search_scope: src/prism/scanner_extract/**
+          verdict: ✅ CLEAN (no unauthorized writes detected)
+          evidence: Receive marker_prefix as parameter only
+          
+        - search_scope: src/prism/scanner_plugins/**
+          verdict: ✅ CLEAN (no unauthorized writes detected)
+          evidence: All references are reads or parameter passes
+      
+      baseline_locked: true
+      phase_1_enforcement: CI rule MP1-Write-001 will validate
+
+  # ========================================================================
+  # 2. READ-ONLY CONSUMER PATTERNS
+  # ========================================================================
+  read_only_consumers:
+    category: Consumer Interface Standardization
+    description: All consumers access marker_prefix through standardized patterns
+    
+    metrics:
+      consumer_count: 12
+      standardized_patterns: 3
+      
+      pattern_1_di_based:
+        name: DI-Based Resolution
+        count: 3
+        implementation: "_resolve_marker_prefix(di)"
+        fail_closed: true
+        modules:
+          - scanner_core.task_extract_adapters
+          - scanner_plugins.ansible.feature_detection
+        
+      pattern_2_options_based:
+        name: Options-Based Resolution
+        count: 1
+        implementation: "options.get('prepared_policy_bundle').get('comment_doc_marker_prefix')"
+        fail_closed: true
+        modules:
+          - scanner_plugins.ansible.feature_detection._resolve_marker_prefix
+      
+      pattern_3_parameter_passing:
+        name: Explicit Parameter Passing
+        count: 8
+        implementation: "marker_prefix parameter (with default fallback)"
+        fail_closed: false (but safe with defaults)
+        modules:
+          - scanner_extract.task_annotation_parsing
+          - scanner_extract.task_catalog_assembly
+          - scanner_plugins.parsers.comment_doc
+          - tests
+      
+      consistency_check: ✅ PASS (all consumers use one of 3 patterns)
+      baseline_locked: true
+      phase_1_enforcement: CI rule MP1-Consumer-001 will validate
+
+  # ========================================================================
+  # 3. PLUGIN ACCESS ISOLATION
+  # ========================================================================
+  plugin_isolation:
+    category: Plugin Layer Boundary Protection
+    description: Plugins access marker_prefix only through standardized interfaces
+    
+    metrics:
+      plugins_audited: 2
+      unauthorized_accesses: 0
+      
+      plugin_details:
+        ansible_plugin:
+          name: Ansible Platform Plugin
+          location: src/prism/scanner_plugins/ansible/
+          marker_prefix_access: _resolve_marker_prefix(options)
+          direct_bundle_write: ✅ None
+          boundary_violation: ✅ None
+          verdict: ✅ CLEAN
+        
+        comment_doc_plugin:
+          name: Comment-Doc Parser Plugin
+          location: src/prism/scanner_plugins/parsers/comment_doc/
+          marker_prefix_access: Explicit parameter passing
+          direct_bundle_write: ✅ None
+          boundary_violation: ✅ None
+          verdict: ✅ CLEAN
+      
+      plugin_injection_attempts: 0
+      baseline_locked: true
+      phase_1_enforcement: CI rule MP1-Plugin-001 will validate
+
+  # ========================================================================
+  # 4. FALLBACK CHAIN INTEGRITY
+  # ========================================================================
+  fallback_chain:
+    category: Input Resolution Robustness
+    description: Fallback chain is deterministic and documented
+    
+    metrics:
+      fallback_violations: 0
+      chain_length: 3 (direct param → policy context → default)
+      
+      fallback_stages:
+        stage_1:
+          name: Direct Parameter
+          source: scan_options["comment_doc_marker_prefix"]
+          priority: HIGHEST
+          status: ✅ Implemented
+        
+        stage_2:
+          name: Policy Context Nested
+          source: scan_options["policy_context"]["comment_doc"]["marker"]["prefix"]
+          priority: HIGH
+          status: ✅ Implemented
+        
+        stage_3:
+          name: Default Constant
+          source: DEFAULT_DOC_MARKER_PREFIX
+          value: "prism"
+          priority: FALLBACK
+          status: ✅ Implemented
+      
+      undocumented_fallbacks: 0
+      baseline_locked: true
+      phase_1_enforcement: CI rule MP1-Fallback-001 will validate
+
+  # ========================================================================
+  # 5. NORMALIZATION INTEGRITY
+  # ========================================================================
+  normalization:
+    category: Input Validation & Sanitization
+    description: All inputs normalized deterministically before storage
+    
+    metrics:
+      normalization_violations: 0
+      normalization_functions: 1 (normalize_marker_prefix)
+      
+      normalization_logic:
+        function: normalize_marker_prefix
+        location: src/prism/scanner_plugins/parsers/comment_doc/marker_utils.py:18-23
+        rules:
+          - rule: Empty or None input → DEFAULT_DOC_MARKER_PREFIX
+            implemented: true
+          - rule: Non-string input → DEFAULT_DOC_MARKER_PREFIX
+            implemented: true
+          - rule: Whitespace-only → DEFAULT_DOC_MARKER_PREFIX
+            implemented: true
+          - rule: Invalid characters (non-alphanumeric, non-underscore, non-dash, non-dot) → DEFAULT_DOC_MARKER_PREFIX
+            implemented: true
+          - rule: Valid input → Store as-is (after strip)
+            implemented: true
+        
+        applied_once: true (applied in bundle_resolver, stored immutably)
+        reapplication_violations: 0
+        baseline_locked: true
+
+  # ========================================================================
+  # 6. BOUNDARY VIOLATION DETECTION
+  # ========================================================================
+  boundary_violations:
+    category: Cross-Layer Boundary Integrity
+    description: No unauthorized access to marker_prefix across module boundaries
+    
+    metrics:
+      total_violations: 0
+      
+      boundary_checks:
+        - boundary: scanner_core ↔ scanner_extract
+          violation_type: Unauthorized write from extract → core
+          findings: ✅ None (extract only receives as parameter)
+        
+        - boundary: scanner_core ↔ scanner_plugins
+          violation_type: Direct bundle modification by plugins
+          findings: ✅ None (plugins call standardized resolution)
+        
+        - boundary: scanner_readme ↔ marker_prefix
+          violation_type: README layer accessing comment_doc_marker_prefix
+          findings: ✅ None (README doesn't access marker_prefix; uses legacy_merge_marker_prefixes)
+        
+        - boundary: Tests ↔ Internal implementation
+          violation_type: Tests directly modifying bundle outside validation
+          findings: ✅ None (tests inject via DI or validate contracts)
+        
+        - boundary: scanner_plugins.ansible ↔ marker_prefix
+          violation_type: Platform-specific override logic
+          findings: ✅ None (follows standardized _resolve_marker_prefix pattern)
+      
+      baseline_locked: true
+      phase_1_enforcement: CI rule MP1-Boundary-001 will validate
+
+  # ========================================================================
+  # 7. CACHE & STATE MUTATION
+  # ========================================================================
+  cache_state_mutation:
+    category: Immutability & Cache Safety
+    description: No cross-request state pollution or cache invalidation issues
+    
+    metrics:
+      cache_violations: 0
+      state_mutations: 0
+      
+      caching_found:
+        location: src/prism/scanner_plugins/parsers/comment_doc/marker_utils.py:15
+        cache_name: _MARKER_LINE_RE_CACHE
+        cache_size: 128 (LRU)
+        cache_key: marker_prefix string value
+        cached_value: Compiled regex pattern (not marker_prefix itself)
+        verdict: ✅ SAFE (caches compiled regex, not state)
+        
+        cross_request_safety:
+          potential_issue: Different scans with different marker_prefix could share cache
+          actual_safety: Each unique marker_prefix gets its own regex cache entry
+          isolation: ✅ Safe (key is the prefix value itself)
+          conclusion: ✅ No cross-request pollution
+      
+      marker_prefix_overrides_found: 0
+      baseline_locked: true
+
+  # ========================================================================
+  # 8. FAIL-CLOSED BEHAVIOR
+  # ========================================================================
+  fail_closed:
+    category: Error Handling & Robustness
+    description: System fails cleanly when marker_prefix unavailable
+    
+    metrics:
+      fail_closed_implementations: 7 (critical paths)
+      
+      fail_closed_checks:
+        - function: _resolve_marker_prefix(di) [task_extract_adapters]
+          behavior: Raises ValueError if prepared_policy_bundle not in scan_options
+          verdict: ✅ Fail-closed
+        
+        - function: _resolve_marker_prefix(options) [feature_detection]
+          behavior: Raises ValueError if comment_doc_marker_prefix not in bundle
+          verdict: ✅ Fail-closed
+        
+        - function: extract_task_annotations_for_file [task_extract_adapters]
+          behavior: Calls _resolve_marker_prefix (fail-closed via delegation)
+          verdict: ✅ Fail-closed
+        
+        - function: collect_task_handler_catalog [task_extract_adapters]
+          behavior: Calls _resolve_marker_prefix (fail-closed via delegation)
+          verdict: ✅ Fail-closed
+        
+        - function: AnsibleFeatureDetector.collect_task_handler_catalog
+          behavior: Calls _resolve_marker_prefix (fail-closed via delegation)
+          verdict: ✅ Fail-closed
+        
+        - function: ensure_prepared_policy_bundle [bundle_resolver]
+          behavior: Always assigns a value (fallback to DEFAULT if needed)
+          verdict: ⚠️ Fail-open fallback (by design; acceptable)
+        
+        - function: normalize_marker_prefix [marker_utils]
+          behavior: Always returns valid string (fallback to DEFAULT if needed)
+          verdict: ⚠️ Fail-open fallback (by design; acceptable)
+      
+      silent_failures: 0
+      baseline_locked: true
+
+  # ========================================================================
+  # 9. TEST COVERAGE
+  # ========================================================================
+  test_coverage:
+    category: Validation & Verification
+    description: All critical paths covered by tests
+    
+    metrics:
+      test_suites_covering_mp1: 3
+      test_cases_total: 12+ (minimum)
+      coverage_percentage: High (all write + critical read paths)
+      
+      test_suites:
+        suite_1:
+          name: test_comment_doc_plugin_resolution
+          file: src/prism/tests/test_comment_doc_plugin_resolution.py
+          cases:
+            - test_resolve_marker_prefix_reads_from_prepared_policy_bundle (line 1544)
+            - test_ensure_prepared_policy_bundle_projects_marker_prefix (line 1578)
+            - And others validating projection/resolution
+          coverage: Write point + read patterns
+          verdict: ✅ Validates MP1 contract
+        
+        suite_2:
+          name: test_scanner_core_small_surfaces
+          file: src/prism/tests/test_scanner_core_small_surfaces.py
+          cases:
+            - test_resolve_marker_prefix_requires_scan_options (line 271)
+          coverage: Fail-closed behavior
+          verdict: ✅ Validates fail-closed
+        
+        suite_3:
+          name: test_feature_detector
+          file: src/prism/tests/test_feature_detector.py
+          cases:
+            - test_fsrc_feature_detector_annotation_hot_path_uses_canonical_comment_doc_marker_prefix (line 348)
+            - test_fsrc_feature_detector_collect_task_handler_catalog_hot_path_uses_canonical_comment_doc_marker_prefix (line 418)
+          coverage: Plugin access patterns
+          verdict: ✅ Validates plugin integration
+      
+      baseline_locked: true
+      phase_1_enforcement: test_mp1_marker_prefix_ingress_ownership will validate all 7 ingress paths
+
+# ============================================================================
+# SUMMARY TABLE: COMPLIANCE STATUS BY CATEGORY
+# ============================================================================
+
+summary_table:
+  Write Authorization:
+    metric: Unauthorized writes
+    baseline: 0
+    status: ✅ PASS
+    locked: true
+  
+  Read-Only Consumers:
+    metric: Consumer count
+    baseline: 12
+    status: ✅ PASS
+    locked: true
+  
+  Plugin Isolation:
+    metric: Unauthorized plugin writes
+    baseline: 0
+    status: ✅ PASS
+    locked: true
+  
+  Fallback Chain:
+    metric: Fallback violations
+    baseline: 0
+    status: ✅ PASS
+    locked: true
+  
+  Normalization:
+    metric: Normalization violations
+    baseline: 0
+    status: ✅ PASS
+    locked: true
+  
+  Boundary Violations:
+    metric: Cross-layer violations
+    baseline: 0
+    status: ✅ PASS
+    locked: true
+  
+  Cache & State:
+    metric: Cache/state violations
+    baseline: 0
+    status: ✅ PASS
+    locked: true
+  
+  Fail-Closed:
+    metric: Silent failures
+    baseline: 0
+    status: ✅ PASS
+    locked: true
+  
+  Test Coverage:
+    metric: Test suites covering MP1
+    baseline: 3+
+    status: ✅ PASS
+    locked: true
+
+# ============================================================================
+# ENFORCEMENT GATES FOR PHASE 1 (Tasks 1.2-1.5)
+# ============================================================================
+
+enforcement_gates:
+  task_1_2_ci_setup:
+    rule: MP1-Write-001
+    gate: "No writes to prepared_policy_bundle['comment_doc_marker_prefix'] outside bundle_resolver"
+    measurement: AST analysis + import tracing
+    baseline: 1 write point only
+    phase_2_comparison: Must still be 1
+  
+  task_1_2_ci_setup:
+    rule: MP1-Consumer-001
+    gate: "All consumers use one of 3 standardized patterns"
+    measurement: Call-graph analysis
+    baseline: 12 consumers, 3 patterns
+    phase_2_comparison: Must not increase
+  
+  task_1_3_test_gating:
+    rule: MP1-Ingress-001
+    gate: "All 7 ingress paths pass end-to-end validation"
+    measurement: Test suite test_mp1_marker_prefix_ingress_ownership
+    baseline: 7 paths, all passing
+    phase_2_comparison: Must still be 7 paths passing
+  
+  task_1_3_test_gating:
+    rule: MP1-Boundary-001
+    gate: "No cross-layer boundary violations"
+    measurement: Boundary test suite
+    baseline: 0 violations
+    phase_2_comparison: Must remain 0
+  
+  task_1_4_flow_validation:
+    rule: MP1-Flow-001
+    gate: "Visual flow diagram and compliance matrix complete"
+    measurement: Artifacts generated
+    baseline: 1 flow diagram, 1 compliance matrix
+    phase_2_comparison: Baseline for visual regression tests
+  
+  task_1_5_rollback:
+    rule: MP1-Checkpoint-001
+    gate: "Git checkpoint mp1-phase1-checkpoint-20260509 created"
+    measurement: Git tag exists
+    baseline: Checkpoint exists
+    phase_2_comparison: Baseline for rollback if needed
+
+# ============================================================================
+# LOCK STATEMENT
+# ============================================================================
+
+lock_statement:
+  status: LOCKED
+  effective_from: 2026-05-09T00:00:00Z
+  effective_until: After Phase 2 completion (est. 2026-06-15)
+  lock_authority: Audit Tool (Phase 1, Task 1.1)
+  
+  locked_metrics:
+    - violations_total = 0
+    - write_points_total = 1
+    - read_only_consumers = 12
+    - unauthorized_writes = 0
+    - plugin_overrides = 0
+    - cache_violations = 0
+    - boundary_violations = 0
+    - fail_closed_paths = 7+
+  
+  phase_1_constraint: >
+    No changes to marker_prefix ownership architecture allowed in Phase 1.
+    Audit-only role. Phase 1 Tasks 1.2-1.5 add enforcement/tests only.
+  
+  phase_2_constraint: >
+    Phase 2 must measure against these baselines. Any increase in violations
+    or decrease in standards requires escalation to Tier 1 review.
+  
+  unlock_conditions:
+    - Phase 2 audit complete
+    - All Phase 1 gates passing
+    - Supervisor approval
+  
+  unlock_date: Estimated 2026-06-15 (after Phase 2 completion)
+
+# ============================================================================
+# NOTES FOR PHASE 1 & PHASE 2
+# ============================================================================
+
+notes:
+  phase_1_focus: >
+    Lock baseline (Task 1.1) ✅ COMPLETE
+    Add CI enforcement (Task 1.2)
+    Add test gating (Task 1.3)
+    Document flow (Task 1.4)
+    Prepare rollback (Task 1.5)
+  
+  phase_2_focus: >
+    Compare metrics against these baselines
+    If violations increase: escalate to Tier 1
+    If improvements possible: document and escalate
+    Plugin hardening (Phase 2, Task 2.1)
+  
+  known_limitations: >
+    Phase 3 (flat alias support) deferred to future consideration
+    CLI/config file ingress paths not yet implemented (Phase 1.2 will add)

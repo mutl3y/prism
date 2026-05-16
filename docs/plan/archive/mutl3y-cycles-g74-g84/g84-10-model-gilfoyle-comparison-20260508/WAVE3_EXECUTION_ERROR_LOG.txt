@@ -1,0 +1,41 @@
+# Wave 3 Execution Error Log
+
+**Date:** 2026-05-08  
+**Error Type:** Cluster Design Violation
+
+## What Went Wrong
+
+Initial Wave 3 Phase 1 execution used DISTRIBUTED MODEL strategy:
+- Node 1: GPT-4o
+- Node 2: GPT-4.1
+- Node 3: GPT-5 mini
+
+This is **Wave 2 strategy** (different models, different perspectives), NOT Wave 3 unified strategy.
+
+## Correct Wave 3 Design
+
+**Must use SAME MODEL repeated across 3 nodes per phase:**
+
+### Tier 0 Phase (Corrected)
+- Node 1: GPT-4o on modules 1-3
+- Node 2: GPT-4o on modules 4-6
+- Node 3: GPT-4o on modules 7-8
+- **Result:** Average 3 × GPT-4o results
+
+### Tier 1 Phase (Corrected)
+- Node 1: Claude Haiku 4.5 on modules 1-3
+- Node 2: Claude Haiku 4.5 on modules 4-6
+- Node 3: Claude Haiku 4.5 on modules 7-8
+- **Result:** Average 3 × Haiku 4.5 results
+
+### Comparison
+GPT-4o average vs Haiku 4.5 average on **identical inputs** = true capability measurement
+
+## Status
+
+❌ **Aborted:** Initial Phase 1 results invalidated  
+⏳ **Ready to restart:** With corrected same-model-per-phase design
+
+## Next Step
+
+Re-execute Phase 1 with 3 × GPT-4o (not distributed models)

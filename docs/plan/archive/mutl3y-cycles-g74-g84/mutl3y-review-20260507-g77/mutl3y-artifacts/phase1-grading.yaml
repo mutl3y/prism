@@ -1,0 +1,331 @@
+---
+plan_id: mutl3y-review-20260507-g77
+phase: 1
+phase_title: "Findings Grading & Fix-Wave Planning"
+timestamp: "2026-05-07T02:15:00Z"
+
+grading_result:
+  scout_summary:
+    total_findings: 30
+    high_severity: 14
+    medium_severity: 13
+    low_severity: 3
+    ownership_status: "clean_architecture (0 violations)"
+
+  finding_clusters:
+    - cluster_id: "C-1"
+      name: "Type Safety Defects (DI/Plugin Contracts)"
+      theme: "typing_gaps"
+      findings_list: ["ST-001", "ST-002", "ST-003", "ST-005", "ST-006"]
+      findings_count: 5
+      high_count: 5
+      medium_count: 0
+      low_count: 0
+      severity: "high"
+      fix_priority: 1
+      fix_wave: "wave-1"
+      estimated_effort: "medium"
+      estimated_lines: "250-300"
+      fix_approach: |
+        Port di parameter from Any to Protocol types (HasPreparedPolicy, HasScanOptions).
+        Fix ReferenceContext seed_values to dict[str, str|bool|int|None].
+        Update plugin protocol contracts (VariableDiscoveryPlugin, FeatureDetectionPlugin)
+        to use ScanOptionsDict instead of dict[str, Any].
+        Replace PluginRegistry.loaded_plugins dict[tuple[str,str], Any] with TypedDict.
+        Root cause: Weak typing at plugin boundaries masks runtime errors until execution.
+      blocking_for: ["C-2", "C-3", "C-4"]
+      acceptance_criteria:
+        - "All DI parameters constrained to Protocol | specific type (zero Any in signatures)"
+        - "ReferenceContext.seed_values typed as dict[str, str|bool|int|None]"
+        - "Plugin protocols use ScanOptionsDict instead of dict[str, Any]"
+        - "PluginRegistry.loaded_plugins uses typed container"
+        - "mypy delta zero on changed files"
+
+    - cluster_id: "C-2"
+      name: "Exception Handling & Runtime Diagnostics"
+      theme: "control_flow_error_handling"
+      findings_list: ["SC-001", "SC-002", "SC-004", "SC-006", "SC-008", "SC-009"]
+      findings_count: 6
+      high_count: 6
+      medium_count: 0
+      low_count: 0
+      severity: "high"
+      fix_priority: 2
+      fix_wave: "wave-2"
+      estimated_effort: "medium"
+      estimated_lines: "300-400"
+      fix_approach: |
+        Add logging to _construct_registry_plugin fallback (SC-001): log exception type,
+        message, and stack trace before delegating to fallback logic.
+        Refactor _guard_platform_specific_non_strict_fallback (SC-002): make decision tree
+        explicit with named conditions and documented precedence.
+        Extract explicit Protocol validation layer (SC-008): add validate_plugin_shape()
+        helper that checks method signatures, not just presence. Fails fast before isinstance.
+        Simplify scanner_context error handling (SC-009): enumerate _RECOVERABLE_PHASE_ERRORS
+        explicitly with severity levels; document fallback semantics.
+        Fix kernel_plugin_runner upstream_phase_failed logic (SC-004): separate skip-due-to-upstream
+        from failure-detected with distinct metadata keys.
+        Document resolve_scan_pipeline_plugin_name fallback precedence (SC-006): explicit
+        comment block with precedence order and conflict resolution.
+      blocking_for: ["C-4"]
+      acceptance_criteria:
+        - "_construct_registry_plugin logs all exceptions with root cause"
+        - "_guard_platform_specific_non_strict_fallback decision tree documented with explicit precedence"
+        - "Protocol validation happens before isinstance checks"
+        - "All error recovery paths include severity classification"
+        - "kernel_plugin_runner distinguishes skip vs failure states"
+
+    - cluster_id: "C-3"
+      name: "Control Flow Complexity & Code Clarity"
+      theme: "control_flow_complexity"
+      findings_list: ["SC-003", "SC-005", "SC-007", "SC-010"]
+      findings_count: 4
+      high_count: 0
+      medium_count: 4
+      low_count: 0
+      severity: "medium"
+      fix_priority: 4
+      fix_wave: "wave-4"
+      estimated_effort: "medium"
+      estimated_lines: "150-200"
+      fix_approach: |
+        Clean up unreachable code in _resolve_plugin methods (SC-003, SC-005): remove
+        duplicate ValueError throws after early return/lock patterns. Refactor to single
+        exit point per path.
+        Simplify _resolve_plugin_with_precedence nested ternary (SC-007): extract precedence
+        chain into helper function with explicit elif precedence.
+        Refactor factory_variable_discovery_plugin cascade guards (SC-010): consolidate
+        None checks into single validation point; remove unreachable code paths.
+      blocking_for: []
+      acceptance_criteria:
+        - "No unreachable code in _resolve_plugin implementations"
+        - "All nested ternaries simplified to explicit if-elif-else with comments"
+        - "Single logical exit point per error condition"
+        - "mypy path coverage 100% for error branches"
+
+    - cluster_id: "C-4"
+      name: "Cross-Layer Coupling & Architecture Violations"
+      theme: "layer_isolation"
+      findings_list: ["SG-001", "SG-002", "SG-003"]
+      findings_count: 3
+      high_count: 3
+      medium_count: 0
+      low_count: 0
+      severity: "high"
+      fix_priority: 3
+      fix_wave: "wave-3"
+      estimated_effort: "high"
+      estimated_lines: "400-500"
+      fix_approach: |
+        Extract scanner_plugins/facades.py (SG-002, SG-003): Create ReadmeRendererFacade
+        to isolate scanner_readme from internal plugin structure. ReadmeRenderer layer
+        should only import from facades, not scanner_plugins.interfaces/defaults.
+        Consolidate scanner_readme imports through single facade: render.py + guide.py
+        both use resolve_readme_renderer_plugin; route through single entry point.
+        Create scanner_plugins/ansible/extract_facade.py (SG-001): Consolidate 15+ scanner_extract
+        imports into explicit facade layer. Reduce direct extract_utils imports to 2-3 public
+        functions instead of 15+ scattered imports.
+        Update import statements: scanner_readme→scanner_plugins/facades→internal plugin interfaces.
+      blocking_for: ["independent_scanner_extract_refactoring"]
+      acceptance_criteria:
+        - "scanner_readme has ZERO imports from scanner_plugins.interfaces or scanner_plugins.registry"
+        - "All readme-plugin interactions routed through scanner_plugins/facades.py"
+        - "scanner_plugins.ansible.extract_utils uses ≤3 public extract functions via facade"
+        - "Bidirectional coupling (SG-006 risk) eliminated via facade pattern"
+
+    - cluster_id: "C-5"
+      name: "Plugin Bootstrap & Initialization Order"
+      theme: "bootstrap_coupling"
+      findings_list: ["SG-004", "SG-006", "SG-008"]
+      findings_count: 3
+      high_count: 1
+      medium_count: 2
+      low_count: 0
+      severity: "medium"
+      fix_priority: 3
+      fix_wave: "wave-3"
+      estimated_effort: "medium"
+      estimated_lines: "100-150"
+      fix_approach: |
+        Document and enforce plugin bootstrap order explicitly (SG-008): Add explicit
+        dependency declaration in bootstrap.py (e.g., "registry must initialize before
+        pipeline; pipeline before ansible plugins; ansible before extract_utils").
+        Add bootstrap sequence validation (SG-004): Assert registry initialized before
+        DI factory calls that access scanner_plugins.defaults.
+        Audit and mitigate SG-006 circular import risk: Verify extract layer does NOT
+        call di.factory_prepared_policy_bundle during module-level code. Add guardrail
+        test that imports extract without triggering DI bootstrap.
+      blocking_for: []
+      acceptance_criteria:
+        - "bootstrap.py documents explicit initialization sequence"
+        - "DI factory validates plugin registry initialized"
+        - "Test suite verifies extract layer imports without DI bootstrap"
+
+    - cluster_id: "C-6"
+      name: "Type Ignore Comments & Weak Typing (Lower Priority)"
+      theme: "typing_quality"
+      findings_list: ["ST-004", "ST-007", "ST-008", "ST-009", "ST-010"]
+      findings_count: 5
+      high_count: 0
+      medium_count: 5
+      low_count: 0
+      severity: "low"
+      fix_priority: 4
+      fix_wave: "wave-4"
+      estimated_effort: "low"
+      estimated_lines: "50-100"
+      fix_approach: |
+        Replace type: ignore comments on _PolicyBackedCollectionProxy assignments (ST-004)
+        with proper Protocol types or union types that satisfy type checker.
+        Update feature_detector return types to use TaskCatalogEntry TypedDict (ST-007)
+        instead of dict[str, object].
+        Update variable_discovery plugin return types to dict[str, str] or typed TypedDict (ST-008).
+        Update HasScanOptions protocol scan_options to ScanOptionsDict (ST-009).
+        Consolidate cast() calls into single type-safe utility function (ST-010).
+      blocking_for: []
+      acceptance_criteria:
+        - "Zero type: ignore comments (except documented exceptions)"
+        - "All dict[str, object] replaced with proper TypedDicts"
+        - "mypy errors reduced by minimum 50% in affected files"
+
+  fix_wave_plan:
+    wave_1:
+      title: "Type Safety Foundation"
+      cluster_ids: ["C-1"]
+      duration_estimate: "2 days"
+      testing_gates: ["mypy typecheck on changed files", "pytest on scanner_data and scanner_plugins tests"]
+      predecessors: []
+      success_criteria: "mypy delta zero; type protocol coverage 100% on di/plugin boundaries"
+
+    wave_2:
+      title: "Runtime Diagnostics & Error Handling"
+      cluster_ids: ["C-2"]
+      duration_estimate: "3 days"
+      testing_gates: ["pytest full suite", "grep for logging coverage on fallback paths", "ruff/black formatting"]
+      predecessors: ["wave_1"]
+      success_criteria: "All exception paths logged; decision trees documented; protocol validation in place"
+
+    wave_3:
+      title: "Architecture Decoupling & Bootstrap"
+      cluster_ids: ["C-4", "C-5"]
+      duration_estimate: "4-5 days"
+      testing_gates: ["pytest full suite", "import cycle audit", "circular import detection test"]
+      predecessors: ["wave_2"]
+      success_criteria: "scanner_readme has zero plugin layer imports; extract_facade consolidates 15+ imports; bootstrap order explicit"
+
+    wave_4:
+      title: "Code Quality Cleanup"
+      cluster_ids: ["C-3", "C-6"]
+      duration_estimate: "2 days"
+      testing_gates: ["pytest coverage unchanged", "mypy full typecheck", "ruff/black"]
+      predecessors: ["wave_1", "wave_2"]
+      success_criteria: "No unreachable code; nested ternaries simplified; cast() consolidated"
+
+  risk_assessment:
+    - risk_id: "R-001"
+      severity: "critical"
+      title: "Protocol Duck-Type Validation May Mask Runtime Failures"
+      source_findings: ["SC-008"]
+      description: |
+        isinstance(value, _ProcessScanPipelinePlugin) Protocol check only validates method
+        presence, NOT signature. If plugin_class has process_scan_pipeline(self, x: int)
+        but caller expects process_scan_pipeline(self, x: str), type check passes but
+        execution fails at runtime with cryptic TypeError.
+      impact: "Silent contract violations until orchestration executes; difficult to debug"
+      mitigation: "C-2 fix wave adds explicit Protocol validation layer before isinstance"
+      priority: "blocker_for_wave2"
+
+    - risk_id: "R-002"
+      severity: "high"
+      title: "Ansible Plugin Tight Coupling Blocks Extract Refactoring"
+      source_findings: ["SG-001"]
+      description: |
+        scanner_plugins.ansible.extract_utils imports 15+ functions directly from
+        scanner_extract modules. Any internal refactoring of extract layer
+        (e.g., moving functions, renaming) requires audit of ALL ansible call sites.
+      impact: "Cannot independently refactor scanner_extract without ansible impact assessment"
+      mitigation: "C-4 fix wave creates extract_facade.py to consolidate imports"
+      priority: "blocker_for_wave3"
+
+    - risk_id: "R-003"
+      severity: "high"
+      title: "Reader Layer Reverse Dependency Violates Layer Model"
+      source_findings: ["SG-002", "SG-003"]
+      description: |
+        scanner_readme should be lowest-level domain layer (consumer of plugins,
+        not provider). Currently imports plugin_interfaces + resolver from plugin layer.
+        Creates bidirectional coupling that violates intended architecture.
+      impact: "Cannot refactor plugin layer without careful audit of readme dependencies"
+      mitigation: "C-4 fix wave creates plugin facades to hide internal plugin structure"
+      priority: "blocker_for_wave3"
+
+    - risk_id: "R-004"
+      severity: "medium"
+      title: "Circular Import Risk: Extract → Core → Plugins → Extract"
+      source_findings: ["SG-006"]
+      description: |
+        If scanner_extract module-level code calls di.factory_prepared_policy_bundle
+        during import, and factory accesses scanner_plugins.registry, and registry
+        accesses core DI, could trigger circular import in certain initialization orders.
+      impact: "Potential import-time failures in CI/tests if bootstrap order changes"
+      mitigation: "C-5 fix wave documents bootstrap order; adds validation test"
+      priority: "blocker_for_wave3"
+
+    - risk_id: "R-005"
+      severity: "medium"
+      title: "Silent Exception Masking in Plugin Construction"
+      source_findings: ["SC-001"]
+      description: |
+        _construct_registry_plugin catches all exceptions from plugin __init__
+        without logging root cause. If third-party plugin fails to initialize,
+        error is silently delegated to fallback without diagnostic trace.
+      impact: "Difficult to debug plugin load failures in production"
+      mitigation: "C-2 fix wave adds comprehensive logging to fallback paths"
+      priority: "blocker_for_wave2"
+
+    - risk_id: "R-006"
+      severity: "low"
+      title: "Implicit Control Flow Precedence May Cause Unexpected Behavior"
+      source_findings: ["SC-002", "SC-006"]
+      description: |
+        Multiple fallback chains (platform resolution, plugin resolution) have
+        implicit precedence when multiple layers have values. Could cause unexpected
+        behavior if precedence assumptions are wrong.
+      impact: "Subtle bugs in multi-layer configuration scenarios"
+      mitigation: "C-2 fix wave documents all fallback chains explicitly"
+      priority: "improvement_for_wave2"
+
+  audit_confidence:
+    confidence_level: 0.95
+    confidence_factors:
+      - "All 30 findings verified against actual codebase"
+      - "Typing findings cross-validated with mypy output"
+      - "Ownership findings confirmed via grep audit (clean architecture verified)"
+      - "Control flow findings traced through actual code paths"
+      - "Graph findings validated via import analysis"
+    known_limitations:
+      - "Severity assignments based on static analysis; runtime impact not measured"
+      - "Effort estimates are ranges; actual effort dependent on refactoring complexity"
+      - "Bootstrap order risks are theoretical; need runtime validation"
+
+status: "complete"
+artifact_version: "1.0"
+notes: |
+  Phase 1 grading clusters 30 scout findings into 6 categories spanning typing gaps,
+  error handling defects, control flow complexity, layer violations, and bootstrap coupling.
+
+  Highest-leverage fixes:
+  1. Wave 1 (Type Safety): Unblocks downstream type checking; 5 high-severity findings
+  2. Wave 2 (Diagnostics): Adds runtime observability; 6 high-severity findings with logging
+  3. Wave 3 (Architecture): Decouples layers; 3 high-severity violations + bootstrap
+  4. Wave 4 (Quality): Code cleanup; medium/low findings (optional for MVP)
+
+  Critical blockers to resolve before implementation:
+  - Protocol validation (R-001) must be implemented in wave 2
+  - Ansible coupling (R-002) blocks independent extract refactoring
+  - Reader layer coupling (R-003) violates architecture contract
+  - Circular import risk (R-004) needs bootstrap audit before wave 3
+  - Exception masking (R-005) reduces debuggability in production
+
+  Next phase (Phase 2): Detailed task breakdown for each fix wave with
+  per-task acceptance criteria and verification gates.

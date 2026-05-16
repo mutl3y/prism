@@ -1,0 +1,51 @@
+version: 1.0.0
+mode: cluster-autopilot  # Three-node cluster with automatic escalation
+
+target_path: /raid5/source/test/prism/src/prism
+phase: 2  # Phase 2: Plan persistence
+
+paths:
+  plans: docs/plan/
+  lessons: .mutl3y-lessons/
+  artifacts: mutl3y-artifacts/
+  gate_logs: .mutl3y-gate/
+  temp: tmp/
+
+cluster_settings:
+  autopilot: true
+  auto_escalation: true
+  three_node_enabled: true
+  workflow_monitor_enabled: true
+
+external_agents:
+  deep_review_agent: gem-reviewer
+  research_agent: gem-researcher
+  planning_agent: gem-planner
+  qa: QA  # for Phase 1.5 validation
+  lightweight_qa: QA  # low-cost variant for Tier 1
+  principal: Principal software engineer  # for Phase 1.5 Tier 2
+
+preferences:
+  default_depth: medium
+  parallel_execution: true
+  auto_escalation: true
+
+  # Cluster Coordinator Tiering
+  coordinator_tiering:
+    strategy_default: balanced
+    strategy_escalate: high-reasoning
+    tactical_default: low-cost
+    tactical_escalate: balanced
+    execution_default: low-cost
+    monitor_default: low-cost
+    enable_auto_escalation: true
+
+  parallel_validation:
+    enabled: true
+    multi_node_enabled: true
+
+  model_tiers:
+    scouts: low-cost
+    builders: low-cost
+    gatekeepers: low-cost
+    deep_reviewers: balanced

@@ -1,0 +1,155 @@
+fix_group: error_handling_broad_except
+findings_count: 8
+review_date: 2026-05-07
+review_model: claude-haiku-4.5
+
+decisions:
+  - finding_id: Scout-ControlFlow-01
+    path: src/prism/cli.py
+    line: 569
+    context: "Top-level CLI command exception handler in main() entry point"
+    current_code: "except Exception as exc:"
+    decision: NARROW_EXCEPT
+    reason: "map_top_level_exception_to_exit_code() is designed to handle specific types: PrismRuntimeError, FileNotFoundError, PermissionError, JSONDecodeError, HTTPError, URLError, OSError. Narrow catch improves debugging and documents expected exception types at CLI boundary."
+    exception_types: |
+      Narrow to: (PrismRuntimeError, FileNotFoundError, PermissionError,
+                  json.JSONDecodeError, HTTPError, URLError, OSError)
+      Fallback: Add generic Exception catch after specific types for unforeseen cases.
+    criticality: UTILITY_PATH
+    blocking_issue: false
+    implementation_effort: low
+
+  - finding_id: Scout-ControlFlow-02
+    path: src/prism/scanner_core/events.py
+    line: 140
+    context: "EventBus listener invocation — calls externally-provided listener functions"
+    current_code: "except Exception as exc:  # pragma: no cover - defensive"
+    decision: ACCEPT_BROAD
+    reason: "Broad catch is appropriate because listeners are externally-provided code with unknown exception contracts. Defensive handling is necessary to prevent one failing listener from breaking the event bus. Add diagnostic logging (already present via _record_listener_error and logger.error)."
+    exception_types: "Leave broad — defensive boundary code."
+    criticality: OPTIONAL
+    blocking_issue: false
+    implementation_effort: none
+
+  - finding_id: Scout-ControlFlow-03
+    path: src/prism/scanner_core/execution_request_builder.py
+    line: 186
+    context: "Variable discovery factory — initializes plugin-provided VariableDiscovery class"
+    current_code: "except Exception as exc: raise ValueError(...) from exc"
+    decision: ADD_CONTRACT
+    reason: "Factory wraps exceptions from plugin __init__. Need to define what exceptions variable_discovery_cls can raise (TypeError for missing required args, ValueError for invalid config, PrismRuntimeError from plugin init). Once contract is defined, narrow catch."
+    exception_types: |
+      Expected from plugin __init__: TypeError, ValueError, PrismRuntimeError.
+      Fallback to broad until plugin contract is formalized.
+    criticality: OPTIONAL
+    blocking_issue: false
+    implementation_effort: medium
+    depends_on: "Plugin contract definition for VariableDiscovery.__init__"
+
+  - finding_id: Scout-ControlFlow-04
+    path: src/prism/scanner_core/execution_request_builder.py
+    line: 201
+    context: "Feature detector factory — initializes plugin-provided FeatureDetector class"
+    current_code: "except Exception as exc: raise ValueError(...) from exc"
+    decision: ADD_CONTRACT
+    reason: "Same as Scout-ControlFlow-03. Factory wraps exceptions from plugin __init__. Define expected exceptions from FeatureDetector, then narrow."
+    exception_types: |
+      Expected from plugin __init__: TypeError, ValueError, PrismRuntimeError.
+      Fallback to broad until plugin contract is formalized.
+    criticality: OPTIONAL
+    blocking_issue: false
+    implementation_effort: medium
+    depends_on: "Plugin contract definition for FeatureDetector.__init__"
+
+  - finding_id: Scout-ControlFlow-05
+    path: src/prism/scanner_core/scanner_context.py
+    line: 354
+    context: "Variable discovery execution in _discover_variables() — HOT PATH in scanner_core orchestration"
+    current_code: "except Exception as error: ... isinstance(error, _RECOVERABLE_PHASE_ERRORS)"
+    decision: NARROW_EXCEPT
+    reason: |
+      This is on the scanner_core hot path. Current code catches broad Exception but only recovers for PrismRuntimeError (_RECOVERABLE_PHASE_ERRORS). Should narrow to expected exceptions from discovery.discover(): (PrismRuntimeError, ValueError, RuntimeError). Non-recoverable exceptions should propagate immediately without check.
+      Improvement: Separate catch blocks for recoverable vs. fatal exceptions improves clarity.
+    exception_types: |
+      Catch: (PrismRuntimeError, ValueError, RuntimeError, TypeError)
+      Allow other Exception subclasses to propagate unhandled.
+    criticality: HOT_PATH
+    blocking_issue: true
+    implementation_effort: medium
+    sequencing_note: "Pair with Scout-ControlFlow-06 as coordinated narrowing of parallel discovery/detection paths"
+
+  - finding_id: Scout-ControlFlow-06
+    path: src/prism/scanner_core/scanner_context.py
+    line: 373
+    context: "Feature detection execution in _detect_features() — HOT PATH in scanner_core orchestration"
+    current_code: "except Exception as error: ... isinstance(error, _RECOVERABLE_PHASE_ERRORS)"
+    decision: NARROW_EXCEPT
+    reason: "Parallel to Scout-ControlFlow-05. Same hot-path pattern in feature detection. Narrow to expected exceptions from detector.detect(): (PrismRuntimeError, ValueError, RuntimeError, TypeError)."
+    exception_types: |
+      Catch: (PrismRuntimeError, ValueError, RuntimeError, TypeError)
+      Allow other Exception subclasses to propagate unhandled.
+    criticality: HOT_PATH
+    blocking_issue: true
+    implementation_effort: medium
+    sequencing_note: "Pair with Scout-ControlFlow-05 — both orchestration paths should have parallel exception handling"
+
+  - finding_id: Scout-ControlFlow-07
+    path: src/prism/scanner_core/telemetry.py
+    line: 94
+    context: "Telemetry JSON write to caller-provided stream — IO boundary (pragma: no cover)"
+    current_code: "except Exception as exc:  # pragma: no cover - caller-provided IO boundary"
+    decision: NARROW_EXCEPT
+    reason: |
+      This is a defensive IO boundary wrapping caller-provided write stream. Narrowing helps identify which IO errors are expected.
+      Expected: OSError (file closed, permission denied), TypeError (stream not writable), ValueError (encoding issues), UnicodeDecodeError.
+      Fallback broad catch acceptable due to io-boundary pragma, but narrowing improves diagnostics.
+    exception_types: "(OSError, TypeError, ValueError, UnicodeError)"
+    criticality: OPTIONAL
+    blocking_issue: false
+    implementation_effort: low
+
+  - finding_id: Scout-ControlFlow-08
+    path: src/prism/scanner_kernel/kernel_plugin_runner.py
+    line: 150
+    context: "Plugin phase handler execution wrapper — catches phase handler failures and wraps in error envelope"
+    current_code: "except Exception as exc:"
+    decision: NARROW_EXCEPT
+    reason: |
+      Phase handlers can raise various exceptions (PrismRuntimeError, ValueError, etc). Current broad catch is acceptable at plugin infrastructure boundary, but should narrow to known phase handler exception types for better diagnostics.
+      Expected: PrismRuntimeError (from prism plugins), ValueError (validation), TypeError (config issues), OSError (IO issues).
+      Document in comments what phase handlers are expected to raise.
+    exception_types: "(PrismRuntimeError, ValueError, TypeError, OSError)"
+    criticality: UTILITY_PATH
+    blocking_issue: false
+    implementation_effort: low
+    depends_on: "Phase handler contract documentation"
+
+implementation_readiness: ready
+summary: |
+  BLOCKING: Two hot-path findings (05, 06) in scanner_core orchestration need narrowing to improve error semantics on critical execution paths.
+
+  CONTRACT_NEEDED: Two factory findings (03, 04) require plugin contract definitions before narrowing (low priority, utility paths).
+
+  READY_TO_NARROW: Four findings (01, 07, 08) can be narrowed immediately with specific exception types.
+
+  ACCEPT_BROAD: One finding (02) should remain broad due to defensive boundary nature (event bus listeners from external code).
+
+implementation_sequence: |
+  Phase 1 (blocking): Narrow findings 05, 06 in scanner_context.py (HOT_PATH)
+  Phase 2 (quick wins): Narrow findings 01, 07, 08 (UTILITY_PATH, OPTIONAL)
+  Phase 3 (deferred): Add contracts for findings 03, 04 once plugin architecture stabilizes
+  Phase 4 (no-op): Document finding 02 as intentional broad catch
+
+validation_gates:
+  - pytest -k "error or exception" src/prism/tests
+  - full pytest suite (ensure no regressions)
+  - mypy typecheck (exception types should have proper type annotations)
+  - ruff check (lint for bare except patterns)
+
+notes: |
+  Memory: _RECOVERABLE_PHASE_ERRORS is a tuple[type[Exception], ...] = (PrismRuntimeError,)
+  The scanner_context pattern catches broad Exception but immediately narrows via isinstance.
+  This is safe but inefficient; move isinstance logic into the except clause type tuple.
+
+  CLI broad except is acceptable because map_top_level_exception_to_exit_code has type dispatch,
+  so any Exception that reaches it gets handled gracefully.

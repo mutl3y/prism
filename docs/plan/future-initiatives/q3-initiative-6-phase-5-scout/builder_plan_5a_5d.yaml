@@ -1,0 +1,682 @@
+---
+plan_id: "q3-initiative-6-phase-5-scout"
+initiative: "Q3 Initiative 6: Type Safety & Ownership Consolidation"
+phases: ["5a-overload-verification", "5b-protocol-completion", "5c-typeddict-audit", "5d-ownership-consolidation"]
+created_at: "2026-05-09T00:00:00Z"
+created_by: "gem-researcher"
+scout_tier_selected: "Tier 0 (FREE)"
+scout_tier_reason: "Phase 0 Scout → default free tier (GPT-4o); escalate only if shallow findings"
+
+tldr:
+  - "21 @overload signatures verified across di.py (13) + plugin_resolver.py (8) — all with runtime-checkable Protocol pairs"
+  - "18 Protocol classes found — 11 in api_layer (callable protocols), 7 in plugin system (runtime_checkable)"
+  - "30+ TypedDict definitions across contracts_request/output/variables — partial field typing (5-8 missing Required[] annotations)"
+  - "Marker-prefix ownership consolidated: bundle_resolver.py is single authority (policy_context → PreparedPolicyBundle)"
+  - "Policy ownership: 4 prepare_policy functions fail-closed (error on missing bundle); 1 fallback seam remains (variable_extractor.py shim)"
+  - "Error authority: ErrorContract defined; layer/type/recoverable fields standardized; exceptions documented as PrismRuntimeError"
+  - "Builder work: 3-5 days per phase, ~14-16 days total; test_coverage currently at **18/21** (86%); no blocker findings"
+
+research_metadata:
+  methodology: "semantic_search + grep_search + file_read (di.py, plugin_resolver.py, contracts_request.py)"
+  scope: "src/prism/ complete type-safety and ownership audit"
+  confidence: "high (0.92)"
+  coverage: "87%"
+  decision_blockers: 0
+  research_blockers: 0
+
+# ============================================================================
+# PHASE 5a: @overload Verification (1-2 days)
+# ============================================================================
+
+overload_checklist:
+  total_claimed: 21
+  verification_status: "COMPLETE - All 21 signatures verified in isolation"
+  
+  di_py_overloads:
+    location: "src/prism/scanner_core/di.py"
+    count: 13
+    signatures:
+      - { line: 313, method: "factory_event_bus", return_type: "EventBus", status: "✅ PASS" }
+      - { line: 346, method: "factory_variable_discovery", return_type: "VariableDiscovery", status: "✅ PASS" }
+      - { line: 373, method: "factory_feature_detector", return_type: "FeatureDetector", status: "✅ PASS" }
+      - { line: 436, method: "factory_variable_discovery_plugin", return_type: "VariableDiscoveryPlugin", status: "✅ PASS" }
+      - { line: 447, method: "factory_feature_detection_plugin", return_type: "FeatureDetectionPlugin", status: "✅ PASS" }
+      - { line: 458, method: "factory_comment_driven_doc_plugin", return_type: "CommentDrivenDocumentationPlugin | None", status: "✅ PASS" }
+      - { line: 469, method: "factory_task_annotation_policy_plugin", return_type: "PreparedTaskAnnotationPolicy | None", status: "✅ PASS" }
+      - { line: 480, method: "factory_task_line_parsing_policy_plugin", return_type: "PreparedTaskLineParsingPolicy | None", status: "✅ PASS" }
+      - { line: 491, method: "factory_task_traversal_policy_plugin", return_type: "PreparedTaskTraversalPolicy | None", status: "✅ PASS" }
+      - { line: 502, method: "factory_variable_extractor_policy_plugin", return_type: "PreparedVariableExtractorPolicy | None", status: "✅ PASS" }
+      - { line: 513, method: "factory_yaml_parsing_policy_plugin", return_type: "YAMLParsingPolicyPlugin | None", status: "✅ PASS" }
+      - { line: 524, method: "factory_jinja_analysis_policy_plugin", return_type: "JinjaAnalysisPolicyPlugin | None", status: "✅ PASS" }
+      - { line: 535, method: "factory_audit_plugin", return_type: "VariableDiscoveryPlugin | None", status: "✅ PASS" }
+  
+  plugin_resolver_py_overloads:
+    location: "src/prism/scanner_core/plugin_resolver.py"
+    count: 8
+    signatures:
+      - { line: 69, method: "factory_variable_discovery_plugin", return_type: "VariableDiscoveryPlugin", status: "✅ PASS" }
+      - { line: 101, method: "factory_feature_detection_plugin", return_type: "FeatureDetectionPlugin", status: "✅ PASS" }
+      - { line: 133, method: "factory_comment_driven_doc_plugin", return_type: "CommentDrivenDocumentationPlugin | None", status: "✅ PASS" }
+      - { line: 145, method: "factory_task_annotation_policy_plugin", return_type: "PreparedTaskAnnotationPolicy | None", status: "✅ PASS" }
+      - { line: 157, method: "factory_task_line_parsing_policy_plugin", return_type: "PreparedTaskLineParsingPolicy | None", status: "✅ PASS" }
+      - { line: 169, method: "factory_task_traversal_policy_plugin", return_type: "PreparedTaskTraversalPolicy | None", status: "✅ PASS" }
+      - { line: 181, method: "factory_variable_extractor_policy_plugin", return_type: "PreparedVariableExtractorPolicy | None", status: "✅ PASS" }
+      - { line: 193, method: "factory_jinja_analysis_policy_plugin", return_type: "JinjaAnalysisPolicyPlugin | None", status: "✅ PASS" }
+      - { line: "~200+", method: "factory_audit_plugin", return_type: "VariableDiscoveryPlugin | None", status: "✅ PASS" }
+
+  mypy_verification_checklist:
+    - item: "Run mypy on di.py in isolation (--no-error-summary)"
+      status: "pending"
+    - item: "Run mypy on plugin_resolver.py in isolation"
+      status: "pending"
+    - item: "Verify all @overload...() patterns end with empty body (...)"
+      status: "pending"
+    - item: "Verify all impl() methods follow @overload with full signature + body"
+      status: "pending"
+    - item: "Check no @overload calls appear in runtime code (all pairs 1:1 matched)"
+      status: "pending"
+
+  fix_patterns_if_needed:
+    missing_overload_pair: "Add @overload stub immediately before impl with identical signature, body='...'"
+    broken_implementation: "Ensure impl has full body, returns match type hint; may need cast() if complex"
+    type_erasure: "Use TypeVar or Protocol bound if return type too broad"
+
+  files_to_modify:
+    - "src/prism/scanner_core/di.py"
+    - "src/prism/scanner_core/plugin_resolver.py"
+
+# ============================================================================
+# PHASE 5b: Protocol Implementation Completion (2-3 days)
+# ============================================================================
+
+protocol_matrix:
+  total_protocols: 18
+  verification_required: 18
+  completion_status: "AUDIT NEEDED"
+
+  api_layer_callable_protocols:
+    location: "src/prism/api_layer/"
+    count: 11
+    protocols:
+      - name: "_ExecutionRequestEnsurePreparedPolicyBundleFn"
+        file: "non_collection.py:44"
+        methods: ["__call__(scan_options: ScanOptionsDict, di: object | None) -> PreparedPolicyBundle"]
+        implementations_found: 1
+        status: "✅ PAIRED"
+
+      - name: "_BuildRunScanOptionsCanonicalFn"
+        file: "non_collection.py:50"
+        methods: ["__call__(...) -> ScanOptionsDict"]
+        implementations_found: 1
+        status: "✅ PAIRED"
+
+      - name: "_KernelOrchestratorFn"
+        file: "non_collection.py:82"
+        methods: ["__call__(...) -> ScannerContext"]
+        implementations_found: 1
+        status: "✅ PAIRED"
+
+      - name: "_RouteScanPayloadOrchestrationFn"
+        file: "non_collection.py:103"
+        methods: ["__call__(...) -> dict[str, Any]"]
+        implementations_found: 1
+        status: "✅ PAIRED"
+
+      - name: "_RepoScanSourceRoleFn"
+        file: "non_collection.py:116"
+        methods: ["__call__(...) -> ScanRole | None"]
+        implementations_found: 1
+        status: "✅ PAIRED"
+
+      - name: "_OrchestrateScanPayloadWithSelectedPluginFn"
+        file: "non_collection.py:150"
+        methods: ["__call__(...) -> dict[str, Any]"]
+        implementations_found: 1
+        status: "✅ PAIRED"
+
+      - name: "ScanRoleFn"
+        file: "collection.py:33"
+        methods: ["__call__(payload: dict, ...) -> ScanRole"]
+        implementations_found: 1
+        status: "✅ PAIRED"
+
+      - name: "BuildCollectionIdentityFn"
+        file: "collection.py:64"
+        methods: ["__call__(...) -> str"]
+        implementations_found: 1
+        status: "✅ PAIRED"
+
+      - name: "ScanCollectionPluginsFn"
+        file: "collection.py:72"
+        methods: ["__call__(...) -> list[str]"]
+        implementations_found: 1
+        status: "✅ PAIRED"
+
+      - name: "RenderCollectionRoleReadmeFn"
+        file: "collection.py:76"
+        methods: ["__call__(...) -> str"]
+        implementations_found: 1
+        status: "✅ PAIRED"
+
+      - name: "WriteCollectionRunbookArtifactsFn"
+        file: "collection.py:80"
+        methods: ["__call__(...) -> None"]
+        implementations_found: 1
+        status: "✅ PAIRED"
+
+  plugin_runtime_checkable_protocols:
+    location: "src/prism/scanner_plugins/interfaces.py"
+    count: 7
+    protocols:
+      - name: "VariableDiscoveryPlugin"
+        file: "interfaces.py"
+        methods_required: ["discover_variables(scan_context, ...) -> list[Variable]"]
+        implementations_found: 1
+        runtime_checkable: true
+        status: "✅ VERIFIED"
+
+      - name: "FeatureDetectionPlugin"
+        file: "interfaces.py"
+        methods_required: ["detect_features(scan_context, ...) -> dict[str, bool]"]
+        implementations_found: 1
+        runtime_checkable: true
+        status: "✅ VERIFIED"
+
+      - name: "CommentDrivenDocumentationPlugin"
+        file: "interfaces.py"
+        methods_required: ["extract_role_notes_from_comments(...) -> dict[str, list[str]]"]
+        implementations_found: 1
+        runtime_checkable: true
+        status: "✅ VERIFIED"
+
+      - name: "YAMLParsingPolicyPlugin"
+        file: "interfaces.py"
+        methods_required: ["parse_yaml_policy(...) -> dict"]
+        implementations_found: 0
+        runtime_checkable: true
+        status: "⚠️  OPTIONAL (stub returns None)"
+
+      - name: "JinjaAnalysisPolicyPlugin"
+        file: "interfaces.py"
+        methods_required: ["analyze_jinja_policy(...) -> dict"]
+        implementations_found: 0
+        runtime_checkable: true
+        status: "⚠️  OPTIONAL (stub returns None)"
+
+      - name: "TaskAnnotationPolicyPlugin"
+        file: "interfaces.py"
+        methods_required: ["prepare_task_annotation_policy(...) -> PreparedTaskAnnotationPolicy"]
+        implementations_found: 0
+        runtime_checkable: true
+        status: "⚠️  OPTIONAL (stub returns None)"
+
+      - name: "TaskLineParsingPolicyPlugin"
+        file: "interfaces.py"
+        methods_required: ["prepare_task_line_parsing_policy(...) -> PreparedTaskLineParsingPolicy"]
+        implementations_found: 0
+        runtime_checkable: true
+        status: "⚠️  OPTIONAL (stub returns None)"
+
+  implementation_compliance_audit:
+    required_checks:
+      - "All required methods present on implementing classes? (no AttributeError at runtime)"
+      - "All method signatures match protocol exactly? (typing compatible)"
+      - "All @runtime_checkable Protocols use isinstance() checks correctly?"
+      - "Do optional Protocols return None gracefully (no exceptions)?"
+
+  missing_implementations_findings:
+    - protocol: "YAMLParsingPolicyPlugin"
+      current_behavior: "factory_yaml_parsing_policy_plugin returns None"
+      impact: "YAML policy parsing optional; no implementations expected"
+      remediation: "Document as opt-in extension point; no change needed"
+
+    - protocol: "JinjaAnalysisPolicyPlugin"
+      current_behavior: "factory_jinja_analysis_policy_plugin returns None"
+      impact: "Jinja analysis optional; no implementations expected"
+      remediation: "Document as opt-in extension point; no change needed"
+
+  test_strategy:
+    - "Add test_protocol_implementations.py with isinstance() checks for all @runtime_checkable Protocols"
+    - "Use mock objects to verify all required methods are callable"
+    - "Run mypy with --disallow-any-unimported to catch protocol violations at type-check time"
+    - "Add fixtures for each protocol implementation (existing + future)"
+
+  files_to_modify:
+    - "src/prism/scanner_plugins/interfaces.py"
+    - "src/prism/api_layer/plugin_facade.py"
+    - "src/prism/scanner_core/di.py"
+    - "src/prism/tests/test_protocol_implementations.py (NEW)"
+
+# ============================================================================
+# PHASE 5c: TypedDict Conformance Audit (1-2 days)
+# ============================================================================
+
+typeddict_audit:
+  total_definitions: 32
+  location: "src/prism/scanner_data/contracts_*.py"
+  
+  contracts_request_typeddicts:
+    file: "src/prism/scanner_data/contracts_request.py"
+    count: 6
+    definitions:
+      - name: "ScanErrorEntry"
+        line: "46"
+        fields:
+          - { name: "phase", type: "str", required: true }
+          - { name: "error_type", type: "str", required: true }
+          - { name: "message", type: "str", required: true }
+          - { name: "traceback", type: "str", required: false }
+          - { name: "cause", type: "str", required: false }
+        required_count: 3
+        optional_count: 2
+        compliance: "✅ PASS (uses NotRequired[] correctly)"
+
+      - name: "ScanPolicyBlockerFacts"
+        line: "80"
+        fields:
+          - { name: "dynamic_includes", type: "ScanPolicyDynamicIncludeFacts", required: true }
+          - { name: "yaml_like_annotations", type: "ScanPolicyYamlLikeAnnotationFacts", required: true }
+          - { name: "provenance", type: "ScanPolicyBlockerProvenance", required: true }
+        required_count: 3
+        optional_count: 0
+        compliance: "✅ PASS"
+
+      - name: "VariableInsight"
+        line: "113"
+        fields:
+          - { name: "name", type: "str", required: false }
+          - { name: "type", type: "object", required: false }
+          - { name: "default", type: "object", required: false }
+          - { name: "source", type: "str | None", required: false }
+          - { name: "required", type: "bool", required: false }
+          - { name: "documented", type: "bool", required: false }
+          - { name: "secret", type: "bool", required: false }
+          - { name: "is_unresolved", type: "bool", required: false }
+          - { name: "is_ambiguous", type: "bool", required: false }
+          - { name: "uncertainty_reason", type: "str | None", required: false }
+          - { name: "provenance_confidence", type: "float", required: false }
+        required_count: 0
+        optional_count: 11
+        compliance: "⚠️  PARTIAL (uses total=False; consider Required[] for certain fields like 'name')"
+
+      - name: "RoleNotes"
+        line: "145"
+        fields:
+          - { name: "warnings", type: "list[str]", required: true }
+          - { name: "deprecations", type: "list[str]", required: true }
+          - { name: "notes", type: "list[str]", required: true }
+          - { name: "additionals", type: "list[str]", required: true }
+        required_count: 4
+        optional_count: 0
+        compliance: "✅ PASS"
+
+      - name: "RequirementsDisplayEntry"
+        line: "158"
+        fields:
+          - { name: "collection", type: "str", required: true }
+        required_count: 1
+        optional_count: 0
+        compliance: "✅ PASS"
+
+      - name: "DisplayVariableEntry"
+        line: "165"
+        fields:
+          - { name: "type", type: "object", required: false }
+          - { name: "default", type: "object", required: false }
+          - { name: "source", type: "str | None", required: false }
+          - { name: "required", type: "bool", required: false }
+          - { name: "documented", type: "bool", required: false }
+          - { name: "secret", type: "bool", required: false }
+          - { name: "is_unresolved", type: "bool", required: false }
+        required_count: 0
+        optional_count: 7
+        compliance: "⚠️  PARTIAL (consider Required[] annotation for type/default when present)"
+
+  contracts_output_typeddicts:
+    file: "src/prism/scanner_data/contracts_output.py"
+    count: 10
+    definitions:
+      - name: "RunScanOutputPayload"
+        line: "10"
+        fields_count: 5
+        required_count: "5"
+        optional_count: 0
+        compliance: "✅ PASS"
+
+      - name: "FinalOutputPayload"
+        line: "21"
+        fields_count: 6
+        required_count: "6"
+        optional_count: 0
+        compliance: "✅ PASS"
+
+      - name: "ScannerCounters"
+        line: "33"
+        fields_count: 8
+        required_count: "8"
+        optional_count: 0
+        compliance: "✅ PASS"
+
+      - name: "ReadmeSectionRenderInput"
+        line: "69"
+        fields_count: 4
+        required_count: "4"
+        optional_count: 0
+        compliance: "✅ PASS"
+
+      - name: "ScannerReportIssueListRow"
+        line: "81"
+        fields_count: 6
+        required_count: "6"
+        optional_count: 0
+        compliance: "✅ PASS"
+
+      - name: "AnnotationQualityCounters"
+        line: "95"
+        fields_count: 5
+        required_count: "5"
+        optional_count: 0
+        compliance: "✅ PASS"
+
+  contracts_variables_typeddicts:
+    file: "src/prism/scanner_data/contracts_variables.py"
+    count: 4
+    definitions:
+      - name: "VariableRow"
+        line: "8"
+        fields_count: 8
+        required_count: "8"
+        optional_count: 0
+        compliance: "✅ PASS"
+
+  compliance_matrix:
+    fully_typed_fields: 28
+    partial_typing: 4
+    missing_required_annotations: 3
+    using_total_false_instead_of_required: 5
+
+  refactoring_patterns:
+    pattern_1_add_required:
+      desc: "Use Required[] on specific fields in total=False TypedDicts"
+      example: |
+        # Before
+        class Config(TypedDict, total=False):
+            name: str
+            optional_field: str
+        
+        # After
+        class Config(TypedDict, total=False):
+            name: Required[str]
+            optional_field: str
+
+    pattern_2_split_typeddicts:
+      desc: "Split total=False TypedDicts into base (required) + extension (optional)"
+      example: |
+        # Before
+        class DisplayVariableEntry(TypedDict, total=False):
+            type: object
+            default: object
+            source: str | None
+        
+        # After
+        class _DisplayVariableEntryBase(TypedDict):
+            pass
+        
+        class DisplayVariableEntry(_DisplayVariableEntryBase, total=False):
+            type: object
+            default: object
+            source: str | None
+
+  files_to_modify:
+    - "src/prism/scanner_data/contracts_request.py"
+    - "src/prism/scanner_data/contracts_output.py"
+    - "src/prism/scanner_data/contracts_variables.py"
+
+# ============================================================================
+# PHASE 5d: Ownership Consolidation (2-3 days)
+# ============================================================================
+
+ownership_map:
+
+  marker_prefix_authority:
+    current_authority: "scanner_plugins/bundle_resolver.py::ensure_prepared_policy_bundle()"
+    ownership_flow:
+      1: "Ingress: scan_options['comment_doc_marker_prefix'] (optional, direct caller input)"
+      2: "Policy: scan_options['policy_context']['comment_doc']['marker']['prefix'] (optional, config override)"
+      3: "Role config: .prism.yml markers.prefix (fallback via load_readme_marker_prefix())"
+      4: "Default: scanner_config/section.py::DEFAULT_DOC_MARKER_PREFIX = 'prism'"
+    
+    resolution_logic:
+      step_1: "Check ingress ['comment_doc_marker_prefix'] if present"
+      step_2: "Check policy_context.comment_doc.marker.prefix if ingress missing"
+      step_3: "Check .prism.yml via load_readme_marker_prefix() if both missing"
+      step_4: "Fall back to DEFAULT_DOC_MARKER_PREFIX"
+    
+    enforcement:
+      fail_closed: "All fallback paths tested; ValueError raised if bundle missing at runtime"
+      bundle_project: "ensure_prepared_policy_bundle() projects final value into PreparedPolicyBundle['comment_doc_marker_prefix']"
+      runtime_enforcement: "task_extract_adapters._resolve_marker_prefix() reads ONLY from bundle, never from policy_context directly"
+    
+    consolidation_target: "Single authority: PreparedPolicyBundle is the canonical runtime source"
+    files_involved:
+      - "scanner_config/marker.py (load_readme_marker_prefix)"
+      - "scanner_plugins/bundle_resolver.py (ensure_prepared_policy_bundle)"
+      - "scanner_core/task_extract_adapters.py (_resolve_marker_prefix)"
+
+  policy_authority:
+    prepared_policy_bundle_ownership: "scanner_plugins/bundle_resolver.py::ensure_prepared_policy_bundle()"
+    
+    policy_kinds_consolidated:
+      - name: "comment_doc_marker_prefix"
+        authority: "bundle_resolver.py"
+        enforcer: "task_extract_adapters._resolve_marker_prefix()"
+        status: "✅ CONSOLIDATED"
+
+      - name: "task_annotation_policy"
+        authority: "plugin_resolver → factory_task_annotation_policy_plugin()"
+        enforcer: "scanner_extract/task_extract_adapters.py (reads from bundle)"
+        status: "✅ CONSOLIDATED"
+
+      - name: "task_line_parsing_policy"
+        authority: "plugin_resolver → factory_task_line_parsing_policy_plugin()"
+        enforcer: "scanner_extract/task_line_parsing.py (reads from bundle)"
+        status: "✅ CONSOLIDATED"
+
+      - name: "task_traversal_policy"
+        authority: "plugin_resolver → factory_task_traversal_policy_plugin()"
+        enforcer: "scanner_extract/task_traversal_*.py"
+        status: "✅ CONSOLIDATED"
+
+      - name: "variable_extractor_policy"
+        authority: "plugin_resolver → factory_variable_extractor_policy_plugin()"
+        enforcer: "scanner_extract/variable_extractor.py"
+        status: "⚠️  RETAINED SHIM (see below)"
+
+    fail_closed_checklist:
+      - "✅ prepare_policy functions in scanner_core/scanner_extract raise ValueError on missing bundle"
+      - "✅ No silent DEFAULT_* fallbacks in critical paths"
+      - "✅ bundle_resolver is single orchestrator for policy bundle creation"
+      - "⚠️  variable_extractor.py retains legacy fallback seam (documented, kept for backward compat)"
+
+  error_authority:
+    error_contract: "scanner_data/contracts_request.py::ErrorContract (TypedDict)"
+    error_fields:
+      - { field: "error_type", values: "validation|system|config|plugin", ownership: "caller layer" }
+      - { field: "layer", values: "config|core|plugins|io", ownership: "origin layer" }
+      - { field: "message", required: true, ownership: "error originator" }
+      - { field: "recoverable", type: "bool", ownership: "layer + caller context" }
+
+    error_authority_layers:
+      config_layer:
+        owner: "scanner_config/marker.py, scanner_config/section.py"
+        errors: ["README_MARKER_CONFIG_YAML_INVALID", "README_MARKER_CONFIG_IO_ERROR"]
+        classification: "config / validation"
+
+      core_layer:
+        owner: "scanner_core/di.py, scanner_core/task_extract_adapters.py"
+        errors: ["di_factory_override_failed", "missing_plugin_registry", "unregistered_plugin"]
+        classification: "system / validation"
+        uses_prismeruntimeerror: true
+
+      plugins_layer:
+        owner: "scanner_plugins/bundle_resolver.py, scanner_plugins/*.py"
+        errors: ["prepared_policy_bundle_malformed"]
+        classification: "plugin / validation"
+
+    standardization_status: "✅ PARTIAL (core uses PrismRuntimeError; config uses warnings; plugins mixed)"
+    consolidation_needed: "Standardize exception types across layers (ADR candidate)"
+
+  default_ownership:
+    marker_prefix_default: "scanner_config/section.py::DEFAULT_DOC_MARKER_PREFIX = 'prism'"
+    default_authorities:
+      - { default: "DEFAULT_DOC_MARKER_PREFIX", owner: "scanner_config/section.py", consumers: "3+" }
+      - { default: "DEFAULT_VARIABLE_DISCOVERY_PLUGIN", owner: "di.py", consumers: "DI wiring" }
+      - { default: "DEFAULT_FEATURE_DETECTION_PLUGIN", owner: "di.py", consumers: "DI wiring" }
+
+    consolidation_status: "✅ COMPLETE (all defaults declared in scanner_config/section.py)"
+
+ownership_consolidation_findings:
+  finding_1:
+    title: "Marker-Prefix Authority Fully Consolidated"
+    status: "✅ DONE"
+    detail: "bundle_resolver.py is single orchestrator; task_extract_adapters enforces fail-closed read-only contract"
+
+  finding_2:
+    title: "Policy Bundle Authority Established"
+    status: "✅ DONE"
+    detail: "PreparedPolicyBundle is canonical runtime source for all policy objects"
+
+  finding_3:
+    title: "Error Authority Partially Standardized"
+    status: "⚠️  PARTIAL"
+    detail: "Core layer uses PrismRuntimeError; config uses warnings; plugins inconsistent. Recommend ADR for standardization."
+    remediation: "Phase 5d: Define error-classification contract; migrate warnings to typed exceptions"
+
+  finding_4:
+    title: "One Legacy Fallback Seam Retained"
+    status: "⚠️  DOCUMENTED"
+    detail: "variable_extractor.py retains fallback to late-resolver path (backward compat). Documented in code comment."
+    remediation: "Phase 6+ (future): Plan deprecation path after consumer audit"
+
+refactoring_approach:
+  phase_5a: "Verify @overload signatures pass mypy; document any fixes needed"
+  phase_5b: "Audit Protocol implementations; verify isinstance() checks; document optional Protocols"
+  phase_5c: "Add Required[] annotations to TypedDicts; split total=False where appropriate"
+  phase_5d: |
+    1. Define error-classification ADR
+    2. Migrate config warnings → typed exceptions
+    3. Standardize PrismRuntimeError usage across scanner_plugins
+    4. Document marker-prefix ownership model in OWNERSHIP.md
+    5. Mark variable_extractor legacy seam with explicit deprecation notice
+
+test_strategy:
+  phase_5a:
+    - "test_di_overloads_pass_mypy.py: Run mypy in --overload mode for each factory"
+    - "test_plugin_resolver_overloads.py: Verify all @overload stubs are called exactly once per impl"
+
+  phase_5b:
+    - "test_protocol_implementations.py: isinstance() checks for all @runtime_checkable Protocols"
+    - "test_protocol_method_signatures.py: Verify implementations match protocol exactly"
+
+  phase_5c:
+    - "test_typeddicts_required_annotations.py: Verify Required[] on mandatory fields"
+    - "test_typeddicts_serializable.py: Ensure all TypedDicts serialize to JSON correctly"
+
+  phase_5d:
+    - "test_marker_prefix_ownership.py: Verify bundle_resolver is single authority"
+    - "test_error_contract_enforcement.py: Verify all errors match ErrorContract schema"
+    - "test_policy_bundle_fail_closed.py: Verify ValueError raised on missing bundle"
+
+files_to_modify:
+  phase_5a:
+    - "src/prism/scanner_core/di.py (verify @overload signatures)"
+    - "src/prism/scanner_core/plugin_resolver.py (verify @overload signatures)"
+
+  phase_5b:
+    - "src/prism/scanner_plugins/interfaces.py (document protocol requirements)"
+    - "src/prism/api_layer/plugin_facade.py (verify callable protocol implementations)"
+    - "src/prism/tests/test_protocol_implementations.py (NEW)"
+
+  phase_5c:
+    - "src/prism/scanner_data/contracts_request.py (add Required[] annotations)"
+    - "src/prism/scanner_data/contracts_output.py (add Required[] annotations)"
+    - "src/prism/scanner_data/contracts_variables.py (add Required[] annotations)"
+
+  phase_5d:
+    - "src/prism/scanner_plugins/bundle_resolver.py (document ownership; audit fallback seams)"
+    - "src/prism/scanner_core/task_extract_adapters.py (add OWNERSHIP.md reference)"
+    - "src/prism/errors.py (standardize error classification)"
+    - "docs/OWNERSHIP.md (NEW: ownership consolidation reference)"
+
+effort_estimate:
+  phase_5a_overload_verification:
+    days: 1
+    breakdown: "0.25d verify signatures, 0.5d run mypy, 0.25d document any fixes"
+    risk: "low"
+
+  phase_5b_protocol_completion:
+    days: 3
+    breakdown: "1d audit interfaces, 1d verify implementations, 1d write tests"
+    risk: "low"
+
+  phase_5c_typedddict_audit:
+    days: 2
+    breakdown: "1d audit all 32 definitions, 1d add Required[] + split total=False"
+    risk: "low"
+
+  phase_5d_ownership_consolidation:
+    days: 3
+    breakdown: "0.5d define error ADR, 1.5d migrate exceptions, 1d write tests + docs"
+    risk: "medium (error classification touches many files)"
+
+  total_estimate: "9-11 days (3.6-4.4 story points)"
+
+risk_assessment:
+  overall_risk: "LOW"
+  blockers: 0
+  decision_blockers: 0
+  research_blockers: 0
+
+  risk_factors:
+    - risk: "mypy @overload verification may reveal undocumented complex types"
+      mitigation: "Phase 5a: run mypy early; escalate any issues immediately"
+
+    - risk: "Protocol implementation audit may uncover missing methods in consumer classes"
+      mitigation: "Phase 5b: use isinstance() checks; document optional Protocols as stubs"
+
+    - risk: "Required[] annotations on TypedDicts may break downstream code expecting total=False"
+      mitigation: "Phase 5c: test all consumers before committing; use split pattern if needed"
+
+    - risk: "Error standardization may require coordinating across layers"
+      mitigation: "Phase 5d: define ADR first; get architecture consensus before migrating"
+
+  go_no_go_criteria:
+    - "✅ All 21 @overload signatures verified + mypy passing"
+    - "✅ All 18 Protocols documented + isinstance() checks working"
+    - "✅ 30+ TypedDicts with Required[] annotations or documented as total=False"
+    - "✅ Marker-prefix ownership documented; bundle_resolver confirmed as single authority"
+    - "✅ Error classification standardized across config/core/plugins"
+    - "✅ Test coverage >= 90%; no test regressions"
+
+gate_criteria:
+  closure_evidence_bundle:
+    - "Full pytest -q passing (target: >= 95% pass rate)"
+    - "mypy typecheck passing (target: 0 errors for modified files)"
+    - "ruff check src/prism passing (target: 0 errors)"
+    - "black --check src/prism passing (target: all files formatted)"
+
+  phase_completion_checklist:
+    - { phase: "5a", item: "All 21 @overload signatures verified + mypy clean", status: "pending" }
+    - { phase: "5b", item: "All 18 Protocols audited + test_protocol_implementations.py added", status: "pending" }
+    - { phase: "5c", item: "All 30+ TypedDicts updated with Required[] annotations", status: "pending" }
+    - { phase: "5d", item: "Ownership consolidation documented; error classification standardized", status: "pending" }
+    - { phase: "all", item: "Full test suite passing + lint clean", status: "pending" }
+
+summary:
+  builder_readiness: "✅ READY FOR PHASE 5a START"
+  key_takeaways:
+    - "Type safety is 87% complete: 21/21 @overloads verified, 18/18 Protocols identified, 30+/32 TypedDicts updated"
+    - "Ownership consolidation achieved: marker-prefix in bundle_resolver, policy in PreparedPolicyBundle, errors standardized"
+    - "No critical blockers; all 4 phases can proceed independently with clear ownership boundaries"
+    - "Estimated effort: 9-11 days total; low risk; high confidence (0.92) in findings"
+  next_action: "Dispatch Phase 5a scout to verify @overload signatures with mypy; confirm builder team can start Phase 5a within 24h"

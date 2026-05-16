@@ -1,0 +1,626 @@
+---
+grading_report:
+  phase: "Phase 1 (Grader-Q3Init5)"
+  date: "2026-05-09"
+  grader: "Grader-Q3Init5"
+  tier: "0 (FREE)"
+  status: "COMPLETE"
+  
+  decision: "PROCEED"
+  confidence: 0.92
+  
+  summary: |
+    7 violations audited and graded. 2 critical violations blocking deployability/testability
+    can be closed in Phase 1 (Weeks 2-3) via parallel waves. 5 violations are intentional
+    seams or already correct. Foundation (tests, ruff config, docs) is feasible in Week 1.
+    Parallel execution of LB-1001 + LB-1002 can compress timeline to single week if needed.
+    Phase 2 CI automation is required for permanent enforcement.
+
+  violation_breakdown:
+    total_violations: 7
+    graded_critical: 1
+    graded_high: 1
+    graded_medium: 1
+    graded_low: 2
+    graded_intentional: 2
+
+---
+
+violations:
+  
+  # Violation 1: L0 → L6 (TYPE_CHECKING import)
+  violation_001:
+    id: "001-L0-L6-TYPE_CHECKING"
+    layer_path: "L0 (scanner_core) → L6 (scanner_kernel)"
+    file: "scanner_core/protocols_runtime.py"
+    line: 14
+    import_target: "RoutePreflightRuntimeCarrier"
+    
+    severity_grade: "LOW"
+    classification: "INTENTIONAL"
+    
+    assessment:
+      blast_radius: "1 file, 1 import"
+      risk_category: "None (TYPE_CHECKING boundary)"
+      logic_risk: "None"
+      maintenance_burden: "None"
+      test_impact: "None (compile-time only)"
+      business_impact: "None"
+      effort_to_fix: "0 hours (no fix needed)"
+      
+    recommendation: "DEFER (no action needed; seam is runtime-safe)"
+    reasoning: "TYPE_CHECKING guards prevent runtime circular dependency. This is an intentional type-only boundary seam. No runtime impact."
+    
+    phase_placement: "N/A"
+    blocking: false
+    
+    decision_rationale: |
+      This is not a violation; it's an intentional compile-time seam. The TYPE_CHECKING
+      guard ensures no runtime circular dependency. The audit correctly identified this
+      as acceptable debt. No action required.
+
+---
+
+  # Violation 2: L1 → L4 (Extract → I/O YAML loader imports)
+  violation_002:
+    id: "002-L1-L4-EXTRACT_TO_IO"
+    violation_code: "LB-1001"
+    layer_path: "L1 (scanner_extract) → L4 (scanner_io)"
+    files:
+      - "scanner_extract/variable_extractor.py:17"
+      - "scanner_extract/discovery.py:11-13"
+      - "scanner_extract/dataload.py:8"
+      - "scanner_extract/task_file_traversal.py:15"
+    import_target: "YAML loading utilities (load_yaml_file, parse_yaml_candidate, _ordered_parallel_map)"
+    
+    severity_grade: "MEDIUM"
+    classification: "ACCIDENTAL DEBT"
+    
+    assessment:
+      blast_radius: "4 files in extract layer; 8 import statements"
+      risk_category: "Architectural coupling; blocks independent testing"
+      logic_risk: "LOW (utilities are pure functions)"
+      maintenance_burden: "MEDIUM (extract layer coupled to I/O layer specifics)"
+      test_impact: "HIGH (extract unit tests cannot isolate from I/O initialization)"
+      deployability_impact: "YES (extract module cannot be deployed independently)"
+      business_impact: "MEDIUM (limits refactoring freedom, complicates testing)"
+      effort_to_fix: "2-3 hours (move YAML utilities to data layer)"
+      
+    root_cause: |
+      YAML loading utilities are placed in L4 (I/O) instead of L1 (Extract) or L0 (Core).
+      This caused four extract modules to skip layers L2 (Config) and L3 (Plugins) to import
+      utilities that logically belong with extraction logic.
+
+    recommendation: "MUST FIX IN PHASE 1"
+    priority: "HIGH"
+    reasoning: |
+      This violation blocks independent testing and deployment of the extract layer.
+      Solution is straightforward: move YAML utilities to L0 (Data layer), which has no
+      dependencies. This is a pure utility move with zero behavior change.
+
+    remediation_plan:
+      phase: "Phase 1 - Wave 1.1 (Week 2)"
+      effort_hours: 2
+      risk_level: "LOW"
+      steps:
+        - "Create src/prism/scanner_data/yaml_utils.py"
+        - "Move load_yaml_file(), parse_yaml_candidate(), _ordered_parallel_map() from scanner_io/loader.py"
+        - "Update imports in 4 extract files"
+        - "Update scanner_io/loader.py to re-import from scanner_data"
+        - "Run test: test_layer_boundary_l1_extract_no_io_imports() → PASS"
+        - "Run full test suite → GREEN"
+    
+    success_criteria:
+      - "test_layer_boundary_l1_extract_no_io_imports() passes"
+      - "Ruff LB-1001 check: 0 violations"
+      - "Full test suite: all passing"
+      - "No behavior change in extract or I/O layers"
+    
+    blocking: true
+    phase_placement: "PHASE 1, Week 2"
+    can_parallelize: true
+    
+    decision_rationale: |
+      LB-1001 is the easier of two violations. It's a pure utility move with low risk and
+      high confidence of success. Fixing this first unblocks extract layer independence.
+      Can run in parallel with LB-1002 (Ansible plugin refactor) starting Day 1 of Week 2.
+
+---
+
+  # Violation 3: L4 → L0 (downward imports, correct)
+  violation_003:
+    id: "003-L4-L0-DOWNWARD"
+    layer_path: "L4 (scanner_io) → L0 (scanner_core)"
+    files:
+      - "scanner_io/output_orchestrator.py:16, 113"
+      - "scanner_io/loader.py:99"
+    import_target: "di_helpers, event bus"
+    
+    severity_grade: "LOW"
+    classification: "INTENTIONAL"
+    
+    assessment:
+      blast_radius: "2 files, proper downward flow"
+      risk_category: "None (correct layer dependency)"
+      logic_risk: "None"
+      maintenance_burden: "None"
+      test_impact: "None"
+      business_impact: "None"
+      effort_to_fix: "0 hours (no fix needed)"
+
+    recommendation: "ACCEPT (correct layer flow)"
+    reasoning: "This is proper downward dependency from I/O (L4) to Core (L0). This is the expected and correct layer flow."
+    
+    phase_placement: "N/A"
+    blocking: false
+
+    decision_rationale: |
+      Not a violation; this is the correct layer flow. I/O layer depending on Core layer
+      is architecturally sound. No action needed. Audit correctly identified this as
+      intentional and correct.
+
+---
+
+  # Violation 4: L3 → L1 (Ansible plugin imports Extract internals)
+  violation_004:
+    id: "004-L3-L1-ANSIBLE_PLUGIN"
+    violation_code: "LB-1002"
+    layer_path: "L3 (scanner_plugins) → L1 (scanner_extract)"
+    file: "scanner_plugins/ansible/extract_utils.py"
+    lines: "30+ import statements"
+    import_target: "Extract layer internals (task_file_traversal, task_annotation_parsing, task_catalog_assembly, variable_helpers, discovery, requirements)"
+    
+    severity_grade: "HIGH"
+    classification: "ACCIDENTAL DEBT"
+    
+    assessment:
+      blast_radius: "1 file with 30+ imports across 6 extract modules; couples plugin to extract internals"
+      risk_category: "HIGH - tight coupling to internal implementation details"
+      logic_risk: "MEDIUM (plugin logic depends on extract implementation; cannot refactor extract independently)"
+      maintenance_burden: "HIGH (any extract refactoring breaks plugin; must update plugin imports)"
+      test_impact: "HIGH (plugin tests fail on extract changes; impossible to test plugin in isolation)"
+      deployability_impact: "YES (plugin cannot be deployed independently; depends on extract internals)"
+      business_impact: "HIGH (blocks extract layer refactoring, plugin scaling, multi-platform expansion)"
+      effort_to_fix: "8-12 hours (adapter pattern + comprehensive refactor)"
+      
+    root_cause: |
+      Ansible plugin predates plugin architecture. It retains pre-architecture direct imports
+      of extract layer internals instead of using canonical APIs (DI container, PolicyManager,
+      Core protocols). This is legacy debt from before Q2 Initiative 2-3.
+
+    recommendation: "MUST FIX IN PHASE 1"
+    priority: "CRITICAL"
+    reasoning: |
+      LB-1002 is the critical violation blocking plugin architecture and multi-platform
+      expansion. Ansible plugin needs to be refactored to use DI/Core APIs instead of
+      extract internals. This is high-effort but essential for plugin-driven architecture.
+
+    remediation_plan:
+      phase: "Phase 1 - Wave 1.2 (Weeks 2-3)"
+      effort_hours: 10
+      risk_level: "MEDIUM"
+      strategy: "Adapter pattern seam (follow Q2 I3 pattern)"
+      steps:
+        - "Design plugin adapter interface (2h): Define canonical APIs replacing extract imports"
+        - "Create adapters.py facade (3h): Single file encapsulating all L3→L1 imports"
+        - "Refactor ansible/extract_utils.py (3h): Replace direct extract imports with adapter calls"
+        - "Run ansible tests (1h): pytest -k ansible → GREEN"
+        - "Run layer boundary test (1h): test_layer_boundary_l3_plugins_no_extract_internals() → PASS"
+        - "Run full test suite (1h): All tests → GREEN"
+      
+    success_criteria:
+      - "test_layer_boundary_l3_plugins_no_extract_internals() passes (exception documented)"
+      - "Ruff LB-1002 check: 0 violations (except documented adapters.py exception)"
+      - "All ansible-specific tests passing"
+      - "Full test suite: all passing"
+      - "Ansible plugin does not directly import extract layer (except adapters.py)"
+      - "adapters.py exception documented in src/prism/LAYER_BOUNDARIES.md"
+    
+    blocking: true
+    phase_placement: "PHASE 1, Weeks 2-3"
+    can_parallelize: true
+    
+    dependencies:
+      - "Q2 Initiative 3 DI patterns available (core.di_helpers, PolicyManager)"
+      - "Protocol definitions in scanner_core/protocols"
+
+    decision_rationale: |
+      LB-1002 is blocking plugin architecture. It must be fixed before Phase 2. However,
+      it can run in parallel with LB-1001. Wave 1.2 starts at Day 1 Week 2 (design +
+      adapters.py creation), while Wave 1.1 (YAML move) runs Days 1-2. By end of Week 2,
+      both should be ready for validation (Week 3).
+
+---
+
+  # Violation 5: L5 → L3 (plugin_seams.py, intentional)
+  violation_005:
+    id: "005-L5-L3-PLUGIN_SEAMS"
+    layer_path: "L5 (scanner_readme) → L3 (scanner_plugins)"
+    file: "scanner_readme/plugin_seams.py"
+    lines: "12-13, 38"
+    import_target: "ReadmeRendererPlugin interface, PluginRegistry"
+    
+    severity_grade: "LOW"
+    classification: "INTENTIONAL"
+    
+    assessment:
+      blast_radius: "1 file, intentional facade seam"
+      risk_category: "None (documented seam)"
+      logic_risk: "None"
+      maintenance_burden: "None"
+      test_impact: "None (part of plugin architecture)"
+      business_impact: "None"
+      effort_to_fix: "0 hours (no fix needed)"
+
+    recommendation: "ACCEPT (intentional seam)"
+    reasoning: |
+      This is a documented plugin resolution seam. L5 (README rendering) intentionally
+      imports plugin interfaces to resolve renderers. This is part of the plugin-driven
+      architecture and is correctly designed.
+
+    phase_placement: "N/A"
+    blocking: false
+
+    decision_rationale: |
+      Not a violation; this is an intentional architectural seam. The plugin_seams.py
+      file is explicitly designed as a bridge between README layer and plugin registry.
+      This is correct and no action needed. Audit correctly identified as acceptable.
+
+---
+
+  # Violations 006-007: L7 facade skip-layer imports (intentional)
+  violation_006_007:
+    id: "006-007-L7-FACADE-SKIP-LAYER"
+    layer_path: "L7 (api.py) → multiple layers"
+    files:
+      - "api.py:20 (L2 import)"
+      - "api.py:21 (L4 import)"
+      - "api.py:22-23 (L5 imports)"
+    
+    severity_grade: "LOW"
+    classification: "INTENTIONAL"
+    
+    assessment:
+      blast_radius: "1 file (API facade)"
+      risk_category: "None (API facade allowed to import all layers)"
+      logic_risk: "None"
+      maintenance_burden: "None"
+      test_impact: "None"
+      business_impact: "None"
+      effort_to_fix: "0 hours (no fix needed)"
+
+    recommendation: "ACCEPT (API facade expected)"
+    reasoning: |
+      The API layer (L7) is the public entry point and is explicitly allowed to import
+      from all layers below. This is correct facade design pattern. No layer violation.
+
+    phase_placement: "N/A"
+    blocking: false
+
+    decision_rationale: |
+      Not a violation; this is expected API facade behavior. The API layer must import
+      from multiple lower layers to orchestrate the system. No action needed.
+
+---
+
+roadmap_alignment:
+  
+  phase_0_foundation:
+    timeline: "Week 1 (5 days)"
+    effort_hours: 5
+    feasibility: "✅ ON TRACK"
+    
+    tasks:
+      task_0_1_boundary_tests:
+        name: "Create Boundary Tests"
+        effort: 2
+        deadline: "Day 1"
+        status: "FEASIBLE"
+        
+      task_0_2_ruff_config:
+        name: "Add Ruff Rules (LB-1001, LB-1002)"
+        effort: 1
+        deadline: "Day 2"
+        status: "FEASIBLE"
+        
+      task_0_3_documentation:
+        name: "Document Current State"
+        effort: 1
+        deadline: "Days 3-4"
+        status: "FEASIBLE"
+        
+      task_0_4_github_issues:
+        name: "Create GitHub Epic + Issues"
+        effort: 0.5
+        deadline: "Day 5"
+        status: "FEASIBLE"
+    
+    closure_gate: "All tests written (failing for violations), ruff configured, docs complete"
+
+  phase_1_violation_closure:
+    timeline: "Weeks 2-3 (10 days)"
+    effort_hours: 12
+    feasibility: "✅ ON TRACK (with parallelization)"
+    acceleration_possible: "YES (compress to 1 week if needed)"
+    
+    strategy: "Parallel waves"
+    
+    wave_1_1_lb_1001:
+      name: "Close LB-1001 (L1→L4 Extract)"
+      effort: 2
+      timeline: "Week 2, Days 1-2 (+ parallel with 1.2)"
+      status: "FEASIBLE"
+      risk: "LOW"
+      
+    wave_1_2_lb_1002:
+      name: "Close LB-1002 (L3→L1 Ansible)"
+      effort: 10
+      timeline: "Weeks 2-3 (design Day 1, implement Days 2-3, validate Day 4)"
+      status: "FEASIBLE"
+      risk: "MEDIUM"
+      
+    parallelization:
+      can_run_together: true
+      start_sequence: |
+        Day 1 (Week 2): Start both waves
+        - Wave 1.1: Move YAML utilities (2 hours)
+        - Wave 1.2: Design adapter interface (2 hours)
+        Day 2 (Week 2): Continue both
+        - Wave 1.1: Update imports (1 hour)
+        - Wave 1.2: Create adapters.py (3 hours)
+        Day 3 (Week 2): Finish 1.1, continue 1.2
+        - Wave 1.1: Validate (1 hour) → COMPLETE
+        - Wave 1.2: Refactor plugin (3 hours)
+        Day 4 (Week 3): Finish 1.2
+        - Wave 1.2: Test + validate (2 hours) → COMPLETE
+      compression_estimate: "Can compress Weeks 2-3 into 1 week with daily focus"
+    
+    closure_gate: |
+      ✅ test_layer_boundary_l1_extract_no_io_imports() PASS
+      ✅ test_layer_boundary_l3_plugins_no_extract_internals() PASS (exception documented)
+      ✅ ruff check: 0 violations
+      ✅ pytest: all tests pass
+      ✅ LB-1001 closed (YAML moved to data layer)
+      ✅ LB-1002 closed (plugin adapters seam in place)
+
+  phase_2_automation:
+    timeline: "Weeks 4-5 (10 days)"
+    effort_hours: 4
+    feasibility: "✅ ON TRACK"
+    
+    tasks:
+      task_2_1_github_actions:
+        name: "Create .github/workflows/layer-boundary-check.yml"
+        effort: 1
+        status: "FEASIBLE"
+        
+      task_2_2_lint_rules:
+        name: "Enable LB rules in CI (ruff)"
+        effort: 0.5
+        status: "FEASIBLE"
+        
+      task_2_3_developer_docs:
+        name: "Document for developers"
+        effort: 1
+        status: "FEASIBLE"
+        
+      task_2_4_ci_validation:
+        name: "Test CI enforcement"
+        effort: 1.5
+        status: "FEASIBLE"
+    
+    closure_gate: "CI workflow passing, ruff rules enforced, test violations blocked"
+
+  phase_3_metrics:
+    timeline: "Week 6 (5 days)"
+    effort_hours: 2
+    feasibility: "✅ ON TRACK"
+    
+    deliverable: "Layer health dashboard + metrics tracking"
+    closure_gate: "Metrics collected, dashboarding established"
+
+  overall_timeline_assessment: |
+    FEASIBLE: 8-10 week roadmap is realistic. Phase 0 (Week 1) is solid foundation work.
+    Phase 1 (Weeks 2-3) is compressible to 1 week with parallel execution of both violation
+    fixes. Phase 2 (Weeks 4-5) is automation and CI hardening. Phase 3 (Week 6) is metrics.
+    
+    ACCELERATION: If resources allow, Phase 1 can compress to Week 2 with focused daily work.
+    This would free Weeks 3-4 for Phase 2 automation and testing.
+
+---
+
+test_strategy:
+  
+  layer_boundary_tests:
+    name: "4-test suite in test_layer_boundaries.py"
+    test_cases:
+      - name: "test_layer_boundary_l0_core_no_upward_imports"
+        expected: "PASS"
+        purpose: "Verify L0 does not import from higher layers (except TYPE_CHECKING)"
+      - name: "test_layer_boundary_l1_extract_no_io_imports"
+        expected: "FAIL (initially), PASS (after LB-1001)"
+        purpose: "Verify L1 does not import L4 utilities"
+      - name: "test_layer_boundary_l3_plugins_no_extract_internals"
+        expected: "FAIL (initially), PASS (after LB-1002, exception documented)"
+        purpose: "Verify L3 plugin layer does not import L1 extract internals"
+      - name: "test_circular_dependencies_none"
+        expected: "PASS"
+        purpose: "Verify no circular dependencies exist in layer architecture"
+    
+    enforcement_mechanism: "Import AST analysis + pytest assertions"
+    
+  ruff_linting:
+    rules:
+      - name: "LB-1001"
+        code: "scanner_extract imports from scanner_io"
+        enforcement: "Ruff plugin (custom or existing)"
+        status: "To be configured"
+        
+      - name: "LB-1002"
+        code: "scanner_plugins imports from scanner_extract (except adapters.py)"
+        enforcement: "Ruff plugin (custom or existing)"
+        status: "To be configured"
+    
+    command: "ruff check src/prism --select LB"
+    
+  integration_tests:
+    scope: "Full pytest suite (src/prism/tests/)"
+    criteria: "All tests passing after remediation"
+    gate: "Must pass before Phase 2 CI integration"
+
+---
+
+findings:
+
+  what_works_well:
+    - "Audit is thorough and well-documented (5 intentional seams correctly identified)"
+    - "Violation severity grading is accurate (HIGH + MEDIUM violations blocking deployability)"
+    - "Remediation roadmap is realistic with estimated efforts"
+    - "Parallel execution strategy is sound (LB-1001 + LB-1002 can run simultaneously)"
+    - "Precedent exists (Q2 I3 adapter patterns) for LB-1002 refactor"
+    - "Test strategy is solid (import-based boundary tests follow MP1 pattern)"
+
+  edge_cases_and_risks:
+    - "LB-1002 effort estimate (8-12h) assumes familiarity with DI patterns; could exceed if not"
+    - "Ansible plugin has 30+ extract imports; comprehensive refactor required (but low logic risk)"
+    - "Type annotation in adapters.py exception requires discipline (document in LAYER_BOUNDARIES.md)"
+    - "Future violations risk: without Phase 2 CI integration, new violations could slip in"
+    - "YAML utilities move (LB-1001) is safe but depends on all extract call sites being updated"
+
+  confidence_factors:
+    - "✅ Audit methodology is sound (import graph analysis + manual verification)"
+    - "✅ Violations are real (confirmed via grep, not false positives)"
+    - "✅ Remediation strategies are proven (adapter pattern from Q2 I3, YAML move is utility refactor)"
+    - "✅ Test coverage is planned (boundary tests + full suite validation)"
+    - "⚠️ Phase 2 CI integration is critical; without it, regressions can occur"
+
+---
+
+recommendation_and_decision:
+
+  overall_recommendation: "PROCEED"
+  confidence: 0.92
+  
+  decision_rationale: |
+    Q3 Initiative 5 Phase 1 grading recommends PROCEED for the following reasons:
+    
+    1. VIOLATIONS ARE REAL AND BLOCKING:
+       - LB-1002 (Ansible plugin tight coupling) blocks multi-platform expansion
+       - LB-1001 (Extract→I/O coupling) blocks independent extract testing
+       - Both violations have high business impact and are remediable
+    
+    2. ROADMAP IS REALISTIC:
+       - Phase 0 (Week 1) foundation: 5 hours of test/ruff/doc setup → FEASIBLE
+       - Phase 1 (Weeks 2-3) remediation: 12 hours spread over 2 weeks → FEASIBLE
+       - Parallel execution of LB-1001 + LB-1002 can compress timeline
+       - Phase 2 (Weeks 4-5) CI automation: 4 hours → FEASIBLE
+    
+    3. RISK IS MANAGEABLE:
+       - LB-1001 (YAML move): LOW RISK, 2 hours, pure utility refactor
+       - LB-1002 (plugin adapter): MEDIUM RISK, 10 hours, but precedent exists (Q2 I3)
+       - All work is non-breaking (zero logic changes, only imports/architecture)
+       - Full test suite provides safety net
+    
+    4. INTENTIONAL SEAMS ARE DOCUMENTED:
+       - 2 violations (L0 TYPE_CHECKING, L5 plugin_seams) are intentional and correct
+       - 3 violations (L4→L0, L7 facade) are expected architectural patterns
+       - Only 2 violations (LB-1001, LB-1002) need remediation
+    
+    5. PRECEDENT EXISTS:
+       - Q2 Initiative 3 established adapter pattern (used for LB-1002)
+       - Q2 Initiative 2 created DI patterns (available for LB-1002)
+       - MP1 boundary enforcement (used as CI pattern model)
+    
+    CONDITION: Phase 2 CI automation must be completed before declaring layer boundaries
+    permanently enforced. Without Phase 2, regressions are possible.
+
+  success_criteria:
+    - "Phase 0 tests written + ruff configured (Day 5, Week 1)"
+    - "Phase 1 LB-1001 closed (Day 2, Week 2) + validated"
+    - "Phase 1 LB-1002 closed (Day 4, Week 3) + validated"
+    - "Full test suite passing (Day 5, Week 3)"
+    - "Ruff LB checks: 0 violations (Week 3)"
+    - "Phase 2 CI workflow live + enforcing (Week 5)"
+
+  blockers: "None (all dependencies available)"
+  
+  go_no_go_decision: "✅ GO"
+
+---
+
+summary_statistics:
+  violations_analyzed: 7
+  violations_critical: 1
+  violations_high: 1
+  violations_medium: 1
+  violations_low: 2
+  violations_intentional: 2
+  
+  violations_to_remediate: 2
+  total_effort_hours: 12
+  timeline_weeks: 3
+  
+  parallel_execution_possible: true
+  compression_possible: true
+  compression_target: "1 week (from Weeks 2-3 to Week 2)"
+  
+  phases_affected:
+    phase_0: "Week 1 (foundation) — ON TRACK"
+    phase_1: "Weeks 2-3 (remediation) — ON TRACK, compressible"
+    phase_2: "Weeks 4-5 (CI automation) — ON TRACK"
+    phase_3: "Week 6 (metrics) — ON TRACK"
+  
+  total_timeline: "8-10 weeks (8 weeks achievable with compression)"
+
+---
+
+next_steps:
+  immediate:
+    1: "Approve Phase 1 grading report (this document)"
+    2: "Create GitHub Epic: 'Q3 Initiative 5: Layer Boundary Remediation'"
+    3: "Create GitHub Issues: LB-1001 (YAML move), LB-1002 (Ansible adapter)"
+  
+  week_1_phase_0:
+    1: "Write boundary tests (test_layer_boundaries.py)"
+    2: "Configure ruff LB rules in pyproject.toml"
+    3: "Create src/prism/LAYER_BOUNDARIES.md (developer guide)"
+    4: "Verify tests fail for LB-1001, LB-1002"
+  
+  weeks_2_3_phase_1:
+    1: "Parallel Wave 1.1: Move YAML utilities → src/prism/scanner_data/yaml_utils.py"
+    2: "Parallel Wave 1.2: Design adapter interface + create adapters.py"
+    3: "Update imports in 4 extract files (Wave 1.1)"
+    4: "Refactor Ansible plugin (Wave 1.2)"
+    5: "Run full validation suite"
+  
+  weeks_4_5_phase_2:
+    1: "Create .github/workflows/layer-boundary-check.yml"
+    2: "Enable LB rules in ruff CI"
+    3: "Document for developers"
+    4: "Validate CI enforcement"
+
+---
+
+grader_notes: |
+  This grading identifies Q3 Initiative 5 as a critical infrastructure improvement
+  enabling multi-platform expansion. The two violations blocking deployability
+  (LB-1001, LB-1002) are remediable with moderate effort and realistic timeline.
+  
+  Key insight: The roadmap front-loads foundation work (tests, linting, docs) in
+  Week 1, enabling rapid parallel remediation in Weeks 2-3. Phase 2 CI automation
+  is essential; without it, the benefits are temporary.
+  
+  Recommendation stands: PROCEED with confidence 0.92.
+  Execution depends on maintaining focus and parallel execution discipline in Weeks 2-3.
+
+---
+
+artifacts_generated:
+  - "q3-init5-layer-dependency-audit.md" (Phase 0 input, complete)
+  - "q3-init5-boundary-enforcement-rules.yaml" (Phase 0 input, complete)
+  - "q3-init5-remediation-roadmap.md" (Phase 0 input, complete)
+  - "q3-init5-grading-report.yaml" (THIS FILE - Phase 1 output)
+
+document_status: "✅ COMPLETE"
+date_generated: "2026-05-09T14:32:00Z"
+grader_tier: "Tier 0 (FREE)"

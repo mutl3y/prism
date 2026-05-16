@@ -72,6 +72,29 @@ features:
     overview: Resolve repo-relative targets, workspace lifecycle, and downstream role scans through repo_services-owned seams.
     status: complete
 
+error_envelope:
+  status: implemented
+  description: "Protocol-based error adapter interface with 5 categories and 21 error codes. Provides unified error provenance, secret sanitization, and structured error payloads."
+
+platform_adapters:
+  ansible:
+    status: "reference implementation (stable)"
+  kubernetes:
+    status: "adapter stub present (not yet implemented)"
+  terraform:
+    status: "adapter stub present (not yet implemented)"
+
+test_infrastructure:
+  structure: "Tests organized into 4 boundaries: core/, plugins/, plugins/ansible/, integration/"
+  marker_selection:
+    - "pytest -m core     # 36 tests: DI, caching, policies, config"
+    - "pytest -m plugins  # 14 tests: plugin API, discovery, schema"
+    - "pytest -m integration  # 69 tests: parity, e2e, boundary"
+  tox_envs:
+    - "test-core"
+    - "test-plugins"
+    - "test-integration"
+
 errors:
   - code: LEGACY_SECTION_CONFIG_UNSUPPORTED
     message: "Legacy section config file `.ansible_role_doc.yml` is no longer supported. Rename or migrate to `.prism.yml`."

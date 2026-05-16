@@ -1,0 +1,340 @@
+fix_group: typing_loose_annotations
+files_owned:
+  - src/prism/scanner_extract/task_line_parsing.py
+  - src/prism/scanner_data/scan_options_schema.py
+  - src/prism/scanner_core/patterns.py
+
+implementation_phases:
+  phase_1:
+    name: "Regex Proxy Signatures (Low-risk, immediate)"
+    findings: [08, 09, 10]
+    file: src/prism/scanner_extract/task_line_parsing.py
+    effort_hours: 2
+    dependencies: []
+    changes:
+      - finding_id: Scout-Typing-08
+        symbol: "_PolicyBackedRegexProxy.match(*args: Any, **kwargs: Any)"
+        line_number: 61
+        change_type: REPLACE_PROTOCOL
+        pseudocode: |
+          # Replace varargs signature with explicit re.Pattern[str] contract
+          def match(self, string: str, pos: int = 0,
+                    endpos: int = sys.maxsize) -> re.Match[str] | None:
+              # Delegates to re.Pattern[str].match which has same signature
+              return self._current_regex().match(string, pos, endpos)
+
+          # Rationale: _current_regex() returns re.Pattern[str], so proxy should
+          # expose its actual method contract instead of masking with *args/**kwargs.
+        effort_hours: 0.5
+        risk: LOW
+        validation_check: "mypy on task_line_parsing.py"
+
+      - finding_id: Scout-Typing-09
+        symbol: "_PolicyBackedRegexProxy.search(*args: Any, **kwargs: Any)"
+        line_number: 64
+        change_type: REPLACE_PROTOCOL
+        pseudocode: |
+          # Replace varargs signature with explicit re.Pattern[str] contract
+          def search(self, string: str, pos: int = 0,
+                     endpos: int = sys.maxsize) -> re.Match[str] | None:
+              # Delegates to re.Pattern[str].search which has same signature
+              return self._current_regex().search(string, pos, endpos)
+
+          # Rationale: Same as match(); exposes actual contract.
+        effort_hours: 0.5
+        risk: LOW
+        validation_check: "mypy on task_line_parsing.py"
+
+      - finding_id: Scout-Typing-10
+        symbol: "_PolicyBackedRegexProxy.fullmatch(*args: Any, **kwargs: Any)"
+        line_number: 67
+        change_type: REPLACE_PROTOCOL
+        pseudocode: |
+          # Replace varargs signature with explicit re.Pattern[str] contract
+          def fullmatch(self, string: str, pos: int = 0,
+                        endpos: int = sys.maxsize) -> re.Match[str] | None:
+              # Delegates to re.Pattern[str].fullmatch which has same signature
+              return self._current_regex().fullmatch(string, pos, endpos)
+
+          # Rationale: Same as match() and search(); consistent interface.
+        effort_hours: 0.5
+        risk: LOW
+        validation_check: "mypy on task_line_parsing.py"
+
+  phase_2:
+    name: "Schema Defaults Audit & Refinement (Medium-risk, audit-dependent)"
+    findings: [06, 07]
+    file: src/prism/scanner_data/scan_options_schema.py
+    effort_hours: 3
+    dependencies:
+      - "Must complete Phase 1 (regex fixes pass mypy)"
+      - "Requires audit of SCAN_OPTIONS_SCHEMA entries"
+    changes:
+      - finding_id: Scout-Typing-06
+        symbol: "ScanOptionSchemaEntry.default: Any"
+        line_number: 23
+        change_type: REFINE_ANNOTATION
+        pseudocode: |
+          # Step 1: Audit SCAN_OPTIONS_SCHEMA entries to catalog all default types
+          # Examine all entries in SCAN_OPTIONS_SCHEMA constant:
+          #   - collection_type -> default type: str (e.g., "ansible")
+          #   - command_line -> default type: list[str] (e.g., [])
+          #   - include_nested -> default type: bool (e.g., False)
+          #   - log_level -> default type: str (e.g., "INFO")
+          #   - etc.
+          #
+          # Step 2: Determine if Union type can replace Any
+          # If all defaults are: str | list[str] | bool | None
+          #   -> Define: DefaultValue: TypeAlias = str | list[str] | bool | None
+          #   -> Use: default: DefaultValue (replaces Any)
+          #
+          # If truly heterogeneous and cannot be bounded:
+          #   -> Add justification comment and ACCEPT_ANY
+          #   -> Comment: "Heterogeneous defaults intentional; each schema entry
+          #      defines its own validation contract in validator field"
+          #
+          # Step 3: Update ScanOptionSchemaEntry TypedDict
+          # Current:
+          #   class ScanOptionSchemaEntry(TypedDict):
+          #       name: str
+          #       default: Any  # <-- Line 23
+          #       validator: Callable[[Any], bool]
+          #       ...
+          #
+          # Proposed (if Union works):
+          #   DefaultValue: TypeAlias = str | list[str] | bool | None
+          #   class ScanOptionSchemaEntry(TypedDict):
+          #       name: str
+          #       default: DefaultValue  # <-- Line 23, refined
+          #       validator: Callable[[Any], bool]
+          #       ...
+          #
+          # Proposed (if must keep Any):
+          #   class ScanOptionSchemaEntry(TypedDict):
+          #       name: str
+          #       default: Any  # Heterogeneous defaults; validated per entry
+          #       validator: Callable[[Any], bool]
+          #       ...
+        effort_hours: 1.5
+        risk: MEDIUM
+        validation_check: "mypy + pytest test_scan_options_schema"
+        blocker: "Must complete audit before finalizing"
+
+      - finding_id: Scout-Typing-07
+        symbol: "_entry(..., default: Any = None, ...)"
+        line_number: 33
+        change_type: REFINE_ANNOTATION
+        pseudocode: |
+          # Step 1: Refactor _entry helper to match Scout-Typing-06 decision
+          # Current signature:
+          #   def _entry(name: str, default: Any = None, ...) -> ScanOptionSchemaEntry:
+          #
+          # Proposed (if Union works):
+          #   def _entry(name: str, default: DefaultValue = None, ...) -> ScanOptionSchemaEntry:
+          #       # Note: default=None is only valid if None is in DefaultValue union
+          #       # Or split into overload:
+          #       @overload
+          #       def _entry(name: str, *, validator: Callable, ...) -> ScanOptionSchemaEntry: ...
+          #       @overload
+          #       def _entry(name: str, default: DefaultValue, validator: Callable, ...) -> ScanOptionSchemaEntry: ...
+          #
+          # Proposed (if must keep Any):
+          #   def _entry(name: str, default: Any = None, ...) -> ScanOptionSchemaEntry:
+          #       # Heterogeneous defaults; validation enforced per entry
+          #
+          # Step 2: Update all call sites of _entry (within this file only)
+          # - Verify no type errors are introduced
+          # - Update docstring if needed
+          #
+          # Step 3: Joint validation with Scout-Typing-06 audit
+        effort_hours: 1.5
+        risk: MEDIUM
+        validation_check: "mypy + pytest test_scan_options_schema"
+        blocker: "Must be refactored jointly with Scout-Typing-06"
+
+  phase_3:
+    name: "Utility Enhancement (Optional, low-impact)"
+    findings: [01]
+    file: src/prism/scanner_core/patterns.py
+    effort_hours: 1
+    dependencies:
+      - "Optional; can run after Phase 1 & 2 or deferred"
+    changes:
+      - finding_id: Scout-Typing-01
+        symbol: "_normalise_token_collection(raw: Any) -> set[str]"
+        line_number: 103
+        change_type: REPLACE_UNION
+        pseudocode: |
+          # Step 1: Check imports at top of file
+          # Ensure: from typing import Collection
+          #
+          # Step 2: Replace function signature
+          # Current:
+          #   def _normalise_token_collection(raw: Any) -> set[str]:
+          #
+          # Proposed:
+          #   def _normalise_token_collection(raw: str | Collection[str]) -> set[str]:
+          #       """
+          #       Normalize input that can be a single string or collection of strings.
+          #
+          #       Args:
+          #           raw: A single string or collection of strings (list, tuple, set, etc.)
+          #
+          #       Returns:
+          #           Normalized set of strings.
+          #
+          #       Note: Collection items are assumed to be str; type checking does not
+          #       validate item types at static analysis time.
+          #       """
+          #       # Implementation unchanged; type annotation improvement only
+          #
+          # Step 3: No call-site changes needed (this is caller-facing improvement)
+          # Existing callers pass str | list | tuple | set; all compatible with
+          # str | Collection[str].
+        effort_hours: 0.5
+        risk: MINIMAL
+        validation_check: "mypy on patterns.py"
+        blocker: false
+
+  phase_4:
+    name: "Accept-as-is with Documentation (Low-impact, no code changes)"
+    findings: [02, 04, 05]
+    files:
+      - src/prism/scanner_core/di.py
+      - src/prism/scanner_core/scan_cache.py
+    effort_hours: 1
+    dependencies: []
+    changes:
+      - finding_id: Scout-Typing-02
+        symbol: "DIContainer.inject_mock(name: str, mock: Any) -> None"
+        file: src/prism/scanner_core/di.py
+        line_number: 549
+        change_type: DOCUMENT_RATIONALE
+        pseudocode: |
+          # Add comment before method explaining Any rationale
+          # Current (no comment):
+          #   def inject_mock(self, name: str, mock: Any) -> None:
+          #       self._mocks[name] = mock
+          #
+          # Proposed (with documentation):
+          #   def inject_mock(self, name: str, mock: Any) -> None:
+          #       """
+          #       Inject a mock object into the DI container for test isolation.
+          #
+          #       Args:
+          #           name: Key name for the mock (e.g., 'event_bus', 'registry').
+          #           mock: Mock object of any type. Can be VariableDiscovery, FeatureDetector,
+          #               Plugin, EventBus, or any other service. Generic TypeVar would
+          #               require complex overloads; instead, callers must cast the retrieved
+          #               mock to the expected type.
+          #
+          #       Note: Any is intentional; mock registry is polymorphic by design.
+          #       """
+          #       self._mocks[name] = mock
+        effort_hours: 0.25
+        risk: MINIMAL
+        validation_check: "No validation needed (docstring only)"
+
+      - finding_id: Scout-Typing-04
+        symbol: "ScanCacheBackend.set(key: str, value: Any) -> None"
+        file: src/prism/scanner_core/scan_cache.py
+        line_number: 41
+        change_type: DOCUMENT_RATIONALE
+        pseudocode: |
+          # Add comment explaining Any in protocol definition
+          # Current (no comment):
+          #   def set(self, key: str, value: Any) -> None:
+          #       ...
+          #
+          # Proposed (with documentation):
+          #   def set(self, key: str, value: Any) -> None:
+          #       """
+          #       Store a heterogeneous scan result in the cache.
+          #
+          #       Args:
+          #           key: Cache key (typically scan request hash).
+          #           value: Cached scan result. Can be dict, RunScanOutputPayload,
+          #               mixed nested structures, or any serializable payload.
+          #               Union of all cached types is unmaintainable. _clone_container_structure
+          #               recursively clones nested containers without type awareness.
+          #
+          #       Note: Any is intentional; cache backend explicitly accepts heterogeneous values.
+          #       """
+        effort_hours: 0.25
+        risk: MINIMAL
+        validation_check: "No validation needed (docstring only)"
+
+      - finding_id: Scout-Typing-05
+        symbol: "InMemoryLRUScanCache.set(key: str, value: Any) -> None"
+        file: src/prism/scanner_core/scan_cache.py
+        line_number: 90
+        change_type: DOCUMENT_RATIONALE
+        pseudocode: |
+          # Add comment explaining Any mirrors protocol
+          # Current (no comment):
+          #   def set(self, key: str, value: Any) -> None:
+          #       ...
+          #
+          # Proposed (with documentation):
+          #   def set(self, key: str, value: Any) -> None:
+          #       """
+          #       Store a heterogeneous scan result in the LRU cache.
+          #
+          #       Implements ScanCacheBackend protocol. See protocol docstring for rationale
+          #       on Any annotation. Implementation mirrors protocol contract.
+          #       """
+        effort_hours: 0.25
+        risk: MINIMAL
+        validation_check: "No validation needed (docstring only)"
+
+total_effort_hours: 7
+total_cost_estimate: "~$7 USD (Haiku 4.5 low-cost tier)"
+
+validation_gate:
+  stage_1_phase1: "Phase 1 completion"
+    - pytest -xvs src/prism/tests/test_scanner_extract_task_line_parsing.py
+    - mypy src/prism/scanner_extract/task_line_parsing.py
+    - ruff check src/prism/scanner_extract/task_line_parsing.py
+    - black --check src/prism/scanner_extract/task_line_parsing.py
+
+  stage_2_phase2: "Phase 1 + Phase 2 completion"
+    - pytest -xvs src/prism/tests/test_scan_options_schema.py
+    - mypy src/prism/scanner_data/scan_options_schema.py
+    - ruff check src/prism/scanner_data/scan_options_schema.py
+    - black --check src/prism/scanner_data/scan_options_schema.py
+
+  stage_3_full: "All phases completion (Phase 4 is doc-only)"
+    - pytest -q src/prism/tests
+    - mypy src/prism (target: same or fewer errors as baseline)
+    - ruff check src/prism
+    - black --check src/prism
+
+sequencing_notes: |
+  1. PHASE 1 is independent and unblocks other phases. Complete first.
+  2. PHASE 2 depends on Phase 1 passing mypy (no new type errors introduced).
+  3. PHASE 3 is optional and can run in parallel with Phase 2 or after.
+  4. PHASE 4 (documentation) has zero dependencies; can be interleaved with any phase.
+
+  Recommended execution order:
+    Step 1: Phase 1 (regex proxy fixes) → validate with mypy + pytest
+    Step 2: Phase 4 (doc comments) → no risk, low effort, can run anytime
+    Step 3: Phase 2 (schema audit & refactor) → depends on Phase 1 passing
+    Step 4: Phase 3 (patterns utility) → optional, can be deferred
+
+  Rollback plan (if issues arise):
+    - Phase 1: Straightforward revert (isolated file, 3 method sigs)
+    - Phase 2: Joint audit revert (both findings must go together)
+    - Phase 3: Straightforward revert (isolated utility function)
+    - Phase 4: Comment removals only (no logic impact)
+
+risk_mitigation:
+  high_confidence_items:
+    - Scout-Typing-08, 09, 10: Direct re.Pattern[str] signature match
+    - Scout-Typing-02, 04, 05: Documentation only, no behavioral changes
+
+  audit_items:
+    - Scout-Typing-06, 07: Requires catalog of actual defaults in SCAN_OPTIONS_SCHEMA
+    - Scout-Typing-01: Already low-risk (utility) but verify Collection import exists
+
+  optional_items:
+    - Scout-Typing-03 (KernelPayload): Follow-up, not in current wave

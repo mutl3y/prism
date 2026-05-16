@@ -12,10 +12,6 @@ from urllib.error import HTTPError, URLError
 import prism.api as api
 from prism.errors import PrismRuntimeError
 from prism.scanner_config.audit_rules import AuditReport
-import prism.scanner_io as scanner_io
-from prism.scanner_io.output import (
-    write_role_scan_output,
-)
 
 CLI_PUBLIC_ENTRYPOINTS: tuple[str, ...] = ("main", "build_parser")
 CLI_RETAINED_COMPATIBILITY_SEAMS: tuple[str, ...] = ("_handle_repo_command",)
@@ -198,7 +194,7 @@ def _add_output_arguments(
     include_template: bool,
     format_choices: tuple[str, ...],
 ) -> None:
-    parser.add_argument("-o", "--output", default="README.md", help="Output file path.")
+    parser.add_argument("-o", "--output", default=None, help="Output file path.")
     if include_template:
         parser.add_argument(
             "-t",
@@ -377,7 +373,7 @@ def _handle_role_command(args: argparse.Namespace) -> int:
         inline_task_runbooks=args.inline_task_runbooks,
     )
 
-    written_path = write_role_scan_output(
+    written_path = api.write_role_scan_output(
         dict(result),
         output=args.output,
         output_format=args.format,
@@ -431,17 +427,17 @@ def _handle_collection_command(args: argparse.Namespace) -> int:
             json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n"
         )
     else:
-        rendered = scanner_io.render_collection_markdown(dict(payload))
+        rendered = api.render_collection_markdown(dict(payload))
 
     if args.dry_run:
         print(rendered, end="")
         return 0
 
-    output_path = scanner_io.resolve_output_path(args.output, args.format)
+    output_path = api.resolve_output_path(args.output, args.format)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    written_path = scanner_io.write_output(output_path, rendered)
+    written_path = api.write_output(output_path, rendered)
 
-    print(scanner_io.format_collection_summary(dict(payload)))
+    print(api.format_collection_summary(dict(payload)))
 
     audit_exit = _maybe_run_audit(args, dict(payload))
     if audit_exit != 0:
@@ -566,7 +562,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _dispatch_scan_command(args)
     except KeyboardInterrupt:
         return _EXIT_CODE_INTERRUPTED
-    except Exception as exc:
+    except (
+        PrismRuntimeError,
+        FileNotFoundError,
+        PermissionError,
+        json.JSONDecodeError,
+        HTTPError,
+        URLError,
+        OSError,
+    ) as exc:
         _logger.exception(
             "CLI command %r failed with %s",
             getattr(args, "command", None),
@@ -574,6 +578,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         print(_format_top_level_exception(exc), file=sys.stderr)
         return _map_top_level_exception_to_exit_code(exc)
+    except Exception as exc:
+        _logger.exception(
+            "CLI command %r failed with unexpected exception type %s: %s",
+            getattr(args, "command", None),
+            type(exc).__name__,
+            exc,
+        )
+        print(
+            f"An unexpected error occurred: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return _EXIT_CODE_GENERIC_ERROR
 
     return 0
 

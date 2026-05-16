@@ -1,0 +1,207 @@
+# SECURITY ISSUE: Privileged container running as root
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: privileged-app
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: privileged
+  template:
+    metadata:
+      labels:
+        app: privileged
+    spec:
+      containers:
+      - name: app
+        image: ubuntu:20.04
+        command: ["/bin/bash", "-c", "while true; do echo 'Running as root'; sleep 10; done"]
+        securityContext:
+          privileged: true  # Privileged container!
+          runAsUser: 0  # Running as root!
+          allowPrivilegeEscalation: true
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+---
+# SECURITY ISSUE: Exposed database credentials in ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: default
+data:
+  database.url: "mysql://admin:MyPassword123@mysql:3306/myapp"
+  api.key: "sk-1234567890abcdef"
+  aws.access.key: "AKIAIOSFODNN7EXAMPLE"
+  secret.token: "ghp_16CbDLqQr4Z7zQIW2Ea1q6atop73GH0si2mQ"
+
+---
+# SECURITY ISSUE: Exposed secrets in environment variables
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insecure-app
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: insecure
+  template:
+    metadata:
+      labels:
+        app: insecure
+    spec:
+      containers:
+      - name: app
+        image: python:3.9
+        env:
+        - name: DB_PASSWORD
+          value: "secretpassword123"  # Exposed password!
+        - name: API_TOKEN
+          value: "token_abc123xyz"
+        - name: AWS_SECRET_KEY
+          value: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+---
+# SECURITY ISSUE: No resource limits (CPU throttling, OOM risk)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unlimited-app
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: unlimited
+  template:
+    metadata:
+      labels:
+        app: unlimited
+    spec:
+      containers:
+      - name: app
+        image: node:16
+        # No resource limits - can consume all node resources!
+
+---
+# SECURITY ISSUE: ClusterRole with admin privileges
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: app-admin
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]  # Allow ALL actions!
+
+---
+# SECURITY ISSUE: ClusterRoleBinding to service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: app-admin-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: app-admin
+subjects:
+- kind: ServiceAccount
+  name: app-service-account
+  namespace: default
+
+---
+# SECURITY ISSUE: No NetworkPolicy (unrestricted pod communication)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unprotected-web
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+      - name: web
+        image: nginx:latest
+      # No NetworkPolicy restricts communication to this pod
+
+---
+# SECURITY ISSUE: Service exposing sensitive port
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-service
+  namespace: default
+spec:
+  type: LoadBalancer  # Exposed to internet!
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: admin
+  # No restrictions on who can access this service
+
+---
+# SECURITY ISSUE: Images from untrusted public registry
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: public-image-app
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: public
+  template:
+    metadata:
+      labels:
+        app: public
+    spec:
+      containers:
+      - name: app
+        image: nginx:latest  # Public registry, unverified!
+        imagePullPolicy: Always  # Always pull latest
+      - name: helper
+        image: busybox:latest  # From public Docker Hub
+        imagePullPolicy: Always
+
+---
+# SECURITY ISSUE: Secret stored in plain YAML
+apiVersion: v1
+kind: Secret
+metadata:
+  name: database-secret
+  namespace: default
+type: Opaque
+stringData:  # Using stringData which doesn't encrypt!
+  username: admin
+  password: "MyDatabasePassword123!"
+  connection-string: "postgresql://admin:MyDatabasePassword123!@db.example.com:5432/mydb"
+
+---
+# SECURITY ISSUE: Root filesystem writable
+apiVersion: v1
+kind: Pod
+metadata:
+  name: writable-fs
+  namespace: default
+spec:
+  containers:
+  - name: app
+    image: ubuntu:20.04
+    securityContext:
+      readOnlyRootFilesystem: false  # Root filesystem is writable!

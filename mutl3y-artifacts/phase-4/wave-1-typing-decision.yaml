@@ -1,0 +1,179 @@
+phase: 4
+wave: 1
+fix_group: typing_loose_annotations
+decision_date: '2026-05-08'
+decision_maker: tactical-decision-agent
+
+decision: batch_single_wave
+
+reasoning: |
+  All 10 findings are independent and low-to-medium effort with minimal cross-file
+  dependencies. No blocking relationships detected. Scanner core does not depend on
+  scanner_data results. Task line parsing findings are co-located in one file.
+  Batching into a single wave maximizes parallelism and reduces overhead.
+
+strategy:
+  phase: BATCH
+  grouping: by_file_cluster
+  parallelism: MODERATE (3 parallel task slots)
+  sequencing: none_required
+
+task_groups:
+  - group: g1_hot_path_protocols
+    findings: [Scout-Typing-08, Scout-Typing-09, Scout-Typing-10]
+    file: src/prism/scanner_extract/task_line_parsing.py
+    decision: REPLACE_PROTOCOL
+    effort: LOW
+    scope: |
+      Replace *args/**kwargs with explicit re.Pattern[str] method signatures:
+      match(string, pos=0, endpos=maxsize) -> Match[str] | None
+      search(string, pos=0, endpos=maxsize) -> Match[str] | None
+      fullmatch(string, pos=0, endpos=maxsize) -> Match[str] | None
+
+  - group: g2_cache_backend_protocol
+    findings: [Scout-Typing-04, Scout-Typing-05]
+    file: src/prism/scanner_core/scan_cache.py
+    decision: ACCEPT_ANY
+    effort: LOW
+    scope: |
+      Document why value: Any is acceptable in ScanCacheBackend protocol.
+      Add inline comment: "Accepts heterogeneous cached payloads (dict, 
+      RunScanOutputPayload, etc.); Union would be unmaintainable."
+      No code changes required; documentation only.
+
+  - group: g3_container_mocks
+    findings: [Scout-Typing-02]
+    file: src/prism/scanner_core/di.py
+    decision: ACCEPT_ANY
+    effort: LOW
+    scope: |
+      Document inject_mock parameter. Add inline comment explaining why
+      generic TypeVar is not worth the complexity. No code changes.
+
+  - group: g4_data_contract_refinement
+    findings: [Scout-Typing-06, Scout-Typing-07]
+    file: src/prism/scanner_data/scan_options_schema.py
+    decision: REFINE_CONTRACT
+    effort: MEDIUM
+    scope: |
+      Audit SCAN_OPTIONS_SCHEMA entries to catalog default value types.
+      If defaults are constrained (e.g., str | list[str] | None), replace
+      Any with Union type. If truly heterogeneous, document ACCEPT_ANY.
+      Single coordinated refactor for both findings.
+    blocker: false
+    follow_up: |
+      Create artifact: audit results at
+      mutl3y-artifacts/phase-4/wave-1-typing-audit-scan-options.yaml
+
+  - group: g5_kernel_payload_protocol
+    findings: [Scout-Typing-03]
+    file: src/prism/scanner_core/protocols_runtime.py
+    decision: REFINE_CONTRACT
+    effort: MEDIUM
+    scope: |
+      Audit KernelPayload values in scanner_kernel/orchestrator.py.
+      Assess if dict[str, object] is precise enough vs dict[str, Any].
+      Document findings; do not change type unless clear benefit.
+    blocker: false
+    follow_up: |
+      Create artifact: audit results at
+      mutl3y-artifacts/phase-4/wave-1-typing-audit-kernel-payload.yaml
+
+  - group: g6_utility_function
+    findings: [Scout-Typing-01]
+    file: src/prism/scanner_config/patterns.py
+    decision: REPLACE_UNION
+    effort: LOW
+    scope: |
+      Replace raw: Any with raw: str | Collection[str] in
+      _normalise_token_collection(). Add docstring clarification that
+      collection items must be str.
+
+prechecks:
+  - check: mypy_baseline
+    command: ".venv/bin/python -m mypy src/prism --no-error-summary 2>&1 | wc -l"
+    capture_as: baseline_mypy_count
+    purpose: Establish pre-wave mypy error count for delta verification
+
+  - check: pytest_baseline
+    command: ".venv/bin/python -m pytest -q src/prism/tests/test_scanner_*.py"
+    capture_as: baseline_test_status
+    purpose: Verify no tests break during typing fixes
+
+  - check: black_format_check
+    command: ".venv/bin/python -m black --check src/prism/scanner_core/di.py src/prism/scanner_extract/task_line_parsing.py src/prism/scanner_data/scan_options_schema.py src/prism/scanner_config/patterns.py 2>&1"
+    capture_as: format_status
+    purpose: Ensure files already conform to black style before edits
+
+  - check: verify_imports
+    command: "grep -l 're\\.Match' src/prism/scanner_extract/task_line_parsing.py"
+    capture_as: match_import_exists
+    purpose: Verify re module is already imported (required for type hints)
+
+postchecks:
+  - check: mypy_delta
+    command: ".venv/bin/python -m mypy src/prism --no-error-summary 2>&1 | wc -l"
+    verify: "delta <= 0"
+    purpose: Confirm no new mypy errors introduced
+
+  - check: pytest_pass
+    command: ".venv/bin/python -m pytest -q src/prism/tests/test_scanner_*.py"
+    verify: "exit_code == 0"
+    purpose: All tests pass after typing fixes
+
+  - check: black_format
+    command: ".venv/bin/python -m black src/prism/scanner_core/di.py src/prism/scanner_extract/task_line_parsing.py src/prism/scanner_data/scan_options_schema.py src/prism/scanner_config/patterns.py"
+    verify: "exit_code == 0"
+    purpose: Auto-format all modified files
+
+  - check: lint_pass
+    command: ".venv/bin/python -m ruff check src/prism/scanner_core/di.py src/prism/scanner_extract/task_line_parsing.py src/prism/scanner_data/scan_options_schema.py src/prism/scanner_config/patterns.py"
+    verify: "exit_code == 0"
+    purpose: No lint violations in modified files
+
+effort_estimate:
+  total_effort: MEDIUM
+  rationale: |
+    6 groups, mostly LOW effort (70%), some MEDIUM (2 audit groups).
+    Low-effort groups (protocol fixes, documentation) are parallelizable.
+    Medium-effort audits (scan_options, kernel_payload) are sequential but
+    non-blocking (follow-up artifacts). Estimated total implementation time:
+    3-4 hours for full batch including audits.
+
+risk_level: LOW
+
+risk_factors:
+  - factor: File modifications are isolated per group
+    impact: LOW
+    mitigation: "Each group touches different files; no cross-file coupling."
+
+  - factor: Type annotations only (no behavior changes)
+    impact: MINIMAL
+    mitigation: "Changes are syntax-only; runtime behavior unchanged."
+
+  - factor: Hot-path files modified (di.py, task_line_parsing.py)
+    impact: MEDIUM
+    mitigation: "Full pytest + mypy validation required; audit pre-wave baseline."
+
+  - factor: Accept_Any decisions are documented non-changes
+    impact: MINIMAL
+    mitigation: "Comments only; no code risk."
+
+  - factor: Medium-effort audits may reveal unexpected constraints
+    impact: LOW
+    mitigation: "Audits produce follow-up artifacts; decisions not blocked."
+
+implementation_order:
+  1_parallel_low_effort: [g1_hot_path_protocols, g2_cache_backend_protocol, g3_container_mocks, g6_utility_function]
+  2_sequential_audits: [g4_data_contract_refinement, g5_kernel_payload_protocol]
+
+next_phase_readiness: true
+
+readiness_justification: |
+  All findings have documented decisions. Pre-checks are lightweight and
+  executable. No blocking dependencies between task groups. Medium-effort
+  audits produce non-blocking follow-up artifacts. Wave 2 (error_handling)
+  can proceed in parallel; no shared dependencies detected.
+
+artifact_version: "1.0"
+wave_id: "typing-wave-1-20260508"

@@ -1,0 +1,56 @@
+model_used: Gemini 2.5 Pro
+findings:
+  - id: GILF-NODE2-01
+    severity: CRITICAL
+    category: concurrency
+    location: "variable_discovery.py:_resolve_plugin, feature_detector.py:_resolve_plugin"
+    issue: "Textbook broken double-checked locking pattern for plugin resolution."
+    root_cause: "A misguided attempt to implement a classic performance optimization without understanding the memory model implications. The initial non-locked read of `self._plugin_resolved` can be reordered by the Python interpreter or the CPU, leading to a race condition where one thread sees the flag as True before the `self._plugin` is actually assigned, resulting in a `None` value being returned."
+    impact: "In a concurrent environment, this can lead to `ValueError` or `AttributeError` exceptions being raised intermittently, making the system fundamentally unreliable. It's a ticking time bomb that will detonate under load. Correctness is completely compromised."
+    confidence: 100
+    fix_suggestion: "Delete this amateurish attempt at double-checked locking. The performance gain from avoiding a lock is negligible for a one-time initialization. Simplify the logic to acquire the lock, check the flag, resolve the plugin, and release. It's simple, correct, and won't explode. Effort: Trivial. Impact: System stability."
+  - id: GILF-NODE2-02
+    severity: HIGH
+    category: data-flow
+    location: "variable_discovery.py:discover, feature_detector.py:detect"
+    issue: "Mutable `options` dictionary is snapshotted, but the DI container is shared and mutable."
+    root_cause: "A half-hearted attempt at isolation. The developer correctly identified that the `options` dictionary is a mutable shared object and cloned it. However, they completely ignored the `self._di` container, which is also a shared, mutable object passed around and used to resolve factories and services. Any concurrent operation that modifies the DI container's state could poison the well for all subsequent operations in other threads."
+    impact: "This creates a significant risk of cross-request state pollution. One request could, in theory, alter the DI configuration (e.g., by swapping a factory) and affect the behavior of a completely unrelated request being processed in another thread. This makes behavior non-deterministic and debugging a nightmare."
+    confidence: 95
+    fix_suggestion: "The DI container should be treated as immutable after its initial construction. If request-specific dependencies are needed, they should be passed explicitly or resolved through a scoped container factory, not by mutating a global container. For now, document that the DI container is read-only after bootstrap and add runtime checks if you're feeling particularly paranoid. Effort: Medium (requires architectural discipline). Impact: Prevents bizarre, hard-to-trace bugs."
+  - id: GILF-NODE2-03
+    severity: HIGH
+    category: policy
+    location: "task_extract_adapters.py:_resolve_marker_prefix"
+    issue: "Marker prefix policy is resolved via a hardcoded, fragile path into the `scan_options` dictionary."
+    root_cause: "This is a classic example of tight coupling and a violation of the Law of Demeter. Instead of receiving the `marker_prefix` as a direct, typed parameter, the function navigates a treacherous path (`di` -> `scan_options` -> `prepared_policy_bundle` -> `comment_doc_marker_prefix`). This creates a rigid dependency on a specific data structure."
+    impact: "Any change to the `prepared_policy_bundle` structure or the way `scan_options` are populated will break this function in a non-obvious way. It makes refactoring a minefield and demonstrates a complete lack of architectural foresight. It's brittle and destined to shatter."
+    confidence: 100
+    fix_suggestion: "Refactor the call chain. The component that has the `prepared_policy_bundle` should extract the `comment_doc_marker_prefix` and pass it as a simple string argument to the functions that need it. This decouples the adapter from the policy's data structure. Effort: Low. Impact: Greatly improved maintainability and robustness."
+  - id: GILF-NODE2-04
+    severity: MEDIUM
+    category: performance
+    location: "variable_discovery.py:resolve_unresolved"
+    issue: "Unnecessary re-discovery of static variables if not provided."
+    root_cause: "The `resolve_unresolved` method has an optional `static_names` parameter. If it's `None`, it calls `self.discover_static()` to compute it. However, the `discover()` method, which is the primary entry point, *already* has this data. This leads to redundant work."
+    impact: "This causes a needless performance hit. The `discover_static()` method likely involves file I/O and parsing, and it's being called twice in the main `discover()` workflow. It's inefficient and wasteful, like running a marathon to fetch a beer from the fridge."
+    confidence: 100
+    fix_suggestion: "Restructure the `discover()` method. Call `discover_static()` once, store the result, and pass the derived `static_names` to `resolve_unresolved()`. This eliminates the redundant call and ensures the work is done only once. Effort: Trivial. Impact: Improved performance."
+  - id: GILF-NODE2-05
+    severity: MEDIUM
+    category: error-handling
+    location: "feature_detector.py:_resolve_plugin"
+    issue: "Plugin resolution can fail silently if the factory returns `None`, only to be caught later."
+    root_cause: "The `_resolve_plugin` method in `FeatureDetector` is designed to return `FeatureDetectionPlugin | None`. The factory can return `None`, which is then stored in `self._plugin`. The public methods `detect()` and `analyze_task_catalog()` then have to check for `None` and raise a `ValueError`. This is lazy error handling."
+    impact: "The error occurs far from its source. The configuration problem is in the DI factory, but the exception is raised in a consumer method. This makes debugging more difficult. The system should fail fast, at the point of resolution, not downstream."
+    confidence: 100
+    fix_suggestion: "The `_resolve_plugin` method should never return `None`. It should either return a valid plugin or raise an exception immediately if the factory fails to produce one. This enforces a 'fail-fast' contract and makes the root cause of configuration errors immediately obvious. Effort: Trivial. Impact: Improved debuggability and system robustness."
+  - id: GILF-NODE2-06
+    severity: LOW
+    category: data-flow
+    location: "task_extract_adapters.py"
+    issue: "Lazy imports using local-scope `from ... import ...` statements."
+    root_cause: "The file uses lazy imports inside functions to avoid circular dependencies. While this works, it's a code smell that indicates a deeper architectural problem—likely a tangled dependency graph between `task_extract_adapters`, `task_annotation_parsing`, and `task_catalog_assembly`."
+    impact: "This pattern makes the code harder to reason about. It hides the module's true dependencies and can lead to subtle performance overhead as the import machinery is invoked at runtime. It's a bandage on a wound that needs stitches."
+    confidence: 90
+    fix_suggestion: "The correct fix is to break the circular dependency through architectural refactoring, likely by introducing a new module for shared types or interfaces, or by using dependency injection to invert control. This is more work but is the proper solution. Effort: Medium to High. Impact: A cleaner, more maintainable architecture."

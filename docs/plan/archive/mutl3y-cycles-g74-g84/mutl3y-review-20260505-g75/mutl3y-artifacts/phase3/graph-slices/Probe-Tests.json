@@ -1,0 +1,11 @@
+{
+  "plan_id": "mutl3y-review-20260505-g75",
+  "agent": "Probe-Tests",
+  "focus": "test_gap",
+  "candidate_files": [
+    "src/prism/tests/test_scanner_core_di.py",
+    "src/prism/tests/test_di_registry_resolution.py",
+    "src/prism/tests/test_plugin_kernel_extension_parity.py"
+  ],
+  "question": "Do the direct tests cover the registry authority seam and the runtime-import seam that the scout batch flagged?"
+}

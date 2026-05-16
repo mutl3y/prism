@@ -1,0 +1,87 @@
+---
+plan_id: mutl3y-review-20260507-g78
+phase: "Phase 5 - Wave 2.5 (Test Fixup)"
+wave: "2.5"
+blocker_from: "FIND-G78-002"
+timestamp: "2026-05-07"
+status: completed
+
+wave_summary:
+  objective: "Fix 4 failing tests due to PrismRuntimeError error contract changes"
+  blocker: "Test Failures from FIND-G78-002 Error Contract Changes"
+
+error_contract_changes:
+  - change: "PrismRuntimeError now includes layer and recoverable fields"
+    impact: "Error string format changed from 'code: message' to '[{layer}] code: message'"
+    default_layer: "core"
+    default_recoverable: false
+
+tests_fixed:
+  - test_fsrc_errors_prism_runtime_error_contract_compatibility
+  - test_fsrc_api_scan_collection_demotes_role_content_runtime_failure
+  - test_load_yaml_file_never_raises_on_arbitrary_content
+  - test_fsrc_scanner_context_best_effort_records_error_envelope
+
+files_modified:
+  - src/prism/tests/test_errors.py
+  - src/prism/tests/test_collection_contract.py
+  - src/prism/tests/test_hypothesis_yaml_parser.py
+  - src/prism/tests/test_scanner_context.py
+
+fixes_applied:
+
+  - test: test_fsrc_errors_prism_runtime_error_contract_compatibility
+    file: src/prism/tests/test_errors.py
+    line_range: [131, 153]
+    changes:
+      - added: "layer='core' parameter to PrismRuntimeError constructor"
+      - added: "recoverable=False parameter to PrismRuntimeError constructor"
+      - updated: "Expected string format from 'role_scan_runtime_error: boom' to '[core] role_scan_runtime_error: boom'"
+      - added: "Assertions for layer and recoverable fields"
+
+  - test: test_fsrc_api_scan_collection_demotes_role_content_runtime_failure
+    file: src/prism/tests/test_collection_contract.py
+    line_range: [388, 400]
+    changes:
+      - updated: "Error field in failure payload from 'role_content_yaml_invalid: invalid role yaml' to '[core] role_content_yaml_invalid: invalid role yaml'"
+
+  - test: test_load_yaml_file_never_raises_on_arbitrary_content
+    file: src/prism/tests/test_hypothesis_yaml_parser.py
+    line_range: [58, 76]
+    changes:
+      - updated: "Assertion from 'str(exc).startswith(\"yaml_load_error\")' to '\"yaml_load_error\" in str(exc)'"
+      - reason: "Error message now includes [core] prefix before error code"
+
+  - test: test_fsrc_scanner_context_best_effort_records_error_envelope
+    file: src/prism/tests/test_scanner_context.py
+    line_range: [576, 583]
+    changes:
+      - updated: "Error envelope message from 'role_scan_runtime_error: boom' to '[core] role_scan_runtime_error: boom'"
+
+test_results:
+  pytest_total: 1171
+  pytest_passed: 1171
+  pytest_failed: 0
+  pytest_skipped: 7
+  status: PASS
+
+validation_gate: GREEN
+closure_evidence:
+  - gate: "pytest -q"
+    result: "1171 passed, 7 skipped"
+  - gate: "ruff check"
+    result: "No issues"
+  - gate: "black --check"
+    result: "No issues"
+
+summary:
+  objective_status: "COMPLETE"
+  all_fixes_verified: true
+  test_suite_healthy: true
+  recommendation: "Wave 2.5 complete. Ready for Phase 6 validation gate."
+
+owned_files:
+  - src/prism/tests/test_collection_contract.py
+  - src/prism/tests/test_errors.py
+  - src/prism/tests/test_hypothesis_yaml_parser.py
+  - src/prism/tests/test_scanner_context.py

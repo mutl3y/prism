@@ -1,0 +1,34 @@
+cycle: g84
+phase: P5
+wave: rem-3
+status: in_progress
+timestamp: 2026-05-11
+tier_strategy_source: memory-loaded:/memories/mutl3y-tier-strategy.md
+workers_expected:
+  - Builder-MarkerBoundary
+  - Builder-ScanOptionsSemantics
+  - Builder-TracebackParity
+owned_file_sets:
+  Builder-MarkerBoundary:
+    - src/prism/scanner_core/marker_prefix_enforcer.py
+    - src/prism/scanner_core/marker_prefix_contract.py
+    - docs/dev_docs/error-boundary-audit-baseline.json
+  Builder-ScanOptionsSemantics:
+    - src/prism/scanner_core/di.py
+    - src/prism/tests/test_policy_integration.py
+  Builder-TracebackParity:
+    - src/prism/tests/test_scanner_parity.py
+disjoint_scopes_verified: true
+routing:
+  Builder-MarkerBoundary:
+    tier_selected: LOW-COST (0.33x)
+    tier_reason: Focused boundary contract rollback + baseline alignment in known files.
+    model: Claude Haiku 4.5
+  Builder-ScanOptionsSemantics:
+    tier_selected: BALANCED (1x)
+    tier_reason: DI scan_options semantics affect multi-role isolation and policy integration contracts.
+    model: GPT-5.4
+  Builder-TracebackParity:
+    tier_selected: FREE (0x)
+    tier_reason: Single-test parity alignment for updated error envelope shape.
+    model: GPT-5 mini

@@ -1,0 +1,38 @@
+- id: Scout-Graph-01
+  category: registry_authority
+  fingerprint: "registry_authority:di:_get_registry:consumer_407"
+  file: src/prism/scanner_core/di.py
+  line: 383
+  severity_hint: high
+  confidence: high
+  detector: graph_slice
+  memory_status: new
+  memory_match: ""
+  evidence_snippet: "origin 383 _get_registry(); consumer 407 registry = self._get_registry()"
+  evidence_command: "read_file src/prism/scanner_core/di.py 380-407"
+  related_symbols:
+    - DIContainer._get_registry
+    - factory_blocker_fact_builder
+  fix_group_key: registry-split-authority
+  proposed_fix_class: single_composition_root
+  blocking_preconditions: []
+  suggested_narrow_gate: ""
+- id: Scout-Graph-02
+  category: composition_root
+  fingerprint: "composition_root:di:factory_blocker_fact_builder:consumer_433"
+  file: src/prism/scanner_core/di.py
+  line: 433
+  severity_hint: low
+  confidence: medium
+  detector: graph_slice
+  memory_status: matches_do_not_re_flag
+  memory_match: "FIND-G3-03"
+  evidence_snippet: "registry = self._get_registry()"
+  evidence_command: "read_file src/prism/scanner_core/di.py 430-436"
+  related_symbols:
+    - factory_blocker_fact_builder
+    - _get_registry
+  fix_group_key: di.factory_blocker_fact_builder.runtime_import
+  proposed_fix_class: move_module
+  blocking_preconditions: []
+  suggested_narrow_gate: ""

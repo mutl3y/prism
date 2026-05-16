@@ -1,0 +1,490 @@
+# PolicyManager Consolidation Opportunities — Refactoring Roadmap
+# Phase 0 Scout Discovery | Tier 0 (FREE) | May 8, 2026
+
+metadata:
+  audit_date: 2026-05-08
+  tier: Tier 0 (FREE)
+  model: GPT-4o
+  phase: Phase 0 Scout (Discovery)
+  status: COMPLETE
+  findings_count: 8
+  estimated_total_lines_saved: 220
+  estimated_total_effort_days: 6.25
+
+opportunities:
+  # OPPORTUNITY #1: Deprecation Wrapper Duplication
+  - id: 1
+    title: "Deprecation Wrapper Duplication (policy_compat.py)"
+    class: "resolve_task_*_policy() functions"
+    current_location: "scanner_core/policy_compat.py (lines 39-265)"
+    count: 6
+    lines_of_code: 35-40 per function (260 total)
+    duplicated_logic: "Identical warning/logging/delegation pattern across 6 functions"
+    proposed_location: "scanner_core/policy_compat.py (refactored)"
+    consolidation_strategy: |
+      Replace 6 near-identical functions with:
+      1. Single factory function: `_create_policy_resolver_wrapper(policy_type, return_type)`
+      2. Or: Template macro pattern for code generation
+      3. Or: Loop-based dynamic function creation
+    estimated_savings: 50 lines (260 → ~210, then delete file in Wave 3)
+    estimated_effort_days: 0.5
+    risk: LOW
+    risk_mitigation: "Already deprecated; no behavioral impact"
+    prerequisite_tasks: []
+    dependent_tasks: []
+    blocking_tasks: []
+    testing_strategy: "Existing deprecation tests validate identical output"
+    notes: |
+      Current pattern: Each function is a 40-line wrapper around identical logic.
+      Opportunity: Factory-based generation reduces maintenance burden.
+      Wave 3 goal: Retire this entire module after migration period.
+
+  # OPPORTUNITY #2: Inline Policy Accessor Consolidation
+  - id: 2
+    title: "Inline Policy Accessor in variable_extractor.py"
+    class: "get_variable_extractor_policy()"
+    current_location: "scanner_extract/variable_extractor.py (lines 20-29)"
+    count: 1
+    lines_of_code: 10
+    duplicated_logic: "Duplicates require_prepared_policy() logic from di_helpers"
+    proposed_location: "DELETE — replace with canonical require_prepared_policy() call"
+    consolidation_strategy: |
+      Replace:
+        def get_variable_extractor_policy(di: object | None = None):
+            scan_options = scan_options_from_di(di)
+            prepared_policy_bundle = scan_options.get("prepared_policy_bundle")
+            policy = prepared_policy_bundle.get("variable_extractor")
+            if policy is not None:
+                return policy
+            raise ValueError(...)
+      
+      With:
+        require_prepared_policy(di, "variable_extractor", "variable extraction")
+    estimated_savings: 10 lines
+    estimated_effort_days: 0.25
+    risk: LOW
+    risk_mitigation: "Pure substitution; identical error contract"
+    prerequisite_tasks: []
+    dependent_tasks: []
+    blocking_tasks: []
+    testing_strategy: "Unit test validates identical error behavior"
+    notes: |
+      Low-hanging fruit: Single function duplicates existing helper.
+      Action: Delete function, update 2-3 callsites.
+
+  # OPPORTUNITY #3: Scattered Policy Attribute Getters
+  - id: 3
+    title: "Scattered Policy Attribute Getters in task_line_parsing.py"
+    class: "get_*_keys(), get_templated_include_re(), etc."
+    current_location: "scanner_extract/task_line_parsing.py (lines 105-135)"
+    count: 8
+    lines_of_code: 3 per function (24 total)
+    duplicated_logic: "All follow identical pattern: call _task_line_policy_attr(di, attr_name)"
+    proposed_location: "DELETE — replace with generic getter or use _task_line_policy_attr() directly"
+    consolidation_strategy: |
+      Replace 8 functions:
+        - get_task_include_keys(di)
+        - get_role_include_keys(di)
+        - get_include_vars_keys(di)
+        - get_set_fact_keys(di)
+        - get_task_block_keys(di)
+        - get_task_meta_keys(di)
+        - get_templated_include_re(di)
+      
+      With direct calls to _task_line_policy_attr(di, "TASK_INCLUDE_KEYS"), etc.
+      Or: Keep as thin wrappers if they provide semantic clarity.
+    estimated_savings: 20 lines
+    estimated_effort_days: 0.5
+    risk: LOW
+    risk_mitigation: "Direct delegation; no behavior change"
+    prerequisite_tasks: []
+    dependent_tasks: []
+    blocking_tasks: []
+    testing_strategy: "Callsite behavior unchanged; unit tests pass"
+    notes: |
+      These 8 getters provide semantic convenience but add minimal value.
+      Consider: Inline into callsites or keep as thin public API (depends on usage frequency).
+
+  # OPPORTUNITY #4: Proxy Pattern Genericization
+  - id: 4
+    title: "Policy-Backed Proxy Pattern Genericization"
+    class: "_PolicyBackedCollectionProxy, _PolicyBackedRegexProxy"
+    current_location: "scanner_extract/task_line_parsing.py (lines 13-75)"
+    count: 2
+    lines_of_code: 29 + 31 = 60 total
+    duplicated_logic: "Nearly identical structure for different attribute types (collections vs. regex)"
+    proposed_location: "scanner_core/policy_proxy.py (NEW)"
+    consolidation_strategy: |
+      Genericize into single parametrized class:
+      
+        class PolicyBackedProxy(Generic[T]):
+          def __init__(
+            self,
+            policy_name: str,
+            attr_name: str,
+            validator: Callable[[object], T] | None = None,
+            interface_methods: dict[str, Callable] | None = None,
+          ): ...
+      
+      Benefits:
+        - Single implementation for all policy-backed attributes
+        - Configurable validation (type checking for regex, collection checks)
+        - Supports extensibility for future proxy types
+        - ~25 lines vs. 60 lines current
+    estimated_savings: 35 lines
+    estimated_effort_days: 1
+    risk: MEDIUM
+    risk_mitigation: |
+      - Duck-typing validation required (ensure regex/collection interfaces work)
+      - Backward-compatible: module-level proxies remain unchanged
+      - Add comprehensive unit tests for proxy behavior
+    prerequisite_tasks: []
+    dependent_tasks: ["#6: Caching layer unification"]
+    blocking_tasks: []
+    testing_strategy: |
+      - Unit tests for each proxy type (collection, regex)
+      - Integration tests for module-level constants
+      - Verify interface compliance (Collection, re.Pattern)
+    notes: |
+      MEDIUM complexity due to interface abstraction.
+      Benefit: Cleaner, more maintainable proxy infrastructure.
+      Future: Extensible for custom policy-backed types.
+
+  # OPPORTUNITY #5: Policy Context Management Centralization
+  - id: 5
+    title: "Policy Context Management & Normalization Centralization"
+    class: "ScanPolicyContext, _normalize_policy_context(), context builders"
+    current_location: |
+      - scanner_data/contracts_request.py (TypedDicts)
+      - scanner_core/scan_request.py (normalization functions)
+      - Multiple modules (context manipulation)
+    count: 7 context types + 3 normalization functions
+    lines_of_code: "~37 lines in scan_request.py + scattered across modules"
+    duplicated_logic: "Context building, validation, and normalization duplicated"
+    proposed_location: "scanner_core/policy_context_builder.py (NEW)"
+    consolidation_strategy: |
+      Create unified context builder module:
+      
+        class PolicyContextBuilder:
+          def build_from_scan_options(scan_options) -> ScanPolicyContext: ...
+          def normalize_context(context) -> ScanPolicyContext: ...
+          def validate_context(context) -> bool: ...
+          def merge_contexts(*contexts) -> ScanPolicyContext: ...
+      
+      Move all:
+        - _is_scan_policy_context()
+        - _copy_scan_policy_context()
+        - _normalize_policy_context()
+        - Platform key extraction
+        - Context validation
+    estimated_savings: 25-30 lines (consolidation, not deletion)
+    estimated_effort_days: 1
+    risk: MEDIUM
+    risk_mitigation: |
+      - All existing context types remain unchanged
+      - Validation ensures backward compatibility
+      - Gradual migration of normalization callsites
+    prerequisite_tasks: []
+    dependent_tasks: ["#6: Caching layer unification"]
+    blocking_tasks: []
+    testing_strategy: |
+      - Unit tests for each builder method
+      - Parity tests vs. current implementation
+      - Edge case validation (missing keys, invalid types)
+    notes: |
+      Context management is currently implicit across modules.
+      Benefit: Centralized validation, clearer context flow.
+      Future: Extensible for custom policy contexts.
+
+  # OPPORTUNITY #6: Unified Caching Layer
+  - id: 6
+    title: "Multi-Level Caching Fragmentation Unification"
+    class: "PolicyManager caches, FallbackPolicyRegistry caches, local proxy caching"
+    current_location: |
+      - scanner_core/policy_manager.py (3 caches)
+      - scanner_core/policy_registry.py (1 cache)
+      - scanner_extract/task_line_parsing.py (proxy-level, no caching)
+    count: 4 separate cache implementations
+    lines_of_code: "~50 lines of cache management code (uncooordinated)"
+    duplicated_logic: "Identical cache key patterns, lock strategies, but scattered"
+    proposed_location: "scanner_core/policy_cache_layer.py (NEW)"
+    consolidation_strategy: |
+      Create unified cache layer:
+      
+        class PolicyCacheLayer:
+          def get_or_compute(key: str, compute_fn: Callable) -> T: ...
+          def invalidate(key: str): ...
+          def clear(): ...
+          def stats(): dict  # For debugging
+      
+      Benefits:
+        - Single lock strategy (RLock)
+        - Consistent key format
+        - Cache hit/miss metrics
+        - Easy invalidation
+        - Shared across manager, registry, proxies
+    estimated_savings: 30-40 lines (refactor + potential perf gains)
+    estimated_effort_days: 1
+    risk: MEDIUM
+    risk_mitigation: |
+      - Comprehensive benchmark before/after caching changes
+      - Validate cache hit rates (ensure no performance regression)
+      - Add cache metrics for debugging
+    prerequisite_tasks: ["#4: Proxy pattern genericization"]
+    dependent_tasks: []
+    blocking_tasks: []
+    testing_strategy: |
+      - Performance benchmarks (cache hit rates)
+      - Unit tests for cache behavior (get, invalidate, clear)
+      - Integration tests validate parity with existing behavior
+      - Monitor for cache thrashing in production
+    notes: |
+      Risk is performance-related, not behavioral.
+      Opportunity: Unified strategy enables future optimizations (TTL, LRU).
+      Future: Metrics export for observability.
+
+  # OPPORTUNITY #7: PolicyManager resolve_* Method Duplication (HIGH-IMPACT)
+  - id: 7
+    title: "PolicyManager resolve_* Method Duplication (STRUCTURAL)"
+    class: "resolve_task_line_parsing_policy() ... resolve_jinja_analysis_policy()"
+    current_location: "scanner_core/policy_manager.py (lines 107-350)"
+    count: 6
+    lines_of_code: "~35 per method, 210 total (70% of PolicyManager)"
+    duplicated_logic: |
+      All 6 methods follow identical pattern:
+        1. Extract policy_type string
+        2. Build cache_key from policy_type + scan_options id
+        3. Check cache, return if hit
+        4. Get platform key
+        5. Lookup policy in registry
+        6. Fallback to default
+        7. Store in cache
+        8. Log debug message
+        9. Return cast policy
+    proposed_location: "scanner_core/policy_manager.py (refactored)"
+    consolidation_strategy: |
+      Extract into single generic method:
+      
+        def _resolve_policy(
+          self,
+          policy_type: str,
+          di: Any,
+          scan_options: dict[str, object],
+          return_type: type[T],
+        ) -> T:
+          # Generic cache + lookup logic
+      
+      Replace 6 methods with thin delegators:
+        def resolve_task_line_parsing_policy(self, di, scan_options):
+          return self._resolve_policy("task_line_parsing", di, scan_options, ...)
+      
+      Result: ~150 lines saved (210 → 60)
+    estimated_savings: 150 lines
+    estimated_effort_days: 1.5
+    risk: HIGH
+    risk_mitigation: |
+      - Comprehensive type checking (ensure return_type validation works)
+      - Extensive test coverage for each policy type through generic path
+      - Parity tests validate identical output for each type
+      - Add type hints to catch errors early
+    prerequisite_tasks: ["#5: Policy context builder", "#6: Unified cache layer"]
+    dependent_tasks: []
+    blocking_tasks: []
+    testing_strategy: |
+      - Unit test each resolve_* method with same inputs (parity)
+      - Parametrized tests for all 6 policy types
+      - Type validation tests
+      - Performance regression tests
+    notes: |
+      HIGHEST-IMPACT opportunity (210 lines, 70% of manager).
+      HIGH RISK due to scope (most of manager code affected).
+      Requires: Strong type discipline + comprehensive testing.
+      Benefit: Maintenance burden reduction, clearer intent.
+
+  # OPPORTUNITY #8: Policy Type Constant Centralization
+  - id: 8
+    title: "Policy Type String & Constant Centralization"
+    class: "SUPPORTED_POLICY_TYPES, policy type strings"
+    current_location: |
+      - scanner_core/policy_registry.py (SUPPORTED_POLICY_TYPES frozenset)
+      - Scattered string literals across modules
+      - DI type constants (di.py)
+    count: 1 constant set + scattered duplicates
+    lines_of_code: "~20 lines across multiple validation sites"
+    duplicated_logic: |
+      Each module validates policy_type independently:
+        - policy_registry.py: SUPPORTED_POLICY_TYPES check
+        - policy_manager.py: implicit policy_type usage
+        - di.py: factory method names include policy type
+    proposed_location: "scanner_data/policy_constants.py (NEW)"
+    consolidation_strategy: |
+      Create single constants module:
+      
+        # scanner_data/policy_constants.py
+        PolicyType = Literal[
+          "task_line_parsing",
+          "task_annotation",
+          "task_traversal",
+          "variable_extractor",
+          "yaml_parsing",
+          "jinja_analysis",
+        ]
+        
+        SUPPORTED_POLICY_TYPES: frozenset[PolicyType] = frozenset({
+          "task_line_parsing",
+          "task_annotation",
+          "task_traversal",
+          "variable_extractor",
+          "yaml_parsing",
+          "jinja_analysis",
+        })
+      
+      Benefits:
+        - Single source of truth
+        - Type-safe enums (Literal)
+        - Automatic IDE validation
+        - Reduced string literal duplication
+    estimated_savings: 20 lines
+    estimated_effort_days: 0.5
+    risk: LOW
+    risk_mitigation: "Pure constant centralization; no behavioral change"
+    prerequisite_tasks: []
+    dependent_tasks: []
+    blocking_tasks: []
+    testing_strategy: "Static type checking validates Literal usage"
+    notes: |
+      Quick win: Reduces scattered string validation.
+      Benefit: Type-safe policy_type references across codebase.
+
+# WAVE GROUPINGS & SEQUENCING
+waves:
+  wave_1:
+    title: "Low-Risk Quick Wins"
+    opportunities: [1, 2, 3, 8]
+    total_effort_days: 1.75
+    risk: LOW
+    note: "Safe to implement in parallel"
+
+  wave_2:
+    title: "Medium-Risk Structural Changes"
+    opportunities: [4, 5, 6]
+    total_effort_days: 3
+    risk: MEDIUM
+    note: "Requires strong testing discipline; can proceed after Wave 1"
+    dependencies: ["wave_1 complete"]
+
+  wave_3:
+    title: "High-Impact Architecture Refactoring"
+    opportunities: [7]
+    total_effort_days: 1.5
+    risk: HIGH
+    note: "Highest impact (150 lines); highest complexity"
+    dependencies: ["wave_2 complete"]
+
+# DEPENDENCY GRAPH
+dependency_graph:
+  1: []  # No dependencies
+  2: []
+  3: []
+  8: []
+  4: []  # No hard dependencies, but benefits from #6
+  5: []  # Can proceed independently
+  6: [4]  # Depends on proxy genericization for proxy-level caching
+  7: [5, 6]  # Depends on context builder + cache layer for generic method
+
+# CROSS-MODULE IMPACT ANALYSIS
+impact_analysis:
+  "scanner_core/policy_manager.py":
+    affected_opportunities: [1, 6, 7]
+    change_magnitude: "MEDIUM-HIGH"
+    backward_compatibility: "FULL"
+    testing_requirements: "COMPREHENSIVE"
+
+  "scanner_core/policy_registry.py":
+    affected_opportunities: [6, 8]
+    change_magnitude: "LOW-MEDIUM"
+    backward_compatibility: "FULL"
+    testing_requirements: "MODERATE"
+
+  "scanner_core/policy_compat.py":
+    affected_opportunities: [1]
+    change_magnitude: "MEDIUM"
+    backward_compatibility: "FULL"
+    testing_requirements: "MODERATE"
+    note: "Target for deletion in Wave 3 (post-migration)"
+
+  "scanner_core/di_helpers.py":
+    affected_opportunities: [2, 3]
+    change_magnitude: "LOW"
+    backward_compatibility: "FULL"
+    testing_requirements: "MINIMAL"
+
+  "scanner_extract/task_line_parsing.py":
+    affected_opportunities: [3, 4]
+    change_magnitude: "MEDIUM"
+    backward_compatibility: "FULL"
+    testing_requirements: "MODERATE"
+
+  "scanner_extract/variable_extractor.py":
+    affected_opportunities: [2]
+    change_magnitude: "LOW"
+    backward_compatibility: "FULL"
+    testing_requirements: "MINIMAL"
+
+  "scanner_data/contracts_request.py":
+    affected_opportunities: [5, 8]
+    change_magnitude: "LOW"
+    backward_compatibility: "FULL"
+    testing_requirements: "MINIMAL"
+
+# ESTIMATED COSTS & EFFORT
+summary:
+  total_lines_saved: 220
+  total_effort_hours: 50
+  total_effort_days: 6.25
+  risk_distribution:
+    low: 1.75 days
+    medium: 3 days
+    high: 1.5 days
+  cost_estimate_usd:
+    wave_1: "$250-350 (Tier 1: Haiku)"
+    wave_2: "$450-600 (Tier 2: Sonnet)"
+    wave_3: "$350-500 (Tier 2-3: Sonnet/GPT-5.4)"
+    total: "$1000-1450"
+
+# EXECUTION RECOMMENDATIONS
+recommendations:
+  1. "Sequence Wave 1 opportunities in parallel (independent, low risk)"
+  2. "Complete Wave 1 validation before starting Wave 2"
+  3. "Run comprehensive parity tests for Wave 2 structural changes"
+  4. "Use staged rollout for Wave 3 (high-impact refactor)"
+  5. "Implement metrics/observability for cache layer (Wave 2, #6)"
+  6. "Consider deprecating policy_compat.py after Wave 3 migration window"
+  7. "Document new proxy/context/cache patterns in migration guide"
+
+# NEXT STEPS (Phase 1+)
+next_steps:
+  phase_1_prioritization:
+    - "Rank opportunities by team preference (risk vs. impact)"
+    - "Assign Wave 1 tasks to parallel workers"
+    - "Establish testing standards for parity validation"
+
+  phase_3_probing:
+    - "Validate Wave 1 completion and test coverage"
+    - "Probe Wave 2 risks (caching strategy, proxy validation)"
+    - "Update cost estimates based on findings"
+
+  phase_5_building:
+    - "Implement Wave 1 opportunities (parallel)"
+    - "Implement Wave 2 opportunities (sequential, with gating)"
+    - "Implement Wave 3 opportunities (careful review + extensive testing)"
+
+  phase_6_gating:
+    - "Validation gate: All parity tests pass"
+    - "Performance gate: No regression in cache metrics"
+    - "Code review gate: Type safety + test coverage requirements"
+
+  phase_7_archiving:
+    - "Document lessons learned (proxy patterns, caching strategy)"
+    - "Update internal migration guide with consolidation patterns"
+    - "Archive this audit in project history"

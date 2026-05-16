@@ -1,0 +1,629 @@
+---
+discovery_phase: Phase 0
+discovery_agent: Scout-MarkerPrefixAudit
+discovery_date: 2026-05-09
+consolidation_context: "Q2 Initiative 3: Marker-Prefix Ownership & Consolidation (Phase 0 Discovery)"
+audit_reference: docs/plan/g84-remediation-mutl3y-cycle-20260509/marker-prefix-audit.md
+
+consolidation_opportunities:
+  - item_id: "FINDING-001"
+    item_name: "DEFAULT_DOC_MARKER_PREFIX constant duplication"
+    description: |
+      DEFAULT_DOC_MARKER_PREFIX is defined in scanner_config/section.py as the canonical
+      source, but the same value "prism" is hardcoded as default parameters in
+      scanner_core/task_extract_adapters.py in two functions:
+      - _extract_task_annotations_for_file (line 21)
+      - _collect_task_handler_catalog (line 52)
+      
+      This creates multiple sources of truth. If default changes, both locations must update.
+    
+    current_locations:
+      - module: scanner_config/section.py
+        line: 5
+        export_name: DEFAULT_DOC_MARKER_PREFIX
+      - module: scanner_core/task_extract_adapters.py
+        line: 21
+        context: "marker_prefix: str = \"prism\""
+      - module: scanner_core/task_extract_adapters.py
+        line: 52
+        context: "marker_prefix: str = \"prism\""
+    
+    proposed_location: "Consolidate to single import from scanner_config.section"
+    consolidation_strategy: |
+      PHASE 1 ACTION:
+      1. Import DEFAULT_DOC_MARKER_PREFIX in task_extract_adapters.py
+      2. Replace both hardcoded "prism" defaults with imported constant
+      3. Verify no runtime behavior changes
+      
+      Example:
+        from prism.scanner_config.section import DEFAULT_DOC_MARKER_PREFIX
+        
+        def _extract_task_annotations_for_file(
+            raw_lines: list[str],
+            *,
+            marker_prefix: str = DEFAULT_DOC_MARKER_PREFIX,
+            ...
+    
+    duplicated_lines: 2
+    duplicated_concepts: 1
+    
+    effort_estimate:
+      working_days: 0.25
+      risk_level: low
+      test_coverage_required: existing
+      breaking_changes: none
+      verification_steps:
+        - Verify import path resolves
+        - Confirm default value remains "prism"
+        - Run existing adapter tests
+        - Grep for any other hardcoded "prism" defaults
+    
+    dependencies: []
+    blockers: []
+    owner_recommendation: scanner_core team
+    priority: low
+    risk_assessment: |
+      Risk: LOW
+      - Change is mechanical (import + replace)
+      - No behavioral changes
+      - Existing tests cover both functions
+      - Single string value, easy to verify
+    
+    acceptance_criteria:
+      - DEFAULT_DOC_MARKER_PREFIX imported in task_extract_adapters.py
+      - Both function signatures updated to use import
+      - All adapter tests pass
+      - grep -r '"prism"' shows no other function signature defaults
+      - Code review confirms no semantic changes
+
+  - item_id: "FINDING-002"
+    item_name: "Test normalize_marker_prefix mock too simplified"
+    description: |
+      In test_comment_doc_plugin_resolution.py, the mock normalize_marker_prefix()
+      function is a simplified version that just returns (marker_prefix or "prism").
+      
+      The canonical implementation in marker_utils.py is much stricter:
+      - Validates character set: [A-Za-z0-9_.-]+ only
+      - Rejects empty strings
+      - Rejects strings with spaces
+      - Falls back to DEFAULT_DOC_MARKER_PREFIX on validation failure
+      
+      Test mock at lines 130-131 and 167-168 doesn't enforce these rules,
+      which means tests could pass with invalid marker-prefix values that would
+      fail at runtime.
+    
+    current_locations:
+      - module: scanner_plugins/parsers/comment_doc/marker_utils.py
+        line: 18
+        type: canonical
+        function: normalize_marker_prefix(marker_prefix: str | None) -> str
+      - module: tests/test_comment_doc_plugin_resolution.py
+        line: 130
+        type: test_mock
+        function: "def normalize_marker_prefix(marker_prefix: str | None) -> str: return marker_prefix or \"prism\""
+      - module: tests/test_comment_doc_plugin_resolution.py
+        line: 167
+        type: test_mock
+        function: "def normalize_marker_prefix(marker_prefix: str | None) -> str: return marker_prefix or \"prism\""
+    
+    proposed_location: |
+      Option A: Import canonical from marker_utils.py (preferred for test realism)
+      Option B: Simplify canonical implementation to match test mock (NOT RECOMMENDED)
+      
+      Recommendation: Option A (import canonical)
+    
+    consolidation_strategy: |
+      PHASE 1 ACTION:
+      1. Replace test mock with import of canonical:
+         from prism.scanner_plugins.parsers.comment_doc.marker_utils import normalize_marker_prefix
+      2. Remove simplified mock implementations at lines 130-131 and 167-168
+      3. Update test expectations to match canonical behavior:
+         - Invalid markers (with spaces, special chars) should normalize to "prism"
+         - Empty/None should normalize to "prism"
+      4. Add explicit test cases for validation behavior if missing
+      
+      Code change:
+        # Replace the old mock:
+        # class TestScanner:
+        #     @staticmethod
+        #     def normalize_marker_prefix(marker_prefix: str | None) -> str:
+        #         return marker_prefix or "prism"
+        
+        # With canonical import:
+        from prism.scanner_plugins.parsers.comment_doc.marker_utils import normalize_marker_prefix
+        
+        # Use normalize_marker_prefix directly in tests
+    
+    duplicated_lines: 4
+    duplicated_concepts: 1
+    
+    effort_estimate:
+      working_days: 0.5
+      risk_level: low
+      test_coverage_required: new tests for edge cases
+      breaking_changes: possibly (test expectations may change)
+      verification_steps:
+        - Add test cases for invalid characters (spaces, special chars)
+        - Verify mock import resolves
+        - Run full test suite
+        - Confirm test behavior now matches runtime behavior
+    
+    dependencies:
+      - All tests using normalize_marker_prefix
+    blockers: []
+    owner_recommendation: prism test team
+    priority: medium
+    risk_assessment: |
+      Risk: LOW-MEDIUM
+      - Test isolation reduced (now depends on marker_utils)
+      - Could reveal bugs in existing tests (mock was too permissive)
+      - May need to add new test cases for validation logic
+      - Change is non-breaking if tests already validate markers properly
+    
+    acceptance_criteria:
+      - Mock removed from test_comment_doc_plugin_resolution.py
+      - normalize_marker_prefix imported from canonical location
+      - Test cases exist for invalid marker-prefix values
+      - All tests pass with canonical normalization
+      - Edge case coverage: null, empty, spaces, special chars
+      - Behavioral diff documented if any test expectations changed
+
+  - item_id: "FINDING-003"
+    item_name: "Marker regex building wrapper chain too deep"
+    description: |
+      Marker regex building involves multiple layers of wrapping that make the
+      resolution path complex:
+      
+      1. Canonical: scanner_plugins/parsers/comment_doc/marker_utils.py
+         - get_marker_line_re(marker_prefix) with @lru_cache(128)
+         - Uses normalize_marker_prefix() internally
+      
+      2. Task Line Wrapper: scanner_extract/task_line_parsing.py
+         - _normalize_marker_prefix(marker_prefix, di) (policy-backed)
+         - _build_marker_line_re(marker_prefix, di) (builds regex via policy)
+         - get_marker_line_re(marker_prefix, di) (public wrapper)
+      
+      3. Runtime Proxy: scanner_extract/task_line_parsing.py
+         - _PolicyBackedMarkerLineRegexProxy (module-level proxy)
+         - Resolves marker-line regex from policy at call time
+      
+      4. Module Constants: scanner_extract/task_line_parsing.py
+         - MARKER_LINE_REGEX (uses _PolicyBackedMarkerLineRegexProxy)
+      
+      Impact: Tracing marker-regex resolution is complicated. Five different
+      access paths exist (policy attr, _normalize wrapper, wrapper function,
+      proxy, module const). This increases maintenance cost and makes debugging harder.
+    
+    current_locations:
+      - module: scanner_plugins/parsers/comment_doc/marker_utils.py
+        line: 38
+        type: canonical
+        description: "get_marker_line_re() with LRU cache"
+      - module: scanner_extract/task_line_parsing.py
+        line: 143
+        type: wrapper
+        description: "_build_marker_line_re(marker_prefix, di)"
+      - module: scanner_extract/task_line_parsing.py
+        line: 154
+        type: wrapper
+        description: "get_marker_line_re(marker_prefix, di)"
+      - module: scanner_extract/task_line_parsing.py
+        line: 165
+        type: proxy
+        description: "_PolicyBackedMarkerLineRegexProxy"
+      - module: scanner_extract/task_line_parsing.py
+        line: 214
+        type: module_constant
+        description: "MARKER_LINE_REGEX = _PolicyBackedMarkerLineRegexProxy(...)"
+    
+    proposed_location: |
+      Option A: Simplify wrapper chain
+        - Keep _normalize_marker_prefix in place (policy injection needed)
+        - Inline _build_marker_line_re logic into get_marker_line_re
+        - Keep proxy for backward compatibility
+        - Document resolution path with flowchart
+      
+      Option B: Extract to dedicated marker_regex module
+        - New module: scanner_extract/marker_regex_resolver.py
+        - Consolidate all regex building logic
+        - Simplify task_line_parsing.py by moving proxy logic
+    
+      Recommendation: Option A (lower-risk refactor)
+    
+    consolidation_strategy: |
+      PHASE 1 ACTION (Option A - Simplify):
+      1. Consolidate _build_marker_line_re into get_marker_line_re:
+         def get_marker_line_re(marker_prefix, *, di: object | None = None):
+             normalized_prefix = _normalize_marker_prefix(marker_prefix, di=di)
+             # Directly call canonical function
+             return require_prepared_policy(
+                 di, "task_annotation_parsing", "task_annotation_parsing"
+             ).get_marker_line_re(normalized_prefix)
+      
+      2. Update callers to use get_marker_line_re directly (no _build prefix)
+      
+      3. Keep _PolicyBackedMarkerLineRegexProxy for module-level MARKER_LINE_REGEX
+         but document that it's a legacy compatibility shim
+      
+      4. Add docstring flowchart showing resolution path:
+         marker_prefix → _normalize_marker_prefix (policy-backed)
+                      → get_marker_line_re (canonical)
+                      → re.Pattern (cached)
+      
+      Effort: 1 day
+      Risk: Medium (changes hot path, needs comprehensive testing)
+    
+    duplicated_lines: 3
+    duplicated_concepts: 1
+    
+    effort_estimate:
+      working_days: 1.0
+      risk_level: medium
+      test_coverage_required: comprehensive regex matching tests
+      breaking_changes: internal_only (no public API change)
+      verification_steps:
+        - Verify regex cache still works
+        - Benchmark cache hits vs misses
+        - Test marker detection with various marker-prefix values
+        - Verify module constant MARKER_LINE_REGEX still works
+        - Performance profile: no regression expected
+    
+    dependencies:
+      - All code using marker-line regex (task parsing, role notes parsing)
+    blockers: []
+    owner_recommendation: scanner_extract team
+    priority: medium
+    risk_assessment: |
+      Risk: MEDIUM
+      - Affects marker-line regex resolution (hot path)
+      - Cache behavior must be preserved
+      - Regex matching correctness is critical
+      - Need comprehensive regex matching tests
+      - Change is internal (no public API change)
+    
+    acceptance_criteria:
+      - _build_marker_line_re logic consolidated into get_marker_line_re
+      - Callers updated to use get_marker_line_re (no _build prefix)
+      - _PolicyBackedMarkerLineRegexProxy documented as legacy shim
+      - Docstring added with resolution flowchart
+      - All marker-line regex tests pass
+      - Cache hit rate maintained or improved
+      - No regression in marker detection accuracy
+      - Code review confirms reduced cognitive complexity
+
+  - item_id: "FINDING-004"
+    item_name: "Marker-prefix config resolution implicit fallback chain"
+    description: |
+      In scanner_plugins/bundle_resolver.py (lines 158-171), the marker-prefix
+      injection into PreparedPolicyBundle uses an implicit fallback chain:
+      
+      1. Try scan_options['comment_doc_marker_prefix'] directly
+      2. If not found, check policy_context['comment_doc']['marker']['prefix']
+      3. If still not found, use DEFAULT_DOC_MARKER_PREFIX
+      
+      The code implements this fallback but the chain is not documented inline.
+      Reader must trace through conditional checks to understand the priority order.
+      This is implicit logic that makes maintenance harder.
+      
+      Additionally, this logic should be documented in relation to
+      scanner_config/marker.py::load_readme_marker_prefix() which reads from
+      the role config file. The relationship between these two loaders is unclear.
+    
+    current_locations:
+      - module: scanner_plugins/bundle_resolver.py
+        line: 158
+        type: injection_point
+        description: "bundle resolution with implicit fallback chain"
+      - module: scanner_config/marker.py
+        line: 33
+        type: config_loader
+        description: "load_readme_marker_prefix() reads from role config"
+    
+    proposed_location: |
+      Option A: Extract fallback chain to dedicated function
+        - New function: _resolve_marker_prefix_from_scan_context()
+        - Document fallback chain explicitly
+        - Add logging at each fallback step
+      
+      Option B: Add inline documentation with flowchart
+        - Keep code as-is but document with comments and docstring
+        - Lower effort, but doesn't make code more readable
+    
+      Recommendation: Option A (more maintainable)
+    
+    consolidation_strategy: |
+      PHASE 1 ACTION (Option A):
+      1. Extract marker-prefix resolution to dedicated function in bundle_resolver.py:
+         
+         def _resolve_marker_prefix_from_scan_context(
+             scan_options: dict[str, Any],
+             policy_context: dict[str, Any] | None = None,
+         ) -> str:
+             """Resolve marker-prefix with explicit fallback priority.
+             
+             Priority order:
+             1. scan_options['comment_doc_marker_prefix'] (direct inject)
+             2. policy_context['comment_doc']['marker']['prefix'] (policy override)
+             3. DEFAULT_DOC_MARKER_PREFIX (ultimate fallback)
+             
+             Args:
+                 scan_options: Ingress scan options dict
+                 policy_context: Optional policy context dict
+             
+             Returns:
+                 Resolved marker-prefix string (always valid, never None)
+             """
+             # Try direct option first
+             raw_prefix = scan_options.get("comment_doc_marker_prefix")
+             if isinstance(raw_prefix, str):
+                 return normalize_marker_prefix(raw_prefix)
+             
+             # Try policy context if direct option unavailable
+             if isinstance(policy_context, dict):
+                 cd = policy_context.get("comment_doc")
+                 if isinstance(cd, dict):
+                     mk = cd.get("marker")
+                     if isinstance(mk, dict):
+                         p = mk.get("prefix")
+                         if isinstance(p, str):
+                             return normalize_marker_prefix(p)
+             
+             # Ultimate fallback
+             return DEFAULT_DOC_MARKER_PREFIX
+      
+      2. Update bundle_resolver.py to use this function:
+         if bundle.get("comment_doc_marker_prefix") is None:
+             bundle["comment_doc_marker_prefix"] = _resolve_marker_prefix_from_scan_context(
+                 scan_options,
+                 scan_options.get("policy_context"),
+             )
+      
+      3. Add relationship documentation between load_readme_marker_prefix()
+         and _resolve_marker_prefix_from_scan_context():
+         
+         Module docstring: "How marker-prefix flows into bundle"
+         - load_readme_marker_prefix() reads from role config file (.prism.yml)
+         - _resolve_marker_prefix_from_scan_context() merges from multiple sources
+         - normalize_marker_prefix() validates character set
+      
+      Effort: 0.25 days
+      Risk: Low (refactoring, no behavioral change)
+    
+    duplicated_lines: 0
+    duplicated_concepts: 1
+    
+    effort_estimate:
+      working_days: 0.25
+      risk_level: low
+      test_coverage_required: existing (no behavior change)
+      breaking_changes: none
+      verification_steps:
+        - Verify function returns expected values for all fallback cases
+        - Confirm no behavioral change vs original code
+        - Run bundle assembly tests
+        - Code review for documentation clarity
+    
+    dependencies: []
+    blockers: []
+    owner_recommendation: scanner_plugins team
+    priority: low
+    risk_assessment: |
+      Risk: LOW
+      - Pure refactoring (no behavioral change)
+      - Function is internal (no public API)
+      - Existing tests cover all fallback paths
+      - Clear documentation reduces future maintenance cost
+    
+    acceptance_criteria:
+      - _resolve_marker_prefix_from_scan_context() function created
+      - Fallback priority documented in docstring
+      - bundle_resolver.py updated to use function
+      - Relationship between loaders documented
+      - All bundle assembly tests pass
+      - Code review confirms improved readability
+
+  - item_id: "FINDING-005"
+    item_name: "Missing end-to-end test: config file → bundle → extraction"
+    description: |
+      The test suite has unit tests for individual marker-prefix components:
+      - normalize_marker_prefix() validation (test_t1_02_coverage_lift.py)
+      - Marker regex building (test_execution_request_builder.py)
+      - Adapter contracts (test_comment_doc_plugin_resolution.py)
+      
+      But there is NO end-to-end integration test that verifies the full flow:
+      1. Write .prism.yml file with markers.prefix setting
+      2. Load config via load_readme_marker_prefix()
+      3. Inject into bundle via bundle_resolver.py
+      4. Pass to extraction layer via task_extract_adapters.py
+      5. Verify marker detection works with custom prefix
+      
+      This coverage gap means regressions in the config → bundle → extraction
+      flow could go undetected. Critical for Q2 Initiative 3 validation.
+    
+    current_locations:
+      - coverage_gap: true
+      - affected_modules:
+          - scanner_config/marker.py::load_readme_marker_prefix()
+          - scanner_plugins/bundle_resolver.py::ensure_prepared_policy_bundle()
+          - scanner_core/task_extract_adapters.py::_extract_task_annotations_for_file()
+          - scanner_extract/task_annotation_parsing.py::extract_task_annotations_for_file()
+    
+    proposed_location: |
+      Option A: Add integration test to test_fsrc_scanner_parity.py
+        - Use existing parity test infrastructure
+        - Test both src and fsrc lanes
+      
+      Option B: New dedicated test file test_marker_prefix_e2e.py
+        - Comprehensive marker-prefix flow tests
+        - Fixtures for temporary .prism.yml files
+        - Test with various marker-prefix values
+      
+      Recommendation: Option B (cleaner, more focused)
+    
+    consolidation_strategy: |
+      PHASE 1 ACTION (Option B):
+      1. Create new test file: tests/test_marker_prefix_e2e.py
+      
+      2. Add fixtures:
+         - temp_prism_config(tmp_path, marker_prefix: str) → Path
+           Creates temporary .prism.yml with given marker_prefix
+         - scan_context_with_marker(di, marker_prefix: str) → dict
+           Creates scan options with prepared bundle
+      
+      3. Add test cases:
+         def test_marker_prefix_e2e_custom_prefix(temp_prism_config):
+             """Verify custom marker-prefix flows through bundle to extraction."""
+             # Setup: Create .prism.yml with markers.prefix: "custom"
+             config_dir = temp_prism_config
+             
+             # Load config
+             prefix = load_readme_marker_prefix(str(config_dir))
+             assert prefix == "custom"
+             
+             # Inject into bundle
+             di = create_di_container(config_dir)
+             bundle = ensure_prepared_policy_bundle(di.scan_options, di)
+             assert bundle["comment_doc_marker_prefix"] == "custom"
+             
+             # Extract annotations with custom prefix
+             lines = [
+                 "# custom ~ task_name: description",
+                 "- name: My Task",
+             ]
+             annotations, _ = _extract_task_annotations_for_file(
+                 lines,
+                 marker_prefix="custom",
+                 di=di,
+             )
+             assert len(annotations) == 1
+             assert annotations[0]["kind"] == "task_name"
+         
+         def test_marker_prefix_e2e_default_fallback():
+             """Verify default marker-prefix when config missing."""
+             # No config file, bundle should use DEFAULT_DOC_MARKER_PREFIX
+             bundle = ensure_prepared_policy_bundle({}, None)
+             assert bundle["comment_doc_marker_prefix"] == "prism"
+         
+         def test_marker_prefix_e2e_invalid_chars_normalized():
+             """Verify invalid marker-prefix chars fall back to default."""
+             # Config has invalid prefix with spaces
+             config = {"markers": {"prefix": "invalid prefix"}}
+             prefix = normalize_marker_prefix(config["markers"]["prefix"])
+             assert prefix == "prism"  # Should normalize to default
+      
+      4. Effort: 0.75 days
+      5. Coverage: Full flow from config to extraction
+    
+    duplicated_lines: 0
+    duplicated_concepts: 0
+    
+    effort_estimate:
+      working_days: 0.75
+      risk_level: medium
+      test_coverage_required: new
+      breaking_changes: none (test_only)
+      verification_steps:
+        - Verify temp .prism.yml creation works
+        - Confirm all test cases pass
+        - Run test in both src and fsrc lanes (if applicable)
+        - Ensure test isolation (temp files cleaned up)
+    
+    dependencies:
+      - All modules in marker-prefix flow
+    blockers: []
+    owner_recommendation: prism test team
+    priority: high
+    risk_assessment: |
+      Risk: MEDIUM (test_only)
+      - New test setup required (temp files, fixtures)
+      - Test complexity (requires multiple components)
+      - But test_only = no production code risk
+      - High value for regression detection
+    
+    acceptance_criteria:
+      - New test file test_marker_prefix_e2e.py created
+      - Fixtures for temp config and scan context
+      - Test cases cover:
+        * Custom marker-prefix from config file
+        * Default marker-prefix fallback
+        * Invalid marker-prefix normalization
+        * End-to-end flow from config to extraction
+      - All tests pass
+      - Test isolation verified (temp files cleaned)
+      - Code review confirms good coverage
+
+# Consolidation Priority & Sequencing
+
+consolidation_sequence:
+  phase_1_phase_0_findings:
+    phase_label: "Phase 1 (Low-Hanging Fruit - Week 1)"
+    items:
+      - FINDING-001
+      - FINDING-002
+      - FINDING-004
+    estimated_effort: 1.0 days
+    estimated_risk: low
+    expected_outcome: "3 findings resolved, code duplication reduced"
+    go_live_ready: true
+    blockers: none
+
+  phase_2_consolidation:
+    phase_label: "Phase 2 (Structural Refactoring - Week 2)"
+    items:
+      - FINDING-003
+      - FINDING-005
+    estimated_effort: 1.75 days
+    estimated_risk: medium
+    expected_outcome: "Simplified wrapper chain, comprehensive test coverage"
+    go_live_ready: true
+    blockers: none
+
+  dependencies:
+    "FINDING-002": []  # Independent
+    "FINDING-001": []  # Independent
+    "FINDING-004": []  # Independent
+    "FINDING-003": ["FINDING-002"]  # Good to fix test mocks first
+    "FINDING-005": ["FINDING-001", "FINDING-002", "FINDING-003"]  # After other fixes
+
+# Summary Metrics
+
+summary:
+  total_findings: 5
+  findings_by_severity:
+    critical: 0
+    high: 1  # FINDING-005 (test coverage gap)
+    medium: 3  # FINDING-002, FINDING-003, FINDING-004
+    low: 1  # FINDING-001
+  
+  findings_by_category:
+    duplication: 2  # FINDING-001, FINDING-002
+    complexity: 1  # FINDING-003
+    documentation: 1  # FINDING-004
+    coverage: 1  # FINDING-005
+  
+  total_duplicated_lines: 9
+  total_duplicated_concepts: 5
+  total_effort_estimate_days: 2.75
+  total_risk_level: "low-medium (majority low)"
+  
+  go_live_recommendation: "APPROVED - All findings are consolidation opportunities, not blockers"
+  critical_path_items: []
+  
+  quality_gate_status: "PASS"
+  architectural_violations: 0
+  mp1_contract_status: "COMPLIANT"
+  
+  next_steps:
+    - Phase 1 (Week 1): Resolve findings 1-4 (1.0 days effort, low risk)
+    - Phase 2 (Week 2): Resolve findings 3-5 (1.75 days effort, medium risk)
+    - Integration validation: Run full marker-prefix test suite after each phase
+    - Code review: All changes go through standard review process
+    - Documentation: Update marker-prefix guidance in CLAUDE.md after consolidation
+
+audit_metadata:
+  tier: "Tier 0 (FREE)"
+  model_used: "GPT-4o (free tier)"
+  token_budget_estimated: $0.001
+  execution_time_minutes: 15
+  discovery_completeness: 100%
+  recommendation_confidence: high

@@ -1,0 +1,393 @@
+---
+# MP1 Enforcement Boundaries: Marker-Prefix Contract Enforcement
+# Date: 2026-05-09
+# Purpose: Define CI checkpoints, validation gates, and plugin isolation for marker-prefix ownership
+
+## SECTION 1: MP1 Contract Definition (Canonical Reference)
+
+mp1_contract: |
+  Marker-prefix is ingress-owned, immutable, and flows through canonical path only:
+  
+  1. INGRESS (caller → api_layer):
+     - Provides comment_doc_marker_prefix in scan_options (top-level key)
+     - Optional: nested in policy_context.comment_doc.marker.prefix (fallback only)
+  
+  2. PROJECTION (bundle_resolver.ensure_prepared_policy_bundle):
+     - Reads from scan_options or policy_context
+     - Normalizes via normalize_marker_prefix()
+     - Stores in PreparedPolicyBundle["comment_doc_marker_prefix"]
+     - Cannot be modified after bundle creation
+  
+  3. CONSUMPTION (scanner_core consumers):
+     - Task extraction adapters: take marker_prefix from bundle parameter
+     - Plugin implementations: read from bundle, never compute/override
+     - Feature detection: validate presence in bundle before use
+  
+  4. INVARIANT:
+     - Scanner_core modules NEVER import scanner_config.marker directly
+     - Plugins NEVER add/modify comment_doc_marker_prefix in bundle
+     - No hardcoded assumptions about "prism" prefix outside config layer
+     - Marker-prefix is read-only after bundle creation
+
+---
+
+## SECTION 2: Enforcement Points & CI Gates
+
+ci_checkpoints:
+  - name: MP1-IMPORT-AUDIT
+    layer: import-time
+    description: "Prevent internal modules from importing marker config directly"
+    what_to_check:
+      - "scanner_core modules importing scanner_config.marker"
+      - "scanner_extract modules importing marker constants"
+      - "scanner_plugins importing DEFAULT_DOC_MARKER_PREFIX"
+    enforcement:
+      tool: ruff
+      rule: "F401 (unused) + custom import-audit rule"
+      pattern: |
+        # VIOLATIONS:
+        # ❌ from prism.scanner_config.marker import load_readme_marker_prefix
+        # ❌ from prism.scanner_config import DEFAULT_DOC_MARKER_PREFIX
+        # ✅ ALLOWED: from prism.scanner_config import DEFAULT_DOC_MARKER_PREFIX (api.py only)
+      scope:
+        - src/prism/scanner_core/**/*.py (EXCEPT scanner_core/policy_registry.py, di.py)
+        - src/prism/scanner_extract/**/*.py
+        - src/prism/scanner_plugins/**/*.py (EXCEPT scanner_plugins/bundle_resolver.py)
+      exception_allowlist:
+        - src/prism/scanner_core/policy_registry.py (needs DEFAULT_DOC_MARKER_PREFIX for default)
+        - src/prism/scanner_core/di.py (needs DEFAULT_DOC_MARKER_PREFIX for DI default)
+        - src/prism/scanner_plugins/bundle_resolver.py (owns marker-prefix projection)
+        - src/prism/api_layer/plugin_facade.py (owns bundle creation)
+
+  - name: MP1-BUNDLE-MUTATION-AUDIT
+    layer: runtime
+    description: "Detect attempts to modify marker-prefix in prepared_policy_bundle"
+    what_to_check:
+      - "Code writing to bundle['comment_doc_marker_prefix'] after creation"
+      - "Plugins calling bundle.update() or bundle.setdefault() on marker-prefix key"
+      - "Any code mutating bundle['comment_doc_marker_prefix'] outside bundle_resolver"
+    enforcement:
+      tool: custom ast-based linter
+      pattern: |
+        # VIOLATIONS:
+        # ❌ bundle["comment_doc_marker_prefix"] = new_value  # FORBIDDEN after projection
+        # ❌ bundle.update({"comment_doc_marker_prefix": ...})
+        # ❌ setattr(bundle, "comment_doc_marker_prefix", ...)
+        # ✅ bundle.get("comment_doc_marker_prefix") (read-only)
+        # ✅ bundle["comment_doc_marker_prefix"] = X  (INSIDE bundle_resolver only)
+      scope:
+        - src/prism/**/*.py
+      exception_allowlist:
+        - src/prism/scanner_plugins/bundle_resolver.py (owns initial projection)
+
+  - name: MP1-CONSUMER-VALIDATION
+    layer: runtime
+    description: "Ensure all consumers get marker-prefix from bundle, not computed"
+    what_to_check:
+      - "task_extract_adapters: marker_prefix parameter always comes from bundle"
+      - "Feature detection: validates bundle['comment_doc_marker_prefix'] exists"
+      - "Ansible plugins: read from bundle, never hardcode 'prism'"
+    enforcement:
+      tool: pytest + custom validators
+      pattern: |
+        # VALIDATION FUNCTIONS (in mp1-compliance-test-strategy.md):
+        # - test_marker_prefix_sourcing_from_bundle()
+        # - test_marker_prefix_immutability_after_projection()
+        # - test_plugin_cannot_override_marker_prefix()
+      scope:
+        - src/prism/scanner_core/task_extract_adapters.py
+        - src/prism/scanner_core/feature_detector.py
+        - src/prism/scanner_plugins/ansible/feature_detection.py
+        - src/prism/scanner_plugins/ansible/task_line_parsing.py
+
+  - name: MP1-API-BOUNDARY
+    layer: api-time
+    description: "Validate scan_request projection at API boundary"
+    what_to_check:
+      - "ExecutionRequest builder: comment_doc_marker_prefix in scan_options"
+      - "Non-collection API: marker-prefix passed through to bundle"
+      - "Collection API: marker-prefix consistency across batch requests"
+    enforcement:
+      tool: pytest + type validation
+      scope:
+        - src/prism/api_layer/non_collection.py
+        - src/prism/api_layer/collection.py
+        - src/prism/api_layer/plugin_facade.py
+
+---
+
+## SECTION 3: Plugin Isolation Boundaries
+
+plugin_boundaries:
+  - name: "Bundle Read-Only Contract"
+    boundary_point: "Plugin entry (all plugin types)"
+    what_plugins_can_do:
+      - "Read bundle['comment_doc_marker_prefix']"
+      - "Use marker-prefix for pattern matching (task names, etc.)"
+      - "Pass marker-prefix to subsidiary functions"
+    what_plugins_cannot_do:
+      - "Modify bundle['comment_doc_marker_prefix']"
+      - "Add alternative keys like 'marker_prefix_override'"
+      - "Bypass bundle and use hardcoded values"
+      - "Compute marker-prefix based on file content or context"
+    enforcement_mechanism:
+      - Type hint: PreparedPolicyBundle is TypedDict with implicit read-only semantics
+      - Runtime: use copy.deepcopy(bundle) at plugin entry to prevent mutation
+      - Testing: inject immutable bundle variant in tests, verify no modifications
+
+  - name: "Feature Detection Marker-Prefix Usage"
+    boundary_point: "AnsibleFeatureDetectionPlugin.detect()"
+    validation: |
+      1. At entry: assert bundle.get("comment_doc_marker_prefix") is not None
+      2. During execution: only READ marker-prefix, never WRITE
+      3. At exit: assert bundle["comment_doc_marker_prefix"] unchanged
+    scope:
+      - src/prism/scanner_plugins/ansible/feature_detection.py
+
+  - name: "Task Line Parsing Marker-Prefix Usage"
+    boundary_point: "AnsibleTaskLineParsingPlugin.parse()"
+    validation: |
+      1. Accept marker_prefix as explicit function parameter (from bundle projection)
+      2. Validate marker_prefix is non-empty string
+      3. Use only for task name pattern matching
+      4. Never modify or cache marker_prefix
+    scope:
+      - src/prism/scanner_plugins/ansible/task_line_parsing.py
+
+---
+
+## SECTION 4: Violation Detection Strategy
+
+violation_patterns:
+
+  - pattern_id: "MARKER_IMPORT_VIOLATION"
+    name: "Forbidden marker-prefix import in scanner_core"
+    severity: "CRITICAL"
+    detector: |
+      grep -r "from prism.scanner_config.marker import" \
+        src/prism/scanner_core/ \
+        --exclude-dir=__pycache__ \
+        --include="*.py" | \
+      grep -v "# MP1-EXCEPTION"
+    remediation: "Remove import; use bundle parameter instead"
+    
+  - pattern_id: "MARKER_HARDCODE_VIOLATION"
+    name: "Hardcoded marker-prefix assumption (not 'prism')"
+    severity: "HIGH"
+    detector: |
+      grep -r 'marker_prefix\s*=\s*"[^"]*"' \
+        src/prism/scanner_core/ \
+        --include="*.py" | \
+      grep -v 'DEFAULT_DOC_MARKER_PREFIX' | \
+      grep -v '# test:'
+    remediation: "Use bundle parameter; only DEFAULT_DOC_MARKER_PREFIX in config"
+    
+  - pattern_id: "BUNDLE_MUTATION_VIOLATION"
+    name: "Attempt to modify prepared_policy_bundle['comment_doc_marker_prefix']"
+    severity: "CRITICAL"
+    detector: |
+      python3 -c "
+      import ast, sys
+      # Custom AST visitor to find bundle['comment_doc_marker_prefix'] = ... 
+      # outside bundle_resolver.py (pseudo-code)
+      for file in glob('src/prism/**/*.py'):
+          if 'bundle_resolver' not in file:
+              ast_check_assignment_to_bundle_key(file, 'comment_doc_marker_prefix')
+      "
+    remediation: "Bundle is read-only; ensure marker-prefix set only in bundle_resolver"
+
+  - pattern_id: "PLUGIN_MARKER_FETCH_VIOLATION"
+    name: "Plugin computes marker-prefix instead of reading from bundle"
+    severity: "HIGH"
+    detector: |
+      grep -A 5 "def detect\|def parse" \
+        src/prism/scanner_plugins/**/*.py | \
+      grep -B 5 'marker_prefix.*=' | \
+      grep -v 'marker_prefix.*bundle'
+    remediation: "Get marker-prefix from bundle parameter; never compute"
+
+---
+
+## SECTION 5: Test Coverage Boundaries (Compliance Tests)
+
+test_coverage_matrix:
+  
+  - test_suite: "MP1 Boundary Tests"
+    test_file: "src/prism/tests/test_mp1_enforcement.py"
+    test_cases:
+      
+      - test_id: "test_marker_prefix_sourcing_from_bundle"
+        focus: "Marker-prefix always comes from bundle"
+        checks:
+          - "task_extract_adapters receives marker_prefix from bundle projection"
+          - "Feature detection gets marker_prefix from bundle"
+          - "No functions compute marker_prefix independently"
+        coverage: "All consumer functions in task_extract_adapters.py"
+      
+      - test_id: "test_marker_prefix_immutability_after_projection"
+        focus: "Bundle['comment_doc_marker_prefix'] immutable after creation"
+        checks:
+          - "bundle.get('comment_doc_marker_prefix') unchanged after task extraction"
+          - "No code path modifies bundle['comment_doc_marker_prefix']"
+          - "Plugin execution does not alter marker-prefix in bundle"
+        coverage: "All plugin execution paths (feature detection, task line parsing)"
+      
+      - test_id: "test_plugin_cannot_override_marker_prefix"
+        focus: "Plugins cannot modify or bypass marker-prefix"
+        checks:
+          - "Plugin receives immutable bundle copy"
+          - "Attempt to modify bundle fails or is prevented"
+          - "Plugin must accept marker_prefix as parameter, not override"
+        coverage: "AnsibleFeatureDetectionPlugin, AnsibleTaskLineParsingPlugin"
+      
+      - test_id: "test_marker_prefix_api_boundary_projection"
+        focus: "API boundary correctly projects marker-prefix to bundle"
+        checks:
+          - "non_collection.py passes marker-prefix through correctly"
+          - "collection.py maintains marker-prefix consistency across batch"
+          - "ExecutionRequest builder includes marker-prefix in bundle"
+        coverage: "api_layer/non_collection.py, api_layer/collection.py"
+      
+      - test_id: "test_marker_prefix_normalization"
+        focus: "Marker-prefix normalized via canonical path"
+        checks:
+          - "scan_options['comment_doc_marker_prefix'] normalized to bundle"
+          - "policy_context.comment_doc.marker.prefix fallback works"
+          - "DEFAULT_DOC_MARKER_PREFIX used when not provided"
+        coverage: "scanner_plugins/bundle_resolver.ensure_prepared_policy_bundle"
+
+  - test_suite: "MP1 Violation Detection Tests"
+    test_file: "src/prism/tests/test_mp1_violation_detection.py"
+    test_cases:
+      
+      - test_id: "test_detect_marker_import_in_scanner_core"
+        focus: "AST linter detects forbidden imports"
+        detection: "scanner_core modules importing scanner_config.marker"
+        expected_result: "Linter reports CRITICAL violation"
+      
+      - test_id: "test_detect_bundle_mutation_outside_resolver"
+        focus: "AST linter detects bundle mutation"
+        detection: "Code outside bundle_resolver modifying bundle['comment_doc_marker_prefix']"
+        expected_result: "Linter reports CRITICAL violation"
+      
+      - test_id: "test_detect_hardcoded_marker_assumption"
+        focus: "Pattern detector finds hardcoded marker-prefix"
+        detection: "Code like marker_prefix = 'prism' (not DEFAULT_DOC_MARKER_PREFIX)"
+        expected_result: "Linter reports HIGH violation"
+
+---
+
+## SECTION 6: Gradual Rollout (Enforcement Phases)
+
+rollout_strategy:
+  
+  phase_1: "Audit & Documentation (Week 1)"
+    status: "ACTIVE"
+    activities:
+      - Create mp1-enforcement-boundaries.yaml (THIS FILE)
+      - Create mp1-compliance-test-strategy.md (Artifact 2)
+      - Run violation detection baseline (should be 0 violations)
+      - Document MP1 migration guide
+    gates:
+      - All violations resolved to 0
+      - All test cases passing
+      - Documentation complete
+  
+  phase_2: "CI Integration (Week 2-3)"
+    status: "PENDING"
+    activities:
+      - Add MP1-IMPORT-AUDIT to pre-commit hooks
+      - Add MP1-CONSUMER-VALIDATION to pytest CI
+      - Add MP1-BUNDLE-MUTATION-AUDIT to linting CI
+      - Add MP1-API-BOUNDARY to integration tests
+    gates:
+      - All CI checks passing
+      - No regressions in existing tests
+  
+  phase_3: "Enforcement Hardening (Week 4+)"
+    status: "DEFERRED"
+    activities:
+      - Make MP1 checks FAIL builds (currently WARN)
+      - Add type stub (.pyi) to enforce read-only bundle at type-check time
+      - Optional: runtime deepcopy of bundle at plugin entry
+    gates:
+      - No external consumers affected
+      - All internal code MP1-compliant
+
+---
+
+## SECTION 7: Migration Guide for Future Consumers
+
+future_consumer_guide: |
+  
+  ## If You Need to Use Marker-Prefix
+  
+  ### DO:
+  1. Accept marker_prefix as function parameter (from bundle)
+     ✅ def process_tasks(marker_prefix: str, ...): ...
+  
+  2. Get from bundle in scanner_core functions
+     ✅ prefix = bundle.get("comment_doc_marker_prefix")
+  
+  3. Validate marker-prefix at function entry
+     ✅ if not isinstance(prefix, str): raise ValueError(...)
+  
+  4. Use for pattern matching only
+     ✅ task_names = [t for t in tasks if f"@{prefix}_task" in t]
+  
+  5. Document MP1 compliance in docstring
+     ✅ """
+         Process tasks using ingress-owned marker-prefix.
+         COMPLIANCE: Marker-prefix sourced from bundle (MP1).
+         """
+  
+  ### DON'T:
+  1. Import marker config directly in scanner_core
+     ❌ from prism.scanner_config import DEFAULT_DOC_MARKER_PREFIX
+  
+  2. Hardcode marker-prefix values
+     ❌ prefix = "prism"
+  
+  3. Compute marker-prefix from file/content
+     ❌ prefix = extract_prefix_from_readme(file)
+  
+  4. Override/modify bundle['comment_doc_marker_prefix']
+     ❌ bundle["comment_doc_marker_prefix"] = new_value
+  
+  5. Use marker-prefix without validation
+     ❌ if marker_prefix:  # WRONG; must be non-empty string
+
+---
+
+## SECTION 8: Compliance Evidence (Q3 Implementation Target)
+
+q3_compliance_gate:
+  - All MP1-IMPORT-AUDIT violations: RESOLVED (0)
+  - All MP1-BUNDLE-MUTATION-AUDIT violations: RESOLVED (0)
+  - All test_mp1_enforcement.py tests: PASSING (100%)
+  - All test_mp1_violation_detection.py tests: PASSING (100%)
+  - API boundary tests: PASSING (100%)
+  - Plugin isolation tests: PASSING (100%)
+  - Documentation complete: YES
+  - External consumer audit: ZERO violations
+  - Migration guide: AVAILABLE
+
+---
+
+## SECTION 9: References & Related Contracts
+
+related_contracts:
+  - NCK1: Non-collection execution core kernel (2026-04-18)
+  - SCB1: ScannerContext payload-shape parity (2026-04-18)
+  - GF2: Platform-agnostic DI (2026-04-19)
+  - PAR: Platform-agnostic remediation (2026-04-19)
+  
+documents:
+  - artifact_1: mp1-enforcement-boundaries.yaml (THIS FILE)
+  - artifact_2: mp1-compliance-test-strategy.md (FOLLOWING)
+  - reference: /raid5/source/test/prism/AGENTS.md (MP1 closure summary)
+  - config_ref: src/prism/scanner_config/marker.py
+  - bundle_ref: src/prism/scanner_plugins/bundle_resolver.py
+  - consumer_ref: src/prism/scanner_core/task_extract_adapters.py
+
+---

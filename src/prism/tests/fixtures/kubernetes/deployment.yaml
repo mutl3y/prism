@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-app
+  namespace: default
+  labels:
+    app: mock-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mock-app
+  template:
+    metadata:
+      labels:
+        app: mock-app
+    spec:
+      containers:
+      - name: app
+        image: nginx:1.21
+        ports:
+        - containerPort: 80
+          name: http
+        env:
+        - name: APP_ENV
+          value: "production"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: db-password
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10

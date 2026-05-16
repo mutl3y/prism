@@ -1,0 +1,33 @@
+timestamp: "2026-05-11T17:42:00Z"
+phase: "phase_1"
+wave: 4
+tier_selected: "tier_0_free"
+model_dispatch:
+  builder_core: "GPT-5 mini"
+  builder_plugins: "GPT-5 mini"
+  builder_integration: "GPT-5 mini"
+scope:
+  core:
+    - "src/prism/tests/test_requirements.py -> src/prism/tests/core/test_requirements.py"
+    - "src/prism/tests/test_scanner_readme_init.py -> src/prism/tests/core/test_scanner_readme_init.py"
+    - "src/prism/tests/test_section.py -> src/prism/tests/core/test_section.py"
+    - "src/prism/tests/test_underscore_policy_filter.py -> src/prism/tests/core/test_underscore_policy_filter.py"
+    - "src/prism/tests/test_mp1_enforcement_metrics.py -> src/prism/tests/core/test_mp1_enforcement_metrics.py"
+    - "src/prism/tests/test_hypothesis_yaml_parser.py -> src/prism/tests/core/test_hypothesis_yaml_parser.py"
+  plugins:
+    - "src/prism/tests/test_t2_01_plugin_api_version.py -> src/prism/tests/plugins/test_t2_01_plugin_api_version.py"
+    - "src/prism/tests/test_t2_02_scan_options_schema.py -> src/prism/tests/plugins/test_t2_02_scan_options_schema.py"
+    - "src/prism/tests/test_t2_03_entry_point_discovery.py -> src/prism/tests/plugins/test_t2_03_entry_point_discovery.py"
+    - "src/prism/tests/test_policy_as_code_stubs.py -> src/prism/tests/plugins/test_policy_as_code_stubs.py"
+    - "src/prism/tests/test_hypothesis_jinja_scanner.py -> src/prism/tests/plugins/test_hypothesis_jinja_scanner.py"
+  integration:
+    - "src/prism/tests/test_legacy_retirement.py -> src/prism/tests/integration/test_legacy_retirement.py"
+    - "src/prism/tests/test_t1_02_coverage_lift.py -> src/prism/tests/integration/test_t1_02_coverage_lift.py"
+    - "src/prism/tests/test_t1_02_coverage_lift_batch2.py -> src/prism/tests/integration/test_t1_02_coverage_lift_batch2.py"
+    - "src/prism/tests/test_t1_02_coverage_lift_batch3.py -> src/prism/tests/integration/test_t1_02_coverage_lift_batch3.py"
+    - "src/prism/tests/test_t1_02_coverage_lift_batch4.py -> src/prism/tests/integration/test_t1_02_coverage_lift_batch4.py"
+    - "src/prism/tests/test_t4_05_jinja_sandbox_audit.py -> src/prism/tests/integration/test_t4_05_jinja_sandbox_audit.py"
+    - "src/prism/tests/test_t4_06_env_config.py -> src/prism/tests/integration/test_t4_06_env_config.py"
+notes:
+  - "Delegated workers returned copy-retain drift; foreman reconciliation removed 18 duplicates."
+  - "Moved jinja sandbox audit test required path-resolution hardening in test_t2_04_stateless_marker.py and test_t4_05_jinja_sandbox_audit.py."

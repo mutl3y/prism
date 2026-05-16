@@ -1,0 +1,271 @@
+---
+scan_metadata:
+  scout_name: Scout-Ownership
+  plan_id: mutl3y-review-20260507-g79
+  focus_axis: layer_boundaries
+  target_lane: src/prism
+  scan_date: '2026-05-07'
+  discovery_mode: read_only
+
+findings_summary:
+  total_findings: 9
+  critical: 2
+  high: 4
+  medium: 3
+  low: 0
+
+ownership_issues:
+  O001_cross_layer_direct_access_api_entrypoint:
+    finding_id: O001
+    severity: critical
+    category: cross_layer_direct_access
+    title: "api.py bypasses layer facades, imports from 8+ internal layers directly"
+    description: |
+      The top-level api.py entrypoint imports directly from scanner_config, scanner_io,
+      scanner_extract, scanner_readme, scanner_reporting, scanner_core, and scanner_plugins,
+      bypassing any intermediate facade layer. This violates single-responsibility by making
+      the API layer aware of all internal layer mechanics.
+    location:
+      file: src/prism/api.py
+      lines: [19, 20, 21, 28, 29, 32, 33, 34, 35, 36, 50, 661, 700, 713, 730, 733, 755, 758, 780, 783, 799]
+    affected_imports:
+      - scanner_config.audit_rules
+      - scanner_io.collection_plugins
+      - scanner_io.collection_payload
+      - scanner_io.collection_renderer
+      - scanner_reporting.collection_dependencies
+      - scanner_readme.render_readme
+      - scanner_reporting (render_runbook, render_runbook_csv)
+      - scanner_core (DIContainer, FeatureDetector, ScannerContext)
+      - scanner_extract.filter_scanner
+      - scanner_core.scan_facade_helpers
+      - scanner_extract (is_path_excluded, load_meta)
+    impact: |
+      - API layer becomes tightly coupled to internal layer implementations
+      - Changes to internal layer APIs force API changes
+      - Difficult to refactor or replace internal layers
+      - No clear layer boundary enforcement
+    recommendation: |
+      Create api_layer facade modules (api_layer/collection.py, api_layer/non_collection.py)
+      that encapsulate layer-specific logic. api.py should import only from api_layer,
+      not from scanner_* layers directly.
+
+  O002_reporting_imports_from_plugins:
+    finding_id: O002
+    severity: critical
+    category: cross_layer_direct_access
+    title: "scanner_reporting imports from scanner_plugins layer"
+    description: |
+      scanner_reporting/__init__.py imports resolve_render_runbook, resolve_render_runbook_csv,
+      and resolve_runbook_rows from scanner_plugins.defaults. A reporting layer should not
+      have runtime dependencies on the plugin layer.
+    location:
+      file: src/prism/scanner_reporting/__init__.py
+      lines: [32, 33, 34, 35, 36, 37, 38]
+    affected_imports:
+      - from prism.scanner_plugins.defaults import resolve_render_runbook, resolve_render_runbook_csv, resolve_runbook_rows
+    impact: |
+      - Reporting layer cannot function without plugin layer
+      - Plugin initialization order becomes critical for reporting
+      - Creates implicit coupling that's hard to debug
+    recommendation: |
+      Move plugin resolution logic to a separate facade or inject the resolved functions
+      at initialization time. scanner_reporting should only depend on scanner_data contracts.
+
+  O003_scanner_io_imports_core_and_plugins:
+    finding_id: O003
+    severity: high
+    category: cross_layer_direct_access
+    title: "scanner_io layer imports from scanner_core and scanner_plugins"
+    description: |
+      scanner_io/output_orchestrator.py and scanner_io/loader.py import directly from
+      scanner_core.di_helpers, scanner_core.events, and scanner_plugins.defaults.
+      The I/O layer should be isolated from execution and plugin layers.
+    location:
+      file: src/prism/scanner_io
+      lines_output_orchestrator: [16, 113]
+      lines_loader: [68, 99, 125]
+    affected_imports:
+      - from prism.scanner_core.di_helpers import get_event_bus_or_none
+      - from prism.scanner_core.events import PHASE_OUTPUT_RENDER
+      - from prism.scanner_plugins.defaults import _get_registry_from_di
+      - from prism.scanner_core.di_helpers import get_prepared_policy_or_none
+      - from prism.scanner_plugins.defaults import resolve_yaml_parser_plugin, resolve_jinja_analyzer_plugin
+    impact: |
+      - I/O layer cannot be tested independently
+      - Event bus and DI container become implicit dependencies
+      - Plugin system becomes tightly coupled to I/O
+    recommendation: |
+      Inject dependencies (DI, event bus, resolved plugins) into scanner_io functions
+      at call time rather than importing them directly. Create a scanner_io bootstrap
+      module that prepares these dependencies.
+
+  O004_scanner_readme_imports_from_plugins:
+    finding_id: O004
+    severity: high
+    category: cross_layer_direct_access
+    title: "scanner_readme layer imports from scanner_plugins"
+    description: |
+      scanner_readme/plugin_seams.py imports ReadmeRendererPlugin interface and plugin
+      resolution functions from scanner_plugins. A rendering layer should not import
+      plugin infrastructure.
+    location:
+      file: src/prism/scanner_readme/plugin_seams.py
+      lines: [12, 37]
+    affected_imports:
+      - from prism.scanner_plugins.interfaces import ReadmeRendererPlugin
+      - from prism.scanner_plugins.defaults import resolve_readme_renderer_plugin
+    impact: |
+      - README rendering depends on plugin system initialization
+      - Layer becomes harder to reason about
+      - Testing requires full plugin setup
+    recommendation: |
+      Move plugin resolution to api_layer or a dedicated bootstrap module. Pass the
+      resolved renderer as a dependency to scanner_readme functions.
+
+  O005_weak_type_contracts_at_boundaries:
+    finding_id: O005
+    severity: high
+    category: missing_type_safety
+    title: "Data contracts use 'object' and 'Any' instead of specific types at layer boundaries"
+    description: |
+      contracts_request.py uses generic types like `object | None`, `dict[str, object]`,
+      and `Any` for contract fields. This eliminates type checking at layer boundaries
+      and makes data flow harder to reason about.
+    location:
+      file: src/prism/scanner_data/contracts_request.py
+      lines: [40, 56, 96, 97, 139, 140, 157]
+    weak_type_patterns:
+      - plugin_registry: object | None
+      - detail: dict[str, object]
+      - type: object (in VariableInsight)
+      - default: object (in VariableInsight)
+      - type: object (in DisplayVariableEntry)
+      - default: object (in DisplayVariableEntry)
+      - features: dict[str, object] (in ScanMetadata)
+    impact: |
+      - Type checker cannot catch layer boundary violations
+      - IDE cannot provide accurate autocompletion at boundaries
+      - Runtime errors not caught until execution
+    recommendation: |
+      Replace generic types with specific Protocols or TypedDicts. Define explicit
+      contracts for plugin registries, feature dictionaries, and other structured data.
+
+  O006_generic_error_handling_at_boundaries:
+    finding_id: O006
+    severity: high
+    category: missing_error_transformation
+    title: "api_layer raises generic RuntimeError instead of transforming to layer-specific errors"
+    description: |
+      api_layer/common.py catches specific exceptions (JSONDecodeError, TypeError, etc.)
+      but raises generic RuntimeError instead of transforming to domain-specific errors
+      or properly typed PrismRuntimeError instances.
+    location:
+      file: src/prism/api_layer/common.py
+      lines: [47, 48, 52, 53, 57, 58, 62, 63]
+    affected_code:
+      - "except json.JSONDecodeError as exc: raise RuntimeError(...) from exc"
+      - Multiple generic RuntimeError raises without proper error categorization
+    impact: |
+      - Callers cannot distinguish between different error types
+      - Error context is lost during transformation
+      - No consistent error contract at API boundary
+    recommendation: |
+      Define a clear error transformation contract. Create specific error types for
+      each boundary violation (InvalidPayloadError, ConfigurationError, etc.) and
+      raise those with proper categories and codes.
+
+  O007_internal_utilities_exposed_as_public:
+    finding_id: O007
+    severity: medium
+    category: public_api_mixing_concerns
+    title: "scanner_readme exposes internal utility functions as public API"
+    description: |
+      scanner_readme/__init__.py exports internal utilities like format_heading,
+      detect_style_section_level, normalize_style_heading, parse_style_readme, and
+      get_style_section_aliases_snapshot. These are implementation details, not part
+      of the public rendering contract.
+    location:
+      file: src/prism/scanner_readme/__init__.py
+      lines: [5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+    exposed_internals:
+      - format_heading (internal styling utility)
+      - detect_style_section_level (internal detection)
+      - normalize_style_heading (internal normalization)
+      - parse_style_readme (internal parsing)
+      - get_style_section_aliases_snapshot (internal state query)
+      - STYLE_SECTION_ALIASES (internal constant)
+    impact: |
+      - Encourages caller coupling to implementation details
+      - Makes future refactoring more difficult
+      - Enlarges public contract maintenance burden
+    recommendation: |
+      Keep only render_readme, append_scanner_report_section_if_enabled, and
+      render_guide_section_body as public. Move other exports to a private _style
+      module or use them only internally.
+
+  O008_no_clear_layer_ownership_for_repo_services:
+    finding_id: O008
+    severity: medium
+    category: unclear_ownership
+    title: "repo_services.py exists as top-level module without clear layer ownership"
+    description: |
+      repo_services.py provides collection and role scanning logic but doesn't clearly
+      belong to any layer (not in api_layer, scanner_io, or scanner_kernel). It acts as
+      an ad-hoc facade without documented ownership boundaries.
+    location:
+      file: src/prism/repo_services.py
+      lines: [1, 50]
+    impact: |
+      - Unclear where repo scanning orchestration is owned
+      - Potential for mixing of concerns
+      - Hard to determine which layer should import it
+    recommendation: |
+      Move repo_services functionality into api_layer as a dedicated module
+      (api_layer/repo.py) or merge into existing api_layer modules with clear
+      ownership documentation.
+
+  O009_missing_error_transformation_in_scanner_kernel:
+    finding_id: O009
+    severity: medium
+    category: missing_error_transformation
+    title: "scanner_kernel doesn't clearly transform lower-layer errors into kernel-level errors"
+    description: |
+      scanner_kernel/orchestrator.py raises TypeError and ValueError directly without
+      a clear error transformation contract. Errors from scanner_core, scanner_plugins,
+      and scanner_extract pass through without translation to kernel-level error types.
+    location:
+      file: src/prism/scanner_kernel/orchestrator.py
+      lines: [77, 97, 120, 139, 179, 227, 441, 561]
+    affected_patterns:
+      - "raise TypeError(...)" (validation failures)
+      - "raise ValueError(...)" (contract violations)
+      - No domain-specific error classes
+    impact: |
+      - Callers cannot distinguish kernel errors from plugin/core errors
+      - No consistent contract for error handling above kernel
+      - Error context is mixed across layer boundaries
+    recommendation: |
+      Define kernel-specific error types (e.g., KernelOrchestrationError,
+      PluginResolutionError) that wrap lower-layer errors with context.
+
+top_3_findings:
+  - finding_1:
+      id: O001
+      severity: critical
+      title: "api.py bypasses facades, imports 8+ internal layers directly"
+      impact: "Tight coupling breaks layer abstraction and makes refactoring impossible"
+
+  - finding_2:
+      id: O002
+      severity: critical
+      title: "scanner_reporting imports from scanner_plugins"
+      impact: "Reporting layer has implicit runtime dependency on plugin initialization"
+
+  - finding_3:
+      id: O005
+      severity: high
+      title: "Weak type contracts use 'object' instead of specific types at boundaries"
+      impact: "Type checker cannot catch layer violations; runtime errors not caught early"
+
+status: completed

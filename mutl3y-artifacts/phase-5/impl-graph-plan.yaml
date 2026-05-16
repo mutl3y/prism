@@ -1,0 +1,493 @@
+fix_group: graph_dependency_review
+created_date: 2026-05-07
+plan_version: 1.0
+
+files_owned:
+  - src/prism/scanner_plugins/ansible/extract_utils.py
+  - src/prism/scanner_plugins/ansible/variable_discovery.py
+
+findings_addressed: [Scout-Graph-03, Scout-Graph-04]
+findings_accepted: [Scout-Graph-01, Scout-Graph-02]
+
+changes:
+  - finding_id: Scout-Graph-03
+    file: src/prism/scanner_plugins/ansible/extract_utils.py
+    priority: HIGH
+    strategy: LAZY_IMPORT + ADD_SEAM
+    coupling_risk: HIGH
+    description: |
+      extract_utils.py re-exports 15+ functions from scanner_extract (100% delegation
+      pattern). Circular risk: scanner_extract.task_file_traversal → lazy imports back
+      to scanner_plugins.ansible.task_traversal_bare. Solution: extract constants to
+      shared module, move function imports to lazy import at call sites.
+
+    pseudocode: |
+      ## Phase 1: Create scanner_plugins/ansible/constants.py
+
+      # constants.py (new file)
+      from __future__ import annotations
+      import re
+
+      JINJA_IDENTIFIER_RE = re.compile(r"{{ *[\w.]+.*?}}")
+      YAML_QUOTE_PATTERN = ...
+      # Other re-exported constants from extract_utils
+
+      ## Phase 2: Extract non-local constants from extract_utils
+
+      # extract_utils.py (refactored)
+      from __future__ import annotations
+
+      from prism.scanner_plugins.ansible.constants import JINJA_IDENTIFIER_RE
+
+      # Keep only essential top-level imports for __all__ visibility
+      from prism.scanner_extract.task_annotation_parsing import (
+          extract_task_annotations_for_file,
+      )
+      # ... other core imports (3-5 only)
+
+      # Move delegation to lazy imports at call sites
+      def collect_task_files(*args, **kwargs):
+          """Lazy import at call site to break circular pattern."""
+          from prism.scanner_extract.task_file_traversal import (
+              collect_task_files as _collect_task_files
+          )
+          return _collect_task_files(*args, **kwargs)
+
+      # Repeat pattern for:
+      # - iter_task_include_targets
+      # - iter_role_include_targets
+      # - iter_dynamic_role_include_targets
+      # - is_path_excluded
+      # - load_task_yaml_file
+      # - iter_task_mappings
+      # - All other delegation functions (14+ total)
+
+      ## Phase 3: Update variable_discovery.py imports
+
+      # variable_discovery.py (refactored)
+      from prism.scanner_plugins.ansible.constants import JINJA_IDENTIFIER_RE
+
+      # Keep core helpers as top-level (no delegation)
+      from prism.scanner_plugins.ansible.extract_utils import (
+          format_inline_yaml,
+          find_variable_line_in_yaml,
+          infer_variable_type,
+          is_sensitive_variable,
+      )
+
+      # Lazy import late-binders (used only 1 time)
+      # map_argument_spec_type → line ~24 in lazy block
+      # variable_extractor_module → line ~357 in lazy block
+
+    affected_call_sites:
+      - task_file_traversal delegation sites (10+)
+      - variable_discovery import consolidation (5+)
+      - variable_extractor_module late binding (1)
+
+    effort_hours: 3
+
+    blockers:
+      - "CREATE: scanner_plugins/ansible/constants.py (gate: no duplicates)"
+      - "IDENTIFY: all delegation call sites in extract_utils.py"
+      - "VERIFY: variable_discovery.py import audit before lazy refactor"
+      - "TEST: circular import detection after refactor"
+
+    success_criteria:
+      - extract_utils.py reduced from 134 lines to <60 lines
+      - All delegation functions moved to lazy import wrappers
+      - JINJA_IDENTIFIER_RE and constants in shared module
+      - No circular import errors
+      - variable_discovery.py imports consolidated
+      - All tests pass (pytest -q)
+      - mypy clean on changed files
+
+  - finding_id: Scout-Graph-04
+    file: src/prism/scanner_plugins/ansible/variable_discovery.py
+    priority: MEDIUM
+    strategy: LAZY_IMPORT + MOVE_TO_CONTRACT
+    coupling_risk: MEDIUM
+    description: |
+      variable_discovery.py has 5 duplicate imports from extract_utils
+      (format_inline_yaml, find_variable_line_in_yaml, infer_variable_type,
+      is_sensitive_variable, JINJA_IDENTIFIER_RE) plus 2 late-binders
+      (map_argument_spec_type, variable_extractor_module) used only once.
+      Coupling risk: duplication, single module alias binding. Solution:
+      consolidate helpers to shared contract/constants, lazy import late-binders.
+
+    pseudocode: |
+      ## Phase 1: Move helper functions to shared contract (async with 03)
+
+      # scanner_data/contracts_variables.py or new file
+      # Move from extract_utils.py to authoritative location:
+      def format_inline_yaml(value: Any) -> str:
+          """Format inline YAML values."""
+          ...
+
+      def infer_variable_type(value: Any) -> str:
+          """Infer variable type from value."""
+          ...
+
+      def is_sensitive_variable(name: str) -> bool:
+          """Check if variable is sensitive."""
+          ...
+
+      def find_variable_line_in_yaml(yaml_content: str, var_name: str) -> int | None:
+          """Find line number of variable in YAML."""
+          ...
+
+      ## Phase 2: Import helpers from shared contract
+
+      # variable_discovery.py (refactored)
+      from prism.scanner_plugins.ansible.constants import JINJA_IDENTIFIER_RE
+      from prism.scanner_plugins.ansible.extract_utils import (
+          collect_task_files,
+          is_path_excluded,
+          iter_task_mappings,
+          load_task_yaml_file,
+          iter_role_variable_map_candidates,
+      )
+      from prism.scanner_data.contracts_variables import (
+          format_inline_yaml,
+          infer_variable_type,
+          is_sensitive_variable,
+          find_variable_line_in_yaml,
+      )
+
+      # Remove duplicate imports:
+      # - format_inline_yaml (from extract_utils → from contracts_variables)
+      # - find_variable_line_in_yaml (from extract_utils → from contracts_variables)
+      # - infer_variable_type (from extract_utils → from contracts_variables)
+      # - is_sensitive_variable (from extract_utils → from contracts_variables)
+      # - JINJA_IDENTIFIER_RE (from extract_utils → from constants)
+
+      ## Phase 3: Lazy import late-binders
+
+      # variable_discovery.py (refactored)
+
+      # REMOVE top-level:
+      # from prism.scanner_io.loader import map_argument_spec_type
+      # from prism.scanner_plugins.ansible import variable_extractor as variable_extractor_module
+
+      # AT CALL SITE (line ~357 or wherever variable_extractor_module is used):
+      def _some_method_using_variable_extractor():
+          from prism.scanner_plugins.ansible import (
+              variable_extractor as variable_extractor_module
+          )
+          variable_extractor_module.collect_include_vars_files(...)
+
+      # AT CALL SITE (line ~24 or wherever map_argument_spec_type is used):
+      def _some_method_using_map_argument_spec_type():
+          from prism.scanner_io.loader import map_argument_spec_type
+          return map_argument_spec_type(...)
+
+    import_reduction_plan:
+      - Remove 5 duplicates from extract_utils
+      - Add 4 imports from contracts_variables (shared helpers)
+      - Add 1 import from constants (JINJA_IDENTIFIER_RE)
+      - Move 2 late-binders to lazy imports
+      - Net reduction: 20 → 14-16 top-level imports
+
+    effort_hours: 2
+
+    blockers:
+      - "COMPLETE: Finding 03 (constants.py creation)"
+      - "DESIGN: scanner_data/contracts_variables.py shared helpers contract"
+      - "AUDIT: Verify variable_extractor_module call sites (1 only expected)"
+      - "AUDIT: Verify map_argument_spec_type call sites (1-2 only expected)"
+
+    success_criteria:
+      - variable_discovery.py import count: 20 → 14-16
+      - No duplicate imports from extract_utils
+      - Helper functions imported from shared contract
+      - Late-binders (map_argument_spec_type, variable_extractor_module) moved to lazy import
+      - All tests pass (pytest -q)
+      - mypy clean on changed file
+      - No behavioral change (refactor only)
+
+  - finding_id: Scout-Graph-01
+    file: src/prism/api.py
+    priority: INFO
+    strategy: ACCEPT_PATTERN
+    coupling_risk: LOW
+    decision: NO_CHANGE
+    reason: |
+      api.py is a top-level API facade designed to aggregate and re-export
+      public entrypoints. High import count (25) is intentional and necessary.
+      Each import is used directly in public function implementations
+      (scan_collection, scan_repo, scan_role). Only 1 TYPE_CHECKING candidate
+      (ScanCacheBackend) exists; remaining 24 imports are all runtime-critical.
+      No circular dependencies. No redundant re-exports. This pattern is correct.
+
+    effort_hours: 0
+
+  - finding_id: Scout-Graph-02
+    file: src/prism/scanner_plugins/ansible/__init__.py
+    priority: INFO
+    strategy: ACCEPT_PATTERN
+    coupling_risk: LOW
+    decision: NO_CHANGE
+    reason: |
+      ansible/__init__.py is a plugin package namespace that re-exports all
+      plugin types and contracts for use by the DI registry and scanner_plugins.interfaces.
+      High import count (20) is by design and necessary for plugin discovery/registration.
+      All imports are internal to scanner_plugins ecosystem. No circular dependencies detected.
+      No TYPE_CHECKING blocks needed since these are re-exports, not type-only.
+      This pattern is correct for plugin package namespace.
+
+    effort_hours: 0
+
+implementation_sequencing:
+  phase_1_contracts:
+    name: Extract shared constants and helper contracts
+    duration_hours: 3
+    depends_on: []
+    tasks:
+      - task_1a:
+          title: Create scanner_plugins/ansible/constants.py
+          description: |
+            Extract re-exported constants from extract_utils.py to single
+            authoritative location. Include: JINJA_IDENTIFIER_RE, YAML_QUOTE_PATTERN,
+            and other constant re-exports.
+          files_created:
+            - src/prism/scanner_plugins/ansible/constants.py
+          dependencies: []
+
+      - task_1b:
+          title: Design scanner_data/contracts_variables.py (shared helpers)
+          description: |
+            Move variable helper functions (format_inline_yaml, infer_variable_type,
+            is_sensitive_variable, find_variable_line_in_yaml) to shared contract.
+            These are used by both extract_utils.py and variable_discovery.py.
+          files_created:
+            - src/prism/scanner_data/contracts_variables.py (or extend existing)
+          dependencies: []
+
+    gate_validation:
+      - No duplication of constants between extract_utils.py and constants.py
+      - Helper functions moved to authoritative location
+      - Import paths resolve cleanly
+      - mypy clean on new files
+
+    rollback_plan: Delete new files if gate fails; restore extract_utils.py
+
+  phase_2_lazy_imports_find_03:
+    name: "[BLOCKER: depends on Phase 1] Refactor extract_utils.py lazy imports"
+    duration_hours: 3
+    depends_on: [phase_1_contracts]
+    tasks:
+      - task_2a:
+          title: Identify all delegation call sites in extract_utils.py
+          description: |
+            Audit extract_utils.py to identify all delegation patterns where functions
+            are imported and re-exported with no local logic. Count: 14-15 functions.
+            Document usage patterns (re-export only vs. called locally).
+          audit_output: delegation_patterns.txt
+
+      - task_2b:
+          title: Convert function re-exports to lazy import wrappers
+          description: |
+            For each identified delegation function, create lazy import wrapper:
+            - Move import from top-level to inside wrapper function
+            - Preserve function signature and docstring
+            - Example: iter_task_include_targets, iter_role_include_targets,
+              collect_task_files, is_path_excluded, load_task_yaml_file, etc.
+          files_modified:
+            - src/prism/scanner_plugins/ansible/extract_utils.py
+          effort_hours: 2.5
+
+      - task_2c:
+          title: Update extract_utils imports to use constants module
+          description: |
+            Remove duplicate constant imports from extract_utils.py
+            (JINJA_IDENTIFIER_RE, etc.) and import from new constants.py.
+          files_modified:
+            - src/prism/scanner_plugins/ansible/extract_utils.py
+          effort_hours: 0.5
+
+    gate_validation:
+      - No circular import errors on refactored extract_utils.py
+      - extract_utils.py line count reduced from 134 → <60 lines
+      - All delegation patterns moved to lazy imports
+      - All tests pass (pytest -q)
+      - mypy clean on modified file
+      - Circular dependency detection passes (Scanner-Graph re-run)
+
+    rollback_plan: |
+      Restore extract_utils.py from backup. Rollback is safe if gate fails
+      before tests are merged.
+
+  phase_2_lazy_imports_find_04:
+    name: "[BLOCKER: depends on Phase 1] Refactor variable_discovery.py consolidation"
+    duration_hours: 2
+    depends_on: [phase_1_contracts]
+    tasks:
+      - task_3a:
+          title: Consolidate imports in variable_discovery.py
+          description: |
+            Replace 5 duplicate imports from extract_utils with single imports
+            from new constants.py and contracts_variables.py.
+            - JINJA_IDENTIFIER_RE → constants.py
+            - format_inline_yaml → contracts_variables.py
+            - infer_variable_type → contracts_variables.py
+            - is_sensitive_variable → contracts_variables.py
+            - find_variable_line_in_yaml → contracts_variables.py
+          files_modified:
+            - src/prism/scanner_plugins/ansible/variable_discovery.py
+          effort_hours: 1
+
+      - task_3b:
+          title: Lazy import late-binders in variable_discovery.py
+          description: |
+            Move map_argument_spec_type and variable_extractor_module imports
+            to lazy imports at call sites (expected to be 1-2 sites total).
+            Document call site locations before and after refactor.
+          files_modified:
+            - src/prism/scanner_plugins/ansible/variable_discovery.py
+          effort_hours: 0.5
+          audit_step: |
+            Verify variable_extractor_module call site count:
+            - grep -n "variable_extractor_module\." variable_discovery.py
+            Verify map_argument_spec_type call site count:
+            - grep -n "_map_argument_spec_type\|map_argument_spec_type" variable_discovery.py
+
+    gate_validation:
+      - variable_discovery.py import count: 20 → 14-16
+      - No duplicate imports from extract_utils
+      - All tests pass (pytest -q)
+      - mypy clean on modified file
+      - Behavioral regression tests pass (no semantic change)
+
+    rollback_plan: |
+      Restore variable_discovery.py from backup if gate fails.
+
+  phase_3_validation:
+    name: Final validation and coupling reduction verification
+    duration_hours: 1
+    depends_on: [phase_2_lazy_imports_find_03, phase_2_lazy_imports_find_04]
+    tasks:
+      - task_4a:
+          title: Re-run Scout-Graph detection on modified files
+          description: |
+            Execute Scout-Graph analysis on extract_utils.py and
+            variable_discovery.py to verify import count reduction and
+            circular dependency elimination.
+          command: |
+            # Scout-Graph re-run (command TBD - depends on Scout-Graph runner)
+            # Expected output: extract_utils.py 134→60 lines, 21→5-7 imports
+            # Expected output: variable_discovery.py 764 lines, 20→14-16 imports
+
+      - task_4b:
+          title: Verify no new circular dependencies
+          description: |
+            Run circular dependency detection to confirm that lazy imports
+            broke the scanner_extract ↔ scanner_plugins.ansible circular pattern.
+          command: |
+            cd /raid5/source/test/prism
+            python -m pytest src/prism/tests/ -k circular -v
+
+      - task_4c:
+          title: Full test suite validation
+          description: |
+            Run full pytest suite to ensure no behavioral regressions.
+          command: |
+            cd /raid5/source/test/prism
+            .venv/bin/python -m pytest -q
+            .venv/bin/python -m ruff check src/
+            .venv/bin/python -m black --check src/
+            .venv/bin/python -m mypy src/prism/scanner_plugins/ansible/
+
+    gate_validation:
+      - Scout-Graph import reduction verified
+      - No new circular dependencies detected
+      - All tests pass (pytest -q)
+      - All lints pass (ruff + black)
+      - All types pass (mypy on modified files)
+
+effort_summary:
+  finding_03_extract_utils: 3 hours
+  finding_04_variable_discovery: 2 hours
+  phase_1_contracts: 3 hours (async, before phases 2a and 2b)
+  phase_3_validation: 1 hour (after phases 2a and 2b)
+  total_effort_hours: 6
+
+sequencing_diagram: |
+  Phase 1 (3h) - Contracts
+    ├─ Create constants.py
+    └─ Design contracts_variables.py
+
+  Phase 2a (3h) - Extract Utils Refactor [depends on Phase 1]
+    └─ Lazy imports + constants consolidation
+
+  Phase 2b (2h) - Variable Discovery Refactor [depends on Phase 1]
+    └─ Import consolidation + lazy late-binders
+
+  Phase 3 (1h) - Validation [depends on 2a + 2b]
+    ├─ Scout-Graph re-run
+    ├─ Circular detection
+    └─ Full test suite
+
+validation_gates:
+  gate_phase_1: |
+    ✓ No duplicate constants between files
+    ✓ Helper functions in shared contract
+    ✓ Import resolution clean
+    ✓ mypy clean on new files
+
+  gate_phase_2a: |
+    ✓ No circular imports
+    ✓ extract_utils.py: 134 → <60 lines
+    ✓ extract_utils.py: 21 → 5-7 top-level imports
+    ✓ pytest -q pass
+    ✓ mypy clean
+
+  gate_phase_2b: |
+    ✓ variable_discovery.py: 20 → 14-16 imports
+    ✓ No duplicate imports from extract_utils
+    ✓ pytest -q pass
+    ✓ mypy clean
+    ✓ No behavioral regression
+
+  gate_phase_3: |
+    ✓ Scout-Graph import reduction verified
+    ✓ Circular dependency eliminated
+    ✓ Full pytest suite pass
+    ✓ Lint suite pass (ruff + black)
+    ✓ Type suite pass (mypy)
+
+risk_assessment:
+  finding_03_high_risk_factors:
+    - Circular import pattern (scanner_extract ↔ ansible plugins)
+    - 15+ delegation functions must be identified correctly
+    - Lazy imports at wrong call site could hide bugs
+    mitigation:
+      - Pre-identify all delegation patterns before refactoring
+      - Run circular dependency detector after refactor
+      - Audit pytest coverage for refactored functions
+
+  finding_04_medium_risk_factors:
+    - Late-binder identification audit (1-2 call sites expected)
+    - Helper function movement could cause import path confusion
+    mitigation:
+      - Pre-audit all call sites for map_argument_spec_type and variable_extractor_module
+      - Use grep to verify count matches expectation
+      - Run tests to catch behavioral regressions
+
+acceptance_criteria_final:
+  - Both owned files refactored and tested
+  - No circular imports introduced
+  - Import counts reduced (extract_utils 134→60, variable_discovery 20→14-16)
+  - No tests broken
+  - All lints pass
+  - All types pass
+  - Scout-Graph coupling reduction verified
+  - Findings 01-02 documented as ACCEPT_PATTERN (no changes)
+  - Implementation plan artifact committed with findings
+
+related_artifacts:
+  - input: /raid5/source/test/prism/mutl3y-artifacts/phase-4/decision-graph.yaml
+  - related_facts:
+      - prism DIContainer protocol shape (contracts_request.py)
+      - scanner_plugins architecture boundary documentation
+      - ansible plugin remediation wave closure (20260418)
+  - follow_up_waves:
+      - Phase 6: Measurement and impact analysis

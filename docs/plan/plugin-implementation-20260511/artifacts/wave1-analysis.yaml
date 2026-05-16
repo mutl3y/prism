@@ -1,0 +1,83 @@
+wave: 1
+phase: analysis
+tasks: [a1_stub_audit, a2_error_category_mapping]
+
+findings:
+  kubernetes_stub:
+    location:
+      - src/prism/scanner_plugins/kubernetes/__init__.py
+      - src/prism/scanner_plugins/kubernetes/error_adapter.py
+      - src/prism/scanner_plugins/kubernetes/mock.py
+    signatures:
+      - build_reserved_target_classifier_entry() -> dict[str, object]
+      - build_reserved_target_capability_response() -> dict[str, object]
+      - build_unsupported_scan_pipeline_outcome() -> dict[str, object]
+      - build_k8s_error_detail(resource_context: dict[str, Any], exception: Exception) -> dict[str, Any]
+      - class MockKubernetesScanner:
+        - __init__(self) -> None
+        - scan_manifests(self, manifest_paths: list[str]) -> dict[str, Any]
+        - build_error_detail(self, manifest_path: str, resource_kind: str, line_number: int) -> dict[str, Any]
+    error_patterns:
+      - stub-raises: NotImplementedError in core builders (scan_manifests, build_k8s_error_detail)
+      - reserved-target-response: __init__ exposes reserved classifier + unsupported capability outcome
+      - error-codes-sets: K8S_ERROR_CODES defined as a set of token names
+    fixture_refs:
+      - src/prism/tests/fixtures_platform_scanners.py (kubernetes_fixtures_dir, kubernetes_deployment, kubernetes_service, kubernetes_secret, kubernetes_errors_manifests, kubernetes_complex_manifests)
+      - src/prism/tests/fixtures/kubernetes/ (deployment.yaml, service.yaml, secret.yaml, error-manifests.yaml)
+    suggested_error_codes:
+      - pod_not_found
+      - pod_failed
+      - deployment_failed
+      - service_not_found
+      - configmap_invalid
+      - manifest_parse_error
+      - auth_failed
+      - api_rate_limited
+      - namespace_not_found
+      - crd_not_found
+
+  terraform_stub:
+    location:
+      - src/prism/scanner_plugins/terraform/__init__.py
+      - src/prism/scanner_plugins/terraform/error_adapter.py
+      - src/prism/scanner_plugins/terraform/mock.py
+    signatures:
+      - build_reserved_target_classifier_entry() -> dict[str, object]
+      - build_reserved_target_capability_response() -> dict[str, object]
+      - build_unsupported_scan_pipeline_outcome() -> dict[str, object]
+      - build_terraform_error_detail(resource_context: dict[str, Any], exception: Exception) -> dict[str, Any]
+      - class MockTerraformScanner:
+        - __init__(self) -> None
+        - scan_plans(self, plan_paths: list[str]) -> dict[str, Any]
+        - build_error_detail(self, plan_path: str, resource_type: str, line_number: int) -> dict[str, Any]
+    error_patterns:
+      - stub-raises: NotImplementedError in core builders (scan_plans, build_terraform_error_detail)
+      - reserved-target-response: __init__ exposes reserved classifier + stubbed capability outcome
+      - error-codes-sets: TF_ERROR_CODES defined as a set of token names
+    fixture_refs:
+      - src/prism/tests/fixtures_platform_scanners.py (terraform_fixtures_dir, terraform_main_config, terraform_vars_config, terraform_errors_dir, terraform_complex_main)
+      - src/prism/tests/fixtures/terraform/ (main.tf, variables.tf, with-errors/, complex/)
+    suggested_error_codes:
+      - plan_failed
+      - apply_failed
+      - state_corrupted
+      - provider_auth_failed
+      - hcl_syntax_error
+      - init_failed
+      - validation_failed
+      - backend_error
+      - version_mismatch
+      - module_not_found
+
+  ansible_reference:
+    location: src/prism/scanner_plugins/ansible
+    key_methods:
+      - build_ansible_error_detail(task_context: dict[str, Any], exception: Exception) -> dict[str, Any]
+      - classify_ansible_error(exception: Exception) -> tuple[str, str, bool]
+      - extract and feature helpers in extract_utils.py and extract_adapter.py
+    error_code_range: ["ANSIBLE_*"]
+    test_count: 11
+
+  recommendations:
+    - "Implement unified provenance fields (manifest/plan path, line_number, resource_kind/type) across plugins to match Ansible pattern."
+    - "Map stubbed error-token sets to a small canonical taxonomy (runtime, parser, auth, io, api) and prioritize implementing adapters for pod/deployment/service/config and plan/apply/state/module errors first."

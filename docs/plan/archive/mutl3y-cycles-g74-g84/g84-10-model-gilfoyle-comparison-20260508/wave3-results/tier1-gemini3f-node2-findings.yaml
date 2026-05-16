@@ -1,0 +1,61 @@
+model_used: Gemini 3 Flash (Preview)
+findings:
+  - id: GILF-NODE2-01
+    severity: CRITICAL
+    category: concurrency
+    location: "variable_discovery.py:35-37"
+    issue: "Blatant Two-Check Lock Pattern Violation (TOCTOU)"
+    root_cause: "In _resolve_plugin, you check self._plugin_resolved outside the lock, which is fine for the fast path, but then inside the lock, you check it again—EXCEPT the boolean is volatile across threads and you aren't using an atomic primitive or ensuring the plugin instance itself is fully constructed before setting the flag."
+    impact: "Thread A enters the lock, sets self._plugin_resolved = True, but has a preemption gap before self._plugin = plugin. Thread B hits the fast-path check, sees True, and returns self._plugin which is still None. Boom. Infinite NullPointer-equivalents in a language that doesn't even have them."
+    confidence: 100
+    fix_suggestion: "Check self._plugin inside the lock AFTER the second _plugin_resolved check, or better yet, just use a double-checked locking pattern that actually works by ensuring the assignment happens before the flag."
+
+  - id: GILF-NODE2-02
+    severity: HIGH
+    category: caching
+    location: "di.py:228-235"
+    issue: "Anemic Cache Invalidation for Options Mutation"
+    root_cause: "replace_scan_options only invalidates 'feature_detector' and 'variable_discovery'. It completely ignores the fact that nearly every other factory in this container (like scanner_context) also captures scan_options in its closure or constructor."
+    impact: "Stale scan options persist in the ScannerContext or any other long-lived DI-provided component after an options update. You're effectively running a scan with two different realities at once."
+    confidence: 95
+    fix_suggestion: "Invalidate the entire _cache on replace_scan_options, or use a proper property-dependency graph if you're actually pretending to be a systems architect."
+
+  - id: GILF-NODE2-03
+    severity: MEDIUM
+    category: data-flow
+    location: "variable_discovery.py:112-118"
+    issue: "Data Integrity Loss during Variable Construction"
+    root_cause: "The discover() method calls discover_static() (capturing full rows) and then meticulously throws away half the data to extract 'static_names', only to later re-construct 'rows' by iterating the static_rows again. But wait, it uses a shared VariableRowBuilder factory that is notably NOT thread-safe."
+    impact: "If two threads call discover() on the same DI container instance, they share the same VariableRowBuilder (from di._mocks or a singleton override). Since the builder (builders.py:10) stores self._payload as a mutable instance attribute, your variable rows will look like a teleporter accident from The Fly."
+    confidence: 90
+    fix_suggestion: "VariableRowBuilder must be instantiated per-call, not per-container, or the DI factory must return a new instance every time (check your di.py implementation, it's currently a cached mess)."
+
+  - id: GILF-NODE2-04
+    severity: HIGH
+    category: policy
+    location: "task_extract_adapters.py:207-227"
+    issue: "Brittle Marker-Prefix Resolution via DI-Bypassing Logic"
+    root_cause: "_resolve_marker_prefix reaches into scan_options to find a 'prepared_policy_bundle', then reaches inside that for a 'comment_doc_marker_prefix'. It raises a ValueError if any of this is missing."
+    impact: "This creates a hard runtime dependency on exactly one dictionary structure being present inside another dictionary inside the DI container. It's the antithesis of 'pure execution.' If the ingress layer hasn't perfectly populated the policy bundle, the entire extraction layer explodes instead of falling back to a sane default."
+    confidence: 95
+    fix_suggestion: "Inject the marker_prefix into the adapters directly from the orchestrator instead of forcing the adapters to be amateur detectives searching through DI state."
+
+  - id: GILF-NODE2-05
+    severity: MEDIUM
+    category: error-handling
+    location: "events.py:141-145"
+    issue: "Silent Failure Pattern disguised as Observability"
+    root_cause: "The EventBus catches 'Exception' from listeners and 'records' it. While it logs an error, it continues execution greedily."
+    impact: "If a listener is critical for security or audit logging and it fails, the scan continues as if nothing happened. In Prism, where 'constitutional rules' are mentioned, having your constitution silently ignored because a listener hit a KeyError is... well, it's pathetic."
+    confidence: 85
+    fix_suggestion: "Implement a 'strict' mode for the EventBus (you have the variable but don't use it in emit()) that re-raises critical exceptions or fails the scan phase."
+
+  - id: GILF-NODE2-06
+    severity: HIGH
+    category: performance
+    location: "variable_discovery.py:100-110"
+    issue: "O(N*M) Unresolved Variable Resolution"
+    root_cause: "resolve_unresolved() takes static_names and referenced sets. Inside, it calls discover_static() if names are missing. But discover() then calls static_names = frozenset(...) followed by resolve_unresolved(static_names=static_names). It's doing set conversions and list comprehensions in a loop."
+    impact: "On massive roles with thousands of variables (they exist, unfortunately), you're burning CPU time re-calculating the same sets and lists while holding onto large memory buffers."
+    confidence: 80
+    fix_suggestion: "Memoize the result of discover_static() and discover_referenced() within the VariableDiscovery instance scope so the orchestration doesn't repeat the work three times."

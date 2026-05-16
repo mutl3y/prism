@@ -5,9 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, NamedTuple
 
-from prism.scanner_plugins.interfaces import ReadmeRendererPlugin
 from prism.scanner_readme.guide import render_guide_section_body
-from prism.scanner_plugins.defaults import resolve_readme_renderer_plugin
+from prism.scanner_readme.plugin_seams import (
+    ReadmeRendererPlugin,
+    resolve_readme_renderer_plugin,
+)
 from prism.scanner_readme.rendering_seams import build_render_jinja_environment
 from prism.scanner_readme.style import format_heading
 

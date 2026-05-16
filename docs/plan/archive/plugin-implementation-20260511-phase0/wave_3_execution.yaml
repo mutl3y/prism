@@ -1,0 +1,97 @@
+wave_metadata:
+  wave: 3
+  severity: HIGH
+  domain: "Extraction/Parsing"
+  target_count: 29
+  tier_assigned: "Tier 1 (Claude Haiku 4.5)"
+  cost_target: "$0.008 per finding"
+  start_time: "2026-05-09T18:00:00Z"
+  owned_files:
+    - src/prism/scanner_extract/task_line_parsing.py
+    - src/prism/scanner_extract/task_annotation_parsing.py
+    - src/prism/scanner_extract/task_traversal.py
+    - src/prism/scanner_extract/variable_extractor.py
+    - src/prism/scanner_extract/yaml_handling.py
+    - src/prism/scanner_extract/jinja_analysis.py
+    - src/prism/scanner_core/scan_request.py
+    - src/prism/scanner_core/task_extract_adapters.py
+
+findings_summary:
+  - category: "Shallow Copy / Mutable State"
+    count: 8
+    files:
+      - scan_request.py
+      - task_extract_adapters.py
+    effort: "30 min"
+    priority: "HIGH"
+
+  - category: "Validation / Type Checking"
+    count: 7
+    files:
+      - scan_request.py
+    effort: "45 min"
+    priority: "HIGH"
+
+  - category: "Policy Ownership / Marker Prefix"
+    count: 6
+    files:
+      - task_extract_adapters.py
+      - scan_request.py
+    effort: "60 min"
+    priority: "HIGH"
+
+  - category: "Concurrency / Cache Safety"
+    count: 8
+    files:
+      - task_extract_adapters.py
+    effort: "90 min"
+    priority: "MEDIUM"
+
+baseline_metrics:
+  tests_passing: 1162
+  tests_total: 1171
+  pass_rate: "99.2%"
+  mypy_errors: 46
+  coverage: "99.5%+"
+
+gate_requirements:
+  - pytest: "1150+ passing"
+  - mypy: "0 new errors (46 pre-existing OK)"
+  - ruff: "clean"
+  - black: "clean"
+  - layer_boundaries: "no upward imports from scanner_extract → scanner_core"
+  - coverage: "maintain ≥99.5%"
+
+execution_plan:
+  phase_1:
+    name: "Shallow Copy → Deepcopy Migration"
+    findings: ["GILF-NODE3-05", "GILF-NODE3-08", "GILF-NODE3-04"]
+    files: ["scan_request.py"]
+    duration: "30 min"
+    
+  phase_2:
+    name: "Validation Hardening"
+    findings: ["GILF-NODE3-09", "GILF-NODE3-06", "GILF-NODE3-07"]
+    files: ["scan_request.py"]
+    duration: "45 min"
+
+  phase_3:
+    name: "Policy Ownership Consolidation"
+    findings: ["GILF-NODE2-04", "GILF-NODE2-10", "GILF-NODE2-03"]
+    files: ["task_extract_adapters.py"]
+    duration: "60 min"
+
+  phase_4:
+    name: "Concurrency / Cache Hardening (if time)"
+    findings: ["GILF-NODE2-06", "GILF-NODE2-01"]
+    files: ["task_extract_adapters.py"]
+    duration: "90 min (reserve)"
+
+success_criteria:
+  - all_29_findings_fixed: true
+  - tests_pass_rate: ">= 99.5% (1165+)"
+  - no_new_mypy_errors: true
+  - no_layer_violations: true
+  - artifact_complete: true
+
+status: "STARTING"

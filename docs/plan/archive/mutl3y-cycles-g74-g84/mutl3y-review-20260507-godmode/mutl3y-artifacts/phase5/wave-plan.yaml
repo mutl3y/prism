@@ -1,0 +1,73 @@
+---
+plan_id: mutl3y-review-20260507-godmode
+phase: "Phase 5 Implementation Planning"
+wave_plan_created_date: "2026-05-07"
+
+## Wave Strategy
+Group findings by impact/interdependency:
+
+### Wave 1: HIGH - Error Contract Consolidation & Policy Normalization
+**Focus**: Reduce error handling fragmentation + centralize policy logic
+**Findings**: FIND-GM-002, FIND-GM-003, FIND-GM-004
+**Files Owned**:
+  - scanner_data/contracts_request.py (error consolidation)
+  - scanner_core/scan_request.py (policy normalization extraction)
+  - scanner_data/contracts.py (shared error utility)
+  - src/prism/scanner_config/*.py (error consumer updates)
+**Estimated Changes**: 4-6 files
+**Complexity**: Moderate (contract changes, minimal consumer updates)
+**Rationale**: Architectural layer work; enables Wave 2 proxy fixes
+
+### Wave 2: CRITICAL + HIGH - Policy Proxies + Test Coverage
+**Focus**: Replace dynamic proxies with static resolution + expand edge-case tests
+**Findings**: FIND-GM-001 (CRITICAL), FIND-GM-005 (HIGH)
+**Files Owned**:
+  - scanner_extract/task_line_parsing.py (proxy replacement)
+  - scanner_core/di_helpers.py (test additions)
+  - scanner_extract/task_annotation_parsing.py (test additions)
+  - tests/test_task_line_parsing_edge_cases.py (NEW)
+**Estimated Changes**: 3 files modified + 1 new test file
+**Complexity**: Moderate-High (proxy refactoring is intricate)
+**Rationale**: CRITICAL severity warrants mid-cycle focus; test additions mitigate regression risk
+
+### Wave 3: MEDIUM - DI Protocols, Lazy Imports, Verbose Parsing
+**Focus**: Simplify DI contracts + resolve import coupling
+**Findings**: FIND-GM-006, FIND-GM-007, FIND-GM-008
+**Files Owned**:
+  - scanner_core/di_helpers.py (protocol simplification)
+  - scanner_core/task_extract_adapters.py (lazy import → module-level resolution)
+  - scanner_extract/task_line_parsing.py (verbose parsing cleanup)
+**Estimated Changes**: 3 files
+**Complexity**: Low-Moderate (mostly simplification)
+**Rationale**: Lower impact, good for morale/code health
+
+### Wave 4: LOW - Logging Standardization + Marker Prefix Caching
+**Focus**: Observability + minor performance optimization
+**Findings**: FIND-GM-009, FIND-GM-010
+**Files Owned**:
+  - scanner_core/di_helpers.py (logging)
+  - scanner_core/scan_request.py (logging)
+  - scanner_extract/task_line_parsing.py (logging)
+  - scanner_core/task_extract_adapters.py (marker prefix caching)
+**Estimated Changes**: 4 files (mostly logging additions)
+**Complexity**: Low
+**Rationale**: Non-blocking polish, good for code quality
+
+## Wave Sequencing
+1. **Wave 1 → Gate Check** (validates contract changes)
+2. **Wave 2 → Gate Check** (validates proxy refactor + tests)
+3. **Wave 3 → Gate Check** (validates simplification)
+4. **Wave 4 → Final Gate** (validates observability)
+
+## Execution Model
+- Use free-tier (Claude Haiku 4.5) for Waves 1, 3, 4
+- Escalate to GPT-4o for Wave 2 (CRITICAL complexity)
+- Run gates after each wave
+- Batch independent work where possible
+
+## Success Criteria
+- All waves: ✅ 1171+ tests passing, lint green, type safe
+- Wave 1: Error contracts consolidated, no regressions
+- Wave 2: Proxies replaced with static objects, test coverage ↑
+- Wave 3: Protocols simplified, imports resolved
+- Wave 4: Logging standardized, marker prefix cached

@@ -13,6 +13,10 @@
       "kind": "ValueError"
     },
     {
+      "file": "src/prism/scanner_core/error_envelope_builder.py",
+      "kind": "ValueError"
+    },
+    {
       "file": "src/prism/scanner_core/events.py",
       "kind": "TypeError"
     },
@@ -26,6 +30,30 @@
     },
     {
       "file": "src/prism/scanner_core/feature_detector.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_core/marker_prefix_contract.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_core/marker_prefix_enforcer.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_core/policy_manager.py",
+      "kind": "ValueError"
+    },
+    {
+      "file": "src/prism/scanner_core/policy_registry.py",
+      "kind": "KeyError"
+    },
+    {
+      "file": "src/prism/scanner_core/policy_registry.py",
+      "kind": "TypeError"
+    },
+    {
+      "file": "src/prism/scanner_core/policy_registry.py",
       "kind": "ValueError"
     },
     {

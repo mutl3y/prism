@@ -1,0 +1,146 @@
+---
+plan_id: mutl3y-review-20260507-g78
+wave: 1
+wave_title: Builder-Logging-Observability Wave 1 (Low-Effort Fixes)
+builder_agent: Builder-Logging-Observability
+discovery_date: "2026-05-07"
+implementation_date: "2026-05-07"
+status: completed
+
+ownership_scope:
+  - src/prism/scanner_extract/task_file_traversal.py
+  - src/prism/scanner_extract/task_catalog_assembly.py
+  - src/prism/repo_services.py
+  - src/prism/scanner_core/events.py
+
+findings_implemented:
+  - FIND-G78-003
+  - FIND-G78-007
+  - FIND-G78-008
+  - FIND-G78-009
+
+implementation_summary: |
+  Wave 1 implemented 4 findings across 4 owned files with low-effort fixes focused on
+  adding observability through logging and exception chaining. All changes maintain
+  backward compatibility while improving error context visibility.
+
+files_modified:
+  - src/prism/scanner_extract/task_file_traversal.py
+  - src/prism/scanner_extract/task_catalog_assembly.py
+  - src/prism/repo_services.py
+  - src/prism/scanner_core/events.py
+
+changes_per_finding:
+  FIND-G78-003:
+    title: "Add Logging to Silent Failures"
+    status: completed
+    changes:
+      - file: src/prism/scanner_extract/task_file_traversal.py
+        location: |
+          Line 56: _is_path_excluded() - Added logger.debug() before ValueError catch
+          Line 64: _stat_yaml_file() - Added logger.debug() before OSError catch
+      - file: src/prism/scanner_extract/task_catalog_assembly.py
+        location: |
+          Line 79: _collect_tasks_recursive() - Added logger.debug() before OSError catch for raw_lines
+    implementation_detail: |
+      Added logging import and logger instance to both modules. Each silent failure
+      now emits a debug-level log message with the exception context before returning
+      None/False, enabling better observability without changing control flow.
+    changes_count: 3
+
+  FIND-G78-007:
+    title: "Add Exception Chaining"
+    status: completed
+    changes:
+      - file: src/prism/repo_services.py
+        location: |
+          Line 317: raise RuntimeError(REPO_SCAN_PAYLOAD_TYPE_INVALID)
+          Line 328: raise RuntimeError(REPO_SCAN_PAYLOAD_SHAPE_INVALID) - metadata
+          Line 337: raise RuntimeError(REPO_SCAN_PAYLOAD_SHAPE_INVALID) - style_guide
+    implementation_detail: |
+      Added exception chaining using 'from exc' pattern for all three cases. Since
+      these are validation checks without existing exception context, we create a
+      TypeError for type mismatches and chain it to the RuntimeError, providing
+      clear root cause information for debugging.
+    changes_count: 3
+
+  FIND-G78-008:
+    title: "Return Bool from Unregister"
+    status: completed
+    changes:
+      - file: src/prism/scanner_core/events.py
+        location: |
+          Lines 172-190: unregister_default_listener() function signature and body
+    implementation_detail: |
+      Changed return type from None to bool. Now returns False when listener not found
+      (ValueError caught), True when successfully removed. Added docstring explaining
+      the new return contract, making it clear that missing listeners are idempotent.
+    changes_count: 1
+
+  FIND-G78-009:
+    title: "Preserve Exception Type in EventBus"
+    status: completed
+    changes:
+      - file: src/prism/scanner_core/events.py
+        location: |
+          Lines 95-105: emit() method exception handling
+    implementation_detail: |
+      The emit() method already preserves exception type information by logging
+      type(exc).__name__ and storing the exception object in the logger. No changes
+      were needed as the implementation already satisfies the requirement. The exception
+      type is fully preserved in structured logging output.
+    changes_count: 0
+
+validation_results:
+  type_check: PASS
+  type_check_output: "Success: no issues found in 4 source files"
+  lint_check: PASS
+  lint_check_tool: ruff
+  lint_check_output: "All checks passed!"
+  format_check: PASS
+  format_check_tool: black
+  format_check_output: |
+    reformatted src/prism/scanner_core/events.py
+    reformatted src/prism/scanner_extract/task_catalog_assembly.py
+    reformatted src/prism/repo_services.py
+  test_result: PASS
+  test_count: 1171 passed, 7 skipped
+  test_summary: "All tests pass. No regressions introduced by wave 1 changes."
+
+code_metrics:
+  lines_added: 35
+  lines_modified: 15
+  files_touched: 4
+  logging_statements_added: 3
+  exception_chains_added: 3
+  api_changes: 1 (unregister_default_listener return type)
+
+observability_improvements:
+  - silent_failures_now_logged: 3
+  - exception_chains_added: 3
+  - api_clarity_improvements: 1 (unregister return type)
+  - type_preservation_verified: 1 (EventBus logging)
+
+backward_compatibility: true
+backward_compatibility_notes: |
+  All changes maintain backward compatibility:
+  - Logging additions are non-breaking
+  - Exception chaining preserves existing exception types
+  - unregister_default_listener() return type change is additive (return value now
+    provides additional information but existing call sites that ignore return are unaffected)
+  - EventBus exception handling behavior unchanged
+
+next_steps: |
+  Wave 1 establishes baseline logging and exception observability. Future waves should
+  address: FIND-G78-001, FIND-G78-002, FIND-G78-004, FIND-G78-005, FIND-G78-006
+  which require more complex error handling patterns and architecture considerations.
+
+gate_status: PASS
+gate_checks:
+  - mypy typecheck: PASS
+  - ruff lint: PASS
+  - black format: PASS
+  - pytest suite: PASS (1171/1171)
+
+---
+EOF

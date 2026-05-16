@@ -1,0 +1,101 @@
+model_used: GPT-4o
+findings:
+  - id: GILF-NODE2-01
+    severity: CRITICAL
+    category: concurrency
+    location: "variable_discovery.py:40-60"
+    issue: "Thread safety violation in plugin resolution"
+    root_cause: "The `_plugin_resolved` flag is checked outside the lock, leading to potential race conditions where multiple threads might attempt to resolve the plugin simultaneously."
+    impact: "Concurrent requests could corrupt the plugin resolution process, leading to inconsistent or invalid plugin states."
+    confidence: 95
+    fix_suggestion: "Move the `_plugin_resolved` check inside the lock to ensure atomicity."
+
+  - id: GILF-NODE2-02
+    severity: HIGH
+    category: data-flow
+    location: "feature_detector.py:80-100"
+    issue: "Silent failure in plugin resolution"
+    root_cause: "The `_resolve_plugin` method returns `None` without raising an error if the plugin resolution fails, leading to downstream failures in `detect` and `analyze_task_catalog`."
+    impact: "Downstream methods relying on the plugin will fail unpredictably, making debugging difficult."
+    confidence: 90
+    fix_suggestion: "Raise a `ValueError` immediately if the plugin resolution fails, ensuring the failure is explicit."
+
+  - id: GILF-NODE2-03
+    severity: MEDIUM
+    category: caching
+    location: "task_extract_adapters.py:200-220"
+    issue: "Marker prefix resolution lacks cache invalidation"
+    root_cause: "The `_resolve_marker_prefix` function does not account for changes in `prepared_policy_bundle`, leading to potential stale data usage."
+    impact: "Changes to the policy bundle might not propagate correctly, causing incorrect marker prefix usage."
+    confidence: 85
+    fix_suggestion: "Introduce a cache invalidation mechanism tied to updates in `prepared_policy_bundle`."
+
+  - id: GILF-NODE2-04
+    severity: HIGH
+    category: policy
+    location: "task_extract_adapters.py:240-260"
+    issue: "Marker prefix ownership duplication"
+    root_cause: "Both `task_extract_adapters` and `scan_request` manage marker prefix resolution, leading to split ownership and potential inconsistencies."
+    impact: "Inconsistent marker prefixes could cause annotation parsing errors or mismatched task catalogs."
+    confidence: 90
+    fix_suggestion: "Centralize marker prefix resolution in `scan_request` and ensure all consumers use it."
+
+  - id: GILF-NODE2-05
+    severity: CRITICAL
+    category: error-handling
+    location: "variable_discovery.py:120-140"
+    issue: "Silent fallback on plugin factory failure"
+    root_cause: "The `_resolve_plugin` method logs a debug message but does not raise an error when the factory returns `None`."
+    impact: "Critical failures in plugin resolution are masked, leading to undefined behavior in `discover_static` and `discover_referenced`."
+    confidence: 95
+    fix_suggestion: "Raise a `ValueError` if the factory returns `None`, ensuring the failure is surfaced immediately."
+
+  - id: GILF-NODE2-06
+    severity: MEDIUM
+    category: performance
+    location: "feature_detector.py:140-160"
+    issue: "Repeated cloning of scan options"
+    root_cause: "The `_snapshot_options` method is called multiple times within the same method, leading to redundant work."
+    impact: "Unnecessary performance overhead, especially in hot paths."
+    confidence: 85
+    fix_suggestion: "Cache the cloned options locally within the method to avoid redundant calls."
+
+  - id: GILF-NODE2-07
+    severity: HIGH
+    category: concurrency
+    location: "task_extract_adapters.py:300-320"
+    issue: "Potential race condition in dynamic role includes"
+    root_cause: "The `collect_unconstrained_dynamic_role_includes` function relies on shared mutable state without synchronization."
+    impact: "Concurrent calls could corrupt the collected role includes, leading to incomplete or incorrect results."
+    confidence: 90
+    fix_suggestion: "Introduce thread-safe mechanisms, such as locks, to protect shared state."
+
+  - id: GILF-NODE2-08
+    severity: MEDIUM
+    category: data-flow
+    location: "variable_discovery.py:200-220"
+    issue: "Unclear data provenance in unresolved variable resolution"
+    root_cause: "The `resolve_unresolved` method does not document or validate the source of `static_names` and `referenced` sets."
+    impact: "Potential data inconsistencies or incorrect resolution results due to unvalidated inputs."
+    confidence: 80
+    fix_suggestion: "Add validation and provenance tracking for `static_names` and `referenced` inputs."
+
+  - id: GILF-NODE2-09
+    severity: LOW
+    category: caching
+    location: "feature_detector.py:180-200"
+    issue: "Lack of TTL for task catalog cache"
+    root_cause: "The `analyze_task_catalog` method does not implement a time-to-live (TTL) mechanism for its cache."
+    impact: "Stale task catalog data might persist indefinitely, leading to outdated analysis results."
+    confidence: 75
+    fix_suggestion: "Introduce a TTL mechanism to ensure the cache is refreshed periodically."
+
+  - id: GILF-NODE2-10
+    severity: HIGH
+    category: policy
+    location: "task_extract_adapters.py:100-120"
+    issue: "Redundant marker prefix normalization"
+    root_cause: "The `_resolve_marker_prefix` function normalizes the marker prefix redundantly, duplicating work done in `scan_request`."
+    impact: "Unnecessary complexity and potential for inconsistencies."
+    confidence: 90
+    fix_suggestion: "Delegate marker prefix normalization entirely to `scan_request`."

@@ -21,15 +21,20 @@ from inspect import Parameter, signature
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Protocol, cast
 
 from prism.scanner_core.events import EventBus, EventListener, get_default_listeners
+from prism.scanner_core.di_helpers import factory_override_key
 from prism.scanner_data.contracts_request import ScanOptionsDict
 from prism.scanner_data.builders import VariableRowBuilder
 from prism.errors import PrismRuntimeError
+from prism.scanner_core.plugin_resolver import PluginResolver
+from prism.scanner_core.service_locator import ServiceLocator
 
 if TYPE_CHECKING:
     from prism.scanner_core.feature_detector import FeatureDetector
     from prism.scanner_core.scan_cache import ScanCacheBackend
     from prism.scanner_core.scanner_context import ScannerContext
     from prism.scanner_core.variable_discovery import VariableDiscovery
+    from prism.scanner_core.policy_manager import PolicyManager
+    from prism.scanner_core.policy_registry import FallbackPolicyRegistry
     from prism.scanner_core.protocols_runtime import (
         BlockerFactBuilder,
         DIFactoryOverride,
@@ -72,11 +77,22 @@ def _clone_container_structure(value: object) -> object:
 
 
 def clone_scan_options(scan_options: Mapping[str, object]) -> ScanOptionsDict:
-    """Return a container-only snapshot of scan options for runtime consumers."""
-    return cast(
-        ScanOptionsDict,
-        {key: _clone_container_structure(value) for key, value in scan_options.items()},
-    )
+    """Return a container-only snapshot of scan options for runtime consumers.
+
+    Constructs ScanOptionsDict explicitly instead of using blind cast() to preserve
+    TypedDict semantics and enable runtime validation.
+    """
+    result: ScanOptionsDict = {}  # type: ignore[typeddict-item]
+    for key, value in scan_options.items():
+        result[key] = _clone_container_structure(value)  # type: ignore[literal-required]
+    return result
+
+
+def _snapshot_request_scan_options(
+    scan_options: Mapping[str, object],
+) -> ScanOptionsDict:
+    """Snapshot request scan options without rewriting caller-provided values."""
+    return clone_scan_options(scan_options)
 
 
 _SCAN_OPTION_DEPENDENT_CACHE_KEYS = frozenset(
@@ -211,7 +227,7 @@ class DIContainer:
             raise ValueError("scan_options must not be None")
 
         self._role_path = role_path
-        self._scan_options = clone_scan_options(scan_options)
+        self._scan_options = _snapshot_request_scan_options(scan_options)
         self._registry: PluginRegistry | None = registry
         self._platform_key = platform_key
         self._cache: dict[str, Any] = {}
@@ -234,19 +250,35 @@ class DIContainer:
         )
         self._event_bus = EventBus(listeners=effective_listeners)
 
+        self._plugin_resolver = PluginResolver(self)
+        self._service_locator = ServiceLocator(self)
+
+        # Pre-populate event bus cache so ServiceLocator returns the same instance
+        self._cache["event_bus"] = self._event_bus
+
     @property
     def scan_options(self) -> ScanOptionsDict:
         return self._snapshot_scan_options()
 
-    def replace_scan_options(self, scan_options: ScanOptionsDict) -> None:
-        """Replace the container snapshot after ingress normalization mutates options."""
+    def replace_scan_options(self, new_scan_options: ScanOptionsDict) -> None:
+        """Replace scan_options and invalidate dependent caches.
+
+        Args:
+            new_scan_options: New scan options to replace the current ones.
+        """
         with self._cache_lock:
-            self._scan_options = clone_scan_options(scan_options)
+            self._scan_options = _snapshot_request_scan_options(new_scan_options)
             self._invalidate_scan_option_dependent_cache_locked()
+        self._service_locator.replace_scan_options()
 
     def _snapshot_scan_options(self) -> ScanOptionsDict:
         with self._cache_lock:
-            return clone_scan_options(self._scan_options)
+            snapshot = clone_scan_options(self._scan_options)
+            # Preserve historical behavior: DI-owned role_path overrides only
+            # when callers provided role_path in scan_options.
+            if "role_path" in snapshot:
+                snapshot["role_path"] = self._role_path
+            return snapshot
 
     def _invalidate_scan_option_dependent_cache_locked(self) -> None:
         for key in _SCAN_OPTION_DEPENDENT_CACHE_KEYS:
@@ -276,11 +308,24 @@ class DIContainer:
         override = self._factory_overrides.get(name)
         if override is None:
             return None
-        return override(self, self._role_path, self._snapshot_scan_options())
+        try:
+            result = override(self, self._role_path, self._snapshot_scan_options())
+            return result
+        except Exception as exc:
+            raise PrismRuntimeError(
+                code="di_factory_override_failed",
+                category="dependency-injection",
+                message=f"Factory override '{name}' raised {type(exc).__name__}",
+                detail={
+                    "override_name": name,
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc),
+                },
+            ) from exc
 
     def factory_event_bus(self) -> EventBus:
         """Return the per-container :class:`EventBus`."""
-        return self._event_bus
+        return self._service_locator.factory_event_bus()
 
     def factory_scanner_context(self) -> ScannerContext:
         """Create ScannerContext only when runtime seam wiring is provided."""
@@ -317,7 +362,9 @@ class DIContainer:
         if "variable_discovery" in self._mocks:
             return self._mocks["variable_discovery"]
 
-        override_result = self._call_factory_override("variable_discovery_factory")
+        override_result = self._call_factory_override(
+            factory_override_key("variable_discovery")
+        )
         if override_result is not None:
             return cast("VariableDiscovery", override_result)
 
@@ -342,7 +389,9 @@ class DIContainer:
         if "feature_detector" in self._mocks:
             return self._mocks["feature_detector"]
 
-        override_result = self._call_factory_override("feature_detector_factory")
+        override_result = self._call_factory_override(
+            factory_override_key("feature_detector")
+        )
         if override_result is not None:
             return cast("FeatureDetector", override_result)
 
@@ -392,165 +441,216 @@ class DIContainer:
             return self._platform_key
         return resolve_platform_key(self._scan_options, self._registry)
 
-    def factory_variable_discovery_plugin(self) -> VariableDiscoveryPlugin:
-        """Resolve variable-discovery plugin via registry; fail-closed if unregistered."""
+    def factory_variable_discovery_plugin(self) -> "VariableDiscoveryPlugin":
         if "variable_discovery_plugin" in self._mocks:
             return self._mocks["variable_discovery_plugin"]
-
         override_result = self._call_factory_override(
-            "variable_discovery_plugin_factory"
+            factory_override_key("variable_discovery_plugin")
         )
         if override_result is not None:
             return cast("VariableDiscoveryPlugin", override_result)
+        return self._plugin_resolver.factory_variable_discovery_plugin()
 
-        platform_key = self._resolve_platform_key()
-        registry = self._get_registry()
-        plugin_cls = registry.get_variable_discovery_plugin(platform_key)
-        if plugin_cls is None:
-            raise ValueError(
-                f"No variable_discovery plugin registered under '{platform_key}'. "
-                "Ensure scanner_plugins bootstrap has run."
-            )
-        return _construct_runtime_plugin(
-            plugin_cls,
-            plugin_kind="variable_discovery",
-            platform_key=platform_key,
-            di=self,
-        )
-
-    def factory_feature_detection_plugin(self) -> FeatureDetectionPlugin:
-        """Resolve feature-detection plugin via registry; fail-closed if unregistered."""
+    def factory_feature_detection_plugin(self) -> "FeatureDetectionPlugin":
         if "feature_detection_plugin" in self._mocks:
             return self._mocks["feature_detection_plugin"]
-
         override_result = self._call_factory_override(
-            "feature_detection_plugin_factory"
+            factory_override_key("feature_detection_plugin")
         )
         if override_result is not None:
             return cast("FeatureDetectionPlugin", override_result)
+        return self._plugin_resolver.factory_feature_detection_plugin()
 
-        platform_key = self._resolve_platform_key()
-        registry = self._get_registry()
-        plugin_cls = registry.get_feature_detection_plugin(platform_key)
-        if plugin_cls is None:
-            raise ValueError(
-                f"No feature_detection plugin registered under '{platform_key}'. "
-                "Ensure scanner_plugins bootstrap has run."
-            )
-        return _construct_runtime_plugin(
-            plugin_cls,
-            plugin_kind="feature_detection",
+    def register_platform_plugin_bundle(
+        self,
+        *,
+        platform_key: str,
+        support_state: str,
+        runtime_aliases: tuple[str, ...] = (),
+        default_providers: Mapping[str, Callable[[], Any]] | None = None,
+        scan_pipeline_plugin: type[Any] | None = None,
+        readme_renderer_plugin: type[Any] | None = None,
+        variable_discovery_plugin: type[Any] | None = None,
+        variable_discovery_loader: tuple[str, str] | None = None,
+        feature_detection_plugin: type[Any] | None = None,
+        feature_detection_loader: tuple[str, str] | None = None,
+    ) -> None:
+        from prism.scanner_plugins.bootstrap import register_platform_plugin_bundle
+
+        register_platform_plugin_bundle(
+            self._get_registry(),
             platform_key=platform_key,
-            di=self,
+            support_state=cast(Any, support_state),
+            runtime_aliases=runtime_aliases,
+            default_providers=default_providers,
+            scan_pipeline_plugin=scan_pipeline_plugin,
+            readme_renderer_plugin=readme_renderer_plugin,
+            variable_discovery_plugin=variable_discovery_plugin,
+            variable_discovery_loader=variable_discovery_loader,
+            feature_detection_plugin=feature_detection_plugin,
+            feature_detection_loader=feature_detection_loader,
         )
 
     def factory_comment_driven_doc_plugin(
         self,
-    ) -> CommentDrivenDocumentationPlugin | None:
-        """Resolve optional comment-driven documentation plugin from DI wiring."""
+    ) -> "CommentDrivenDocumentationPlugin | None":
         if "comment_driven_doc_plugin" in self._mocks:
             return self._mocks["comment_driven_doc_plugin"]
-
         override_result = self._call_factory_override(
             "comment_driven_doc_plugin_factory"
         )
         if override_result is not None:
-            return cast("CommentDrivenDocumentationPlugin", override_result)
-        return None
+            return cast("CommentDrivenDocumentationPlugin | None", override_result)
+        return self._plugin_resolver.factory_comment_driven_doc_plugin()
 
     def factory_task_annotation_policy_plugin(
         self,
-    ) -> PreparedTaskAnnotationPolicy | None:
-        """Resolve optional task-annotation policy plugin from DI wiring."""
+    ) -> "PreparedTaskAnnotationPolicy | None":
         if "task_annotation_policy_plugin" in self._mocks:
             return self._mocks["task_annotation_policy_plugin"]
-
         override_result = self._call_factory_override(
             "task_annotation_policy_plugin_factory"
         )
         if override_result is not None:
-            return cast("PreparedTaskAnnotationPolicy", override_result)
-        return None
+            return cast("PreparedTaskAnnotationPolicy | None", override_result)
+        return self._plugin_resolver.factory_task_annotation_policy_plugin()
 
     def factory_task_line_parsing_policy_plugin(
         self,
-    ) -> PreparedTaskLineParsingPolicy | None:
-        """Resolve optional task-line parsing policy plugin from DI wiring."""
+    ) -> "PreparedTaskLineParsingPolicy | None":
         if "task_line_parsing_policy_plugin" in self._mocks:
             return self._mocks["task_line_parsing_policy_plugin"]
-
         override_result = self._call_factory_override(
             "task_line_parsing_policy_plugin_factory"
         )
         if override_result is not None:
-            return cast("PreparedTaskLineParsingPolicy", override_result)
-        return None
+            return cast("PreparedTaskLineParsingPolicy | None", override_result)
+        return self._plugin_resolver.factory_task_line_parsing_policy_plugin()
 
     def factory_task_traversal_policy_plugin(
         self,
-    ) -> PreparedTaskTraversalPolicy | None:
-        """Resolve optional task-traversal policy plugin from DI wiring."""
+    ) -> "PreparedTaskTraversalPolicy | None":
         if "task_traversal_policy_plugin" in self._mocks:
             return self._mocks["task_traversal_policy_plugin"]
-
         override_result = self._call_factory_override(
             "task_traversal_policy_plugin_factory"
         )
         if override_result is not None:
-            return cast("PreparedTaskTraversalPolicy", override_result)
-        return None
+            return cast("PreparedTaskTraversalPolicy | None", override_result)
+        return self._plugin_resolver.factory_task_traversal_policy_plugin()
 
     def factory_variable_extractor_policy_plugin(
         self,
-    ) -> PreparedVariableExtractorPolicy | None:
-        """Resolve optional variable-extractor policy plugin from DI wiring."""
+    ) -> "PreparedVariableExtractorPolicy | None":
         if "variable_extractor_policy_plugin" in self._mocks:
             return self._mocks["variable_extractor_policy_plugin"]
-
         override_result = self._call_factory_override(
             "variable_extractor_policy_plugin_factory"
         )
         if override_result is not None:
-            return cast("PreparedVariableExtractorPolicy", override_result)
-        return None
+            return cast("PreparedVariableExtractorPolicy | None", override_result)
+        return self._plugin_resolver.factory_variable_extractor_policy_plugin()
 
-    def factory_yaml_parsing_policy_plugin(self) -> YAMLParsingPolicyPlugin | None:
-        """Resolve optional YAML parsing policy plugin from DI wiring."""
+    def factory_yaml_parsing_policy_plugin(self) -> "YAMLParsingPolicyPlugin | None":
         if "yaml_parsing_policy_plugin" in self._mocks:
             return self._mocks["yaml_parsing_policy_plugin"]
-
         override_result = self._call_factory_override(
             "yaml_parsing_policy_plugin_factory"
         )
         if override_result is not None:
-            return cast("YAMLParsingPolicyPlugin", override_result)
-        return None
+            return cast("YAMLParsingPolicyPlugin | None", override_result)
+        return self._plugin_resolver.factory_yaml_parsing_policy_plugin()
 
-    def factory_jinja_analysis_policy_plugin(self) -> JinjaAnalysisPolicyPlugin | None:
-        """Resolve optional Jinja analysis policy plugin from DI wiring."""
+    def factory_jinja_analysis_policy_plugin(
+        self,
+    ) -> "JinjaAnalysisPolicyPlugin | None":
         if "jinja_analysis_policy_plugin" in self._mocks:
             return self._mocks["jinja_analysis_policy_plugin"]
-
         override_result = self._call_factory_override(
             "jinja_analysis_policy_plugin_factory"
         )
         if override_result is not None:
-            return cast("JinjaAnalysisPolicyPlugin", override_result)
-        return None
+            return cast("JinjaAnalysisPolicyPlugin | None", override_result)
+        return self._plugin_resolver.factory_jinja_analysis_policy_plugin()
+
+    def factory_audit_plugin(self) -> "VariableDiscoveryPlugin | None":
+        if "audit_plugin" in self._mocks:
+            return self._mocks["audit_plugin"]
+        override_result = self._call_factory_override("audit_plugin_factory")
+        if override_result is not None:
+            return cast("VariableDiscoveryPlugin | None", override_result)
+        return self._plugin_resolver.factory_audit_plugin()
+
+    def factory_policy_registry(self) -> "FallbackPolicyRegistry":
+        """Create or return cached FallbackPolicyRegistry.
+
+        Phase 0: Stub factory for module structure.
+        Wave 1+: Will initialize with plugin registry and default policies.
+        """
+        if "policy_registry" in self._mocks:
+            return self._mocks["policy_registry"]
+
+        override_result = self._call_factory_override("policy_registry_factory")
+        if override_result is not None:
+            return cast("FallbackPolicyRegistry", override_result)
+
+        key = "policy_registry"
+        with self._cache_lock:
+            if key not in self._cache:
+                from prism.scanner_core.policy_registry import FallbackPolicyRegistry
+
+                self._cache[key] = FallbackPolicyRegistry()
+        return self._cache[key]
+
+    def factory_policy_manager(self) -> "PolicyManager":
+        """Create or return cached PolicyManager.
+
+        Phase 0: Stub factory for module structure.
+        Wave 1+: Will coordinate policy resolution from DI registry.
+        """
+        if "policy_manager" in self._mocks:
+            return self._mocks["policy_manager"]
+
+        override_result = self._call_factory_override("policy_manager_factory")
+        if override_result is not None:
+            return cast("PolicyManager", override_result)
+
+        key = "policy_manager"
+        with self._cache_lock:
+            if key not in self._cache:
+                from prism.scanner_core.policy_manager import PolicyManager
+
+                registry = self.factory_policy_registry()
+                self._cache[key] = PolicyManager(registry=registry)
+        return self._cache[key]
+
+    @property
+    def policy_manager(self) -> "PolicyManager":
+        """Access the PolicyManager via property (Task 3.1).
+
+        Wave 3: Provides convenient access to the cached PolicyManager instance
+        through a property instead of requiring factory_policy_manager() calls.
+
+        Returns:
+            The cached PolicyManager instance.
+        """
+        return self.factory_policy_manager()
+
+    @property
+    def policy_registry(self) -> "FallbackPolicyRegistry":
+        """Access the FallbackPolicyRegistry via property (Task 3.1).
+
+        Wave 3: Provides convenient access to the cached FallbackPolicyRegistry instance
+        through a property instead of requiring factory_policy_registry() calls.
+
+        Returns:
+            The cached FallbackPolicyRegistry instance.
+        """
+        return self.factory_policy_registry()
 
     def inject_mock(self, name: str, mock: Any) -> None:
         """Inject a mock for testing. Name must match a factory key."""
         self._mocks[name] = mock
-
-    def factory_audit_plugin(self) -> Any | None:
-        """Return the injected audit plugin, or None if audit is not configured (opt-in)."""
-        if "audit_plugin" in self._mocks:
-            return self._mocks["audit_plugin"]
-
-        override_result = self._call_factory_override("audit_plugin_factory")
-        if override_result is not None:
-            return override_result
-        return None
 
     def clear_mocks(self) -> None:
         """Clear all injected mocks."""
@@ -560,3 +660,80 @@ class DIContainer:
         """Clear cached instances."""
         with self._cache_lock:
             self._cache.clear()
+
+
+# ============================================================================
+# Wave 4: Module-Level Consolidation Functions
+# ============================================================================
+# These functions provide a single source of truth for policy manager and
+# registry access. All code should prefer:
+#   - di.policy_manager (property, preferred)
+#   - ensure_policy_manager(di) (module function, backward compat)
+#   - di.factory_policy_manager() (legacy factory, still supported)
+#
+# Caching Strategy (Lazy, Cached):
+# - First access: Creates instance via factory method
+# - Subsequent accesses: Returns cached instance from _cache dict
+# - Cache invalidation: Manual clear_cache() call required
+# - Thread safety: Guarded by _cache_lock (threading.RLock)
+# - Per-container: Each DIContainer has isolated _cache and _cache_lock
+
+
+def ensure_policy_manager(di: DIContainer) -> "PolicyManager":
+    """Access PolicyManager through module-level function (Wave 4 consolidation).
+
+    Convenience function for backward compatibility. All callers should prefer
+    di.policy_manager property for direct access.
+
+    This function:
+    - Delegates to DIContainer.policy_manager property
+    - Returns cached instance (same object on multiple calls)
+    - Thread-safe (guarded by container's _cache_lock)
+    - Fails closed if DIContainer not initialized
+
+    Args:
+        di: DIContainer instance.
+
+    Returns:
+        The cached PolicyManager instance.
+
+    Raises:
+        ValueError: If DIContainer not properly initialized.
+
+    Example:
+        >>> di = DIContainer("role_path", scan_options)
+        >>> manager = ensure_policy_manager(di)
+        >>> # is equivalent to:
+        >>> manager = di.policy_manager
+    """
+    return di.policy_manager
+
+
+def ensure_policy_registry(di: DIContainer) -> "FallbackPolicyRegistry":
+    """Access FallbackPolicyRegistry through module-level function (Wave 4 consolidation).
+
+    Convenience function for backward compatibility. All callers should prefer
+    di.policy_registry property for direct access.
+
+    This function:
+    - Delegates to DIContainer.policy_registry property
+    - Returns cached instance (same object on multiple calls)
+    - Thread-safe (guarded by container's _cache_lock)
+    - Fails closed if DIContainer not initialized
+
+    Args:
+        di: DIContainer instance.
+
+    Returns:
+        The cached FallbackPolicyRegistry instance.
+
+    Raises:
+        ValueError: If DIContainer not properly initialized.
+
+    Example:
+        >>> di = DIContainer("role_path", scan_options)
+        >>> registry = ensure_policy_registry(di)
+        >>> # is equivalent to:
+        >>> registry = di.policy_registry
+    """
+    return di.policy_registry

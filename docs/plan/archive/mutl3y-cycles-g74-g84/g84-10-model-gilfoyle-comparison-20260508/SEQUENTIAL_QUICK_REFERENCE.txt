@@ -1,0 +1,279 @@
+================================================================================
+WAVE 2 SEQUENTIAL EXECUTION — QUICK REFERENCE
+================================================================================
+
+Each node runs separately to allow other users to share the Gilfoyle agent.
+
+Timeline: ~115 minutes total
+Cost: $0 (all Tier 0)
+
+================================================================================
+NODE 1: GPT-4o (ARCHITECTURE & DI FOCUS)
+================================================================================
+
+TIME: ~18 minutes (t=0:00 to t=0:18)
+STATUS: Ready when you are
+
+STEPS:
+1. Open: WAVE2_CLUSTER_PLAN.md
+2. Find: NODE 1 PROMPT section
+3. Copy: Everything from "## Gilfoyle Code Review: Architecture & DI Focus" 
+         through "### Token Limit"
+4. Send to runSubagent:
+   Agent: Gilfoyle Code Review God Mode
+   Model: GPT-4o (copilot)
+   Prompt: [PASTE HERE]
+5. Wait: ~15-18 minutes for completion
+6. Copy: All YAML findings to clipboard
+7. Save: /artifacts/node1-gpt4o-findings.yaml
+8. Record: Quality score, finding count, module coverage
+9. Wait: 5 minutes (t=0:18 to t=0:23)
+
+EXPECTED:
+- Quality: 85-88/100
+- Findings: 12-15
+- Target: DI god-object, ownership fragmentation, type erasure
+
+Next: Proceed to Node 2 at t=0:25
+
+================================================================================
+NODE 2: GPT-4.1 (CONCURRENCY & TYPE SAFETY)
+================================================================================
+
+TIME: ~18 minutes (t=0:25 to t=0:43)
+STATUS: Start after Node 1 complete + 5 min wait
+
+STEPS:
+1. Open: WAVE2_CLUSTER_PLAN.md
+2. Find: NODE 2 PROMPT section
+3. Copy: Everything from "## Gilfoyle Code Review: Concurrency & Type Safety"
+         through "### Critical Finding Target"
+4. Send to runSubagent:
+   Agent: Gilfoyle Code Review God Mode
+   Model: GPT-4.1 (copilot)
+   Prompt: [PASTE HERE]
+5. Wait: ~15-18 minutes for completion
+6. Copy: All YAML findings to clipboard
+7. Save: /artifacts/node2-gpt4.1-findings.yaml
+8. Record: Quality score, finding count, module coverage
+9. Record: ⚠️ TOCTOU race found? (YES/NO - critical!)
+10. Wait: 5 minutes (t=0:43 to t=0:48)
+
+EXPECTED:
+- Quality: 85-88/100
+- Findings: 11-14
+- Target: TOCTOU race (critical), type erasure, cache collision
+
+Next: Proceed to Node 3A at t=0:50
+
+================================================================================
+NODE 3A: GPT-5 mini (OWNERSHIP & VALIDATION)
+================================================================================
+
+TIME: ~18 minutes (t=0:50 to t=1:08)
+STATUS: Start after Node 2 complete + 5 min wait
+
+STEPS:
+1. Open: WAVE2_CLUSTER_PLAN.md
+2. Find: NODE 3A PROMPT section
+3. Copy: Everything from "## Gilfoyle Code Review: Ownership & Validation"
+         through "### Critical Expectation"
+4. Send to runSubagent:
+   Agent: Gilfoyle Code Review God Mode
+   Model: GPT-5 mini (copilot)
+   Prompt: [PASTE HERE]
+5. Wait: ~15-18 minutes for completion
+6. Copy: All YAML findings to clipboard
+7. Save: /artifacts/node3a-gpt5mini-findings.yaml
+8. Record: Quality score, finding count, module coverage
+9. Record: Marker-prefix ownership leak found?
+10. Wait: 5 minutes (t=1:08 to t=1:13)
+
+EXPECTED:
+- Quality: 85-88/100
+- Findings: 12-15
+- Target: Marker-prefix ownership leak, lazy imports, validation proliferation
+
+Next: Proceed to Node 3B at t=1:15
+
+================================================================================
+NODE 3B: Raptor mini (CACHING & PERFORMANCE)
+================================================================================
+
+TIME: ~18 minutes (t=1:15 to t=1:33)
+STATUS: Start after Node 3A complete + 5 min wait
+
+STEPS:
+1. Open: WAVE2_CLUSTER_PLAN.md
+2. Find: NODE 3B PROMPT section
+3. Copy: Everything from "## Gilfoyle Code Review: Caching & Performance"
+         through "### Token Limit"
+4. Send to runSubagent:
+   Agent: Gilfoyle Code Review God Mode
+   Model: Raptor mini (Preview) (copilot)
+   Prompt: [PASTE HERE]
+5. Wait: ~15-18 minutes for completion
+6. Copy: All YAML findings to clipboard
+7. Save: /artifacts/node3b-raptormini-findings.yaml
+8. Record: Quality score, finding count, module coverage
+9. Record: Cache safety issues found?
+10. Note: No more waits - analysis phase begins
+
+EXPECTED:
+- Quality: 82-85/100
+- Findings: 10-13
+- Target: Cache safety, performance footguns, exceptions, dead code
+
+Next: Proceed to Merge & Analysis
+
+================================================================================
+PHASE: MERGE & ANALYSIS
+================================================================================
+
+TIME: ~15 minutes (t=1:40 to t=1:55)
+STATUS: After all 4 nodes complete
+
+WHAT TO DO:
+1. Verify all 4 YAML files exist in /artifacts/ folder
+2. Collect metrics from each node
+3. Calculate cluster totals:
+   - Total findings (sum all nodes) → target ≥45
+   - Average quality (average all nodes) → target ≥85
+   - Module coverage (union) → target ≥9/11
+   - Critical discovery (TOCTOU or cache collision) → target YES
+4. Identify convergent findings (2+ nodes found same issue)
+5. Identify unique findings (1 node only)
+6. Compare to success criteria
+
+SUCCESS CRITERIA:
+✓ Quality ≥ 85/100? → [PASS | FAIL]
+✓ Finding count ≥ 45? → [PASS | FAIL]
+✓ Module coverage ≥ 9/11? → [PASS | FAIL]
+✓ Critical discovery? → [PASS | FAIL]
+
+DECISION:
+IF all 4 PASS:
+  ✅ Free-tier cluster ≥ Tier 1 quality
+  ✅ FREE default viable (99.6% cost savings!)
+
+ELSE IF 3 PASS:
+  ~ Cluster near Tier 1 (partial win)
+  ~ Hybrid approach
+
+ELSE IF 2 PASS:
+  ! Cluster > individual (modest win)
+  ! Keep Tier 1 as default
+
+ELSE:
+  ✗ Tier 1 needed for all work
+
+7. Create: WAVE2_CLUSTER_RESULTS.md
+8. Document: Final decision and recommendation
+
+================================================================================
+FILES & LOCATIONS
+================================================================================
+
+Prompts:
+  📄 WAVE2_CLUSTER_PLAN.md
+     - NODE 1 PROMPT (~50 lines)
+     - NODE 2 PROMPT (~50 lines)
+     - NODE 3A PROMPT (~50 lines)
+     - NODE 3B PROMPT (~50 lines)
+
+Results Directory:
+  📁 /artifacts/
+     - node1-gpt4o-findings.yaml
+     - node2-gpt4.1-findings.yaml
+     - node3a-gpt5mini-findings.yaml
+     - node3b-raptormini-findings.yaml
+
+Final Report:
+  📄 WAVE2_CLUSTER_RESULTS.md (created after merge)
+
+Other References:
+  📄 CONVERGENCE_ANALYSIS.md (Wave 1 baseline)
+  📄 WAVE2_SEQUENTIAL_EXECUTION.md (detailed guide)
+
+================================================================================
+TIMELINE SUMMARY
+================================================================================
+
+t=0:00  ▶ START NODE 1 (GPT-4o)
+t=0:18  ✓ Node 1 complete
+t=0:23  ⏸ [5 min buffer]
+t=0:25  ▶ START NODE 2 (GPT-4.1)
+t=0:43  ✓ Node 2 complete
+t=0:48  ⏸ [5 min buffer]
+t=0:50  ▶ START NODE 3A (GPT-5 mini)
+t=1:08  ✓ Node 3A complete
+t=1:13  ⏸ [5 min buffer]
+t=1:15  ▶ START NODE 3B (Raptor mini)
+t=1:33  ✓ Node 3B complete
+t=1:40  ▶ MERGE & ANALYSIS
+t=1:55  ✓ COMPLETE - Decision ready
+
+TOTAL: ~115 minutes (~2 hours)
+
+================================================================================
+QUICK CHECKLIST
+================================================================================
+
+Before starting:
+[ ] All 4 node prompts located in WAVE2_CLUSTER_PLAN.md
+[ ] Artifacts folder exists
+[ ] Ready to copy-paste prompts
+[ ] Can save YAML outputs
+
+Node 1 (GPT-4o):
+[ ] Prompt copied
+[ ] Run sent to runSubagent
+[ ] Results saved to node1-gpt4o-findings.yaml
+[ ] Metrics recorded
+
+Node 2 (GPT-4.1):
+[ ] Prompt copied
+[ ] Run sent to runSubagent
+[ ] Results saved to node2-gpt4.1-findings.yaml
+[ ] Metrics recorded
+[ ] TOCTOU status noted
+
+Node 3A (GPT-5 mini):
+[ ] Prompt copied
+[ ] Run sent to runSubagent
+[ ] Results saved to node3a-gpt5mini-findings.yaml
+[ ] Metrics recorded
+
+Node 3B (Raptor mini):
+[ ] Prompt copied
+[ ] Run sent to runSubagent
+[ ] Results saved to node3b-raptormini-findings.yaml
+[ ] Metrics recorded
+
+Merge & Analysis:
+[ ] All 4 YAML files verified
+[ ] Cluster metrics calculated
+[ ] Convergent findings identified
+[ ] Success criteria evaluated
+[ ] Final decision made
+[ ] WAVE2_CLUSTER_RESULTS.md created
+
+================================================================================
+READY TO START?
+================================================================================
+
+You're ready to go!
+
+Step 1: Open WAVE2_CLUSTER_PLAN.md
+Step 2: Find NODE 1 PROMPT section
+Step 3: Copy the entire prompt
+Step 4: Send to runSubagent with GPT-4o model
+Step 5: Come back in ~18 minutes
+
+Sequence will run automatically with 5-minute buffers between each node.
+
+Total time: ~2 hours to final decision
+
+Let's launch! 🚀
+
+================================================================================

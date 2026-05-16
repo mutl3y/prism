@@ -1,0 +1,81 @@
+---
+wave_id: wave-4-cleanup
+builder: "mutl3y-builder"
+phase: 4
+timestamp: 2026-05-07T21:15:00Z
+owned_files:
+  - src/prism/scanner_plugins/ansible/extract_utils.py
+  - src/prism/scanner_plugins/defaults.py
+
+fixes:
+  - fix_id: "F4-001"
+    target: "Remove orphaned collect_molecule_scenarios"
+    investigation: |
+      INVESTIGATION RESULT: False Positive
+      - R-002 probe reported [0 usages] in production code
+      - However, test_scanner_extract_shim_parity.py::test_fsrc_scanner_extract_compatibility_exports_match_src_behavior explicitly uses extract_module.collect_molecule_scenarios()
+      - Function is part of the tested public API of ansible/extract_utils module
+      - Attempting removal caused test failure: AttributeError: module has no attribute 'collect_molecule_scenarios'
+      - RECOMMENDATION: Keep as-is; function is tested and part of the module's public contract for scanner_extract delegation
+    change: "NOT APPLIED - false positive alarm"
+    status: "investigated"
+    test_status: "confirmed_in_use"
+
+  - fix_id: "F4-002"
+    target: "Polish exception logging diagnostics"
+    change: |
+      File: src/prism/scanner_plugins/defaults.py
+      Function: _fallback_or_raise_plugin_construction_error (lines 301-337)
+
+      BEFORE:
+        logger.warning(
+            "Failed to construct %s plugin in non-strict mode; falling back to %s. %s",
+            plugin_kind,
+            type(fallback_plugin).__name__,
+            exc,
+        )
+
+      AFTER:
+        logger.warning(
+            "Failed to construct %s plugin in non-strict mode; falling back to %s. "
+            "Exception: %s (from %s)",
+            plugin_kind,
+            type(fallback_plugin).__name__,
+            type(exc).__name__,
+            type(exc).__module__,
+        )
+
+      RATIONALE: Improved diagnostics by including exception type name and module path instead of raw string representation.
+      This provides better debugging context for plugin construction failures without the verbosity of full exception text.
+    test_status: "pass"
+
+test_results:
+  - suite: test_scanner_extract_shim_parity.py
+    status: "3/3 passed"
+    details: "Confirms F4-001 investigation - collect_molecule_scenarios is part of tested public API"
+  - suite: test_extract_policies.py
+    status: "13/13 passed"
+    details: "Plugin policy tests verify no logging changes affect policy validation"
+  - summary: "2/2 targeted fixes verified; F4-002 complete, F4-001 marked as false positive"
+
+status: complete
+conclusion: |
+  Wave 4 cleanup execution complete:
+
+  1. F4-002 (Exception logging polish): IMPLEMENTED
+     - Enhanced diagnostic output in _fallback_or_raise_plugin_construction_error
+     - Provides exception type name and module path for better debugging
+     - All 16 extraction and policy tests passing
+
+  2. F4-001 (Collect molecule scenarios): INVESTIGATED AND DEFERRED
+     - Probe reported as orphaned [0 usages]
+     - However, verified that test_scanner_extract_shim_parity.py::test_fsrc_scanner_extract_compatibility_exports_match_src_behavior explicitly uses this function
+     - Function is part of the ansible/extract_utils public API contract
+     - Removal would break test; keeping as-is per tested public API principle
+
+  Execution model tier: low-cost (mechanical polish only)
+  Regressions: none (16/16 tests passing)
+
+  Remaining investigation: R-002 probe false positive on collect_molecule_scenarios suggests it was
+  run before the extract shim parity test was added to the suite, or the probe was not counting test
+  usages. Recommend not removing API surface that is explicitly tested and verified.

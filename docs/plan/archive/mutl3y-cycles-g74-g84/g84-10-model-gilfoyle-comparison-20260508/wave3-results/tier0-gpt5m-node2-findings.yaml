@@ -1,0 +1,101 @@
+model_used: GPT-5 mini
+findings:
+  - id: GILF-NODE2-01
+    severity: HIGH
+    category: concurrency
+    location: "src/prism/scanner_core/variable_discovery.py:36-92"
+    issue: "Double-checked plugin resolution race + inconsistent null-checking"
+    root_cause: "The class uses a double-checked pattern: fast path reads _plugin_resolved without lock, then enters a locked region to initialize. Feature/variable plugin initialization and the resolved-flag handling differ between modules (VariableDiscovery raises if _plugin_resolved True and _plugin is None; FeatureDetector returns None)."
+    impact: "Under heavy concurrent calls a rare interleaving or non-atomic factory could lead to None plugin being observed or unexpected ValueError at call sites; inconsistent behavior across modules increases risk of subtle runtime failures and makes callers handle plugin None inconsistently."
+    confidence: 85
+    fix_suggestion: "Make plugin resolution atomic and uniform: always take the lock before reading/mutating _plugin/_plugin_resolved, or adopt Python-safe initialization (use threading.RLock and set _plugin then _plugin_resolved in a single locked block). Normalize behavior: either guarantee factories never return None (preferred) or make _resolve_plugin consistently raise a clear exception if resolution fails."
+
+  - id: GILF-NODE2-02
+    severity: CRITICAL
+    category: data-flow
+    location: "src/prism/scanner_core/task_extract_adapters.py:72-118"
+    issue: "Marker-prefix ownership leak — reopens prepared_policy_bundle mid-pipeline"
+    root_cause: "`_resolve_marker_prefix` reads `prepared_policy_bundle` from `scan_options_from_di(di)` and is used to inject marker_prefix at extraction time. This re-opens policy state already canonicalized at ingress instead of consuming an explicit, caller-provided prefix."
+    impact: "Split ownership of marker-prefix leads to inconsistent marker values across pipeline steps, duplicated normalization, and potential mismatches between feature detection and extraction (data loss or incorrect annotation parsing). It can produce incorrect task catalogs when prefix is different at scan ingress vs. extraction time."
+    confidence: 92
+    fix_suggestion: "Enforce single ownership: require callers to pass `marker_prefix` explicitly (from scan ingress), remove `_resolve_marker_prefix` calls, and treat `scan_options` as read-only at hot paths. If fallback is necessary, resolve once at scan initialization and store on the per-scan context object rather than resolving per-call."
+
+  - id: GILF-NODE2-03
+    severity: HIGH
+    category: caching
+    location: "src/prism/scanner_core/variable_discovery.py:12-40, src/prism/scanner_core/feature_detector.py:20-48"
+    issue: "Mutable DI/ScanOptions snapshotting and implicit shared-state risk"
+    root_cause: "Both modules clone scan options with `clone_scan_options(self._options)` but also read from DI via helpers (e.g. `scan_options_from_di`) that may return references to mutable objects. There's no defensive immutability or canonical cache key generation for derived values (marker prefix etc.)."
+    impact: "TOCTOU and cache-poisoning vectors: if DI or prepared_policy_bundle is mutated concurrently (tests, plugins, or layered code), extracted marker prefixes and option-dependent outputs may be inconsistent across calls. Plugins that cache based on received dicts may be poisoned with transient state."
+    confidence: 88
+    fix_suggestion: "Treat scan options and prepared_policy_bundle as immutable value objects on scan start. Use a single canonical snapshot object passed to all downstream components; if cloning needed, do it once and freeze (e.g., MappingProxyType or a small dataclass). Avoid reading live DI inside hot-path helpers."
+
+  - id: GILF-NODE2-04
+    severity: MEDIUM
+    category: error-handling
+    location: "src/prism/scanner_core/feature_detector.py:38-90"
+    issue: "Inconsistent None handling for plugin resolution — deferred error surfaces"
+    root_cause: "FeatureDetector._resolve_plugin returns None when factory returns None; caller methods sometimes call plugin methods only after checking not None, but detect() raises a ValueError only after attempting returns. Behavior differs from VariableDiscovery's early checks."
+    impact: "Inconsistent call-site error timing and error messages complicate debugging; some callers may receive AttributeError or other downstream failures instead of a clear factory-resolution error."
+    confidence: 80
+    fix_suggestion: "Unify behavior: _resolve_plugin should either (a) always raise a clear, immediate exception on failure, or (b) always return a valid plugin. Make error messages consistent and add unit tests for factory failure scenarios."
+
+  - id: GILF-NODE2-05
+    severity: MEDIUM
+    category: performance
+    location: "src/prism/scanner_core/variable_discovery.py:170-260"
+    issue: "Repeated heavy cloning and builder creation on hot path"
+    root_cause: "`discover()` calls `discover_static`, `discover_referenced`, then for each unresolved referenced variable creates a builder via `self._di.factory_variable_row_builder()` and sets many attributes in a loop. Options are cloned multiple times via `_snapshot_options()` in helper methods."
+    impact: "Excessive allocations and repeated factory invocations cause CPU and memory pressure for large roles (many referenced variables). This becomes O(n) allocations with hidden constants that can be significant for large repos."
+    confidence: 78
+    fix_suggestion: "Move `builder = self._di.factory_variable_row_builder()` out of the loop (create a fresh builder prototype once, or use a lightweight factory that returns an object you mutate). Clone options once at method entry and reuse snapshot. Consider building TaskVariable objects via a lightweight constructor rather than many chained builder calls in tight loops."
+
+  - id: GILF-NODE2-06
+    severity: HIGH
+    category: concurrency
+    location: "src/prism/scanner_core/task_extract_adapters.py:1-100"
+    issue: "Per-call marker resolution and per-file annotation parsing not safe for parallel extraction"
+    root_cause: "The module resolves marker_prefix by consulting DI per call and then delegates to extractors. If multiple worker threads run `extract_task_annotations_for_file` concurrently while DI or prepared_policy_bundle is mutated (or lazily populated), races occur. There's no defensive copy or synchronization."
+    impact: "Concurrent extraction (common in scanners) can parse files with inconsistent marker prefixes, producing mismatched task indexes and inconsistent catalogs. Hard-to-reproduce nondeterministic failures will appear under parallel scanning."
+    confidence: 90
+    fix_suggestion: "Adopt a per-scan immutable context object that contains `marker_prefix` and pass it to extraction functions. Avoid reading DI inside file-level extractors. If DI must be used, add a stable read lock or snapshot to guarantee consistent view during parallel extraction."
+
+  - id: GILF-NODE2-07
+    severity: LOW
+    category: error-handling
+    location: "src/prism/scanner_core/task_extract_adapters.py:24-72"
+    issue: "Lazy imports propagate raw ImportError to callers"
+    root_cause: "Numerous functions lazily import heavy extract modules and re-raise any ImportError/RuntimeError to upstream callers without contextual diagnostics or recovery."
+    impact: "A missing dependency or packaging error surfaces as a low-level ImportError at extraction call sites; developers must chase stack traces rather than getting actionable policy-level errors. Reduced observability for import-time failures."
+    confidence: 60
+    fix_suggestion: "Wrap lazy imports with concise error handling that adds context (which adapter failed and why) and optionally provide a clear fallback or fail-fast message. Example: catch ImportError and raise a new ValueError('task_extract_adapters: failed to import X — check packaging'), preserving original exception as __cause__."
+
+  - id: GILF-NODE2-08
+    severity: MEDIUM
+    category: caching
+    location: "src/prism/scanner_core/feature_detector.py:1-40"
+    issue: "No plugin instance lifecycle policy — plugins may keep shared mutable caches"
+    root_cause: "FeatureDetector and VariableDiscovery hold a plugin instance per detector instance but rely on DI to decide whether factories return fresh or singleton objects. There is no contract enforcement on plugin instance mutability or reentrancy."
+    impact: "If DI returns a long-lived plugin instance with internal mutable caches, scanning multiple roles concurrently can cause cross-role contamination (cache poisoning) and TOCTOU correctness failures."
+    confidence: 86
+    fix_suggestion: "Define and enforce plugin lifecycle policy: either DI factories must return stateless/fresh instances per detector, or plugins must be explicitly documented and validated as thread-safe and reentrant. Consider wrapping plugin instance with a small thread-safe adapter that isolates per-scan caches (or require plugin factories accept scan context and return per-scan objects)."
+
+  - id: GILF-NODE2-09
+    severity: LOW
+    category: performance
+    location: "src/prism/scanner_core/task_extract_adapters.py:120-220"
+    issue: "Per-file marker resolution causes repeated path lookups"
+    root_cause: "Every call to `collect_task_handler_catalog` and `extract_task_annotations_for_file` resolves marker_prefix by consulting DI; this duplicates work for large catalogs where same prefix applies across thousands of files."
+    impact: "Unnecessary repeated lookups reduce throughput and increase scan latency on large roles."
+    confidence: 70
+    fix_suggestion: "Cache the resolved marker_prefix on the per-scan context and reuse across file-level operations. If resolution is cheap, still prefer single-call resolution at start of catalog assembly and pass the value through."
+
+  - id: GILF-NODE2-10
+    severity: MEDIUM
+    category: data-flow
+    location: "src/prism/scanner_core/variable_discovery.py:120-160"
+    issue: "Silent conversion of discovery results to tuples/sets hides original provenance"
+    root_cause: "discover_static returns a tuple of VariableRow, discover_referenced returns frozenset of names; upstream code builds unresolved placeholders using only name strings losing richer provenance data from referenced discovery step (like file/line) if plugin returned extra context."
+    impact: "Loss of provenance reduces ability to produce actionable unresolved variable diagnostics (no file/line hints), making follow-up probing and fixes noisy and lower-value."
+    confidence: 64
+    fix_suggestion: "Preserve provenance: have discover_referenced optionally return structured items (name + provenance) or extend resolve_unresolved to accept provenance mappings. If plugin cannot provide provenance, document that explicitly."

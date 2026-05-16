@@ -1,0 +1,37 @@
+plan_id: plugin-implementation-20260511
+cycle: plugin-implementation-20260511-c2
+phase: 5
+worker: foreman-recovery
+tier_selected: "FREE (0x)"
+tier_reason: "Post-builder compatibility remediation after full-suite gate surfaced isolated-registry and error-boundary regressions."
+regressions_detected:
+  - id: C2-RGX-01
+    category: compatibility
+    symptom: "AttributeError on registries without get_platform_default_provider"
+    impacted_tests:
+      - src/prism/tests/integration/test_mp1_compatibility.py
+    remediation:
+      - "defaults._resolve_platform_default_plugin now feature-detects get_platform_default_provider before calling it"
+  - id: C2-RGX-02
+    category: error_boundary_contract
+    symptom: "New raw exception raises detected in di_helpers"
+    impacted_tests:
+      - src/prism/tests/core/test_t3_04_error_boundary_audit.py
+      - src/prism/tests/core/test_di_helpers.py
+    remediation:
+      - "di_helpers raises PrismRuntimeError with stable runtime code/category"
+      - "test_di_helpers assertion aligned to reloaded-module PrismRuntimeError class"
+files_changed:
+  - src/prism/scanner_plugins/defaults.py
+  - src/prism/scanner_core/di_helpers.py
+  - src/prism/tests/core/test_di_helpers.py
+validation:
+  - command: "pytest -q src/prism/tests/core/test_di_helpers.py src/prism/tests/core/test_t3_04_error_boundary_audit.py src/prism/tests/integration/test_mp1_compatibility.py"
+    result: "pass (23 passed)"
+  - command: ".venv/bin/python -m black --check src/prism"
+    result: pass
+  - command: ".venv/bin/python -m ruff check src/prism"
+    result: pass
+  - command: ".venv/bin/python -m tox -e typecheck"
+    result: pass
+timestamp_utc: "2026-05-12T01:30:00Z"

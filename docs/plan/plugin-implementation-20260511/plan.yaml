@@ -1,0 +1,620 @@
+---
+plan_id: plugin-implementation-20260511
+title: "K8s/Terraform Plugin Implementation & Codebase Hygiene"
+created: 2026-05-11
+status: in_progress
+owner: mutl3y-teams-foreman
+
+plan:
+  cycle: plugin-implementation-20260511
+  resumption_pointer:
+    phase: phase_7
+    step: "Finalize closure artifacts and decision log after Wave 5 integration"
+  artifacts:
+    root: docs/plan/plugin-implementation-20260511/artifacts
+    execution_trace: docs/plan/plugin-implementation-20260511/artifacts/execution-trace.yaml
+    model_usage_ledger: docs/plan/plugin-implementation-20260511/artifacts/model-usage-ledger.yaml
+
+objective: |
+  Complete multi-platform plugin expansion with K8s and Terraform adapters,
+  establish clear test boundaries, archive old plan spillage, and ensure
+  documentation currency before Q3 2026 production readiness.
+
+context:
+  baseline_state:
+    - Error envelope Phases 1-3 complete (Ansible full, K8s/Terraform stubs)
+    - Comprehensive fixture scaffold complete (21 files, 6 scenario dirs)
+    - Test suite: 1369 passed / 7 skipped (baseline validated)
+    - Plugin registry DI architecture in place
+    - Ansible adapter as reference implementation (176 lines, 19+ scenarios)
+  
+  technical_foundation:
+    - Protocol-based error adapter interface (5 categories, 21 codes)
+    - Unified provenance extraction (7 fields)
+    - Secret sanitization patterns (kubeconfig, tokens, keys)
+    - pytest fixture access via fixtures_platform_scanners.py
+  
+  debt_and_hygiene:
+    - Plan spillage in docs/plan/ (20+ subdirectories, 100+ status/summary files)
+    - Learning opportunities scattered across plan artifacts
+    - Documentation may be stale after error envelope integration
+    - Test organization lacks explicit core vs plugin boundaries
+
+phases:
+  - id: phase_0
+    title: "Housekeeping & Archive"
+    description: "Consolidate plan artifacts, archive old execution traces, extract learning opportunities"
+    complexity: low
+    reasoning_tier: tier_0_free
+    estimated_effort: 2-3 hours
+    blocking: false
+    
+  - id: phase_1
+    title: "Test Boundary Definition"
+    description: "Segment tests into core vs plugin packages with clear ownership boundaries"
+    complexity: medium
+    reasoning_tier: tier_1_low_cost
+    estimated_effort: 3-4 hours
+    blocking: true
+    
+  - id: phase_2
+    title: "Documentation Audit & Update"
+    description: "Audit stale docs, update PRD, README, architecture docs for error envelope & multi-platform"
+    complexity: medium
+    reasoning_tier: tier_1_low_cost
+    estimated_effort: 4-6 hours
+    blocking: false
+    
+  - id: phase_3
+    title: "Plugin Implementation Planning"
+    description: "Design K8s/Terraform adapter implementation strategy with DAG-based task decomposition"
+    complexity: high
+    reasoning_tier: tier_2_balanced
+    estimated_effort: 4-6 hours
+    blocking: true
+    
+  - id: phase_4
+    title: "K8s Plugin Implementation"
+    description: "Implement Kubernetes error adapter with 10 error codes, fixture integration, and tests"
+    complexity: high
+    reasoning_tier: tier_2_balanced
+    estimated_effort: 8-12 hours
+    blocking: false
+    
+  - id: phase_5
+    title: "Terraform Plugin Implementation"
+    description: "Implement Terraform error adapter with 10 error codes, fixture integration, and tests"
+    complexity: high
+    reasoning_tier: tier_2_balanced
+    estimated_effort: 8-12 hours
+    blocking: false
+    
+  - id: phase_6
+    title: "Validation & Integration"
+    description: "Cross-platform parity tests, error detection validation, gate checks"
+    complexity: medium
+    reasoning_tier: tier_1_low_cost
+    estimated_effort: 4-6 hours
+    blocking: true
+    
+  - id: phase_7
+    title: "Commit & Documentation Finalization"
+    description: "Conventional commits, final doc updates, changelog, closure artifacts"
+    complexity: low
+    reasoning_tier: tier_0_free
+    estimated_effort: 2-3 hours
+    blocking: true
+
+tasks:
+  # Phase 0: Housekeeping
+  - id: task_0_1
+    phase: phase_0
+    title: "Audit docs/plan/ for plan spillage"
+    description: |
+      Scan docs/plan/ subdirectories for:
+      - Execution traces, status files, summaries that can be archived
+      - Learning opportunity artifacts that should be consolidated
+      - Old plan artifacts from completed initiatives (g74, g78, g79, g84, mp1, etc.)
+    complexity: low
+    reasoning_tier: tier_0_free
+    dependencies: []
+    
+  - id: task_0_2
+    phase: phase_0
+    title: "Extract learning opportunities to consolidated ledger"
+    description: |
+      Consolidate learning artifacts from:
+      - mutl3y-lessons-g74-g84-consolidated.md
+      - Individual plan learning-context.yaml files
+      - lessons.yaml artifacts
+      Into single canonical learning ledger with categorization
+    complexity: low
+    reasoning_tier: tier_0_free
+    dependencies: [task_0_1]
+    
+  - id: task_0_3
+    phase: phase_0
+    title: "Archive old plan execution artifacts"
+    description: |
+      Move completed plan execution artifacts to archive/:
+      - g84-remediation-mutl3y-cycle-20260509/
+      - post-g84-arch-refactor-20260511/
+      - mutl3y-review-20260507-* files
+      Keep only: active plans, FUTURE_INITIATIVES.md, INDEX.md, consolidated learning
+    complexity: low
+    reasoning_tier: tier_0_free
+    dependencies: [task_0_2]
+
+  # Phase 1: Test Boundary Definition
+  - id: task_1_1
+    phase: phase_1
+    title: "Design test organization strategy"
+    description: |
+      Define test package structure:
+      - src/prism/tests/core/ (scanner_core, scanner_extract, DI, policy)
+      - src/prism/tests/plugins/ (ansible, kubernetes, terraform adapters)
+      - src/prism/tests/integration/ (cross-platform parity, e2e)
+      - src/prism/tests/fixtures/ (unchanged)
+      Document ownership boundaries and import rules
+    complexity: medium
+    reasoning_tier: tier_1_low_cost
+    dependencies: []
+    
+  - id: task_1_2
+    phase: phase_1
+    title: "Reorganize existing tests into packages"
+    description: |
+      Move existing tests to new structure:
+      - Core tests → tests/core/
+      - Plugin tests (ansible) → tests/plugins/ansible/
+      - Parity/integration → tests/integration/
+      Add __init__.py with package docstrings
+    complexity: medium
+    reasoning_tier: tier_1_low_cost
+    dependencies: [task_1_1]
+    
+  - id: task_1_3
+    phase: phase_1
+    title: "Create test suite runner scripts"
+    description: |
+      Add pytest markers and tox envs:
+      - pytest -m core (core functionality only)
+      - pytest -m plugins (all plugins)
+      - pytest -m ansible / -m kubernetes / -m terraform
+      - tox -e test-core, test-plugins, test-integration
+    complexity: low
+    reasoning_tier: tier_1_low_cost
+    dependencies: [task_1_2]
+
+  # Phase 2: Documentation Audit
+  - id: task_2_1
+    phase: phase_2
+    title: "Audit PRD.yaml for error envelope integration"
+    description: |
+      Update PRD.yaml sections:
+      - Core features: add error envelope, multi-platform support
+      - Architecture: update with protocol-based adapter design
+      - Roadmap: mark completed Q2 initiatives, add Q3 plugin completion
+    complexity: medium
+    reasoning_tier: tier_1_low_cost
+    dependencies: []
+    
+  - id: task_2_2
+    phase: phase_2
+    title: "Update README.md with multi-platform capabilities"
+    description: |
+      Refresh README sections:
+      - Feature list: add Kubernetes, Terraform support (beta)
+      - Error handling: document unified error envelope
+      - Quick start: add multi-platform examples
+      - Testing: document new test organization
+    complexity: medium
+    reasoning_tier: tier_1_low_cost
+    dependencies: []
+    
+  - id: task_2_3
+    phase: phase_2
+    title: "Update architecture documentation"
+    description: |
+      Refresh docs/ARCHITECTURE.md or architecture.md:
+      - Plugin registry & DI container patterns
+      - Error adapter protocol & taxonomy
+      - Multi-platform provenance unification
+      - Test boundary architecture
+    complexity: medium
+    reasoning_tier: tier_1_low_cost
+    dependencies: []
+
+  - id: task_2_4
+    phase: phase_2
+    title: "Rebaseline future initiative inputs"
+    description: |
+      Review docs/plan/future-initiatives/ as a live backlog queue:
+      - Trim Q2 Initiative 2 to unresolved PolicyManager debt
+      - Promote or defer Q3 Initiative 4 based on current cache work
+      - Re-scout Q3 Initiative 6 before any implementation commitment
+      - Keep Phase 0 immutability research as reference until refreshed
+      Record the updated execution recommendation in FUTURE_INITIATIVES.md
+      and the plan's phase notes before proceeding deeper into Phase 3.
+    complexity: medium
+    reasoning_tier: tier_1_low_cost
+    dependencies: [task_2_1, task_2_2, task_2_3]
+
+  # Phase 3: Plugin Implementation Planning
+  - id: task_3_1
+    phase: phase_3
+    title: "Design K8s adapter implementation strategy"
+    description: |
+      Plan Kubernetes adapter:
+      - 10 error codes mapping (YAML parse, schema validation, resource errors)
+      - Provenance extraction (manifest_file, resource_kind, namespace, name)
+      - Secret sanitization patterns (kubeconfig, service account tokens)
+      - Fixture integration strategy (use complex/errors/security scenarios)
+      - Test coverage matrix (unit, integration, parity)
+    complexity: high
+    reasoning_tier: tier_2_balanced
+    dependencies: []
+    
+  - id: task_3_2
+    phase: phase_3
+    title: "Design Terraform adapter implementation strategy"
+    description: |
+      Plan Terraform adapter:
+      - 10 error codes mapping (HCL parse, type mismatch, reference errors)
+      - Provenance extraction (tf_file, resource_type, resource_name, module_path)
+      - Secret sanitization patterns (access keys, passwords in defaults)
+      - Fixture integration strategy (use complex/errors/security scenarios)
+      - Test coverage matrix (unit, integration, parity)
+    complexity: high
+    reasoning_tier: tier_2_balanced
+    dependencies: []
+    
+  - id: task_3_3
+    phase: phase_3
+    title: "Create DAG-based implementation sequencing"
+    description: |
+      Build dependency graph:
+      - Core adapter skeleton (error_codes, classify_*_error, build_*_error_detail)
+      - Provenance extraction logic
+      - Secret sanitization integration
+      - Fixture integration
+      - Unit tests
+      - Integration tests
+      Identify parallel work opportunities (K8s and Terraform independent)
+    complexity: medium
+    reasoning_tier: tier_2_balanced
+    dependencies: [task_3_1, task_3_2]
+
+  # Phase 4: K8s Implementation
+  - id: task_4_1
+    phase: phase_4
+    title: "Implement K8s error_codes.py"
+    description: |
+      Define 10 Kubernetes-specific error codes:
+      - INVALID_MANIFEST_SYNTAX
+      - MISSING_REQUIRED_FIELD
+      - INVALID_RESOURCE_DEFINITION
+      - UNSUPPORTED_API_VERSION
+      - SCHEMA_VALIDATION_ERROR
+      - RESOURCE_CONFLICT
+      - NAMESPACE_NOT_FOUND
+      - IMAGE_PULL_ERROR
+      - INVALID_SELECTOR
+      - RESOURCE_QUOTA_EXCEEDED
+    complexity: low
+    reasoning_tier: tier_1_low_cost
+    dependencies: []
+    
+  - id: task_4_2
+    phase: phase_4
+    title: "Implement K8s error adapter core logic"
+    description: |
+      Build kubernetes/error_adapter.py:
+      - classify_kubernetes_error() with exception mapping
+      - build_kubernetes_error_detail() with provenance extraction
+      - Secret sanitization (kubeconfig, tokens)
+      - Follow Ansible adapter pattern (176 lines reference)
+    complexity: high
+    reasoning_tier: tier_2_balanced
+    dependencies: [task_4_1]
+    
+  - id: task_4_3
+    phase: phase_4
+    title: "Integrate K8s fixtures with adapter"
+    description: |
+      Wire fixtures to adapter:
+      - Use kubernetes/with-errors/ for error detection tests
+      - Use kubernetes/security-issues/ for sanitization tests
+      - Use kubernetes/complex/ for provenance extraction tests
+    complexity: medium
+    reasoning_tier: tier_1_low_cost
+    dependencies: [task_4_2]
+    
+  - id: task_4_4
+    phase: phase_4
+    title: "Write K8s adapter unit tests"
+    description: |
+      Create tests/plugins/kubernetes/test_error_adapter.py:
+      - Error classification for 10 codes
+      - Provenance extraction accuracy
+      - Secret sanitization coverage
+      - Edge cases (missing fields, malformed YAML)
+      Target: 20+ test cases
+    complexity: medium
+    reasoning_tier: tier_1_low_cost
+    dependencies: [task_4_3]
+
+  # Phase 5: Terraform Implementation
+  - id: task_5_1
+    phase: phase_5
+    title: "Implement Terraform error_codes.py"
+    description: |
+      Define 10 Terraform-specific error codes:
+      - INVALID_HCL_SYNTAX
+      - TYPE_MISMATCH
+      - UNDEFINED_VARIABLE
+      - UNDEFINED_RESOURCE
+      - CIRCULAR_DEPENDENCY
+      - INVALID_PROVIDER_CONFIG
+      - MODULE_NOT_FOUND
+      - MISSING_REQUIRED_VAR
+      - INVALID_ATTRIBUTE_REFERENCE
+      - TERRAFORM_VERSION_CONSTRAINT
+    complexity: low
+    reasoning_tier: tier_1_low_cost
+    dependencies: []
+    
+  - id: task_5_2
+    phase: phase_5
+    title: "Implement Terraform error adapter core logic"
+    description: |
+      Build terraform/error_adapter.py:
+      - classify_terraform_error() with exception mapping
+      - build_terraform_error_detail() with provenance extraction
+      - Secret sanitization (access keys, passwords in vars)
+      - Follow Ansible adapter pattern (176 lines reference)
+    complexity: high
+    reasoning_tier: tier_2_balanced
+    dependencies: [task_5_1]
+    
+  - id: task_5_3
+    phase: phase_5
+    title: "Integrate Terraform fixtures with adapter"
+    description: |
+      Wire fixtures to adapter:
+      - Use terraform/with-errors/ for error detection tests
+      - Use terraform/security-issues/ for sanitization tests
+      - Use terraform/complex/ for provenance extraction tests
+    complexity: medium
+    reasoning_tier: tier_1_low_cost
+    dependencies: [task_5_2]
+    
+  - id: task_5_4
+    phase: phase_5
+    title: "Write Terraform adapter unit tests"
+    description: |
+      Create tests/plugins/terraform/test_error_adapter.py:
+      - Error classification for 10 codes
+      - Provenance extraction accuracy
+      - Secret sanitization coverage
+      - Edge cases (circular deps, missing vars)
+      Target: 20+ test cases
+    complexity: medium
+    reasoning_tier: tier_1_low_cost
+    dependencies: [task_5_3]
+
+  # Phase 6: Validation
+  - id: task_6_1
+    phase: phase_6
+    title: "Write cross-platform parity tests"
+    description: |
+      Create tests/integration/test_multi_platform_parity.py:
+      - Error envelope consistency (all platforms emit same structure)
+      - Provenance field parity (all platforms extract 7 core fields)
+      - Secret sanitization parity (all platforms scrub credentials)
+      - Error code category distribution (verify taxonomy mapping)
+    complexity: medium
+    reasoning_tier: tier_1_low_cost
+    dependencies: [task_4_4, task_5_4]
+    
+  - id: task_6_2
+    phase: phase_6
+    title: "Run full test suite validation"
+    description: |
+      Execute comprehensive test validation:
+      - pytest -q (all tests)
+      - pytest -m plugins (plugin-specific)
+      - pytest -m integration (cross-platform)
+      - tox -e typecheck (mypy validation)
+      - ruff check + black --check (lint)
+      Gate: All tests pass, zero regressions from baseline
+    complexity: low
+    reasoning_tier: tier_1_low_cost
+    dependencies: [task_6_1]
+    
+  - id: task_6_3
+    phase: phase_6
+    title: "Validate fixture coverage completeness"
+    description: |
+      Audit fixture → test coverage:
+      - All with-errors/ fixtures tested in error detection
+      - All security-issues/ fixtures tested in sanitization
+      - All complex/ fixtures tested in provenance extraction
+      - Document any gaps in coverage matrix
+    complexity: low
+    reasoning_tier: tier_1_low_cost
+    dependencies: [task_6_2]
+
+  # Phase 7: Commit & Finalization
+  - id: task_7_1
+    phase: phase_7
+    title: "Create conventional commit sequence"
+    description: |
+      Commit strategy:
+      1. chore(housekeeping): archive plan spillage and consolidate learning
+      2. refactor(tests): reorganize into core/plugins/integration packages
+      3. docs: update PRD, README, architecture for multi-platform
+      4. feat(kubernetes): implement K8s error adapter with 10 codes
+      5. feat(terraform): implement Terraform error adapter with 10 codes
+      6. test(integration): add cross-platform parity validation
+      7. docs: finalize changelog and closure artifacts
+    complexity: low
+    reasoning_tier: tier_0_free
+    dependencies: [task_6_3]
+    
+  - id: task_7_2
+    phase: phase_7
+    title: "Update CHANGELOG.md"
+    description: |
+      Document changes:
+      - [Added] Kubernetes plugin with error envelope integration
+      - [Added] Terraform plugin with error envelope integration
+      - [Added] Cross-platform error handling parity tests
+      - [Changed] Test organization into core/plugins/integration packages
+      - [Changed] Comprehensive fixture scaffold (21 files, 6 scenarios)
+      - [Fixed] Plan spillage cleanup and learning consolidation
+    complexity: low
+    reasoning_tier: tier_0_free
+    dependencies: [task_7_1]
+    
+  - id: task_7_3
+    phase: phase_7
+    title: "Create plan closure artifact"
+    description: |
+      Generate docs/plan/plugin-implementation-20260511/closure-report.yaml:
+      - Completion evidence (test results, commit refs)
+      - Validation gate summary (all phases green)
+      - Lessons learned (consolidate from execution)
+      - Next steps (Q3 production readiness checklist)
+    complexity: low
+    reasoning_tier: tier_0_free
+    dependencies: [task_7_2]
+
+execution_strategy:
+  tier_routing:
+    tier_0_free: [task_0_1, task_0_2, task_0_3, task_7_1, task_7_2, task_7_3]
+    tier_1_low_cost: [task_1_1, task_1_2, task_1_3, task_2_1, task_2_2, task_2_3, task_4_1, task_4_3, task_4_4, task_5_1, task_5_3, task_5_4, task_6_1, task_6_2, task_6_3]
+    tier_2_balanced: [task_3_1, task_3_2, task_3_3, task_4_2, task_5_2]
+  
+  parallel_opportunities:
+    - wave_0: [task_0_1]  # Serial dependency
+    - wave_1: [task_0_2, task_0_3]  # Can run after wave_0
+    - wave_2: [task_1_1, task_2_1, task_2_2, task_2_3]  # All independent
+    - wave_3: [task_1_2, task_3_1, task_3_2]  # After wave_2 completes
+    - wave_4: [task_1_3, task_3_3]  # After wave_3
+    - wave_5: [task_4_1, task_5_1]  # K8s and Terraform independent
+    - wave_6: [task_4_2, task_5_2]  # Implementation can be parallel
+    - wave_7: [task_4_3, task_5_3]  # Fixture integration parallel
+    - wave_8: [task_4_4, task_5_4]  # Test writing parallel
+    - wave_9: [task_6_1]  # Parity tests require both platforms done
+    - wave_10: [task_6_2, task_6_3]  # Validation serial
+    - wave_11: [task_7_1, task_7_2, task_7_3]  # Finalization serial
+  
+  estimated_duration:
+    sequential: "45-60 hours"
+    parallel_optimized: "20-28 hours"
+    critical_path: "Phase 3 → Phase 4 → Phase 5 → Phase 6"
+
+gates:
+  phase_0_gate:
+    criteria:
+      - docs/plan/ directory reduced by 40%+ file count
+      - Learning ledger consolidated from 5+ sources
+      - Archive/ contains all completed plan artifacts
+    validation: "find docs/plan -type f | wc -l  # Should be <80 files"
+    
+  phase_1_gate:
+    criteria:
+      - Test packages created: tests/{core,plugins,integration}/
+      - All existing tests moved to new structure
+      - pytest markers functional (-m core, -m plugins)
+    validation: "pytest --co -q -m core && pytest --co -q -m plugins"
+    
+  phase_2_gate:
+    criteria:
+      - PRD.yaml updated with multi-platform features
+      - README.md reflects current capabilities
+      - Architecture docs mention error envelope & plugin registry
+    validation: "grep -q 'Kubernetes' README.md && grep -q 'Terraform' README.md"
+    
+  phase_3_gate:
+    criteria:
+      - K8s adapter design documented with 10 error codes
+      - Terraform adapter design documented with 10 error codes
+      - DAG sequencing plan exists with parallel work identified
+    validation: "ls docs/plan/plugin-implementation-20260511/design-*.yaml"
+    
+  phase_4_gate:
+    criteria:
+      - kubernetes/error_adapter.py implemented (150+ lines)
+      - 10 error codes defined in kubernetes/error_codes.py
+      - 20+ unit tests passing in tests/plugins/kubernetes/
+    validation: "pytest -q tests/plugins/kubernetes/ -k adapter"
+    
+  phase_5_gate:
+    criteria:
+      - terraform/error_adapter.py implemented (150+ lines)
+      - 10 error codes defined in terraform/error_codes.py
+      - 20+ unit tests passing in tests/plugins/terraform/
+    validation: "pytest -q tests/plugins/terraform/ -k adapter"
+    
+  phase_6_gate:
+    criteria:
+      - Cross-platform parity tests passing (10+ assertions)
+      - Full test suite: 1450+ passed (baseline + 80+ new)
+      - Zero regressions from baseline (1369 passed maintained)
+      - Lint and typecheck clean
+    validation: "pytest -q && ruff check src && black --check src && tox -e typecheck"
+    
+  phase_7_gate:
+    criteria:
+      - 7 conventional commits pushed
+      - CHANGELOG.md updated with all changes
+      - Closure report generated with evidence links
+    validation: "git log --oneline -7 | grep -E 'feat|docs|test|chore|refactor'"
+
+risks_and_mitigations:
+  - risk: "Test reorganization breaks existing CI/CD workflows"
+    severity: medium
+    mitigation: "Update tox.ini and CI configs before moving tests"
+    
+  - risk: "K8s/Terraform adapters exceed complexity estimate"
+    severity: medium
+    mitigation: "Use Ansible adapter as strict template, limit feature scope to error codes only"
+    
+  - risk: "Fixture scenarios insufficient for error detection coverage"
+    severity: low
+    mitigation: "Add fixtures incrementally as gaps discovered during testing"
+    
+  - risk: "Documentation updates diverge from implementation"
+    severity: low
+    mitigation: "Update docs in parallel with implementation, not after"
+
+success_criteria:
+  - Multi-platform support: Kubernetes and Terraform adapters fully implemented
+  - Error parity: All 3 platforms emit consistent error envelope structure
+  - Test coverage: 1450+ tests passing (80+ new plugin tests)
+  - Test organization: Clear core vs plugin vs integration boundaries
+  - Documentation: PRD, README, architecture docs current and accurate
+  - Housekeeping: docs/plan/ spillage reduced by 40%+
+  - Code quality: Zero regressions, lint clean, type-safe
+  - Commit hygiene: Conventional commits with clear change narrative
+
+next_steps:
+  - User approval of plan structure and tier routing
+  - Test auto-tier-selection on Phase 0 (should stay tier_0)
+  - Test auto-tier-selection on Phase 3 (should escalate to tier_2)
+  - Execute Phase 0 as first wave to establish execution pattern
+  - Review Phase 0 closure before proceeding to Phase 1
+
+notes: |
+  This plan uses auto-tier-selection as an experiment. The foreman should:
+  1. Start with tier_0_free for simple tasks (housekeeping, docs)
+  2. Allow escalation to tier_1_low_cost for medium complexity (test org, doc audit)
+  3. Allow escalation to tier_2_balanced for high reasoning (design, implementation)
+  
+  The plan structure follows Mutl3y workflow patterns:
+  - Explicit phase gates with validation criteria
+  - DAG-based task sequencing with parallel opportunities
+  - Risk mitigation strategies for each phase
+  - Success criteria tied to measurable outcomes

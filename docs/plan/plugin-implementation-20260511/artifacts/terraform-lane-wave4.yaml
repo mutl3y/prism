@@ -1,0 +1,43 @@
+status: completed
+tier_selected: BALANCED (1x)
+tier_reason: Wave 4 requires architecture-sensitive metadata extraction and contract-safe enrichment.
+files_changed:
+  - src/prism/scanner_plugins/terraform/__init__.py
+  - src/prism/scanner_plugins/terraform/feature_detection.py
+  - src/prism/scanner_plugins/terraform/variable_discovery.py
+  - src/prism/scanner_plugins/terraform/execution_bundle.py
+  - src/prism/tests/integration/test_terraform_feature_detection.py
+  - src/prism/tests/integration/test_terraform_variable_discovery.py
+  - src/prism/tests/integration/test_terraform_execution_metadata.py
+tests:
+  - command: >-
+      pytest src/prism/tests/integration/test_terraform_feature_detection.py
+      src/prism/tests/integration/test_terraform_variable_discovery.py
+      src/prism/tests/integration/test_terraform_execution_metadata.py
+      src/prism/tests/integration/test_terraform_renderer_metadata_output.py
+      src/prism/tests/integration/test_terraform_prepared_policy_contract.py
+      src/prism/tests/integration/test_platform_routing_fail_closed.py -k terraform
+    result: pass
+    passed: 37
+    failed: 0
+    deselected: 8
+  - command: >-
+      python3 -m ruff check
+      src/prism/scanner_plugins/terraform/__init__.py
+      src/prism/scanner_plugins/terraform/feature_detection.py
+      src/prism/scanner_plugins/terraform/variable_discovery.py
+      src/prism/scanner_plugins/terraform/execution_bundle.py
+      src/prism/tests/integration/test_terraform_feature_detection.py
+      src/prism/tests/integration/test_terraform_variable_discovery.py
+      src/prism/tests/integration/test_terraform_execution_metadata.py
+    result: pass
+capability_limits:
+  - Metadata extraction is deterministic and root-level only; it does not evaluate Terraform expressions or build a full HCL parser.
+  - Feature detection reports resource, data-source, provider, and module-call hints only; execution remains fail-closed for unsupported runtime paths.
+  - Variable discovery is limited to root-level variable blocks in top-level .tf files and does not resolve computed defaults or module input propagation.
+  - Runtime routing remains platform-not-supported for Terraform execution, preserving fail-closed behavior until later slices implement executable capabilities.
+next_slice:
+  objective: Extend deterministic metadata to nested module directories and backend/workspace hints without weakening fail-closed execution gates.
+  candidate_tests:
+    - src/prism/tests/integration/test_terraform_renderer_metadata_output.py
+    - src/prism/tests/integration/test_platform_routing_fail_closed.py

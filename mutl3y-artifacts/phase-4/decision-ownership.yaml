@@ -1,0 +1,185 @@
+---
+fix_group: ownership_layer_violations
+findings_count: 8
+investigation_date: "2026-05-07"
+investigation_lens: "Layer boundary analysis: contract/facade vs. implementation; layer severity assessment"
+
+decisions:
+  - finding_id: Scout-Ownership-01
+    path: "src/prism/api.py"
+    line: 12
+    symbol: "from prism.api_layer import collection as api_collection"
+    import_category: "API_LAYER_FACADE"
+    decision: "KEEP_AS_IS"
+    reason: |
+      api_layer.collection is the canonical facade module for collection-scan operations.
+      This import is correct and necessary — api.py should import from api_layer facades.
+      The import is already at the correct abstraction level (one level below api.py).
+    layer_severity: "UTILITY_SEAM"
+    implementation_effort: "NONE"
+    implementation_readiness: "READY"
+
+  - finding_id: Scout-Ownership-02
+    path: "src/prism/api.py"
+    line: 13
+    symbol: "from prism.api_layer import non_collection as api_non_collection"
+    import_category: "API_LAYER_FACADE"
+    decision: "KEEP_AS_IS"
+    reason: |
+      api_layer.non_collection is the canonical facade module for non-collection scan operations.
+      This import is correct and necessary — api.py should import from api_layer facades.
+      The import is already at the correct abstraction level.
+    layer_severity: "UTILITY_SEAM"
+    implementation_effort: "NONE"
+    implementation_readiness: "READY"
+
+  - finding_id: Scout-Ownership-03
+    path: "src/prism/api.py"
+    line: 14
+    symbol: "from prism.api_layer import plugin_facade"
+    import_category: "API_LAYER_FACADE"
+    decision: "KEEP_AS_IS"
+    reason: |
+      api_layer.plugin_facade is the canonical facade for plugin/audit operations.
+      This import is correct and necessary — api.py uses plugin_facade to expose
+      resolve_comment_driven_documentation_plugin(), load_audit_rules_from_file(),
+      and run_audit(). Already at correct abstraction level.
+    layer_severity: "UTILITY_SEAM"
+    implementation_effort: "NONE"
+    implementation_readiness: "READY"
+
+  - finding_id: Scout-Ownership-04
+    path: "src/prism/api.py"
+    line: 15
+    symbol: "from prism.errors import ERROR_CATEGORY_VALIDATION"
+    import_category: "SHARED_CONSTANTS"
+    decision: "KEEP_AS_IS"
+    reason: |
+      ERROR_CATEGORY_VALIDATION is a shared constant used for error categorization
+      across api.py, cli.py, and internal modules. Constants layer is below contracts
+      and above implementation; direct import from errors module is acceptable.
+      Alternative: add to shared errors_constants module or re-export through common facade.
+    layer_severity: "OPTIONAL"
+    implementation_effort: "NONE"
+    implementation_readiness: "READY"
+
+  - finding_id: Scout-Ownership-05
+    path: "src/prism/api.py"
+    line: 18
+    symbol: "from prism.path_safety import assert_safe_role_path"
+    import_category: "UTILITY_FUNCTION"
+    decision: "MOVE_TO_SEAM"
+    reason: |
+      assert_safe_role_path is a utility function used within api.py's validation logic.
+      While not critical, moving to api_layer/common.py provides single import point
+      and reduces direct dependency on utility modules from top-level API. Low effort,
+      improves consistency with facade pattern. Alternative: keep as-is (optional improvement).
+    layer_severity: "OPTIONAL"
+    implementation_effort: "LOW"
+    implementation_readiness: "READY"
+    implementation_notes: |
+      Option 1: Move import to api_layer/common.py, expose as re-export
+      Option 2: Keep as-is; this is a shared utility that api.py legitimately depends on
+
+  - finding_id: Scout-Ownership-06
+    path: "src/prism/api.py"
+    line: 19
+    symbol: "from prism.scanner_config.audit_rules import AuditReport, AuditRule"
+    import_category: "TYPE_CONTRACTS"
+    decision: "KEEP_AS_IS_OR_MOVE_OPTIONAL"
+    reason: |
+      AuditReport and AuditRule are type contracts (data contracts, not implementation).
+      These appear in public API function signatures (run_audit, load_audit_rules_from_file).
+      Current import is acceptable because scanner_data is the contracts layer.
+      However, for complete facade consistency, these types could be re-exported through
+      api_layer/plugin_facade.py, which already handles audit-related operations.
+      Trade-off: KEEP_AS_IS for simplicity, or ADD_REEXPORT for facade consistency.
+    layer_severity: "OPTIONAL"
+    implementation_effort: "LOW"
+    implementation_readiness: "READY"
+    implementation_notes: |
+      The types are already in plugin_facade (TYPE_CHECKING imports).
+      Decision: KEEP_AS_IS unless facade completeness becomes requirement.
+
+  - finding_id: Scout-Ownership-07
+    path: "src/prism/api.py"
+    line: 20
+    symbol: "from prism.scanner_io.collection_plugins import scan_collection_plugins"
+    import_category: "IMPLEMENTATION_FUNCTION"
+    decision: "MOVE_TO_SEAM"
+    reason: |
+      scan_collection_plugins is an implementation function from scanner_io layer.
+      api.py calls this through a typed wrapper _scan_collection_plugins_typed().
+      Moving import to api_layer/collection.py (where collection facade lives) improves
+      layer separation and signals that scanner_io is internal implementation detail.
+      CRITICAL: This is a real layer violation — implementation function should not
+      be directly imported by public API.
+    layer_severity: "CRITICAL_SEAM"
+    implementation_effort: "MEDIUM"
+    implementation_readiness: "READY"
+    implementation_notes: |
+      Move function reference to api_layer/collection.py and expose through facade.
+      Update api.py to call facade function instead. Verify call chain and types.
+
+  - finding_id: Scout-Ownership-08
+    path: "src/prism/api.py"
+    line: 21-26
+    symbol: "from prism.scanner_io.collection_payload import (build_collection_identity, build_collection_failure_record, build_collection_role_entry, build_collection_scan_result, render_collection_role_readme)"
+    import_category: "IMPLEMENTATION_FUNCTIONS"
+    decision: "MOVE_TO_SEAM"
+    reason: |
+      These are implementation functions from scanner_io.collection_payload layer.
+      api.py calls them through typed wrappers (_build_collection_*_typed()).
+      Moving imports to api_layer/collection.py improves layer separation and prevents
+      direct scanner_io access from public API. CRITICAL: These are real layer violations —
+      implementation functions should not be directly imported by public API.
+      Collection facade already exists; just needs to re-export these utilities.
+    layer_severity: "CRITICAL_SEAM"
+    implementation_effort: "MEDIUM"
+    implementation_readiness: "READY"
+    implementation_notes: |
+      All 5 functions should move to api_layer/collection.py as re-exports or wrappers.
+      Update api.py to call facade functions instead. Verify all call sites and type safety.
+      Related: aggregate_collection_dependencies (line 29) also needs similar treatment.
+
+implementation_readiness: "READY"
+summary: |
+  Layer boundary analysis reveals 8 findings across three categories:
+
+  1. FACADE IMPORTS (01-03): Already correct — api.py properly imports from api_layer.
+     Decision: KEEP_AS_IS. No implementation needed.
+
+  2. SHARED/OPTIONAL (04-06): Legitimate cross-layer imports for constants and contracts.
+     Decision: KEEP_AS_IS (required) or MOVE_OPTIONAL (05, 06 for consistency).
+     Effort: Low if pursued; not blocking.
+
+  3. CRITICAL VIOLATIONS (07-08): Implementation functions directly imported from
+     scanner_io layer (two levels down). These break layer abstraction.
+     Decision: MOVE_TO_SEAM. Move both to api_layer/collection.py.
+     Effort: Medium. Straightforward refactor—expose functions through facade.
+
+  Blocking findings: 07, 08 (implementation functions in API layer)
+  Optional findings: 05 (utility function), 06 (contract type)
+  Non-issues: 01-04 (already correct or legitimate)
+
+  Recommended wave sequencing:
+    Wave 1: Move 07-08 to api_layer/collection.py (critical path)
+    Wave 2: Optional consistency improvements (05, 06) if facade standardization pursued
+
+risk_assessment: |
+  CRITICAL RISKS:
+  - Findings 07-08: Direct scanner_io imports expose implementation to public API.
+    If scanner_io refactors, api.py breaks. Move to facade isolates from changes.
+
+  OPEN EDGES:
+  - cli.py may have similar violations (not in this scout run).
+    Recommend parallel audit of cli.py after Phase 4 completion.
+  - Related imports in api.py lines 27-33 also violate layer pattern:
+    write_collection_runbook_artifacts, render_runbook, render_runbook_csv,
+    aggregate_collection_dependencies. These should be included in Wave 1.
+
+cli_parallel_audit_needed: true
+cli_audit_note: |
+  cli.py imports directly from scanner_config.audit_rules (line 15) and
+  scanner_io (line 17), similar to findings 06-08 in api.py.
+  Recommend including cli.py in same Wave 1 refactor for consistency.

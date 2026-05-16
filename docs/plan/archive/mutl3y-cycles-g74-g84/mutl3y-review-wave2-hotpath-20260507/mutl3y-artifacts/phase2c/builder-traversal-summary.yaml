@@ -1,0 +1,6 @@
+builder_name: Builder-Hotpath-Traversal
+owned_files:
+  - src/prism/scanner_extract/task_file_traversal.py
+artifact_path: docs/plan/mutl3y-review-wave2-hotpath-20260507/mutl3y-artifacts/phase2c/builder-traversal-summary.yaml
+changed_functions_count: 10
+status: PASS

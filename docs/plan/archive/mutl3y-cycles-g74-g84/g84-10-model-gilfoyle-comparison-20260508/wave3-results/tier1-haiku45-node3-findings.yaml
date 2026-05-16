@@ -1,0 +1,214 @@
+model_used: Claude Haiku 4.5
+
+findings:
+  - id: GILF-NODE3-01
+    severity: CRITICAL
+    category: cache-safety
+    location: "scan_cache.py:136-150"
+    issue: "Identity-based cache key uses Python `id()` which is non-deterministic across runs and GC cycles"
+    root_cause: |
+      The `build_runtime_wiring_identity` function constructs cache keys by concatenating object identity via `id(value)`, 
+      which is memory address-based. After object GC/reload, a new instance gets the same memory address, causing 
+      stale cache collisions. This is amateur hour caching.
+    impact: |
+      - Cache hits return stale data from previous unrelated scans
+      - Impossible to debug (collisions happen silently)
+      - Multiprocessing scenarios = guaranteed corruption (id() differs per process)
+    confidence: 98
+    fix_suggestion: |
+      Use content-addressable keys instead: hash(str(type) + callable_fqn + state_fingerprint).
+      Never use id(). If you need object identity, use a WeakValueDictionary or explicit token-based versioning.
+
+  - id: GILF-NODE3-02
+    severity: HIGH
+    category: cache-safety
+    location: "scan_cache.py:17-32"
+    issue: "Cache entries can be poisoned by mutable object aliasing in nested structures"
+    root_cause: |
+      `_clone_container_structure` recursively clones containers but leaves leaf objects as-is. 
+      If a cached dict contains custom mutable objects (e.g., {'config': ConfigObject()}), 
+      modifications to ConfigObject affect both the cache and the caller's reference.
+    impact: |
+      - Cache pollution: one caller's mutation damages other callers' data
+      - Silent data corruption (no error raised, cache silently degrades)
+      - Impossible to trace (mutations happen in user code)
+    confidence: 95
+    fix_suggestion: |
+      For leaf objects, check if they're mutable (not str/int/bool) and deepcopy them.
+      Or document "only immutable leaf values supported" and fail fast on anything else.
+
+  - id: GILF-NODE3-03
+    severity: HIGH
+    category: performance
+    location: "scan_cache.py:79-87"
+    issue: "Redundant recursive cloning on every cache.get() and cache.set() degrades performance O(n per access)"
+    root_cause: |
+      `_clone_container_structure` is called on BOTH set() and get(). For a dict with 1000 nested keys,
+      you're recursing 2000+ times per access. This turns cache hits into performance *penalties*.
+    impact: |
+      - Cache hits are slower than cache misses (defeats the purpose)
+      - 10-50ms+ added latency per scan for medium-sized caches
+      - Memory allocation churn from constant cloning
+    confidence: 99
+    fix_suggestion: |
+      Clone only on set() (defensive write). On get(), return the reference directly or 
+      use an immutable structure (frozenset/namedtuple) if mutation protection is required.
+
+  - id: GILF-NODE3-04
+    severity: CRITICAL
+    category: event-reliability
+    location: "events.py:143-157"
+    issue: "Exception logged but context lost; logging failure silently orphans the original exception"
+    root_cause: |
+      When a listener raises, the code catches it, records it, and logs it. But if the logger itself fails 
+      (e.g., handler misconfigured, file permission denied), the exception is lost and the caller never 
+      knows the listener failed. This violates the contract: 'telemetry must not change production semantics'.
+    impact: |
+      - Silent listener failures go unnoticed (no exception propagates)
+      - Distributed tracing breaks (telemetry events never reach collectors)
+      - Debugging becomes impossible (no error signals to alert ops)
+    confidence: 96
+    fix_suggestion: |
+      Wrap logger in try/except. If logging fails, emit to stderr or raise a RuntimeError 
+      with chained exception: `raise RuntimeError(...) from exc`.
+
+  - id: GILF-NODE3-05
+    severity: HIGH
+    category: event-reliability
+    location: "events.py:128-135"
+    issue: "Error event list grows unbounded; no eviction policy or memory limit"
+    root_cause: |
+      `_error_events` accumulates errors forever. If a listener repeatedly fails (even transiently),
+      the list grows without bound. No API to clear it except `clear()` which wipes stats too.
+      Long-running scanners will accumulate MB of error objects.
+    impact: |
+      - Memory leak in production: OOM after 10k-100k errors
+      - Error observability becomes noisy (can't find signal in growing noise)
+      - No way to access errors without resetting counters
+    confidence: 99
+    fix_suggestion: |
+      Implement circular buffer (max 1000 errors). Add `purge_old_errors(max_age_seconds)`.
+      Document the eviction policy so operators know what they're getting.
+
+  - id: GILF-NODE3-06
+    severity: HIGH
+    category: event-reliability
+    location: "events.py:142-157"
+    issue: "Strict mode re-raises inside listener loop, skipping remaining listeners"
+    root_cause: |
+      When `strict=True` and a listener fails, the code raises immediately inside the loop.
+      Listeners registered after the failing listener never run. This violates all-or-nothing semantics.
+    impact: |
+      - Observable event order becomes unpredictable (depends on listener registration order)
+      - Silent event loss: downstream systems miss events that "failed early"
+      - Impossible to test deterministically
+    confidence: 97
+    fix_suggestion: |
+      Collect all listener exceptions, run all listeners, then raise an AggregateError.
+      Or document that strict=True guarantees fail-fast (and accept the loss of downstream listeners).
+
+  - id: GILF-NODE3-07
+    severity: MEDIUM
+    category: copy-semantics
+    location: "scan_request.py:20-21"
+    issue: "Policy context copy via TypedDict unpacking is shallow; nested mutable structures alias"
+    root_cause: |
+      `_copy_scan_policy_context` does `ScanPolicyContext(**policy_context)` which creates a new dict,
+      but if policy_context contains nested dicts or lists, those objects are referenced, not copied.
+      Caller can mutate the nested structure and corrupt the original.
+    impact: |
+      - Aliasing bugs: mutations leak between copies
+      - Silent data corruption (no error, just wrong results downstream)
+      - Impossible to trace (mutations happen in user code, policy_context is shared)
+    confidence: 94
+    fix_suggestion: |
+      Use `copy.deepcopy(policy_context)` or define a schema-aware copier that knows 
+      which fields need deep copy. Document mutation safety guarantees.
+
+  - id: GILF-NODE3-08
+    severity: MEDIUM
+    category: copy-semantics
+    location: "scan_request.py:71"
+    issue: "Shallow copy of prepared_policy_bundle; nested structures still aliased"
+    root_cause: |
+      `copy.copy(prepared_policy_bundle)` is a shallow copy. If the bundle contains nested dicts/lists,
+      modifications to those nested objects will affect the original bundle and other references to it.
+    impact: |
+      - Policy mutations leak across scans
+      - Impossible to implement transaction semantics (rollback fails due to aliasing)
+      - Silent data corruption in multi-threaded scenarios
+    confidence: 92
+    fix_suggestion: |
+      Use `copy.deepcopy()` or implement a protocol-aware deep copy that understands PreparedPolicyBundle schema.
+
+  - id: GILF-NODE3-09
+    severity: HIGH
+    category: validation
+    location: "scan_request.py:51-70"
+    issue: "No validation of list/None fields; invalid values pass through to downstream validators"
+    root_cause: |
+      Fields like `exclude_path_patterns`, `vars_seed_paths` are accepted as-is. They could be:
+      - Empty lists (undetected until downstream)
+      - Invalid paths (no filesystem validation)
+      - Wrong types (e.g., str instead of list)
+      The validation call at the end is not shown, so we don't know if it's robust enough.
+    impact: |
+      - Invalid config reaches scanner_core; fails late with poor error context
+      - Debug latency: operator doesn't know which field is invalid until deep in the stack
+      - Silent failures: if validation is lenient, bad config corrupts results silently
+    confidence: 88
+    fix_suggestion: |
+      Validate each list field immediately. Check that paths are non-empty strings.
+      Fail fast with clear error: `ValueError(f"exclude_path_patterns must be list of non-empty strings, got {exclude_path_patterns!r}")`.
+
+  - id: GILF-NODE3-10
+    severity: MEDIUM
+    category: validation
+    location: "scan_request.py:48-50"
+    issue: "role_path validation insufficient; doesn't check if path exists or is readable"
+    root_cause: |
+      `if not isinstance(role_path, str) or not role_path.strip()` only checks that it's a non-empty string.
+      Doesn't verify the path exists, is a directory, or is readable. Invalid paths silently propagate.
+    impact: |
+      - Scan fails deep in scanner_core with cryptic error
+      - Debugging is hard: operator doesn't know path is invalid until FileNotFoundError in parser
+      - Silent config errors: typos in role_path are silently accepted here, fail later
+    confidence: 90
+    fix_suggestion: |
+      Add filesystem validation: `if not os.path.isdir(role_path): raise ValueError(f"role_path not a directory: {role_path}")`.
+
+  - id: GILF-NODE3-11
+    severity: MEDIUM
+    category: error-handling
+    location: "scan_cache.py:140-150"
+    issue: "Cache key construction has no error handling; invalid callables silently fall through"
+    root_cause: |
+      `_callable_identity` raises `PrismRuntimeError` if value is not callable, but the caller 
+      (`build_runtime_wiring_identity`) doesn't validate that its inputs are actually callable.
+      If a non-callable sneaks through, the error message is generic and unhelpful.
+    impact: |
+      - Cache key collisions from invalid inputs (silently accepted)
+      - Hard to debug: error happens deep in cache internals, not at the call site
+      - No context about which field is invalid
+    confidence: 85
+    fix_suggestion: |
+      Validate inputs in `build_runtime_wiring_identity` before calling `_callable_identity`.
+      Provide context in error: which parameter is invalid, what was passed, what's expected.
+
+  - id: GILF-NODE3-12
+    severity: MEDIUM
+    category: performance
+    location: "events.py:136-140"
+    issue: "Listener snapshot under lock blocks concurrent emit() calls; no batching or async support"
+    root_cause: |
+      The entire listener loop is serialized by a single `_listeners_lock`. If a listener is slow
+      (e.g., sends to remote collector), all other emit() calls are blocked. No async/parallel emission.
+    impact: |
+      - Event bus becomes a bottleneck: one slow listener blocks all concurrent scans
+      - Tail latency can spike 100ms+ if any listener is I/O-bound
+      - No observability: no way to detect that the bus is slow
+    confidence: 87
+    fix_suggestion: |
+      Consider thread pool for listener dispatch (async emission).
+      Or document: "event bus is synchronous; keep listeners fast (<1ms)".
+      Add timing instrumentation to detect slow listeners.

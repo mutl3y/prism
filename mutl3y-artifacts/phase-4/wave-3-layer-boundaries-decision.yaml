@@ -1,0 +1,146 @@
+---
+phase: 4
+wave: 3
+plan_id: mutl3y-cluster-autopilot-20260507
+focus: layer_boundaries
+created: '2026-05-08'
+decision_maker: gem-planner
+status: pending_execution
+
+# FINDINGS CONTEXT
+findings_total: 8
+findings_closed_wave1: 2
+  - FIND-G79-005 (upward dependency removed)
+  - FIND-G79-007 (return type annotations fixed)
+findings_remaining: 6
+  open:
+    - FIND-G79-001 (CRITICAL): DI type erasure - MEDIUM effort
+    - FIND-G79-002 (CRITICAL): API facade bypass - MEDIUM effort
+    - FIND-G79-003 (CRITICAL): Plugin registry contract - MEDIUM effort
+    - FIND-G79-004 (HIGH): Reporting layer imports - MEDIUM effort
+    - FIND-G79-006 (HIGH): Plugin metadata typing - MEDIUM effort
+    - FIND-G79-008 (MEDIUM): Plugin re-exports - MEDIUM effort
+
+# STRATEGIC DECISION
+decision: staged
+reasoning: |
+  6 remaining findings span 3 architectural domains with clear dependency chains:
+  (1) Architecture Contracts (CRITICAL foundation)
+  (2) Layer Enforcement (builds on contracts)
+  (3) Plugin Cleanup (depends on contracts + enforcement)
+  
+  Parallel batching unsafe: G79-002 (facade) informs G79-004 (reporting),
+  G79-003 (registry) gates G79-008 (re-exports). Staged sub-waves reduce
+  merge conflicts and enable validation between waves.
+
+# SUB-WAVE STRATEGY
+sub_waves:
+  - wave_id: 3.1
+    name: Architecture Contracts Foundation
+    findings: [FIND-G79-001, FIND-G79-003]
+    rationale: |
+      Establish typed protocols for DI container + plugin registry.
+      These are foundational; all other fixes depend on them.
+      Low inter-dependency risk; can validate independently.
+    estimated_effort: MEDIUM
+    estimated_files: 4
+    estimated_lines: 120
+    tasks:
+      - Add DIContainer Protocol to scanner_data/contracts_request.py
+      - Define PluginRegistry Protocol with validation contract
+    verification:
+      - mypy clean on modified files
+      - Existing code type-checks against new protocols
+      - Plugin registration tests pass
+    risk: LOW
+
+  - wave_id: 3.2
+    name: Layer Enforcement
+    findings: [FIND-G79-002, FIND-G79-004]
+    rationale: |
+      Consolidate facade imports + fix reporting layer cross-layer dependency.
+      Depends on Wave 3.1 (uses new protocols).
+      Enables validation of layer boundaries before plugin cleanup.
+    estimated_effort: MEDIUM
+    estimated_files: 6
+    estimated_lines: 140
+    tasks:
+      - Migrate api.py + cli.py to facade-only imports
+      - Add resolver seam for reporting→plugins dependency
+      - Update scanner_reporting/__init__.py
+    verification:
+      - No internal-layer imports outside facades
+      - Import graph validation clean
+      - All reporting tests pass
+    risk: MEDIUM (affects public API surface)
+
+  - wave_id: 3.3
+    name: Plugin Typing & Cleanup
+    findings: [FIND-G79-006, FIND-G79-008]
+    rationale: |
+      Type plugin metadata + retire Ansible-specific re-exports.
+      Depends on Wave 3.1 (contracts) + 3.2 (enforcement).
+      Completes layer work; unblocks K8s/Terraform expansion.
+    estimated_effort: MEDIUM
+    estimated_files: 5
+    estimated_lines: 100
+    tasks:
+      - Define TypedDict for plugin metadata
+      - Retire scanner_plugins/ansible/extract_utils.py re-exports
+      - Extract to plugin interface protocol
+    verification:
+      - Plugin contract validation passes
+      - Ansible plugin tests still pass
+      - No external Ansible re-export consumers (audit first)
+    risk: MEDIUM (backward-compat risk if external consumers exist)
+
+# PRE-IMPLEMENTATION CHECKS
+prechecks:
+  - name: Wave 1 validation pass
+    command: pytest src/prism/tests -k "test_di_container OR test_return_type_annotations" -v
+    expected: All Wave 1 tests passing
+    blocker: true
+    
+  - name: Import hygiene baseline
+    command: |
+      grep -r "from prism\." src/prism/api.py src/prism/cli.py | \
+      grep -v "api_layer\|errors\|scanner_data" | wc -l
+    expected: Identify current baseline of non-facade imports
+    blocker: false
+    
+  - name: Plugin consumer audit
+    command: |
+      grep -r "from.*ansible.*extract_utils" . --include="*.py" | \
+      grep -v "src/prism/scanner_plugins/ansible" | wc -l
+    expected: Zero external consumers; if >0, plan adapter strategy
+    blocker: true
+    
+  - name: Reporting layer imports audit
+    command: |
+      grep -r "from prism\.scanner_plugins" src/prism/scanner_reporting/ | wc -l
+    expected: Current count of direct reporting→plugins imports
+    blocker: false
+
+# IMPLEMENTATION NOTES
+notes: |
+  - Wave 3.1 is blocker for 3.2 and 3.3; cannot parallelize.
+  - Wave 3.2 and 3.3 can start once 3.1 is complete (Wave 3.2 has higher merge risk).
+  - Target per-wave validation: pytest + mypy + ruff/black
+  - Estimated total effort: 3 × MEDIUM = 6 person-days (serial schedule)
+  
+# READINESS ASSESSMENT
+next_phase_readiness: true
+blockers: []
+dependencies:
+  - all_prechecks_passing: required
+  - wave_1_tests_green: required
+  - plugin_consumer_audit_complete: required
+rationale_readiness: |
+  All blockers are validation-only; no architectural redesign needed.
+  Staged approach allows safe progression. Ready to move to Phase 5
+  (Implementation) once prechecks pass and Wave 3.1 completes.
+
+effort_estimate: MEDIUM
+risk_level: MEDIUM
+confidence: 0.85
+next_action: Dispatch gem-implementer for Wave 3.1 (architecture contracts)

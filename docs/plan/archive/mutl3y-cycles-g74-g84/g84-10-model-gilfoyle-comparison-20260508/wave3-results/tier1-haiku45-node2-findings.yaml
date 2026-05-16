@@ -1,0 +1,91 @@
+model_used: Claude Haiku 4.5
+findings:
+  - id: GILF-NODE2-01
+    severity: HIGH
+    category: concurrency
+    location: "variable_discovery.py:54-92"
+    issue: "Double-checked locking creates unavoidable TOCTOU race in plugin resolution"
+    root_cause: "Lines 87-91 check _plugin outside lock after setting _plugin_resolved=True inside lock. Between lock release (line 83) and final check (line 87), concurrent threads can observe inconsistent state. DCL pattern here is 'correct' but remains inherently fragile—you're betting on lock release/re-acquire being instantaneous."
+    impact: "If factory() returns None, first thread raises error at line 88. But second thread entering at line 54 races to check _plugin BEFORE first thread completes—potential for both threads raising instead of one cleanly retrying. This is benign in practice but violates concurrent invariants."
+    confidence: 75
+    fix_suggestion: "Move lines 87-91 inside the lock context (before lock.release). Or eliminate DCL entirely and accept lock contention—premature optimization here isn't worth the cognitive overhead."
+
+  - id: GILF-NODE2-02
+    severity: HIGH
+    category: error-handling
+    location: "variable_discovery.py:54-92 vs feature_detector.py:59-80"
+    issue: "Inconsistent plugin resolution contracts across two identical modules"
+    root_cause: "variable_discovery._resolve_plugin() raises ValueError if plugin is None (lines 54-61, 87-91). feature_detector._resolve_plugin() returns None (line 60), deferring error to caller. This is API inconsistency on the same DI operation."
+    impact: "Callers of variable_discovery experience fail-fast errors in _resolve_plugin(). Callers of feature_detector must check for None after calling _resolve_plugin(). Doubles error-handling burden for downstream code. If a third module copies one of these patterns, it will be wrong for the other module."
+    confidence: 95
+    fix_suggestion: "Pick ONE error model. Recommend: variable_discovery approach (fail-closed in accessor). Add type-safety: VariableDiscovery._resolve_plugin() -> VariableDiscoveryPlugin (non-optional), FeatureDetector._resolve_plugin() -> FeatureDetectionPlugin (non-optional). Move None checks to factory contracts, not here."
+
+  - id: GILF-NODE2-03
+    severity: CRITICAL
+    category: policy
+    location: "task_extract_adapters.py:136-151 (marker resolution) vs scan_request.py:121 (where marker-prefix is placed)"
+    issue: "Marker-prefix ownership violates MP1 closure contract—resolved from nested bundle instead of top-level scan_options"
+    root_cause: "Lines 142-147 resolve marker_prefix by: scan_options → prepared_policy_bundle → comment_doc_marker_prefix. But per MP1 closure notes, marker-prefix should be 'ingress-owned' at scan_options.comment_doc_marker_prefix (top-level key), not nested. scan_request.py (line 121) projects prepared_policy_bundle into options but doesn't extract/hoist marker_prefix to top level. This is residual ownership leak."
+    impact: "Every call to extract_task_annotations_for_file() or collect_task_handler_catalog() re-dives into prepared_policy_bundle to find marker_prefix. If future refactoring flattens or changes bundle structure, this breaks silently. Violates the explicit boundary closure that said marker-prefix ownership moved to ingress (scanner_request)."
+    confidence: 88
+    fix_suggestion: "In scan_request.py, after line 121, add: options['comment_doc_marker_prefix'] = prepared_policy_bundle.get('comment_doc_marker_prefix', 'prism'). Then in task_extract_adapters._resolve_marker_prefix(), get it from top-level: bundle_prefix = scan_options.get('comment_doc_marker_prefix', 'prism'). This restores MP1 contract."
+
+  - id: GILF-NODE2-04
+    severity: MEDIUM
+    category: performance
+    location: "variable_discovery.py:100-115 (discover_static), 116-127 (discover_referenced), 149-186 (discover)"
+    issue: "Three redundant clone operations in discover() when one would suffice"
+    root_cause: "discover() calls discover_static() (line 150), discover_referenced() (line 152), resolve_unresolved() (line 153-155). Each method calls _snapshot_options() (lines 101, 117, and implicitly in resolve_unresolved). So discover() triggers 3× clone_scan_options() even though it's a single logical operation. Each clone is passed to different plugin methods, but there's no need to clone 3 times if plugins are stateless."
+    impact: "For large scan_options dicts (e.g., with big prepared_policy_bundle), this is 3x overhead. discover() is likely called once per role, not hot-path, but it's wasteful on principle. If scan_options grows (new policy keys, nested dicts), this compounds."
+    confidence: 82
+    fix_suggestion: "Option A: Snapshot once in discover() at line 150, pass it to discover_static(), discover_referenced(), and resolve_unresolved(). Requires adding options param to all three. Option B: Cache most-recent snapshot as an instance variable, reuse it within a single discover() call. Option C: Accept the cost if scan_options is small (<1KB)."
+
+  - id: GILF-NODE2-05
+    severity: MEDIUM
+    category: performance
+    location: "variable_discovery.py:162 (inside discover())"
+    issue: "O(n) builder allocations in loop instead of O(1)"
+    root_cause: "Line 162: builder = self._di.factory_variable_row_builder() is INSIDE the for loop. If there are N referenced variables, we call factory N times. Each call allocates/initializes a builder. Builder should be created once, then reset or reused across iterations (if API supports it), or created once and cloned if mutable."
+    impact: "If a role has 50+ referenced variables, this is 50 factory calls instead of 1. If factory does any setup work (dependency lookups, protocol checks), this is wasteful. This is low-severity only because variable discovery is likely O(hundreds of vars), not O(millions)."
+    confidence: 90
+    fix_suggestion: "Move line 162 BEFORE line 161: builder = self._di.factory_variable_row_builder() above the for loop. If builder is stateful and requires reset(), call builder.reset() at top of loop. If builder is single-use, check API. Worst case: document why it's in the loop."
+
+  - id: GILF-NODE2-06
+    severity: CRITICAL
+    category: data-flow
+    location: "feature_detector.py:26-31 vs task_extract_adapters.py:164-171"
+    issue: "feature_detector.collect_task_handler_catalog() silently uses wrong (default) marker_prefix because it doesn't call task_extract_adapters facade"
+    root_cause: "feature_detector.collect_task_handler_catalog() (line 122) calls _collect_task_handler_catalog() directly (lines 26-31), which imports from scanner_extract.task_catalog_assembly and does NOT resolve marker_prefix. But task_extract_adapters.collect_task_handler_catalog() (lines 164-171) wraps the SAME underlying function and DOES resolve marker_prefix via _resolve_marker_prefix(). feature_detector completely bypasses the facade, so it gets default marker_prefix='prism' instead of the configured one."
+    impact: "If scanner is configured with marker_prefix='my_custom_marker', feature_detector will look for 'prism' markers in task files instead. Task annotations will be missed or misidentified. This is a silent data-loss bug: no error, just wrong results."
+    confidence: 98
+    fix_suggestion: "In feature_detector.py, import from task_extract_adapters instead of lazy-importing: from prism.scanner_core.task_extract_adapters import collect_task_handler_catalog. Then line 122 calls the correct facade. OR manually resolve marker_prefix at line 122: marker_prefix = _resolve_marker_prefix(self._di). This is a one-line fix, but it's critical."
+
+  - id: GILF-NODE2-07
+    severity: HIGH
+    category: caching
+    location: "task_extract_adapters.py:136-151, scan_options_from_di(), line 137"
+    issue: "Marker-prefix resolution calls scan_options_from_di() + dict lookups every invocation; no caching despite being deterministic per-scan"
+    root_cause: "_resolve_marker_prefix() is called by extract_task_annotations_for_file() and collect_task_handler_catalog(), both of which may be called on EVERY TASK FILE in a role. If a role has 50 task files, we call _resolve_marker_prefix() 50+ times. Each call does: scan_options_from_di(di) → isinstance check → dict.get('prepared_policy_bundle') → dict.get('comment_doc_marker_prefix'). This is redundant if marker_prefix is constant across the scan."
+    impact: "On large roles (100+ tasks), this is 100+ dict lookups that always return the same value. Not a performance killer, but sloppy. If scan_options is large or di protocol checks are slow, this adds up."
+    confidence: 72
+    fix_suggestion: "Cache marker_prefix in FeatureDetector and VariableDiscovery constructors: self._marker_prefix = _resolve_marker_prefix(di) at init time. Then pass it as param instead of re-resolving. Or add a factory method to DI: factory_marker_prefix() that returns the cached string."
+
+  - id: GILF-NODE2-08
+    severity: MEDIUM
+    category: concurrency
+    location: "variable_discovery.py:104-110, 117-123 (event bus usage)"
+    issue: "Event bus context manager is not protected by lock; concurrent event emissions possible"
+    root_cause: "get_event_bus_or_none() is called OUTSIDE the plugin resolution lock (lines 104, 117). If two threads call discover_static() concurrently, both get the event bus, both enter event_bus.phase() context, and both emit events simultaneously. If event bus is not thread-safe, this causes data corruption or lost events."
+    impact: "If event_bus.phase() has mutable state (counters, phase stacks, etc.), concurrent threads corrupt it. This is unlikely in practice if event bus is a simple emitter, but if event bus maintains stack trace or context nesting, this is a race condition."
+    confidence: 65
+    fix_suggestion: "Either: (A) document that event bus MUST be thread-safe, (B) hold a global event bus lock during event emission, or (C) move event bus calls inside the plugin lock to serialize them. Option A is cheapest; add comment: # Event bus must be thread-safe; concurrent threads may emit simultaneously."
+
+  - id: GILF-NODE2-09
+    severity: LOW
+    category: error-handling
+    location: "task_extract_adapters.py:137-151"
+    issue: "Error messages don't distinguish between missing di, missing scan_options, missing bundle, missing key"
+    root_cause: "All four error paths (lines 138, 143, 148) raise ValueError with distinct messages, but they're all raised from _resolve_marker_prefix(), making it hard to debug which step failed. If a caller sees an error, they need to read the full message to know the cause."
+    impact: "Debugging is slightly harder. User sees 'prepared_policy_bundle must be available in scan_options' but doesn't know if di was None, scan_options wasn't in di, or bundle wasn't in scan_options. This is low-severity but makes ops harder."
+    confidence: 55
+    fix_suggestion: "Add exception context or re-raise with chaining: except KeyError as e: raise ValueError(...) from e. Or prefix messages with the specific failure point. Or add a small logging line before each raise to record what succeeded and what failed."

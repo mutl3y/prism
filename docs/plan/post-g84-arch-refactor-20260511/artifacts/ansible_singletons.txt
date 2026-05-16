@@ -1,0 +1,6 @@
+src/prism/scanner_plugins/defaults.py:_TASK_LINE_PARSING_FALLBACK = AnsibleDefaultTaskLineParsingPolicyPlugin()
+src/prism/scanner_plugins/defaults.py:_TASK_ANNOTATION_FALLBACK = AnsibleDefaultTaskAnnotationPolicyPlugin()
+src/prism/scanner_plugins/defaults.py:_TASK_TRAVERSAL_FALLBACK = AnsibleDefaultTaskTraversalPolicyPlugin()
+src/prism/scanner_plugins/defaults.py:_VARIABLE_EXTRACTOR_FALLBACK = AnsibleDefaultVariableExtractorPolicyPlugin()
+src/prism/scanner_plugins/defaults.py:_YAML_PARSING_FALLBACK = DefaultYAMLParsingPolicyPlugin()
+src/prism/scanner_plugins/defaults.py:_JINJA_ANALYSIS_FALLBACK = DefaultJinjaAnalysisPolicyPlugin()

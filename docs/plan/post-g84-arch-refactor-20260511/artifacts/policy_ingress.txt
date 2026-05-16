@@ -1,0 +1,276 @@
+src/prism/api_layer/non_collection.py:    _resolved_ensure_fn = plugin_facade.ensure_prepared_policy_bundle
+src/prism/api_layer/non_collection.py-
+src/prism/api_layer/non_collection.py:    def _ensure_prepared_policy_bundle_for_execution_request(
+src/prism/api_layer/non_collection.py-        *,
+src/prism/api_layer/non_collection.py-        scan_options: ScanOptionsDict,
+--
+src/prism/api_layer/non_collection.py:        ensure_prepared_policy_bundle_fn=_ensure_prepared_policy_bundle_for_execution_request,
+src/prism/api_layer/non_collection.py-    )
+src/prism/api_layer/non_collection.py-
+--
+src/prism/api_layer/plugin_facade.py:def ensure_prepared_policy_bundle(
+src/prism/api_layer/plugin_facade.py-    *,
+src/prism/api_layer/plugin_facade.py-    scan_options: dict[str, object],
+--
+src/prism/api_layer/plugin_facade.py:    This is a pass-through to scanner_plugins.bundle_resolver.ensure_prepared_policy_bundle.
+src/prism/api_layer/plugin_facade.py-    """
+src/prism/api_layer/plugin_facade.py-    from prism.scanner_plugins.bundle_resolver import (
+src/prism/api_layer/plugin_facade.py:        ensure_prepared_policy_bundle as _ensure_prepared_policy_bundle,
+src/prism/api_layer/plugin_facade.py-    )
+src/prism/api_layer/plugin_facade.py-
+src/prism/api_layer/plugin_facade.py:    return _ensure_prepared_policy_bundle(scan_options=scan_options, di=di)
+src/prism/api_layer/plugin_facade.py-
+src/prism/api_layer/plugin_facade.py-
+--
+src/prism/scanner_plugins/bundle_resolver.py:converge at ensure_prepared_policy_bundle(), which projects the marker-prefix
+src/prism/scanner_plugins/bundle_resolver.py-into an immutable PreparedPolicyBundle. Downstream consumers read-only access
+src/prism/scanner_plugins/bundle_resolver.py-through _resolve_marker_prefix(di).
+--
+src/prism/scanner_plugins/bundle_resolver.py:def ensure_prepared_policy_bundle(
+src/prism/scanner_plugins/bundle_resolver.py-    *,
+src/prism/scanner_plugins/bundle_resolver.py-    scan_options: dict[str, Any],
+--
+src/prism/tests/test_scanner_context.py:            bundle_resolver.ensure_prepared_policy_bundle(scan_options=options, di=None)
+src/prism/tests/test_scanner_context.py-
+src/prism/tests/test_scanner_context.py-
+--
+src/prism/tests/test_scanner_context.py:            ensure_prepared_policy_bundle_fn=(
+src/prism/tests/test_scanner_context.py-                lambda scan_options, di: scan_options.__setitem__(
+src/prism/tests/test_scanner_context.py-                    "prepared_policy_bundle", _prepared_policy_bundle()
+--
+src/prism/scanner_core/execution_request_builder.py:    ensure_prepared_policy_bundle_fn: _EnsurePreparedPolicyBundleFn | None = None,
+src/prism/scanner_core/execution_request_builder.py-) -> NonCollectionRunScanExecutionRequest:
+src/prism/scanner_core/execution_request_builder.py-    """Build the scanner_core-owned execution request for non-collection run_scan."""
+--
+src/prism/scanner_core/execution_request_builder.py:        ensure_prepared_policy_bundle_fn=ensure_prepared_policy_bundle_fn,
+src/prism/scanner_core/execution_request_builder.py-    )
+src/prism/scanner_core/execution_request_builder.py-
+--
+src/prism/scanner_core/execution_request_builder.py:    ensure_prepared_policy_bundle_fn: _EnsurePreparedPolicyBundleFn | None,
+src/prism/scanner_core/execution_request_builder.py-) -> NonCollectionRunScanExecutionRequest:
+src/prism/scanner_core/execution_request_builder.py-    ensured_policy_bundle_fn = _require_prepared_policy_bundle_enforcer(
+src/prism/scanner_core/execution_request_builder.py:        ensure_prepared_policy_bundle_fn
+src/prism/scanner_core/execution_request_builder.py-    )
+src/prism/scanner_core/execution_request_builder.py-
+--
+src/prism/scanner_core/execution_request_builder.py:        ensure_prepared_policy_bundle_fn=ensured_policy_bundle_fn,
+src/prism/scanner_core/execution_request_builder.py-    )
+src/prism/scanner_core/execution_request_builder.py-
+--
+src/prism/scanner_core/execution_request_builder.py:    ensure_prepared_policy_bundle_fn: _EnsurePreparedPolicyBundleFn | None,
+src/prism/scanner_core/execution_request_builder.py-) -> _EnsurePreparedPolicyBundleFn:
+src/prism/scanner_core/execution_request_builder.py:    if ensure_prepared_policy_bundle_fn is None:
+src/prism/scanner_core/execution_request_builder.py-        raise ValueError(
+src/prism/scanner_core/execution_request_builder.py:            "ensure_prepared_policy_bundle_fn is required for "
+src/prism/scanner_core/execution_request_builder.py-            "non-collection execution request construction"
+src/prism/scanner_core/execution_request_builder.py-        )
+src/prism/scanner_core/execution_request_builder.py:    return ensure_prepared_policy_bundle_fn
+src/prism/scanner_core/execution_request_builder.py-
+src/prism/scanner_core/execution_request_builder.py-
+--
+src/prism/scanner_core/execution_request_builder.py:    ensure_prepared_policy_bundle_fn: _EnsurePreparedPolicyBundleFn | None,
+src/prism/scanner_core/execution_request_builder.py-) -> NonCollectionRunScanExecutionRequest:
+src/prism/scanner_core/execution_request_builder.py-    """Finalize the execution request after runtime participants are assembled."""
+--
+src/prism/scanner_core/execution_request_builder.py:    if ensure_prepared_policy_bundle_fn is None:
+src/prism/scanner_core/execution_request_builder.py-        raise ValueError(
+src/prism/scanner_core/execution_request_builder.py:            "ensure_prepared_policy_bundle_fn is required for "
+src/prism/scanner_core/execution_request_builder.py-            "non-collection execution request construction"
+src/prism/scanner_core/execution_request_builder.py-        )
+src/prism/scanner_core/execution_request_builder.py:    ensure_prepared_policy_bundle_fn(
+src/prism/scanner_core/execution_request_builder.py-        scan_options=canonical_options, di=runtime.container
+src/prism/scanner_core/execution_request_builder.py-    )
+--
+src/prism/tests/test_w2_hardwiring_audit.py:        bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_w2_hardwiring_audit.py-            scan_options=options, di=container
+src/prism/tests/test_w2_hardwiring_audit.py-        )
+--
+src/prism/tests/test_w2_hardwiring_audit.py:        bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_w2_hardwiring_audit.py-            scan_options=options, di=container
+src/prism/tests/test_w2_hardwiring_audit.py-        )
+--
+src/prism/tests/test_w2_hardwiring_audit.py:        bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_w2_hardwiring_audit.py-            scan_options=options, di=container
+src/prism/tests/test_w2_hardwiring_audit.py-        )
+--
+src/prism/tests/test_w2_hardwiring_audit.py:        bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_w2_hardwiring_audit.py-            scan_options=options, di=container
+src/prism/tests/test_w2_hardwiring_audit.py-        )
+--
+src/prism/tests/test_task_annotation_alias_matrix.py:        bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_task_annotation_alias_matrix.py-            scan_options=options, di=container
+src/prism/tests/test_task_annotation_alias_matrix.py-        )
+--
+src/prism/tests/test_execution_request_builder.py:            match="ensure_prepared_policy_bundle_fn is required",
+src/prism/tests/test_execution_request_builder.py-        ):
+src/prism/tests/test_execution_request_builder.py-            _assemble_execution_request(
+--
+src/prism/tests/test_execution_request_builder.py:                ensure_prepared_policy_bundle_fn=None,
+src/prism/tests/test_execution_request_builder.py-            )
+src/prism/tests/test_execution_request_builder.py-
+--
+src/prism/tests/test_execution_request_builder.py:            ensure_prepared_policy_bundle_fn=lambda *, scan_options, di: calls.append(
+src/prism/tests/test_execution_request_builder.py-                "ensure"
+src/prism/tests/test_execution_request_builder.py-            ),
+--
+src/prism/tests/test_scanner_parity.py:    reason="PAR-20260419: src lane frozen; fsrc ensure_prepared_policy_bundle not yet ported"
+src/prism/tests/test_scanner_parity.py-)
+src/prism/tests/test_scanner_parity.py-def test_w2_t05_variable_discovery_parity_matrix(tmp_path: Path) -> None:
+--
+src/prism/tests/test_scanner_parity.py:    reason="PAR-20260419: src lane frozen; fsrc ensure_prepared_policy_bundle not yet ported"
+src/prism/tests/test_scanner_parity.py-)
+src/prism/tests/test_scanner_parity.py-def test_w2_t05_feature_detector_parity_matrix(tmp_path: Path) -> None:
+--
+src/prism/tests/test_scanner_parity.py:    reason="PAR-20260419: src lane frozen; fsrc ensure_prepared_policy_bundle not yet ported"
+src/prism/tests/test_scanner_parity.py-)
+src/prism/tests/test_scanner_parity.py-def test_w2_t05_fixture_backed_base_role_variable_discovery_parity() -> None:
+--
+src/prism/tests/test_scanner_parity.py:    reason="PAR-20260419: src lane frozen; fsrc ensure_prepared_policy_bundle not yet ported"
+src/prism/tests/test_scanner_parity.py-)
+src/prism/tests/test_scanner_parity.py-def test_w2_t05_fixture_backed_enhanced_role_variable_discovery_parity() -> None:
+--
+src/prism/tests/test_scanner_parity.py:    reason="PAR-20260419: src lane frozen; fsrc ensure_prepared_policy_bundle not yet ported"
+src/prism/tests/test_scanner_parity.py-)
+src/prism/tests/test_scanner_parity.py-def test_w2_t05_fixture_backed_dynamic_role_set_fact_parity() -> None:
+--
+src/prism/tests/test_api_cli_entrypoints.py:            "ensure_prepared_policy_bundle",
+src/prism/tests/test_api_cli_entrypoints.py-            _canonical_ensure,
+src/prism/tests/test_api_cli_entrypoints.py-        )
+--
+src/prism/tests/test_api_cli_entrypoints.py:            captured["ensure_prepared_policy_bundle_fn"] = kwargs[
+src/prism/tests/test_api_cli_entrypoints.py:                "ensure_prepared_policy_bundle_fn"
+src/prism/tests/test_api_cli_entrypoints.py-            ]
+src/prism/tests/test_api_cli_entrypoints.py-            return SimpleNamespace(
+--
+src/prism/tests/test_api_cli_entrypoints.py:    forwarded_ensure_fn = captured["ensure_prepared_policy_bundle_fn"]
+src/prism/tests/test_api_cli_entrypoints.py-    assert callable(forwarded_ensure_fn)
+src/prism/tests/test_api_cli_entrypoints.py-    forwarded_ensure_fn(scan_options={"role_path": str(role_path)}, di="di")
+--
+src/prism/tests/test_comment_doc_plugin_resolution.py:def test_ensure_prepared_policy_bundle_sets_marker_prefix() -> None:
+src/prism/tests/test_comment_doc_plugin_resolution.py:    """ensure_prepared_policy_bundle projects comment_doc_marker_prefix into the bundle."""
+src/prism/tests/test_comment_doc_plugin_resolution.py-    with _prefer_fsrc_prism_on_sys_path():
+src/prism/tests/test_comment_doc_plugin_resolution.py-        bundle_resolver = importlib.import_module(
+--
+src/prism/tests/test_comment_doc_plugin_resolution.py:        bundle = bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_comment_doc_plugin_resolution.py-            scan_options=options, di=container
+src/prism/tests/test_comment_doc_plugin_resolution.py-        )
+--
+src/prism/tests/test_comment_doc_plugin_resolution.py:        bundle2 = bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_comment_doc_plugin_resolution.py-            scan_options=options2, di=container2
+src/prism/tests/test_comment_doc_plugin_resolution.py-        )
+--
+src/prism/tests/test_comment_doc_plugin_resolution.py:        bundle = bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_comment_doc_plugin_resolution.py-            scan_options=scan_options, di=container
+src/prism/tests/test_comment_doc_plugin_resolution.py-        )
+--
+src/prism/tests/test_comment_doc_plugin_resolution.py:        bundle = bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_comment_doc_plugin_resolution.py-            scan_options=options, di=None
+src/prism/tests/test_comment_doc_plugin_resolution.py-        )
+--
+src/prism/tests/test_mp1_compatibility.py:        WHEN: bundle_resolver.ensure_prepared_policy_bundle() is called
+src/prism/tests/test_mp1_compatibility.py-        THEN: prepared_policy_bundle contains marker-prefix
+src/prism/tests/test_mp1_compatibility.py-        AND: Marker-prefix value is preserved (not mutated)
+--
+src/prism/tests/test_mp1_compatibility.py:                ensure_prepared_policy_bundle,
+src/prism/tests/test_mp1_compatibility.py-            )
+src/prism/tests/test_mp1_compatibility.py-            from prism.scanner_core.di import DIContainer
+--
+src/prism/tests/test_mp1_compatibility.py:            ensure_prepared_policy_bundle(scan_options=scan_options, di=di)
+src/prism/tests/test_mp1_compatibility.py-
+src/prism/tests/test_mp1_compatibility.py-            # Verify: Bundle was created with marker-prefix
+--
+src/prism/tests/test_variable_discovery_pipeline.py:        bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_variable_discovery_pipeline.py-            scan_options=options, di=container
+src/prism/tests/test_variable_discovery_pipeline.py-        )
+--
+src/prism/tests/test_variable_discovery_pipeline.py:        bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_variable_discovery_pipeline.py-            scan_options=options, di=container
+src/prism/tests/test_variable_discovery_pipeline.py-        )
+--
+src/prism/tests/test_di_registry_resolution.py:            ensure_prepared_policy_bundle_fn=lambda *, scan_options, di: (
+src/prism/tests/test_di_registry_resolution.py-                prepared_policy_di.append(di)
+src/prism/tests/test_di_registry_resolution.py-            ),
+--
+src/prism/tests/test_feature_detector.py:        bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_feature_detector.py-            scan_options=options, di=container
+src/prism/tests/test_feature_detector.py-        )
+--
+src/prism/tests/test_feature_detector.py:        bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_feature_detector.py-            scan_options=options, di=container
+src/prism/tests/test_feature_detector.py-        )
+--
+src/prism/tests/test_feature_detector.py:        bundle_resolver_module.ensure_prepared_policy_bundle(
+src/prism/tests/test_feature_detector.py-            scan_options=options, di=container
+src/prism/tests/test_feature_detector.py-        )
+--
+src/prism/tests/test_feature_detector.py:        bundle_resolver_module.ensure_prepared_policy_bundle(
+src/prism/tests/test_feature_detector.py-            scan_options=options, di=container
+src/prism/tests/test_feature_detector.py-        )
+--
+src/prism/tests/test_mp1_enforcement.py:            ensure_prepared_policy_bundle,
+src/prism/tests/test_mp1_enforcement.py-        )
+src/prism/tests/test_mp1_enforcement.py-        from prism.scanner_core.di import DIContainer
+--
+src/prism/tests/test_mp1_enforcement.py:        ensure_prepared_policy_bundle(scan_options=scan_options, di=di)
+src/prism/tests/test_mp1_enforcement.py-
+src/prism/tests/test_mp1_enforcement.py-        # Verify: bundle contains projected marker-prefix
+--
+src/prism/tests/test_mp1_enforcement.py:        assert bundle is not None, "Bundle not created by ensure_prepared_policy_bundle"
+src/prism/tests/test_mp1_enforcement.py-        assert (
+src/prism/tests/test_mp1_enforcement.py-            bundle.get("comment_doc_marker_prefix") == test_prefix
+--
+src/prism/tests/test_mp1_enforcement.py:            ensure_prepared_policy_bundle,
+src/prism/tests/test_mp1_enforcement.py-        )
+src/prism/tests/test_mp1_enforcement.py-        from prism.scanner_core.di import DIContainer
+--
+src/prism/tests/test_mp1_enforcement.py:        ensure_prepared_policy_bundle(scan_options=opts_p1, di=di_p1)
+src/prism/tests/test_mp1_enforcement.py-        assert (
+src/prism/tests/test_mp1_enforcement.py-            opts_p1.get("prepared_policy_bundle", {}).get("comment_doc_marker_prefix")
+--
+src/prism/tests/test_mp1_enforcement.py:        ensure_prepared_policy_bundle(scan_options=opts_p3, di=di_p3)
+src/prism/tests/test_mp1_enforcement.py-        bundle_p3 = opts_p3.get("prepared_policy_bundle", {})
+src/prism/tests/test_mp1_enforcement.py-        marker_p3 = bundle_p3.get("comment_doc_marker_prefix")
+--
+src/prism/tests/test_mp1_enforcement.py:            ensure_prepared_policy_bundle,
+src/prism/tests/test_mp1_enforcement.py-        )
+src/prism/tests/test_mp1_enforcement.py-        from prism.scanner_core.di import DIContainer
+--
+src/prism/tests/test_mp1_enforcement.py:        ensure_prepared_policy_bundle(scan_options=scan_options, di=di)
+src/prism/tests/test_mp1_enforcement.py-
+src/prism/tests/test_mp1_enforcement.py-        bundle = scan_options.get("prepared_policy_bundle", {})
+--
+src/prism/tests/test_mp1_enforcement.py:            ensure_prepared_policy_bundle,
+src/prism/tests/test_mp1_enforcement.py-        )
+src/prism/tests/test_mp1_enforcement.py-        from prism.scanner_core.di import DIContainer
+--
+src/prism/tests/test_mp1_enforcement.py:        ensure_prepared_policy_bundle(scan_options=scan_options, di=di)
+src/prism/tests/test_mp1_enforcement.py-
+src/prism/tests/test_mp1_enforcement.py-        # Verify: bundle contains correct marker-prefix
+--
+src/prism/tests/test_mp1_enforcement.py:            ensure_prepared_policy_bundle,
+src/prism/tests/test_mp1_enforcement.py-        )
+src/prism/tests/test_mp1_enforcement.py-        from prism.scanner_core.di import DIContainer
+--
+src/prism/tests/test_mp1_enforcement.py:        ensure_prepared_policy_bundle(scan_options=scan_options, di=di)
+src/prism/tests/test_mp1_enforcement.py-
+src/prism/tests/test_mp1_enforcement.py-        bundle_1 = scan_options.get("prepared_policy_bundle", {})
+--
+src/prism/tests/test_scanner_extract_shim_parity.py:            bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_scanner_extract_shim_parity.py-                scan_options=options,
+src/prism/tests/test_scanner_extract_shim_parity.py-                di=container,
+--
+src/prism/tests/test_platform_execution_bundle.py:def test_ansible_bundle_prepared_policy_accepted_by_ensure_prepared_policy_bundle() -> (
+src/prism/tests/test_platform_execution_bundle.py-    None
+src/prism/tests/test_platform_execution_bundle.py-):
+--
+src/prism/tests/test_platform_execution_bundle.py:    result = bundle_resolver_module.ensure_prepared_policy_bundle(
+src/prism/tests/test_platform_execution_bundle.py-        scan_options=scan_options,
+src/prism/tests/test_platform_execution_bundle.py-        di=None,
+--
+src/prism/tests/test_task_parser_precedence_matrix.py:            bundle_resolver.ensure_prepared_policy_bundle(
+src/prism/tests/test_task_parser_precedence_matrix.py-                scan_options=container.scan_options, di=container
+src/prism/tests/test_task_parser_precedence_matrix.py-            )
+--
+src/prism/tests/test_task_parser_precedence_matrix.py:            bundle_resolver.ensure_prepared_policy_bundle(scan_options=options, di=None)
+src/prism/tests/test_task_parser_precedence_matrix.py-
+src/prism/tests/test_task_parser_precedence_matrix.py-            class _OptionsContainer:

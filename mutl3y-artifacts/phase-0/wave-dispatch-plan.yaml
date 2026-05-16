@@ -1,0 +1,44 @@
+---
+phase: 0
+coordinator: tactical
+wave: scout-dispatch-batch-1
+status: wave_planned
+timestamp: 2026-05-07T14:00:05Z
+dispatch_time: 2026-05-07T14:00:10Z
+
+scouts_in_wave:
+  - name: Scout-Typing
+    category: typing
+    artifact_path: mutl3y-artifacts/phase-0/scouts/Scout-Typing.yaml
+    status: queued
+    model_tier: low-cost
+
+  - name: Scout-Ownership
+    category: ownership
+    artifact_path: mutl3y-artifacts/phase-0/scouts/Scout-Ownership.yaml
+    status: queued
+    model_tier: low-cost
+
+  - name: Scout-ControlFlow
+    category: control-flow
+    artifact_path: mutl3y-artifacts/phase-0/scouts/Scout-ControlFlow.yaml
+    status: queued
+    model_tier: low-cost
+
+  - name: Scout-Graph
+    category: graph
+    artifact_path: mutl3y-artifacts/phase-0/scouts/Scout-Graph.yaml
+    status: queued
+    model_tier: low-cost
+
+wave_dispatch_details:
+  parallelization: full_parallel_batch
+  expected_total_findings: 20-40
+  timeout_per_scout: 600s
+  barrier_check: "all 4 scouts complete + artifact verification"
+
+execution_instructions: |
+  All four scouts dispatched as parallel batch.
+  Each scout writes raw YAML findings to owned artifact file.
+  Each scout returns only compact summary to coordinator.
+  Batch join gate: verify all 4 artifacts exist before transitioning.

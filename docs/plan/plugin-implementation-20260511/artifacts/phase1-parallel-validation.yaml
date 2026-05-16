@@ -1,0 +1,41 @@
+timestamp: "2026-05-11T16:30:00Z"
+phase: "phase_1"
+wave: 1
+validation_mode: "parallel"
+lane_runs:
+  - lane: "core"
+    command: ".venv/bin/pytest -q -m core src/prism/tests"
+    result: "pass"
+    passed: 492
+    skipped: 1
+    deselected: 883
+    warnings: 3
+    runtime_seconds: 9.10
+  - lane: "plugins"
+    command: ".venv/bin/pytest -q -m plugins src/prism/tests"
+    result: "pass"
+    passed: 196
+    skipped: 1
+    deselected: 1179
+    warnings: 13
+    runtime_seconds: 6.36
+  - lane: "integration"
+    command: ".venv/bin/pytest -q -m integration src/prism/tests"
+    result: "pass"
+    passed: 515
+    skipped: 7
+    deselected: 854
+    warnings: 4
+    runtime_seconds: 11.47
+rubric_metrics:
+  delegation_ratio: "2 of 2 implementation steps delegated in this wave"
+  lane_parallelism: 3
+  lane_success_rate: "3/3"
+  model_tier_policy:
+    scout: "tier_0_free"
+    builder: "tier_1_low_cost"
+    gatekeeper: "tier_0_free"
+  token_usage_policy: "subagent-first for discovery and implementation, artifact-backed summaries only in foreman context"
+notes:
+  - "Parallel lane execution reduced gate wall-time versus serial execution."
+  - "Current warnings are pre-existing and non-blocking for this phase gate."

@@ -1,0 +1,67 @@
+plan_id: mutl3y-cluster-autopilot-20260507
+target: src/prism
+reviewer: mutl3y-cluster-foreman
+date: '2026-05-07'
+grade: B+
+summary: 'Cluster autopilot review: 30 findings identified across typing, ownership, control-flow, and dependency-graph domains'
+cycle: 1
+phase: 2
+findings:
+- id: FIND-TYPING-01
+  category: typing
+  severity: medium
+  status: open
+  title: Loose Any annotations in scanner patterns
+  description: Multiple Any type annotations used without narrowing in scanner_config and scanner_core modules
+  affected_files:
+  - src/prism/scanner_config/patterns.py
+  - src/prism/scanner_core/di.py
+  count: 10
+  fix_group: typing_loose_annotations
+  decision: Add concrete type annotations
+  decision_rationale: Type safety foundation for downstream work
+- id: FIND-OWNERSHIP-01
+  category: ownership
+  severity: medium
+  status: open
+  title: Ownership layer violations detected
+  description: Layer boundary violations in scanner_core and scanner_extract interaction
+  affected_files: []
+  count: 8
+  fix_group: ownership_layer_violations
+  decision: Enforce layer boundaries
+  decision_rationale: Layer architecture integrity
+- id: FIND-ERRORHANDLING-01
+  category: error_channel
+  severity: medium
+  status: open
+  title: Broad exception handling patterns
+  description: Catch-all Exception handlers without specific exception types in critical paths
+  affected_files:
+  - src/prism/cli.py
+  - src/prism/scanner_core/events.py
+  - src/prism/scanner_core/execution_request_builder.py
+  count: 8
+  fix_group: error_handling_broad_except
+  decision: Tighten exception handling
+  decision_rationale: Error contract enforcement on hot paths
+- id: FIND-GRAPH-01
+  category: dependency_graph
+  severity: low
+  status: open
+  title: Dependency graph hygiene review
+  description: Graph import patterns and cross-module dependencies review
+  affected_files: []
+  count: 4
+  fix_group: graph_dependency_review
+  decision: Review and document
+  decision_rationale: Dependency clarity
+suppressed_highs: []
+summary_stats:
+  total_findings: 30
+  critical: 0
+  high: 0
+  medium: 26
+  low: 4
+  fix_groups: 4
+  affected_files_unique: 6

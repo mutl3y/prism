@@ -1,0 +1,39 @@
+plan_id: plugin-implementation-20260511
+cycle: plugin-implementation-20260511-c3
+phase: 5
+worker: Builder-ControlFlow
+tier_selected: BALANCED (1x)
+tier_reason: Cross-layer contract/DI/cache seam changes across api_layer + scanner_plugins + scanner_core.
+findings_closed:
+  - id: C3-FIND-001
+    status: closed
+    summary: Prepared policy bundle preparation now propagates canonical hot-path outputs back onto execution-request scan options, so valid flows retain the prepared bundle and resolved underscore preference before runtime consumption.
+  - id: C3-FIND-002
+    status: closed
+    summary: Task-line resolver required attributes now include TASK_META_KEYS, matching bundle validation and cache-shape expectations.
+files_changed:
+  - src/prism/api_layer/non_collection.py
+  - src/prism/scanner_plugins/defaults.py
+  - src/prism/tests/core/test_defaults.py
+  - src/prism/tests/integration/test_api_cli_entrypoints.py
+test_commands:
+  - pytest -q src/prism/tests/core/test_defaults.py::test_validate_shape_strict_mode_rejects_task_line_plugin_missing_task_meta_keys src/prism/tests/core/test_defaults.py::test_validate_shape_non_strict_mode_uses_fallback_for_missing_task_meta_keys src/prism/tests/integration/test_api_cli_entrypoints.py::test_fsrc_non_collection_run_scan_uses_canonical_policy_bundle_fn
+  - .venv/bin/python -m ruff check src/prism
+  - .venv/bin/python -m black --check src/prism
+  - .venv/bin/python -m tox -e typecheck
+test_results:
+  - command: pytest -q src/prism/tests/core/test_defaults.py::test_validate_shape_strict_mode_rejects_task_line_plugin_missing_task_meta_keys src/prism/tests/core/test_defaults.py::test_validate_shape_non_strict_mode_uses_fallback_for_missing_task_meta_keys src/prism/tests/integration/test_api_cli_entrypoints.py::test_fsrc_non_collection_run_scan_uses_canonical_policy_bundle_fn
+    result: pass
+    details: 3 passed in 0.41s
+lint_type_results:
+  - command: .venv/bin/python -m ruff check src/prism
+    result: pass
+  - command: .venv/bin/python -m black --check src/prism
+    result: pass
+  - command: .venv/bin/python -m tox -e typecheck
+    result: pass
+rollback_boundary: Revert the four changed files in this wave to restore the prior API preparation bridge and task-line resolver attribute contract.
+residual_risks:
+  - The API preparation bridge still resolves against a working copy because the plugin facade contract is typed as dict[str, object]; future work could collapse that boundary by aligning the facade signature with ScanOptionsDict.
+  - Cache-shape enforcement in api_layer/non_collection.py still mirrors the task-line required attribute list locally rather than importing a shared constant.
+timestamp_utc: 2026-05-12T01:56:34Z

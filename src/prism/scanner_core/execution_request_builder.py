@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import copy
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Protocol, cast
 
+from prism.errors import PrismRuntimeError
 from prism.scanner_data import VariableRow
 from prism.scanner_core.di import resolve_platform_key
 from prism.scanner_data.contracts_output import RunScanOutputPayload
@@ -183,9 +185,20 @@ class _ScanStateBridge:
     ) -> _RecordingVariableDiscovery:
         try:
             inner = self._variable_discovery_cls(di, resolved_role_path, options)
-        except Exception as exc:
+        except (TypeError, ValueError, PrismRuntimeError) as exc:
             raise ValueError(
                 f"Variable discovery factory failed for role_path={resolved_role_path}: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
+        except Exception as exc:
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "Variable discovery factory caught unexpected exception type %s: %s",
+                type(exc).__name__,
+                exc,
+            )
+            raise ValueError(
+                f"Variable discovery factory failed (unexpected error) for role_path={resolved_role_path}: "
                 f"{type(exc).__name__}: {exc}"
             ) from exc
         return _RecordingVariableDiscovery(inner, self)
@@ -198,9 +211,20 @@ class _ScanStateBridge:
     ) -> _RecordingFeatureDetector:
         try:
             inner = self._feature_detector_cls(di, resolved_role_path, options)
-        except Exception as exc:
+        except (TypeError, ValueError, PrismRuntimeError) as exc:
             raise ValueError(
                 f"Feature detector factory failed for role_path={resolved_role_path}: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
+        except Exception as exc:
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "Feature detector factory caught unexpected exception type %s: %s",
+                type(exc).__name__,
+                exc,
+            )
+            raise ValueError(
+                f"Feature detector factory failed (unexpected error) for role_path={resolved_role_path}: "
                 f"{type(exc).__name__}: {exc}"
             ) from exc
         return _RecordingFeatureDetector(inner, self)

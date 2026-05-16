@@ -1,0 +1,62 @@
+wave: 2
+status: COMPLETE
+completion_date: 2026-05-07
+
+phases:
+  phase_1:
+    title: Factory Scaffolding
+    status: COMPLETE
+    artifacts:
+      - policy_constants.py (frozen dataclass factory)
+    evidence: 1171 tests pass baseline established
+
+  phase_2:
+    title: Hotpath Migration
+    status: COMPLETE
+    decision: OPTION_A (accept +14 type errors as technical debt)
+    builders_dispatched: 5 (parallel)
+    functions_modified: 32 across 5 files
+    evidence:
+      - All 1171 tests pass (no regressions)
+      - Backward compatibility validated
+      - Lint and format clean after fixes
+      - Type errors isolated to DIContainer Protocol
+    files_modified:
+      - src/prism/scanner_core/task_extract_adapters.py (4 functions)
+      - src/prism/scanner_extract/task_catalog_assembly.py (5 functions)
+      - src/prism/scanner_extract/task_file_traversal.py (10 functions)
+      - src/prism/scanner_extract/task_annotation_parsing.py (7 functions)
+      - src/prism/scanner_core/feature_detector.py (6 functions)
+
+  phase_3:
+    title: Comprehensive Testing
+    status: COMPLETE
+    verdict: GREEN
+    test_results:
+      full_suite: 1171 passed, 7 skipped
+      hotpath_regression: 23 passed, 2 skipped
+      hypothesis_property: 14 passed, 1 skipped
+      lint: PASS
+      format: PASS
+    remediation:
+      - Fixed 2 test helper functions (_capture_extract, _capture_catalog)
+      - Updated to support policy_constants parameter
+
+wave_impact:
+  total_modifications: 32 functions across 5 modules
+  performance_target: Eliminate 150-300 require_prepared_policy() calls per large scan
+  backward_compatibility: 100% maintained (optional policy_constants parameter)
+  test_coverage: All 1171 tests pass, including hypothesis property-based tests
+  lint_status: Clean (ruff, black)
+  type_status: +14 new errors (deferred to post-Wave-2 review)
+
+recommendations:
+  - Architecture review of DIContainer Protocol (post-Wave-2)
+  - Performance benchmarking of PolicyConstants integration
+  - Consider Type safety improvements in next iteration
+
+next_actions:
+  - Optional: Wave 3 performance benchmarking
+  - Optional: Deferred type error remediation cycle
+  - Recommended: Archive this wave and move to architecture improvements
+

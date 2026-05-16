@@ -11,25 +11,48 @@ repos:
 
   - repo: local
     hooks:
-      - id: black
-        name: black
-        entry: black
+      # CI Gates Enforcement (Primary gate runner)
+      - id: ci-gates-local
+        name: CI Gates (Local Enforcement)
+        entry: python3 scripts/run_ci_gates_local.py
         language: system
         types: [python]
+        stages: [commit]
+        pass_filenames: false
 
+      # Type Safety
+      - id: mypy-strict
+        name: Type Safety (mypy --strict)
+        entry: .venv/bin/python -m mypy --strict src/prism/scanner_core/
+        language: system
+        types: [python]
+        stages: [commit]
+        pass_filenames: false
+
+      # Linting
       - id: ruff
         name: ruff (auto-fix)
-        entry: ruff check --fix
+        entry: ruff check --fix src/prism/
         language: system
         types: [python]
-
-      - id: mypy-seams
-        name: mypy (modernized seam modules)
-        entry: mypy
-        args:
-          - src/prism
-          - --exclude
-          - src/prism/tests
-        language: system
+        stages: [commit]
         pass_filenames: false
+
+      # Code Formatting
+      - id: black
+        name: black
+        entry: black src/prism/
+        language: system
         types: [python]
+        stages: [commit]
+        pass_filenames: false
+
+      # Layer Boundary Enforcement
+      - id: layer-boundaries
+        name: Layer Boundary Enforcement
+        entry: >-
+          bash -c 'if grep -r "from prism.scanner_plugins" src/prism/scanner_core/; then echo "Layer violation: scanner_core cannot import scanner_plugins"; exit 1; fi'
+        language: system
+        types: [python]
+        stages: [commit]
+        pass_filenames: false

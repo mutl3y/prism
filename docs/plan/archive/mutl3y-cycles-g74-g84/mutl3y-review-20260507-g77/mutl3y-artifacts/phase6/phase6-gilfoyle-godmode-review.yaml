@@ -1,0 +1,650 @@
+---
+plan_id: mutl3y-review-20260507-g77
+phase: 6
+timestamp: '2026-05-07T12:00:00Z'
+scope: entire_src_prism_architectural_audit
+reviewer: Gilfoyle Code Review God Mode
+godmode_status: complete
+
+architecture_assessment:
+  layer_boundaries: |
+    SCORE: 7.5/10 — Crisp but Brittle
+
+    The layer boundaries are EXCESSIVELY crisp. I'll give you that — each layer owns
+    a specific domain: scanner_core handles orchestration, scanner_extract owns task
+    parsing, scanner_plugins manages extensibility, scanner_data owns contracts.
+
+    BUT — and this is a massive "but" — the crispness comes at a cost of massive
+    coupling through TypedDict and Protocol definitions. Every layer imports from
+    scanner_data/contracts_*.py, making that module a chokepoint. One bad change there
+    cascades through the entire codebase.
+
+    The api.py layer introduces PACKAGE-OWNED SEAMS (DIContainer, FeatureDetector,
+    ScannerContext subclasses) that exist solely to preserve monkey-patching
+    compatibility. That's not architecture, that's a band-aid on top of a band-aid.
+
+  coupling_risks:
+    - "scanner_data contracts_request.py is a centralized hub — 47+ types defined;
+       imported by every major layer. Single point of architectural failure."
+    - "api_layer/collection.py has 50+ parameters in scan_collection(). Parameter
+       explosion is a sign of architectural laziness. Should be a builder or config object."
+    - "scanner_plugins/defaults.py uses 9 instances of 'Any' typing on fallback_plugin
+       and plugin parameters — the escape hatch for type safety failures."
+    - "scanner_readme layer imports from scanner_plugins (bootstrap, registry, defaults)
+       in circular patterns. plugin_seams.py exists to break circular imports, but that's
+       a symptom, not a solution."
+    - "scanner_core/task_extract_adapters.py uses _PolicyBackedCollectionProxy and
+       _PolicyBackedRegexProxy to access prepared_policy dynamically. Dynamic attribute
+       access at runtime is a SMELL. Should be explicit constructor injection."
+
+  seam_integrity: |
+    ASSESSMENT: 6/10 — Intentional but Fragile
+
+    The seams are DELIBERATE, which I respect. bootstrap.py, defaults.py, plugin_seams.py
+    all exist to manage circular dependencies and isolation concerns.
+
+    PROBLEMS:
+    1. Too many seams. You have: bootstrap singleton, plugin_facade wrappers,
+       compatibility shims in api.py, DI helpers in di_helpers.py. Each seam is another
+       place for bugs to hide.
+
+    2. DI container mutability is unguarded. di.py's clone_scan_options() creates shallow
+       copies. If a consumer mutates nested dicts in scan_options, it pollutes the original.
+       No freeze() call, no immutability guarantee.
+
+    3. The "prepared_policy_bundle" ownership is SPLIT. scanner_core/scan_request.py
+       normalizes it at ingress, but scanner_extract/task_line_parsing.py has RUNTIME
+       FALLBACK paths that call require_prepared_policy() with None and expect it to
+       magically resolve. That's fail-silent behavior masquerading as defensive programming.
+
+performance:
+  inefficiencies_found:
+    - "clone_scan_options() is called on EVERY plugin factory invocation. For 20+
+       plugins in a collection scan, you're doing 20+ shallow copies of a potentially
+       massive dict. No caching, no delta tracking. Wasteful."
+    - "PluginRegistry loads plugins via importlib dynamically. No caching of loaded
+       modules. If the same plugin is resolved 100 times, it imports 100 times. The
+       loaded_plugins cache is per-revision, but revision is incremented on EVERY
+       registry snapshot. Inefficient cache invalidation."
+    - "scanner_context.py does FULL validation of yaml_parse_failures, role_notes,
+       display_variables on EVERY scan. For large roles with 1000+ variables, this
+       is O(n) validation that could be deferred or cached."
+    - "_PolicyBackedCollectionProxy.__contains__ calls getattr + __current_value on
+       EVERY check. No memoization. For task parsing with 100+ task keywords, this
+       is repeated attribute resolution."
+
+  memory_concerns:
+    - "ScanMetadata is copied 3+ times per scan phase: initial creation, passed to
+       kernel orchestrator, copied in output_orchestrator. For large scans with
+       verbose metadata, this multiplies memory footprint."
+    - "scanner_plugins/registry.py's _PluginRegistryState contains LOADED_PLUGINS dict
+       keyed by (module, class) tuples with full class objects as values. No cleanup,
+       no GC hints. Class definitions are immortal once loaded."
+    - "feature_detector.py and variable_discovery.py CLONE options on EVERY method
+       call (_snapshot_options). Two clones per discovery phase = 2x memory overhead
+       for no documented benefit."
+
+type_safety:
+  remaining_gaps:
+    - "scanner_plugins/defaults.py has 9 instances of 'Any' on fallback_plugin/plugin
+       parameters in _construct_registry_plugin, _resolve_extract_policy_plugin,
+       _resolve_yaml_parsing_policy_plugin, _resolve_jinja_analysis_policy_plugin,
+       etc. Should be typed as Union of actual plugin types."
+
+    - "scanner_io/emit_output.py uses Callable protocol, but ScanReportRenderer and
+       ScanOutputRenderer accept **kwargs: Any. Any is the type system's way of
+       admitting defeat."
+
+    - "scanner_readme/render.py, guide.py pass metadata as dict[str, Any] throughout.
+       Should be ScanMetadata TypedDict with proper field access, not .get() on
+       untyped dicts."
+
+    - "api_layer/collection.py defines 8 Protocol classes (ScanRoleFn,
+       BuildCollectionIdentityFn, etc.) but ALL accept dict payloads with Any values.
+       Should narrow return types and parameter types."
+
+    - "scanner_core/scanner_context.py's _copy_scan_metadata uses TypeGuard on a
+       dict[str, Any]. Not actually type-narrowing anything — just runtime validation."
+
+    - "scanner_kernel/orchestrator.py's _ProcessScanPipelinePlugin and
+       _OrchestrateScanPayloadPlugin Protocols have minimal method signatures.
+       Should add @runtime_checkable and proper signature validation (which is
+       attempted but incomplete)."
+
+  protocol_soundness:
+    - "DIContainer Protocol in contracts_request.py only checks scan_options: ScanOptionsDict
+       and plugin_registry: object|None. Should require explicit factory methods or
+       stricter typing on plugin_registry."
+
+    - "VariableDiscoveryPlugin Protocol has 3 methods with minimal documentation. What
+       happens if a plugin returns empty tuple? Raises? Return is interpreted as failure?
+       No contract guarantees."
+
+    - "FeatureDetectionPlugin.detect_features returns FeaturesContext which is dict[str,
+       object]. Should be a TypedDict with known keys (features, errors, etc.)."
+
+error_handling:
+  exception_paths: |
+    ASSESSMENT: 6/10 — Inconsistent Rigor
+
+    Exception handling is SCATTERED and INCONSISTENT:
+
+    GOOD:
+    - errors.py defines structured error taxonomy (ERROR_CATEGORY_*, error codes)
+    - ScanErrorEntry and FailureDetail TypedDicts provide typed error contracts
+    - PrismRuntimeError is raised consistently in most paths
+
+    BAD:
+    - scanner_plugins/registry.py has validate_plugin_api_version() that raises
+      PluginAPIVersionMismatch, but CALLERS don't check. Will cascade into runtime
+      failures later if validation is skipped.
+
+    - scanner_core/scanner_context.py's _copy_scan_metadata raises ValueError with
+      3 different messages (one per validation check). Should have structured codes,
+      not ad-hoc strings.
+
+    - scanner_readme/guide.py logs warnings for missing platform_key but continues
+      with default='ansible'. SILENT FALLBACK is a footgun. Should raise.
+
+    - scanner_kernel/orchestrator.py's _validate_process_scan_pipeline_plugin_signature
+      tries to validate plugin method signature but SWALLOWS the exception in a
+      try/except and logs a warning instead of raising. Plugins with broken signatures
+      will fail at runtime, not validation time.
+
+    - scanner_io/emit_output.py's _coerce_metadata_* functions silently convert bad
+      types to defaults. A broken metadata field becomes an empty list/dict instead
+      of raising. Masks data corruption.
+
+  fail_closed_semantics: |
+    ASSESSMENT: 5/10 — Fail-Open Everywhere
+
+    This codebase is FAIL-OPEN by design, which is wrong for a critical scanning tool:
+
+    FAIL-OPEN PATTERNS:
+    1. prepare_scan_context normalizes missing prepared_policy_bundle by calling
+       scan_request.ensure_prepared_policy_bundle. Fallback at ingress.
+
+    2. task_extract_adapters.py has _PolicyBackedCollectionProxy that calls
+       require_prepared_policy(None, ...) — passing None explicitly! That's not
+       fail-closed, that's *willfully* opening the floodgates.
+
+    3. scanner_readme/guide.py logs warning for missing platform_key, then defaults
+       to 'ansible'. Should REJECT the scan.
+
+    4. scanner_io/emit_output.py coerces corrupted metadata fields to empty
+       defaults. Should reject.
+
+    WHAT FAIL-CLOSED LOOKS LIKE:
+    - Raise on missing required fields
+    - Raise on type mismatches
+    - Raise on unrecognized enums
+    - No silent defaults
+    - No "best effort" mode that silently degrades
+
+    You have NONE of that consistently.
+
+  logging_sufficiency: |
+    CRITICAL FINDINGS:
+    1. scanner_core/events.py EventBus catches listener exceptions and logs to
+       logger.error, but only with repr(listener). If listener crashes, you get
+       a useless log message with the function object representation, not a
+       traceback. Add exc_info=True.
+
+    2. scanner_plugins/registry.py warnings are issued with warnings.warn() — not
+       logged! These won't appear in production logs. Should use logger.warning().
+
+    3. scanner_readme/guide.py and render.py both log.warning for missing
+       platform_key in TWO PLACES with IDENTICAL MESSAGES. Copy-paste error. Should
+       be a centralized function.
+
+    HIGH FINDINGS:
+    4. scanner_core/variable_discovery.py logs "resolving plugin via DI" at DEBUG
+       level, but that debug message is INSIDE the lock. If plugin resolution
+       deadlocks, you won't see the log. Log BEFORE acquiring lock.
+
+    5. scanner_kernel/orchestrator.py validates plugin signatures and logs warnings
+       but doesn't log the actual signature mismatch. Add the actual vs. expected
+       signature to the log message.
+
+    MEDIUM FINDINGS:
+    6. scanner_plugins/defaults.py has fallback logic that logs a warning when
+       _construct_registry_plugin returns None, but doesn't log which plugin was
+       being constructed. Add plugin name to the log.
+
+    7. scanner_io/output_orchestrator.py write_concise_scanner_report_if_enabled has
+       NO logging. If report writing fails, you get no diagnostics.
+
+control_flow:
+  orchestration_clarity: |
+    ASSESSMENT: 7/10 — Traceable but Deep
+
+    The orchestration is TRACEABLE if you know where to look:
+    1. api.py → api_layer/non_collection.py → scanner_core.run_scan
+    2. run_scan → scanner_kernel.orchestrator → kernel_plugin_runner
+    3. Plugin execution → scanner_context → feature_detector/variable_discovery
+    4. Output → scanner_io/output_orchestrator → scanner_readme/render
+
+    BUT — the DEPTH is problematic. Eight levels of indirection:
+    api → api_layer → core → kernel → plugin_runner → context → feature_detector →
+    plugin_factory
+
+    Each layer adds abstraction, but WHERE is the actual work? Buried in
+    scanner_plugins/ansible or scanner_extract layers. Hard to debug.
+
+    ALSO: scan_payload_helpers.py has _apply_routing_metadata, _build_routing_metadata,
+    _merge_metadata_preserving_existing, _merge_routing_metadata. FOUR functions doing
+    almost the same thing. That's code smell.
+
+  state_machines: |
+    ASSESSMENT: 4/10 — Implicit and Fragile
+
+    There is NO EXPLICIT STATE MACHINE. Scanning follows an implicit sequence:
+    1. Preflight (plugin selection via policy_context)
+    2. Variable discovery
+    3. Feature detection
+    4. Output rendering
+    5. Metadata merging
+
+    BUT — there's no state enum, no validation of valid transitions, no rollback
+    capability. If variable discovery fails, what happens? Does feature detection
+    still run? Check scanner_context.py:
+
+      try:
+          self._run_feature_detector()
+          self._run_variable_discovery()
+      except PrismRuntimeError as exc:
+          self._collect_phase_error(...)
+
+    It catches errors and CONTINUES. That's not a state machine, that's "hope nothing
+    breaks in the next phase."
+
+    You need:
+    - Explicit state enum (PREFLIGHT, DISCOVERY, DETECTION, RENDERING, COMPLETE, FAILED)
+    - Transition validation
+    - Rollback handlers
+    - Phase isolation (FAIL state prevents subsequent phases)
+
+  edge_cases: |
+    CONCERNS:
+    1. What if prepared_policy_bundle is None? ANSWERED: fail-open, fallback to
+       late resolver. Dumb.
+
+    2. What if a plugin returns empty results? ANSWERED: continues anyway, metadata
+       notes "degraded" flag. What if downstream code expects non-empty results?
+       Crash at runtime.
+
+    3. What if two plugins register with the same name? ANSWERED: registry silently
+       overwrites. Last-one-wins. Should reject as conflict.
+
+    4. What if a scan_option key is missing? ANSWERED: validator in scan_request.py
+       checks _REQUIRED_SCAN_OPTION_KEYS, but only if validate_scan_options() is
+       called. CALLERS might skip it. Should validate at ingress automatically.
+
+    5. What if role_path exists but is not readable? ANSWERED: FileNotFoundError
+       caught in api_layer/collection.py, converted to CollectionFailureRecord. Works,
+       but no retry logic, no permission-denied diagnostics.
+
+    6. Thread safety of PluginRegistry: _DEFAULT_REGISTRY is protected by
+       _DEFAULT_REGISTRY_INIT_LOCK, but EXISTING registry methods (get_scan_pipeline_plugin,
+       etc.) are NOT thread-safe. Multiple threads modifying registry simultaneously = race.
+
+testing:
+  coverage_assessment: |
+    POSITIVE:
+    - 93 test files is solid coverage
+    - Tests include api_cli_entrypoints, plugin_resolution, scanning, parsing
+    - Parity tests (test_fsrc_scanner_parity.py) ensure src/fsrc alignment
+    - Plugin bootstrap tests verify registration and resolution
+
+    GAPS:
+    1. No tests for metadata mutation isolation. You have ONE test
+       (test_fsrc_plugin_facade_isolates_orchestrated_payload_mutation) but it only
+       checks top-level keys, not nested dict mutations.
+
+    2. No error-path tests for exception handlers. You catch PrismRuntimeError, but
+       do tests verify the error is RECORDED correctly? No.
+
+    3. No concurrent-access tests. PluginRegistry is allegedly thread-safe, but no
+       stress tests prove it.
+
+    4. No memory-leak tests. clone_scan_options() is called 100+ times per collection
+       scan. No test verifies GC cleans up properly.
+
+    5. Performance tests ABSENT. No benchmarks for large roles (1000+ variables).
+       You won't know when code gets slow.
+
+  integration_issues: |
+    ISSUES:
+    1. api_layer/collection.py expects scan_role_fn callable. That callable is
+       DEFINED in api_layer/non_collection.py. The integration between the two
+       layers relies on careful threading of callables. If the callable signature
+       changes, you don't know until runtime.
+
+    2. scanner_readme/render.py imports from plugin_seams.resolve_readme_renderer_plugin.
+       That function resolves plugins from the registry. If the plugin isn't registered,
+       WHAT HAPPENS? Check the code:
+
+         plugin_name = resolve_readme_renderer_plugin(platform_key)
+         return plugin_name.render_identity_section(...)
+
+       If plugin is None (not registered), you get AttributeError. Should be TypeError
+       at registration time, not AttributeError at render time.
+
+    3. scanner_kernel/kernel_plugin_runner orchestrates plugin execution, but
+       DOESN'T validate that the plugin implements the expected protocol until runtime.
+       No Protocol checking at plugin registration.
+
+  mock_patterns: |
+    Most tests use Mock/MagicMock correctly. But:
+
+    ISSUE: test_api_cli_entrypoints.py has massive parametrized tests with 50+
+    parameters passed to test functions. The mocks are buried in fixtures. Hard to
+    trace what's being tested. Should break into smaller, focused tests.
+
+maintainability:
+  code_clarity: |
+    ASSESSMENT: 6/10 — Over-Engineered in Places, Under-Documented in Others
+
+    GOOD:
+    - scanner_plugins/interfaces.py Protocols are clear
+    - scanner_data/contracts_*.py TypedDicts are well-structured
+    - Most functions have docstrings
+
+    BAD:
+    - scanner_core/task_extract_adapters.py is 400+ lines doing task header extraction,
+      catalog assembly, and handler detection. Should be THREE files.
+
+    - scanner_plugins/defaults.py has _resolve_*_plugin functions that are IDENTICAL
+      in structure but copy-pasted 5 times. Should be a generic factory with type
+      parameter.
+
+    - scanner_readme/render.py has _strip_prior_generated_merge_block which is 200+
+      lines of string manipulation with no comments. Incomprehensible.
+
+    - scanner_kernel/plugin_name_resolver.py has functions with IDENTICAL names in
+      TWO files (resolve_scan_pipeline_plugin_class exists in BOTH orchestrator.py
+      and plugin_name_resolver.py). Name collision risk.
+
+  naming_consistency: |
+    ISSUES:
+    1. "prepared_policy_bundle" vs. "policy_context" — two different things,
+       confusing names. Should be "prepared_policies" vs. "policy_config".
+
+    2. "scan_options" is sometimes ScanOptionsDict, sometimes dict[str, Any].
+       No consistent type alias.
+
+    3. "metadata" refers to FOUR different things:
+       - ScanMetadata (scan result metadata)
+       - dict metadata in api_layer/collection.py
+       - Metadata passed to plugins
+       - Output metadata in emit_output.py
+
+    4. "payload" used for:
+       - RunScanOutputPayload
+       - ScanPipelinePayload
+       - CollectionScanResult
+       Should differentiate: scan_payload, collection_payload, output_payload
+
+    5. Plugin methods use "detect_features", "discover_static_variables",
+       "orchestrate_scan_payload". Verb choices are inconsistent. Should be all
+       "analyze_*" or all "compute_*".
+
+  technical_debt: |
+    1. scanner_core/task_extract_adapters.py's _PolicyBackedCollectionProxy and
+       _PolicyBackedRegexProxy are HACKS to work around missing constructor injection.
+       Proper DI would eliminate them.
+
+    2. api.py defines three wrapper classes (DIContainer, FeatureDetector, ScannerContext)
+       that ARE EMPTY. They exist ONLY to allow monkey-patching. That's architectural
+       debt. Remove them or make them functional.
+
+    3. scanner_plugins/bootstrap.py's singleton pattern with _DEFAULT_REGISTRY is
+       Python 2.0 code. Use a proper DI container or module-level frozen state.
+
+    4. scanner_readme/render.py's _strip_prior_generated_merge_block has HARDCODED
+       labels like "Generated content:\n". Should be in constants or contracts.
+
+    5. scanner_extract/task_line_parsing.py has FOUR policy-backed proxy globals
+       (TASK_INCLUDE_KEYS, ROLE_INCLUDE_KEYS, etc.). All call
+       require_prepared_policy(...) at MODULE IMPORT TIME if accessed. This is
+       initialization-time circular dependency hell. Should be lazy-loaded.
+
+extensibility_readiness:
+  kubernetes_terraform_ready: "partial"
+
+  platform_abstraction: |
+    ASSESSMENT: 6/10 — Reserved But Not Ready
+
+    kubernetes/ and terraform/ packages exist as STUBS with classifier/manifest
+    exports, but NO PLUGIN IMPLEMENTATIONS.
+
+    WHAT WORKS:
+    - Plugin registry can resolve by platform_key (ansible, kubernetes, terraform)
+    - DI factory methods use registry to select variable_discovery/feature_detection
+      plugins
+    - prepare_policy_bundle accepts platform-specific policies
+
+    WHAT DOESN'T:
+    - kubernetes and terraform plugins THROW NotImplementedError or return empty
+      results. Will cascade into silent "degraded" scans.
+
+    - No platform-specific validation. Can you pass Ansible policies to Kubernetes
+      scanner? NOTHING PREVENTS IT. Should validate policy type matches platform.
+
+    - scanner_readme layer HARDCODES ansible renderer resolution. New platforms need
+      changes in scanner_readme/guide.py and render.py to add platform checks. NOT
+      extensible. Should use registry.
+
+  remaining_gaps_for_platform_expansion: |
+    1. VariableDiscoveryPlugin protocol assumes role_path as a filesystem path.
+       Kubernetes manifests might be URLs or repo references. Protocol is too narrow.
+
+    2. FeatureDetectionPlugin.detect_features and analyze_task_catalog assume TASK
+       concepts. Kubernetes has no "tasks", it has manifests/specs. Plugin interface
+       too Ansible-centric.
+
+    3. PreparedTaskLineParsingPolicy has TASK_INCLUDE_KEYS, TASK_BLOCK_KEYS, etc.
+       These don't exist for Kubernetes. How does a K8s plugin satisfy this Protocol?
+       Returns empty frozenset? Raises NotImplementedError? Unclear contract.
+
+    4. prepared_policy_bundle is a flat dict with task_line, task_annotation, etc.
+       keys. Should be a Protocol with platform-specific implementations, not a
+       flat structure.
+
+critical_findings:
+  top_priority: |
+    #1 BLOCKER: Dynamic Policy Fallback Authority is Implicit and Unsafe
+
+    scanner_extract/task_line_parsing.py has this at MODULE LEVEL:
+
+      TASK_INCLUDE_KEYS: Collection[str] = _PolicyBackedCollectionProxy("TASK_INCLUDE_KEYS")
+
+    This means accessing TASK_INCLUDE_KEYS requires _PolicyBackedCollectionProxy to
+    resolve require_prepared_policy(None, "task_line_parsing", "task_line_parsing")
+    EVERY TIME.
+
+    WHAT GOES WRONG:
+    1. If prepared_policy_bundle is None, fallback invokes late resolver
+    2. Late resolver is in scanner_core.scan_request.ensure_prepared_policy_bundle
+    3. If THAT fails, you get ValueError at task parsing time, NOT at ingress
+    4. Error path is implicit, untested, and FRAGILE
+
+    FIX:
+    - Remove module-level proxies
+    - Pass PreparedTaskLineParsingPolicy as constructor argument to parsers
+    - Validate policy exists at scanner_context init, not parse time
+    - Make error path EXPLICIT and TESTED
+
+  high_severity:
+    - "Parameter Explosion in Collection API: scan_collection() has 30+ parameters.
+       This is unmaintainable. CREATE A CONFIG OBJECT or builder. Callers shouldn't
+       need to know all 30 knobs."
+
+    - "Type Safety Gaps in Defaults: scanner_plugins/defaults.py has 9 instances of
+       Any. These SHOULD BE plugin type unions. Mypy will skip validation on these
+       functions. Any is technical debt."
+
+    - "Silent Fallback Mode in scanner_readme: Missing platform_key defaults to
+       'ansible' with a warning. REJECT instead. What if someone updates Ansible
+       and forgets to update Kubernetes? Silent fallback means you scan with wrong
+       renderer."
+
+    - "Metadata Mutation Leaks: clone_scan_options() does shallow copy. Nested dicts
+       can be mutated by callers. DI should expose immutable view. Use copy.deepcopy
+       or freeze() semantics."
+
+    - "Registry Resolution Race Condition: PluginRegistry methods (get_scan_pipeline_plugin,
+       etc.) are NOT thread-safe. Concurrent calls to register plugins = undefined
+       behavior."
+
+    - "Missing Protocol Validation at Plugin Registration: Plugins are registered
+       without signature validation. Plugin method can have WRONG signature, no error
+       until plugin.orchestrate_scan_payload(...) is called at runtime."
+
+    - "Incomplete Error Contract: ScanErrorEntry has 4 fields (phase, error_type,
+       message, but NO traceback. When scan fails, you have no stack trace. Add
+       traceback field."
+
+  medium_severity:
+    - "Code Duplication in Defaults: _resolve_extract_policy_plugin,
+       _resolve_yaml_parsing_policy_plugin, _resolve_jinja_analysis_policy_plugin
+       are COPY-PASTED. Extract to generic _resolve_policy_plugin(slot, fallback)."
+
+    - "Inefficient Cloning: clone_scan_options() called on EVERY plugin factory call.
+       No caching. Should clone ONCE at DI init, not per-factory."
+
+    - "State Machine Missing: No explicit scan phases or phase transitions. Implicit
+       sequence (preflight → discovery → detection → render). Add Phase enum and
+       transition validation."
+
+    - "Logging Inconsistency: warnings.warn() used instead of logger.warning().
+       Warnings won't appear in production logs. Use logger everywhere."
+
+    - "EventBus Error Handling: Exception in listener is caught and logged, but only
+       repr(listener) is in the log, no traceback. Add exc_info=True."
+
+    - "Configuration Validation Gaps: validate_scan_options() checks _REQUIRED_SCAN_OPTION_KEYS,
+       but NOT called automatically at ingress. Should be in scan_request.py build function."
+
+overall_assessment: |
+  SUMMARY: Architecturally Ambitious, Operationally Fragile
+
+  This codebase is WELL-DESIGNED in principle but POORLY-EXECUTED in practice. You
+  built a sophisticated plugin architecture, TypedDict contracts, and layer separation.
+  That's not easy. Credit where due.
+
+  BUT — the implementation reveals a team that understood the blueprint but neglected
+  the rigor required to make it MAINTAINABLE and SAFE:
+
+  1. FAIL-OPEN by default: Every subsystem has silent fallbacks instead of
+     fail-closed validation.
+
+  2. ANY-TYPING EVERYWHERE: 9 instances in defaults.py alone. Type safety is optional
+     at 10,000 feet.
+
+  3. COPY-PASTE PATTERNS: _resolve_*_plugin functions, merge_metadata functions,
+     validation messages — not refactored.
+
+  4. IMPLICIT STATE: No explicit state machines, phase transitions, or rollback
+     handlers. Scanning is an ad-hoc sequence.
+
+  5. PARAMETER EXPLOSION: 30+ params to scan_collection(). Unmaintainable.
+
+  6. THREAD SAFETY GAPS: Registry methods not thread-safe. Race conditions waiting
+     to happen.
+
+  7. NO OPERATOR VISIBILITY: Logging is inconsistent. Missing data gets silent
+     defaults. Debugging production issues will be a nightmare.
+
+  WHAT WILL BREAK IN PRODUCTION:
+  - First K8s plugin fails silently with degraded metadata
+  - Ansible plugin update forgotten, scanner defaults to Ansible, produces wrong output
+  - Large collection scans hit memory bloat from repeated cloning
+  - Concurrent collection scans trigger registry race condition
+  - Broken plugin signature not caught until plugin runs
+  - Plugin mutation of scan_options corrupts next scan
+
+  CODEBASE HEALTH: 6.5/10 (Better than average, worse than production-ready)
+
+follow_up_work:
+  phase_7_critical_fixes:
+    - "PRIORITY 1: Eliminate Dynamic Policy Fallback. Remove _PolicyBackedCollectionProxy,
+       _PolicyBackedRegexProxy. Pass PreparedTaskLineParsingPolicy as constructor arg
+       to all parsers. Validate at scanner_context init."
+
+    - "PRIORITY 2: Implement Configuration Object for Collection Scanning. 30+ params
+       to scan_collection() → CollectionScanConfig TypedDict + builder. Unblocks API
+       clarity and testing."
+
+    - "PRIORITY 3: Add Fail-Closed Validation. Replace all silent defaults
+       (missing platform_key, corrupted metadata) with explicit raises. Add validation
+       gate at scanner_context init."
+
+    - "PRIORITY 4: Thread-Safe Registry. Protect registry.get_scan_pipeline_plugin()
+       and list_scan_pipeline_plugins() with locks. Add concurrent-access tests."
+
+    - "PRIORITY 5: Remove Any-Typing in Defaults. Type plugin parameters as Union
+       of actual plugin types. Mypy should validate all code paths."
+
+  phase_8_maintainability:
+    - "REFACTOR: Extract _resolve_policy_plugin generic factory to eliminate copy-paste."
+
+    - "REFACTOR: Move string manipulation in _strip_prior_generated_merge_block to
+       separate module with unit tests."
+
+    - "REFACTOR: Consolidate four merge_metadata functions into one with registry
+       of merge strategies."
+
+    - "ADD TESTS: Concurrent registry access, metadata mutation isolation, error
+       paths, plugin signature validation."
+
+    - "ADD OBSERVABILITY: Add phase enum and transition logging. Add traceback to
+       ScanErrorEntry. Consistent logger usage (no warnings.warn)."
+
+  phase_9_extensibility:
+    - "Platform-Specific Policies: Abstract task-specific keys (TASK_INCLUDE_KEYS)
+       into platform-specific Policy protocols."
+
+    - "Variable Discovery Protocol Revision: Accept generic 'manifest' concept, not
+       just role_path."
+
+    - "Feature Detection Protocol Revision: Make feature names platform-agnostic
+       (not 'tasks', 'handlers', etc.)."
+
+    - "Kubernetes/Terraform Implementation: Implement actual plugins instead of stubs."
+
+detailed_notes:
+  scanner_core_orchestration: |
+    scanner_core/scan_request.py:build_run_scan_options_canonical does HALF the work
+    of option normalization. scanner_context.py does the OTHER HALF. Split responsibility.
+    Should be ALL in scan_request or ALL in scanner_context, not both.
+
+  plugin_registry_architecture: |
+    _DEFAULT_REGISTRY singleton with lazy init is fine, but get_default_plugin_registry()
+    should be a module-level function, not bootstrap.py wrapper. Extra indirection adds
+    no value.
+
+  collection_scanning_flow: |
+    api_layer/collection.py:scan_collection iterates roles and calls scan_role_fn for
+    each. That callable comes from non_collection.py. The threading is implicit.
+    Document it. Add a @dataclass to hold the callback instead of raw Callable.
+
+  error_recovery: |
+    PrismRuntimeError is caught and stored in scan_errors, but exceptions of OTHER
+    types (RuntimeError, ValueError) cascade uncaught. Should catch broader base
+    class or document which exceptions are recoverable.
+
+  type_completeness: |
+    PreparedPolicyBundle in contracts_request.py should define task_line, task_annotation,
+    task_traversal, variable_extractor, yaml_parsing, jinja_analysis as optional
+    Protocol-typed fields. Currently they're implicitly expected keys in a dict.
+    Make it explicit.
+
+status: complete
+severity_summary:
+  total_critical: 1
+  total_high: 7
+  total_medium: 6
+  architectural_concerns: 12
+  type_safety_gaps: 6
+  operational_risks: 8

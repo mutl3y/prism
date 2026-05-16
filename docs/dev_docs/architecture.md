@@ -66,3 +66,39 @@ should not become the default home for new multi-step implementation.
 - Add new repository-intake behavior in `prism.repo_services` first.
 - Add new scan runtime behavior in the owning `prism.scanner_*` package first.
 - Re-export from a top-level module only when the behavior belongs on the supported public surface.
+
+## Error Adapter Protocol
+
+The error envelope provides a unified interface across all platform adapters:
+
+- **5 error categories**: parse_error, task_error, variable_error, policy_error, system_error
+- **21 error codes**: structured codes for diagnostic traceability
+- **7-field provenance**: file, line, column, role, task, platform, timestamp
+- **Secret sanitization**: kubeconfig, tokens, and credential patterns scrubbed from payloads
+
+All platform adapters implement `PlatformErrorAdapter` protocol. Ansible is the reference implementation.
+
+## Platform Adapter Status
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| Ansible | ✅ Reference implementation | Stable, 176 lines, 19+ scenarios |
+| Kubernetes | 🔧 Stub present | Implementation planned Q3 2026 |
+| Terraform | 🔧 Stub present | Implementation planned Q3 2026 |
+
+The DI registry is platform-agnostic; new adapters register via `PluginRegistry` without core changes.
+
+## Test Architecture
+
+Tests are organized into 4 explicit boundaries:
+
+```
+src/prism/tests/
+├── core/          # DI, caching, policies, config — pytest -m core
+├── plugins/       # Plugin API, discovery, schema — pytest -m plugins
+│   └── ansible/   # Ansible-specific tests       — pytest -m ansible
+└── integration/   # Parity, e2e, boundary gates  — pytest -m integration
+```
+
+Tox environments: `test-core`, `test-plugins`, `test-integration`.
+The boundary structure enforces that plugin tests do not import scanner_core internals.

@@ -1,0 +1,137 @@
+- id: Scout-ControlFlow-01
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/cli.py_569
+  file: src/prism/cli.py
+  line: 569
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as exc:'
+  evidence_command: sed -n 569p src/prism/cli.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-ControlFlow-02
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/scanner_core/events.py_140
+  file: src/prism/scanner_core/events.py
+  line: 140
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as exc:  # pragma: no cover - defensive'
+  evidence_command: sed -n 140p src/prism/scanner_core/events.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-ControlFlow-03
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/scanner_core/execution_request_builder.py_186
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 186
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as exc:'
+  evidence_command: sed -n 186p src/prism/scanner_core/execution_request_builder.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-ControlFlow-04
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/scanner_core/execution_request_builder.py_201
+  file: src/prism/scanner_core/execution_request_builder.py
+  line: 201
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as exc:'
+  evidence_command: sed -n 201p src/prism/scanner_core/execution_request_builder.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-ControlFlow-05
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/scanner_core/scanner_context.py_354
+  file: src/prism/scanner_core/scanner_context.py
+  line: 354
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as error:'
+  evidence_command: sed -n 354p src/prism/scanner_core/scanner_context.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-ControlFlow-06
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/scanner_core/scanner_context.py_373
+  file: src/prism/scanner_core/scanner_context.py
+  line: 373
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as error:'
+  evidence_command: sed -n 373p src/prism/scanner_core/scanner_context.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-ControlFlow-07
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/scanner_core/telemetry.py_94
+  file: src/prism/scanner_core/telemetry.py
+  line: 94
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as exc:  # pragma: no cover - caller-provided
+    IO boundary'
+  evidence_command: sed -n 94p src/prism/scanner_core/telemetry.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests
+- id: Scout-ControlFlow-08
+  category: error_channel
+  fingerprint: controlflow_broad_except_src/prism/scanner_kernel/kernel_plugin_runner.py_150
+  file: src/prism/scanner_kernel/kernel_plugin_runner.py
+  line: 150
+  severity_hint: medium
+  confidence: high
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: 'except Exception as exc:'
+  evidence_command: sed -n 150p src/prism/scanner_kernel/kernel_plugin_runner.py
+  related_symbols: []
+  fix_group_key: error_handling_broad_except
+  proposed_fix_class: tighten_except
+  blocking_preconditions: []
+  suggested_narrow_gate: pytest -k error src/prism/tests

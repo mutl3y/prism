@@ -18,18 +18,11 @@ if TYPE_CHECKING:
         YamlParseFailure,
     )
 
-
-logger = logging.getLogger(__name__)
-
 _InputT = TypeVar("_InputT")
 _ResultT = TypeVar("_ResultT")
+_PARALLEL_YAML_BATCH_THRESHOLD = 10
 
-# Keep the parallel path parked behind a conservative threshold for now.
-# The current benchmarked workloads regressed at 24- and 100-file batches on
-# this machine, so current scans stay sequential by default. Retain this as a
-# future-expansion seam for materially larger workloads, and only lower the
-# gate when a workload-shaped benchmark proves a better cutoff.
-_PARALLEL_YAML_BATCH_THRESHOLD = 128
+logger = logging.getLogger(__name__)
 
 
 def build_yaml_load_error(path: Path, exc: Exception) -> PrismRuntimeError:

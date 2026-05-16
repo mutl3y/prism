@@ -1,0 +1,80 @@
+---
+probe_id: R-005
+finding: "Plugin construction exceptions masked in fallback"
+investigation_results:
+  current_code: |
+    At scanner_plugins/defaults.py:396-403, _construct_registry_plugin catches Exception:
+      except Exception as exc:
+          return _fallback_or_raise_plugin_construction_error(
+              plugin_kind=plugin_kind,
+              plugin_class=plugin_class,
+              strict_mode=strict_mode,
+              fallback_plugin=fallback_plugin,
+              fallback_platform_key=fallback_platform_key,
+              di=di,
+              registry=registry,
+              exc=exc,
+          )
+
+    The exception is delegated to _fallback_or_raise_plugin_construction_error (lines 301-340).
+
+  logging_present: "YES — partial"
+  logging_details: |
+    In non-strict mode (line 321-324):
+      logger.warning(
+          "Failed to construct %s plugin in non-strict mode; falling back to %s. %s",
+          plugin_kind,
+          type(fallback_plugin).__name__,
+          exc,
+      )
+
+    The exception object itself is passed as third argument to the warning.
+
+    In strict mode (line 326-335):
+      Raises PrismRuntimeError with full exception context in 'detail' dict,
+      including plugin_class name and str(exc).
+
+    Finding: LOGGER is defined and USED in the non-strict path. In strict mode,
+    the exception is re-raised with full context, so it will appear in stderr/logs.
+
+  impact_if_silent: |
+    CURRENT STATE: Not silent. In non-strict mode, logger.warning() is called with
+    the exception message included. In strict mode, a PrismRuntimeError is raised
+    with full exception details. Both paths provide diagnostic visibility.
+
+    RISK: The warning message in non-strict mode is moderately diagnostic but could
+    be enhanced: it only includes str(exc) without exception type name, traceback,
+    or plugin_class.__module__ prefix. Third-party plugins from different module
+    paths could be harder to distinguish in aggregated logs.
+
+  fix_approach: |
+    CURRENT: Already logs warnings in non-strict mode. The logging is present.
+
+    ENHANCEMENT: Could improve diagnostic richness by:
+    1. Adding exception type name: type(exc).__name__
+    2. Adding module path: f"{plugin_class.__module__}:{plugin_class.__name__}"
+    3. Optionally including traceback context (exc.__traceback__) for debugging
+
+    Example improved log:
+      logger.warning(
+          "Failed to construct %s plugin (%s:%s) in non-strict mode; "
+          "falling back to %s. Exception: %s: %s",
+          plugin_kind,
+          plugin_class.__module__,
+          plugin_class.__name__,
+          type(fallback_plugin).__name__,
+          type(exc).__name__,
+          exc,
+      )
+
+  conclusion: |
+    The exception handler is NOT silent. It logs at warning level in non-strict
+    mode and raises with full context in strict mode. However, the diagnostic
+    information could be richer (exception type, module path) to help distinguish
+    plugin construction failures across different plugin providers.
+
+status: complete
+artifact_date: "2026-05-07"
+probe_agent: "mutl3y-probe"
+plan_id: "mutl3y-review-20260507-g77"
+phase: "phase3"

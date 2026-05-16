@@ -1,0 +1,43 @@
+timestamp: "2026-05-11T17:24:00Z"
+phase: "phase_1"
+wave: 3
+validation_mode: "parallel"
+lane_runs:
+  - lane: "core"
+    command: ".venv/bin/pytest -q -m core src/prism/tests"
+    result: "pass"
+    passed: 567
+    skipped: 1
+    deselected: 799
+    warnings: 6
+    runtime_seconds: 9.19
+  - lane: "plugins"
+    command: ".venv/bin/pytest -q -m plugins src/prism/tests"
+    result: "pass"
+    passed: 228
+    skipped: 1
+    deselected: 1138
+    warnings: 13
+    runtime_seconds: 6.36
+  - lane: "integration"
+    command: ".venv/bin/pytest -q -m integration src/prism/tests"
+    result: "pass"
+    passed: 606
+    skipped: 7
+    deselected: 754
+    warnings: 4
+    runtime_seconds: 11.63
+reconciliation:
+  drift_type: "copy_retain"
+  duplicate_root_files_removed: 18
+  post_reconcile_duplicate_scan: "clean"
+remaining_root_test_files: 60
+rubric_metrics:
+  delegation_ratio: "4 delegated workers (1 scout + 3 builders), 1 foreman reconcile action"
+  lane_parallelism: 3
+  lane_success_rate: "3/3"
+  token_usage_policy: "subagent summaries only; artifact-backed context compaction maintained"
+  model_tier_policy:
+    scout: "tier_0_free"
+    builders: "tier_0_free with one tier_1_low_cost"
+    gatekeeper: "tier_0_free"

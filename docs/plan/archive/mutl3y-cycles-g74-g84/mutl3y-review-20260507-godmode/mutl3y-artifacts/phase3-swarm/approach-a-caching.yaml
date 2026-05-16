@@ -1,0 +1,222 @@
+# Investigation: Caching Layer Strategy for Policy-Backed Proxies
+# Probe: Probe-Caching-Overhead
+# Date: 2026-05-07
+# Task: Evaluate feasibility of @functools.lru_cache to reduce require_prepared_policy overhead
+
+investigation_title: "Caching Layer Strategy for Policy-Backed Proxy Overhead"
+probe_name: "Probe-Caching-Overhead"
+finding_reference: "CRITICAL - Misuse of Policy-Backed Proxies"
+scope: "Single-angle investigation into caching as competing approach"
+
+## Executive Summary
+The policy-backed proxy pattern (`_PolicyBackedCollectionProxy`, `_PolicyBackedRegexProxy`)
+calls `require_prepared_policy()` for every access (membership test, iteration, length check).
+Caching via `@functools.lru_cache` is technically feasible but introduces thread-safety coupling
+and does not address the underlying architectural issue: dynamic runtime policy resolution
+should be static at module load time.
+
+---
+
+## Findings
+
+### 1. Determinism: CONFIRMED ✓
+- `get_prepared_policy_or_none(di, policy_name)` returns the same object across multiple calls
+- Tested: 5 consecutive calls to same policy return identical object identity
+- Conclusion: **Caching is safe from determinism perspective**
+- Evidence:
+  ```python
+  results = [get_prepared_policy_or_none(di, "task_line_parsing") for _ in range(5)]
+  all(r is results[0] for r in results)  # True
+  len(set(id(r) for r in results)) == 1  # True (single object)
+  ```
+
+### 2. Performance Overhead: QUANTIFIED ✓
+- Per-call overhead: **~4.7 microseconds** (100k iterations)
+- Operations per call:
+  1. isinstance(di, HasScanOptions) protocol check
+  2. getattr(di, 'scan_options')
+  3. isinstance(scan_options, dict) check
+  4. scan_options.get('prepared_policy_bundle')
+  5. isinstance(prepared_policy_bundle, dict) check
+  6. prepared_policy_bundle.get(policy_name)
+  7. Debug logging (when enabled)
+
+- Real-world overhead projection:
+  | Scenario | Files | Accesses | Total Overhead |
+  |----------|-------|----------|---|
+  | Small collection | 50 | 2,500 | 11.75 ms |
+  | Medium collection | 200 | 10,000 | 47.00 ms |
+  | Large collection | 500 | 37,500 | **176.25 ms** |
+
+  Conservative estimate: **5-10 proxy accesses per task** across all condition checks
+  (include_tasks, import_tasks, include_vars, set_fact, block, etc.)
+
+### 3. Cache Key Analysis: AMBIGUOUS ⚠️
+Current usage pattern: `require_prepared_policy(None, "task_line_parsing", "task_line_parsing")`
+
+**Problem: `di=None` is passed explicitly**
+- The proxies cannot use `di` as cache key (it's always None)
+- The policy_name is constant per proxy instance ("task_line_parsing", "task_annotation_parsing")
+- The context_label is unused for caching purposes
+
+**Possible cache key strategies:**
+1. **(di, policy_name)** - Fails because di=None always
+2. **policy_name only** - Unsafe: assumes same policy across all DI containers in multi-scan scenarios
+3. **Global module-level cache** - Requires DI singletonism assumption
+4. **(id(di), policy_name)** - Requires DI object identity stability; risky across scans
+5. **Thread-local storage** - Introduces thread coupling; scanner uses ThreadPoolExecutor for I/O
+
+### 4. Thread Safety: RISKY ⚠️
+- Prism uses `concurrent.futures.ThreadPoolExecutor` for file I/O (loader.py)
+- `@functools.lru_cache` is thread-safe for the cache data structure itself (GIL protected)
+- **Risk**: If DI is not thread-local, concurrent threads could:
+  - Attempt to cache different policy_bundles under same key
+  - Create cache coherency issues across scan phases
+  - Mask configuration drift bugs (cached policy doesn't reflect state changes)
+
+- Evidence from codebase:
+  - DIContainer uses `threading` module (di.py imports threading)
+  - No explicit thread-local policy binding observed
+  - Policy bundle is mutable (dict passed by reference)
+
+### 5. Implementation Feasibility: MEDIUM
+
+**If caching via @lru_cache:**
+```python
+from functools import lru_cache
+
+@lru_cache(maxsize=16)  # Policy name cardinality bounded
+def get_prepared_policy_or_none(di: object | None, policy_name: str) -> object | None:
+    # ... existing implementation
+```
+
+**Challenges:**
+1. **Not hashable**: `di` object must be hashable for cache key (not guaranteed)
+2. **di=None always**: Cache would have single key ("task_line_parsing") if di=None
+3. **Policy mutability**: If policy objects are mutable, cached reference could become stale
+4. **Scan isolation**: Multiple scans in same process would share cache (requires manual cache clear)
+
+**LoC estimate**: ~3-5 lines of change (decorator + optional cache.clear())
+
+### 6. Alternative Cache Strategies
+
+#### A. **Module-Level Lazy Cache (Stateless)**
+- Cache prepared_policy at import time in task_line_parsing.py
+- Requires preparing policy before module load (breaks current lazy model)
+- Not feasible with current architecture
+
+#### B. **DI-Stored Cache**
+- Store cached policies in DIContainer itself
+- DIContainer becomes policy cache keeper
+- Safer than global cache; respects scan isolation
+- **Feasibility**: Medium-High (more code, better isolation)
+- **LoC**: ~15-20 lines
+
+#### C. **Decorator-Based Instance Cache**
+- Cache results per _PolicyBackedCollectionProxy instance
+- Store dict of `{policy_name: policy_obj}` on proxy
+- Risk: Proxies are module-level singletons; cache survives across scans
+- **LoC**: ~10 lines
+
+---
+
+## Risk Assessment
+
+### Blocking Risks
+1. **Di=None pattern breaks standard caching**
+   - Severity: MEDIUM
+   - Mitigation: Would require refactoring proxy to accept di parameter
+
+2. **Thread safety with concurrent scans**
+   - Severity: MEDIUM
+   - Mitigation: Thread-local cache or explicit scan isolation
+
+3. **Cache invalidation on policy change**
+   - Severity: MEDIUM
+   - Mitigation: Explicit cache.clear() on policy bundle mutations
+
+### Open Edges
+1. **Policy bundle mutability**: Are policies modified after bundle creation?
+2. **Multi-scan isolation**: Do concurrent scans use different DI instances?
+3. **DI object identity**: Is DI instance reused or recreated per scan?
+
+---
+
+## Recommendation
+
+### Feasibility: MEDIUM
+- Technically feasible with @functools.lru_cache (5-10 LOC)
+- BUT creates coupling dependencies on thread-local storage assumptions
+- Cache key strategies are fragile (di=None, or requires di hashability)
+- Does not solve underlying architectural issue
+
+### Cost/Benefit Trade-off
+| Aspect | Assessment |
+|--------|-----------|
+| Performance gain | ~176ms for large collection (176ms / 37.5k = 4.7µs per call) |
+| Code complexity | +5-10 lines of caching boilerplate |
+| Maintenance burden | +Cache invalidation strategy, thread safety vigilance |
+| Architectural debt | Does NOT reduce proxy complexity; hides it |
+| Risk factor | MEDIUM-HIGH (thread-safety unknowns) |
+
+### Recommended for Wave 2: **NO** (with caveat)
+
+**Primary recommendation**: Replace proxies with static resolution (Approach B/C from god mode)
+- Eliminates proxy entirely instead of optimizing proxy
+- Removes thread-safety ambiguity
+- Simpler maintenance surface
+
+**If caching is still chosen**:
+1. Use DI-stored cache (Strategy B above) rather than global @lru_cache
+2. Explicitly address di=None issue (pass di through proxies)
+3. Add test coverage for concurrent access scenarios
+4. Document cache invalidation contract
+
+---
+
+## Conclusion
+
+Caching is a **band-aid** on a deeper architectural issue. The proxies exist to provide
+lazy policy resolution at module load time, but the implementation uses runtime dynamic lookup
+(require_prepared_policy on every access). Static resolution or explicit caching in DI would
+be more maintainable.
+
+**One-sentence summary**: Caching reduces 176ms overhead to ~0ms but introduces thread-safety
+coupling and cache invalidation burden; static resolution eliminates the proxy entirely.
+
+---
+
+# Artifact Properties
+artifact_path: "docs/plan/mutl3y-review-20260507-godmode/mutl3y-artifacts/phase3-swarm/approach-a-caching.yaml"
+feasibility: "medium"
+recommended_for_wave_2: "no"
+estimated_loc_change: 8
+risk_level: "medium"
+timeline_estimate: "4-6 hours (testing thread safety + integration)"
+
+pros:
+  - Minimal code change (5-10 lines)
+  - Immediate ~176ms latency improvement in large scans
+  - @functools.lru_cache is battle-tested in Python ecosystem
+  - Preserves current lazy-resolution architecture
+  - No API changes required
+
+cons:
+  - Does not address underlying architectural issue (proxies should be static)
+  - Thread-safety unknowns with concurrent file I/O
+  - Cache key strategy requires di=None workaround or di refactoring
+  - Adds cache invalidation complexity (when policy changes)
+  - Couples scanner to thread-local storage assumptions
+  - Multiple scans in same process require explicit cache clear()
+  - Policy objects must remain immutable (not documented)
+
+risks:
+  - Thread-local cache coherency with ThreadPoolExecutor I/O
+  - Silent performance regression if policy bundle mutations not cached.clear()'d
+  - Hides proxies complexity instead of eliminating it
+  - Fragile cache key strategy (di identity/hashability not guaranteed)
+
+alternative_approaches:
+  - "Approach B (god mode): Replace proxies with static resolution"
+  - "Approach C (god mode): Pre-resolve policies at module load"
+  - "Approach D (god mode): Refactor task catalog assembly to accept di parameter"

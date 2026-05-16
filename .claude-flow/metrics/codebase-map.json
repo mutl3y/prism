@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-05-11T18:55:37.328Z",
+  "projectRoot": "/raid5/source/test/prism",
+  "structure": {
+    "hasPackageJson": false,
+    "hasTsConfig": false,
+    "hasClaudeConfig": false,
+    "hasClaudeFlow": true
+  },
+  "scannedAt": 1778525737328
+}

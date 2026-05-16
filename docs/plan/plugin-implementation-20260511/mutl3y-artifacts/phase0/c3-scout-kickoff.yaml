@@ -1,0 +1,77 @@
+plan_id: plugin-implementation-20260511
+cycle: plugin-implementation-20260511-c3
+phase: 0
+worker: Scout-ControlFlow
+tier_selected: "FREE (0x)"
+tier_reason: "Phase 0 scout default tier."
+observations_count: 5
+shortlist_candidates:
+  - id: C3-001
+    severity_hint: HIGH
+    title: "DI prepared_policy_bundle availability / replace_scan_options ordering risk"
+    rationale: |
+      `ensure_prepared_policy_bundle` writes `prepared_policy_bundle` into the provided
+      `scan_options` and calls `di.replace_scan_options` only when `di` implements
+      `HasReplaceScanOptions`. `non_collection` invokes ensure using a shallow copy of
+      execution scan_options and then copies the returned bundle back onto the original
+      execution request. If DI implementations do not provide `replace_scan_options`, or
+      if call ordering differs, `di.scan_options` may be missing `prepared_policy_bundle`.
+      Hot-path consumers (e.g. `task_extract_adapters._resolve_marker_prefix`) fail-fast
+      when prepared bundle or `comment_doc_marker_prefix` is absent, causing runtime
+      ValueError on common flows.
+    primary_files:
+      - src/prism/scanner_plugins/bundle_resolver.py
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_core/task_extract_adapters.py
+      - src/prism/scanner_core/scan_request.py
+  - id: C3-002
+    severity_hint: HIGH
+    title: "PreparedPolicyBundle cacheability & shape mismatch (malformed vs uncacheable)"
+    rationale: |
+      `_prepared_policy_bundle_cache_marker` in `non_collection` classifies bundles as
+      `missing|malformed|uncacheable|__bundle_fingerprint__`. The shape test
+      (`_has_cacheable_prepared_policy_bundle_shape`) expects non-mapping plugin
+      objects for `task_line_parsing` and `jinja_analysis`. If callers supply mapping
+      types or serialized plugin descriptors, the marker becomes `malformed` and
+      fingerprinting differs. These divergent expectations can cause cache misses,
+      unexpected cache key variance, or incorrect bypassing of the cache.
+    primary_files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_plugins/bundle_resolver.py
+  - id: C3-003
+    severity_hint: MEDIUM
+    title: "Deep-copying prepared_policy_bundle may clone plugin instances and alter identity"
+    rationale: |
+      `build_run_scan_options_canonical` in `scan_request` deep-copies `prepared_policy_bundle`
+      when provided. If the bundle contains live plugin instances (callables/objects), a
+      deepcopy can produce new objects whose type/identity differs from the originals.
+      This can break PLUGIN_IS_STATELESS checks, `CacheFingerprintProvider` identity, and
+      lead to non-deterministic cache fingerprints or unexpected method binding issues.
+    primary_files:
+      - src/prism/scanner_core/scan_request.py
+      - src/prism/scanner_plugins/bundle_resolver.py
+  - id: C3-004
+    severity_hint: MEDIUM
+    title: "Plugin contract omission: missing PLUGIN_IS_STATELESS / cache fingerprint provider"
+    rationale: |
+      `_bundle_value_fingerprint` relies on `CacheFingerprintProvider.cache_fingerprint()`
+      or a `PLUGIN_IS_STATELESS` type attribute to build stable fingerprints. New or
+      modified plugin implementations that omit these contracts will be classified as
+      `_UNCACHEABLE_BUNDLE_VALUE`, resulting in `uncacheable` marker and skipped
+      cache use. This is a likely regression vector when introducing new plugins.
+    primary_files:
+      - src/prism/api_layer/non_collection.py
+      - src/prism/scanner_plugins/bundle_resolver.py
+  - id: C3-005
+    severity_hint: LOW
+    title: "Strict-mode / plugin resolution variance can alter bundle shape"
+    rationale: |
+      `ensure_prepared_policy_bundle` resolves plugin implementations with `strict_mode`
+      derived from `resolve_strict_phase_failures(scan_options)`. Different `strict_mode`
+      values may produce different plugin objects or policies, causing fingerprint and
+      shape variance across otherwise-identical requests.
+    primary_files:
+      - src/prism/scanner_plugins/bundle_resolver.py
+      - src/prism/api_layer/non_collection.py
+recommended_next_phase: Phase 3 (mutl3y-probe) - focused investigations on C3-001 and C3-002
+timestamp_utc: "2026-05-12T12:00:00Z"

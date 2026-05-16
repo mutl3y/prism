@@ -1,0 +1,8 @@
+status: PASS
+test_helpers_fixed_count: 2
+artifact_path: docs/plan/mutl3y-review-wave2-hotpath-20260507/mutl3y-artifacts/phase3/builder-testfix-summary.yaml
+tests_run:
+  - pytest -q src/prism/tests/ -k 'task_extract_adapters_marker_prefix_bundle_only_and_fail_closed or fsrc_feature_detector_collect_task_handler_catalog_hot_path'
+notes:
+  - Added optional policy_constants parameters to the two failing test helpers.
+  - Validation passed with 2 tests green, 1 skipped, 1175 deselected.

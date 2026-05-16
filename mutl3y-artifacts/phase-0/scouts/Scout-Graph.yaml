@@ -1,0 +1,71 @@
+- id: Scout-Graph-01
+  category: graph
+  fingerprint: graph_high_import_count_src/prism/api.py
+  file: src/prism/api.py
+  line: 1
+  severity_hint: low
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: File has 25 imports
+  evidence_command: grep -n '^from\|^import' src/prism/api.py | wc -l
+  related_symbols: []
+  fix_group_key: graph_dependency_review
+  proposed_fix_class: type_only_import
+  blocking_preconditions: []
+  suggested_narrow_gate: ''
+- id: Scout-Graph-02
+  category: graph
+  fingerprint: graph_high_import_count_src/prism/scanner_plugins/ansible/__init__.py
+  file: src/prism/scanner_plugins/ansible/__init__.py
+  line: 1
+  severity_hint: low
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: File has 20 imports
+  evidence_command: grep -n '^from\|^import' src/prism/scanner_plugins/ansible/__init__.py
+    | wc -l
+  related_symbols: []
+  fix_group_key: graph_dependency_review
+  proposed_fix_class: type_only_import
+  blocking_preconditions: []
+  suggested_narrow_gate: ''
+- id: Scout-Graph-03
+  category: graph
+  fingerprint: graph_high_import_count_src/prism/scanner_plugins/ansible/extract_utils.py
+  file: src/prism/scanner_plugins/ansible/extract_utils.py
+  line: 1
+  severity_hint: low
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: File has 21 imports
+  evidence_command: grep -n '^from\|^import' src/prism/scanner_plugins/ansible/extract_utils.py
+    | wc -l
+  related_symbols: []
+  fix_group_key: graph_dependency_review
+  proposed_fix_class: type_only_import
+  blocking_preconditions: []
+  suggested_narrow_gate: ''
+- id: Scout-Graph-04
+  category: graph
+  fingerprint: graph_high_import_count_src/prism/scanner_plugins/ansible/variable_discovery.py
+  file: src/prism/scanner_plugins/ansible/variable_discovery.py
+  line: 1
+  severity_hint: low
+  confidence: medium
+  detector: grep
+  memory_status: new
+  memory_match: ''
+  evidence_snippet: File has 20 imports
+  evidence_command: grep -n '^from\|^import' src/prism/scanner_plugins/ansible/variable_discovery.py
+    | wc -l
+  related_symbols: []
+  fix_group_key: graph_dependency_review
+  proposed_fix_class: type_only_import
+  blocking_preconditions: []
+  suggested_narrow_gate: ''

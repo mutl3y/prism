@@ -125,10 +125,17 @@ def run_kernel_plugin_orchestrator(
             }
             continue
 
+        # SKIP DOWNSTREAM PHASES if upstream failed
+        # Semantics: If any prior phase failed and fail_fast=False, all downstream
+        # phases are skipped to prevent cascade failures. This maintains phase
+        # dependency ordering even when fail_fast=False (fail-per-plugin mode).
         if upstream_phase_failed:
             logger.warning(
-                "Phase %s: skipped due to upstream failure in previous phase",
+                "Phase %s: SKIPPED due to upstream failure in previous phase "
+                "(fail_fast=%s, upstream_phase_failed=True). Phase dependencies require "
+                "successful prior execution.",
                 phase,
+                fail_fast,
             )
             response["phase_results"][phase] = {
                 "phase": phase,
@@ -155,16 +162,23 @@ def run_kernel_plugin_orchestrator(
                 "error": error_envelope,
             }
 
+            # MARK UPSTREAM FAILURE: Next iteration will skip downstream phases
+            # Semantics depend on fail_fast:
+            # - fail_fast=True: Break immediately, no downstream phases in this plugin
+            # - fail_fast=False: Continue loop, mark flag so remaining phases skip
+            #   (allows multi-plugin orchestration to continue processing other plugins)
             upstream_phase_failed = True
 
             if fail_fast:
                 logger.error(
-                    "Phase %s: fail_fast=True, breaking plugin execution", phase
+                    "Phase %s: fail_fast=True, breaking plugin execution immediately",
+                    phase,
                 )
                 break
 
             logger.warning(
-                "Phase %s: fail_fast=False, marking downstream phases as skipped",
+                "Phase %s: fail_fast=False, setting upstream_phase_failed flag; "
+                "downstream phases will be skipped but orchestration continues",
                 phase,
             )
             continue

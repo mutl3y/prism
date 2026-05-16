@@ -1,0 +1,11 @@
+{
+  "plan_id": "mutl3y-review-20260505-g75",
+  "agent": "Scout-Ownership",
+  "focus_axis": "issue_discovery",
+  "candidate_files": [
+    "src/prism/api.py",
+    "src/prism/scanner_core/di.py",
+    "src/prism/scanner_plugins/defaults.py"
+  ],
+  "notes": "Routing aid for ownership, abstraction, and facade leakage review."
+}

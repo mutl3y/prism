@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import copy
+import inspect
+import logging
 from typing import Callable, NoReturn, Protocol, TypeGuard, cast, runtime_checkable
 
 from prism.errors import PrismRuntimeError
@@ -24,6 +26,8 @@ from prism.scanner_kernel.scan_payload_helpers import (
     _merge_routing_metadata,
     apply_scan_policy_blocker_runtime_outcomes,
 )
+
+logger = logging.getLogger(__name__)
 
 _ROUTING_MODE_PLUGIN = "scan_pipeline_plugin"
 
@@ -59,16 +63,115 @@ def _is_scan_pipeline_plugin_factory(
     return callable(value)
 
 
+def _validate_process_scan_pipeline_plugin_signature(
+    plugin: _ProcessScanPipelinePlugin,
+) -> None:
+    """Validate that plugin method signature matches Protocol contract.
+
+    Raises TypeError if method is missing required parameters or has
+    incompatible signature. isinstance() alone allows duck-typing that
+    can mask signature mismatches until runtime execution.
+    """
+    method = getattr(plugin, "process_scan_pipeline", None)
+    if method is None:
+        raise TypeError(
+            "process_scan_pipeline plugin missing required method: process_scan_pipeline"
+        )
+
+    try:
+        sig = inspect.signature(method)
+        params = list(sig.parameters.keys())
+        # Expected params: self, scan_options, scan_context
+        # After removing 'self', we need scan_options and scan_context
+        expected_params = {"scan_options", "scan_context"}
+        actual_params = set(params[1:]) if params else set()  # Skip 'self'
+
+        if not expected_params.issubset(actual_params):
+            missing = expected_params - actual_params
+            logger.warning(
+                "ProcessScanPipelinePlugin signature mismatch: missing required parameters %s. "
+                "Method signature: %s",
+                missing,
+                sig,
+            )
+            raise TypeError(
+                f"process_scan_pipeline method signature incomplete: missing {missing}"
+            )
+    except (ValueError, TypeError) as e:
+        if isinstance(e, TypeError) and "missing required" in str(e):
+            raise
+        logger.warning(
+            "Failed to inspect process_scan_pipeline signature: %s. Proceeding with runtime execution.",
+            e,
+        )
+
+
+def _validate_orchestrate_scan_payload_plugin_signature(
+    plugin: _OrchestrateScanPayloadPlugin,
+) -> None:
+    """Validate that plugin method signature matches Protocol contract.
+
+    Raises TypeError if method is missing required parameters or has
+    incompatible signature. isinstance() alone allows duck-typing that
+    can mask signature mismatches until runtime execution.
+    """
+    method = getattr(plugin, "orchestrate_scan_payload", None)
+    if method is None:
+        raise TypeError(
+            "orchestrate_scan_payload plugin missing required method: orchestrate_scan_payload"
+        )
+
+    try:
+        sig = inspect.signature(method)
+        params = list(sig.parameters.keys())
+        # Expected keyword-only params: payload, scan_options, strict_mode, preflight_context (optional)
+        expected_params = {"payload", "scan_options", "strict_mode"}
+        actual_params = set(params[1:]) if params else set()  # Skip 'self'
+
+        if not expected_params.issubset(actual_params):
+            missing = expected_params - actual_params
+            logger.warning(
+                "OrchestrateScanPayloadPlugin signature mismatch: missing required parameters %s. "
+                "Method signature: %s",
+                missing,
+                sig,
+            )
+            raise TypeError(
+                f"orchestrate_scan_payload method signature incomplete: missing {missing}"
+            )
+    except (ValueError, TypeError) as e:
+        if isinstance(e, TypeError) and "missing required" in str(e):
+            raise
+        logger.warning(
+            "Failed to inspect orchestrate_scan_payload signature: %s. Proceeding with runtime execution.",
+            e,
+        )
+
+
 def _is_process_scan_pipeline_plugin(
     value: object,
 ) -> TypeGuard[_ProcessScanPipelinePlugin]:
-    return isinstance(value, _ProcessScanPipelinePlugin)
+    if not isinstance(value, _ProcessScanPipelinePlugin):
+        return False
+    try:
+        _validate_process_scan_pipeline_plugin_signature(value)
+        return True
+    except TypeError as e:
+        logger.error("Process scan pipeline plugin validation failed: %s", e)
+        return False
 
 
 def _is_orchestrate_scan_payload_plugin(
     value: object,
 ) -> TypeGuard[_OrchestrateScanPayloadPlugin]:
-    return isinstance(value, _OrchestrateScanPayloadPlugin)
+    if not isinstance(value, _OrchestrateScanPayloadPlugin):
+        return False
+    try:
+        _validate_orchestrate_scan_payload_plugin_signature(value)
+        return True
+    except TypeError as e:
+        logger.error("Orchestrate scan payload plugin validation failed: %s", e)
+        return False
 
 
 def _instantiate_scan_pipeline_plugin(plugin_factory: object) -> object:
