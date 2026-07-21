@@ -204,7 +204,7 @@
 		"@biomejs/biome": "^2.4.10",
 		"@types/node": "^22.14.1",
 		"@types/vscode": "^1.96.0",
-		"@vscode/vsce": "^3.7.1",
+		"@vscode/vsce": "^3.9.2",
 		"typescript": "^5.8.2"
 	}
 }
